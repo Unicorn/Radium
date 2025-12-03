@@ -24,6 +24,7 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
 | **M5: Desktop App** | ✅ Complete | 100% | Tauri frontend with core features |
 | **M6: Testing & Polish** | 🔄 In Progress | 75% | Test coverage, optimization, docs |
 | **Step 0: Workspace** | ✅ Complete | 100% | RequirementId, Plan types, Discovery (22+ tests) |
+| **Step 6: Monitoring** | ✅ Complete | 100% | Agent tracking, telemetry, logs, checkpoints (44 tests) |
 
 ---
 
@@ -31,6 +32,18 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
 
 ### Completed Recently
 
+- [x] **Step 6: Monitoring & Telemetry**: Complete monitoring system implementation
+  - **Completed:** 2025-12-03
+  - **Commits:** Multiple commits for monitoring modules
+  - **Files:** `src/monitoring/{schema,service,telemetry,logs}.rs`, `src/checkpoint/{snapshot,error}.rs`
+  - **Tests:** 44 tests passing (29 monitoring + 15 checkpoint)
+  - **Features:**
+    - Database schema for agent lifecycle tracking
+    - Agent monitoring service with parent-child relationships
+    - Multi-provider telemetry parsing (OpenAI, Anthropic, Gemini)
+    - Token counting and cost calculation
+    - Log file management with ANSI color stripping
+    - Git-based checkpoint system for agent work snapshots
 - [x] **RAD-040**: Write E2E tests for CLI
   - **Completed:** 2025-12-02
   - **Commit:** test(cli): add E2E tests for core commands [RAD-040]
@@ -49,7 +62,11 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
 
 ### Outstanding Tasks
 
-### Outstanding Tasks
+- [ ] **RAD-TEST-017**: Implement Server Integration Tests
+  - **Status:** In Progress
+  - **Assignee:** Gemini
+  - **Started:** 2025-12-03
+  - **Notes:** Creating integration tests for gRPC service orchestration and workflow execution logic.
 
 - [x] **RAD-TEST-016**: Identify and Fill Test Coverage Gaps
   - **Completed:** 2025-12-03
@@ -83,12 +100,12 @@ Previous blockers resolved:
 
 ## 📊 Test Coverage Status
 
-**Last Updated:** 2025-12-01  
+**Last Updated:** 2025-12-03
 **Test Suite Status:** ✅ All tests passing
 
 ### Summary
 
-- **Total Tests**: ~105 passing, 0 failed, 6 ignored (manual execution)
+- **Total Tests**: ~149 passing, 0 failed, 6 ignored (manual execution)
 - **Unit Tests**: ✅ Comprehensive coverage across all core modules
 - **Integration Tests**: ✅ Core workflows tested
 - **E2E Tests**: ⚠️ Manual execution required (marked as ignored)
@@ -138,6 +155,7 @@ radium/
 
 | Date | Changes |
 |------|---------|
+| 2025-12-03 | Claude | Completed Step 6: Monitoring & Telemetry (44 tests passing) |
 | 2025-12-02 | Implemented template management (list, info, validate) with TemplateDiscovery system |
 | 2025-12-02 | Implemented agent management (list, search, info, validate) with full CLI integration |
 | 2025-12-02 | Fixed 38 clippy errors, improved code quality with modern Rust patterns |

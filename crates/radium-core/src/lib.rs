@@ -19,6 +19,7 @@
 
 pub mod agents;
 pub mod auth;
+pub mod checkpoint;
 pub mod commands;
 pub mod config;
 pub mod context;
@@ -44,6 +45,7 @@ pub mod proto {
 pub use agents::config::{AgentConfigError, AgentConfigFile, ReasoningEffort};
 pub use agents::discovery::{AgentDiscovery, DiscoveryError, DiscoveryOptions};
 pub use auth::{AuthError, AuthResult, CredentialStore, ProviderType};
+pub use checkpoint::{Checkpoint, CheckpointError, CheckpointManager, Result as CheckpointResult};
 pub use commands::{CommandError, CommandRegistry, CustomCommand, Result as CommandResult};
 pub use config::Config;
 pub use context::{ContextError, ContextInjector, ContextManager, InjectionDirective, Result as ContextResult};
