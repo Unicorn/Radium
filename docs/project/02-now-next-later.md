@@ -26,13 +26,15 @@
 ### Step 1: Agent Configuration System
 **Status**: Not Started  
 **Priority**: 🔴 Critical  
-**Est. Time**: 9-12 hours
+**Est. Time**: 15-18 hours
 
 - Agent configuration format (TOML-based)
 - Agent discovery from directories
 - Prompt template loading and organization
 - Basic placeholder replacement
 - Module configuration with behaviors
+- **MCP (Model Context Protocol) integration** for external tool discovery
+- **Context Files (GEMINI.md)** hierarchical loading system
 
 **Why Now**: All CLI commands and workflows need agent configuration to function.
 
@@ -59,13 +61,15 @@
 ### Step 3: Workflow Behaviors
 **Status**: Not Started  
 **Priority**: 🟡 High  
-**Est. Time**: 12-15 hours
+**Est. Time**: 18-22 hours
 
 - Loop behavior (step back with max iterations)
 - Trigger behavior (dynamic agent triggering)
 - Checkpoint behavior (save and resume)
 - Behavior.json control file support
 - Workflow template system
+- **Policy Engine** for fine-grained tool execution control
+- Approval modes and rule-based tool filtering
 
 **Why Now**: Core workflow execution features. Needed for `rad craft` to work properly.
 
@@ -99,13 +103,16 @@
 ### Step 5: Memory & Context System
 **Status**: Not Started  
 **Priority**: 🟡 High  
-**Est. Time**: 10-12 hours
+**Est. Time**: 15-18 hours
 
 - Plan-scoped memory storage
 - File-based memory adapter
 - Context gathering (architecture, plan, codebase)
 - File input injection syntax (`agent[input:file1.md]`)
 - Tail context support (`agent[tail:50]`)
+- **Custom Commands (TOML-based)** system for reusable prompts
+- Enhanced context system with file injection syntax (`@{file}`)
+- Shell command injection syntax (`!{command}`)
 
 **Why Next**: Essential for agent execution quality. Agents need context from previous runs.
 
@@ -114,17 +121,33 @@
 ### Step 6: Monitoring & Telemetry
 **Status**: Not Started  
 **Priority**: 🟡 High  
-**Est. Time**: 12-15 hours
+**Est. Time**: 18-22 hours
 
 - Agent monitoring database (SQLite)
 - Agent lifecycle tracking
 - Telemetry parsing (tokens, cost, cache stats)
 - Log file management
 - Parent-child agent relationships
+- **Checkpointing system** (Git snapshots + conversation history)
+- `/restore` command functionality
 
 **Why Next**: Needed for debugging, cost tracking, and agent coordination.
 
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-6-monitoring--telemetry) for detailed tasks.
+
+### Step 6.5: Sandboxing
+**Status**: Not Started  
+**Priority**: 🟡 High  
+**Est. Time**: 12-15 hours
+
+- Sandboxing support (Docker/Podman/macOS Seatbelt)
+- Sandbox profiles and configuration
+- Network control and isolation
+- Custom sandbox flags
+
+**Why Next**: Security and safety for agent execution, especially for shell commands and file operations.
+
+**Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-65-sandboxing) for detailed tasks.
 
 ---
 
@@ -208,7 +231,7 @@
 ### Step 10: Advanced Features
 **Status**: Not Started
 **Priority**: 🟢 Low
-**Est. Time**: 20-25 hours
+**Est. Time**: 30-35 hours
 
 - Project introspection (tech stack detection)
 - AI-powered question generation
@@ -217,6 +240,8 @@
 - ✅ `rad templates` commands (Complete)
 - ✅ `rad auth` commands - API key auth (Complete)
 - Non-interactive mode and JSON output
+- **Extension System** (installable extensions with gemini-extension.json)
+- **Hooks System** for behavior customization
 
 **Why Later**: Advanced features that enhance usability but aren't core to functionality.
 
@@ -244,17 +269,17 @@
 
 | Phase | Steps | Est. Time | Priority |
 |-------|-------|-----------|----------|
-| **NOW** | 0-3 | 39-51 hours | 🔴 Critical |
-| **NEXT** | 4-6 | 37-47 hours | 🟡 High |
-| **LATER** | 7-8, 10 | 50-65 hours | 🟢 Medium/Low |
+| **NOW** | 0-3 | 45-61 hours | 🔴 Critical |
+| **NEXT** | 4-6, 6.5 | 67-87 hours | 🟡 High |
+| **LATER** | 7-8, 10 | 80-100 hours | 🟢 Medium/Low |
 | **HIGH** | 9 | 40-50 hours | 🟡 High (Agent Library) |
-| **Total** | 0-10 | 166-213 hours | |
+| **Total** | 0-10 | 232-298 hours | |
 
 **Timeline Estimate**: 
 - **NOW**: 1-2 weeks
-- **NEXT**: 1-2 weeks  
+- **NEXT**: 2-3 weeks (includes gemini-cli enhancements)
 - **LATER**: 2-3 weeks
-- **Total**: 4-7 weeks for complete feature parity
+- **Total**: 5-8 weeks for complete feature parity
 
 ---
 
@@ -277,4 +302,5 @@ Feature parity is achieved when:
 - **Detailed Implementation Plan**: [03-implementation-plan.md](./03-implementation-plan.md)
 - **Feature Backlog**: [legacy-system-feature-backlog.md](./legacy-system-feature-backlog.md)
 - **Completed Work**: [01-completed.md](./01-completed.md)
+- **Gemini CLI Enhancements**: [gemini-cli-enhancements.md](../features/gemini-cli-enhancements.md)
 

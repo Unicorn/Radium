@@ -1645,10 +1645,12 @@ name = "radium-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_cmd",
  "chrono",
  "clap",
  "colored",
  "inquire",
+ "predicates",
  "radium-core",
  "radium-models",
  "serde_json",

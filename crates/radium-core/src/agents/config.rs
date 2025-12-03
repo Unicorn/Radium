@@ -6,6 +6,35 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use thiserror::Error;
 
+// Note: We use a type alias to avoid circular dependencies.
+// The actual types are in crate::workflow::behaviors, but we'll
+// define them here as optional TOML fields that can be deserialized.
+// For now, we'll use a simplified representation that can be
+// converted to the full types when needed.
+
+/// Simplified loop behavior configuration for TOML.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentLoopBehavior {
+    /// Number of steps to go back when looping.
+    pub steps: usize,
+    /// Maximum number of iterations before stopping.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_iterations: Option<usize>,
+    /// List of step IDs to skip during loop.
+    #[serde(default)]
+    pub skip: Vec<String>,
+}
+
+/// Simplified trigger behavior configuration for TOML.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentTriggerBehavior {
+    /// Default agent ID to trigger (can be overridden in behavior.json).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trigger_agent_id: Option<String>,
+}
+
 /// Agent configuration errors.
 #[derive(Debug, Error)]
 pub enum AgentConfigError {
@@ -157,6 +186,20 @@ pub struct AgentConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<ReasoningEffort>,
 
+    /// Optional loop behavior configuration.
+    ///
+    /// When set, this agent can request looping back to previous steps
+    /// during workflow execution.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub loop_behavior: Option<AgentLoopBehavior>,
+
+    /// Optional trigger behavior configuration.
+    ///
+    /// When set, this agent can dynamically trigger other agents
+    /// during workflow execution.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trigger_behavior: Option<AgentTriggerBehavior>,
+
     /// Agent category (e.g., "my-agents", "rad-agents/design").
     ///
     /// This is typically derived from the file path, not stored in the TOML.
@@ -182,6 +225,8 @@ impl AgentConfig {
             engine: None,
             model: None,
             reasoning_effort: None,
+            loop_behavior: None,
+            trigger_behavior: None,
             category: None,
             file_path: None,
         }
@@ -226,6 +271,20 @@ impl AgentConfig {
     #[must_use]
     pub fn with_file_path(mut self, path: PathBuf) -> Self {
         self.file_path = Some(path);
+        self
+    }
+
+    /// Set the loop behavior configuration.
+    #[must_use]
+    pub fn with_loop_behavior(mut self, config: AgentLoopBehavior) -> Self {
+        self.loop_behavior = Some(config);
+        self
+    }
+
+    /// Set the trigger behavior configuration.
+    #[must_use]
+    pub fn with_trigger_behavior(mut self, config: AgentTriggerBehavior) -> Self {
+        self.trigger_behavior = Some(config);
         self
     }
 }
@@ -333,5 +392,85 @@ prompt_path = "prompts/minimal.md"
     #[test]
     fn test_reasoning_effort_default() {
         assert_eq!(ReasoningEffort::default(), ReasoningEffort::Medium);
+    }
+
+    #[test]
+    fn test_agent_config_with_loop_behavior() {
+        let toml_content = r#"
+[agent]
+id = "test-agent"
+name = "Test Agent"
+description = "Test agent with loop behavior"
+prompt_path = "prompts/test.md"
+
+[agent.loop_behavior]
+steps = 2
+max_iterations = 5
+skip = ["step-1", "step-3"]
+"#;
+
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(toml_content.as_bytes()).unwrap();
+        file.flush().unwrap();
+
+        let config = AgentConfigFile::load(file.path()).unwrap();
+        assert_eq!(config.agent.id, "test-agent");
+        assert!(config.agent.loop_behavior.is_some());
+
+        let loop_behavior = config.agent.loop_behavior.unwrap();
+        assert_eq!(loop_behavior.steps, 2);
+        assert_eq!(loop_behavior.max_iterations, Some(5));
+        assert_eq!(loop_behavior.skip, vec!["step-1", "step-3"]);
+    }
+
+    #[test]
+    fn test_agent_config_with_trigger_behavior() {
+        let toml_content = r#"
+[agent]
+id = "test-agent"
+name = "Test Agent"
+description = "Test agent with trigger behavior"
+prompt_path = "prompts/test.md"
+
+[agent.trigger_behavior]
+trigger_agent_id = "fallback-agent"
+"#;
+
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(toml_content.as_bytes()).unwrap();
+        file.flush().unwrap();
+
+        let config = AgentConfigFile::load(file.path()).unwrap();
+        assert_eq!(config.agent.id, "test-agent");
+        assert!(config.agent.trigger_behavior.is_some());
+
+        let trigger_behavior = config.agent.trigger_behavior.unwrap();
+        assert_eq!(trigger_behavior.trigger_agent_id, Some("fallback-agent".to_string()));
+    }
+
+    #[test]
+    fn test_agent_config_with_both_behaviors() {
+        let toml_content = r#"
+[agent]
+id = "test-agent"
+name = "Test Agent"
+description = "Test agent with both behaviors"
+prompt_path = "prompts/test.md"
+
+[agent.loop_behavior]
+steps = 3
+max_iterations = 10
+
+[agent.trigger_behavior]
+trigger_agent_id = "helper-agent"
+"#;
+
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(toml_content.as_bytes()).unwrap();
+        file.flush().unwrap();
+
+        let config = AgentConfigFile::load(file.path()).unwrap();
+        assert!(config.agent.loop_behavior.is_some());
+        assert!(config.agent.trigger_behavior.is_some());
     }
 }

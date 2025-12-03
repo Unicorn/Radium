@@ -18,6 +18,10 @@
 //! # }
 //! ```
 
+pub mod processing;
 pub mod templates;
 
-pub use templates::{PromptContext, PromptError, PromptTemplate};
+pub use processing::{
+    FileInjectionFormat, FileInjectionOptions, PromptCache, process_with_file_injection,
+};
+pub use templates::{PromptContext, PromptError, PromptTemplate, Result};
