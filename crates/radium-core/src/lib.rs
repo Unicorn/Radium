@@ -47,7 +47,8 @@ pub use models::plan::{Iteration, Plan, PlanError, PlanManifest, PlanStatus, Pla
 pub use models::task::{Task, TaskError, TaskQueue, TaskResult, TaskState};
 pub use models::workflow::{Workflow, WorkflowError, WorkflowState, WorkflowStep};
 pub use planning::{
-    ParsedIteration, ParsedPlan, ParsedTask, PlanGenerator, PlanGeneratorConfig, PlanParser,
+    ExecutionConfig, ExecutionError, ParsedIteration, ParsedPlan, ParsedTask, PlanExecutor,
+    PlanGenerator, PlanGeneratorConfig, PlanParser, TaskResult as PlanTaskResult,
 };
 pub use policy::{
     ApprovalMode, PolicyAction, PolicyDecision, PolicyEngine, PolicyError, PolicyPriority,

@@ -406,4 +406,245 @@ mod tests {
 
         assert_eq!(deserialized.get_completed_steps(), tracker.get_completed_steps());
     }
+
+    #[test]
+    fn test_step_tracker_multiple_steps() {
+        let mut tracker = StepTracker::new();
+
+        // Track multiple steps
+        tracker.mark_started("step-1");
+        tracker.mark_completed("step-1");
+        tracker.mark_started("step-2");
+        tracker.mark_completed("step-2");
+        tracker.mark_started("step-3");
+        // step-3 not completed
+
+        assert_eq!(tracker.get_completed_steps().len(), 2);
+        assert_eq!(tracker.get_not_completed_steps().len(), 1);
+        assert!(tracker.is_completed("step-1"));
+        assert!(tracker.is_completed("step-2"));
+        assert!(!tracker.is_completed("step-3"));
+    }
+
+    #[test]
+    fn test_step_tracker_never_started() {
+        let tracker = StepTracker::new();
+
+        // Step that was never started
+        assert!(!tracker.is_completed("step-1"));
+        assert_eq!(tracker.get_completed_steps().len(), 0);
+    }
+
+    #[test]
+    fn test_step_tracker_started_never_completed() {
+        let mut tracker = StepTracker::new();
+        tracker.mark_started("step-1");
+        // Never mark as completed
+
+        assert!(!tracker.is_completed("step-1"));
+        assert_eq!(tracker.get_completed_steps().len(), 0);
+        assert_eq!(tracker.get_not_completed_steps().len(), 0); // Not added to not_completed until failed
+    }
+
+    #[test]
+    fn test_step_tracker_multiple_failures() {
+        let mut tracker = StepTracker::new();
+
+        // Step fails multiple times (restarted)
+        tracker.mark_started("step-1");
+        tracker.mark_failed("step-1", "Error 1");
+        tracker.mark_started("step-1"); // Restart
+        tracker.mark_failed("step-1", "Error 2");
+
+        let record = tracker.get_record("step-1").unwrap();
+        assert_eq!(record.execution_count, 2);
+        assert_eq!(record.status, StepStatus::Failed);
+        assert_eq!(record.error.as_deref(), Some("Error 2"));
+    }
+
+    #[test]
+    fn test_step_tracker_get_completed_steps_multiple() {
+        let mut tracker = StepTracker::new();
+
+        for i in 1..=5 {
+            tracker.mark_started(&format!("step-{}", i));
+            tracker.mark_completed(&format!("step-{}", i));
+        }
+
+        let completed = tracker.get_completed_steps();
+        assert_eq!(completed.len(), 5);
+        assert!(completed.contains(&"step-1".to_string()));
+        assert!(completed.contains(&"step-5".to_string()));
+    }
+
+    #[test]
+    fn test_step_tracker_get_not_completed_steps_mixed() {
+        let mut tracker = StepTracker::new();
+
+        tracker.mark_started("step-1");
+        tracker.mark_completed("step-1");
+        tracker.mark_started("step-2");
+        tracker.mark_failed("step-2", "Error");
+        tracker.mark_started("step-3");
+        // step-3 in progress, not completed
+
+        let not_completed = tracker.get_not_completed_steps();
+        assert_eq!(not_completed.len(), 1); // Only step-2 (failed)
+        assert!(not_completed.contains(&"step-2".to_string()));
+    }
+
+    #[test]
+    fn test_step_record_mark_completed_without_starting() {
+        let mut record = StepRecord::new("step-1");
+        // Mark completed without starting
+        record.mark_completed();
+
+        assert_eq!(record.status, StepStatus::Completed);
+        assert!(record.completed_at.is_some());
+        assert_eq!(record.execution_count, 0); // Never started
+    }
+
+    #[test]
+    fn test_step_record_mark_failed_without_starting() {
+        let mut record = StepRecord::new("step-1");
+        // Mark failed without starting
+        record.mark_failed("Error");
+
+        assert_eq!(record.status, StepStatus::Failed);
+        assert!(record.completed_at.is_some());
+        assert_eq!(record.error.as_deref(), Some("Error"));
+        assert_eq!(record.execution_count, 0); // Never started
+    }
+
+    #[test]
+    fn test_step_record_multiple_mark_started() {
+        let mut record = StepRecord::new("step-1");
+        record.mark_started();
+        assert_eq!(record.execution_count, 1);
+
+        record.mark_started();
+        assert_eq!(record.execution_count, 2);
+
+        record.mark_started();
+        assert_eq!(record.execution_count, 3);
+    }
+
+    #[test]
+    fn test_step_record_error_message_handling() {
+        let mut record = StepRecord::new("step-1");
+        record.mark_started();
+        record.mark_failed("Test error message");
+
+        assert_eq!(record.error.as_deref(), Some("Test error message"));
+        assert_eq!(record.status, StepStatus::Failed);
+
+        // Mark completed should clear error
+        record.mark_completed();
+        assert!(record.error.is_none());
+        assert_eq!(record.status, StepStatus::Completed);
+    }
+
+    #[test]
+    fn test_step_status_transitions() {
+        let mut record = StepRecord::new("step-1");
+        assert_eq!(record.status, StepStatus::Pending);
+
+        record.mark_started();
+        assert_eq!(record.status, StepStatus::InProgress);
+
+        record.mark_completed();
+        assert_eq!(record.status, StepStatus::Completed);
+    }
+
+    #[test]
+    fn test_step_status_skipped() {
+        let mut record = StepRecord::new("step-1");
+        record.mark_skipped();
+
+        assert_eq!(record.status, StepStatus::Skipped);
+        assert!(record.completed_at.is_some());
+    }
+
+    #[test]
+    fn test_step_tracker_mark_skipped() {
+        let mut tracker = StepTracker::new();
+        tracker.mark_skipped("step-1");
+
+        let record = tracker.get_record("step-1").unwrap();
+        assert_eq!(record.status, StepStatus::Skipped);
+        assert!(!tracker.is_completed("step-1"));
+    }
+
+    #[test]
+    fn test_step_tracker_get_resume_index_all_completed() {
+        let mut tracker = StepTracker::new();
+        for i in 0..5 {
+            tracker.mark_completed(&i.to_string());
+        }
+
+        // All steps completed, should return total_steps
+        assert_eq!(tracker.get_resume_index(5), 5);
+    }
+
+    #[test]
+    fn test_step_tracker_get_resume_index_with_non_numeric_ids() {
+        let mut tracker = StepTracker::new();
+        tracker.mark_completed("step-a");
+        tracker.mark_completed("step-b");
+
+        // Non-numeric IDs won't parse, so resume index should be 0
+        assert_eq!(tracker.get_resume_index(5), 0);
+    }
+
+    #[test]
+    fn test_step_tracker_remove_from_not_completed() {
+        let mut tracker = StepTracker::new();
+        tracker.mark_started("step-1");
+        tracker.mark_failed("step-1", "Error");
+
+        assert_eq!(tracker.get_not_completed_steps().len(), 1);
+
+        tracker.remove_from_not_completed("step-1");
+        assert_eq!(tracker.get_not_completed_steps().len(), 0);
+    }
+
+    #[test]
+    fn test_step_tracker_get_record_nonexistent() {
+        let tracker = StepTracker::new();
+        assert!(tracker.get_record("nonexistent").is_none());
+    }
+
+    #[test]
+    fn test_step_tracker_save_load_error_handling() {
+        let temp_dir = TempDir::new().unwrap();
+        let invalid_path = temp_dir.path().join("nonexistent").join("tracking.json");
+
+        let tracker = StepTracker::new();
+        // Should create parent directory
+        let result = tracker.save_to_file(&invalid_path);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_step_tracker_load_from_invalid_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let invalid_file = temp_dir.path().join("invalid.json");
+        std::fs::write(&invalid_file, "{ invalid json }").unwrap();
+
+        let result = StepTracker::load_from_file(&invalid_file);
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(matches!(e, StepTrackingError::ParseError { .. }));
+        }
+    }
+
+    #[test]
+    fn test_step_tracker_load_from_nonexistent_file() {
+        let nonexistent = TempDir::new().unwrap().path().join("nonexistent.json");
+        let result = StepTracker::load_from_file(&nonexistent);
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(matches!(e, StepTrackingError::IoError { .. }));
+        }
+    }
 }
