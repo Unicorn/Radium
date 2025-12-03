@@ -1,0 +1,82 @@
+# Clippy configuration
+# https://doc.rust-lang.org/clippy/configuration.html
+
+# MSRV for compatibility lints
+msrv = "1.83.0"
+
+# Cognitive complexity threshold for functions
+cognitive-complexity-threshold = 25
+
+# Maximum lines allowed in a function
+too-many-lines-threshold = 100
+
+# Maximum arguments for functions
+too-many-arguments-threshold = 7
+
+# Maximum struct fields
+max-struct-bools = 3
+
+# Type complexity threshold
+type-complexity-threshold = 250
+
+# Allowed wildcard imports (common preludes)
+allowed-wildcard-imports = ["tokio::prelude::*", "futures::prelude::*"]
+
+# Documentation requirements - don't require docs for test functions
+missing-docs-in-crate-items = false
+
+# Allow these identifiers even if they look like typos
+allowed-idents-below-min-chars = [
+  "x",
+  "y",
+  "z",
+  "i",
+  "j",
+  "k",
+  "n",
+  "id",
+  "tx",
+  "rx",
+]
+
+# Disallowed macros (e.g., debugging macros in production)
+disallowed-macros = [
+  { path = "std::dbg", reason = "Use tracing macros instead" },
+  { path = "std::print", reason = "Use tracing macros instead" },
+  { path = "std::println", reason = "Use tracing macros instead" },
+  { path = "std::eprint", reason = "Use tracing macros instead" },
+  { path = "std::eprintln", reason = "Use tracing macros instead" },
+]
+
+# Disallowed methods
+disallowed-methods = [
+  { path = "std::env::var", reason = "Use config crate for configuration" },
+]
+
+# Allowed names for variables (don't warn on these common abbreviations)
+allowed-prefixes = ["to_", "from_", "into_", "as_", "try_"]
+
+# Single char binding names to allow
+single-char-binding-names-threshold = 4
+
+# Minimum identifier length
+min-ident-chars-threshold = 2
+
+# Stack size threshold for large futures
+future-size-threshold = 16384
+
+# Allow trivial regex patterns
+trivial-copy-size-limit = 16
+
+# Pass by value size limit
+pass-by-value-size-limit = 256
+
+# Verbose bit mask threshold
+verbose-bit-mask-threshold = 1
+
+# Upper case acronyms
+upper-case-acronyms-aggressive = false
+
+# Enum variant name prefix/suffix thresholds
+enum-variant-name-threshold = 3
+struct-field-name-threshold = 3

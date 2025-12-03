@@ -1,0 +1,38 @@
+[package]
+name = "radium-orchestrator"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Internal crates
+radium-abstraction.workspace = true
+radium-models.workspace = true
+
+# Async runtime
+tokio.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Error handling
+anyhow.workspace = true
+
+# Async traits
+async-trait.workspace = true
+
+# Logging
+tracing.workspace = true
+
+# UUID generation
+uuid = { version = "1.0", features = ["v4"] }
+
+# Futures utilities
+futures = "0.3"

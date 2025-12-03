@@ -1,0 +1,59 @@
+{
+	"$schema": "./node_modules/nx/schemas/nx-schema.json",
+	"namedInputs": {
+		"default": ["{projectRoot}/**/*", "sharedGlobals"],
+		"production": [
+			"default",
+			"!{projectRoot}/**/*.spec.rs",
+			"!{projectRoot}/**/tests/**/*",
+			"!{projectRoot}/**/*.spec.ts",
+			"!{projectRoot}/**/*.spec.tsx",
+			"!{projectRoot}/**/*.test.ts",
+			"!{projectRoot}/**/*.test.tsx"
+		],
+		"sharedGlobals": [
+			"{workspaceRoot}/Cargo.toml",
+			"{workspaceRoot}/rust-toolchain.toml",
+			"{workspaceRoot}/tsconfig.base.json",
+			"{workspaceRoot}/package.json"
+		]
+	},
+	"targetDefaults": {
+		"build": {
+			"dependsOn": ["^build"],
+			"cache": true,
+			"inputs": ["production", "^production"]
+		},
+		"test": {
+			"dependsOn": ["build"],
+			"cache": true,
+			"inputs": ["default", "^production", "{workspaceRoot}/jest.preset.js"]
+		},
+		"lint": {
+			"cache": true,
+			"inputs": ["default", "{workspaceRoot}/.eslintrc.json"]
+		},
+		"type-check": {
+			"dependsOn": ["^build"],
+			"cache": true,
+			"inputs": ["default", "^production", "{workspaceRoot}/tsconfig.base.json"]
+		}
+	},
+	"plugins": [
+		"@monodon/rust",
+		{
+			"plugin": "@nx/js",
+			"options": {
+				"analyzeSourceFiles": true
+			}
+		},
+		{
+			"plugin": "@nx/react",
+			"options": {
+				"style": "css",
+				"bundler": "vite"
+			}
+		}
+	],
+	"defaultBase": "main"
+}

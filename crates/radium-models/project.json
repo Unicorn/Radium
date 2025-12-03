@@ -1,0 +1,37 @@
+{
+	"name": "radium-models",
+	"$schema": "../node_modules/nx/schemas/project-schema.json",
+	"projectType": "library",
+	"sourceRoot": "./radium-models/src",
+	"targets": {
+		"build": {
+			"executor": "@monodon/rust:check",
+			"outputs": ["{options.target-dir}"],
+			"options": {
+				"target-dir": "dist/target/radium-models"
+			}
+		},
+		"test": {
+			"cache": true,
+			"executor": "@monodon/rust:test",
+			"outputs": ["{options.target-dir}"],
+			"options": {
+				"target-dir": "dist/target/radium-models"
+			},
+			"configurations": {
+				"production": {
+					"release": true
+				}
+			}
+		},
+		"lint": {
+			"cache": true,
+			"executor": "@monodon/rust:lint",
+			"outputs": ["{options.target-dir}"],
+			"options": {
+				"target-dir": "dist/target/radium-models"
+			}
+		}
+	},
+	"tags": ["scope:backend", "type:lib", "lang:rust"]
+}

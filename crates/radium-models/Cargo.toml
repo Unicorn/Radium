@@ -1,0 +1,36 @@
+[package]
+name = "radium-models"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Internal crates
+radium-abstraction.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Async traits
+async-trait.workspace = true
+
+# HTTP client - using reqwest (simpler than raw hyper)
+reqwest = { version = "0.12", features = ["json"] }
+tokio = { version = "1", features = ["rt", "net"] }
+
+# Logging
+tracing.workspace = true
+
+# Error handling
+thiserror.workspace = true
+anyhow.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

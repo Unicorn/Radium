@@ -1,0 +1,92 @@
+[workspace]
+resolver = '2'
+members = [
+  'crates/radium-core',
+  'crates/radium-abstraction',
+  'crates/radium-models',
+  'crates/radium-orchestrator',
+  'apps/cli',
+  'apps/tui',
+]
+exclude = [
+  'apps/desktop/src-tauri',
+]
+
+[workspace.package]
+version = '0.1.0'
+edition = '2024'
+license = 'MIT'
+repository = 'https://github.com/Unicorn/RAD-Radium'
+authors = ['Unicorn <hello@unicorn.love>']
+rust-version = '1.91.1'
+
+[workspace.lints.rust]
+unsafe_code = 'deny'
+
+[workspace.lints.clippy]
+all = { level = 'warn', priority = -1 }
+pedantic = { level = 'warn', priority = -1 }
+nursery = { level = 'warn', priority = -1 }
+
+# Allow common patterns that are too strict for our codebase
+module_name_repetitions = 'allow'        # AgentState, AgentConfig, etc. are intentional
+must_use_candidate = 'allow'             # Too noisy for every function
+missing_const_for_fn = 'allow'           # Not all functions need to be const
+doc_markdown = 'allow'                   # We don't need backticks everywhere
+similar_names = 'allow'                  # req/res, etc. are fine
+redundant_pub_crate = 'allow'            # We use pub(crate) intentionally
+uninlined_format_args = 'allow'          # format!("...", e) is readable
+use_self = 'allow'                       # Explicit type names in From/TryFrom are clearer
+derive_partial_eq_without_eq = 'allow'   # For types with optional fields
+cast_sign_loss = 'allow'                 # Clamped values are safe
+cast_possible_truncation = 'allow'       # For step order and token counts
+manual_string_new = 'allow'              # "".to_string() is common in tests
+significant_drop_tightening = 'allow'    # Mutex guard lifetime is intentional
+option_if_let_else = 'allow'             # if let Some is more readable
+explicit_auto_deref = 'allow'            # &mut *db pattern is clear
+missing_errors_doc = 'allow'             # Error docs can be verbose
+missing_panics_doc = 'allow'             # Panic docs can be verbose
+redundant_closure = 'allow'              # Closures can be clearer than function refs
+future_not_send = 'allow'                # Generated proto code uses impl Trait
+default_trait_access = 'allow'           # Generated proto code uses Default::default()
+too_many_lines = 'allow'                 # Generated proto code can be long
+
+[workspace.dependencies]
+tokio = { version = '1', features = ['full'] }
+tonic = '0.13'
+tonic-web = '0.13'
+tonic-build = '0.13'
+prost = '0.13'
+tower = '0.5'
+serde = { version = '1.0', features = ['derive'] }
+serde_json = '1.0'
+toml = '0.8'
+config = '0.14'
+tracing = '0.1'
+tracing-subscriber = { version = '0.3', features = ['env-filter', 'json'] }
+thiserror = '1.0'
+anyhow = '1.0'
+async-trait = '0.1'
+clap = { version = '4.5', features = ['derive'] }
+assert_cmd = "2.0"
+predicates = "3.1"
+radium-abstraction = { path = 'crates/radium-abstraction' }
+radium-models = { path = 'crates/radium-models' }
+radium-core = { path = 'crates/radium-core' }
+radium-orchestrator = { path = 'crates/radium-orchestrator' }
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+
+[profile.dev]
+incremental = true
+
+[profile.dev.package.'*']
+opt-level = 2
+
+[profile.test]
+opt-level = 1
+incremental = true
+debug = 1  # Less debug info = faster compilation

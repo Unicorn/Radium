@@ -1,0 +1,14 @@
+# Rust build artifacts
+target/
+**/target/
+dist/
+**/dist/
+
+# Cargo lock (not needed for Nx caching)
+Cargo.lock
+
+# Rust backup files
+*.rs.bk
+
+# Generated proto files
+**/src/*.pb.rs

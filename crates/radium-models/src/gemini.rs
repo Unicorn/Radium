@@ -1,0 +1,281 @@
+//! Google Gemini model implementation.
+//!
+//! This module provides an implementation of the `Model` trait for Google's Gemini API.
+
+use async_trait::async_trait;
+use radium_abstraction::{
+    ChatMessage, Model, ModelError, ModelParameters, ModelResponse, ModelUsage,
+};
+use reqwest::Client;
+use serde::{Deserialize, Serialize};
+use std::env;
+use tracing::{debug, error};
+
+/// Google Gemini model implementation.
+#[derive(Debug, Clone)]
+pub struct GeminiModel {
+    /// The model ID (e.g., "gemini-pro", "gemini-1.5-pro").
+    model_id: String,
+    /// The API key for authentication.
+    api_key: String,
+    /// The base URL for the Gemini API.
+    base_url: String,
+    /// HTTP client for making requests.
+    client: Client,
+}
+
+impl GeminiModel {
+    /// Creates a new `GeminiModel` with the given model ID.
+    ///
+    /// # Arguments
+    /// * `model_id` - The Gemini model ID to use (e.g., "gemini-pro")
+    ///
+    /// # Errors
+    /// Returns a `ModelError` if the API key is not found in environment variables.
+    #[allow(clippy::disallowed_methods)] // env::var is needed for API key loading
+    pub fn new(model_id: String) -> Result<Self, ModelError> {
+        let api_key = env::var("GEMINI_API_KEY").map_err(|_| {
+            ModelError::UnsupportedModelProvider(
+                "GEMINI_API_KEY environment variable not set".to_string(),
+            )
+        })?;
+
+        Ok(Self {
+            model_id,
+            api_key,
+            base_url: "https://generativelanguage.googleapis.com/v1beta".to_string(),
+            client: Client::new(),
+        })
+    }
+
+    /// Creates a new `GeminiModel` with a custom API key.
+    ///
+    /// # Arguments
+    /// * `model_id` - The Gemini model ID to use
+    /// * `api_key` - The API key for authentication
+    #[must_use]
+    pub fn with_api_key(model_id: String, api_key: String) -> Self {
+        Self {
+            model_id,
+            api_key,
+            base_url: "https://generativelanguage.googleapis.com/v1beta".to_string(),
+            client: Client::new(),
+        }
+    }
+
+    /// Converts our ChatMessage role to Gemini API role format.
+    fn role_to_gemini(role: &str) -> String {
+        match role {
+            "assistant" => "model".to_string(),
+            "system" | "user" => "user".to_string(), // Gemini doesn't have system role, map to user
+            _ => role.to_string(),
+        }
+    }
+}
+
+#[async_trait]
+impl Model for GeminiModel {
+    async fn generate_text(
+        &self,
+        prompt: &str,
+        parameters: Option<ModelParameters>,
+    ) -> Result<ModelResponse, ModelError> {
+        debug!(
+            model_id = %self.model_id,
+            prompt_len = prompt.len(),
+            parameters = ?parameters,
+            "GeminiModel generating text"
+        );
+
+        // Convert single prompt to chat format for Gemini
+        let messages = vec![ChatMessage { role: "user".to_string(), content: prompt.to_string() }];
+
+        self.generate_chat_completion(&messages, parameters).await
+    }
+
+    async fn generate_chat_completion(
+        &self,
+        messages: &[ChatMessage],
+        parameters: Option<ModelParameters>,
+    ) -> Result<ModelResponse, ModelError> {
+        debug!(
+            model_id = %self.model_id,
+            message_count = messages.len(),
+            parameters = ?parameters,
+            "GeminiModel generating chat completion"
+        );
+
+        // Build Gemini API request
+        let url = format!(
+            "{}/models/{}:generateContent?key={}",
+            self.base_url, self.model_id, self.api_key
+        );
+
+        // Convert messages to Gemini format
+        let gemini_messages: Vec<GeminiContent> = messages
+            .iter()
+            .map(|msg| GeminiContent {
+                role: Self::role_to_gemini(&msg.role),
+                parts: vec![GeminiPart { text: msg.content.clone() }],
+            })
+            .collect();
+
+        // Build request body
+        let mut request_body = GeminiRequest { contents: gemini_messages, generation_config: None };
+
+        // Apply parameters if provided
+        if let Some(params) = parameters {
+            request_body.generation_config = Some(GeminiGenerationConfig {
+                temperature: params.temperature,
+                top_p: params.top_p,
+                max_output_tokens: params.max_tokens,
+                stop_sequences: params.stop_sequences,
+            });
+        }
+
+        // Make API request using reqwest
+        let response = self.client.post(&url).json(&request_body).send().await.map_err(|e| {
+            error!(error = %e, "Failed to send request to Gemini API");
+            ModelError::RequestError(format!("Network error: {}", e))
+        })?;
+
+        // Check status
+        let status = response.status();
+        if !status.is_success() {
+            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            error!(
+                status = %status,
+                error = %error_text,
+                "Gemini API returned error status"
+            );
+            return Err(ModelError::ModelResponseError(format!(
+                "API error ({}): {}",
+                status, error_text
+            )));
+        }
+
+        // Parse response
+        let gemini_response: GeminiResponse = response.json().await.map_err(|e| {
+            error!(error = %e, "Failed to parse Gemini API response");
+            ModelError::SerializationError(format!("Failed to parse response: {}", e))
+        })?;
+
+        // Extract content from response
+        let content = gemini_response
+            .candidates
+            .first()
+            .and_then(|c| c.content.parts.first())
+            .map(|p| p.text.clone())
+            .ok_or_else(|| {
+                error!("No content in Gemini API response");
+                ModelError::ModelResponseError("No content in API response".to_string())
+            })?;
+
+        // Extract usage information
+        let usage = gemini_response.usage_metadata.map(|meta| ModelUsage {
+            prompt_tokens: meta.prompt_token_count.unwrap_or(0),
+            completion_tokens: meta.candidates_token_count.unwrap_or(0),
+            total_tokens: meta.total_token_count.unwrap_or(0),
+        });
+
+        Ok(ModelResponse { content, model_id: Some(self.model_id.clone()), usage })
+    }
+
+    fn model_id(&self) -> &str {
+        &self.model_id
+    }
+}
+
+// Gemini API request/response structures
+
+#[derive(Debug, Serialize)]
+struct GeminiRequest {
+    contents: Vec<GeminiContent>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    generation_config: Option<GeminiGenerationConfig>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct GeminiContent {
+    role: String,
+    parts: Vec<GeminiPart>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct GeminiPart {
+    text: String,
+}
+
+#[derive(Debug, Serialize)]
+struct GeminiGenerationConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    temperature: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    top_p: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_output_tokens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stop_sequences: Option<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GeminiResponse {
+    candidates: Vec<GeminiCandidate>,
+    #[serde(rename = "usageMetadata")]
+    usage_metadata: Option<GeminiUsageMetadata>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GeminiCandidate {
+    content: GeminiContent,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(clippy::struct_field_names)] // Matches API naming
+struct GeminiUsageMetadata {
+    #[serde(rename = "promptTokenCount")]
+    prompt_token_count: Option<u32>,
+    #[serde(rename = "candidatesTokenCount")]
+    candidates_token_count: Option<u32>,
+    #[serde(rename = "totalTokenCount")]
+    total_token_count: Option<u32>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_role_conversion() {
+        assert_eq!(GeminiModel::role_to_gemini("user"), "user");
+        assert_eq!(GeminiModel::role_to_gemini("assistant"), "model");
+        assert_eq!(GeminiModel::role_to_gemini("system"), "user");
+    }
+
+    #[test]
+    fn test_gemini_model_creation_with_api_key() {
+        let model = GeminiModel::with_api_key("gemini-pro".to_string(), "test-key".to_string());
+        assert_eq!(model.model_id(), "gemini-pro");
+    }
+
+    #[test]
+    #[ignore = "Requires API key and network access"]
+    #[allow(clippy::disallowed_methods, clippy::disallowed_macros)] // Test code can use env::var and eprintln
+    fn test_gemini_generate_text() {
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        rt.block_on(async {
+            let api_key = env::var("GEMINI_API_KEY").ok();
+            if api_key.is_none() {
+                eprintln!("Skipping test: GEMINI_API_KEY not set");
+                return;
+            }
+
+            let model = GeminiModel::new("gemini-pro".to_string()).unwrap();
+            let response =
+                model.generate_text("Say hello", None).await.expect("Should generate text");
+
+            assert!(!response.content.is_empty());
+            assert_eq!(response.model_id, Some("gemini-pro".to_string()));
+        });
+    }
+}
