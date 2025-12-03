@@ -39,15 +39,17 @@
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-1-agent-configuration-system) for detailed tasks.
 
 ### Step 2: Core CLI Commands
-**Status**: 🔄 In Progress  
-**Priority**: 🔴 Critical  
-**Est. Time**: 8-10 hours
+**Status**: ✅ Complete
+**Priority**: 🔴 Critical
+**Est. Time**: 8-10 hours (Completed)
 
 - [x] `rad init` - Intelligent workspace initialization
-- `rad status` - Show workspace and engine status
-- `rad clean` - Clean workspace artifacts
-- `rad plan` - Generate plans from specifications (stub initially)
-- `rad craft` - Execute plans (stub initially)
+- [x] `rad status` - Show workspace and engine status
+- [x] `rad clean` - Clean workspace artifacts
+- [x] `rad plan` - Generate plans from specifications
+- [x] `rad craft` - Execute plans
+- [x] `rad agents` - Agent management (list, search, info, validate)
+- [x] `rad templates` - Template management (list, info, validate)
 - [x] CLI structure matching legacy system
 
 **Why Now**: Primary user interface. Must match Radium's `rad` command structure.
