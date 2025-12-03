@@ -25,6 +25,7 @@ pub mod context;
 pub mod error;
 pub mod memory;
 pub mod models;
+pub mod monitoring;
 pub mod planning;
 pub mod policy;
 pub mod prompts;
@@ -49,6 +50,7 @@ pub use context::{ContextError, ContextInjector, ContextManager, InjectionDirect
 pub use error::{RadiumError, Result};
 pub use memory::{FileAdapter, MemoryAdapter, MemoryEntry, MemoryError, MemoryStore, Result as MemoryResult};
 pub use models::agent::{Agent, AgentConfig, AgentError, AgentState};
+pub use monitoring::{AgentRecord, AgentStatus, MonitoringError, MonitoringService, Result as MonitoringResult, initialize_schema};
 pub use models::plan::{Iteration, Plan, PlanError, PlanManifest, PlanStatus, PlanTask};
 pub use models::task::{Task, TaskError, TaskQueue, TaskResult, TaskState};
 pub use models::workflow::{Workflow, WorkflowError, WorkflowState, WorkflowStep};
