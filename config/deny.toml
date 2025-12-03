@@ -1,0 +1,76 @@
+# cargo-deny configuration
+# https://embarkstudios.github.io/cargo-deny/
+
+[graph]
+targets = [
+  "x86_64-unknown-linux-gnu",
+  "x86_64-apple-darwin",
+  "aarch64-apple-darwin",
+  "x86_64-pc-windows-msvc",
+]
+all-features = true
+
+# =============================================================================
+# Advisories - check for known security vulnerabilities
+# =============================================================================
+[advisories]
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+ignore = []
+
+# =============================================================================
+# Licenses - ensure all dependencies use acceptable licenses
+# =============================================================================
+[licenses]
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Zlib",
+  "0BSD",
+  "Unicode-3.0",
+  "Unicode-DFS-2016",
+  "CC0-1.0",
+  "MPL-2.0",
+]
+confidence-threshold = 0.8
+exceptions = []
+
+[licenses.private]
+ignore = false
+registries = []
+
+# =============================================================================
+# Bans - prevent certain crates or specific versions
+# =============================================================================
+[bans]
+multiple-versions = "warn"
+wildcards = "allow"        # Allow workspace dependencies (path = "...")
+highlight = "all"
+
+# Crates to deny entirely
+deny = []
+
+# Crates allowed to have multiple versions (minimize this list)
+skip = []
+
+# Tree of crate dependencies to skip
+skip-tree = []
+
+
+# =============================================================================
+# Sources - ensure dependencies come from trusted sources
+# =============================================================================
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
+
+[sources.allow-org]
+github = []
+gitlab = []
+bitbucket = []

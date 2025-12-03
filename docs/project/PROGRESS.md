@@ -3,13 +3,13 @@
 **Last Updated**: 2025-12-02
 **Current Version**: 0.55.0
 **Main Branch**: `main`
-**Development Branch**: `codemachine/dev`
+**Development Branch**: `main`
 
 ## Executive Summary
 
 Radium is a sophisticated multi-agent orchestration platform built with Rust (backend) and modern web technologies (frontend). The project has completed major milestones including a gRPC backend server, agent orchestrator, workflow engine, and multiple interfaces (CLI, TUI, Desktop).
 
-**Current Status**: ✅ Core platform complete, actively developing Step 0-3 features for codemachine parity.
+**Current Status**: ✅ Core platform complete, actively developing foundational features for workspace, plans, and workflows.
 
 ---
 
