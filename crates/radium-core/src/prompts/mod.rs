@@ -18,6 +18,10 @@
 //! # }
 //! ```
 
+pub mod cache;
+pub mod processing;
 pub mod templates;
 
+pub use cache::{CacheStats, PromptCache};
+pub use processing::{process_with_file_injection, validate_prompt, ProcessingError};
 pub use templates::{PromptContext, PromptError, PromptTemplate};

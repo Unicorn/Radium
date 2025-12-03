@@ -151,6 +151,9 @@ impl AgentDiscovery {
             }
         }
 
+        // Resolve prompt path relative to agent config file or root
+        agent.prompt_path = self.resolve_prompt_path(&agent.prompt_path, path, root);
+
         // Apply sub-agent filter if set
         if let Some(filter) = &self.options.sub_agent_filter {
             if !filter.contains(&agent.id) {
@@ -162,6 +165,50 @@ impl AgentDiscovery {
         agents.insert(agent.id.clone(), agent);
 
         Ok(())
+    }
+
+    /// Resolve prompt path relative to agent config file or search root.
+    ///
+    /// Tries multiple resolution strategies:
+    /// 1. If path is absolute, use as-is
+    /// 2. Relative to agent config file directory
+    /// 3. Relative to search root
+    /// 4. Relative to current working directory
+    fn resolve_prompt_path(
+        &self,
+        prompt_path: &PathBuf,
+        config_path: &Path,
+        root: &Path,
+    ) -> PathBuf {
+        // If absolute path, use as-is
+        if prompt_path.is_absolute() {
+            return prompt_path.clone();
+        }
+
+        // Try relative to agent config file directory
+        if let Some(config_dir) = config_path.parent() {
+            let resolved = config_dir.join(prompt_path);
+            if resolved.exists() {
+                return resolved;
+            }
+        }
+
+        // Try relative to search root
+        let resolved = root.join(prompt_path);
+        if resolved.exists() {
+            return resolved;
+        }
+
+        // Try relative to current working directory
+        if let Ok(cwd) = std::env::current_dir() {
+            let resolved = cwd.join(prompt_path);
+            if resolved.exists() {
+                return resolved;
+            }
+        }
+
+        // Return original path (caller will handle file not found)
+        prompt_path.clone()
     }
 
     /// Get default search paths.

@@ -42,7 +42,10 @@ pub use models::agent::{Agent, AgentConfig, AgentError, AgentState};
 pub use models::plan::{Iteration, Plan, PlanError, PlanManifest, PlanStatus, PlanTask};
 pub use models::task::{Task, TaskError, TaskQueue, TaskResult, TaskState};
 pub use models::workflow::{Workflow, WorkflowError, WorkflowState, WorkflowStep};
-pub use prompts::{PromptContext, PromptError, PromptTemplate};
+pub use prompts::{
+    CacheStats, PromptCache, PromptContext, PromptError, PromptTemplate,
+    ProcessingError, process_with_file_injection, validate_prompt,
+};
 pub use proto::radium_client;
 pub use proto::{PingRequest, PingResponse};
 pub use storage::{
