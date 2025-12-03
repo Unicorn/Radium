@@ -3,7 +3,7 @@
 	"version": "0.0.0",
 	"license": "MIT",
 	"scripts": {
-		"prepare": "lefthook install",
+		"prepare": "lefthook install -c config/lefthook.yml",
 		"lint": "nx run-many -t lint",
 		"lint:fix": "cargo clippy --fix --allow-dirty --allow-staged",
 		"fmt": "cargo fmt --all",

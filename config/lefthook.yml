@@ -1,0 +1,60 @@
+# Lefthook configuration
+# https://github.com/evilmartians/lefthook
+
+pre-commit:
+  parallel: true
+  commands:
+    fmt:
+      glob: "*.rs"
+      run: cargo fmt --all -- --check
+      fail_text: "Rust formatting check failed. Run 'cargo fmt' to fix."
+
+    clippy:
+      glob: "*.rs"
+      run: cargo clippy --all-targets --all-features -- -D warnings
+      fail_text: "Clippy found issues. Fix them before committing."
+
+    toml-fmt:
+      glob: "*.toml"
+      run: |
+        if command -v taplo &> /dev/null; then
+          taplo fmt --check
+        fi
+      fail_text: "TOML formatting check failed. Run 'taplo fmt' to fix."
+
+    deny:
+      glob: "Cargo.{toml,lock}"
+      run: |
+        if command -v cargo-deny &> /dev/null; then
+          cargo deny check --config config/deny.toml
+        fi
+      fail_text: "cargo-deny found issues with dependencies."
+
+pre-push:
+  parallel: true
+  commands:
+    test:
+      run: cargo test --all-features
+      fail_text: "Tests failed. Fix them before pushing."
+
+    audit:
+      run: |
+        if command -v cargo-audit &> /dev/null; then
+          cargo audit
+        fi
+      fail_text: "Security audit failed. Check for vulnerable dependencies."
+
+commit-msg:
+  commands:
+    conventional:
+      run: |
+        # Basic conventional commit check
+        # Pattern: type(scope)?: description
+        if ! grep -qE "^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?: .+" "$1"; then
+          echo "Commit message should follow Conventional Commits format:"
+          echo "  type(scope)?: description"
+          echo ""
+          echo "Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert"
+          exit 1
+        fi
+      fail_text: "Commit message doesn't follow Conventional Commits format."

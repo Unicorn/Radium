@@ -1,0 +1,44 @@
+{
+	"name": "mobile",
+	"$schema": "../../node_modules/nx/schemas/project-schema.json",
+	"sourceRoot": "apps/mobile",
+	"projectType": "application",
+	"targets": {
+		"start": {
+			"executor": "nx:run-commands",
+			"options": {
+				"command": "bun run start",
+				"cwd": "apps/mobile"
+			}
+		},
+		"android": {
+			"executor": "nx:run-commands",
+			"options": {
+				"command": "bun run android",
+				"cwd": "apps/mobile"
+			}
+		},
+		"ios": {
+			"executor": "nx:run-commands",
+			"options": {
+				"command": "bun run ios",
+				"cwd": "apps/mobile"
+			}
+		},
+		"web": {
+			"executor": "nx:run-commands",
+			"options": {
+				"command": "bun run web",
+				"cwd": "apps/mobile"
+			}
+		},
+		"type-check": {
+			"executor": "nx:run-commands",
+			"options": {
+				"command": "tsc --noEmit",
+				"cwd": "apps/mobile"
+			}
+		}
+	},
+	"tags": ["type:app", "platform:mobile"]
+}

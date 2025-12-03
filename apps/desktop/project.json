@@ -1,0 +1,33 @@
+{
+	"name": "desktop",
+	"$schema": "../../node_modules/nx/schemas/project-schema.json",
+	"sourceRoot": "apps/desktop",
+	"projectType": "application",
+	"targets": {
+		"dev": {
+			"executor": "nx:run-commands",
+			"options": {
+				"command": "bun run dev",
+				"cwd": "apps/desktop"
+			}
+		},
+		"build": {
+			"executor": "nx:run-commands",
+			"options": {
+				"command": "bun run build",
+				"cwd": "apps/desktop"
+			},
+			"dependsOn": ["^build"]
+		},
+		"type-check": {
+			"executor": "nx:run-commands",
+			"options": {
+				"command": "tsc --noEmit",
+				"cwd": "apps/desktop"
+			}
+		}
+	},
+	"tags": ["type:app", "platform:desktop"],
+	"implicitDependencies": ["ui", "state", "api-client", "shared-types"]
+}
+

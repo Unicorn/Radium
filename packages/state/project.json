@@ -1,0 +1,25 @@
+{
+	"name": "state",
+	"$schema": "../../node_modules/nx/schemas/project-schema.json",
+	"sourceRoot": "packages/state/src",
+	"projectType": "library",
+	"targets": {
+		"type-check": {
+			"executor": "nx:run-commands",
+			"options": {
+				"command": "tsc --noEmit",
+				"cwd": "packages/state"
+			}
+		},
+		"test": {
+			"executor": "nx:run-commands",
+			"options": {
+				"command": "vitest run",
+				"cwd": "packages/state"
+			}
+		}
+	},
+	"tags": ["type:lib", "scope:shared"],
+	"implicitDependencies": ["api-client", "shared-types"]
+}
+

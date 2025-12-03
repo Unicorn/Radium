@@ -1,0 +1,25 @@
+{
+	"name": "api-client",
+	"$schema": "../../node_modules/nx/schemas/project-schema.json",
+	"sourceRoot": "packages/api-client/src",
+	"projectType": "library",
+	"targets": {
+		"type-check": {
+			"executor": "nx:run-commands",
+			"options": {
+				"command": "tsc --noEmit",
+				"cwd": "packages/api-client"
+			}
+		},
+		"test": {
+			"executor": "nx:run-commands",
+			"options": {
+				"command": "vitest run",
+				"cwd": "packages/api-client"
+			}
+		}
+	},
+	"tags": ["type:lib", "scope:shared"],
+	"implicitDependencies": ["shared-types"]
+}
+

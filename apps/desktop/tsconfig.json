@@ -1,0 +1,26 @@
+{
+	"extends": "../../config/tsconfig.base.json",
+	"compilerOptions": {
+		"target": "ES2020",
+		"module": "ESNext",
+		"lib": ["ES2020", "DOM", "DOM.Iterable"],
+		"jsx": "react-jsx",
+		"moduleResolution": "node",
+		"resolveJsonModule": true,
+		"allowJs": true,
+		"strict": true,
+		"esModuleInterop": true,
+		"skipLibCheck": true,
+		"forceConsistentCasingInFileNames": true,
+		"baseUrl": ".",
+		"paths": {
+			"@radium/shared-types": ["../../packages/shared-types/src/index.ts"],
+			"@radium/api-client": ["../../packages/api-client/src/index.ts"],
+			"@radium/state": ["../../packages/state/src/index.ts"],
+			"@radium/ui": ["../../packages/ui/src/index.ts"]
+		}
+	},
+	"include": ["ui/**/*", "src-tauri/**/*.ts"],
+	"exclude": ["node_modules", "dist", "src-tauri/target"]
+}
+

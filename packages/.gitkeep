@@ -1,0 +1,4 @@
+# This directory will contain shared packages:
+# - ui/ - Shared React UI components
+# - api-client/ - Generated gRPC client library
+# - shared-types/ - TypeScript types and interfaces

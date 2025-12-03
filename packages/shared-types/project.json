@@ -1,0 +1,24 @@
+{
+	"name": "shared-types",
+	"$schema": "../../node_modules/nx/schemas/project-schema.json",
+	"sourceRoot": "packages/shared-types/src",
+	"projectType": "library",
+	"targets": {
+		"type-check": {
+			"executor": "nx:run-commands",
+			"options": {
+				"command": "tsc --noEmit",
+				"cwd": "packages/shared-types"
+			}
+		},
+		"test": {
+			"executor": "nx:run-commands",
+			"options": {
+				"command": "vitest run",
+				"cwd": "packages/shared-types"
+			}
+		}
+	},
+	"tags": ["type:types", "scope:shared"]
+}
+

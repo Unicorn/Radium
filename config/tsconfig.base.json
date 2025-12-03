@@ -1,0 +1,27 @@
+{
+	"compileOnSave": false,
+	"compilerOptions": {
+		"sourceMap": true,
+		"declaration": false,
+		"moduleResolution": "node",
+		"emitDecoratorMetadata": true,
+		"experimentalDecorators": true,
+		"importHelpers": true,
+		"target": "ES2022",
+		"module": "ESNext",
+		"lib": ["ES2022", "DOM", "DOM.Iterable"],
+		"skipLibCheck": true,
+		"skipDefaultLibCheck": true,
+		"baseUrl": ".",
+		"allowSyntheticDefaultImports": true,
+		"esModuleInterop": true,
+		"paths": {
+			"@radium/shared-types": ["packages/shared-types/src/index.ts"],
+			"@radium/api-client": ["packages/api-client/src/index.ts"],
+			"@radium/state": ["packages/state/src/index.ts"],
+			"@radium/ui": ["packages/ui/src/index.ts"]
+		}
+	},
+	"exclude": ["node_modules", "tmp"]
+}
+

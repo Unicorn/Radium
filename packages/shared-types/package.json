@@ -1,0 +1,19 @@
+{
+	"name": "@radium/shared-types",
+	"version": "0.1.0",
+	"type": "module",
+	"main": "./src/index.ts",
+	"types": "./src/index.ts",
+	"private": true,
+	"license": "MIT",
+	"scripts": {
+		"type-check": "tsc --noEmit",
+		"test": "vitest run",
+		"test:watch": "vitest"
+	},
+	"devDependencies": {
+		"typescript": "^5.3.0",
+		"vitest": "^1.0.0"
+	}
+}
+

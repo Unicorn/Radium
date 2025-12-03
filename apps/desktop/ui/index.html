@@ -1,0 +1,677 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Radium Desktop</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+        color: #e0e0e0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+      
+      /* Header */
+      .header {
+        background: rgba(0, 0, 0, 0.3);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 1rem 2rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      
+      .logo {
+        font-size: 1.5rem;
+        font-weight: bold;
+        background: linear-gradient(90deg, #00d4ff, #00ff88);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      
+      .header-right {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+      }
+      
+      .status-indicator {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.9rem;
+      }
+      
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #ff6b6b;
+      }
+      
+      .status-dot.connected {
+        background: #00ff88;
+      }
+      
+      /* Navigation */
+      .nav {
+        background: rgba(0, 0, 0, 0.2);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 0 2rem;
+        display: flex;
+        gap: 0.5rem;
+      }
+      
+      .nav-item {
+        padding: 1rem 1.5rem;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        transition: all 0.2s;
+        color: #aaa;
+      }
+      
+      .nav-item:hover {
+        color: #fff;
+        background: rgba(255, 255, 255, 0.05);
+      }
+      
+      .nav-item.active {
+        color: #00ff88;
+        border-bottom-color: #00ff88;
+      }
+      
+      /* Main content */
+      .main {
+        flex: 1;
+        padding: 2rem;
+        overflow-y: auto;
+      }
+      
+      .page {
+        display: none;
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+      
+      .page.active {
+        display: block;
+      }
+      
+      /* Global messages */
+      .message {
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        display: none;
+      }
+      
+      .message.error {
+        background: rgba(255, 107, 107, 0.2);
+        border: 1px solid #ff6b6b;
+        color: #ff9999;
+      }
+      
+      .message.success {
+        background: rgba(0, 255, 136, 0.2);
+        border: 1px solid #00ff88;
+        color: #00ff88;
+      }
+      
+      /* Page title */
+      .page-title {
+        font-size: 2rem;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      
+      .btn {
+        background: linear-gradient(90deg, #00d4ff, #00ff88);
+        border: none;
+        color: #1a1a2e;
+        padding: 0.75rem 1.5rem;
+        font-size: 1rem;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+      }
+      
+      .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 20px rgba(0, 212, 255, 0.3);
+      }
+      
+      .btn:active {
+        transform: translateY(0);
+      }
+      
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+      }
+      
+      .btn-small {
+        padding: 0.5rem 1rem;
+        font-size: 0.9rem;
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+      }
+      
+      .btn-small:hover {
+        background: rgba(255, 255, 255, 0.2);
+      }
+      
+      .btn-danger {
+        background: rgba(255, 107, 107, 0.2);
+        border-color: #ff6b6b;
+        color: #ff9999;
+      }
+      
+      .btn-danger:hover {
+        background: rgba(255, 107, 107, 0.3);
+      }
+      
+      /* Table */
+      .table-container {
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      
+      thead {
+        background: rgba(0, 0, 0, 0.5);
+      }
+      
+      th {
+        padding: 1rem;
+        text-align: left;
+        font-weight: 600;
+        color: #00ff88;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      
+      td {
+        padding: 1rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      }
+      
+      tr:hover {
+        background: rgba(255, 255, 255, 0.05);
+      }
+      
+      .badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.85rem;
+        background: rgba(0, 255, 136, 0.2);
+        color: #00ff88;
+        border: 1px solid rgba(0, 255, 136, 0.3);
+      }
+      
+      /* Form */
+      .form-container {
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        display: none;
+      }
+      
+      .form-group {
+        margin-bottom: 1.5rem;
+      }
+      
+      .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        color: #aaa;
+        font-weight: 500;
+      }
+      
+      .form-group input,
+      .form-group textarea,
+      .form-group select {
+        width: 100%;
+        padding: 0.75rem;
+        background: rgba(0, 0, 0, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        color: #fff;
+        font-size: 1rem;
+        font-family: inherit;
+      }
+      
+      .form-group select option {
+        background: #1a1a2e;
+        color: #fff;
+      }
+      
+      .form-group input:focus,
+      .form-group textarea:focus {
+        outline: none;
+        border-color: #00ff88;
+        box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.1);
+      }
+      
+      .form-group input:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      
+      .form-group textarea {
+        resize: vertical;
+        min-height: 100px;
+      }
+      
+      .form-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: flex-end;
+      }
+      
+      /* Loading and empty states */
+      .loading, .empty {
+        text-align: center;
+        padding: 3rem;
+        color: #888;
+      }
+      
+      .error {
+        padding: 1rem;
+        background: rgba(255, 107, 107, 0.2);
+        border: 1px solid #ff6b6b;
+        border-radius: 8px;
+        color: #ff9999;
+        display: none;
+      }
+      
+      /* Result content */
+      .result-content {
+        padding: 1.5rem;
+        border-radius: 8px;
+        border: 1px solid;
+      }
+      
+      .result-content.success {
+        background: rgba(0, 255, 136, 0.2);
+        border-color: #00ff88;
+        color: #00ff88;
+      }
+      
+      .result-content.error {
+        background: rgba(255, 107, 107, 0.2);
+        border-color: #ff6b6b;
+        color: #ff9999;
+      }
+      
+      .result-content h4 {
+        margin-bottom: 1rem;
+        font-size: 1.1rem;
+      }
+      
+      .result-output {
+        background: rgba(0, 0, 0, 0.5);
+        padding: 1rem;
+        border-radius: 8px;
+        overflow-x: auto;
+        font-family: 'Courier New', monospace;
+        font-size: 0.9rem;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Header -->
+    <div class="header">
+      <div class="logo">🔆 Radium Desktop</div>
+      <div class="header-right">
+        <div class="status-indicator">
+          <span class="status-dot" id="status-dot"></span>
+          <span id="status-text">Not Connected</span>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Navigation -->
+    <nav class="nav">
+      <div class="nav-item active" data-page="dashboard" onclick="navigate('dashboard')">Dashboard</div>
+      <div class="nav-item" data-page="agents" onclick="navigate('agents')">Agents</div>
+      <div class="nav-item" data-page="workflows" onclick="navigate('workflows')">Workflows</div>
+      <div class="nav-item" data-page="tasks" onclick="navigate('tasks')">Tasks</div>
+      <div class="nav-item" data-page="orchestrator" onclick="navigate('orchestrator')">Orchestrator</div>
+    </nav>
+    
+    <!-- Main content -->
+    <main class="main">
+      <!-- Global messages -->
+      <div id="global-error" class="message error"></div>
+      <div id="global-success" class="message success"></div>
+      
+      <!-- Dashboard page -->
+      <div id="dashboard-page" class="page active">
+        <h1 class="page-title">Dashboard</h1>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+          <div class="table-container" style="padding: 1.5rem;">
+            <h3 style="margin-bottom: 0.5rem; color: #00ff88;">Total Agents</h3>
+            <div id="dashboard-agents-count" style="font-size: 2rem; font-weight: bold;">-</div>
+          </div>
+          <div class="table-container" style="padding: 1.5rem;">
+            <h3 style="margin-bottom: 0.5rem; color: #00ff88;">Total Workflows</h3>
+            <div id="dashboard-workflows-count" style="font-size: 2rem; font-weight: bold;">-</div>
+          </div>
+          <div class="table-container" style="padding: 1.5rem;">
+            <h3 style="margin-bottom: 0.5rem; color: #00ff88;">Total Tasks</h3>
+            <div id="dashboard-tasks-count" style="font-size: 2rem; font-weight: bold;">-</div>
+          </div>
+          <div class="table-container" style="padding: 1.5rem;">
+            <h3 style="margin-bottom: 0.5rem; color: #00ff88;">Registered Agents</h3>
+            <div id="dashboard-registered-agents-count" style="font-size: 2rem; font-weight: bold;">-</div>
+          </div>
+        </div>
+        <div class="table-container" style="padding: 1.5rem;">
+          <h3 style="margin-bottom: 1rem; color: #00ff88;">Quick Actions</h3>
+          <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+            <button class="btn" onclick="navigate('agents'); setTimeout(() => { if (window.showCreateForm) window.showCreateForm(); }, 100);">Create Agent</button>
+            <button class="btn" onclick="navigate('workflows'); setTimeout(() => { if (window.showCreateWorkflowForm) window.showCreateWorkflowForm(); }, 100);">Create Workflow</button>
+            <button class="btn" onclick="navigate('orchestrator'); setTimeout(() => { if (window.showRegisterForm) window.showRegisterForm(); }, 100);">Register Agent</button>
+            <button class="btn" onclick="navigate('orchestrator')">View Orchestrator</button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Agents page -->
+      <div id="agents-page" class="page">
+        <h1 class="page-title">
+          Agents
+          <button class="btn" onclick="showCreateForm()">Create Agent</button>
+        </h1>
+        
+        <!-- Create/Edit Form -->
+        <div id="agent-form" class="form-container">
+          <h2 id="agent-form-title" style="margin-bottom: 1.5rem;">Create Agent</h2>
+          <div class="form-group">
+            <label for="agent-id">Agent ID *</label>
+            <input type="text" id="agent-id" placeholder="e.g., agent-001" required />
+          </div>
+          <div class="form-group">
+            <label for="agent-name">Name *</label>
+            <input type="text" id="agent-name" placeholder="Agent name" required />
+          </div>
+          <div class="form-group">
+            <label for="agent-description">Description</label>
+            <textarea id="agent-description" placeholder="Agent description"></textarea>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-small" onclick="cancelForm()">Cancel</button>
+            <button class="btn" id="agent-submit-btn" onclick="saveAgent()">Save</button>
+          </div>
+        </div>
+        
+        <!-- Agents list -->
+        <div id="agents-loading" class="loading">Loading agents...</div>
+        <div id="agents-error" class="error"></div>
+        <div id="agents-empty" class="empty" style="display: none;">
+          <p>No agents found. Create your first agent to get started.</p>
+        </div>
+        <div id="agents-table" class="table-container" style="display: none;">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Description</th>
+                <th>State</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+      
+      <!-- Workflows page -->
+      <div id="workflows-page" class="page">
+        <h1 class="page-title">
+          Workflows
+          <button class="btn" onclick="showCreateWorkflowForm()">Create Workflow</button>
+        </h1>
+        
+        <!-- Create/Edit Form -->
+        <div id="workflow-form" class="form-container">
+          <h2 id="workflow-form-title" style="margin-bottom: 1.5rem;">Create Workflow</h2>
+          <div class="form-group">
+            <label for="workflow-id">Workflow ID *</label>
+            <input type="text" id="workflow-id" placeholder="e.g., workflow-001" required />
+          </div>
+          <div class="form-group">
+            <label for="workflow-name">Name *</label>
+            <input type="text" id="workflow-name" placeholder="Workflow name" required />
+          </div>
+          <div class="form-group">
+            <label for="workflow-description">Description</label>
+            <textarea id="workflow-description" placeholder="Workflow description"></textarea>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-small" onclick="cancelWorkflowForm()">Cancel</button>
+            <button class="btn" id="workflow-submit-btn" onclick="saveWorkflow()">Save</button>
+          </div>
+        </div>
+        
+        <!-- Workflows list -->
+        <div id="workflows-loading" class="loading">Loading workflows...</div>
+        <div id="workflows-error" class="error"></div>
+        <div id="workflows-empty" class="empty" style="display: none;">
+          <p>No workflows found. Create your first workflow to get started.</p>
+        </div>
+        <div id="workflows-table" class="table-container" style="display: none;">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Steps</th>
+                <th>State</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+      
+      <!-- Tasks page -->
+      <div id="tasks-page" class="page">
+        <h1 class="page-title">Tasks</h1>
+        
+        <!-- Filters -->
+        <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; align-items: center;">
+          <div style="flex: 1;">
+            <label style="display: block; margin-bottom: 0.5rem; color: #aaa;">Filter by State:</label>
+            <select id="task-filter-state" style="width: 200px; padding: 0.5rem; background: rgba(0, 0, 0, 0.5); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: #fff;" onchange="filterTasks()">
+              <option value="">All</option>
+              <option value="pending">Pending</option>
+              <option value="running">Running</option>
+              <option value="completed">Completed</option>
+              <option value="failed">Failed</option>
+            </select>
+          </div>
+          <div style="flex: 1;">
+            <label style="display: block; margin-bottom: 0.5rem; color: #aaa;">Filter by Agent ID:</label>
+            <input type="text" id="task-filter-agent" style="width: 200px; padding: 0.5rem; background: rgba(0, 0, 0, 0.5); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: #fff;" placeholder="Agent ID..." oninput="filterTasks()" />
+          </div>
+        </div>
+        
+        <!-- Tasks list -->
+        <div id="tasks-loading" class="loading">Loading tasks...</div>
+        <div id="tasks-error" class="error"></div>
+        <div id="tasks-empty" class="empty" style="display: none;">
+          <p>No tasks found.</p>
+        </div>
+        <div id="tasks-table" class="table-container" style="display: none;">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Agent ID</th>
+                <th>State</th>
+                <th>Created</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        
+        <!-- Task detail modal -->
+        <div id="task-detail-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.8); z-index: 1000; overflow-y: auto; padding: 2rem;">
+          <div style="max-width: 800px; margin: 0 auto; background: rgba(0, 0, 0, 0.9); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 2rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+              <h2 style="color: #00ff88;">Task Details</h2>
+              <button class="btn btn-small" onclick="closeTaskDetail()">Close</button>
+            </div>
+            <div style="display: grid; grid-template-columns: 150px 1fr; gap: 1rem; margin-bottom: 1rem;">
+              <div style="color: #aaa;">ID:</div>
+              <div id="task-detail-id" style="font-family: monospace;"></div>
+              <div style="color: #aaa;">Name:</div>
+              <div id="task-detail-name"></div>
+              <div style="color: #aaa;">Description:</div>
+              <div id="task-detail-description"></div>
+              <div style="color: #aaa;">Agent ID:</div>
+              <div id="task-detail-agent-id" style="font-family: monospace;"></div>
+              <div style="color: #aaa;">State:</div>
+              <div id="task-detail-state"></div>
+              <div style="color: #aaa;">Created:</div>
+              <div id="task-detail-created"></div>
+              <div style="color: #aaa;">Updated:</div>
+              <div id="task-detail-updated"></div>
+            </div>
+            <div style="margin-top: 1.5rem;">
+              <div style="color: #aaa; margin-bottom: 0.5rem;">Input JSON:</div>
+              <pre id="task-detail-input" style="background: rgba(0, 0, 0, 0.5); padding: 1rem; border-radius: 8px; overflow-x: auto; font-size: 0.9rem;"></pre>
+            </div>
+            <div style="margin-top: 1.5rem;">
+              <div style="color: #aaa; margin-bottom: 0.5rem;">Result JSON:</div>
+              <pre id="task-detail-result" style="background: rgba(0, 0, 0, 0.5); padding: 1rem; border-radius: 8px; overflow-x: auto; font-size: 0.9rem;"></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Orchestrator page -->
+      <div id="orchestrator-page" class="page">
+        <h1 class="page-title">
+          Orchestrator
+          <button class="btn" onclick="showRegisterForm()">Register Agent</button>
+        </h1>
+        
+        <!-- Register Agent Form -->
+        <div id="register-agent-form" class="form-container">
+          <h2 id="register-form-title" style="margin-bottom: 1.5rem;">Register Agent</h2>
+          <div class="form-group">
+            <label for="register-agent-id">Agent ID *</label>
+            <input type="text" id="register-agent-id" placeholder="e.g., my-agent" required />
+          </div>
+          <div class="form-group">
+            <label for="register-agent-type">Agent Type *</label>
+            <select id="register-agent-type" required>
+              <option value="simple">Simple</option>
+              <option value="chat">Chat</option>
+              <option value="echo">Echo</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="register-agent-description">Description</label>
+            <textarea id="register-agent-description" placeholder="Agent description"></textarea>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-small" onclick="cancelRegisterForm()">Cancel</button>
+            <button class="btn" id="register-submit-btn" onclick="registerAgent()">Register</button>
+          </div>
+        </div>
+        
+        <!-- Execute Agent Form -->
+        <div id="execute-agent-form" class="form-container">
+          <h2 id="execute-form-title" style="margin-bottom: 1.5rem;">Execute Agent</h2>
+          <div class="form-group">
+            <label for="execute-agent-id">Agent ID *</label>
+            <input type="text" id="execute-agent-id" placeholder="Agent ID" required />
+          </div>
+          <div class="form-group">
+            <label for="execute-input">Input *</label>
+            <textarea id="execute-input" placeholder="Input text for the agent" required></textarea>
+          </div>
+          <div class="form-group">
+            <label for="execute-model-type">Model Type (optional)</label>
+            <input type="text" id="execute-model-type" placeholder="e.g., mock, gemini, openai" />
+          </div>
+          <div class="form-group">
+            <label for="execute-model-id">Model ID (optional)</label>
+            <input type="text" id="execute-model-id" placeholder="Model ID" />
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-small" onclick="cancelExecuteForm()">Cancel</button>
+            <button class="btn" id="execute-submit-btn" onclick="executeAgent()">Execute</button>
+          </div>
+          <div id="execute-result" style="display: none; margin-top: 1.5rem;">
+            <div id="execute-result-content" class="result-content">
+              <h4>Execution Result</h4>
+              <pre class="result-output"></pre>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Registered Agents list -->
+        <div id="orchestrator-loading" class="loading">Loading registered agents...</div>
+        <div id="orchestrator-error" class="error"></div>
+        <div id="registered-agents-empty" class="empty" style="display: none;">
+          <p>No registered agents found. Register an agent to get started.</p>
+        </div>
+        <div id="registered-agents-table" class="table-container" style="display: none;">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Description</th>
+                <th>State</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+    
+    <script type="module" src="js/agents.js"></script>
+    <script type="module" src="js/workflows.js"></script>
+    <script type="module" src="js/tasks.js"></script>
+    <script type="module" src="js/orchestrator.js"></script>
+    <script type="module" src="js/navigation.js"></script>
+    <script type="module" src="js/dashboard.js"></script>
+  </body>
+</html>

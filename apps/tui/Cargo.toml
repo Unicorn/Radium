@@ -1,0 +1,39 @@
+[package]
+name = "radium-tui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "Radium Terminal User Interface"
+
+[lints]
+workspace = true
+
+[dependencies]
+# TUI
+ratatui = "0.29"
+crossterm = "0.28"
+
+# gRPC
+tonic.workspace = true
+
+# Async runtime
+tokio.workspace = true
+
+# Internal crates
+radium-core.workspace = true
+
+# Logging
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+# Error handling
+anyhow.workspace = true
+
+# CLI argument parsing
+clap.workspace = true
+
+# Time formatting for debug files
+chrono = { version = "0.4", features = ["serde"] }
