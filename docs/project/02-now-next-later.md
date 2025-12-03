@@ -96,9 +96,9 @@
 **Focus**: Essential legacy system functionality
 
 ### Step 4: Plan Generation & Execution
-**Status**: 🔄 In Progress (75% Complete)
+**Status**: 🔄 In Progress (85% Complete)
 **Priority**: 🟡 High
-**Est. Time**: 15-20 hours (10-12 hours remaining)
+**Est. Time**: 15-20 hours (3-4 hours remaining)
 
 **Completed:**
 - [x] `rad plan` basic implementation (~259 lines)
@@ -116,10 +116,15 @@
   - [x] Agent discovery and execution
   - [x] Model execution with mock fallback
   - [x] Dry-run mode
+- [x] **Planning module** (~700 lines, 5 tests)
+  - [x] AI-powered plan generation using LLM abstraction
+  - [x] PlanParser for parsing LLM markdown responses
+  - [x] PlanGenerator with configurable model parameters
+  - [x] Detailed markdown file generation (4 files)
+  - [x] Project overview, iteration details, verification docs
+  - [x] Coordinator prompt generation
 
 **In Progress:**
-- [ ] AI-powered plan generation (using LLM)
-- [ ] Detailed plan markdown file generation
 - [ ] Workflow engine integration (behaviors)
 - [ ] Full checkpoint persistence
 - [ ] Progress tracking with state persistence
@@ -127,7 +132,7 @@
 - [ ] Tech stack detection
 - [ ] JSON output for CI/CD
 
-**Current Status**: Core functionality working. Users can generate and execute plans. Missing AI generation and advanced workflow integration.
+**Current Status**: AI-powered plan generation complete. Users can generate detailed plans with iterations/tasks. Remaining: workflow integration and persistence.
 
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-4-plan-generation--execution) for detailed tasks.
 
