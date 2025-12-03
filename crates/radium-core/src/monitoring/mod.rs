@@ -27,7 +27,9 @@
 mod error;
 mod schema;
 mod service;
+mod telemetry;
 
 pub use error::{MonitoringError, Result};
 pub use schema::initialize_schema;
 pub use service::{AgentRecord, AgentStatus, MonitoringService};
+pub use telemetry::{TelemetryParser, TelemetryRecord, TelemetryTracking};

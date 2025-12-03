@@ -124,7 +124,7 @@ impl AgentRecord {
 /// Agent monitoring service.
 pub struct MonitoringService {
     /// Database connection.
-    conn: Connection,
+    pub(super) conn: Connection,
 }
 
 impl MonitoringService {
