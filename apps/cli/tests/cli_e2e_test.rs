@@ -1,6 +1,5 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
-use std::fs;
 use tempfile::TempDir;
 
 #[test]
@@ -9,7 +8,7 @@ fn test_version() {
     cmd.arg("--version")
         .assert()
         .success()
-        .stdout(predicate::str::contains("radium-cli"));
+        .stdout(predicate::str::contains("rad 0.1.0"));
 }
 
 #[test]
@@ -18,7 +17,7 @@ fn test_help() {
     cmd.arg("--help")
         .assert()
         .success()
-        .stdout(predicate::str::contains("Radium - Next-generation agentic orchestration"));
+        .stdout(predicate::str::contains("Radium (rad) is a high-performance"));
 }
 
 #[test]
@@ -34,13 +33,21 @@ fn test_init_command() {
         .arg(temp_path)
         .assert()
         .success()
-        .stdout(predicate::str::contains("Initialized Radium workspace"));
+        .stdout(predicate::str::contains("Workspace initialized successfully!"));
 
     // Verify directory structure
-    assert!(temp_dir.path().join(".radium").exists());
-    assert!(temp_dir.path().join("config").exists());
-    assert!(temp_dir.path().join("agents").exists());
-    assert!(temp_dir.path().join("prompts").exists());
+    let radium_dir = temp_dir.path().join(".radium");
+    assert!(radium_dir.exists());
+    
+    let internals_dir = radium_dir.join("_internals");
+    assert!(internals_dir.exists());
+    assert!(internals_dir.join("agents").exists());
+    assert!(internals_dir.join("prompts").exists());
+
+    let plan_dir = radium_dir.join("plan");
+    assert!(plan_dir.exists());
+    assert!(plan_dir.join("backlog").exists());
+    assert!(plan_dir.join("development").exists());
 }
 
 #[test]
@@ -52,14 +59,8 @@ fn test_status_command_no_workspace() {
     cmd.current_dir(temp_dir.path())
         .arg("status")
         .assert()
-        .failure() // Should fail or warn if not in a workspace, depending on implementation. 
-                   // Based on typical behavior, status might require a valid workspace or report "Not a workspace".
-                   // Let's check typical behavior. If it just reports status, it might succeed but say "No workspace found".
-                   // Adjusting expectation: if status checks for .radium, it might fail if missing.
-                   // Let's try to expect failure or specific output.
-                   // Actually, usually `rad status` might just show global info too. 
-                   // Safest bet: check for output not crashing.
-        .stderr(predicate::str::contains("No Radium workspace found").or(predicate::str::contains("Error"))); 
+        .success() // It exits with 0 even if no workspace is found
+        .stdout(predicate::str::contains("workspace not found")); 
 }
 
 #[test]
@@ -81,5 +82,6 @@ fn test_status_command_in_workspace() {
         .arg("status")
         .assert()
         .success()
-        .stdout(predicate::str::contains("Radium Workspace"));
+        .stdout(predicate::str::contains("Radium Status"))
+        .stdout(predicate::str::contains("Valid: ✓"));
 }
