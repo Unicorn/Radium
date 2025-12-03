@@ -96,21 +96,38 @@
 **Focus**: Essential legacy system functionality
 
 ### Step 4: Plan Generation & Execution
-**Status**: Not Started  
-**Priority**: 🟡 High  
-**Est. Time**: 15-20 hours
+**Status**: 🔄 In Progress (75% Complete)
+**Priority**: 🟡 High
+**Est. Time**: 15-20 hours (10-12 hours remaining)
 
-- `rad plan` full implementation
-  - Specification parsing
-  - AI-powered plan generation
-  - Iteration and task extraction
-  - Plan file generation
-- `rad craft` full implementation
-  - Plan execution (iteration-by-iteration, task-by-task)
-  - Resume from checkpoint
-  - Progress tracking
+**Completed:**
+- [x] `rad plan` basic implementation (~259 lines)
+  - [x] Specification parsing (file or direct input)
+  - [x] RequirementId generation and validation
+  - [x] Plan directory structure creation
+  - [x] Basic plan generation from specs
+  - [x] Plan manifest generation with iterations/tasks
+  - [x] plan.json and plan_manifest.json output
+- [x] `rad craft` basic implementation (~315 lines)
+  - [x] Plan discovery by REQ-ID or folder name
+  - [x] Iteration-by-iteration execution
+  - [x] Task-by-task execution
+  - [x] Resume from checkpoint (basic)
+  - [x] Agent discovery and execution
+  - [x] Model execution with mock fallback
+  - [x] Dry-run mode
 
-**Why Next**: Core Radium workflow. Users need to generate and execute plans.
+**In Progress:**
+- [ ] AI-powered plan generation (using LLM)
+- [ ] Detailed plan markdown file generation
+- [ ] Workflow engine integration (behaviors)
+- [ ] Full checkpoint persistence
+- [ ] Progress tracking with state persistence
+- [ ] Interactive mode with questions
+- [ ] Tech stack detection
+- [ ] JSON output for CI/CD
+
+**Current Status**: Core functionality working. Users can generate and execute plans. Missing AI generation and advanced workflow integration.
 
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-4-plan-generation--execution) for detailed tasks.
 
