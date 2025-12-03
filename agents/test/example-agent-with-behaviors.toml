@@ -1,0 +1,20 @@
+[agent]
+id = "example-agent"
+name = "Example Agent"
+description = "A sample agent for testing with behavior configuration"
+prompt_path = "agents/test/example-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "medium"
+
+# Optional loop behavior configuration
+# This allows the agent to request looping back to previous steps
+[agent.loop_behavior]
+steps = 2
+max_iterations = 5
+skip = ["step-1"]
+
+# Optional trigger behavior configuration
+# This allows the agent to dynamically trigger other agents
+[agent.trigger_behavior]
+trigger_agent_id = "fallback-agent"
