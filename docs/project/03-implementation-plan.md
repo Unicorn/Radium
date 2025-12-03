@@ -89,12 +89,12 @@ Establish the workspace structure that all legacy system features depend on.
 ## Step 1: Agent Configuration System
 
 **Priority**: 🔴 Critical  
-**Est. Time**: 9-12 hours  
+**Est. Time**: 15-18 hours  
 **Dependencies**: Step 0
 
 ### Objectives
 
-Implement agent configuration and prompt system matching legacy system's structure.
+Implement agent configuration and prompt system matching legacy system's structure, with MCP integration and context files support.
 
 ### Tasks
 
@@ -132,6 +132,29 @@ Implement agent configuration and prompt system matching legacy system's structu
 
 **Reference**: [Feature Backlog Section 11](./legacy-system-feature-backlog.md#11-prompt-system)
 
+#### 1.4: MCP Integration (4-5h)
+**File**: `crates/radium-core/src/mcp/mod.rs`
+
+- MCP client implementation
+- Tool discovery from MCP servers
+- Multiple transport support (stdio, SSE, HTTP)
+- OAuth authentication for remote servers
+- Tool conflict resolution with automatic prefixing
+- Rich content support (text, images, audio) in tool responses
+
+**Reference**: [Gemini CLI Enhancements](../features/gemini-cli-enhancements.md#mcp-model-context-protocol-integration)
+
+#### 1.5: Context Files System (3-4h)
+**File**: `crates/radium-core/src/context/files.rs`
+
+- Hierarchical GEMINI.md loading (global → project → subdirectory)
+- Context file discovery and scanning
+- Context import syntax (`@file.md`)
+- Custom context file name configuration
+- Context file precedence and merging
+
+**Reference**: [Gemini CLI Enhancements](../features/gemini-cli-enhancements.md#context-files-geminimd)
+
 ### Deliverables
 
 - ✅ Agent configuration system
@@ -145,6 +168,8 @@ Implement agent configuration and prompt system matching legacy system's structu
 - Can discover agents from directories
 - Can load prompt templates
 - Can replace placeholders
+- Can discover and use tools from MCP servers
+- Can load context files hierarchically
 
 ---
 
@@ -237,12 +262,12 @@ Implement agent configuration and prompt system matching legacy system's structu
 ## Step 3: Workflow Behaviors
 
 **Priority**: 🟡 High  
-**Est. Time**: 12-15 hours  
+**Est. Time**: 18-22 hours  
 **Dependencies**: Step 1, Step 2
 
 ### Objectives
 
-Implement workflow behaviors (loop, trigger, checkpoint) matching legacy system's workflow system.
+Implement workflow behaviors (loop, trigger, checkpoint) matching legacy system's workflow system, with policy engine for tool execution control.
 
 ### Tasks
 
@@ -287,6 +312,18 @@ Implement workflow behaviors (loop, trigger, checkpoint) matching legacy system'
 
 **Reference**: [Feature Backlog Section 2.2 - Checkpoint Behavior](./legacy-system-feature-backlog.md#checkpoint-behavior)
 
+#### 3.5: Policy Engine (6-7h)
+**File**: `crates/radium-core/src/policy/mod.rs`
+
+- TOML-based policy rule system
+- Tool execution control (allow/deny/ask_user)
+- Priority-based rule matching with tiered policies (Default/User/Admin)
+- Approval modes (yolo, autoEdit)
+- Pattern matching for tool names and arguments
+- Special syntax for shell commands and MCP tools
+
+**Reference**: [Gemini CLI Enhancements](../features/gemini-cli-enhancements.md#policy-engine-for-tool-execution)
+
 ### Deliverables
 
 - ✅ Workflow behaviors working
@@ -300,6 +337,8 @@ Implement workflow behaviors (loop, trigger, checkpoint) matching legacy system'
 - Trigger behavior executes agents dynamically
 - Checkpoint behavior saves and resumes state
 - Behavior.json control file works
+- Policy engine controls tool execution based on rules
+- Approval modes work correctly
 
 ---
 
@@ -404,6 +443,18 @@ Implement plan-scoped memory and context management for agent execution.
 
 **Reference**: [Feature Backlog Section 6.2](./legacy-system-feature-backlog.md#62-context-management)
 
+#### 5.4: Custom Commands System (5-6h)
+**File**: `crates/radium-core/src/commands/custom.rs`
+
+- TOML-based command definitions
+- Command discovery (user vs project precedence)
+- Shell command injection (`!{command}`)
+- File content injection (`@{file}`)
+- Argument handling (`{{args}}`)
+- Namespaced commands via directory structure
+
+**Reference**: [Gemini CLI Enhancements](../features/gemini-cli-enhancements.md#custom-commands-toml-based)
+
 ### Deliverables
 
 - ✅ Memory system working
@@ -417,6 +468,8 @@ Implement plan-scoped memory and context management for agent execution.
 - Can inject file contents into prompts
 - Can use tail context from previous runs
 - Memory persists across agent executions
+- Can define and use custom TOML commands
+- Shell and file injection syntax works correctly
 
 ---
 
@@ -474,6 +527,18 @@ Implement agent monitoring and telemetry tracking matching legacy system's syste
 
 **Reference**: [Feature Backlog Section 7.3](./legacy-system-feature-backlog.md#73-logging)
 
+#### 6.5: Checkpointing System (6-7h)
+**File**: `crates/radium-core/src/checkpoint/mod.rs`
+
+- Git snapshot creation before file modifications
+- Shadow Git repository management
+- Conversation history preservation
+- `/restore` command implementation
+- Tool call re-proposal after restore
+- Checkpoint listing and selection
+
+**Reference**: [Gemini CLI Enhancements](../features/gemini-cli-enhancements.md#checkpointing-system)
+
 ### Deliverables
 
 - ✅ Monitoring database operational
@@ -487,6 +552,76 @@ Implement agent monitoring and telemetry tracking matching legacy system's syste
 - Can parse telemetry from engine output
 - Can query agent status
 - Log files created and managed
+- Can create checkpoints before file modifications
+- Can restore from checkpoints with conversation history
+
+---
+
+## Step 6.5: Sandboxing
+
+**Priority**: 🟡 High  
+**Est. Time**: 12-15 hours  
+**Dependencies**: Step 1
+
+### Objectives
+
+Implement sandboxing support for safe agent execution, especially for shell commands and file operations.
+
+### Tasks
+
+#### 6.5.1: Sandbox Abstraction (3-4h)
+**File**: `crates/radium-core/src/sandbox/mod.rs`
+
+- Sandbox trait definition
+- Sandbox factory for different types
+- Sandbox configuration structure
+
+**Reference**: [Gemini CLI Enhancements](../features/gemini-cli-enhancements.md#sandboxing)
+
+#### 6.5.2: Docker/Podman Sandbox (4-5h)
+**File**: `crates/radium-core/src/sandbox/docker.rs`
+
+- Container-based sandboxing
+- Volume mounting
+- Network configuration
+- Custom sandbox flags support
+
+**Reference**: [Gemini CLI Enhancements](../features/gemini-cli-enhancements.md#sandboxing)
+
+#### 6.5.3: macOS Seatbelt Sandbox (3-4h)
+**File**: `crates/radium-core/src/sandbox/seatbelt.rs`
+
+- macOS sandbox-exec integration
+- Sandbox profiles (permissive/restrictive)
+- Network control (open/closed/proxied)
+- Profile configuration
+
+**Reference**: [Gemini CLI Enhancements](../features/gemini-cli-enhancements.md#sandboxing)
+
+#### 6.5.4: Sandbox Configuration (2-3h)
+**File**: `crates/radium-core/src/sandbox/config.rs`
+
+- Sandbox settings in workspace config
+- Profile selection
+- Custom sandbox flags
+- Environment variable configuration
+
+**Reference**: [Gemini CLI Enhancements](../features/gemini-cli-enhancements.md#sandboxing)
+
+### Deliverables
+
+- ✅ Sandbox abstraction working
+- ✅ Docker/Podman sandboxing functional
+- ✅ macOS Seatbelt sandboxing functional
+- ✅ Sandbox configuration system
+- ✅ Tests for sandbox operations
+
+### Success Criteria
+
+- Can execute agents in Docker/Podman containers
+- Can execute agents with macOS Seatbelt restrictions
+- Sandbox profiles work correctly
+- Network and file system access properly controlled
 
 ---
 
@@ -801,6 +936,31 @@ Implement remaining legacy system features for complete parity.
 
 **Reference**: [Feature Backlog Section 1](./legacy-system-feature-backlog.md#1-cli-commands)
 
+#### 10.6: Extension System (8-10h)
+**File**: `crates/radium-core/src/extensions/mod.rs`
+
+- Extension discovery and loading
+- `gemini-extension.json` parsing
+- Extension registry
+- MCP server integration via extensions
+- Custom commands from extensions
+- Extension settings management
+- User/workspace scoping for extensions
+
+**Reference**: [Gemini CLI Enhancements](../features/gemini-cli-enhancements.md#extension-system)
+
+#### 10.7: Hooks System (4-5h)
+**File**: `crates/radium-core/src/hooks/mod.rs`
+
+- Hook registration system
+- Before/after model call hooks
+- Tool selection and execution hooks
+- Error handling hooks
+- Telemetry hooks
+- Hook configuration in settings
+
+**Reference**: [Gemini CLI Enhancements](../features/gemini-cli-enhancements.md#hooks-system)
+
 ### Deliverables
 
 - ✅ All remaining CLI commands
@@ -815,6 +975,8 @@ Implement remaining legacy system features for complete parity.
 - Can create git commits
 - Can coordinate multiple agents
 - All CLI commands functional
+- Can install and use extensions
+- Hooks system allows behavior customization
 
 ---
 
@@ -823,19 +985,20 @@ Implement remaining legacy system features for complete parity.
 | Step | Focus | Est. Time | Priority |
 |------|-------|-----------|----------|
 | 0 | Workspace System | 10-14h | 🔴 Critical |
-| 1 | Agent Configuration | 9-12h | 🔴 Critical |
+| 1 | Agent Configuration | 15-18h | 🔴 Critical |
 | 2 | Core CLI Commands | 8-10h | 🔴 Critical |
-| 3 | Workflow Behaviors | 12-15h | 🟡 High |
+| 3 | Workflow Behaviors | 18-22h | 🟡 High |
 | 4 | Plan Generation & Execution | 15-20h | 🟡 High |
-| 5 | Memory & Context | 10-12h | 🟡 High |
-| 6 | Monitoring & Telemetry | 12-15h | 🟡 High |
+| 5 | Memory & Context | 15-18h | 🟡 High |
+| 6 | Monitoring & Telemetry | 18-22h | 🟡 High |
+| 6.5 | Sandboxing | 12-15h | 🟡 High |
 | 7 | Engine Abstraction | 15-20h | 🟢 Medium |
 | 8 | Enhanced TUI | 15-20h | 🟢 Medium |
 | 9 | Agent Library | 30-40h | 🟢 Medium |
-| 10 | Advanced Features | 20-25h | 🟢 Low |
-| **Total** | | **156-203h** | |
+| 10 | Advanced Features | 30-35h | 🟢 Low |
+| **Total** | | **232-298h** | |
 
-**Timeline**: 4-7 weeks for complete feature parity
+**Timeline**: 5-8 weeks for complete feature parity (includes gemini-cli enhancements)
 
 ---
 
