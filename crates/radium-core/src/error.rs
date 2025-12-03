@@ -1,5 +1,6 @@
 //! Error types for Radium Core.
 
+use crate::auth::AuthError;
 use crate::storage::StorageError;
 use thiserror::Error;
 
@@ -29,6 +30,10 @@ pub enum RadiumError {
     /// Storage-related errors
     #[error("Storage error: {0}")]
     Storage(#[from] StorageError),
+
+    /// Authentication errors
+    #[error("Authentication error: {0}")]
+    Auth(#[from] AuthError),
 }
 
 /// Result type alias for Radium operations.

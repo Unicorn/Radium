@@ -18,6 +18,7 @@
 //! ```
 
 pub mod agents;
+pub mod auth;
 pub mod config;
 pub mod error;
 pub mod models;
@@ -36,6 +37,7 @@ pub mod proto {
 
 pub use agents::config::{AgentConfigError, AgentConfigFile, ReasoningEffort};
 pub use agents::discovery::{AgentDiscovery, DiscoveryError, DiscoveryOptions};
+pub use auth::{AuthError, AuthResult, CredentialStore, ProviderType};
 pub use config::Config;
 pub use error::{RadiumError, Result};
 pub use models::agent::{Agent, AgentConfig, AgentError, AgentState};

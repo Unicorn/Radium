@@ -206,20 +206,37 @@
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-9-agent-library) for detailed tasks.
 
 ### Step 10: Advanced Features
-**Status**: Not Started  
-**Priority**: 🟢 Low  
+**Status**: Not Started
+**Priority**: 🟢 Low
 **Est. Time**: 20-25 hours
 
 - Project introspection (tech stack detection)
 - AI-powered question generation
 - Git integration (git-commit agent)
 - Coordinator service (`rad run` command)
-- `rad templates` and `rad auth` commands
+- ✅ `rad templates` commands (Complete)
+- ✅ `rad auth` commands - API key auth (Complete)
 - Non-interactive mode and JSON output
 
 **Why Later**: Advanced features that enhance usability but aren't core to functionality.
 
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-10-advanced-features) for detailed tasks.
+
+### Step 11: Multi-Method Authentication (OAuth/Session)
+**Status**: Not Started
+**Priority**: 🟢 Low (Future Enhancement)
+**Est. Time**: 8-12 hours
+
+- OAuth flow support (browser redirect, callback server, PKCE)
+- Token refresh logic and expiration checking
+- Cloud provider credentials (AWS, Azure, GCP)
+- Multiple auth methods per provider
+- Token validation and auto-refresh
+- Migration from v1.0 (API key) to v2.0 (multi-method) format
+
+**Why Later**: API key authentication covers 90% of LLM providers. OAuth needed for enterprise SSO and cloud platform integrations.
+
+**Reference**: See [authentication-system-plan.md](./authentication-system-plan.md#future-enhancements-option-b-multi-method-auth) for detailed design.
 
 ---
 
