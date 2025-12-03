@@ -14,6 +14,7 @@
 ### Reference Documents
 
 - **[legacy-system-feature-backlog.md](./legacy-system-feature-backlog.md)** - Complete feature catalog from legacy system
+- **[gemini-cli-enhancements.md](../features/gemini-cli-enhancements.md)** - Features and patterns from gemini-cli integrated into Radium
 
 ### Architecture Documents
 
@@ -35,7 +36,7 @@
 
 **Current Focus**: Step 0 - Workspace System (see [02-now-next-later.md](./02-now-next-later.md))
 
-**Goal**: Achieve complete legacy system feature parity in 10 steps (4-7 weeks)
+**Goal**: Achieve complete legacy system feature parity in 10 steps (5-8 weeks), including enhancements from gemini-cli
 
 ---
 
@@ -46,6 +47,7 @@
 1. Start with **[02-now-next-later.md](./02-now-next-later.md)** to see prioritized features
 2. Review **[03-implementation-plan.md](./03-implementation-plan.md)** for detailed step-by-step tasks
 3. Reference **[legacy-system-feature-backlog.md](./legacy-system-feature-backlog.md)** for complete feature details
+4. Check **[gemini-cli-enhancements.md](../features/gemini-cli-enhancements.md)** for features integrated from gemini-cli
 
 ### For Implementation
 
@@ -73,6 +75,7 @@
 ### Reference (Secondary)
 
 - **legacy-system-feature-backlog.md** - Complete feature catalog from legacy system
+- **gemini-cli-enhancements.md** - Features and patterns from gemini-cli integrated into Radium
 - **PROGRESS.md** - Detailed task-level progress (see note below)
 
 ### Architecture & Strategy (Reference)
@@ -113,5 +116,5 @@ If you're starting work on Radium:
 
 ---
 
-**Last Updated**: 2025-12-02 (consolidated from radium/roadmap)
+**Last Updated**: 2025-12-02 (includes gemini-cli enhancements integration)
 

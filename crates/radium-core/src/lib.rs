@@ -22,6 +22,7 @@ pub mod auth;
 pub mod config;
 pub mod error;
 pub mod models;
+pub mod policy;
 pub mod prompts;
 pub mod server;
 pub mod storage;
@@ -44,6 +45,10 @@ pub use models::agent::{Agent, AgentConfig, AgentError, AgentState};
 pub use models::plan::{Iteration, Plan, PlanError, PlanManifest, PlanStatus, PlanTask};
 pub use models::task::{Task, TaskError, TaskQueue, TaskResult, TaskState};
 pub use models::workflow::{Workflow, WorkflowError, WorkflowState, WorkflowStep};
+pub use policy::{
+    ApprovalMode, PolicyAction, PolicyDecision, PolicyEngine, PolicyError, PolicyPriority,
+    PolicyResult, PolicyRule,
+};
 pub use prompts::{PromptContext, PromptError, PromptTemplate};
 pub use proto::radium_client;
 pub use proto::{PingRequest, PingResponse};

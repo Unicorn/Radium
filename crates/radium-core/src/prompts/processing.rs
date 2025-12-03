@@ -375,4 +375,94 @@ mod tests {
         assert!(result.contains("Hello World!"));
         assert!(result.contains("File content"));
     }
+
+    #[test]
+    fn test_prompt_cache_with_ttl() {
+        use std::time::Duration;
+        let cache = PromptCache::with_ttl(Duration::from_millis(100));
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(b"Hello {{name}}!").unwrap();
+        file.flush().unwrap();
+
+        let template1 = cache.load(file.path()).unwrap();
+        
+        // Load again immediately - should be cached
+        let template2 = cache.load(file.path()).unwrap();
+        assert_eq!(template1.content(), template2.content());
+        
+        // Wait for TTL to expire
+        std::thread::sleep(Duration::from_millis(150));
+        
+        // Load again - should reload from file
+        let template3 = cache.load(file.path()).unwrap();
+        assert_eq!(template1.content(), template3.content());
+    }
+
+    #[test]
+    fn test_prompt_cache_evict() {
+        let cache = PromptCache::new();
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(b"Hello {{name}}!").unwrap();
+        file.flush().unwrap();
+
+        cache.load(file.path()).unwrap();
+        assert_eq!(cache.stats().unwrap().size, 1);
+
+        cache.evict(file.path()).unwrap();
+        assert_eq!(cache.stats().unwrap().size, 0);
+    }
+
+    #[test]
+    fn test_file_injection_markdown() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("test.md");
+        fs::write(&file_path, "# Markdown content").unwrap();
+
+        let template = PromptTemplate::from_string("Doc: {{file:test.md:markdown}}");
+        let context = PromptContext::new();
+        let options = FileInjectionOptions {
+            base_path: Some(temp_dir.path().to_path_buf()),
+            format: FileInjectionFormat::Markdown,
+            ..Default::default()
+        };
+
+        let result = process_with_file_injection(&template, &context, &options).unwrap();
+        assert!(result.contains("---"));
+        assert!(result.contains("# Markdown content"));
+    }
+
+    #[test]
+    fn test_file_injection_max_size() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("large.txt");
+        // Create a file larger than the limit
+        let large_content = "x".repeat(1000);
+        fs::write(&file_path, &large_content).unwrap();
+
+        let template = PromptTemplate::from_string("Content: {{file:large.txt}}");
+        let context = PromptContext::new();
+        let options = FileInjectionOptions {
+            base_path: Some(temp_dir.path().to_path_buf()),
+            max_file_size: Some(500), // Limit to 500 bytes
+            ..Default::default()
+        };
+
+        let result = process_with_file_injection(&template, &context, &options);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_file_injection_nonexistent_file() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let template = PromptTemplate::from_string("Content: {{file:nonexistent.txt}}");
+        let context = PromptContext::new();
+        let options = FileInjectionOptions {
+            base_path: Some(temp_dir.path().to_path_buf()),
+            ..Default::default()
+        };
+
+        let result = process_with_file_injection(&template, &context, &options);
+        assert!(result.is_err());
+    }
 }

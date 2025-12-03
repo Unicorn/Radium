@@ -2,7 +2,7 @@
 //!
 //! Provides commands for discovering, managing, and using workflow templates.
 
-use crate::TemplatesCommand;
+use super::TemplatesCommand;
 use colored::Colorize;
 use radium_core::workflow::{TemplateDiscovery, WorkflowTemplate};
 use serde_json::json;

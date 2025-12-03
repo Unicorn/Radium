@@ -2,6 +2,76 @@
 
 This document tracks feature ideas and enhancements for future implementation.
 
+## In Development (NEXT Phase)
+
+The following features are planned for implementation in the NEXT phase of development. See [02-now-next-later.md](../project/02-now-next-later.md) for detailed roadmap information.
+
+### MCP Integration
+
+**Status**: Planned for Step 1  
+**Priority**: High
+
+Integration with the Model Context Protocol to enable external tool discovery and execution from MCP servers. Supports multiple transports (stdio, SSE, HTTP), OAuth authentication, and rich content responses.
+
+**Reference**: [gemini-cli-enhancements.md](./gemini-cli-enhancements.md#mcp-model-context-protocol-integration)
+
+---
+
+### Policy Engine
+
+**Status**: Planned for Step 3  
+**Priority**: High
+
+Fine-grained control over tool execution through rule-based policies. Supports allow/deny/ask_user decisions, priority-based rule matching, and approval modes.
+
+**Reference**: [gemini-cli-enhancements.md](./gemini-cli-enhancements.md#policy-engine-for-tool-execution)
+
+---
+
+### Context Files (GEMINI.md)
+
+**Status**: Planned for Step 1  
+**Priority**: High
+
+Hierarchical context file system for providing persistent instructions to agents. Supports global, project, and subdirectory context files with import syntax.
+
+**Reference**: [gemini-cli-enhancements.md](./gemini-cli-enhancements.md#context-files-geminimd)
+
+---
+
+### Custom Commands (TOML)
+
+**Status**: Planned for Step 5  
+**Priority**: High
+
+TOML-based system for defining reusable agent commands with shell and file injection syntax.
+
+**Reference**: [gemini-cli-enhancements.md](./gemini-cli-enhancements.md#custom-commands-toml-based)
+
+---
+
+### Checkpointing System
+
+**Status**: Planned for Step 6  
+**Priority**: High
+
+Automatic Git snapshots and conversation history preservation for safe experimentation with code changes.
+
+**Reference**: [gemini-cli-enhancements.md](./gemini-cli-enhancements.md#checkpointing-system)
+
+---
+
+### Sandboxing
+
+**Status**: Planned for Step 6.5  
+**Priority**: High
+
+Isolated execution environments for safe agent operations. Supports Docker/Podman and macOS Seatbelt sandboxing.
+
+**Reference**: [gemini-cli-enhancements.md](./gemini-cli-enhancements.md#sandboxing)
+
+---
+
 ## Later / Nice-to-Have Features
 
 ### Session Reports & Analytics
@@ -110,8 +180,29 @@ cache, reducing costs.
 - Performance profiling tools
 - Alert system for failures
 
+### Extension System
+
+**Status**: Planned for Step 10  
+**Priority**: Medium
+
+Installable extensions that package prompts, MCP servers, and custom commands. Enables community-contributed extensions and easy sharing of agent configurations.
+
+**Reference**: [gemini-cli-enhancements.md](./gemini-cli-enhancements.md#extension-system)
+
+---
+
+### Hooks System
+
+**Status**: Planned for Step 10  
+**Priority**: Medium
+
+Intercept and customize behavior at various points in the execution flow. Supports before/after model calls, tool selection, error handling, and telemetry hooks.
+
+**Reference**: [gemini-cli-enhancements.md](./gemini-cli-enhancements.md#hooks-system)
+
+---
+
 ### Security & Compliance
-- Agent sandboxing
 - Permission systems
 - Audit logging
 - Secrets management

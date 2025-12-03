@@ -47,6 +47,9 @@ tracing-subscriber.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
 
+# Pattern matching
+glob = "0.3"
+
 # Internal crates
 radium-abstraction.workspace = true
 radium-models.workspace = true

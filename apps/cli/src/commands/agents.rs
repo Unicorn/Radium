@@ -2,7 +2,7 @@
 //!
 //! Provides commands for discovering, searching, and managing agents.
 
-use crate::AgentsCommand;
+use super::AgentsCommand;
 use colored::Colorize;
 use radium_core::agents::discovery::AgentDiscovery;
 use radium_core::agents::config::AgentConfig;

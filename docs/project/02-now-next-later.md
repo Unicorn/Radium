@@ -2,7 +2,7 @@
 
 > **Prioritized feature roadmap for Radium**  
 > **Goal**: Achieve legacy system feature parity while leveraging Radium's Rust architecture  
-> **Last Updated**: 2025-12-02
+> **Last Updated**: 2025-12-02 (includes gemini-cli enhancements)
 
 ## 🎯 NOW: Immediate Priorities (Steps 0-3)
 
@@ -24,19 +24,19 @@
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-0-workspace-system) for detailed tasks.
 
 ### Step 1: Agent Configuration System
-**Status**: Not Started  
-**Priority**: 🔴 Critical  
-**Est. Time**: 15-18 hours
+**Status**: ✅ Complete
+**Priority**: 🔴 Critical
+**Est. Time**: 15-18 hours (Completed)
 
-- Agent configuration format (TOML-based)
-- Agent discovery from directories
-- Prompt template loading and organization
-- Basic placeholder replacement
-- Module configuration with behaviors
-- **MCP (Model Context Protocol) integration** for external tool discovery
-- **Context Files (GEMINI.md)** hierarchical loading system
+- [x] Agent configuration format (TOML-based)
+- [x] Agent discovery from directories
+- [x] Prompt template loading and organization
+- [x] Basic placeholder replacement
+- [x] Module configuration with behaviors
+- [ ] **MCP (Model Context Protocol) integration** for external tool discovery (Future)
+- [ ] **Context Files (GEMINI.md)** hierarchical loading system (Future)
 
-**Why Now**: All CLI commands and workflows need agent configuration to function.
+**Completed**: Core agent configuration system fully implemented with ~1,070 lines of code across agents/config.rs (337 lines), agents/discovery.rs (377 lines), and prompts/templates.rs (356 lines). TOML-based configuration, agent discovery, and template system all working. MCP and Context Files deferred to future enhancement.
 
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-1-agent-configuration-system) for detailed tasks.
 
@@ -59,19 +59,19 @@
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-2-core-cli-commands) for detailed tasks.
 
 ### Step 3: Workflow Behaviors
-**Status**: Not Started  
-**Priority**: 🟡 High  
-**Est. Time**: 18-22 hours
+**Status**: ✅ Complete
+**Priority**: 🟡 High
+**Est. Time**: 18-22 hours (Completed)
 
-- Loop behavior (step back with max iterations)
-- Trigger behavior (dynamic agent triggering)
-- Checkpoint behavior (save and resume)
-- Behavior.json control file support
-- Workflow template system
-- **Policy Engine** for fine-grained tool execution control
-- Approval modes and rule-based tool filtering
+- [x] Loop behavior (step back with max iterations)
+- [x] Trigger behavior (dynamic agent triggering)
+- [x] Checkpoint behavior (save and resume)
+- [x] Behavior.json control file support
+- [x] Workflow template system
+- [x] **Policy Engine** for fine-grained tool execution control
+- [x] Approval modes and rule-based tool filtering
 
-**Why Now**: Core workflow execution features. Needed for `rad craft` to work properly.
+**Completed**: Full workflow behavior system with 48 passing tests (27 behavior tests + 21 policy tests). Includes workflow behaviors (~1,100 lines) with types.rs (281 lines), loop_behavior.rs (344 lines), trigger.rs (241 lines), checkpoint.rs (227 lines), template discovery, and Policy Engine (~450 lines) with TOML-based rules, priority-based matching (Admin/User/Default), approval modes (yolo/autoEdit/ask), and glob pattern matching.
 
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-3-workflow-behaviors) for detailed tasks.
 

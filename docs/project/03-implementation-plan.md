@@ -2,7 +2,7 @@
 
 > **Goal**: Achieve complete legacy system feature parity in 10 steps  
 > **Reference**: See [legacy-system-feature-backlog.md](./legacy-system-feature-backlog.md) for complete feature catalog  
-> **Last Updated**: 2025-12-02
+> **Last Updated**: 2025-12-02 (includes gemini-cli enhancements)
 
 ## Overview
 

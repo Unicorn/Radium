@@ -6,7 +6,7 @@ use radium_core::auth::{CredentialStore, ProviderType};
 use serde_json::json;
 use std::io::{self, Write};
 
-use crate::AuthCommand;
+use super::AuthCommand;
 
 /// Executes the auth command.
 pub async fn execute(command: AuthCommand) -> Result<()> {
@@ -14,8 +14,8 @@ pub async fn execute(command: AuthCommand) -> Result<()> {
         AuthCommand::Login { all, provider } => {
             if all {
                 login_all_providers().await
-            } else if let Some(p) = provider {
-                login_provider(&p).await
+            } else if let Some(ref p) = provider {
+                login_provider(p).await
             } else {
                 // Interactive mode: prompt for provider selection
                 login_interactive().await
@@ -24,8 +24,8 @@ pub async fn execute(command: AuthCommand) -> Result<()> {
         AuthCommand::Logout { all, provider } => {
             if all {
                 logout_all_providers().await
-            } else if let Some(p) = provider {
-                logout_provider(&p).await
+            } else if let Some(ref p) = provider {
+                logout_provider(p).await
             } else {
                 logout_interactive().await
             }
