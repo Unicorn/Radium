@@ -1,15 +1,15 @@
 # Radium Project Progress Tracker
 
 **Last Updated**: 2025-12-02
-**Current Version**: 0.55.0
+**Current Version**: 0.60.0
 **Main Branch**: `main`
 **Development Branch**: `main`
 
 ## Executive Summary
 
-Radium is a sophisticated multi-agent orchestration platform built with Rust (backend) and modern web technologies (frontend). The project has completed major milestones including a gRPC backend server, agent orchestrator, workflow engine, and multiple interfaces (CLI, TUI, Desktop).
+Radium is a high-performance agent orchestration platform built with Rust. The project has successfully completed major refactoring to follow Rust community conventions, with a clean modular structure in `crates/`, streamlined naming, and a fully functional CLI for workspace and plan management.
 
-**Current Status**: ✅ Core platform complete, actively developing foundational features for workspace, plans, and workflows.
+**Current Status**: ✅ Core platform complete with conventional structure. CLI commands operational (init, plan, craft, step, run, status). Ready for feature expansion and agent library development.
 
 ---
 
@@ -35,6 +35,9 @@ Radium is a sophisticated multi-agent orchestration platform built with Rust (ba
 - [x] **RAD-CLI-INIT**: Implement `rad init` command with intelligent defaults
 - [x] **RAD-CLI-ENHANCE**: Enhance `rad plan` and `rad craft` to accept file/content inputs
 - [x] **RAD-WORKSPACE-REFACTOR**: Standardize workspace structure (`.radium/_internals`, `.radium/plan`)
+- [x] **RAD-STRUCTURE**: Reorganize project into conventional Rust structure with `crates/` directory
+- [x] **RAD-NAMING**: Simplify crate names (`radium-abstraction`, `radium-orchestrator`)
+- [x] **RAD-CLEANUP**: Remove all "codemachine" references from codebase
 
 ### Outstanding Tasks
 
@@ -97,14 +100,19 @@ See [01-completed.md](01-completed.md) for detailed test coverage information.
 
 ```
 radium/
-├── core/                 # gRPC server, storage, models
-├── model-abstraction/    # Model trait definitions
-├── models/               # Gemini, OpenAI, Mock implementations
-├── agent-orchestrator/   # Agent framework (registry, lifecycle, queue)
-└── apps/
-    ├── cli/             # Command-line client
-    ├── tui/             # Terminal UI (ratatui)
-    └── desktop/         # Tauri v2 desktop app
+├── crates/              # Rust library crates
+│   ├── radium-core/         # Core orchestration engine
+│   ├── radium-models/       # Model implementations (Gemini, OpenAI)
+│   ├── radium-abstraction/  # Model trait definitions
+│   └── radium-orchestrator/ # Agent execution framework
+├── apps/                # Applications
+│   ├── cli/            # rad CLI (fully functional)
+│   ├── tui/            # Terminal UI
+│   └── desktop/        # Tauri desktop app
+├── packages/            # TypeScript packages for frontend
+├── docs/                # Documentation
+├── config/              # Configuration files
+└── scripts/             # Build and utility scripts
 ```
 
 ---

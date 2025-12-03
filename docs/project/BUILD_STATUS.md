@@ -65,15 +65,19 @@ cargo run --bin radium-cli -- clean
 
 ```
 radium/
+├── crates/                      ✓ Rust library crates (conventional structure)
+│   ├── radium-core/            ✓ Working - Main orchestration engine
+│   ├── radium-models/          ✓ Working - Model implementations
+│   ├── radium-abstraction/     ✓ Working - Model trait definitions
+│   └── radium-orchestrator/    ✓ Working - Agent execution framework
 ├── apps/
-│   ├── cli/          ✓ Working - Full CLI implementation
-│   ├── tui/          ✓ Working - Ratatui-based TUI
-│   └── desktop/      ✓ Working - Tauri v2 desktop app
-├── core/             ✓ Working - Main orchestration engine
-├── models/           ✓ Working - Model implementations
-├── model-abstraction/✓ Working - Model trait definitions
-├── agent-orchestrator/✓ Working - Agent execution framework
-└── packages/         🚧 TypeScript packages for desktop app
+│   ├── cli/                    ✓ Working - Full CLI implementation
+│   ├── tui/                    ✓ Working - Ratatui-based TUI
+│   ├── desktop/                ✓ Working - Tauri v2 desktop app
+│   └── mobile/                 🚧 Mobile app (future)
+├── packages/                    🚧 TypeScript packages for desktop app
+├── docs/                        ✓ Comprehensive documentation
+└── config/                      ✓ Configuration files
 ```
 
 ---
