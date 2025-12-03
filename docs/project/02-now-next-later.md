@@ -137,20 +137,32 @@
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-4-plan-generation--execution) for detailed tasks.
 
 ### Step 5: Memory & Context System
-**Status**: Not Started  
-**Priority**: 🟡 High  
-**Est. Time**: 15-18 hours
+**Status**: ✅ Complete
+**Priority**: 🟢 Completed
+**Est. Time**: 15-18 hours (completed)
 
-- Plan-scoped memory storage
-- File-based memory adapter
-- Context gathering (architecture, plan, codebase)
-- File input injection syntax (`agent[input:file1.md]`)
-- Tail context support (`agent[tail:50]`)
-- **Custom Commands (TOML-based)** system for reusable prompts
-- Enhanced context system with file injection syntax (`@{file}`)
-- Shell command injection syntax (`!{command}`)
+**Completed:**
+- [x] **Memory Module** (~670 lines, 18 tests)
+  - [x] Plan-scoped memory storage (memory/store.rs)
+  - [x] MemoryEntry with 2000 char truncation
+  - [x] File-based memory adapter (memory/adapter.rs)
+  - [x] Async trait-based storage abstraction
+  - [x] Persistence and caching
+- [x] **Context Manager** (~590 lines, 24 tests)
+  - [x] Context gathering (architecture, plan, codebase) (context/manager.rs)
+  - [x] File input injection syntax `agent[input:file1.md]` (context/injection.rs)
+  - [x] Tail context support `agent[tail:50]`
+  - [x] InjectionDirective parsing and execution
+  - [x] Multi-source context building
+- [x] **Custom Commands System** (~430 lines, 8 tests)
+  - [x] TOML-based command definitions (commands/custom.rs)
+  - [x] Shell command injection `!{command}`
+  - [x] File content injection `@{file}`
+  - [x] Argument handling `{{args}}`, `{{arg1}}`
+  - [x] Namespaced commands via directory structure
+  - [x] User vs project command precedence
 
-**Why Next**: Essential for agent execution quality. Agents need context from previous runs.
+**Summary**: Complete memory and context system with ~1,690 lines of code and 50 passing tests. Agents can now store and retrieve context from previous runs, inject file contents, execute shell commands, and use custom TOML-based commands.
 
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-5-memory--context-system) for detailed tasks.
 

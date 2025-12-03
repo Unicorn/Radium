@@ -19,8 +19,11 @@
 
 pub mod agents;
 pub mod auth;
+pub mod commands;
 pub mod config;
+pub mod context;
 pub mod error;
+pub mod memory;
 pub mod models;
 pub mod planning;
 pub mod policy;
@@ -40,8 +43,11 @@ pub mod proto {
 pub use agents::config::{AgentConfigError, AgentConfigFile, ReasoningEffort};
 pub use agents::discovery::{AgentDiscovery, DiscoveryError, DiscoveryOptions};
 pub use auth::{AuthError, AuthResult, CredentialStore, ProviderType};
+pub use commands::{CommandError, CommandRegistry, CustomCommand, Result as CommandResult};
 pub use config::Config;
+pub use context::{ContextError, ContextInjector, ContextManager, InjectionDirective, Result as ContextResult};
 pub use error::{RadiumError, Result};
+pub use memory::{FileAdapter, MemoryAdapter, MemoryEntry, MemoryError, MemoryStore, Result as MemoryResult};
 pub use models::agent::{Agent, AgentConfig, AgentError, AgentState};
 pub use models::plan::{Iteration, Plan, PlanError, PlanManifest, PlanStatus, PlanTask};
 pub use models::task::{Task, TaskError, TaskQueue, TaskResult, TaskState};
