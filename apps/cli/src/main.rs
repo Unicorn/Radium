@@ -9,7 +9,7 @@ use clap::{CommandFactory, Parser, Subcommand};
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
-use commands::{agents, auth, clean, craft, init, plan, run, status, step};
+use commands::{agents, auth, clean, craft, init, plan, run, status, step, templates};
 
 /// Radium CLI - Next-generation agentic orchestration tool
 ///
@@ -165,23 +165,8 @@ enum Command {
     /// Manage workflow templates
     ///
     /// List, select, and configure workflow templates for plan execution.
-    Templates {
-        /// Select Basic template
-        #[arg(long)]
-        basic: bool,
-
-        /// Select Full template
-        #[arg(long)]
-        full: bool,
-
-        /// Select template by name
-        #[arg(long)]
-        template: Option<String>,
-
-        /// Output as JSON
-        #[arg(long)]
-        json: bool,
-    },
+    #[command(subcommand)]
+    Templates(TemplatesCommand),
 
     /// Authentication management
     #[command(subcommand)]
@@ -263,6 +248,37 @@ pub enum AgentsCommand {
     },
 }
 
+#[derive(Subcommand, Debug)]
+pub enum TemplatesCommand {
+    /// List all available workflow templates
+    List {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+
+        /// Show detailed information
+        #[arg(short, long)]
+        verbose: bool,
+    },
+
+    /// Show detailed information about a specific template
+    Info {
+        /// Template name
+        name: String,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Validate template configurations
+    Validate {
+        /// Show detailed validation errors
+        #[arg(short, long)]
+        verbose: bool,
+    },
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
@@ -316,12 +332,8 @@ async fn main() -> anyhow::Result<()> {
         Command::Clean { verbose, dir } => {
             clean::execute(verbose, dir).await?;
         }
-        Command::Templates { basic, full, template, json } => {
-            println!("Templates command - coming soon");
-            println!("  --basic: {}", basic);
-            println!("  --full: {}", full);
-            println!("  --template: {:?}", template);
-            println!("  --json: {}", json);
+        Command::Templates(cmd) => {
+            templates::execute(cmd).await?;
         }
         Command::Auth(cmd) => {
             auth::execute(cmd).await?;

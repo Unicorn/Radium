@@ -1,0 +1,19 @@
+{
+  "name": "test-workflow",
+  "description": "A test workflow template with multiple agents",
+  "steps": [
+    {
+      "agentId": "test-agent-1",
+      "agentName": "Test Agent 1",
+      "type": "step",
+      "executeOnce": true
+    },
+    {
+      "agentId": "test-agent-2",
+      "agentName": "Test Agent 2",
+      "type": "step",
+      "executeOnce": false
+    }
+  ],
+  "subAgentIds": ["test-agent-1", "test-agent-2"]
+}

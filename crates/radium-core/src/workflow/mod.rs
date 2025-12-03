@@ -11,6 +11,7 @@ pub mod executor;
 pub mod parallel;
 pub mod service;
 pub mod step_tracking;
+pub mod template_discovery;
 pub mod templates;
 
 pub use behaviors::{
@@ -22,6 +23,7 @@ pub use engine::{ExecutionContext, StepResult, WorkflowEngine, WorkflowEngineErr
 pub use executor::WorkflowExecutor;
 pub use service::{WorkflowExecution, WorkflowService};
 pub use step_tracking::{StepRecord, StepStatus, StepTracker, StepTrackingError};
+pub use template_discovery::TemplateDiscovery;
 pub use templates::{
     ModuleBehavior, ModuleBehaviorAction, ModuleBehaviorType, WorkflowStep, WorkflowStepConfig,
     WorkflowStepType, WorkflowTemplate, WorkflowTemplateError,

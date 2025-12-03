@@ -9,3 +9,4 @@ pub mod plan;
 pub mod run;
 pub mod status;
 pub mod step;
+pub mod templates;

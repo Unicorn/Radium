@@ -1,0 +1,25 @@
+{
+  "name": "basic-workflow",
+  "description": "A basic workflow template for simple agent orchestration",
+  "steps": [
+    {
+      "agentId": "planner",
+      "agentName": "Planning Agent",
+      "type": "step",
+      "executeOnce": false
+    },
+    {
+      "agentId": "executor",
+      "agentName": "Execution Agent",
+      "type": "step",
+      "executeOnce": false
+    },
+    {
+      "agentId": "reviewer",
+      "agentName": "Review Agent",
+      "type": "step",
+      "executeOnce": false
+    }
+  ],
+  "subAgentIds": ["planner", "executor", "reviewer"]
+}
