@@ -30,6 +30,7 @@ pub mod monitoring;
 pub mod planning;
 pub mod policy;
 pub mod prompts;
+pub mod sandbox;
 pub mod server;
 pub mod storage;
 pub mod workflow;
@@ -67,6 +68,10 @@ pub use policy::{
 pub use prompts::{PromptContext, PromptError, PromptTemplate};
 pub use proto::radium_client;
 pub use proto::{PingRequest, PingResponse};
+pub use sandbox::{
+    NetworkMode, NoSandbox, Result as SandboxResult, Sandbox, SandboxConfig, SandboxError,
+    SandboxFactory, SandboxProfile, SandboxType,
+};
 pub use storage::{
     AgentRepository, Database, SqliteAgentRepository, SqliteTaskRepository,
     SqliteWorkflowRepository, StorageError, TaskRepository, WorkflowRepository,

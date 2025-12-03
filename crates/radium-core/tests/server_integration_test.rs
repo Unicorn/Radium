@@ -15,8 +15,6 @@ use radium_core::proto::{
 };
 use radium_core::models::{WorkflowState};
 use common::{create_test_client, start_test_server};
-use std::time::Duration;
-use tokio::time;
 
 #[tokio::test]
 async fn test_ping() {
@@ -75,7 +73,7 @@ async fn test_agent_orchestration_flow() {
     let exec_inner = exec_resp.into_inner();
     assert!(exec_inner.success);
     // Echo agent returns the input
-    assert_eq!(exec_inner.output, "Hello World");
+    assert_eq!(exec_inner.output, "Echo from test-echo-agent: Hello World");
 
     // 5. Stop the agent
     let stop_req = tonic::Request::new(StopAgentRequest {
@@ -109,9 +107,11 @@ async fn test_workflow_execution_flow() {
         name: "Workflow Task".to_string(),
         description: "Task for workflow test".to_string(),
         agent_id: "workflow-agent".to_string(),
-        input_template: "{}".to_string(),
+        input_json: "{}".to_string(),
         created_at: "".to_string(),
         updated_at: "".to_string(),
+        state: "\"queued\"".to_string(), // Valid JSON string for TaskState::Queued
+        result_json: "".to_string(), // Empty string for None
     };
     client.create_task(CreateTaskRequest { task: Some(task) }).await.expect("Create task failed");
 

@@ -25,6 +25,7 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
 | **M6: Testing & Polish** | 🔄 In Progress | 75% | Test coverage, optimization, docs |
 | **Step 0: Workspace** | ✅ Complete | 100% | RequirementId, Plan types, Discovery (22+ tests) |
 | **Step 6: Monitoring** | ✅ Complete | 100% | Agent tracking, telemetry, logs, checkpoints (44 tests) |
+| **Step 6.5: Sandboxing** | ✅ Complete | 100% | Docker, Seatbelt, sandbox abstraction (15 tests) |
 
 ---
 
@@ -32,6 +33,18 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
 
 ### Completed Recently
 
+- [x] **Step 6.5: Sandboxing System**: Complete sandboxing implementation for safe agent execution
+  - **Completed:** 2025-12-03
+  - **Commit:** feat(sandbox): implement sandboxing system (Step 6.5)
+  - **Files:** `src/sandbox/{sandbox,docker,seatbelt,config,error}.rs`
+  - **Tests:** 15 tests passing (3 config + 4 sandbox + 5 seatbelt + 3 docker)
+  - **Features:**
+    - Sandbox abstraction trait for pluggable sandbox implementations
+    - Docker/Podman container-based sandboxing with volume mounting
+    - macOS Seatbelt sandboxing with permissive/restrictive profiles
+    - Network mode configuration (open/closed/proxied)
+    - Custom sandbox flags and environment variable support
+    - No-op sandbox for direct execution
 - [x] **Step 6: Monitoring & Telemetry**: Complete monitoring system implementation
   - **Completed:** 2025-12-03
   - **Commits:** Multiple commits for monitoring modules
@@ -105,7 +118,7 @@ Previous blockers resolved:
 
 ### Summary
 
-- **Total Tests**: ~149 passing, 0 failed, 6 ignored (manual execution)
+- **Total Tests**: ~164 passing, 0 failed, 6 ignored (manual execution)
 - **Unit Tests**: ✅ Comprehensive coverage across all core modules
 - **Integration Tests**: ✅ Core workflows tested
 - **E2E Tests**: ⚠️ Manual execution required (marked as ignored)
@@ -155,6 +168,7 @@ radium/
 
 | Date | Changes |
 |------|---------|
+| 2025-12-03 | Claude | Completed Step 6.5: Sandboxing System (15 tests passing) |
 | 2025-12-03 | Claude | Completed Step 6: Monitoring & Telemetry (44 tests passing) |
 | 2025-12-02 | Implemented template management (list, info, validate) with TemplateDiscovery system |
 | 2025-12-02 | Implemented agent management (list, search, info, validate) with full CLI integration |
