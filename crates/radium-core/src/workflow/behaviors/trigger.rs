@@ -237,4 +237,38 @@ mod tests {
         let result = evaluator.evaluate_trigger(&behavior_file, "", &context).unwrap();
         assert!(result.is_none());
     }
+
+    #[test]
+    fn test_trigger_evaluator_continue_action() {
+        let temp_dir = TempDir::new().unwrap();
+        let behavior_file = temp_dir.path().join("behavior.json");
+
+        // Write continue action (should not trigger)
+        let action = BehaviorAction::new(BehaviorActionType::Continue);
+        action.write_to_file(&behavior_file).unwrap();
+
+        let evaluator = TriggerEvaluator::new();
+        let config = TriggerBehaviorConfig { trigger_agent_id: Some("handler".to_string()) };
+        let context = TriggerEvaluationContext::new(Some(config));
+
+        let result = evaluator.evaluate_trigger(&behavior_file, "", &context).unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_trigger_evaluator_stop_action() {
+        let temp_dir = TempDir::new().unwrap();
+        let behavior_file = temp_dir.path().join("behavior.json");
+
+        // Write stop action (should not trigger)
+        let action = BehaviorAction::new(BehaviorActionType::Stop);
+        action.write_to_file(&behavior_file).unwrap();
+
+        let evaluator = TriggerEvaluator::new();
+        let config = TriggerBehaviorConfig { trigger_agent_id: Some("handler".to_string()) };
+        let context = TriggerEvaluationContext::new(Some(config));
+
+        let result = evaluator.evaluate_trigger(&behavior_file, "", &context).unwrap();
+        assert!(result.is_none());
+    }
 }

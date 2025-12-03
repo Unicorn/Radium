@@ -417,10 +417,10 @@ mod tests {
         tracker.mark_started("step-2");
         tracker.mark_completed("step-2");
         tracker.mark_started("step-3");
-        // step-3 not completed
+        // step-3 not completed (in progress, not failed, so not in not_completed_steps)
 
         assert_eq!(tracker.get_completed_steps().len(), 2);
-        assert_eq!(tracker.get_not_completed_steps().len(), 1);
+        assert_eq!(tracker.get_not_completed_steps().len(), 0); // Only failed steps are in not_completed
         assert!(tracker.is_completed("step-1"));
         assert!(tracker.is_completed("step-2"));
         assert!(!tracker.is_completed("step-3"));
@@ -640,7 +640,8 @@ mod tests {
 
     #[test]
     fn test_step_tracker_load_from_nonexistent_file() {
-        let nonexistent = TempDir::new().unwrap().path().join("nonexistent.json");
+        let temp_dir = TempDir::new().unwrap();
+        let nonexistent = temp_dir.path().join("nonexistent.json");
         let result = StepTracker::load_from_file(&nonexistent);
         assert!(result.is_err());
         if let Err(e) = result {

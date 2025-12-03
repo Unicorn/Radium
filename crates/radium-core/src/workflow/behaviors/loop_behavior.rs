@@ -340,4 +340,77 @@ mod tests {
         assert_eq!(counters.get("loop-2"), 0);
         assert_eq!(counters.get("loop-3"), 0);
     }
+
+    #[test]
+    fn test_loop_evaluator_skip_list_functionality() {
+        let temp_dir = TempDir::new().unwrap();
+        let behavior_file = temp_dir.path().join("behavior.json");
+
+        let action = BehaviorAction::new(BehaviorActionType::Loop).with_reason("Retry needed");
+        action.write_to_file(&behavior_file).unwrap();
+
+        let evaluator = LoopEvaluator::new();
+        let config = LoopBehaviorConfig {
+            steps: 2,
+            max_iterations: Some(10),
+            skip: vec!["step-1".to_string(), "step-2".to_string()],
+        };
+        let context = LoopEvaluationContext::new(1, Some(config));
+
+        let result = evaluator.evaluate_loop(&behavior_file, "", &context).unwrap();
+        assert!(result.is_some());
+
+        let decision = result.unwrap();
+        assert!(decision.should_repeat);
+        assert_eq!(decision.skip_list.len(), 2);
+        assert!(decision.skip_list.contains(&"step-1".to_string()));
+        assert!(decision.skip_list.contains(&"step-2".to_string()));
+    }
+
+    #[test]
+    fn test_loop_evaluator_no_max_iterations() {
+        let temp_dir = TempDir::new().unwrap();
+        let behavior_file = temp_dir.path().join("behavior.json");
+
+        let action = BehaviorAction::new(BehaviorActionType::Loop);
+        action.write_to_file(&behavior_file).unwrap();
+
+        let evaluator = LoopEvaluator::new();
+        let config = LoopBehaviorConfig {
+            steps: 2,
+            max_iterations: None, // No max iterations
+            skip: vec![],
+        };
+        let context = LoopEvaluationContext::new(100, Some(config)); // High iteration count
+
+        let result = evaluator.evaluate_loop(&behavior_file, "", &context).unwrap();
+        // Should still allow loop since no max_iterations set
+        assert!(result.is_some());
+        let decision = result.unwrap();
+        assert!(decision.should_repeat);
+    }
+
+    #[test]
+    fn test_loop_evaluator_empty_skip_list() {
+        let temp_dir = TempDir::new().unwrap();
+        let behavior_file = temp_dir.path().join("behavior.json");
+
+        let action = BehaviorAction::new(BehaviorActionType::Loop);
+        action.write_to_file(&behavior_file).unwrap();
+
+        let evaluator = LoopEvaluator::new();
+        let config = LoopBehaviorConfig {
+            steps: 3,
+            max_iterations: Some(10),
+            skip: vec![], // Empty skip list
+        };
+        let context = LoopEvaluationContext::new(2, Some(config));
+
+        let result = evaluator.evaluate_loop(&behavior_file, "", &context).unwrap();
+        assert!(result.is_some());
+
+        let decision = result.unwrap();
+        assert!(decision.should_repeat);
+        assert!(decision.skip_list.is_empty());
+    }
 }

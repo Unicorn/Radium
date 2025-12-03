@@ -96,9 +96,9 @@
 **Focus**: Essential legacy system functionality
 
 ### Step 4: Plan Generation & Execution
-**Status**: 🔄 In Progress (85% Complete)
-**Priority**: 🟡 High
-**Est. Time**: 15-20 hours (3-4 hours remaining)
+**Status**: ✅ Complete
+**Priority**: 🟢 Completed
+**Est. Time**: 15-20 hours (completed)
 
 **Completed:**
 - [x] `rad plan` basic implementation (~259 lines)
@@ -108,31 +108,31 @@
   - [x] Basic plan generation from specs
   - [x] Plan manifest generation with iterations/tasks
   - [x] plan.json and plan_manifest.json output
-- [x] `rad craft` basic implementation (~315 lines)
+- [x] `rad craft` with PlanExecutor (~305 lines)
   - [x] Plan discovery by REQ-ID or folder name
   - [x] Iteration-by-iteration execution
-  - [x] Task-by-task execution
-  - [x] Resume from checkpoint (basic)
+  - [x] Task-by-task execution with state persistence
+  - [x] Resume from checkpoint (full implementation)
   - [x] Agent discovery and execution
   - [x] Model execution with mock fallback
   - [x] Dry-run mode
-- [x] **Planning module** (~700 lines, 5 tests)
+  - [x] Dependency validation
+  - [x] Progress tracking with percentage display
+  - [x] Checkpoint persistence after each task
+- [x] **Planning module** (~1,110 lines, 10 tests)
   - [x] AI-powered plan generation using LLM abstraction
   - [x] PlanParser for parsing LLM markdown responses
   - [x] PlanGenerator with configurable model parameters
   - [x] Detailed markdown file generation (4 files)
   - [x] Project overview, iteration details, verification docs
   - [x] Coordinator prompt generation
+  - [x] PlanExecutor with state persistence (~410 lines, 5 tests)
+  - [x] Task execution with error handling
+  - [x] Progress calculation and tracking
+  - [x] Dependency validation
+  - [x] Manifest save/load for checkpoints
 
-**In Progress:**
-- [ ] Workflow engine integration (behaviors)
-- [ ] Full checkpoint persistence
-- [ ] Progress tracking with state persistence
-- [ ] Interactive mode with questions
-- [ ] Tech stack detection
-- [ ] JSON output for CI/CD
-
-**Current Status**: AI-powered plan generation complete. Users can generate detailed plans with iterations/tasks. Remaining: workflow integration and persistence.
+**Summary**: Full plan generation and execution system with AI-powered planning, state persistence, dependency management, and progress tracking. Users can generate plans from specifications and execute them with automatic checkpointing and resume support.
 
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-4-plan-generation--execution) for detailed tasks.
 

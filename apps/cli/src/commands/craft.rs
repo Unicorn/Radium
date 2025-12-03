@@ -5,10 +5,11 @@
 use anyhow::{Context, bail};
 use colored::Colorize;
 use radium_core::{
-    AgentDiscovery, PlanDiscovery, PlanManifest, PlanStatus, PromptContext, PromptTemplate,
-    RequirementId, Workspace,
+    ExecutionConfig, PlanDiscovery, PlanExecutor, PlanManifest, PlanStatus, RequirementId,
+    Workspace,
 };
 use radium_models::ModelFactory;
+use std::sync::Arc;
 
 /// Execute the craft command.
 ///
@@ -34,7 +35,7 @@ pub async fn execute(
 
     // Check if plan_identifier is a file path
     let plan_path = std::path::PathBuf::from(&plan_id);
-    let (project_name, manifest) = if plan_path.exists() && plan_path.is_file() {
+    let (project_name, mut manifest, manifest_path) = if plan_path.exists() && plan_path.is_file() {
         println!("  Loading plan from file: {}", plan_id.green());
         let content = std::fs::read_to_string(&plan_path).context("Failed to read plan file")?;
 
@@ -42,7 +43,7 @@ pub async fn execute(
         let manifest: PlanManifest =
             serde_json::from_str(&content).context("Failed to parse plan manifest")?;
 
-        (manifest.project_name.clone(), manifest)
+        (manifest.project_name.clone(), manifest, plan_path)
     } else {
         // Find the plan in workspace
         println!("  Looking for plan: {}", plan_id.green());
@@ -72,8 +73,9 @@ pub async fn execute(
         }
 
         let manifest = discovered_plan.load_manifest().context("Failed to load plan manifest")?;
+        let manifest_path = discovered_plan.path.join("plan/plan_manifest.json");
 
-        (discovered_plan.plan.project_name, manifest)
+        (discovered_plan.plan.project_name, manifest, manifest_path)
     };
 
     // Display plan information
@@ -91,7 +93,7 @@ pub async fn execute(
     println!("{}", "Executing plan...".bold());
     println!();
 
-    execute_plan(&manifest, iteration.as_deref(), task.as_deref(), resume, json).await?;
+    execute_plan(&mut manifest, &manifest_path, iteration.as_deref(), task.as_deref(), resume, json).await?;
 
     println!();
     println!("{}", "Plan execution completed!".green().bold());
@@ -140,51 +142,70 @@ fn display_plan_info(project_name: &str, manifest: &PlanManifest) -> anyhow::Res
     Ok(())
 }
 
-/// Execute the plan.
+/// Execute the plan with state persistence.
 async fn execute_plan(
-    manifest: &PlanManifest,
+    manifest: &mut PlanManifest,
+    manifest_path: &std::path::Path,
     iteration_filter: Option<&str>,
     task_filter: Option<&str>,
     resume: bool,
-    json: bool,
+    _json: bool,
 ) -> anyhow::Result<()> {
+    // Create executor with configuration
+    let config = ExecutionConfig {
+        resume,
+        skip_completed: !resume,
+        check_dependencies: true,
+        state_path: manifest_path.to_path_buf(),
+    };
+    let executor = PlanExecutor::with_config(config);
+
     // Determine which iterations to execute
-    let iterations_to_execute: Vec<_> = if let Some(iter_id) = iteration_filter {
-        manifest.iterations.iter().filter(|i| i.id == iter_id).collect()
+    let iteration_ids: Vec<String> = if let Some(iter_id) = iteration_filter {
+        vec![iter_id.to_string()]
     } else {
-        manifest.iterations.iter().collect()
+        manifest.iterations.iter().map(|i| i.id.clone()).collect()
     };
 
-    if iterations_to_execute.is_empty() {
+    if iteration_ids.is_empty() {
         bail!("No iterations found to execute");
     }
 
     // Execute each iteration
-    for iteration in iterations_to_execute {
+    for iter_id in iteration_ids {
+        let iteration = manifest
+            .get_iteration(&iter_id)
+            .ok_or_else(|| anyhow::anyhow!("Iteration not found: {}", iter_id))?;
+
         // Skip completed iterations if not resuming
         if !resume && iteration.status == PlanStatus::Completed {
-            println!("  {} Skipping completed iteration: {}", "→".dimmed(), iteration.id.dimmed());
+            println!("  {} Skipping completed iteration: {}", "→".dimmed(), iter_id.dimmed());
             continue;
         }
 
-        println!("{}", format!("Iteration {}", iteration.id).bold().cyan());
+        println!("{}", format!("Iteration {}", iter_id).bold().cyan());
         println!("  Goal: {}", iteration.goal.as_ref().unwrap_or(&"No goal specified".to_string()));
         println!();
 
         // Determine which tasks to execute
-        let tasks_to_execute: Vec<_> = if let Some(task_id) = task_filter {
-            iteration.tasks.iter().filter(|t| t.id == task_id).collect()
+        let task_ids: Vec<String> = if let Some(task_id) = task_filter {
+            vec![task_id.to_string()]
         } else {
-            iteration.tasks.iter().collect()
+            iteration.tasks.iter().map(|t| t.id.clone()).collect()
         };
 
-        if tasks_to_execute.is_empty() {
+        if task_ids.is_empty() {
             println!("  {} No tasks to execute", "!".yellow());
             continue;
         }
 
         // Execute each task
-        for task in tasks_to_execute {
+        for task_id in task_ids {
+            let iteration = manifest.get_iteration(&iter_id).unwrap();
+            let task = iteration
+                .get_task(&task_id)
+                .ok_or_else(|| anyhow::anyhow!("Task not found: {}", task_id))?;
+
             // Skip completed tasks if not resuming
             if !resume && task.completed {
                 println!("    {} {}", "✓".green(), task.title.dimmed());
@@ -193,122 +214,92 @@ async fn execute_plan(
 
             println!("    {} {}", "→".cyan(), task.title);
 
-            // TODO: Execute actual task with agent
-            // For now, we simulate execution
-            execute_task_stub(task, json).await?;
+            // Check dependencies
+            if let Err(e) = executor.check_dependencies(manifest, task) {
+                println!("      {} Dependency not met: {}", "✗".red(), e.to_string().red());
+                println!("      {} Skipping task", "→".yellow());
+                continue;
+            }
+
+            // Get agent and model
+            let agent_id = if let Some(id) = &task.agent_id {
+                id
+            } else {
+                println!("      {} No agent assigned, skipping", "!".yellow());
+                continue;
+            };
+
+            println!("      {} Agent: {}", "•".dimmed(), agent_id.cyan());
+            println!("      {} Executing...", "•".cyan());
+
+            // Create model instance
+            let engine = "mock"; // Default to mock for now
+            let model_id = String::new();
+
+            let model = match ModelFactory::create_from_str(engine, model_id) {
+                Ok(m) => m,
+                Err(e) => {
+                    println!("      {} Failed to create model: {}", "✗".red(), e.to_string().red());
+                    continue;
+                }
+            };
+
+            // Execute task
+            match executor.execute_task(task, model).await {
+                Ok(result) => {
+                    if result.success {
+                        println!("      {} Execution complete", "✓".green());
+
+                        if let Some(response) = &result.response {
+                            println!();
+                            println!("      {}", "Response:".bold().green());
+                            println!("      {}", "─".repeat(60).dimmed());
+
+                            for line in response.lines().take(5) {
+                                println!("      {}", line);
+                            }
+
+                            if response.lines().count() > 5 {
+                                println!("      {} ... ({} more lines)", "".dimmed(), response.lines().count() - 5);
+                            }
+
+                            println!("      {}", "─".repeat(60).dimmed());
+                        }
+
+                        if let Some((prompt, completion)) = result.tokens_used {
+                            println!(
+                                "      {} Tokens: {} prompt, {} completion",
+                                "•".dimmed(),
+                                prompt.to_string().dimmed(),
+                                completion.to_string().dimmed()
+                            );
+                        }
+
+                        // Mark task as complete
+                        executor.mark_task_complete(manifest, &iter_id, &task_id)?;
+
+                        // Save checkpoint
+                        executor.save_manifest(manifest, manifest_path)?;
+
+                        // Show progress
+                        let progress = executor.calculate_progress(manifest);
+                        println!("      {} Progress: {}%", "•".dimmed(), progress.to_string().cyan());
+                    } else {
+                        println!("      {} Execution failed: {}", "✗".red(), result.error.unwrap_or_default().red());
+                        bail!("Task execution failed");
+                    }
+                }
+                Err(e) => {
+                    println!("      {} Execution error: {}", "✗".red(), e.to_string().red());
+                    bail!("Task execution error: {}", e);
+                }
+            }
+
+            println!();
         }
 
         println!();
     }
 
     Ok(())
-}
-
-/// Execute a task with its assigned agent.
-async fn execute_task_stub(task: &radium_core::PlanTask, _json: bool) -> anyhow::Result<()> {
-    println!("      {} Executing task...", "•".cyan());
-    println!("      {} Task ID: {}", "•".dimmed(), task.id.dimmed());
-
-    if let Some(desc) = &task.description {
-        println!("      {} Description: {}", "•".dimmed(), desc.dimmed());
-    }
-
-    // Check if agent is assigned
-    let agent_id = if let Some(id) = &task.agent_id { id } else {
-        println!("      {} No agent assigned", "!".yellow());
-        return Ok(());
-    };
-
-    println!("      {} Agent: {}", "•".dimmed(), agent_id.cyan());
-
-    // Discover and load agent configuration
-    let discovery = AgentDiscovery::new();
-    let agents = discovery.discover_all().context("Failed to discover agents")?;
-
-    let agent =
-        agents.get(agent_id).ok_or_else(|| anyhow::anyhow!("Agent not found: {}", agent_id))?;
-
-    // Load and render prompt
-    let prompt_content = std::fs::read_to_string(&agent.prompt_path)
-        .context(format!("Failed to load prompt from {:?}", agent.prompt_path))?;
-
-    let template = PromptTemplate::from_string(prompt_content);
-
-    // Create context with task information
-    let mut context = PromptContext::new();
-    context.set("task_id", task.id.clone());
-    context.set("task_title", task.title.clone());
-    if let Some(desc) = &task.description {
-        context.set("task_description", desc.clone());
-    }
-
-    let rendered = template.render(&context)?;
-
-    // Execute with model
-    let engine = agent.engine.as_deref().unwrap_or("mock");
-    let model_id = agent.model.clone().unwrap_or_default();
-
-    println!("      {} Executing with {}...", "•".cyan(), engine);
-
-    // Try to create model instance
-    match ModelFactory::create_from_str(engine, model_id.clone()) {
-        Ok(model_instance) => {
-            // Execute real model
-            match model_instance.generate_text(&rendered, None).await {
-                Ok(response) => {
-                    println!("      {} Execution complete", "✓".green());
-                    println!();
-                    println!("      {}", "Response:".bold().green());
-                    println!("      {}", "─".repeat(60).dimmed());
-
-                    // Indent response content
-                    for line in response.content.lines() {
-                        println!("      {}", line);
-                    }
-
-                    println!("      {}", "─".repeat(60).dimmed());
-
-                    if let Some(usage) = response.usage {
-                        println!(
-                            "      {} Tokens: {} prompt, {} completion",
-                            "•".dimmed(),
-                            usage.prompt_tokens.to_string().dimmed(),
-                            usage.completion_tokens.to_string().dimmed()
-                        );
-                    }
-
-                    Ok(())
-                }
-                Err(e) => {
-                    println!("      {} Model execution failed: {}", "✗".red(), e.to_string().red());
-                    Err(anyhow::anyhow!("Model execution failed: {}", e))
-                }
-            }
-        }
-        Err(e) => {
-            println!("      {} Could not initialize model: {}", "!".yellow(), e);
-            println!(
-                "      {} Set API key: export {}_API_KEY=your-key",
-                "i".cyan(),
-                engine.to_uppercase()
-            );
-            println!("      {} Falling back to mock model...", "→".dimmed());
-
-            // Fall back to mock model
-            let mock_model = ModelFactory::create_from_str("mock", model_id)?;
-            let response = mock_model.generate_text(&rendered, None).await?;
-
-            println!("      {} Mock execution complete", "✓".yellow());
-            println!("      {}", "Mock Response:".bold().yellow());
-            println!("      {}", "─".repeat(60).dimmed());
-
-            for line in response.content.lines().take(3) {
-                println!("      {}", line.dimmed());
-            }
-
-            println!("      {}", "─".repeat(60).dimmed());
-
-            Ok(())
-        }
-    }
 }
