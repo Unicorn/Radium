@@ -5,6 +5,8 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, RwLock};
+use std::time::{Duration, SystemTime};
 use thiserror::Error;
 
 /// Prompt template errors.
@@ -216,6 +218,165 @@ pub struct RenderOptions {
     pub default_value: Option<String>,
 }
 
+/// Cached template entry.
+#[derive(Debug, Clone)]
+struct CachedTemplate {
+    /// The cached template.
+    template: PromptTemplate,
+    /// When this template was loaded.
+    loaded_at: SystemTime,
+    /// File modification time when cached.
+    file_mtime: Option<SystemTime>,
+}
+
+/// Prompt template cache.
+///
+/// Caches loaded templates to avoid repeated file I/O.
+/// Templates are automatically invalidated when source files change.
+#[derive(Debug, Clone)]
+pub struct PromptCache {
+    inner: Arc<RwLock<HashMap<PathBuf, CachedTemplate>>>,
+    /// Maximum cache age (None = no expiration).
+    max_age: Option<Duration>,
+}
+
+impl PromptCache {
+    /// Create a new cache with no expiration.
+    pub fn new() -> Self {
+        Self { inner: Arc::new(RwLock::new(HashMap::new())), max_age: None }
+    }
+
+    /// Create a new cache with a maximum age.
+    pub fn with_max_age(max_age: Duration) -> Self {
+        Self { inner: Arc::new(RwLock::new(HashMap::new())), max_age: Some(max_age) }
+    }
+
+    /// Load a template, using cache if available and valid.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if file cannot be read or cache check fails.
+    pub fn load(&self, path: impl AsRef<Path>) -> Result<PromptTemplate> {
+        let path = path.as_ref();
+        let path_buf = path.to_path_buf();
+
+        // Check cache
+        {
+            let cache = self.inner.read().map_err(|e| {
+                PromptError::Io(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("cache lock error: {}", e),
+                ))
+            })?;
+
+            if let Some(cached) = cache.get(&path_buf) {
+                // Check if cache entry is still valid
+                if self.is_cache_valid(cached, path)? {
+                    return Ok(cached.template.clone());
+                }
+            }
+        }
+
+        // Load from file
+        let template = PromptTemplate::load(path)?;
+
+        // Update cache
+        {
+            let file_mtime = Self::get_file_mtime(path).ok();
+            let cached = CachedTemplate {
+                template: template.clone(),
+                loaded_at: SystemTime::now(),
+                file_mtime,
+            };
+
+            let mut cache = self.inner.write().map_err(|e| {
+                PromptError::Io(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("cache lock error: {}", e),
+                ))
+            })?;
+
+            cache.insert(path_buf, cached);
+        }
+
+        Ok(template)
+    }
+
+    /// Check if a cached entry is still valid.
+    fn is_cache_valid(&self, cached: &CachedTemplate, path: &Path) -> Result<bool> {
+        // Check max age
+        if let Some(max_age) = self.max_age {
+            if let Ok(elapsed) = cached.loaded_at.elapsed() {
+                if elapsed > max_age {
+                    return Ok(false);
+                }
+            }
+        }
+
+        // Check file modification time
+        if let Some(cached_mtime) = cached.file_mtime {
+            if let Ok(current_mtime) = Self::get_file_mtime(path) {
+                if current_mtime != cached_mtime {
+                    return Ok(false);
+                }
+            } else {
+                // File might have been deleted
+                return Ok(false);
+            }
+        }
+
+        Ok(true)
+    }
+
+    /// Get file modification time.
+    fn get_file_mtime(path: &Path) -> std::io::Result<SystemTime> {
+        let metadata = fs::metadata(path)?;
+        metadata.modified()
+    }
+
+    /// Clear the cache.
+    pub fn clear(&self) -> Result<()> {
+        let mut cache = self.inner.write().map_err(|e| {
+            PromptError::Io(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("cache lock error: {}", e),
+            ))
+        })?;
+
+        cache.clear();
+        Ok(())
+    }
+
+    /// Remove a specific entry from the cache.
+    pub fn remove(&self, path: impl AsRef<Path>) -> Result<()> {
+        let mut cache = self.inner.write().map_err(|e| {
+            PromptError::Io(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("cache lock error: {}", e),
+            ))
+        })?;
+
+        cache.remove(&path.as_ref().to_path_buf());
+        Ok(())
+    }
+
+    /// Get cache size.
+    pub fn len(&self) -> usize {
+        self.inner.read().map(|c| c.len()).unwrap_or(0)
+    }
+
+    /// Check if cache is empty.
+    pub fn is_empty(&self) -> bool {
+        self.inner.read().map(|c| c.is_empty()).unwrap_or(true)
+    }
+}
+
+impl Default for PromptCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -352,5 +513,70 @@ Please complete this by {{deadline}}.
         assert!(result.contains("Hello Agent!"));
         assert!(result.contains("analyze the code"));
         assert!(result.contains("tomorrow"));
+    }
+
+    #[test]
+    fn test_prompt_cache_load() {
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(b"Hello {{name}}!").unwrap();
+        file.flush().unwrap();
+
+        let cache = PromptCache::new();
+        let template1 = cache.load(file.path()).unwrap();
+        let template2 = cache.load(file.path()).unwrap();
+
+        assert_eq!(template1.content(), template2.content());
+        assert_eq!(cache.len(), 1);
+    }
+
+    #[test]
+    fn test_prompt_cache_invalidation() {
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(b"Version 1").unwrap();
+        file.flush().unwrap();
+
+        let cache = PromptCache::new();
+        let template1 = cache.load(file.path()).unwrap();
+        assert_eq!(template1.content(), "Version 1");
+
+        // Modify file
+        file.write_all(b"Version 2").unwrap();
+        file.flush().unwrap();
+
+        // Should reload from file
+        let template2 = cache.load(file.path()).unwrap();
+        assert_eq!(template2.content(), "Version 2");
+    }
+
+    #[test]
+    fn test_prompt_cache_clear() {
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(b"Test").unwrap();
+        file.flush().unwrap();
+
+        let cache = PromptCache::new();
+        cache.load(file.path()).unwrap();
+        assert_eq!(cache.len(), 1);
+
+        cache.clear().unwrap();
+        assert_eq!(cache.len(), 0);
+    }
+
+    #[test]
+    fn test_prompt_cache_remove() {
+        let mut file1 = NamedTempFile::new().unwrap();
+        let mut file2 = NamedTempFile::new().unwrap();
+        file1.write_all(b"File 1").unwrap();
+        file2.write_all(b"File 2").unwrap();
+        file1.flush().unwrap();
+        file2.flush().unwrap();
+
+        let cache = PromptCache::new();
+        cache.load(file1.path()).unwrap();
+        cache.load(file2.path()).unwrap();
+        assert_eq!(cache.len(), 2);
+
+        cache.remove(file1.path()).unwrap();
+        assert_eq!(cache.len(), 1);
     }
 }

@@ -20,6 +20,9 @@ pub mod config;
 pub mod discovery;
 pub mod metadata;
 
+#[cfg(test)]
+mod integration_test;
+
 pub use config::{AgentConfigError, AgentConfigFile, ReasoningEffort};
 pub use discovery::{AgentDiscovery, DiscoveryError};
 pub use metadata::{
