@@ -22,6 +22,7 @@ pub mod auth;
 pub mod config;
 pub mod error;
 pub mod models;
+pub mod planning;
 pub mod policy;
 pub mod prompts;
 pub mod server;
@@ -45,6 +46,9 @@ pub use models::agent::{Agent, AgentConfig, AgentError, AgentState};
 pub use models::plan::{Iteration, Plan, PlanError, PlanManifest, PlanStatus, PlanTask};
 pub use models::task::{Task, TaskError, TaskQueue, TaskResult, TaskState};
 pub use models::workflow::{Workflow, WorkflowError, WorkflowState, WorkflowStep};
+pub use planning::{
+    ParsedIteration, ParsedPlan, ParsedTask, PlanGenerator, PlanGeneratorConfig, PlanParser,
+};
 pub use policy::{
     ApprovalMode, PolicyAction, PolicyDecision, PolicyEngine, PolicyError, PolicyPriority,
     PolicyResult, PolicyRule,

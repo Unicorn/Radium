@@ -35,7 +35,6 @@ pub enum TaskState {
     Cancelled,
 }
 
-
 /// Result of a task execution.
 ///
 /// Stores the output and metadata from a completed task execution.

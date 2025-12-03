@@ -193,11 +193,9 @@ impl PolicyEngine {
         // Check rules in priority order
         for rule in &self.rules {
             if rule.matches(tool_name, args)? {
-                return Ok(PolicyDecision::new(rule.action)
-                    .with_rule(&rule.name)
-                    .with_reason(rule.reason.clone().unwrap_or_else(|| {
-                        format!("Matched rule: {}", rule.name)
-                    })));
+                return Ok(PolicyDecision::new(rule.action).with_rule(&rule.name).with_reason(
+                    rule.reason.clone().unwrap_or_else(|| format!("Matched rule: {}", rule.name)),
+                ));
             }
         }
 
@@ -288,8 +286,8 @@ mod tests {
 
     #[test]
     fn test_policy_rule_matches_with_arg_pattern() {
-        let rule = PolicyRule::new("deny-rm", "bash:*", PolicyAction::Deny)
-            .with_arg_pattern("*rm*");
+        let rule =
+            PolicyRule::new("deny-rm", "bash:*", PolicyAction::Deny).with_arg_pattern("*rm*");
 
         // Matches because arg contains "rm"
         assert!(rule.matches("bash:sh", &["rm", "-rf", "/"]).unwrap());

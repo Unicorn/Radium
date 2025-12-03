@@ -32,7 +32,6 @@ pub enum WorkflowState {
     Completed,
 }
 
-
 /// A step in a workflow.
 ///
 /// Represents a single step within a workflow, which references a task

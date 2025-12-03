@@ -24,7 +24,7 @@ tonic = "0.13"
 tokio = { version = "1", features = ["full"] }
 
 # Internal crates
-radium-core = { path = "../../../core" }
+radium-core = { path = "../../../crates/radium-core" }
 
 # Logging
 tracing = "0.1"

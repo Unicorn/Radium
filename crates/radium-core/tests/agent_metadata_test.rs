@@ -9,9 +9,7 @@ use std::path::PathBuf;
 fn test_parse_design_ux_architect() {
     // Note: These tests reference agent files that may not exist in all environments.
     // Update paths to match your actual agent library location.
-    let agent_path = PathBuf::from(
-        "prompts/agents/rad-agents/design/design-ux-architect.md",
-    );
+    let agent_path = PathBuf::from("prompts/agents/rad-agents/design/design-ux-architect.md");
 
     if !agent_path.exists() {
         // Skip test if file doesn't exist (CI environment)
@@ -34,9 +32,7 @@ fn test_parse_design_ux_architect() {
 
 #[test]
 fn test_parse_security_audit_lead() {
-    let agent_path = PathBuf::from(
-        "prompts/agents/rad-agents/security/security-audit-lead.md",
-    );
+    let agent_path = PathBuf::from("prompts/agents/rad-agents/security/security-audit-lead.md");
 
     if !agent_path.exists() {
         println!("Skipping test - agent file not found at {:?}", agent_path);
@@ -57,9 +53,7 @@ fn test_parse_security_audit_lead() {
 
 #[test]
 fn test_parse_project_coordinator() {
-    let agent_path = PathBuf::from(
-        "prompts/agents/rad-agents/project-coordinator.md",
-    );
+    let agent_path = PathBuf::from("prompts/agents/rad-agents/project-coordinator.md");
 
     if !agent_path.exists() {
         println!("Skipping test - agent file not found at {:?}", agent_path);

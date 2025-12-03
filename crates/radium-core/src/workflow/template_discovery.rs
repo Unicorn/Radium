@@ -89,17 +89,18 @@ impl TemplateDiscovery {
     }
 
     /// Finds a template by name.
-    pub fn find_by_name(&self, name: &str) -> Result<Option<WorkflowTemplate>, WorkflowTemplateError> {
+    pub fn find_by_name(
+        &self,
+        name: &str,
+    ) -> Result<Option<WorkflowTemplate>, WorkflowTemplateError> {
         for search_path in &self.search_paths {
             if !search_path.exists() {
                 continue;
             }
 
             // Try both exact match and with .json extension
-            let candidates = vec![
-                search_path.join(name),
-                search_path.join(format!("{}.json", name)),
-            ];
+            let candidates =
+                vec![search_path.join(name), search_path.join(format!("{}.json", name))];
 
             for candidate in candidates {
                 if candidate.exists() && candidate.is_file() {

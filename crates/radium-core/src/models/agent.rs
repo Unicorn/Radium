@@ -33,7 +33,6 @@ pub enum AgentState {
     Completed,
 }
 
-
 /// Configuration for an agent's execution.
 ///
 /// Contains all settings needed to configure how an agent executes,

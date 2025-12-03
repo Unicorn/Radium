@@ -261,7 +261,7 @@ mod tests {
         assert_eq!(structure.radium_root_dir(), temp.path().join(".radium"));
         assert_eq!(structure.internals_dir(), temp.path().join(".radium/_internals"));
         assert_eq!(structure.plans_root_dir(), temp.path().join(".radium/plan"));
-        
+
         assert_eq!(structure.backlog_dir(), temp.path().join(".radium/plan/backlog"));
         assert_eq!(structure.development_dir(), temp.path().join(".radium/plan/development"));
         assert_eq!(structure.review_dir(), temp.path().join(".radium/plan/review"));
@@ -280,10 +280,10 @@ mod tests {
         assert!(structure.radium_root_dir().exists());
         assert!(structure.internals_dir().exists());
         assert!(structure.plans_root_dir().exists());
-        
+
         assert!(structure.backlog_dir().exists());
         assert!(structure.development_dir().exists());
-        
+
         assert!(structure.artifacts_dir().exists());
         assert!(structure.memory_dir().exists());
     }

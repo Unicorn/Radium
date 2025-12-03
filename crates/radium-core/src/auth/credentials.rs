@@ -73,8 +73,8 @@ impl CredentialStore {
     fn default_credentials_path() -> AuthResult<PathBuf> {
         // Allow env::var for HOME environment variable (path discovery)
         #[allow(clippy::disallowed_methods)]
-        let home =
-            std::env::var("HOME").map_err(|_| AuthError::PermissionDenied("HOME not set".to_string()))?;
+        let home = std::env::var("HOME")
+            .map_err(|_| AuthError::PermissionDenied("HOME not set".to_string()))?;
         let auth_dir = Path::new(&home).join(".radium/auth");
         Ok(auth_dir.join("credentials.json"))
     }
@@ -225,12 +225,7 @@ impl CredentialStore {
     /// Returns an error if file operations fail.
     pub fn list(&self) -> AuthResult<Vec<ProviderType>> {
         let creds = self.load()?;
-        Ok(creds
-            .providers
-            .values()
-            .filter(|p| p.enabled)
-            .map(|p| p.kind)
-            .collect())
+        Ok(creds.providers.values().filter(|p| p.enabled).map(|p| p.kind).collect())
     }
 
     /// Checks if a provider is configured.

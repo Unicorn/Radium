@@ -49,9 +49,10 @@ impl PromptCache {
 
         // Check cache first
         {
-            let cache = self.cache.read().map_err(|_| {
-                PromptError::InvalidSyntax("Cache lock poisoned".to_string())
-            })?;
+            let cache = self
+                .cache
+                .read()
+                .map_err(|_| PromptError::InvalidSyntax("Cache lock poisoned".to_string()))?;
 
             if let Some(entry) = cache.get(&path) {
                 // Check if entry is still valid (if TTL is set)
@@ -73,9 +74,10 @@ impl PromptCache {
 
         // Store in cache
         {
-            let mut cache = self.cache.write().map_err(|_| {
-                PromptError::InvalidSyntax("Cache lock poisoned".to_string())
-            })?;
+            let mut cache = self
+                .cache
+                .write()
+                .map_err(|_| PromptError::InvalidSyntax("Cache lock poisoned".to_string()))?;
 
             cache.insert(
                 path,
@@ -88,32 +90,32 @@ impl PromptCache {
 
     /// Clear the cache.
     pub fn clear(&self) -> Result<()> {
-        let mut cache = self.cache.write().map_err(|_| {
-            PromptError::InvalidSyntax("Cache lock poisoned".to_string())
-        })?;
+        let mut cache = self
+            .cache
+            .write()
+            .map_err(|_| PromptError::InvalidSyntax("Cache lock poisoned".to_string()))?;
         cache.clear();
         Ok(())
     }
 
     /// Remove a specific template from the cache.
     pub fn evict(&self, path: impl AsRef<Path>) -> Result<()> {
-        let mut cache = self.cache.write().map_err(|_| {
-            PromptError::InvalidSyntax("Cache lock poisoned".to_string())
-        })?;
+        let mut cache = self
+            .cache
+            .write()
+            .map_err(|_| PromptError::InvalidSyntax("Cache lock poisoned".to_string()))?;
         cache.remove(path.as_ref());
         Ok(())
     }
 
     /// Get cache statistics.
     pub fn stats(&self) -> Result<CacheStats> {
-        let cache = self.cache.read().map_err(|_| {
-            PromptError::InvalidSyntax("Cache lock poisoned".to_string())
-        })?;
+        let cache = self
+            .cache
+            .read()
+            .map_err(|_| PromptError::InvalidSyntax("Cache lock poisoned".to_string()))?;
 
-        Ok(CacheStats {
-            size: cache.len(),
-            ttl: self.ttl,
-        })
+        Ok(CacheStats { size: cache.len(), ttl: self.ttl })
     }
 }
 
@@ -144,20 +146,15 @@ pub struct FileInjectionOptions {
 }
 
 /// Format for file content injection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum FileInjectionFormat {
     /// Inject as plain text.
+    #[default]
     Plain,
     /// Inject as code block with language.
     CodeBlock,
     /// Inject with markdown formatting.
     Markdown,
-}
-
-impl Default for FileInjectionFormat {
-    fn default() -> Self {
-        Self::Plain
-    }
 }
 
 /// Process a prompt template with file content injection.
@@ -222,10 +219,7 @@ pub fn process_with_file_injection(
         let formatted_content = match format {
             FileInjectionFormat::Plain => content,
             FileInjectionFormat::CodeBlock => {
-                let ext = resolved_path
-                    .extension()
-                    .and_then(|e| e.to_str())
-                    .unwrap_or("text");
+                let ext = resolved_path.extension().and_then(|e| e.to_str()).unwrap_or("text");
                 format!("```{}\n{}\n```", ext, content)
             }
             FileInjectionFormat::Markdown => format!("\n---\n{}\n---\n", content),
@@ -385,14 +379,14 @@ mod tests {
         file.flush().unwrap();
 
         let template1 = cache.load(file.path()).unwrap();
-        
+
         // Load again immediately - should be cached
         let template2 = cache.load(file.path()).unwrap();
         assert_eq!(template1.content(), template2.content());
-        
+
         // Wait for TTL to expire
         std::thread::sleep(Duration::from_millis(150));
-        
+
         // Load again - should reload from file
         let template3 = cache.load(file.path()).unwrap();
         assert_eq!(template1.content(), template3.content());

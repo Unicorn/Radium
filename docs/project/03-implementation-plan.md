@@ -431,7 +431,7 @@ Implement full `rad plan` and `rad craft` commands for plan generation and execu
 ## Step 5: Memory & Context System
 
 **Priority**: 🟡 High  
-**Est. Time**: 10-12 hours  
+**Est. Time**: 15-18 hours  
 **Dependencies**: Step 0, Step 1
 
 ### Objectives
@@ -503,7 +503,7 @@ Implement plan-scoped memory and context management for agent execution.
 ## Step 6: Monitoring & Telemetry
 
 **Priority**: 🟡 High  
-**Est. Time**: 12-15 hours  
+**Est. Time**: 18-22 hours  
 **Dependencies**: Step 1
 
 ### Objectives
@@ -903,7 +903,7 @@ Port legacy system's 70+ specialized agents to Radium.
 ## Step 10: Advanced Features
 
 **Priority**: 🟢 Low  
-**Est. Time**: 20-25 hours  
+**Est. Time**: 30-35 hours  
 **Dependencies**: Step 1, Step 2, Step 4
 
 ### Objectives
@@ -1034,4 +1034,5 @@ Implement remaining legacy system features for complete parity.
 - **Now/Next/Later**: [02-now-next-later.md](./02-now-next-later.md)
 - **Feature Backlog**: [legacy-system-feature-backlog.md](./legacy-system-feature-backlog.md)
 - **Completed Work**: [01-completed.md](./01-completed.md)
+- **Gemini CLI Enhancements**: [gemini-cli-enhancements.md](../features/gemini-cli-enhancements.md)
 

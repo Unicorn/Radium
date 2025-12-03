@@ -351,9 +351,7 @@ impl ModelSelector {
     }
 
     /// Create a mock model as fallback.
-    fn create_mock_model(
-        metadata: &AgentMetadata,
-    ) -> Result<SelectionResult, SelectionError> {
+    fn create_mock_model(metadata: &AgentMetadata) -> Result<SelectionResult, SelectionError> {
         let config = ModelConfig::new(ModelType::Mock, format!("mock-{}", metadata.name));
 
         let model = ModelFactory::create(config)?;

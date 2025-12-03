@@ -33,7 +33,7 @@ pub enum PolicyPriority {
 /// Approval mode for tool execution.
 ///
 /// Determines the default behavior when no specific policy rule matches.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum ApprovalMode {
     /// Auto-approve all tool executions (use with caution).
@@ -41,13 +41,8 @@ pub enum ApprovalMode {
     /// Auto-approve file edits, ask for other operations.
     AutoEdit,
     /// Ask for approval on all tool executions (safest, default).
+    #[default]
     Ask,
-}
-
-impl Default for ApprovalMode {
-    fn default() -> Self {
-        Self::Ask
-    }
 }
 
 impl ApprovalMode {
@@ -201,8 +196,8 @@ mod tests {
 
     #[test]
     fn test_policy_decision_with_reason() {
-        let decision = PolicyDecision::new(PolicyAction::Deny)
-            .with_reason("Security policy violation");
+        let decision =
+            PolicyDecision::new(PolicyAction::Deny).with_reason("Security policy violation");
 
         assert_eq!(decision.action, PolicyAction::Deny);
         assert_eq!(decision.reason.as_deref(), Some("Security policy violation"));
@@ -211,8 +206,7 @@ mod tests {
 
     #[test]
     fn test_policy_decision_with_rule() {
-        let decision = PolicyDecision::new(PolicyAction::Allow)
-            .with_rule("allow-read-files");
+        let decision = PolicyDecision::new(PolicyAction::Allow).with_rule("allow-read-files");
 
         assert_eq!(decision.matched_rule.as_deref(), Some("allow-read-files"));
     }

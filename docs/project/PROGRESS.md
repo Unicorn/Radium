@@ -58,9 +58,10 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
   - **Notes:** Verified coverage for auth, config, agents, storage, and server modules. Added tests for request logger.
 
 - [ ] **RAD-041**: Write E2E tests for TUI and Desktop apps
-  - **Status:** Not Started
-  - **Est. Time:** 4-6 hours
-  - **Notes:** Split from RAD-040. Requires manual testing setup or GUI automation tools.
+  - **Status:** In Progress
+  - **Assignee:** Gemini
+  - **Started:** 2025-12-03
+  - **Notes:** Refactoring TUI to expose library for testing. Running existing Desktop tests.
 
 - [ ] **RAD-TEST-015**: Setup Coverage Tooling
   - **Status:** Not Started
@@ -141,6 +142,7 @@ radium/
 | 2025-12-02 | Implemented agent management (list, search, info, validate) with full CLI integration |
 | 2025-12-02 | Fixed 38 clippy errors, improved code quality with modern Rust patterns |
 | 2025-12-02 | Roadmap reorganization: Created Now/Next/Later structure, integrated feature backlog into 0-10 step plan |
+| 2025-12-03 | Gemini | Started RAD-041 (TUI/Desktop Tests) |
 | 2025-12-03 | Gemini | Completed RAD-TEST-016 (Test Coverage) |
 | 2025-12-03 | Gemini | Started RAD-TEST-016 (Test Coverage) |
 | 2025-12-02 | Gemini | Completed RAD-040 (CLI E2E Tests) |

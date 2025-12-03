@@ -318,6 +318,31 @@ mod tests {
         let json = r#"{"invalid": json}"#;
         let result = StepCondition::from_json(Some(&json.to_string()));
         assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(matches!(e, ControlFlowError::InvalidConfig(_)));
+        }
+    }
+
+    #[test]
+    fn test_step_condition_from_json_null_string() {
+        // Test handling of "null" string (not None, but the string "null")
+        let condition = StepCondition::from_json(Some(&"null".to_string())).unwrap();
+        assert!(condition.is_none());
+    }
+
+    #[test]
+    fn test_step_condition_from_json_whitespace_null() {
+        // Test handling of " null " with whitespace
+        let condition = StepCondition::from_json(Some(&" null ".to_string())).unwrap();
+        assert!(condition.is_none());
+    }
+
+    #[test]
+    fn test_step_condition_from_json_malformed_json() {
+        // Test with malformed JSON that can't be parsed
+        let json = r#"{"condition": "unclosed"#;
+        let result = StepCondition::from_json(Some(&json.to_string()));
+        assert!(result.is_err());
     }
 
     #[test]
@@ -481,5 +506,63 @@ mod tests {
             evaluate_condition("step-1.result.output.data.nested.value == 'test'", &context);
         // Current implementation doesn't support nested paths, so defaults to true
         assert!(result);
+    }
+
+    #[test]
+    fn test_should_execute_step_with_multiple_dependencies_one_failed() {
+        let mut context = ExecutionContext::new("workflow-1".to_string());
+        context.record_step_result(
+            "step-1".to_string(),
+            StepResult::success(
+                "step-1".to_string(),
+                Value::String("output1".to_string()),
+                Utc::now(),
+                Utc::now(),
+            ),
+        );
+        context.record_step_result(
+            "step-2".to_string(),
+            StepResult::failure("step-2".to_string(), "Error".to_string(), Utc::now(), Utc::now()),
+        );
+
+        let condition = StepCondition {
+            condition: None,
+            skip_if: None,
+            depends_on: Some(vec!["step-1".to_string(), "step-2".to_string()]),
+        };
+        let result = should_execute_step("step-3", Some(&condition), &context).unwrap();
+        // step-2 failed, so should not execute
+        assert!(!result);
+    }
+
+    #[test]
+    fn test_evaluate_condition_missing_step_result() {
+        let context = ExecutionContext::new("workflow-1".to_string());
+        // Condition references step that doesn't exist
+        let result = evaluate_condition("nonexistent.result.success == true", &context);
+        // Should default to true when step doesn't exist
+        assert!(result);
+    }
+
+    #[test]
+    fn test_evaluate_condition_with_quoted_strings() {
+        let mut context = ExecutionContext::new("workflow-1".to_string());
+        context.record_step_result(
+            "step-1".to_string(),
+            StepResult::success(
+                "step-1".to_string(),
+                json!({"status": "success"}),
+                Utc::now(),
+                Utc::now(),
+            ),
+        );
+
+        // Test with single quotes
+        let result1 = evaluate_condition("step-1.result.output.status == 'success'", &context);
+        assert!(result1);
+
+        // Test with double quotes
+        let result2 = evaluate_condition(r#"step-1.result.output.status == "success""#, &context);
+        assert!(result2);
     }
 }

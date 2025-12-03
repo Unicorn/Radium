@@ -28,8 +28,7 @@ pub enum DiscoveryError {
 pub type Result<T> = std::result::Result<T, DiscoveryError>;
 
 /// Agent discovery options.
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct DiscoveryOptions {
     /// Agent directories to search.
     ///
@@ -41,7 +40,6 @@ pub struct DiscoveryOptions {
     /// If set, only agents with IDs in this list will be discovered.
     pub sub_agent_filter: Option<Vec<String>>,
 }
-
 
 /// Agent discovery service.
 ///

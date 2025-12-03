@@ -78,7 +78,6 @@ impl std::fmt::Display for ReasoningEffort {
     }
 }
 
-
 /// Agent configuration file (TOML format).
 ///
 /// This is the structure of an agent configuration file, typically stored at

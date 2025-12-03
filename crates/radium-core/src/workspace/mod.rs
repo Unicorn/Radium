@@ -27,7 +27,10 @@ use thiserror::Error;
 
 pub use plan_discovery::{DiscoveredPlan, PlanDiscovery, PlanDiscoveryOptions, SortBy, SortOrder};
 pub use requirement_id::{RequirementId, RequirementIdError};
-pub use structure::{DIR_INTERNALS, DIR_PLAN, STAGE_BACKLOG, STAGE_DEVELOPMENT, STAGE_DOCS, STAGE_REVIEW, STAGE_TESTING, WorkspaceStructure, DIR_RADIUM};
+pub use structure::{
+    DIR_INTERNALS, DIR_PLAN, DIR_RADIUM, STAGE_BACKLOG, STAGE_DEVELOPMENT, STAGE_DOCS,
+    STAGE_REVIEW, STAGE_TESTING, WorkspaceStructure,
+};
 
 /// Workspace management errors.
 #[derive(Debug, Error)]
@@ -57,8 +60,7 @@ pub enum WorkspaceError {
 pub type Result<T> = std::result::Result<T, WorkspaceError>;
 
 /// Configuration for workspace detection and creation.
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct WorkspaceConfig {
     /// Root directory for the workspace.
     /// If None, will search for workspace starting from current directory.
@@ -67,7 +69,6 @@ pub struct WorkspaceConfig {
     /// Whether to create workspace if it doesn't exist.
     pub create_if_missing: bool,
 }
-
 
 /// Workspace manager.
 ///

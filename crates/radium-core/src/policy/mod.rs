@@ -31,4 +31,6 @@ mod rules;
 mod types;
 
 pub use rules::{PolicyEngine, PolicyRule};
-pub use types::{ApprovalMode, PolicyAction, PolicyDecision, PolicyError, PolicyPriority, PolicyResult};
+pub use types::{
+    ApprovalMode, PolicyAction, PolicyDecision, PolicyError, PolicyPriority, PolicyResult,
+};

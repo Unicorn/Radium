@@ -58,11 +58,8 @@ fn test_desktop_hello_world() {
 fn test_hello_world_binaries_exist() {
     // Get workspace root (go up from core to workspace root)
     // CARGO_MANIFEST_DIR is radium/crates/radium-core, so parent.parent is radium
-    let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap();
+    let workspace_root =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap();
 
     // Verify CLI binary can be built (by checking it's in the workspace)
     let cli_cargo = workspace_root.join("apps/cli/Cargo.toml");

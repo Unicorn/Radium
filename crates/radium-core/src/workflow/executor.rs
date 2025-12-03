@@ -433,4 +433,198 @@ mod tests {
             _ => panic!("Expected Validation error for invalid state"),
         }
     }
+
+    #[tokio::test]
+    async fn test_execute_workflow_with_dependencies() {
+        // Test workflow with steps that have dependencies
+        let mut task_db = Database::open_in_memory().unwrap();
+        let mut workflow_db = Database::open_in_memory().unwrap();
+        let orchestrator = Arc::new(Orchestrator::new());
+        let executor = Arc::new(AgentExecutor::with_mock_model());
+        let workflow_executor =
+            WorkflowExecutor::new(Arc::clone(&orchestrator), Arc::clone(&executor));
+
+        // Register an agent
+        let agent = Arc::new(SimpleAgent::new("test-agent".to_string(), "Test agent".to_string()));
+        orchestrator.register_agent(agent).await;
+
+        // Create tasks
+        {
+            let mut task_repo = SqliteTaskRepository::new(&mut task_db);
+            for i in 0..3 {
+                let task = Task::new(
+                    format!("task-{}", i),
+                    format!("Task {}", i),
+                    format!("Test task {}", i),
+                    "test-agent".to_string(),
+                    json!({"input": format!("test-{}", i)}),
+                );
+                task_repo.create(&task).unwrap();
+            }
+        }
+
+        // Create workflow with steps that have dependencies
+        {
+            let mut workflow_repo = SqliteWorkflowRepository::new(&mut workflow_db);
+            let mut workflow = crate::models::Workflow::new(
+                "workflow-1".to_string(),
+                "Dependency Workflow".to_string(),
+                "A workflow with dependencies".to_string(),
+            );
+
+            // Step 1: No dependencies
+            workflow
+                .add_step(WorkflowStep::new(
+                    "step-1".to_string(),
+                    "Step 1".to_string(),
+                    "First step".to_string(),
+                    "task-0".to_string(),
+                    0,
+                ))
+                .unwrap();
+
+            // Step 2: Depends on step-1
+            let mut step2 = WorkflowStep::new(
+                "step-2".to_string(),
+                "Step 2".to_string(),
+                "Second step".to_string(),
+                "task-1".to_string(),
+                1,
+            );
+            step2.config_json = Some(
+                serde_json::to_string(&serde_json::json!({
+                    "dependsOn": ["step-1"]
+                }))
+                .unwrap(),
+            );
+            workflow.add_step(step2).unwrap();
+
+            // Step 3: Depends on step-2
+            let mut step3 = WorkflowStep::new(
+                "step-3".to_string(),
+                "Step 3".to_string(),
+                "Third step".to_string(),
+                "task-2".to_string(),
+                2,
+            );
+            step3.config_json = Some(
+                serde_json::to_string(&serde_json::json!({
+                    "dependsOn": ["step-2"]
+                }))
+                .unwrap(),
+            );
+            workflow.add_step(step3).unwrap();
+
+            workflow_repo.create(&workflow).unwrap();
+        }
+
+        // Execute workflow
+        let mut workflow = {
+            let workflow_repo = SqliteWorkflowRepository::new(&mut workflow_db);
+            workflow_repo.get_by_id("workflow-1").unwrap()
+        };
+
+        let context = {
+            let task_repo = SqliteTaskRepository::new(&mut task_db);
+            let mut workflow_repo = SqliteWorkflowRepository::new(&mut workflow_db);
+            workflow_executor
+                .execute_workflow(&mut workflow, &task_repo, &mut workflow_repo)
+                .await
+                .unwrap()
+        };
+
+        // Verify all steps executed in order
+        assert_eq!(context.step_results.len(), 3);
+        assert!(context.step_results.get("step-1").unwrap().success);
+        assert!(context.step_results.get("step-2").unwrap().success);
+        assert!(context.step_results.get("step-3").unwrap().success);
+    }
+
+    #[tokio::test]
+    async fn test_execute_workflow_agent_execution_failure() {
+        // Test workflow where agent execution fails mid-workflow
+        let mut task_db = Database::open_in_memory().unwrap();
+        let mut workflow_db = Database::open_in_memory().unwrap();
+        let orchestrator = Arc::new(Orchestrator::new());
+        let executor = Arc::new(AgentExecutor::with_mock_model());
+        let workflow_executor =
+            WorkflowExecutor::new(Arc::clone(&orchestrator), Arc::clone(&executor));
+
+        // Register an agent
+        let agent = Arc::new(SimpleAgent::new("test-agent".to_string(), "Test agent".to_string()));
+        orchestrator.register_agent(agent).await;
+
+        // Create tasks - one will fail (we can't easily simulate this with mock model,
+        // but we can test the error handling path)
+        {
+            let mut task_repo = SqliteTaskRepository::new(&mut task_db);
+            let task1 = Task::new(
+                "task-1".to_string(),
+                "Task 1".to_string(),
+                "First task".to_string(),
+                "test-agent".to_string(),
+                json!({"input": "test1"}),
+            );
+            task_repo.create(&task1).unwrap();
+
+            // Create task with non-existent agent to trigger failure
+            let task2 = Task::new(
+                "task-2".to_string(),
+                "Task 2".to_string(),
+                "Second task".to_string(),
+                "nonexistent-agent".to_string(),
+                json!({"input": "test2"}),
+            );
+            task_repo.create(&task2).unwrap();
+        }
+
+        // Create workflow with two steps
+        {
+            let mut workflow_repo = SqliteWorkflowRepository::new(&mut workflow_db);
+            let mut workflow = crate::models::Workflow::new(
+                "workflow-1".to_string(),
+                "Failure Workflow".to_string(),
+                "A workflow with a failing step".to_string(),
+            );
+            workflow
+                .add_step(WorkflowStep::new(
+                    "step-1".to_string(),
+                    "Step 1".to_string(),
+                    "First step".to_string(),
+                    "task-1".to_string(),
+                    0,
+                ))
+                .unwrap();
+            workflow
+                .add_step(WorkflowStep::new(
+                    "step-2".to_string(),
+                    "Step 2".to_string(),
+                    "Second step".to_string(),
+                    "task-2".to_string(),
+                    1,
+                ))
+                .unwrap();
+            workflow_repo.create(&workflow).unwrap();
+        }
+
+        // Execute workflow - should fail on step 2
+        let mut workflow = {
+            let workflow_repo = SqliteWorkflowRepository::new(&mut workflow_db);
+            workflow_repo.get_by_id("workflow-1").unwrap()
+        };
+
+        let result = {
+            let task_repo = SqliteTaskRepository::new(&mut task_db);
+            let mut workflow_repo = SqliteWorkflowRepository::new(&mut workflow_db);
+            workflow_executor.execute_workflow(&mut workflow, &task_repo, &mut workflow_repo).await
+        };
+
+        // Should fail because agent not found for step 2
+        assert!(result.is_err());
+
+        // Verify workflow is in error state
+        let workflow_repo = SqliteWorkflowRepository::new(&mut workflow_db);
+        let workflow = workflow_repo.get_by_id("workflow-1").unwrap();
+        assert!(matches!(workflow.state, WorkflowState::Error(_)));
+    }
 }

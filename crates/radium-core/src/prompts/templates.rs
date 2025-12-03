@@ -206,8 +206,7 @@ impl PromptTemplate {
 }
 
 /// Options for template rendering.
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct RenderOptions {
     /// Strict mode: error if placeholder is missing.
     pub strict: bool,
@@ -215,7 +214,6 @@ pub struct RenderOptions {
     /// Default value for missing placeholders (only used if not strict).
     pub default_value: Option<String>,
 }
-
 
 #[cfg(test)]
 mod tests {

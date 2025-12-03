@@ -1,11 +1,11 @@
 //! Integration tests for workflow execution.
 
-use radium_orchestrator::{AgentExecutor, Orchestrator, SimpleAgent};
 use radium_core::models::{Task, Workflow, WorkflowState, WorkflowStep};
 use radium_core::storage::{
     Database, SqliteTaskRepository, SqliteWorkflowRepository, TaskRepository, WorkflowRepository,
 };
 use radium_core::workflow::WorkflowExecutor;
+use radium_orchestrator::{AgentExecutor, Orchestrator, SimpleAgent};
 use serde_json::json;
 use std::sync::Arc;
 

@@ -5,17 +5,14 @@ use tower::{ServiceBuilder, ServiceExt};
 
 #[tokio::test]
 async fn test_request_logger_adds_request_id() {
-    let service = ServiceBuilder::new()
-        .layer(RequestLoggerLayer)
-        .service_fn(|req: Request<String>| async move {
+    let service = ServiceBuilder::new().layer(RequestLoggerLayer).service_fn(
+        |req: Request<String>| async move {
             let request_id = req.headers().get("x-request-id").cloned();
             Ok::<_, Infallible>(Response::new(request_id))
-        });
+        },
+    );
 
-    let request = Request::builder()
-        .uri("/")
-        .body("test".to_string())
-        .unwrap();
+    let request = Request::builder().uri("/").body("test".to_string()).unwrap();
 
     let response = service.oneshot(request).await.unwrap();
     let request_id_header = response.body();
@@ -25,12 +22,13 @@ async fn test_request_logger_adds_request_id() {
 
 #[tokio::test]
 async fn test_request_logger_preserves_existing_request_id() {
-    let service = ServiceBuilder::new()
-        .layer(RequestLoggerLayer)
-        .service_fn(|req: Request<String>| async move {
-            let request_id = req.headers().get("x-request-id").unwrap().to_str().unwrap().to_string();
+    let service = ServiceBuilder::new().layer(RequestLoggerLayer).service_fn(
+        |req: Request<String>| async move {
+            let request_id =
+                req.headers().get("x-request-id").unwrap().to_str().unwrap().to_string();
             Ok::<_, Infallible>(Response::new(request_id))
-        });
+        },
+    );
 
     let existing_id = "existing-id-123";
     let request = Request::builder()
