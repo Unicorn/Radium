@@ -284,18 +284,15 @@ impl App {
                     self.debug_logs.remove(0);
                 }
 
-                match self.app_state.connect().await {
-                    Err(e) => {
-                        let err_msg = format!("Failed to reconnect: {}", e);
-                        self.debug_logs.push(format!("ERROR: {}", err_msg));
-                        self.error_message =
-                            Some(format!("Failed to connect: {}\n\nPress 'c' to try again", e));
-                    }
-                    _ => {
-                        self.debug_logs.push("INFO: Reconnected successfully".to_string());
-                        self.error_message = None;
-                        self.refresh_current_view().await;
-                    }
+                if let Err(e) = self.app_state.connect().await {
+                    let err_msg = format!("Failed to reconnect: {}", e);
+                    self.debug_logs.push(format!("ERROR: {}", err_msg));
+                    self.error_message =
+                        Some(format!("Failed to connect: {}\n\nPress 'c' to try again", e));
+                } else {
+                    self.debug_logs.push("INFO: Reconnected successfully".to_string());
+                    self.error_message = None;
+                    self.refresh_current_view().await;
                 }
             }
             KeyCode::Char('i') if modifiers.contains(KeyModifiers::CONTROL) => {
@@ -356,17 +353,14 @@ async fn main() -> Result<()> {
     let mut app = App::new(args.server);
 
     // Try to connect on startup
-    match app.app_state.connect().await {
-        Err(e) => {
-            let err_msg = format!("Failed to connect to server: {}", e);
-            app.debug_logs.push(format!("ERROR: {}", err_msg));
-            // Don't show error immediately - let refresh_current_view handle it
-        }
-        _ => {
-            app.debug_logs.push("INFO: Connected to server".to_string());
-            // Load initial dashboard data
-            app.refresh_current_view().await;
-        }
+    if let Err(e) = app.app_state.connect().await {
+        let err_msg = format!("Failed to connect to server: {}", e);
+        app.debug_logs.push(format!("ERROR: {}", err_msg));
+        // Don't show error immediately - let refresh_current_view handle it
+    } else {
+        app.debug_logs.push("INFO: Connected to server".to_string());
+        // Load initial dashboard data
+        app.refresh_current_view().await;
     }
 
     // Setup signal handler for Ctrl+C (cross-platform)

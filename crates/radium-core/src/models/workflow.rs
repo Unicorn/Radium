@@ -17,8 +17,10 @@ use crate::proto;
 /// to monitor and manage workflow lifecycle.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum WorkflowState {
     /// Workflow is ready but not currently executing.
+    #[default]
     Idle,
     /// Workflow is currently executing.
     Running,
@@ -30,11 +32,6 @@ pub enum WorkflowState {
     Completed,
 }
 
-impl Default for WorkflowState {
-    fn default() -> Self {
-        Self::Idle
-    }
-}
 
 /// A step in a workflow.
 ///

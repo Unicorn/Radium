@@ -149,7 +149,7 @@ impl Plan {
         if self.total_tasks == 0 {
             0
         } else {
-            ((self.completed_tasks as f64 / self.total_tasks as f64) * 100.0) as u32
+            ((f64::from(self.completed_tasks) / f64::from(self.total_tasks)) * 100.0) as u32
         }
     }
 

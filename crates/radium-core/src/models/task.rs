@@ -18,8 +18,10 @@ use crate::proto;
 /// to monitor and manage task lifecycle.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum TaskState {
     /// Task is queued and waiting to be executed.
+    #[default]
     Queued,
     /// Task is currently being executed.
     Running,
@@ -33,11 +35,6 @@ pub enum TaskState {
     Cancelled,
 }
 
-impl Default for TaskState {
-    fn default() -> Self {
-        Self::Queued
-    }
-}
 
 /// Result of a task execution.
 ///

@@ -87,12 +87,12 @@ pub async fn run(config: &Config) -> Result<()> {
             tokio::select! {
                 result = grpc_handle => {
                     result.map_err(|e| crate::error::RadiumError::Io(
-                        std::io::Error::new(std::io::ErrorKind::Other, e)
+                        std::io::Error::other(e)
                     ))??;
                 }
                 result = grpc_web_handle => {
                     result.map_err(|e| crate::error::RadiumError::Io(
-                        std::io::Error::new(std::io::ErrorKind::Other, e)
+                        std::io::Error::other(e)
                     ))??;
                 }
             }

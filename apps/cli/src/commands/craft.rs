@@ -214,12 +214,9 @@ async fn execute_task_stub(task: &radium_core::PlanTask, _json: bool) -> anyhow:
     }
 
     // Check if agent is assigned
-    let agent_id = match &task.agent_id {
-        Some(id) => id,
-        None => {
-            println!("      {} No agent assigned", "!".yellow());
-            return Ok(());
-        }
+    let agent_id = if let Some(id) = &task.agent_id { id } else {
+        println!("      {} No agent assigned", "!".yellow());
+        return Ok(());
     };
 
     println!("      {} Agent: {}", "•".dimmed(), agent_id.cyan());

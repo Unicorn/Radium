@@ -166,7 +166,7 @@ impl PromptTemplate {
 
         while let Some(c) = chars.next() {
             if c == '{' {
-                if let Some(&'{') = chars.peek() {
+                if chars.peek() == Some(&'{') {
                     chars.next(); // consume second {
 
                     // Read until we find }}
@@ -175,7 +175,7 @@ impl PromptTemplate {
 
                     while let Some(c) = chars.next() {
                         if c == '}' {
-                            if let Some(&'}') = chars.peek() {
+                            if chars.peek() == Some(&'}') {
                                 chars.next(); // consume second }
                                 found_end = true;
                                 break;
@@ -205,6 +205,7 @@ impl PromptTemplate {
 
 /// Options for template rendering.
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct RenderOptions {
     /// Strict mode: error if placeholder is missing.
     pub strict: bool,
@@ -213,11 +214,6 @@ pub struct RenderOptions {
     pub default_value: Option<String>,
 }
 
-impl Default for RenderOptions {
-    fn default() -> Self {
-        Self { strict: false, default_value: None }
-    }
-}
 
 #[cfg(test)]
 mod tests {

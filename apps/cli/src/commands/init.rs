@@ -56,12 +56,12 @@ pub async fn execute(path: Option<String>, use_defaults: bool) -> Result<()> {
             .with_default(true)
             .prompt()?;
 
-        if !confirm {
+        if confirm {
+            current_dir.clone()
+        } else {
             let input = inquire::Text::new("Enter workspace path:").with_default(".").prompt()?;
 
             PathBuf::from(input)
-        } else {
-            current_dir.clone()
         }
     };
 

@@ -58,6 +58,7 @@ pub type Result<T> = std::result::Result<T, WorkspaceError>;
 
 /// Configuration for workspace detection and creation.
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct WorkspaceConfig {
     /// Root directory for the workspace.
     /// If None, will search for workspace starting from current directory.
@@ -67,11 +68,6 @@ pub struct WorkspaceConfig {
     pub create_if_missing: bool,
 }
 
-impl Default for WorkspaceConfig {
-    fn default() -> Self {
-        Self { root: None, create_if_missing: false }
-    }
-}
 
 /// Workspace manager.
 ///

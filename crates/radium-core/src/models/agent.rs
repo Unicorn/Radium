@@ -18,8 +18,10 @@ use crate::proto;
 /// to monitor and manage agent lifecycle.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum AgentState {
     /// Agent is ready but not currently executing.
+    #[default]
     Idle,
     /// Agent is currently executing a task.
     Running,
@@ -31,11 +33,6 @@ pub enum AgentState {
     Completed,
 }
 
-impl Default for AgentState {
-    fn default() -> Self {
-        Self::Idle
-    }
-}
 
 /// Configuration for an agent's execution.
 ///

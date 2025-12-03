@@ -144,7 +144,7 @@ fn generate_basic_plan(
     let (iterations, total_tasks) = parse_spec_structure(spec_content);
 
     let mut plan = Plan::new(
-        requirement_id.clone(),
+        *requirement_id,
         project_name,
         folder_name.to_string(),
         "backlog".to_string(),
@@ -190,7 +190,7 @@ fn generate_manifest(plan: &Plan, _spec_content: &str) -> PlanManifest {
     metadata.insert("total_iterations".to_string(), serde_json::json!(plan.total_iterations));
 
     PlanManifest {
-        requirement_id: plan.requirement_id.clone(),
+        requirement_id: plan.requirement_id,
         project_name: plan.project_name.clone(),
         iterations,
         metadata,

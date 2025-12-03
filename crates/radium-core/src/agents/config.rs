@@ -28,11 +28,13 @@ pub type Result<T> = std::result::Result<T, AgentConfigError>;
 /// Reasoning effort levels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum ReasoningEffort {
     /// Minimal reasoning effort.
     Low,
 
     /// Moderate reasoning effort.
+    #[default]
     Medium,
 
     /// Maximum reasoning effort.
@@ -49,11 +51,6 @@ impl std::fmt::Display for ReasoningEffort {
     }
 }
 
-impl Default for ReasoningEffort {
-    fn default() -> Self {
-        Self::Medium
-    }
-}
 
 /// Agent configuration file (TOML format).
 ///

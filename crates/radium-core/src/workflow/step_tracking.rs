@@ -172,7 +172,7 @@ impl StepTracker {
 
     /// Checks if a step has been completed.
     pub fn is_completed(&self, step_id: &str) -> bool {
-        self.records.get(step_id).map(|r| r.is_completed()).unwrap_or(false)
+        self.records.get(step_id).is_some_and(StepRecord::is_completed)
     }
 
     /// Gets all completed step IDs.

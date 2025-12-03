@@ -29,6 +29,7 @@ pub type Result<T> = std::result::Result<T, DiscoveryError>;
 
 /// Agent discovery options.
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct DiscoveryOptions {
     /// Agent directories to search.
     ///
@@ -41,11 +42,6 @@ pub struct DiscoveryOptions {
     pub sub_agent_filter: Option<Vec<String>>,
 }
 
-impl Default for DiscoveryOptions {
-    fn default() -> Self {
-        Self { search_paths: Vec::new(), sub_agent_filter: None }
-    }
-}
 
 /// Agent discovery service.
 ///

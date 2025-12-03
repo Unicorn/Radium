@@ -61,7 +61,7 @@ async fn execute_human() -> anyhow::Result<()> {
                     by_category.entry(category.to_string()).or_default().push(id.as_str());
                 }
 
-                for (category, agent_ids) in by_category.iter() {
+                for (category, agent_ids) in &by_category {
                     println!(
                         "    {}: {} agents",
                         category.cyan(),
