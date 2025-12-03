@@ -36,13 +36,17 @@ pub mod proto {
 
 pub use agents::config::{AgentConfigError, AgentConfigFile, ReasoningEffort};
 pub use agents::discovery::{AgentDiscovery, DiscoveryError, DiscoveryOptions};
+pub use agents::prompt_loader::{AgentPromptLoader, PromptLoaderError};
 pub use config::Config;
 pub use error::{RadiumError, Result};
 pub use models::agent::{Agent, AgentConfig, AgentError, AgentState};
 pub use models::plan::{Iteration, Plan, PlanError, PlanManifest, PlanStatus, PlanTask};
 pub use models::task::{Task, TaskError, TaskQueue, TaskResult, TaskState};
 pub use models::workflow::{Workflow, WorkflowError, WorkflowState, WorkflowStep};
-pub use prompts::{PromptContext, PromptError, PromptTemplate};
+pub use prompts::{
+    PromptCache, PromptContext, PromptError, PromptTemplate, ValidationIssue, ValidationResult,
+    validate_prompt,
+};
 pub use proto::radium_client;
 pub use proto::{PingRequest, PingResponse};
 pub use storage::{

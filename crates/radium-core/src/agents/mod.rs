@@ -19,6 +19,7 @@
 pub mod config;
 pub mod discovery;
 pub mod metadata;
+pub mod prompt_loader;
 
 pub use config::{AgentConfigError, AgentConfigFile, ReasoningEffort};
 pub use discovery::{AgentDiscovery, DiscoveryError};
@@ -26,3 +27,4 @@ pub use metadata::{
     AgentMetadata, ContextRequirements, CostTier, IterationSpeed, MetadataError, ModelPriority,
     ModelRecommendation, OutputVolume, PerformanceProfile, RecommendedModels, ThinkingDepth,
 };
+pub use prompt_loader::{AgentPromptLoader, PromptLoaderError};

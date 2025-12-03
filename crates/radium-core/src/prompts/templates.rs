@@ -1,6 +1,12 @@
 //! Prompt template loading and processing.
 //!
-//! Implements markdown-based prompt templates with placeholder replacement.
+//! Implements markdown-based prompt templates with placeholder replacement
+//! and file content injection.
+//!
+//! # File Content Injection
+//!
+//! Supports syntax like `agent[input:file1.md,file2.md]` to inject file contents
+//! into prompts. This is processed during template rendering.
 
 use std::collections::HashMap;
 use std::fs;
@@ -25,6 +31,10 @@ pub enum PromptError {
     /// Invalid template syntax.
     #[error("invalid template syntax: {0}")]
     InvalidSyntax(String),
+
+    /// File not found for injection.
+    #[error("file not found for injection: {0}")]
+    FileNotFound(String),
 }
 
 /// Result type for prompt operations.
@@ -128,13 +138,17 @@ impl PromptTemplate {
     ///
     /// # Errors
     ///
-    /// Returns error if a required placeholder is missing from the context.
+    /// Returns error if a required placeholder is missing from the context
+    /// or if file injection fails.
     pub fn render_with_options(
         &self,
         context: &PromptContext,
         options: &RenderOptions,
     ) -> Result<String> {
         let mut result = self.content.clone();
+
+        // Process file content injection first (agent[input:file1.md,file2.md])
+        result = Self::process_file_injections(&result, &options.base_path)?;
 
         // Find all placeholders in the format {{KEY}}
         let placeholders = Self::find_placeholders(&result);
@@ -154,6 +168,99 @@ impl PromptTemplate {
 
             let pattern = format!("{{{{{}}}}}", placeholder);
             result = result.replace(&pattern, &replacement);
+        }
+
+        Ok(result)
+    }
+
+    /// Process file content injection syntax: `agent[input:file1.md,file2.md]`
+    ///
+    /// Replaces injection syntax with the contents of the specified files.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if a file cannot be read or doesn't exist.
+    fn process_file_injections(content: &str, base_path: &Option<PathBuf>) -> Result<String> {
+        let mut result = content.to_string();
+        let mut search_start = 0;
+
+        loop {
+            // Find the start of an injection: "agent[input:"
+            let injection_start = match result[search_start..].find("agent[input:") {
+                Some(pos) => search_start + pos,
+                None => break,
+            };
+
+            // Find the matching closing bracket
+            let mut bracket_depth = 0;
+            let mut injection_end = None;
+            let mut chars = result[injection_start..].chars().peekable();
+
+            // Skip "agent[input:"
+            for _ in 0..11 {
+                chars.next();
+            }
+
+            let mut file_list_start = injection_start + 11;
+            let mut file_list_end = file_list_start;
+
+            while let Some(c) = chars.next() {
+                file_list_end += c.len_utf8();
+                match c {
+                    '[' => bracket_depth += 1,
+                    ']' => {
+                        if bracket_depth == 0 {
+                            injection_end = Some(file_list_end);
+                            break;
+                        }
+                        bracket_depth -= 1;
+                    }
+                    _ => {}
+                }
+            }
+
+            let file_list_end_pos = match injection_end {
+                Some(pos) => pos,
+                None => break, // No matching bracket found, skip this
+            };
+
+            // Extract file list
+            let files_str = &result[file_list_start..file_list_end_pos - 1];
+            let files: Vec<&str> = files_str.split(',').map(|s| s.trim()).collect();
+
+            // Inject file contents
+            let mut injected_content = String::new();
+            for file in &files {
+                let file_path = if let Some(base) = base_path {
+                    base.join(file)
+                } else {
+                    PathBuf::from(file)
+                };
+
+                let content = if file_path.exists() {
+                    fs::read_to_string(&file_path)?
+                } else if base_path.is_some() {
+                    // Try relative to current directory as fallback
+                    let fallback_path = PathBuf::from(file);
+                    if fallback_path.exists() {
+                        fs::read_to_string(&fallback_path)?
+                    } else {
+                        return Err(PromptError::FileNotFound(file_path.display().to_string()));
+                    }
+                } else {
+                    return Err(PromptError::FileNotFound(file_path.display().to_string()));
+                };
+
+                injected_content.push_str(&format!("\n\n--- File: {} ---\n\n", file));
+                injected_content.push_str(&content);
+            }
+
+            // Replace the injection with the file contents
+            let injection_pattern = &result[injection_start..file_list_end_pos];
+            result = result.replace(injection_pattern, &injected_content);
+
+            // Continue searching from after the replacement
+            search_start = injection_start + injected_content.len();
         }
 
         Ok(result)
@@ -207,13 +314,25 @@ impl PromptTemplate {
 
 /// Options for template rendering.
 #[derive(Debug, Clone)]
-#[derive(Default)]
 pub struct RenderOptions {
     /// Strict mode: error if placeholder is missing.
     pub strict: bool,
 
     /// Default value for missing placeholders (only used if not strict).
     pub default_value: Option<String>,
+
+    /// Base path for resolving relative file paths in file injection.
+    pub base_path: Option<PathBuf>,
+}
+
+impl Default for RenderOptions {
+    fn default() -> Self {
+        Self {
+            strict: false,
+            default_value: None,
+            base_path: None,
+        }
+    }
 }
 
 
@@ -352,5 +471,77 @@ Please complete this by {{deadline}}.
         assert!(result.contains("Hello Agent!"));
         assert!(result.contains("analyze the code"));
         assert!(result.contains("tomorrow"));
+    }
+
+    #[test]
+    fn test_file_injection_single() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path = temp_dir.path().join("test.md");
+        fs::write(&file_path, "This is test content").unwrap();
+
+        let template = PromptTemplate::from_string("agent[input:test.md]");
+        let options = RenderOptions {
+            base_path: Some(temp_dir.path().to_path_buf()),
+            ..Default::default()
+        };
+
+        let result = template.render_with_options(&PromptContext::new(), &options).unwrap();
+        assert!(result.contains("This is test content"));
+        assert!(result.contains("--- File: test.md ---"));
+    }
+
+    #[test]
+    fn test_file_injection_multiple() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file1 = temp_dir.path().join("file1.md");
+        let file2 = temp_dir.path().join("file2.md");
+        fs::write(&file1, "Content 1").unwrap();
+        fs::write(&file2, "Content 2").unwrap();
+
+        let template = PromptTemplate::from_string("agent[input:file1.md,file2.md]");
+        let options = RenderOptions {
+            base_path: Some(temp_dir.path().to_path_buf()),
+            ..Default::default()
+        };
+
+        let result = template.render_with_options(&PromptContext::new(), &options).unwrap();
+        assert!(result.contains("Content 1"));
+        assert!(result.contains("Content 2"));
+        assert!(result.contains("--- File: file1.md ---"));
+        assert!(result.contains("--- File: file2.md ---"));
+    }
+
+    #[test]
+    fn test_file_injection_not_found() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let template = PromptTemplate::from_string("agent[input:nonexistent.md]");
+        let options = RenderOptions {
+            base_path: Some(temp_dir.path().to_path_buf()),
+            ..Default::default()
+        };
+
+        let result = template.render_with_options(&PromptContext::new(), &options);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), PromptError::FileNotFound(_)));
+    }
+
+    #[test]
+    fn test_file_injection_with_placeholders() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path = temp_dir.path().join("test.md");
+        fs::write(&file_path, "Hello {{name}}!").unwrap();
+
+        let template = PromptTemplate::from_string("agent[input:test.md]");
+        let options = RenderOptions {
+            base_path: Some(temp_dir.path().to_path_buf()),
+            ..Default::default()
+        };
+
+        let mut context = PromptContext::new();
+        context.set("name", "World");
+
+        let result = template.render_with_options(&context, &options).unwrap();
+        // File content should be injected first, then placeholders replaced
+        assert!(result.contains("Hello World!"));
     }
 }
