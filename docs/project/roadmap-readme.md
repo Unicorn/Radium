@@ -116,5 +116,21 @@ If you're starting work on Radium:
 
 ---
 
-**Last Updated**: 2025-12-02 (includes gemini-cli enhancements integration)
+## 🧪 Test Coverage Status
+
+**Current Coverage**: ~37.61% (2080/5531 lines)  
+**Target Coverage**: 100%  
+**Coverage Gap**: 62.39% (3,451 lines)
+
+**Critical Test Gaps**:
+- **CLI Commands**: 0% coverage (~1,200 lines) - 🔴 Critical
+- **Server/gRPC**: 0% coverage (~167 lines) - 🔴 Critical  
+- **TUI Application**: 0% coverage (~500 lines) - 🟡 Medium
+- **Workflow Service**: Partial coverage (~70%) - 🟡 Medium
+
+**See [TEST_COVERAGE_REPORT.md](./project/TEST_COVERAGE_REPORT.md) for detailed coverage analysis and test requirements.**
+
+---
+
+**Last Updated**: 2025-12-03 (includes test coverage report and gemini-cli enhancements integration)
 

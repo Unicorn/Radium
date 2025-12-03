@@ -174,20 +174,29 @@ Implement agent configuration and prompt system matching legacy system's structu
 ---
 
 ### Step 2: Core CLI Commands
-**Status**: Not Started  
+**Status**: ✅ Complete (Implementation) | ❌ 0% Test Coverage  
 **Priority**: 🔴 Critical  
-**Est. Time**: 8-10 hours
+**Est. Time**: 8-10 hours (Completed) | **Test Est.**: 15-20 hours
 
-- `rad init` - Intelligent workspace initialization
-- `rad status` - Show workspace and engine status
-- `rad clean` - Clean workspace artifacts
-- `rad plan` - Generate plans from specifications (stub initially)
-- `rad craft` - Execute plans (stub initially)
-- CLI structure matching legacy system
+- [x] `rad init` - Intelligent workspace initialization
+- [x] `rad status` - Show workspace and engine status
+- [x] `rad clean` - Clean workspace artifacts
+- [x] `rad plan` - Generate plans from specifications
+- [x] `rad craft` - Execute plans
+- [x] `rad agents` - Agent management (list, search, info, validate)
+- [x] `rad templates` - Template management (list, info, validate)
+- [x] `rad auth` - Authentication management
+- [x] `rad step` - Single agent execution
+- [x] `rad run` - Agent script execution
+- [x] CLI structure matching legacy system
+- [ ] **TESTING**: Integration tests for all CLI commands (0% coverage - CRITICAL GAP)
 
 **Why Now**: Primary user interface. Must match Radium's `rad` command structure.
 
-**Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-2-core-cli-commands) for detailed tasks.
+**Test Coverage Gap**: ~1,200 lines of CLI command code have 0% test coverage. This is a critical gap that must be addressed.
+
+**Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-2-core-cli-commands) for detailed tasks.  
+**Test Requirements**: See [TEST_COVERAGE_REPORT.md](./TEST_COVERAGE_REPORT.md#step-2-core-cli-commands) for detailed test requirements.
 
 ### Tasks
 
@@ -247,8 +256,12 @@ Implement agent configuration and prompt system matching legacy system's structu
 
 - ✅ `rad status` command working
 - ✅ `rad clean` command working
-- ✅ All commands registered (stubbed)
-- ✅ Tests for CLI commands
+- ✅ All commands registered and implemented
+- ❌ **Tests for CLI commands (0% coverage - CRITICAL GAP)**
+  - [ ] Integration tests for all commands using `assert_cmd`
+  - [ ] Test all command variants (JSON, verbose, interactive)
+  - [ ] Test error handling and edge cases
+  - [ ] Test command argument parsing
 
 ### Success Criteria
 
@@ -256,13 +269,18 @@ Implement agent configuration and prompt system matching legacy system's structu
 - `rad status` shows workspace and engine status
 - `rad clean` removes artifacts safely
 - All commands registered without panics
+- **TESTING**: All CLI commands have integration tests with >90% coverage
+
+**Test Coverage Status**: 0% (Critical)  
+**Test Requirements**: See [TEST_COVERAGE_REPORT.md](./TEST_COVERAGE_REPORT.md#step-2-core-cli-commands)
 
 ---
 
 ## Step 3: Workflow Behaviors
 
+**Status**: ✅ Complete (Implementation) | ⚠️ ~70% Test Coverage  
 **Priority**: 🟡 High  
-**Est. Time**: 18-22 hours  
+**Est. Time**: 18-22 hours (Completed) | **Test Est.**: 8-12 hours  
 **Dependencies**: Step 1, Step 2
 
 ### Objectives
@@ -329,7 +347,12 @@ Implement workflow behaviors (loop, trigger, checkpoint) matching legacy system'
 - ✅ Workflow behaviors working
 - ✅ Template system functional
 - ✅ Resume from checkpoint working
-- ✅ Tests for all behaviors
+- ✅ Tests for all behaviors (27 behavior tests + 21 policy tests)
+- ⚠️ **Workflow service tests (partial - 5 tests added, need more)**
+  - [x] Basic workflow service tests (5 tests)
+  - [ ] Workflow execution path tests
+  - [ ] Error handling tests
+  - [ ] Edge case tests
 
 ### Success Criteria
 
@@ -337,6 +360,10 @@ Implement workflow behaviors (loop, trigger, checkpoint) matching legacy system'
 - Trigger behavior executes agents dynamically
 - Checkpoint behavior saves and resumes state
 - Behavior.json control file works
+- **TESTING**: Workflow service has >90% test coverage (currently ~70%)
+
+**Test Coverage Status**: ~70% (Good, but needs improvement)  
+**Test Requirements**: See [TEST_COVERAGE_REPORT.md](./TEST_COVERAGE_REPORT.md#step-3-workflow-behaviors)
 - Policy engine controls tool execution based on rules
 - Approval modes work correctly
 

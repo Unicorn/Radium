@@ -14,7 +14,6 @@ use thiserror::Error;
 
 /// Simplified loop behavior configuration for TOML.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct AgentLoopBehavior {
     /// Number of steps to go back when looping.
     pub steps: usize,
@@ -28,7 +27,6 @@ pub struct AgentLoopBehavior {
 
 /// Simplified trigger behavior configuration for TOML.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct AgentTriggerBehavior {
     /// Default agent ID to trigger (can be overridden in behavior.json).
     #[serde(skip_serializing_if = "Option::is_none")]

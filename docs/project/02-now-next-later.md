@@ -41,9 +41,9 @@
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-1-agent-configuration-system) for detailed tasks.
 
 ### Step 2: Core CLI Commands
-**Status**: ✅ Complete
+**Status**: ✅ Complete (Implementation) | ❌ 0% Test Coverage
 **Priority**: 🔴 Critical
-**Est. Time**: 8-10 hours (Completed)
+**Est. Time**: 8-10 hours (Completed) | **Test Est.**: 15-20 hours
 
 - [x] `rad init` - Intelligent workspace initialization
 - [x] `rad status` - Show workspace and engine status
@@ -53,10 +53,24 @@
 - [x] `rad agents` - Agent management (list, search, info, validate)
 - [x] `rad templates` - Template management (list, info, validate)
 - [x] CLI structure matching legacy system
+- [ ] **TESTING**: Integration tests for all CLI commands (0% coverage)
+  - [ ] `rad init` - All initialization paths
+  - [ ] `rad status` - Human and JSON output modes
+  - [ ] `rad clean` - Verbose and non-verbose modes
+  - [ ] `rad plan` - All input methods and error cases
+  - [ ] `rad craft` - Execution modes and error handling
+  - [ ] `rad agents` - All subcommands (list, search, info, validate)
+  - [ ] `rad templates` - All subcommands
+  - [ ] `rad auth` - Login, logout, status
+  - [ ] `rad step` - Single agent execution
+  - [ ] `rad run` - Agent script execution
 
 **Why Now**: Primary user interface. Must match Radium's `rad` command structure.
 
-**Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-2-core-cli-commands) for detailed tasks.
+**Test Coverage Gap**: ~1,200 lines of CLI command code have 0% test coverage. Critical for reliability.
+
+**Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-2-core-cli-commands) for detailed tasks.  
+**Test Requirements**: See [TEST_COVERAGE_REPORT.md](./TEST_COVERAGE_REPORT.md#step-2-core-cli-commands) for test details.
 
 ### Step 3: Workflow Behaviors
 **Status**: ✅ Complete
@@ -273,13 +287,40 @@
 | **NEXT** | 4-6, 6.5 | 67-87 hours | 🟡 High |
 | **LATER** | 7-8, 10 | 80-100 hours | 🟢 Medium/Low |
 | **HIGH** | 9 | 40-50 hours | 🟡 High (Agent Library) |
-| **Total** | 0-10 | 232-298 hours | |
+| **TESTING** | All | 60-80 hours | 🔴 Critical |
+| **Total** | 0-10 | 292-378 hours | |
 
 **Timeline Estimate**: 
 - **NOW**: 1-2 weeks
 - **NEXT**: 2-3 weeks (includes gemini-cli enhancements)
 - **LATER**: 2-3 weeks
-- **Total**: 5-8 weeks for complete feature parity
+- **TESTING**: 1.5-2 weeks (parallel with feature work)
+- **Total**: 6-10 weeks for complete feature parity + 100% test coverage
+
+## 🧪 Test Coverage Status
+
+**Current Coverage**: ~37.61% (2080/5531 lines)  
+**Target Coverage**: 100%  
+**Coverage Gap**: 62.39% (3,451 lines)
+
+### Critical Test Gaps
+
+1. **CLI Commands** (0% coverage) - ~1,200 lines
+   - **Priority**: 🔴 Critical
+   - **Est. Time**: 15-20 hours
+   - **Impact**: All user-facing functionality untested
+
+2. **Server/gRPC** (0% coverage) - ~167 lines
+   - **Priority**: 🔴 Critical
+   - **Est. Time**: 10-15 hours
+   - **Impact**: API layer completely untested
+
+3. **Workflow Service** (0% → Partial coverage) - 56 lines
+   - **Priority**: 🔴 Critical
+   - **Est. Time**: 3-5 hours
+   - **Impact**: Core workflow execution untested
+
+**See [TEST_COVERAGE_REPORT.md](./TEST_COVERAGE_REPORT.md) for detailed coverage analysis and test requirements.**
 
 ---
 
