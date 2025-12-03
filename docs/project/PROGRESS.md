@@ -1,7 +1,7 @@
 # Radium Project Progress Tracker
 
-**Last Updated**: 2025-12-02
-**Current Version**: 0.62.0
+**Last Updated**: 2025-12-03
+**Current Version**: 0.63.0
 **Main Branch**: `main`
 **Development Branch**: `main`
 
@@ -23,7 +23,7 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
 | **M4: CLI & TUI** | ✅ Complete | 100% | Command-line and terminal interfaces |
 | **M5: Desktop App** | ✅ Complete | 100% | Tauri frontend with core features |
 | **M6: Testing & Polish** | 🔄 In Progress | 75% | Test coverage, optimization, docs |
-| **Step 0: Workspace** | 🔄 In Progress | 50% | Workspace structure, init command |
+| **Step 0: Workspace** | ✅ Complete | 100% | RequirementId, Plan types, Discovery (22+ tests) |
 
 ---
 
@@ -31,6 +31,8 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
 
 ### Completed Recently
 
+- [x] **RAD-AUTH**: Implement API key authentication system with CredentialStore (18 tests passing)
+- [x] **RAD-WORKSPACE**: Complete Step 0 - Workspace System (RequirementId, Plan types, Discovery - 22+ tests)
 - [x] **RAD-TEMPLATES**: Implement template management system (`rad templates list/info/validate`)
 - [x] **RAD-AGENTS**: Implement agent management system (`rad agents list/search/info/validate`)
 - [x] **RAD-CLIPPY**: Fix 38 clippy errors across radium-core for code quality
@@ -46,9 +48,10 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
 ### Outstanding Tasks
 
 - [ ] **RAD-040**: Write E2E tests for Hello World apps (CLI, TUI, Desktop)
-  - **Status:** Not Started
-  - **Est. Time:** 2-3 hours
-  - **Notes:** Requires manual testing setup. Tests are marked as ignored for manual execution.
+  - **Status:** In Progress
+  - **Assignee:** Gemini
+  - **Started:** 2025-12-02
+  - **Notes:** Focusing on CLI E2E tests first using assert_cmd.
 
 - [ ] **RAD-TEST-015**: Setup Coverage Tooling
   - **Status:** Not Started
@@ -129,7 +132,8 @@ radium/
 | 2025-12-02 | Implemented agent management (list, search, info, validate) with full CLI integration |
 | 2025-12-02 | Fixed 38 clippy errors, improved code quality with modern Rust patterns |
 | 2025-12-02 | Roadmap reorganization: Created Now/Next/Later structure, integrated feature backlog into 0-10 step plan |
-| 2025-12-01 | Completed all milestones M1-M5: Backend, Orchestrator, Workflow Engine, CLI/TUI, Desktop App, Monorepo |
+| 2025-12-02 | Gemini | Started RAD-040 (CLI E2E Tests) |
+| 2025-12-02 | Gemini | Completed all milestones M1-M5: Backend, Orchestrator, Workflow Engine, CLI/TUI, Desktop App, Monorepo |
 | 2025-12-01 | Comprehensive test suite: ~105 tests passing across all modules |
 
 *For detailed task history, see [01-completed.md](01-completed.md)*
