@@ -187,7 +187,7 @@ impl ModelSelector {
     /// Returns `SelectionError` if no model can be created or budget is exceeded.
     pub fn select_model(
         &mut self,
-        options: SelectionOptions<'_>,
+        options: &SelectionOptions<'_>,
     ) -> Result<SelectionResult, SelectionError> {
         let metadata = options.agent_metadata;
 
@@ -206,8 +206,8 @@ impl ModelSelector {
 
         // Try premium model if requested and approved
         if let Some(ref premium) = recommended.premium {
-            if self.should_use_premium(premium, &options) {
-                if let Ok(result) = self.try_select(premium, SelectedModel::Premium, &options) {
+            if self.should_use_premium(premium, options) {
+                if let Ok(result) = self.try_select(premium, SelectedModel::Premium, options) {
                     info!(
                         model = %premium.model,
                         engine = %premium.engine,
@@ -222,7 +222,7 @@ impl ModelSelector {
         let mut budget_error: Option<SelectionError> = None;
 
         // Try primary model
-        match self.try_select(&recommended.primary, SelectedModel::Primary, &options) {
+        match self.try_select(&recommended.primary, SelectedModel::Primary, options) {
             Ok(result) => {
                 info!(
                     model = %recommended.primary.model,
@@ -252,7 +252,7 @@ impl ModelSelector {
 
         // Try fallback model
         if let Some(ref fallback) = recommended.fallback {
-            match self.try_select(fallback, SelectedModel::Fallback, &options) {
+            match self.try_select(fallback, SelectedModel::Fallback, options) {
                 Ok(result) => {
                     info!(
                         model = %fallback.model,
@@ -277,7 +277,7 @@ impl ModelSelector {
 
         // Fall back to mock model (only for non-budget failures)
         warn!("All recommended models unavailable, using mock model");
-        self.create_mock_model(metadata)
+        Self::create_mock_model(metadata)
     }
 
     /// Check if premium model should be used.
@@ -307,15 +307,15 @@ impl ModelSelector {
         options: &SelectionOptions<'_>,
     ) -> Result<SelectionResult, SelectionError> {
         // Check budget before creating model
-        if let Some(estimated_cost) = self.estimate_cost(recommendation, options) {
+        if let Some(estimated_cost) = Self::estimate_cost(recommendation, options) {
             self.check_budget(estimated_cost)?;
         }
 
         // Try to create the model
-        let model = self.create_model(recommendation)?;
+        let model = Self::create_model(recommendation)?;
 
         // Calculate estimated cost
-        let estimated_cost = self.estimate_cost(recommendation, options);
+        let estimated_cost = Self::estimate_cost(recommendation, options);
 
         // Update total cost
         if let Some(cost) = estimated_cost {
@@ -333,7 +333,6 @@ impl ModelSelector {
 
     /// Create a model from a recommendation.
     fn create_model(
-        &self,
         recommendation: &ModelRecommendation,
     ) -> Result<Arc<dyn Model + Send + Sync>, ModelError> {
         // Parse model type from engine string
@@ -353,7 +352,6 @@ impl ModelSelector {
 
     /// Create a mock model as fallback.
     fn create_mock_model(
-        &self,
         metadata: &AgentMetadata,
     ) -> Result<SelectionResult, SelectionError> {
         let config = ModelConfig::new(ModelType::Mock, format!("mock-{}", metadata.name));
@@ -372,7 +370,6 @@ impl ModelSelector {
     ///
     /// Returns `None` if token estimates are not provided.
     fn estimate_cost(
-        &self,
         recommendation: &ModelRecommendation,
         options: &SelectionOptions<'_>,
     ) -> Option<f64> {
@@ -505,7 +502,7 @@ mod tests {
         let metadata = create_test_metadata();
         let options = SelectionOptions::new(&metadata);
 
-        let result = selector.select_model(options).unwrap();
+        let result = selector.select_model(&options).unwrap();
         assert_eq!(result.selected, SelectedModel::Primary);
         assert_eq!(result.model.model_id(), "mock-primary");
     }
@@ -516,7 +513,7 @@ mod tests {
         let metadata = create_test_metadata();
         let options = SelectionOptions::new(&metadata).with_token_estimate(1000, 500);
 
-        let result = selector.select_model(options).unwrap();
+        let result = selector.select_model(&options).unwrap();
         assert!(result.estimated_cost.is_some());
         assert!(result.estimated_cost.unwrap() > 0.0);
     }
@@ -528,13 +525,13 @@ mod tests {
 
         // First selection
         let options1 = SelectionOptions::new(&metadata).with_token_estimate(1000, 500);
-        selector.select_model(options1).unwrap();
+        selector.select_model(&options1).unwrap();
         let cost1 = selector.get_total_cost();
         assert!(cost1 > 0.0);
 
         // Second selection
         let options2 = SelectionOptions::new(&metadata).with_token_estimate(1000, 500);
-        selector.select_model(options2).unwrap();
+        selector.select_model(&options2).unwrap();
         let cost2 = selector.get_total_cost();
         assert!(cost2 > cost1);
 

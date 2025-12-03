@@ -48,7 +48,7 @@ pub async fn execute(
     // Load and render prompt
     let prompt_content = load_prompt(&agent.prompt_path)?;
 
-    let template = PromptTemplate::from_str(prompt_content);
+    let template = PromptTemplate::from_string(prompt_content);
 
     let mut context = PromptContext::new();
     context.set("user_input", prompt_text.clone());

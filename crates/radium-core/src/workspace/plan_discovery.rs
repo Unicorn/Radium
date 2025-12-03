@@ -140,7 +140,7 @@ impl<'a> PlanDiscovery<'a> {
                         continue;
                     }
 
-                    if let Some(discovered) = self.load_plan(&path)? {
+                    if let Some(discovered) = Self::load_plan(&path)? {
                         plans.push(discovered);
                     }
                 }
@@ -148,7 +148,7 @@ impl<'a> PlanDiscovery<'a> {
         }
 
         // Sort plans
-        self.sort_plans(&mut plans, options);
+        Self::sort_plans(&mut plans, options);
 
         Ok(plans)
     }
@@ -179,7 +179,7 @@ impl<'a> PlanDiscovery<'a> {
 
                 if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
                     if name.starts_with(&req_id_str) {
-                        return self.load_plan(&path);
+                        return Self::load_plan(&path);
                     }
                 }
             }
@@ -204,7 +204,7 @@ impl<'a> PlanDiscovery<'a> {
 
             let plan_path = stage_dir.join(folder_name);
             if plan_path.exists() && plan_path.is_dir() {
-                return self.load_plan(&plan_path);
+                return Self::load_plan(&plan_path);
             }
         }
 
@@ -212,7 +212,7 @@ impl<'a> PlanDiscovery<'a> {
     }
 
     /// Load a plan from a directory.
-    fn load_plan(&self, path: &Path) -> Result<Option<DiscoveredPlan>, WorkspaceError> {
+    fn load_plan(path: &Path) -> Result<Option<DiscoveredPlan>, WorkspaceError> {
         let plan_json_path = path.join("plan.json");
         if !plan_json_path.exists() {
             return Ok(None);
@@ -228,7 +228,7 @@ impl<'a> PlanDiscovery<'a> {
     }
 
     /// Sort plans according to options.
-    fn sort_plans(&self, plans: &mut [DiscoveredPlan], options: &PlanDiscoveryOptions) {
+    fn sort_plans(plans: &mut [DiscoveredPlan], options: &PlanDiscoveryOptions) {
         plans.sort_by(|a, b| {
             let cmp = match options.sort_by {
                 SortBy::CreatedAt => a.plan.created_at.cmp(&b.plan.created_at),

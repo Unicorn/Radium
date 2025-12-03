@@ -99,7 +99,7 @@ impl PromptTemplate {
     }
 
     /// Create a template from a string.
-    pub fn from_str(content: impl Into<String>) -> Self {
+    pub fn from_string(content: impl Into<String>) -> Self {
         Self { content: content.into(), file_path: None }
     }
 
@@ -121,7 +121,7 @@ impl PromptTemplate {
     ///
     /// Returns error if a required placeholder is missing from the context.
     pub fn render(&self, context: &PromptContext) -> Result<String> {
-        self.render_with_options(context, RenderOptions::default())
+        self.render_with_options(context, &RenderOptions::default())
     }
 
     /// Render the template with custom options.
@@ -132,7 +132,7 @@ impl PromptTemplate {
     pub fn render_with_options(
         &self,
         context: &PromptContext,
-        options: RenderOptions,
+        options: &RenderOptions,
     ) -> Result<String> {
         let mut result = self.content.clone();
 
@@ -165,6 +165,7 @@ impl PromptTemplate {
         let mut chars = content.chars().peekable();
 
         while let Some(c) = chars.next() {
+            #[allow(clippy::collapsible_if)]
             if c == '{' {
                 if chars.peek() == Some(&'{') {
                     chars.next(); // consume second {
@@ -173,6 +174,7 @@ impl PromptTemplate {
                     let mut placeholder = String::new();
                     let mut found_end = false;
 
+                    #[allow(clippy::collapsible_if)]
                     while let Some(c) = chars.next() {
                         if c == '}' {
                             if chars.peek() == Some(&'}') {
@@ -235,7 +237,7 @@ mod tests {
 
     #[test]
     fn test_template_from_str() {
-        let template = PromptTemplate::from_str("Hello {{name}}!");
+        let template = PromptTemplate::from_string("Hello {{name}}!");
         assert_eq!(template.content(), "Hello {{name}}!");
         assert!(template.file_path().is_none());
     }
@@ -253,7 +255,7 @@ mod tests {
 
     #[test]
     fn test_template_render() {
-        let template = PromptTemplate::from_str("Hello {{name}}!");
+        let template = PromptTemplate::from_string("Hello {{name}}!");
         let mut context = PromptContext::new();
         context.set("name", "World");
 
@@ -263,7 +265,7 @@ mod tests {
 
     #[test]
     fn test_template_render_multiple() {
-        let template = PromptTemplate::from_str("{{greeting}} {{name}}! Welcome to {{place}}.");
+        let template = PromptTemplate::from_string("{{greeting}} {{name}}! Welcome to {{place}}.");
         let mut context = PromptContext::new();
         context.set("greeting", "Hello");
         context.set("name", "Alice");
@@ -275,7 +277,7 @@ mod tests {
 
     #[test]
     fn test_template_missing_placeholder() {
-        let template = PromptTemplate::from_str("Hello {{name}}!");
+        let template = PromptTemplate::from_string("Hello {{name}}!");
         let context = PromptContext::new();
 
         // Non-strict mode: should succeed with empty replacement
@@ -284,24 +286,24 @@ mod tests {
 
         // Strict mode: should error
         let options = RenderOptions { strict: true, default_value: None };
-        let result = template.render_with_options(&context, options);
+        let result = template.render_with_options(&context, &options);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_template_default_value() {
-        let template = PromptTemplate::from_str("Hello {{name}}!");
+        let template = PromptTemplate::from_string("Hello {{name}}!");
         let context = PromptContext::new();
 
         let options = RenderOptions { strict: false, default_value: Some("stranger".to_string()) };
 
-        let result = template.render_with_options(&context, options).unwrap();
+        let result = template.render_with_options(&context, &options).unwrap();
         assert_eq!(result, "Hello stranger!");
     }
 
     #[test]
     fn test_list_placeholders() {
-        let template = PromptTemplate::from_str("{{greeting}} {{name}}! {{greeting}} again.");
+        let template = PromptTemplate::from_string("{{greeting}} {{name}}! {{greeting}} again.");
         let placeholders = template.list_placeholders();
 
         assert_eq!(placeholders.len(), 2);
@@ -312,20 +314,20 @@ mod tests {
     #[test]
     fn test_find_placeholders_edge_cases() {
         // Single braces should be ignored
-        let template = PromptTemplate::from_str("Hello {name}!");
+        let template = PromptTemplate::from_string("Hello {name}!");
         assert_eq!(template.list_placeholders().len(), 0);
 
         // Nested braces
-        let template = PromptTemplate::from_str("{{outer}}");
+        let template = PromptTemplate::from_string("{{outer}}");
         let placeholders = template.list_placeholders();
         assert_eq!(placeholders, vec!["outer"]);
 
         // Empty placeholder
-        let template = PromptTemplate::from_str("{{}}");
+        let template = PromptTemplate::from_string("{{}}");
         assert_eq!(template.list_placeholders().len(), 0);
 
         // Whitespace in placeholder
-        let template = PromptTemplate::from_str("{{ name }}");
+        let template = PromptTemplate::from_string("{{ name }}");
         assert_eq!(template.list_placeholders(), vec!["name"]);
     }
 
@@ -340,7 +342,7 @@ Your task is to {{task}}.
 
 Please complete this by {{deadline}}.
 "#;
-        let template = PromptTemplate::from_str(content);
+        let template = PromptTemplate::from_string(content);
         let mut context = PromptContext::new();
         context.set("name", "Agent");
         context.set("task", "analyze the code");

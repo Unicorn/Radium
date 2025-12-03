@@ -224,33 +224,42 @@ pub enum AuthCommand {
 
 #[derive(Subcommand, Debug)]
 pub enum AgentsCommand {
-    /// List all active and offline agents
+    /// List all available agents
     List {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+
+        /// Show detailed information
+        #[arg(short, long)]
+        verbose: bool,
+    },
+
+    /// Search for agents by name or capability
+    Search {
+        /// Search query (name, description, or capability)
+        query: String,
+
         /// Output as JSON
         #[arg(long)]
         json: bool,
     },
 
-    /// View logs for a specific agent
-    Logs {
+    /// Show detailed information about a specific agent
+    Info {
         /// Agent ID
         id: String,
 
-        /// Follow log output
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Validate agent configurations
+    Validate {
+        /// Show detailed validation errors
         #[arg(short, long)]
-        follow: bool,
-    },
-
-    /// Export agent registry to JSON
-    Export {
-        /// Output file path
-        output: Option<String>,
-    },
-
-    /// Register a new agent
-    Register {
-        /// Agent configuration file
-        config: String,
+        verbose: bool,
     },
 }
 

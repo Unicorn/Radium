@@ -44,12 +44,14 @@ impl BehaviorAction {
     }
 
     /// Adds a reason to the behavior action.
+    #[must_use]
     pub fn with_reason(mut self, reason: impl Into<String>) -> Self {
         self.reason = Some(reason.into());
         self
     }
 
     /// Sets the trigger agent ID (for Trigger actions).
+    #[must_use]
     pub fn with_trigger_agent(mut self, agent_id: impl Into<String>) -> Self {
         self.trigger_agent_id = Some(agent_id.into());
         self

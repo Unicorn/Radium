@@ -56,9 +56,8 @@ impl CheckpointEvaluator {
         _output: &str,
     ) -> Result<Option<CheckpointDecision>, BehaviorError> {
         // Check for behavior action
-        let action = match BehaviorAction::read_from_file(behavior_file)? {
-            Some(a) => a,
-            None => return Ok(None),
+        let Some(action) = BehaviorAction::read_from_file(behavior_file)? else {
+            return Ok(None);
         };
 
         // Only handle checkpoint actions

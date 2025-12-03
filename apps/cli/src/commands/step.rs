@@ -87,7 +87,7 @@ pub async fn execute(
     let mut context = PromptContext::new();
     context.set("user_input", user_input.clone());
 
-    let template = PromptTemplate::from_str(prompt_content);
+    let template = PromptTemplate::from_string(prompt_content);
     let rendered = template.render(&context)?;
 
     println!("  {} Rendered {} bytes", "✓".green(), rendered.len());

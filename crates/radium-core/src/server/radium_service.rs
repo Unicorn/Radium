@@ -54,6 +54,7 @@ impl RadiumService {
     /// # Errors
     ///
     /// Returns a `Status::internal` error if the lock cannot be acquired.
+    #[allow(clippy::result_large_err)]
     fn lock_db(&self) -> Result<std::sync::MutexGuard<'_, Database>, Status> {
         self.db.lock().map_err(|e| {
             error!(error = %e, "Failed to acquire database lock");

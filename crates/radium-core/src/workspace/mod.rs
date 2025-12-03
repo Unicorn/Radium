@@ -99,7 +99,11 @@ impl Workspace {
     pub fn discover_with_config(config: &WorkspaceConfig) -> Result<Self> {
         let root = if let Some(root) = &config.root {
             root.clone()
-        } else if let Ok(workspace) = std::env::var("RADIUM_WORKSPACE") {
+        // Allow env::var for RADIUM_WORKSPACE (workspace discovery, not app config)
+        } else if let Ok(workspace) = {
+            #[allow(clippy::disallowed_methods)]
+            std::env::var("RADIUM_WORKSPACE")
+        } {
             PathBuf::from(workspace)
         } else if let Some(workspace) = Self::find_workspace_upward()? {
             workspace

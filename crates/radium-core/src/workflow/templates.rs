@@ -156,24 +156,28 @@ impl WorkflowStep {
     }
 
     /// Sets execute_once flag.
+    #[must_use]
     pub fn with_execute_once(mut self, execute_once: bool) -> Self {
         self.config.execute_once = execute_once;
         self
     }
 
     /// Sets engine override.
+    #[must_use]
     pub fn with_engine(mut self, engine: impl Into<String>) -> Self {
         self.config.engine = Some(engine.into());
         self
     }
 
     /// Sets model override.
+    #[must_use]
     pub fn with_model(mut self, model: impl Into<String>) -> Self {
         self.config.model = Some(model.into());
         self
     }
 
     /// Sets agent name.
+    #[must_use]
     pub fn with_agent_name(mut self, name: impl Into<String>) -> Self {
         self.config.agent_name = Some(name.into());
         self
@@ -203,24 +207,28 @@ impl WorkflowTemplate {
     }
 
     /// Adds a description.
+    #[must_use]
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
         self.description = Some(description.into());
         self
     }
 
     /// Adds a step.
+    #[must_use]
     pub fn add_step(mut self, step: WorkflowStep) -> Self {
         self.steps.push(step);
         self
     }
 
     /// Adds multiple steps.
+    #[must_use]
     pub fn with_steps(mut self, steps: Vec<WorkflowStep>) -> Self {
         self.steps = steps;
         self
     }
 
     /// Adds sub-agent IDs.
+    #[must_use]
     pub fn with_sub_agents(mut self, sub_agent_ids: Vec<String>) -> Self {
         self.sub_agent_ids = sub_agent_ids;
         self

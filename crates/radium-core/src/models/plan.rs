@@ -283,7 +283,9 @@ impl Iteration {
             0
         } else {
             let completed = self.tasks.iter().filter(|t| t.completed).count();
-            ((completed as f64 / self.tasks.len() as f64) * 100.0) as u32
+            #[allow(clippy::cast_precision_loss)]
+            let percentage = (completed as f64 / self.tasks.len() as f64) * 100.0;
+            percentage as u32
         }
     }
 
@@ -368,10 +370,8 @@ impl PlanTask {
                     break;
                 }
             }
-            if !found {
-                // Dependency not found, assume satisfied
-                continue;
-            }
+            // Dependency not found, assume satisfied - no action needed
+            let _ = found;
         }
 
         true

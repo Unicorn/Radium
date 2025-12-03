@@ -188,36 +188,42 @@ impl AgentConfig {
     }
 
     /// Set the description.
+    #[must_use]
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
         self.description = description.into();
         self
     }
 
     /// Set the default engine.
+    #[must_use]
     pub fn with_engine(mut self, engine: impl Into<String>) -> Self {
         self.engine = Some(engine.into());
         self
     }
 
     /// Set the default model.
+    #[must_use]
     pub fn with_model(mut self, model: impl Into<String>) -> Self {
         self.model = Some(model.into());
         self
     }
 
     /// Set the reasoning effort level.
+    #[must_use]
     pub fn with_reasoning_effort(mut self, effort: ReasoningEffort) -> Self {
         self.reasoning_effort = Some(effort);
         self
     }
 
     /// Set the category.
+    #[must_use]
     pub fn with_category(mut self, category: impl Into<String>) -> Self {
         self.category = Some(category.into());
         self
     }
 
     /// Set the file path.
+    #[must_use]
     pub fn with_file_path(mut self, path: PathBuf) -> Self {
         self.file_path = Some(path);
         self

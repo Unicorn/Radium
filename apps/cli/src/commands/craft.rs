@@ -232,7 +232,7 @@ async fn execute_task_stub(task: &radium_core::PlanTask, _json: bool) -> anyhow:
     let prompt_content = std::fs::read_to_string(&agent.prompt_path)
         .context(format!("Failed to load prompt from {:?}", agent.prompt_path))?;
 
-    let template = PromptTemplate::from_str(prompt_content);
+    let template = PromptTemplate::from_string(prompt_content);
 
     // Create context with task information
     let mut context = PromptContext::new();

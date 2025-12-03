@@ -67,15 +67,13 @@ impl TriggerEvaluator {
         context: &TriggerEvaluationContext,
     ) -> Result<Option<TriggerDecision>, BehaviorError> {
         // Must have trigger configuration
-        let config = match &context.config {
-            Some(cfg) => cfg,
-            None => return Ok(None),
+        let Some(config) = &context.config else {
+            return Ok(None);
         };
 
         // Check for behavior action
-        let action = match BehaviorAction::read_from_file(behavior_file)? {
-            Some(a) => a,
-            None => return Ok(None),
+        let Some(action) = BehaviorAction::read_from_file(behavior_file)? else {
+            return Ok(None);
         };
 
         // Only handle trigger actions

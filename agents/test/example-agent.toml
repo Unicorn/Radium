@@ -1,0 +1,8 @@
+[agent]
+id = "example-agent"
+name = "Example Agent"
+description = "A sample agent for testing"
+prompt_path = "agents/test/example-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "medium"

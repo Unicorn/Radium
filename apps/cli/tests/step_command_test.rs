@@ -78,7 +78,7 @@ fn test_prompt_template_rendering() {
 
     // Load and render template
     let template_content = fs::read_to_string(&prompt_path).unwrap();
-    let template = PromptTemplate::from_str(template_content);
+    let template = PromptTemplate::from_string(template_content);
 
     let mut context = PromptContext::new();
     context.set("user_input", "Test input message");
@@ -151,7 +151,7 @@ fn test_agent_config_validation() {
 #[test]
 fn test_prompt_template_with_missing_variable() {
     let template_content = "Hello {{name}}, welcome to {{place}}!";
-    let template = PromptTemplate::from_str(template_content);
+    let template = PromptTemplate::from_string(template_content);
 
     let mut context = PromptContext::new();
     context.set("name", "Alice");
@@ -168,7 +168,7 @@ fn test_prompt_template_with_missing_variable() {
 #[test]
 fn test_prompt_template_list_placeholders() {
     let template_content = "Variables: {{var1}}, {{var2}}, {{var3}}";
-    let template = PromptTemplate::from_str(template_content);
+    let template = PromptTemplate::from_string(template_content);
 
     let placeholders = template.list_placeholders();
 
@@ -233,7 +233,7 @@ async fn test_end_to_end_step_execution_mock() {
     // Load and render prompt
     let prompt_path = temp_dir.path().join(&config.prompt_path);
     let prompt_content = fs::read_to_string(&prompt_path).unwrap();
-    let template = PromptTemplate::from_str(prompt_content);
+    let template = PromptTemplate::from_string(prompt_content);
 
     let mut context = PromptContext::new();
     context.set("user_input", "End-to-end test input");

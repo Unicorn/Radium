@@ -92,7 +92,7 @@ fn test_select_speed_optimized_agent() {
     let agent = create_speed_optimized_agent();
     let options = SelectionOptions::new(&agent);
 
-    let result = selector.select_model(options).expect("Should select model");
+    let result = selector.select_model(&options).expect("Should select model");
 
     assert_eq!(result.selected, SelectedModel::Primary);
     assert_eq!(result.model.model_id(), "mock-fast-model");
@@ -109,7 +109,7 @@ fn test_select_thinking_agent() {
     let agent = create_thinking_agent();
     let options = SelectionOptions::new(&agent);
 
-    let result = selector.select_model(options).expect("Should select model");
+    let result = selector.select_model(&options).expect("Should select model");
 
     assert_eq!(result.selected, SelectedModel::Primary);
     assert_eq!(result.model.model_id(), "mock-thinking-model");
@@ -125,7 +125,7 @@ fn test_cost_estimation_with_tokens() {
     let agent = create_speed_optimized_agent();
     let options = SelectionOptions::new(&agent).with_token_estimate(1000, 500);
 
-    let result = selector.select_model(options).expect("Should select model");
+    let result = selector.select_model(&options).expect("Should select model");
 
     assert!(result.estimated_cost.is_some());
     let cost = result.estimated_cost.unwrap();
@@ -140,7 +140,7 @@ fn test_budget_limit_enforcement() {
     let agent = create_thinking_agent(); // High cost tier: $5 per 1M tokens
     let options = SelectionOptions::new(&agent).with_token_estimate(1_000_000, 1_000_000); // 2M tokens = $10
 
-    let result = selector.select_model(options);
+    let result = selector.select_model(&options);
 
     // Should fail due to budget constraint ($10 > $0.001)
     assert!(result.is_err());
@@ -157,14 +157,14 @@ fn test_total_budget_tracking() {
 
     // First selection
     let options1 = SelectionOptions::new(&agent).with_token_estimate(1000, 500);
-    selector.select_model(options1).expect("First selection should succeed");
+    selector.select_model(&options1).expect("First selection should succeed");
 
     let cost1 = selector.get_total_cost();
     assert!(cost1 > 0.0);
 
     // Second selection
     let options2 = SelectionOptions::new(&agent).with_token_estimate(1000, 500);
-    selector.select_model(options2).expect("Second selection should succeed");
+    selector.select_model(&options2).expect("Second selection should succeed");
 
     let cost2 = selector.get_total_cost();
     assert!(cost2 > cost1);
@@ -181,7 +181,7 @@ fn test_premium_model_without_approval() {
     let agent = create_thinking_agent();
     let options = SelectionOptions::new(&agent); // No approval flag
 
-    let result = selector.select_model(options).expect("Should select model");
+    let result = selector.select_model(&options).expect("Should select model");
 
     // Should select primary, not premium (no approval)
     assert_eq!(result.selected, SelectedModel::Primary);
@@ -194,7 +194,7 @@ fn test_premium_model_with_approval() {
     let agent = create_thinking_agent();
     let options = SelectionOptions::new(&agent).allow_premium();
 
-    let result = selector.select_model(options).expect("Should select model");
+    let result = selector.select_model(&options).expect("Should select model");
 
     // Should select premium with approval and priority override
     assert_eq!(result.selected, SelectedModel::Premium);
@@ -242,7 +242,7 @@ fn test_fallback_chain() {
     let mut selector = ModelSelector::new();
     let options = SelectionOptions::new(&agent);
 
-    let result = selector.select_model(options).expect("Should fall back to mock");
+    let result = selector.select_model(&options).expect("Should fall back to mock");
 
     // Should fall back to mock model when both primary and fallback fail
     assert_eq!(result.selected, SelectedModel::Mock);
@@ -256,7 +256,7 @@ fn test_multiple_agents_sequential() {
     // Select for fast agent
     let fast_agent = create_speed_optimized_agent();
     let options1 = SelectionOptions::new(&fast_agent).with_token_estimate(1000, 500);
-    let result1 = selector.select_model(options1).expect("Should select");
+    let result1 = selector.select_model(&options1).expect("Should select");
     assert_eq!(result1.selected, SelectedModel::Primary);
 
     let cost_after_first = selector.get_total_cost();
@@ -264,7 +264,7 @@ fn test_multiple_agents_sequential() {
     // Select for thinking agent
     let thinking_agent = create_thinking_agent();
     let options2 = SelectionOptions::new(&thinking_agent).with_token_estimate(1000, 500);
-    let result2 = selector.select_model(options2).expect("Should select");
+    let result2 = selector.select_model(&options2).expect("Should select");
     assert_eq!(result2.selected, SelectedModel::Primary);
 
     let cost_after_second = selector.get_total_cost();
@@ -279,7 +279,7 @@ fn test_cost_tiers_comparison() {
     let low_cost_agent = create_speed_optimized_agent();
     let options_low =
         SelectionOptions::new(&low_cost_agent).with_token_estimate(1_000_000, 1_000_000);
-    let result_low = selector.select_model(options_low).expect("Should select");
+    let result_low = selector.select_model(&options_low).expect("Should select");
     let cost_low = result_low.estimated_cost.unwrap();
 
     selector.reset_cost_tracking();
@@ -288,7 +288,7 @@ fn test_cost_tiers_comparison() {
     let high_cost_agent = create_thinking_agent();
     let options_high =
         SelectionOptions::new(&high_cost_agent).with_token_estimate(1_000_000, 1_000_000);
-    let result_high = selector.select_model(options_high).expect("Should select");
+    let result_high = selector.select_model(&options_high).expect("Should select");
     let cost_high = result_high.estimated_cost.unwrap();
 
     // High cost tier should be more expensive than low cost tier

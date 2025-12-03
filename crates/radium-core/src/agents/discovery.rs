@@ -174,11 +174,15 @@ impl AgentDiscovery {
         }
 
         // 2. User agents in home directory
+        // Allow env::var for standard HOME environment variable (path discovery)
+        #[allow(clippy::disallowed_methods)]
         if let Ok(home) = std::env::var("HOME") {
             paths.push(PathBuf::from(home).join(".radium/agents"));
         }
 
         // 3. Workspace agents if RADIUM_WORKSPACE is set
+        // Allow env::var for RADIUM_WORKSPACE (path discovery, not app config)
+        #[allow(clippy::disallowed_methods)]
         if let Ok(workspace) = std::env::var("RADIUM_WORKSPACE") {
             let workspace_path = PathBuf::from(workspace);
             paths.push(workspace_path.join("agents"));
