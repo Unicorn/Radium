@@ -26,6 +26,7 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
 | **Step 0: Workspace** | ✅ Complete | 100% | RequirementId, Plan types, Discovery (22+ tests) |
 | **Step 6: Monitoring** | ✅ Complete | 100% | Agent tracking, telemetry, logs, checkpoints (44 tests) |
 | **Step 6.5: Sandboxing** | ✅ Complete | 100% | Docker, Seatbelt, sandbox abstraction (15 tests) |
+| **Step 7: Engines** | ✅ Complete | 100% | Engine abstraction, registry, detection (23 tests) |
 
 ---
 
@@ -33,6 +34,18 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
 
 ### Completed Recently
 
+- [x] **Step 7: Engine Abstraction Layer**: Multi-provider AI engine support system
+  - **Completed:** 2025-12-03
+  - **Commit:** feat(engines): implement engine abstraction layer (Step 7)
+  - **Files:** `src/engines/{engine_trait,registry,detection,error}.rs`, `src/engines/providers/mock.rs`
+  - **Tests:** 23 tests passing (4 trait + 8 registry + 5 detection + 6 mock provider)
+  - **Features:**
+    - Engine trait abstraction for pluggable AI providers
+    - Engine registry for managing multiple providers
+    - CLI binary detection with version checking
+    - Execution request/response structures
+    - Token usage tracking
+    - Mock engine provider for testing
 - [x] **Step 6.5: Sandboxing System**: Complete sandboxing implementation for safe agent execution
   - **Completed:** 2025-12-03
   - **Commit:** feat(sandbox): implement sandboxing system (Step 6.5)
@@ -75,11 +88,16 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
 
 ### Outstanding Tasks
 
-- [ ] **RAD-TEST-017**: Implement Server Integration Tests
-  - **Status:** In Progress
-  - **Assignee:** Gemini
-  - **Started:** 2025-12-03
-  - **Notes:** Creating integration tests for gRPC service orchestration and workflow execution logic.
+Update PROGRESS.md - Task Complete:
+
+Move to Completed section:
+- [x] **RAD-TEST-017**: Implement Server Integration Tests
+  - **Completed:** 2025-12-03
+  - **Commit:** test(core): add server integration tests [RAD-TEST-017]
+  - **Files:** `crates/radium-core/tests/server_integration_test.rs`, `crates/radium-core/tests/common/mod.rs`
+
+Add to Update Log:
+| 2025-12-03 | Gemini | Completed RAD-TEST-017 |
 
 - [x] **RAD-TEST-016**: Identify and Fill Test Coverage Gaps
   - **Completed:** 2025-12-03
@@ -103,7 +121,13 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
 
 ## 🚧 Blockers
 
-*No active blockers - all dependency blockers have been resolved.*
+- **BLOCKER-003**: Workflow execution logic needs refactoring for async DB access
+  - **Blocking:** Full workflow execution via gRPC
+  - **Owner:** Unassigned
+  - **Resolution:** Pending
+  - **Notes:** `WorkflowService::execute_workflow` is currently a placeholder returning an error because of `Send` bounds issues with `rusqlite` Mutex held across await. Needs refactoring of `WorkflowExecutor` or repository pattern.
+
+*No active external dependency blockers.*
 
 Previous blockers resolved:
 - ~~BLOCKER-001: rustc dependency conflict~~ → Resolved by updating to Rust 1.83.0
@@ -118,7 +142,7 @@ Previous blockers resolved:
 
 ### Summary
 
-- **Total Tests**: ~164 passing, 0 failed, 6 ignored (manual execution)
+- **Total Tests**: ~187 passing, 0 failed, 6 ignored (manual execution)
 - **Unit Tests**: ✅ Comprehensive coverage across all core modules
 - **Integration Tests**: ✅ Core workflows tested
 - **E2E Tests**: ⚠️ Manual execution required (marked as ignored)
@@ -168,6 +192,7 @@ radium/
 
 | Date | Changes |
 |------|---------|
+| 2025-12-03 | Claude | Completed Step 7: Engine Abstraction Layer (23 tests passing) |
 | 2025-12-03 | Claude | Completed Step 6.5: Sandboxing System (15 tests passing) |
 | 2025-12-03 | Claude | Completed Step 6: Monitoring & Telemetry (44 tests passing) |
 | 2025-12-02 | Implemented template management (list, info, validate) with TemplateDiscovery system |

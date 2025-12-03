@@ -23,6 +23,7 @@ pub mod checkpoint;
 pub mod commands;
 pub mod config;
 pub mod context;
+pub mod engines;
 pub mod error;
 pub mod memory;
 pub mod models;
@@ -50,6 +51,10 @@ pub use checkpoint::{Checkpoint, CheckpointError, CheckpointManager, Result as C
 pub use commands::{CommandError, CommandRegistry, CustomCommand, Result as CommandResult};
 pub use config::Config;
 pub use context::{ContextError, ContextInjector, ContextManager, InjectionDirective, Result as ContextResult};
+pub use engines::{
+    BinaryDetector, Engine, EngineError, EngineMetadata, EngineRegistry, ExecutionRequest,
+    ExecutionResponse, Result as EngineResult, TokenUsage,
+};
 pub use error::{RadiumError, Result};
 pub use memory::{FileAdapter, MemoryAdapter, MemoryEntry, MemoryError, MemoryStore, Result as MemoryResult};
 pub use models::agent::{Agent, AgentConfig, AgentError, AgentState};
