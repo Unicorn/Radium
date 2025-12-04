@@ -34,6 +34,10 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
 
 ### Completed Recently
 
+- [x] **BLOCKER-003**: Resolve workflow execution async DB access
+  - **Completed:** 2025-12-03
+  - **Commit:** fix(core): refactor workflow executor for async db access [BLOCKER-003]
+  - **Files:** `crates/radium-core/src/workflow/executor.rs`, `crates/radium-core/src/server/radium_service.rs`
 - [x] **RAD-TEST-017**: Implement Server Integration Tests
   - **Completed:** 2025-12-03
   - **Commit:** test(core): add server integration tests [RAD-TEST-017]
@@ -114,15 +118,10 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
 
 ## 🚧 Blockers
 
-- **BLOCKER-003**: Workflow execution logic needs refactoring for async DB access
-  - **Blocking:** Full workflow execution via gRPC
-  - **Owner:** Unassigned
-  - **Resolution:** Pending
-  - **Notes:** `WorkflowService::execute_workflow` is currently a placeholder returning an error because of `Send` bounds issues with `rusqlite` Mutex held across await. Needs refactoring of `WorkflowExecutor` or repository pattern.
-
-*No active external dependency blockers.*
+*No active blockers - all dependency blockers have been resolved.*
 
 Previous blockers resolved:
+- ~~BLOCKER-003: Workflow execution logic needs refactoring for async DB access~~ → Resolved by refactoring WorkflowExecutor to handle short-lived locks
 - ~~BLOCKER-001: rustc dependency conflict~~ → Resolved by updating to Rust 1.83.0
 - ~~BLOCKER-002: http-types dependency conflict~~ → Resolved by updating tonic ecosystem to 0.13
 
