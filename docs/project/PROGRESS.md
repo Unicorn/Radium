@@ -103,10 +103,11 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
   - **Notes:** Verified coverage for auth, config, agents, storage, and server modules. Added tests for request logger.
 
 - [ ] **RAD-041**: Write E2E tests for TUI and Desktop apps
-  - **Status:** In Progress
+  - **Status:** Blocked
+  - **Blocked By:** BLOCKER-004
   - **Assignee:** Gemini
   - **Started:** 2025-12-03
-  - **Notes:** Refactoring TUI to expose library for testing. Running existing Desktop tests.
+  - **Notes:** TUI unit tests complete, Desktop E2E blocked by Playwright installation issue.
 
 - [ ] **RAD-TEST-015**: Setup Coverage Tooling
   - **Status:** Not Started
@@ -118,7 +119,11 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
 
 ## 🚧 Blockers
 
-*No active blockers - all dependency blockers have been resolved.*
+- **BLOCKER-004**: Playwright executable not found after `bun install`
+  - **Blocking:** RAD-041 (Desktop E2E tests)
+  - **Owner:** Gemini
+  - **Resolution:** Pending
+  - **Notes:** `bun`'s package management is not correctly installing or resolving the Playwright executable, preventing E2E tests for `radium-desktop`. Requires investigation into `bun`'s behavior or switching package managers for Playwright.
 
 Previous blockers resolved:
 - ~~BLOCKER-003: Workflow execution logic needs refactoring for async DB access~~ → Resolved by refactoring WorkflowExecutor to handle short-lived locks
