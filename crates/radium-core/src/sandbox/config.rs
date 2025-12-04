@@ -24,6 +24,17 @@ impl Default for SandboxType {
     }
 }
 
+impl std::fmt::Display for SandboxType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SandboxType::None => write!(f, "none"),
+            SandboxType::Docker => write!(f, "docker"),
+            SandboxType::Podman => write!(f, "podman"),
+            SandboxType::Seatbelt => write!(f, "seatbelt"),
+        }
+    }
+}
+
 /// Sandbox network configuration.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -114,10 +125,7 @@ impl Default for SandboxConfig {
 impl SandboxConfig {
     /// Creates a new sandbox configuration.
     pub fn new(sandbox_type: SandboxType) -> Self {
-        Self {
-            sandbox_type,
-            ..Default::default()
-        }
+        Self { sandbox_type, ..Default::default() }
     }
 
     /// Sets the sandbox profile.
@@ -200,5 +208,82 @@ mod tests {
         let json = r#"{"sandbox_type":"docker"}"#;
         let config: serde_json::Value = serde_json::from_str(json).unwrap();
         assert_eq!(config["sandbox_type"], "docker");
+    }
+
+    #[test]
+    fn test_sandbox_type_all_variants() {
+        assert_eq!(SandboxType::None.to_string(), "none");
+        assert_eq!(SandboxType::Docker.to_string(), "docker");
+        assert_eq!(SandboxType::Podman.to_string(), "podman");
+        assert_eq!(SandboxType::Seatbelt.to_string(), "seatbelt");
+    }
+
+    #[test]
+    fn test_network_mode_serialization() {
+        let open = serde_json::to_string(&NetworkMode::Open).unwrap();
+        assert_eq!(open, r#""open""#);
+
+        let closed = serde_json::to_string(&NetworkMode::Closed).unwrap();
+        assert_eq!(closed, r#""closed""#);
+
+        let proxied = serde_json::to_string(&NetworkMode::Proxied).unwrap();
+        assert_eq!(proxied, r#""proxied""#);
+    }
+
+    #[test]
+    fn test_sandbox_profile_serialization() {
+        let permissive = serde_json::to_string(&SandboxProfile::Permissive).unwrap();
+        assert_eq!(permissive, r#""permissive""#);
+
+        let restrictive = serde_json::to_string(&SandboxProfile::Restrictive).unwrap();
+        assert_eq!(restrictive, r#""restrictive""#);
+    }
+
+    #[test]
+    fn test_sandbox_config_with_flags() {
+        let flags = vec!["--flag1".to_string(), "--flag2".to_string()];
+        let config = SandboxConfig::new(SandboxType::Docker).with_flags(flags.clone());
+
+        assert_eq!(config.custom_flags, flags);
+    }
+
+    #[test]
+    fn test_sandbox_config_multiple_env_vars() {
+        let mut env = HashMap::new();
+        env.insert("VAR1".to_string(), "value1".to_string());
+        env.insert("VAR2".to_string(), "value2".to_string());
+        env.insert("VAR3".to_string(), "value3".to_string());
+
+        let config = SandboxConfig::new(SandboxType::Docker).with_env(env.clone());
+
+        assert_eq!(config.env.len(), 3);
+        assert_eq!(config.env.get("VAR1"), Some(&"value1".to_string()));
+        assert_eq!(config.env.get("VAR2"), Some(&"value2".to_string()));
+        assert_eq!(config.env.get("VAR3"), Some(&"value3".to_string()));
+    }
+
+    #[test]
+    fn test_sandbox_config_builder_chaining() {
+        let config = SandboxConfig::new(SandboxType::Seatbelt)
+            .with_profile(SandboxProfile::Restrictive)
+            .with_network(NetworkMode::Proxied)
+            .with_working_dir("/workspace".to_string());
+
+        assert_eq!(config.sandbox_type, SandboxType::Seatbelt);
+        assert_eq!(config.profile, SandboxProfile::Restrictive);
+        assert_eq!(config.network, NetworkMode::Proxied);
+        assert_eq!(config.working_dir, Some("/workspace".to_string()));
+    }
+
+    #[test]
+    fn test_sandbox_config_empty_env() {
+        let config = SandboxConfig::new(SandboxType::None);
+        assert!(config.env.is_empty());
+    }
+
+    #[test]
+    fn test_sandbox_config_empty_flags() {
+        let config = SandboxConfig::new(SandboxType::None);
+        assert!(config.custom_flags.is_empty());
     }
 }

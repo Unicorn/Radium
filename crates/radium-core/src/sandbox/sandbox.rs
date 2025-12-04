@@ -27,12 +27,7 @@ pub trait Sandbox: Send + Sync {
     ///
     /// # Errors
     /// Returns error if execution fails
-    async fn execute(
-        &self,
-        command: &str,
-        args: &[String],
-        cwd: Option<&Path>,
-    ) -> Result<Output>;
+    async fn execute(&self, command: &str, args: &[String], cwd: Option<&Path>) -> Result<Output>;
 
     /// Cleans up the sandbox environment.
     ///
@@ -120,12 +115,7 @@ impl Sandbox for NoSandbox {
         Ok(())
     }
 
-    async fn execute(
-        &self,
-        command: &str,
-        args: &[String],
-        cwd: Option<&Path>,
-    ) -> Result<Output> {
+    async fn execute(&self, command: &str, args: &[String], cwd: Option<&Path>) -> Result<Output> {
         use tokio::process::Command;
 
         let mut cmd = Command::new(command);
@@ -161,16 +151,10 @@ mod tests {
     #[tokio::test]
     async fn test_no_sandbox_execute() {
         let sandbox = NoSandbox::new();
-        let output = sandbox
-            .execute("echo", &["hello".to_string()], None)
-            .await
-            .unwrap();
+        let output = sandbox.execute("echo", &["hello".to_string()], None).await.unwrap();
 
         assert!(output.status.success());
-        assert_eq!(
-            String::from_utf8_lossy(&output.stdout).trim(),
-            "hello"
-        );
+        assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "hello");
     }
 
     #[tokio::test]
@@ -184,5 +168,93 @@ mod tests {
         let config = SandboxConfig::default();
         let sandbox = SandboxFactory::create(config).unwrap();
         assert_eq!(sandbox.sandbox_type(), SandboxType::None);
+    }
+
+    #[tokio::test]
+    async fn test_no_sandbox_execute_with_cwd() {
+        let sandbox = NoSandbox::new();
+        let cwd = std::env::current_dir().unwrap();
+        let output = sandbox.execute("pwd", &[], Some(&cwd)).await.unwrap();
+
+        assert!(output.status.success());
+        let output_str = String::from_utf8_lossy(&output.stdout);
+        assert!(output_str.contains(cwd.to_str().unwrap()));
+    }
+
+    #[tokio::test]
+    async fn test_no_sandbox_execute_multiple_args() {
+        let sandbox = NoSandbox::new();
+        let args = vec!["arg1".to_string(), "arg2".to_string(), "arg3".to_string()];
+        let output = sandbox.execute("echo", &args, None).await.unwrap();
+
+        assert!(output.status.success());
+        let output_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        assert_eq!(output_str, "arg1 arg2 arg3");
+    }
+
+    #[tokio::test]
+    async fn test_no_sandbox_execute_failing_command() {
+        let sandbox = NoSandbox::new();
+        let result = sandbox.execute("false", &[], None).await;
+
+        // Command should execute but return non-zero exit code
+        assert!(result.is_ok());
+        let output = result.unwrap();
+        assert!(!output.status.success());
+    }
+
+    #[tokio::test]
+    async fn test_no_sandbox_execute_nonexistent_command() {
+        let sandbox = NoSandbox::new();
+        let result = sandbox.execute("nonexistent_command_12345", &[], None).await;
+
+        // Should return error for command not found
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_no_sandbox_type() {
+        let sandbox = NoSandbox::new();
+        assert_eq!(sandbox.sandbox_type(), SandboxType::None);
+    }
+
+    #[tokio::test]
+    async fn test_sandbox_factory_docker_not_available() {
+        #[cfg(not(feature = "docker-sandbox"))]
+        {
+            let config = SandboxConfig { sandbox_type: SandboxType::Docker, ..Default::default() };
+            let result = SandboxFactory::create(config);
+            assert!(result.is_err());
+            if let Err(SandboxError::NotAvailable(sandbox_type)) = result {
+                assert_eq!(sandbox_type, "docker");
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_sandbox_factory_podman_not_available() {
+        #[cfg(not(feature = "podman-sandbox"))]
+        {
+            let config = SandboxConfig { sandbox_type: SandboxType::Podman, ..Default::default() };
+            let result = SandboxFactory::create(config);
+            assert!(result.is_err());
+            if let Err(SandboxError::NotAvailable(sandbox_type)) = result {
+                assert_eq!(sandbox_type, "podman");
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_sandbox_factory_seatbelt_not_available() {
+        #[cfg(not(all(target_os = "macos", feature = "seatbelt-sandbox")))]
+        {
+            let config =
+                SandboxConfig { sandbox_type: SandboxType::Seatbelt, ..Default::default() };
+            let result = SandboxFactory::create(config);
+            assert!(result.is_err());
+            if let Err(SandboxError::NotAvailable(sandbox_type)) = result {
+                assert_eq!(sandbox_type, "seatbelt");
+            }
+        }
     }
 }
