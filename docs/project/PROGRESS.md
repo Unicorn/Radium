@@ -34,6 +34,10 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
 
 ### Completed Recently
 
+- [x] **RAD-TEST-017**: Implement Server Integration Tests
+  - **Completed:** 2025-12-03
+  - **Commit:** test(core): add server integration tests [RAD-TEST-017]
+  - **Files:** `crates/radium-core/tests/server_integration_test.rs`, `crates/radium-core/tests/common/mod.rs`
 - [x] **Step 7: Engine Abstraction Layer**: Multi-provider AI engine support system
   - **Completed:** 2025-12-03
   - **Commit:** feat(engines): implement engine abstraction layer (Step 7)
@@ -87,17 +91,6 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
 - [x] **RAD-CLEANUP**: Remove all "codemachine" references from codebase
 
 ### Outstanding Tasks
-
-Update PROGRESS.md - Task Complete:
-
-Move to Completed section:
-- [x] **RAD-TEST-017**: Implement Server Integration Tests
-  - **Completed:** 2025-12-03
-  - **Commit:** test(core): add server integration tests [RAD-TEST-017]
-  - **Files:** `crates/radium-core/tests/server_integration_test.rs`, `crates/radium-core/tests/common/mod.rs`
-
-Add to Update Log:
-| 2025-12-03 | Gemini | Completed RAD-TEST-017 |
 
 - [x] **RAD-TEST-016**: Identify and Fill Test Coverage Gaps
   - **Completed:** 2025-12-03
