@@ -1,0 +1,8 @@
+[agent]
+id = "doc-agent"
+name = "Documentation Agent"
+description = "Generates comprehensive documentation and API references"
+prompt_path = "prompts/agents/core/doc-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "low"

@@ -1,0 +1,8 @@
+[agent]
+id = "code-agent"
+name = "Code Implementation Agent"
+description = "Implements features and writes production-ready code"
+prompt_path = "prompts/agents/core/code-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "medium"

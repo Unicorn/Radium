@@ -1,0 +1,8 @@
+[agent]
+id = "arch-agent"
+name = "Architecture Agent"
+description = "Defines system architecture and technical design decisions"
+prompt_path = "prompts/agents/core/arch-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "high"
