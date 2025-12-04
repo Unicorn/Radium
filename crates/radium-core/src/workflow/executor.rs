@@ -9,7 +9,7 @@ use tracing::{debug, error, info};
 use radium_orchestrator::{AgentExecutor, Orchestrator};
 
 use crate::models::{Workflow, WorkflowState};
-use crate::storage::{TaskRepository};
+use crate::storage::TaskRepository;
 
 use super::control_flow::{StepCondition, should_execute_step};
 use super::engine::{ExecutionContext, StepResult, WorkflowEngine, WorkflowEngineError};
@@ -130,41 +130,54 @@ impl WorkflowExecutor {
             // We need to load the task from DB, which requires a lock.
             // But execute_step is async (agent call), so we can't hold the lock across it.
             // Solution: Load task inside a block, then execute.
-            
+
             let started_at = Utc::now();
             let step_result: Result<StepResult, WorkflowEngineError> = async {
-                 // 1. Load task (Sync DB access)
+                // 1. Load task (Sync DB access)
                 let task = {
                     let mut db_guard = db.lock().map_err(|e| {
-                         WorkflowEngineError::Storage(crate::storage::StorageError::InvalidData(e.to_string()))
+                        WorkflowEngineError::Storage(crate::storage::StorageError::InvalidData(
+                            e.to_string(),
+                        ))
                     })?;
                     let task_repo = crate::storage::SqliteTaskRepository::new(&mut *db_guard);
                     task_repo.get_by_id(&step.task_id).map_err(|e| match e {
-                        crate::storage::StorageError::NotFound(_) => WorkflowEngineError::TaskNotFound(step.task_id.clone()),
+                        crate::storage::StorageError::NotFound(_) => {
+                            WorkflowEngineError::TaskNotFound(step.task_id.clone())
+                        }
                         _ => WorkflowEngineError::Storage(e),
                     })?
                 };
 
                 // 2. Prepare execution (CPU bound)
-                 let agent = self.engine.orchestrator.get_agent(&task.agent_id).await.ok_or_else(|| {
-                    WorkflowEngineError::AgentNotFound(task.agent_id.clone())
-                })?;
+                let agent = self
+                    .engine
+                    .orchestrator
+                    .get_agent(&task.agent_id)
+                    .await
+                    .ok_or_else(|| WorkflowEngineError::AgentNotFound(task.agent_id.clone()))?;
 
                 let input_str = match &task.input {
                     serde_json::Value::String(s) => s.clone(),
-                    v => serde_json::to_string(v).map_err(|e| WorkflowEngineError::InvalidInput(e.to_string()))?,
+                    v => serde_json::to_string(v)
+                        .map_err(|e| WorkflowEngineError::InvalidInput(e.to_string()))?,
                 };
 
                 // 3. Execute Agent (Async, no DB lock)
-                let execution_result = self.engine.executor.execute_agent_with_default_model(agent, &input_str).await.map_err(|e| {
-                    WorkflowEngineError::Execution(e.to_string())
-                })?;
-                
+                let execution_result = self
+                    .engine
+                    .executor
+                    .execute_agent_with_default_model(agent, &input_str)
+                    .await
+                    .map_err(|e| WorkflowEngineError::Execution(e.to_string()))?;
+
                 let completed_at = Utc::now();
-                 // Convert output
+                // Convert output
                 if execution_result.success {
                     let output_value = match execution_result.output {
-                        radium_orchestrator::AgentOutput::Text(text) => serde_json::Value::String(text),
+                        radium_orchestrator::AgentOutput::Text(text) => {
+                            serde_json::Value::String(text)
+                        }
                         radium_orchestrator::AgentOutput::StructuredData(data) => data,
                         radium_orchestrator::AgentOutput::ToolCall { name, args } => {
                             serde_json::json!({
@@ -173,21 +186,26 @@ impl WorkflowExecutor {
                                 "args": args
                             })
                         }
-                        radium_orchestrator::AgentOutput::Terminate => serde_json::Value::String("terminated".to_string()),
+                        radium_orchestrator::AgentOutput::Terminate => {
+                            serde_json::Value::String("terminated".to_string())
+                        }
                     };
                     Ok(StepResult::success(step.id.clone(), output_value, started_at, completed_at))
                 } else {
-                     let error_msg = execution_result.error.unwrap_or_else(|| "Unknown execution error".to_string());
-                     Ok(StepResult::failure(step.id.clone(), error_msg, started_at, completed_at))
+                    let error_msg = execution_result
+                        .error
+                        .unwrap_or_else(|| "Unknown execution error".to_string());
+                    Ok(StepResult::failure(step.id.clone(), error_msg, started_at, completed_at))
                 }
-            }.await;
+            }
+            .await;
 
             let step_result = match step_result {
                 Ok(res) => res,
                 Err(e) => {
-                     let error_msg = e.to_string();
-                     let completed_at = Utc::now();
-                     StepResult::failure(step.id.clone(), error_msg, started_at, completed_at)
+                    let error_msg = e.to_string();
+                    let completed_at = Utc::now();
+                    StepResult::failure(step.id.clone(), error_msg, started_at, completed_at)
                 }
             };
 
@@ -208,14 +226,19 @@ impl WorkflowExecutor {
 
                 // Update workflow state to Error
                 {
-                     let mut db_guard = db.lock().map_err(|e| {
+                    let mut db_guard = db.lock().map_err(|e| {
                         WorkflowEngineError::Storage(crate::storage::StorageError::InvalidData(
                             e.to_string(),
                         ))
                     })?;
-                    let mut workflow_repo = crate::storage::SqliteWorkflowRepository::new(&mut *db_guard);
+                    let mut workflow_repo =
+                        crate::storage::SqliteWorkflowRepository::new(&mut *db_guard);
                     let error_state = WorkflowState::Error(error_msg.clone());
-                    self.engine.update_workflow_state(workflow, &error_state, &mut workflow_repo)?;
+                    self.engine.update_workflow_state(
+                        workflow,
+                        &error_state,
+                        &mut workflow_repo,
+                    )?;
                 }
 
                 return Err(WorkflowEngineError::Execution(error_msg));
@@ -234,7 +257,7 @@ impl WorkflowExecutor {
 
         // Update workflow state to Completed
         {
-             let mut db_guard = db.lock().map_err(|e| {
+            let mut db_guard = db.lock().map_err(|e| {
                 WorkflowEngineError::Storage(crate::storage::StorageError::InvalidData(
                     e.to_string(),
                 ))
@@ -337,10 +360,8 @@ mod tests {
             workflow_repo.get_by_id("workflow-1").unwrap()
         };
 
-        let context = workflow_executor
-            .execute_workflow(&mut workflow, Arc::clone(&db))
-            .await
-            .unwrap();
+        let context =
+            workflow_executor.execute_workflow(&mut workflow, Arc::clone(&db)).await.unwrap();
 
         // Verify results
         assert_eq!(context.workflow_id, "workflow-1");
@@ -407,10 +428,8 @@ mod tests {
             workflow_repo.get_by_id("workflow-1").unwrap()
         };
 
-        let context = workflow_executor
-            .execute_workflow(&mut workflow, Arc::clone(&db))
-            .await
-            .unwrap();
+        let context =
+            workflow_executor.execute_workflow(&mut workflow, Arc::clone(&db)).await.unwrap();
 
         assert_eq!(context.step_results.len(), 1);
         assert!(context.step_results.get("step-1").unwrap().success);
@@ -442,9 +461,7 @@ mod tests {
             workflow_repo.get_by_id("workflow-1").unwrap()
         };
 
-        let result = workflow_executor
-            .execute_workflow(&mut workflow, Arc::clone(&db))
-            .await;
+        let result = workflow_executor.execute_workflow(&mut workflow, Arc::clone(&db)).await;
 
         // Empty workflow should complete successfully with no steps
         assert!(result.is_ok());
@@ -480,9 +497,7 @@ mod tests {
             workflow_repo.get_by_id("workflow-1").unwrap()
         };
 
-        let result = workflow_executor
-            .execute_workflow(&mut workflow, Arc::clone(&db))
-            .await;
+        let result = workflow_executor.execute_workflow(&mut workflow, Arc::clone(&db)).await;
 
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -579,10 +594,8 @@ mod tests {
             workflow_repo.get_by_id("workflow-1").unwrap()
         };
 
-        let context = workflow_executor
-            .execute_workflow(&mut workflow, Arc::clone(&db))
-            .await
-            .unwrap();
+        let context =
+            workflow_executor.execute_workflow(&mut workflow, Arc::clone(&db)).await.unwrap();
 
         // Verify all steps executed in order
         assert_eq!(context.step_results.len(), 3);
@@ -661,9 +674,7 @@ mod tests {
             workflow_repo.get_by_id("workflow-1").unwrap()
         };
 
-        let result = workflow_executor
-            .execute_workflow(&mut workflow, Arc::clone(&db))
-            .await;
+        let result = workflow_executor.execute_workflow(&mut workflow, Arc::clone(&db)).await;
 
         // Should fail because agent not found for step 2
         assert!(result.is_err());

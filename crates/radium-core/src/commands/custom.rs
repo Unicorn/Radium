@@ -107,10 +107,7 @@ impl CustomCommand {
 
             if !output.status.success() {
                 let stderr = String::from_utf8_lossy(&output.stderr);
-                return Err(CommandError::ShellExecution(format!(
-                    "Command failed: {}",
-                    stderr
-                )));
+                return Err(CommandError::ShellExecution(format!("Command failed: {}", stderr)));
             }
 
             let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -127,9 +124,7 @@ impl CustomCommand {
         // Find all @{...} patterns
         while let Some(start) = result.find("@{") {
             let Some(end) = result[start..].find('}') else {
-                return Err(CommandError::TemplateRender(
-                    "Unclosed file injection".to_string(),
-                ));
+                return Err(CommandError::TemplateRender("Unclosed file injection".to_string()));
             };
 
             let end = start + end;
@@ -167,11 +162,7 @@ pub struct CommandRegistry {
 impl CommandRegistry {
     /// Creates a new command registry.
     pub fn new() -> Self {
-        Self {
-            commands: HashMap::new(),
-            project_dir: None,
-            user_dir: None,
-        }
+        Self { commands: HashMap::new(), project_dir: None, user_dir: None }
     }
 
     /// Sets the project commands directory.
@@ -366,11 +357,14 @@ mod tests {
         // Create a test command file
         let command_file = commands_dir.join("test.toml");
         let mut file = File::create(&command_file).unwrap();
-        file.write_all(br#"
+        file.write_all(
+            br#"
 name = "test"
 description = "Test command"
 template = "Hello {{args}}!"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
 
         let mut registry = CommandRegistry::new().with_project_dir(&commands_dir);
         registry.discover().unwrap();
@@ -388,11 +382,14 @@ template = "Hello {{args}}!"
         // Create a namespaced command file
         let command_file = commands_dir.join("git").join("status.toml");
         let mut file = File::create(&command_file).unwrap();
-        file.write_all(br#"
+        file.write_all(
+            br#"
 name = "status"
 description = "Git status command"
 template = "!{git status}"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
 
         let mut registry = CommandRegistry::new().with_project_dir(&commands_dir);
         registry.discover().unwrap();
@@ -412,24 +409,29 @@ template = "!{git status}"
         // Create user command
         let user_command = user_dir.join("test.toml");
         let mut file = File::create(&user_command).unwrap();
-        file.write_all(br#"
+        file.write_all(
+            br#"
 name = "test"
 description = "User command"
 template = "User template"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
 
         // Create project command (should override)
         let project_command = project_dir.join("test.toml");
         let mut file = File::create(&project_command).unwrap();
-        file.write_all(br#"
+        file.write_all(
+            br#"
 name = "test"
 description = "Project command"
 template = "Project template"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
 
-        let mut registry = CommandRegistry::new()
-            .with_user_dir(&user_dir)
-            .with_project_dir(&project_dir);
+        let mut registry =
+            CommandRegistry::new().with_user_dir(&user_dir).with_project_dir(&project_dir);
         registry.discover().unwrap();
 
         let command = registry.get("test").unwrap();
@@ -452,11 +454,18 @@ template = "Project template"
         for name in &["cmd1", "cmd2", "cmd3"] {
             let command_file = commands_dir.join(format!("{}.toml", name));
             let mut file = File::create(&command_file).unwrap();
-            file.write_all(format!(r#"
+            file.write_all(
+                format!(
+                    r#"
 name = "{}"
 description = "Test"
 template = "test"
-"#, name).as_bytes()).unwrap();
+"#,
+                    name
+                )
+                .as_bytes(),
+            )
+            .unwrap();
         }
 
         let mut registry = CommandRegistry::new().with_project_dir(&commands_dir);
@@ -481,11 +490,14 @@ template = "test"
         // Create a command
         let command_file = commands_dir.join("test.toml");
         let mut file = File::create(&command_file).unwrap();
-        file.write_all(br#"
+        file.write_all(
+            br#"
 name = "test"
 description = "Test"
 template = "test"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
 
         registry.discover().unwrap();
         assert_eq!(registry.len(), 1);
@@ -502,11 +514,14 @@ template = "test"
 
         let command_file = commands_dir.join("test.toml");
         let mut file = File::create(&command_file).unwrap();
-        file.write_all(br#"
+        file.write_all(
+            br#"
 name = "test"
 description = "Test"
 template = "test"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
 
         let mut registry = CommandRegistry::new().with_project_dir(&commands_dir);
         registry.discover().unwrap();
@@ -568,20 +583,26 @@ template = "test"
         // Git command
         let git_file = commands_dir.join("git").join("status.toml");
         let mut file = File::create(&git_file).unwrap();
-        file.write_all(br#"
+        file.write_all(
+            br#"
 name = "status"
 description = "Git status"
 template = "git status"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
 
         // Docker command
         let docker_file = commands_dir.join("docker").join("ps.toml");
         let mut file = File::create(&docker_file).unwrap();
-        file.write_all(br#"
+        file.write_all(
+            br#"
 name = "ps"
 description = "Docker ps"
 template = "docker ps"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
 
         let mut registry = CommandRegistry::new().with_project_dir(&commands_dir);
         registry.discover().unwrap();

@@ -25,18 +25,9 @@ pub struct Checkpoint {
 impl Checkpoint {
     /// Creates a new checkpoint.
     pub fn new(id: String, commit_hash: String) -> Self {
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
 
-        Self {
-            id,
-            commit_hash,
-            agent_id: None,
-            timestamp,
-            description: None,
-        }
+        Self { id, commit_hash, agent_id: None, timestamp, description: None }
     }
 
     /// Sets the agent ID.
@@ -74,18 +65,13 @@ impl CheckpointManager {
 
         // Verify workspace is a git repository
         if !workspace_root.join(".git").exists() {
-            return Err(CheckpointError::RepositoryNotFound(
-                workspace_root.display().to_string(),
-            ));
+            return Err(CheckpointError::RepositoryNotFound(workspace_root.display().to_string()));
         }
 
         // Create shadow repo directory
         fs::create_dir_all(&shadow_repo)?;
 
-        Ok(Self {
-            workspace_root,
-            shadow_repo,
-        })
+        Ok(Self { workspace_root, shadow_repo })
     }
 
     /// Initializes the shadow git repository.
@@ -99,10 +85,8 @@ impl CheckpointManager {
         }
 
         // Initialize bare git repository
-        let output = Command::new("git")
-            .args(["init", "--bare"])
-            .current_dir(&self.shadow_repo)
-            .output()?;
+        let output =
+            Command::new("git").args(["init", "--bare"]).current_dir(&self.shadow_repo).output()?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -316,11 +300,7 @@ mod tests {
         let path = temp_dir.path();
 
         // Initialize git repo
-        Command::new("git")
-            .args(["init"])
-            .current_dir(path)
-            .output()
-            .unwrap();
+        Command::new("git").args(["init"]).current_dir(path).output().unwrap();
 
         // Configure git
         Command::new("git")
@@ -340,11 +320,7 @@ mod tests {
         writeln!(file, "initial content").unwrap();
         drop(file);
 
-        Command::new("git")
-            .args(["add", "."])
-            .current_dir(path)
-            .output()
-            .unwrap();
+        Command::new("git").args(["add", "."]).current_dir(path).output().unwrap();
 
         Command::new("git")
             .args(["commit", "-m", "Initial commit"])
@@ -385,9 +361,7 @@ mod tests {
         let temp_dir = setup_git_repo();
         let manager = CheckpointManager::new(temp_dir.path()).unwrap();
 
-        let checkpoint = manager
-            .create_checkpoint(Some("Test checkpoint".to_string()))
-            .unwrap();
+        let checkpoint = manager.create_checkpoint(Some("Test checkpoint".to_string())).unwrap();
 
         assert!(checkpoint.id.starts_with("checkpoint-"));
         assert!(!checkpoint.commit_hash.is_empty());
@@ -489,7 +463,8 @@ mod tests {
             .unwrap();
 
         // Create checkpoint
-        let checkpoint = manager.create_checkpoint(Some("Before modification".to_string())).unwrap();
+        let checkpoint =
+            manager.create_checkpoint(Some("Before modification".to_string())).unwrap();
 
         // Modify file
         let mut file = File::create(&file_path).unwrap();

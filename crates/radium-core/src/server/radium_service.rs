@@ -43,10 +43,7 @@ pub struct RadiumService {
 impl RadiumService {
     /// Create a new Radium service instance.
     pub fn new(db: Database) -> Self {
-        Self {
-            db: Arc::new(Mutex::new(db)),
-            orchestrator: Arc::new(Orchestrator::new()),
-        }
+        Self { db: Arc::new(Mutex::new(db)), orchestrator: Arc::new(Orchestrator::new()) }
     }
 
     /// Acquires a lock on the database connection.

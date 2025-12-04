@@ -43,9 +43,7 @@ pub struct AgentRegistry {
 impl AgentRegistry {
     /// Creates a new empty agent registry.
     pub fn new() -> Self {
-        Self {
-            agents: Arc::new(RwLock::new(HashMap::new())),
-        }
+        Self { agents: Arc::new(RwLock::new(HashMap::new())) }
     }
 
     /// Creates a new agent registry and automatically discovers agents.
@@ -79,8 +77,8 @@ impl AgentRegistry {
         let discovery = AgentDiscovery::new();
         let discovered_agents = discovery.discover_all()?;
 
-        let mut agents = self.agents.write()
-            .map_err(|e| RegistryError::LockPoisoned(e.to_string()))?;
+        let mut agents =
+            self.agents.write().map_err(|e| RegistryError::LockPoisoned(e.to_string()))?;
 
         agents.extend(discovered_agents);
 
@@ -96,8 +94,8 @@ impl AgentRegistry {
         let discovery = AgentDiscovery::with_options(options);
         let discovered_agents = discovery.discover_all()?;
 
-        let mut agents = self.agents.write()
-            .map_err(|e| RegistryError::LockPoisoned(e.to_string()))?;
+        let mut agents =
+            self.agents.write().map_err(|e| RegistryError::LockPoisoned(e.to_string()))?;
 
         agents.extend(discovered_agents);
 
@@ -110,8 +108,8 @@ impl AgentRegistry {
     ///
     /// Returns error if agent with same ID already exists or lock is poisoned.
     pub fn register(&self, agent: AgentConfig) -> Result<()> {
-        let mut agents = self.agents.write()
-            .map_err(|e| RegistryError::LockPoisoned(e.to_string()))?;
+        let mut agents =
+            self.agents.write().map_err(|e| RegistryError::LockPoisoned(e.to_string()))?;
 
         if agents.contains_key(&agent.id) {
             return Err(RegistryError::AlreadyRegistered(agent.id.clone()));
@@ -128,8 +126,8 @@ impl AgentRegistry {
     ///
     /// Returns error if lock is poisoned.
     pub fn register_or_replace(&self, agent: AgentConfig) -> Result<()> {
-        let mut agents = self.agents.write()
-            .map_err(|e| RegistryError::LockPoisoned(e.to_string()))?;
+        let mut agents =
+            self.agents.write().map_err(|e| RegistryError::LockPoisoned(e.to_string()))?;
 
         agents.insert(agent.id.clone(), agent);
 
@@ -142,12 +140,9 @@ impl AgentRegistry {
     ///
     /// Returns error if agent not found or lock is poisoned.
     pub fn get(&self, id: &str) -> Result<AgentConfig> {
-        let agents = self.agents.read()
-            .map_err(|e| RegistryError::LockPoisoned(e.to_string()))?;
+        let agents = self.agents.read().map_err(|e| RegistryError::LockPoisoned(e.to_string()))?;
 
-        agents.get(id)
-            .cloned()
-            .ok_or_else(|| RegistryError::NotFound(id.to_string()))
+        agents.get(id).cloned().ok_or_else(|| RegistryError::NotFound(id.to_string()))
     }
 
     /// Checks if an agent exists.
@@ -156,8 +151,7 @@ impl AgentRegistry {
     ///
     /// Returns error if lock is poisoned.
     pub fn contains(&self, id: &str) -> Result<bool> {
-        let agents = self.agents.read()
-            .map_err(|e| RegistryError::LockPoisoned(e.to_string()))?;
+        let agents = self.agents.read().map_err(|e| RegistryError::LockPoisoned(e.to_string()))?;
 
         Ok(agents.contains_key(id))
     }
@@ -168,8 +162,7 @@ impl AgentRegistry {
     ///
     /// Returns error if lock is poisoned.
     pub fn list_ids(&self) -> Result<Vec<String>> {
-        let agents = self.agents.read()
-            .map_err(|e| RegistryError::LockPoisoned(e.to_string()))?;
+        let agents = self.agents.read().map_err(|e| RegistryError::LockPoisoned(e.to_string()))?;
 
         Ok(agents.keys().cloned().collect())
     }
@@ -180,8 +173,7 @@ impl AgentRegistry {
     ///
     /// Returns error if lock is poisoned.
     pub fn list_all(&self) -> Result<Vec<AgentConfig>> {
-        let agents = self.agents.read()
-            .map_err(|e| RegistryError::LockPoisoned(e.to_string()))?;
+        let agents = self.agents.read().map_err(|e| RegistryError::LockPoisoned(e.to_string()))?;
 
         Ok(agents.values().cloned().collect())
     }
@@ -195,8 +187,7 @@ impl AgentRegistry {
     where
         F: Fn(&AgentConfig) -> bool,
     {
-        let agents = self.agents.read()
-            .map_err(|e| RegistryError::LockPoisoned(e.to_string()))?;
+        let agents = self.agents.read().map_err(|e| RegistryError::LockPoisoned(e.to_string()))?;
 
         Ok(agents.values().filter(|a| predicate(a)).cloned().collect())
     }
@@ -221,8 +212,7 @@ impl AgentRegistry {
     ///
     /// Returns error if lock is poisoned.
     pub fn count(&self) -> Result<usize> {
-        let agents = self.agents.read()
-            .map_err(|e| RegistryError::LockPoisoned(e.to_string()))?;
+        let agents = self.agents.read().map_err(|e| RegistryError::LockPoisoned(e.to_string()))?;
 
         Ok(agents.len())
     }
@@ -233,8 +223,8 @@ impl AgentRegistry {
     ///
     /// Returns error if lock is poisoned.
     pub fn clear(&self) -> Result<()> {
-        let mut agents = self.agents.write()
-            .map_err(|e| RegistryError::LockPoisoned(e.to_string()))?;
+        let mut agents =
+            self.agents.write().map_err(|e| RegistryError::LockPoisoned(e.to_string()))?;
 
         agents.clear();
 
@@ -247,11 +237,10 @@ impl AgentRegistry {
     ///
     /// Returns error if agent not found or lock is poisoned.
     pub fn remove(&self, id: &str) -> Result<AgentConfig> {
-        let mut agents = self.agents.write()
-            .map_err(|e| RegistryError::LockPoisoned(e.to_string()))?;
+        let mut agents =
+            self.agents.write().map_err(|e| RegistryError::LockPoisoned(e.to_string()))?;
 
-        agents.remove(id)
-            .ok_or_else(|| RegistryError::NotFound(id.to_string()))
+        agents.remove(id).ok_or_else(|| RegistryError::NotFound(id.to_string()))
     }
 }
 

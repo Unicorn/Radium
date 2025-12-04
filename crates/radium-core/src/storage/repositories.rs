@@ -860,4 +860,125 @@ mod tests {
         let retrieved = repo.get_by_id("task-1").unwrap();
         assert_eq!(retrieved.state, TaskState::Running);
     }
+
+    #[test]
+    fn test_workflow_repository_delete() {
+        let mut db = setup_db();
+        let mut repo = SqliteWorkflowRepository::new(&mut db);
+
+        let workflow = Workflow::new(
+            "workflow-1".to_string(),
+            "Test Workflow".to_string(),
+            "A test workflow".to_string(),
+        );
+
+        repo.create(&workflow).unwrap();
+        repo.delete("workflow-1").unwrap();
+
+        assert!(repo.get_by_id("workflow-1").is_err());
+    }
+
+    #[test]
+    fn test_workflow_repository_get_all() {
+        let mut db = setup_db();
+        let mut repo = SqliteWorkflowRepository::new(&mut db);
+
+        let workflow1 = Workflow::new(
+            "workflow-1".to_string(),
+            "Workflow 1".to_string(),
+            "First workflow".to_string(),
+        );
+
+        let workflow2 = Workflow::new(
+            "workflow-2".to_string(),
+            "Workflow 2".to_string(),
+            "Second workflow".to_string(),
+        );
+
+        repo.create(&workflow1).unwrap();
+        repo.create(&workflow2).unwrap();
+
+        let all = repo.get_all().unwrap();
+        assert_eq!(all.len(), 2);
+    }
+
+    #[test]
+    fn test_task_repository_delete() {
+        let mut db = setup_db();
+        let mut repo = SqliteTaskRepository::new(&mut db);
+
+        let task = Task::new(
+            "task-1".to_string(),
+            "Test Task".to_string(),
+            "A test task".to_string(),
+            "agent-1".to_string(),
+            Value::Null,
+        );
+
+        repo.create(&task).unwrap();
+        repo.delete("task-1").unwrap();
+
+        assert!(repo.get_by_id("task-1").is_err());
+    }
+
+    #[test]
+    fn test_task_repository_get_all() {
+        let mut db = setup_db();
+        let mut repo = SqliteTaskRepository::new(&mut db);
+
+        let task1 = Task::new(
+            "task-1".to_string(),
+            "Task 1".to_string(),
+            "First task".to_string(),
+            "agent-1".to_string(),
+            Value::Null,
+        );
+
+        let task2 = Task::new(
+            "task-2".to_string(),
+            "Task 2".to_string(),
+            "Second task".to_string(),
+            "agent-2".to_string(),
+            Value::Null,
+        );
+
+        repo.create(&task1).unwrap();
+        repo.create(&task2).unwrap();
+
+        let all = repo.get_all().unwrap();
+        assert_eq!(all.len(), 2);
+    }
+
+    #[test]
+    fn test_agent_repository_get_nonexistent() {
+        let mut db = setup_db();
+        let repo = SqliteAgentRepository::new(&mut db);
+
+        let result = repo.get_by_id("nonexistent-agent");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_workflow_repository_update_nonexistent() {
+        let mut db = setup_db();
+        let mut repo = SqliteWorkflowRepository::new(&mut db);
+
+        let workflow = Workflow::new(
+            "nonexistent-workflow".to_string(),
+            "Test".to_string(),
+            "Test".to_string(),
+        );
+
+        let result = repo.update(&workflow);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_task_repository_delete_nonexistent() {
+        let mut db = setup_db();
+        let mut repo = SqliteTaskRepository::new(&mut db);
+
+        let result = repo.delete("nonexistent-task");
+        assert!(result.is_err());
+    }
 }
