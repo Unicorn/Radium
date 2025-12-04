@@ -825,4 +825,104 @@ mod tests {
         // Verify the lock was acquired successfully
         assert!(std::mem::size_of_val(&_guard) > 0);
     }
+
+    #[test]
+    fn test_storage_to_status_connection_error() {
+        let err = StorageError::Connection(rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CANTOPEN),
+            Some("cannot open database".to_string()),
+        ));
+        let status = storage_to_status(&err, "workflow", "workflow-1");
+        assert_eq!(status.code(), tonic::Code::Internal);
+        assert!(status.message().contains("Failed to process workflow"));
+    }
+
+    #[test]
+    fn test_storage_to_status_serialization_error() {
+        let json_err = serde_json::from_str::<serde_json::Value>("invalid").unwrap_err();
+        let err = StorageError::Serialization(json_err);
+        let status = storage_to_status(&err, "task", "task-1");
+        assert_eq!(status.code(), tonic::Code::Internal);
+    }
+
+    #[test]
+    fn test_create_error_invalid_data() {
+        let err = StorageError::InvalidData("Missing required field".to_string());
+        let status = create_error(&err, "agent");
+        assert_eq!(status.code(), tonic::Code::InvalidArgument);
+        assert!(status.message().contains("Invalid agent data"));
+    }
+
+    #[test]
+    fn test_list_error_connection() {
+        let err = StorageError::Connection(rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_BUSY),
+            None,
+        ));
+        let status = list_error(&err, "workflow");
+        assert_eq!(status.code(), tonic::Code::Internal);
+        assert!(status.message().contains("Failed to list workflows"));
+    }
+
+    #[test]
+    fn test_storage_to_status_invalid_data() {
+        let err = StorageError::InvalidData("Bad data".to_string());
+        let status = storage_to_status(&err, "workflow", "wf-1");
+        assert_eq!(status.code(), tonic::Code::InvalidArgument);
+        assert!(status.message().contains("Invalid workflow data"));
+    }
+
+    #[test]
+    fn test_create_error_connection() {
+        let err = StorageError::Connection(rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_LOCKED),
+            Some("locked".to_string()),
+        ));
+        let status = create_error(&err, "task");
+        assert_eq!(status.code(), tonic::Code::Internal);
+    }
+
+    #[test]
+    fn test_list_error_not_found() {
+        let err = StorageError::NotFound("missing".to_string());
+        let status = list_error(&err, "agent");
+        assert_eq!(status.code(), tonic::Code::Internal);
+    }
+
+    #[test]
+    fn test_list_error_invalid_data() {
+        let err = StorageError::InvalidData("Invalid format".to_string());
+        let status = list_error(&err, "workflow");
+        assert_eq!(status.code(), tonic::Code::Internal);
+    }
+
+    #[test]
+    fn test_storage_to_status_multiple_entity_types() {
+        let err = StorageError::NotFound("id-123".to_string());
+
+        let status1 = storage_to_status(&err, "agent", "id-123");
+        assert!(status1.message().contains("agent"));
+
+        let status2 = storage_to_status(&err, "workflow", "id-123");
+        assert!(status2.message().contains("workflow"));
+
+        let status3 = storage_to_status(&err, "task", "id-123");
+        assert!(status3.message().contains("task"));
+    }
+
+    #[test]
+    fn test_radium_service_lock_multiple_times() {
+        let db = Database::open_in_memory().unwrap();
+        let service = RadiumService::new(db);
+
+        // Lock once
+        {
+            let _guard1 = service.lock_db().unwrap();
+            // Lock is held
+        } // Lock released
+
+        // Lock again after release
+        let _guard2 = service.lock_db().unwrap();
+        // Should succeed
+    }
 }

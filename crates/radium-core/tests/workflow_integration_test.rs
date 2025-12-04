@@ -11,9 +11,8 @@ use std::sync::Arc;
 
 #[tokio::test]
 async fn test_workflow_execution_end_to_end() {
-    // Use separate databases to avoid borrowing conflicts
-    let mut task_db = Database::open_in_memory().unwrap();
-    let mut workflow_db = Database::open_in_memory().unwrap();
+    // Use a single database wrapped in Arc<Mutex<>>
+    let db = Arc::new(std::sync::Mutex::new(Database::open_in_memory().unwrap()));
     let orchestrator = Arc::new(Orchestrator::new());
     let executor = Arc::new(AgentExecutor::with_mock_model());
     let workflow_executor = WorkflowExecutor::new(Arc::clone(&orchestrator), Arc::clone(&executor));
@@ -24,7 +23,8 @@ async fn test_workflow_execution_end_to_end() {
 
     // Create tasks
     {
-        let mut task_repo = SqliteTaskRepository::new(&mut task_db);
+        let mut db_lock = db.lock().unwrap();
+        let mut task_repo = SqliteTaskRepository::new(&mut *db_lock);
         for i in 1..=3 {
             let task = Task::new(
                 format!("task-{}", i),
@@ -39,7 +39,8 @@ async fn test_workflow_execution_end_to_end() {
 
     // Create workflow with multiple steps
     {
-        let mut workflow_repo = SqliteWorkflowRepository::new(&mut workflow_db);
+        let mut db_lock = db.lock().unwrap();
+        let mut workflow_repo = SqliteWorkflowRepository::new(&mut *db_lock);
         let mut workflow = Workflow::new(
             "workflow-1".to_string(),
             "Multi-step Workflow".to_string(),
@@ -61,18 +62,15 @@ async fn test_workflow_execution_end_to_end() {
 
     // Execute workflow
     let mut workflow = {
-        let workflow_repo = SqliteWorkflowRepository::new(&mut workflow_db);
+        let mut db_lock = db.lock().unwrap();
+        let workflow_repo = SqliteWorkflowRepository::new(&mut *db_lock);
         workflow_repo.get_by_id("workflow-1").unwrap()
     };
 
-    let context = {
-        let task_repo = SqliteTaskRepository::new(&mut task_db);
-        let mut workflow_repo = SqliteWorkflowRepository::new(&mut workflow_db);
-        workflow_executor
-            .execute_workflow(&mut workflow, &task_repo, &mut workflow_repo)
-            .await
-            .unwrap()
-    };
+    let context = workflow_executor
+        .execute_workflow(&mut workflow, Arc::clone(&db))
+        .await
+        .unwrap();
 
     // Verify execution results
     assert_eq!(context.workflow_id, "workflow-1");
@@ -83,15 +81,15 @@ async fn test_workflow_execution_end_to_end() {
     assert!(context.completed_at.is_some());
 
     // Verify workflow state persisted
-    let workflow_repo = SqliteWorkflowRepository::new(&mut workflow_db);
+    let mut db_lock = db.lock().unwrap();
+    let workflow_repo = SqliteWorkflowRepository::new(&mut *db_lock);
     let workflow = workflow_repo.get_by_id("workflow-1").unwrap();
     assert_eq!(workflow.state, WorkflowState::Completed);
 }
 
 #[tokio::test]
 async fn test_workflow_error_recovery() {
-    let mut task_db = Database::open_in_memory().unwrap();
-    let mut workflow_db = Database::open_in_memory().unwrap();
+    let db = Arc::new(std::sync::Mutex::new(Database::open_in_memory().unwrap()));
     let orchestrator = Arc::new(Orchestrator::new());
     let executor = Arc::new(AgentExecutor::with_mock_model());
     let workflow_executor = WorkflowExecutor::new(Arc::clone(&orchestrator), Arc::clone(&executor));
@@ -102,7 +100,8 @@ async fn test_workflow_error_recovery() {
 
     // Create task that will fail (using non-existent agent in task)
     {
-        let mut task_repo = SqliteTaskRepository::new(&mut task_db);
+        let mut db_lock = db.lock().unwrap();
+        let mut task_repo = SqliteTaskRepository::new(&mut *db_lock);
         let task = Task::new(
             "task-1".to_string(),
             "Task 1".to_string(),
@@ -115,7 +114,8 @@ async fn test_workflow_error_recovery() {
 
     // Create workflow
     {
-        let mut workflow_repo = SqliteWorkflowRepository::new(&mut workflow_db);
+        let mut db_lock = db.lock().unwrap();
+        let mut workflow_repo = SqliteWorkflowRepository::new(&mut *db_lock);
         let mut workflow = Workflow::new(
             "workflow-1".to_string(),
             "Failing Workflow".to_string(),
@@ -135,18 +135,18 @@ async fn test_workflow_error_recovery() {
 
     // Execute workflow - should fail
     let mut workflow = {
-        let workflow_repo = SqliteWorkflowRepository::new(&mut workflow_db);
+        let mut db_lock = db.lock().unwrap();
+        let workflow_repo = SqliteWorkflowRepository::new(&mut *db_lock);
         workflow_repo.get_by_id("workflow-1").unwrap()
     };
 
-    let task_repo = SqliteTaskRepository::new(&mut task_db);
-    let mut workflow_repo = SqliteWorkflowRepository::new(&mut workflow_db);
-    let result =
-        workflow_executor.execute_workflow(&mut workflow, &task_repo, &mut workflow_repo).await;
+    let result = workflow_executor.execute_workflow(&mut workflow, Arc::clone(&db)).await;
 
     assert!(result.is_err());
 
     // Verify workflow state is Error
+    let mut db_lock = db.lock().unwrap();
+    let workflow_repo = SqliteWorkflowRepository::new(&mut *db_lock);
     let workflow = workflow_repo.get_by_id("workflow-1").unwrap();
     match &workflow.state {
         WorkflowState::Error(_) => {}
@@ -156,8 +156,7 @@ async fn test_workflow_error_recovery() {
 
 #[tokio::test]
 async fn test_workflow_state_persistence() {
-    let mut task_db = Database::open_in_memory().unwrap();
-    let mut workflow_db = Database::open_in_memory().unwrap();
+    let db = Arc::new(std::sync::Mutex::new(Database::open_in_memory().unwrap()));
     let orchestrator = Arc::new(Orchestrator::new());
     let executor = Arc::new(AgentExecutor::with_mock_model());
     let workflow_executor = WorkflowExecutor::new(Arc::clone(&orchestrator), Arc::clone(&executor));
@@ -168,7 +167,8 @@ async fn test_workflow_state_persistence() {
 
     // Create task
     {
-        let mut task_repo = SqliteTaskRepository::new(&mut task_db);
+        let mut db_lock = db.lock().unwrap();
+        let mut task_repo = SqliteTaskRepository::new(&mut *db_lock);
         let task = Task::new(
             "task-1".to_string(),
             "Task 1".to_string(),
@@ -181,7 +181,8 @@ async fn test_workflow_state_persistence() {
 
     // Create workflow
     {
-        let mut workflow_repo = SqliteWorkflowRepository::new(&mut workflow_db);
+        let mut db_lock = db.lock().unwrap();
+        let mut workflow_repo = SqliteWorkflowRepository::new(&mut *db_lock);
         let mut workflow = Workflow::new(
             "workflow-1".to_string(),
             "State Test Workflow".to_string(),
@@ -201,29 +202,28 @@ async fn test_workflow_state_persistence() {
 
     // Verify initial state
     {
-        let workflow_repo = SqliteWorkflowRepository::new(&mut workflow_db);
+        let mut db_lock = db.lock().unwrap();
+        let workflow_repo = SqliteWorkflowRepository::new(&mut *db_lock);
         let workflow = workflow_repo.get_by_id("workflow-1").unwrap();
         assert_eq!(workflow.state, WorkflowState::Idle);
     }
 
     // Execute workflow
     let mut workflow = {
-        let workflow_repo = SqliteWorkflowRepository::new(&mut workflow_db);
+        let mut db_lock = db.lock().unwrap();
+        let workflow_repo = SqliteWorkflowRepository::new(&mut *db_lock);
         workflow_repo.get_by_id("workflow-1").unwrap()
     };
 
-    let _context = {
-        let task_repo = SqliteTaskRepository::new(&mut task_db);
-        let mut workflow_repo = SqliteWorkflowRepository::new(&mut workflow_db);
-        workflow_executor
-            .execute_workflow(&mut workflow, &task_repo, &mut workflow_repo)
-            .await
-            .unwrap()
-    };
+    let _context = workflow_executor
+        .execute_workflow(&mut workflow, Arc::clone(&db))
+        .await
+        .unwrap();
 
     // Verify final state persisted
     {
-        let workflow_repo = SqliteWorkflowRepository::new(&mut workflow_db);
+        let mut db_lock = db.lock().unwrap();
+        let workflow_repo = SqliteWorkflowRepository::new(&mut *db_lock);
         let workflow = workflow_repo.get_by_id("workflow-1").unwrap();
         assert_eq!(workflow.state, WorkflowState::Completed);
     }

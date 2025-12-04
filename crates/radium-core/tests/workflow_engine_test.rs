@@ -104,31 +104,31 @@ async fn test_workflow_executor_sequential_execution() {
     let agent = Arc::new(SimpleAgent::new("test-agent".to_string(), "Test agent".to_string()));
     orchestrator.register_agent(agent).await;
 
-    // Use separate databases to avoid borrow conflicts
-    let mut task_db = db;
-    let mut workflow_db = Database::open_in_memory().unwrap();
+    // Use a single database for both tasks and workflows
+    let db = Arc::new(std::sync::Mutex::new(db));
 
-    // Create tasks in task_db
-    create_test_tasks(&mut task_db, 3, "test-agent");
+    // Create tasks
+    {
+        let mut db_lock = db.lock().unwrap();
+        create_test_tasks(&mut *db_lock, 3, "test-agent");
+    }
 
-    // Create workflow in workflow_db
+    // Create workflow
     let workflow = create_test_workflow(3);
     {
-        let mut workflow_repo = SqliteWorkflowRepository::new(&mut workflow_db);
+        let mut db_lock = db.lock().unwrap();
+        let mut workflow_repo = SqliteWorkflowRepository::new(&mut *db_lock);
         workflow_repo.create(&workflow).unwrap();
     }
 
     // Execute workflow
     let mut workflow = {
-        let workflow_repo = SqliteWorkflowRepository::new(&mut workflow_db);
+        let mut db_lock = db.lock().unwrap();
+        let workflow_repo = SqliteWorkflowRepository::new(&mut *db_lock);
         workflow_repo.get_by_id("test-workflow").unwrap()
     };
 
-    let result = {
-        let task_repo = SqliteTaskRepository::new(&mut task_db);
-        let mut workflow_repo = SqliteWorkflowRepository::new(&mut workflow_db);
-        workflow_executor.execute_workflow(&mut workflow, &task_repo, &mut workflow_repo).await
-    };
+    let result = workflow_executor.execute_workflow(&mut workflow, Arc::clone(&db)).await;
 
     assert!(result.is_ok());
     let context = result.unwrap();
@@ -153,26 +153,21 @@ async fn test_workflow_executor_handles_missing_task() {
 
     // Create workflow without creating tasks
     let workflow = create_test_workflow(1);
+    let db = Arc::new(std::sync::Mutex::new(db));
     {
-        let mut workflow_repo = SqliteWorkflowRepository::new(&mut db);
+        let mut db_lock = db.lock().unwrap();
+        let mut workflow_repo = SqliteWorkflowRepository::new(&mut *db_lock);
         workflow_repo.create(&workflow).unwrap();
     }
 
     // Execute workflow - should fail because task doesn't exist
-    // Use separate databases to avoid borrow checker issues
-    let mut task_db = Database::open_in_memory().unwrap();
-    let mut workflow_db = db;
-
     let mut workflow = {
-        let workflow_repo = SqliteWorkflowRepository::new(&mut workflow_db);
+        let mut db_lock = db.lock().unwrap();
+        let workflow_repo = SqliteWorkflowRepository::new(&mut *db_lock);
         workflow_repo.get_by_id("test-workflow").unwrap()
     };
 
-    let result = {
-        let task_repo = SqliteTaskRepository::new(&mut task_db);
-        let mut workflow_repo = SqliteWorkflowRepository::new(&mut workflow_db);
-        workflow_executor.execute_workflow(&mut workflow, &task_repo, &mut workflow_repo).await
-    };
+    let result = workflow_executor.execute_workflow(&mut workflow, Arc::clone(&db)).await;
 
     assert!(result.is_err());
     assert!(matches!(workflow.state, radium_core::models::WorkflowState::Error(_)));
@@ -187,30 +182,28 @@ async fn test_workflow_executor_handles_missing_agent() {
     let workflow_executor = WorkflowExecutor::new(Arc::clone(&orchestrator), Arc::clone(&executor));
 
     // Create task with non-existent agent
-    create_test_tasks(&mut db, 1, "nonexistent-agent");
+    let db = Arc::new(std::sync::Mutex::new(db));
+    {
+        let mut db_lock = db.lock().unwrap();
+        create_test_tasks(&mut *db_lock, 1, "nonexistent-agent");
+    }
 
     // Create workflow
     let workflow = create_test_workflow(1);
-    let mut workflow_db = Database::open_in_memory().unwrap();
     {
-        let mut workflow_repo = SqliteWorkflowRepository::new(&mut workflow_db);
+        let mut db_lock = db.lock().unwrap();
+        let mut workflow_repo = SqliteWorkflowRepository::new(&mut *db_lock);
         workflow_repo.create(&workflow).unwrap();
     }
 
     // Execute workflow - should fail because agent doesn't exist
-    // Use separate databases to avoid borrow checker issues
-    let mut task_db = db;
-
     let mut workflow = {
-        let workflow_repo = SqliteWorkflowRepository::new(&mut workflow_db);
+        let mut db_lock = db.lock().unwrap();
+        let workflow_repo = SqliteWorkflowRepository::new(&mut *db_lock);
         workflow_repo.get_by_id("test-workflow").unwrap()
     };
 
-    let result = {
-        let task_repo = SqliteTaskRepository::new(&mut task_db);
-        let mut workflow_repo = SqliteWorkflowRepository::new(&mut workflow_db);
-        workflow_executor.execute_workflow(&mut workflow, &task_repo, &mut workflow_repo).await
-    };
+    let result = workflow_executor.execute_workflow(&mut workflow, Arc::clone(&db)).await;
 
     assert!(result.is_err());
     assert!(matches!(workflow.state, radium_core::models::WorkflowState::Error(_)));

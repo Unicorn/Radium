@@ -444,4 +444,151 @@ mod tests {
         let diff = manager.diff_checkpoint(&checkpoint.id).unwrap();
         assert!(diff.contains("modified content"));
     }
+
+    #[test]
+    fn test_checkpoint_with_agent() {
+        let checkpoint = Checkpoint::new("test-id".to_string(), "abc123".to_string())
+            .with_agent("my-agent".to_string());
+
+        assert_eq!(checkpoint.agent_id, Some("my-agent".to_string()));
+        assert_eq!(checkpoint.id, "test-id");
+        assert_eq!(checkpoint.commit_hash, "abc123");
+    }
+
+    #[test]
+    fn test_checkpoint_with_agent_and_description() {
+        let checkpoint = Checkpoint::new("test-id".to_string(), "abc123".to_string())
+            .with_agent("my-agent".to_string())
+            .with_description("Test description".to_string());
+
+        assert_eq!(checkpoint.agent_id, Some("my-agent".to_string()));
+        assert_eq!(checkpoint.description, Some("Test description".to_string()));
+    }
+
+    #[test]
+    fn test_restore_checkpoint() {
+        let temp_dir = setup_git_repo();
+        let manager = CheckpointManager::new(temp_dir.path()).unwrap();
+
+        // Create initial file
+        let file_path = temp_dir.path().join("restore_test.txt");
+        let mut file = File::create(&file_path).unwrap();
+        writeln!(file, "original content").unwrap();
+        drop(file);
+
+        // Commit the file
+        Command::new("git")
+            .args(["add", "restore_test.txt"])
+            .current_dir(temp_dir.path())
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-m", "Add restore test file"])
+            .current_dir(temp_dir.path())
+            .output()
+            .unwrap();
+
+        // Create checkpoint
+        let checkpoint = manager.create_checkpoint(Some("Before modification".to_string())).unwrap();
+
+        // Modify file
+        let mut file = File::create(&file_path).unwrap();
+        writeln!(file, "modified content").unwrap();
+        drop(file);
+
+        // Commit modification
+        Command::new("git")
+            .args(["add", "restore_test.txt"])
+            .current_dir(temp_dir.path())
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-m", "Modify file"])
+            .current_dir(temp_dir.path())
+            .output()
+            .unwrap();
+
+        // Restore checkpoint
+        manager.restore_checkpoint(&checkpoint.id).unwrap();
+
+        // Verify content is restored
+        let content = std::fs::read_to_string(&file_path).unwrap();
+        assert!(content.contains("original content"));
+        assert!(!content.contains("modified content"));
+    }
+
+    #[test]
+    fn test_get_checkpoint_not_found() {
+        let temp_dir = setup_git_repo();
+        let manager = CheckpointManager::new(temp_dir.path()).unwrap();
+
+        let result = manager.get_checkpoint("nonexistent-checkpoint");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_delete_checkpoint_not_found() {
+        let temp_dir = setup_git_repo();
+        let manager = CheckpointManager::new(temp_dir.path()).unwrap();
+
+        let result = manager.delete_checkpoint("nonexistent-checkpoint");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_restore_checkpoint_not_found() {
+        let temp_dir = setup_git_repo();
+        let manager = CheckpointManager::new(temp_dir.path()).unwrap();
+
+        let result = manager.restore_checkpoint("nonexistent-checkpoint");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_diff_checkpoint_not_found() {
+        let temp_dir = setup_git_repo();
+        let manager = CheckpointManager::new(temp_dir.path()).unwrap();
+
+        let result = manager.diff_checkpoint("nonexistent-checkpoint");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_multiple_checkpoints_order() {
+        let temp_dir = setup_git_repo();
+        let manager = CheckpointManager::new(temp_dir.path()).unwrap();
+
+        let cp1 = manager.create_checkpoint(Some("First".to_string())).unwrap();
+        let cp2 = manager.create_checkpoint(Some("Second".to_string())).unwrap();
+        let cp3 = manager.create_checkpoint(Some("Third".to_string())).unwrap();
+
+        let checkpoints = manager.list_checkpoints().unwrap();
+        assert_eq!(checkpoints.len(), 3);
+
+        // Verify all checkpoints are present
+        let ids: Vec<_> = checkpoints.iter().map(|c| c.id.as_str()).collect();
+        assert!(ids.contains(&cp1.id.as_str()));
+        assert!(ids.contains(&cp2.id.as_str()));
+        assert!(ids.contains(&cp3.id.as_str()));
+    }
+
+    #[test]
+    fn test_create_checkpoint_without_description() {
+        let temp_dir = setup_git_repo();
+        let manager = CheckpointManager::new(temp_dir.path()).unwrap();
+
+        let checkpoint = manager.create_checkpoint(None).unwrap();
+        assert!(checkpoint.description.is_none());
+        assert!(!checkpoint.id.is_empty());
+        assert!(!checkpoint.commit_hash.is_empty());
+    }
+
+    #[test]
+    fn test_list_checkpoints_empty() {
+        let temp_dir = setup_git_repo();
+        let manager = CheckpointManager::new(temp_dir.path()).unwrap();
+
+        let checkpoints = manager.list_checkpoints().unwrap();
+        assert_eq!(checkpoints.len(), 0);
+    }
 }

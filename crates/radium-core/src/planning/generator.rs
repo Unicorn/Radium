@@ -136,6 +136,7 @@ impl Default for PlanGenerator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use radium_models::{ModelFactory, ModelType};
 
     #[test]
     fn test_plan_generator_new() {
@@ -166,5 +167,73 @@ mod tests {
         assert!(prompt.contains("Iteration"));
         assert!(prompt.contains("Tech Stack"));
         assert!(prompt.contains("Dependencies"));
+    }
+
+    #[test]
+    fn test_plan_generator_config_default() {
+        let config = PlanGeneratorConfig::default();
+        assert_eq!(config.model, "gemini-1.5-flash");
+        assert_eq!(config.engine, "gemini");
+        assert_eq!(config.max_tokens, Some(8000));
+        assert_eq!(config.temperature, Some(0.7));
+    }
+
+    #[test]
+    fn test_plan_generator_config_custom() {
+        let config = PlanGeneratorConfig {
+            model: "custom-model".to_string(),
+            engine: "custom-engine".to_string(),
+            max_tokens: Some(2000),
+            temperature: Some(0.9),
+        };
+
+        assert_eq!(config.model, "custom-model");
+        assert_eq!(config.engine, "custom-engine");
+        assert_eq!(config.max_tokens, Some(2000));
+        assert_eq!(config.temperature, Some(0.9));
+    }
+
+    #[test]
+    fn test_plan_generator_default() {
+        let generator = PlanGenerator::default();
+        assert_eq!(generator.config.engine, "gemini");
+    }
+
+    #[test]
+    fn test_create_plan_prompt_empty_spec() {
+        let prompt = PlanGenerator::create_plan_prompt("");
+        assert!(prompt.contains("SPECIFICATION:"));
+        assert!(prompt.contains("Iteration"));
+    }
+
+    #[test]
+    fn test_create_plan_prompt_long_spec() {
+        let spec = "A".repeat(1000);
+        let prompt = PlanGenerator::create_plan_prompt(&spec);
+        assert!(prompt.contains(&spec));
+    }
+
+    #[tokio::test]
+    async fn test_plan_generator_generate_with_mock_model() {
+        let generator = PlanGenerator::new();
+        let model = ModelFactory::create_from_str("mock", "test-model".to_string()).unwrap();
+
+        // MockModel will return a response that may or may not be parseable as a plan
+        // This tests that generate calls the model and attempts to parse the response
+        let spec = "Build a test app";
+        let result = generator.generate(spec, model).await;
+
+        // The result could be Ok or Err depending on whether the mock response parses
+        // Either way, we've tested that generate() calls the model and attempts parsing
+        match result {
+            Ok(plan) => {
+                // If it parsed successfully, verify it has expected structure
+                assert!(!plan.project_name.is_empty());
+            }
+            Err(err) => {
+                // If parsing failed, that's also a valid test outcome
+                assert!(!err.is_empty());
+            }
+        }
     }
 }

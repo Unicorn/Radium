@@ -32,7 +32,7 @@ async fn test_workflow_service_new() {
     let db = Arc::new(std::sync::Mutex::new(
         Database::open(temp_dir.path().join("test.db").to_str().unwrap()).unwrap(),
     ));
-    let orchestrator = Arc::new(tokio::sync::Mutex::new(Orchestrator::new()));
+    let orchestrator = Arc::new(Orchestrator::new());
     let executor = Arc::new(AgentExecutor::new(ModelType::Mock, "test-model".to_string()));
 
     let _service = WorkflowService::new(&orchestrator, &executor, &db);
@@ -47,7 +47,7 @@ async fn test_workflow_service_get_execution_history_empty() {
     let db = Arc::new(std::sync::Mutex::new(
         Database::open(temp_dir.path().join("test.db").to_str().unwrap()).unwrap(),
     ));
-    let orchestrator = Arc::new(tokio::sync::Mutex::new(Orchestrator::new()));
+    let orchestrator = Arc::new(Orchestrator::new());
     let executor = Arc::new(AgentExecutor::new(ModelType::Mock, "test-model".to_string()));
 
     let service = WorkflowService::new(&orchestrator, &executor, &db);
@@ -67,7 +67,7 @@ async fn test_workflow_service_get_execution_nonexistent() {
     let db = Arc::new(std::sync::Mutex::new(
         Database::open(temp_dir.path().join("test.db").to_str().unwrap()).unwrap(),
     ));
-    let orchestrator = Arc::new(tokio::sync::Mutex::new(Orchestrator::new()));
+    let orchestrator = Arc::new(Orchestrator::new());
     let executor = Arc::new(AgentExecutor::new(ModelType::Mock, "test-model".to_string()));
 
     let service = WorkflowService::new(&orchestrator, &executor, &db);
@@ -83,7 +83,7 @@ async fn test_workflow_service_execute_workflow_not_found() {
     let db = Arc::new(std::sync::Mutex::new(
         Database::open(temp_dir.path().join("test.db").to_str().unwrap()).unwrap(),
     ));
-    let orchestrator = Arc::new(tokio::sync::Mutex::new(Orchestrator::new()));
+    let orchestrator = Arc::new(Orchestrator::new());
     let executor = Arc::new(AgentExecutor::new(ModelType::Mock, "test-model".to_string()));
 
     let service = WorkflowService::new(&orchestrator, &executor, &db);
@@ -107,7 +107,7 @@ async fn test_workflow_service_execute_workflow_returns_validation_error() {
     let db = Arc::new(std::sync::Mutex::new(
         Database::open(temp_dir.path().join("test.db").to_str().unwrap()).unwrap(),
     ));
-    let orchestrator = Arc::new(tokio::sync::Mutex::new(Orchestrator::new()));
+    let orchestrator = Arc::new(Orchestrator::new());
     let executor = Arc::new(AgentExecutor::new(ModelType::Mock, "test-model".to_string()));
 
     // Create a workflow in the database
@@ -133,18 +133,18 @@ async fn test_workflow_service_execute_workflow_returns_validation_error() {
 
     let service = WorkflowService::new(&orchestrator, &executor, &db);
 
-    // Execute workflow - should return validation error (implementation in progress)
+    // Execute workflow - will fail because task doesn't exist
     let result = service.execute_workflow("test-workflow", false).await;
     assert!(result.is_err());
 
-    // Verify it's a validation error with the expected message
+    // Verify it's an execution error (task not found)
     if let Err(e) = result {
-        match e {
-            radium_core::workflow::engine::WorkflowEngineError::Validation(msg) => {
-                assert!(msg.contains("implementation in progress"));
-            }
-            _ => panic!("Expected Validation error, got {:?}", e),
-        }
+        // The workflow exists, but task doesn't, so we get TaskNotFound or Execution error
+        assert!(matches!(
+            e,
+            radium_core::workflow::engine::WorkflowEngineError::TaskNotFound(_)
+                | radium_core::workflow::engine::WorkflowEngineError::Execution(_)
+        ));
     }
 }
 
@@ -157,7 +157,7 @@ async fn test_workflow_service_execute_workflow_with_parallel() {
     let db = Arc::new(std::sync::Mutex::new(
         Database::open(temp_dir.path().join("test.db").to_str().unwrap()).unwrap(),
     ));
-    let orchestrator = Arc::new(tokio::sync::Mutex::new(Orchestrator::new()));
+    let orchestrator = Arc::new(Orchestrator::new());
     let executor = Arc::new(AgentExecutor::new(ModelType::Mock, "test-model".to_string()));
 
     // Create a workflow in the database
@@ -185,11 +185,15 @@ async fn test_workflow_service_execute_workflow_with_parallel() {
 
     // Execute workflow with parallel flag
     let result = service.execute_workflow("test-workflow-2", true).await;
-    assert!(result.is_err()); // Currently returns validation error
+    assert!(result.is_err()); // Will fail because task doesn't exist
 
-    // Verify it's a validation error
+    // Verify it's an execution error (task not found)
     if let Err(e) = result {
-        assert!(matches!(e, radium_core::workflow::engine::WorkflowEngineError::Validation(_)));
+        assert!(matches!(
+            e,
+            radium_core::workflow::engine::WorkflowEngineError::TaskNotFound(_)
+                | radium_core::workflow::engine::WorkflowEngineError::Execution(_)
+        ));
     }
 }
 
@@ -203,7 +207,7 @@ async fn test_workflow_service_get_execution_history_with_executions() {
     let db = Arc::new(std::sync::Mutex::new(
         Database::open(temp_dir.path().join("test.db").to_str().unwrap()).unwrap(),
     ));
-    let orchestrator = Arc::new(tokio::sync::Mutex::new(Orchestrator::new()));
+    let orchestrator = Arc::new(Orchestrator::new());
     let executor = Arc::new(AgentExecutor::new(ModelType::Mock, "test-model".to_string()));
 
     let service = WorkflowService::new(&orchestrator, &executor, &db);
@@ -227,7 +231,7 @@ async fn test_workflow_service_get_execution_existing() {
     let db = Arc::new(std::sync::Mutex::new(
         Database::open(temp_dir.path().join("test.db").to_str().unwrap()).unwrap(),
     ));
-    let orchestrator = Arc::new(tokio::sync::Mutex::new(Orchestrator::new()));
+    let orchestrator = Arc::new(Orchestrator::new());
     let executor = Arc::new(AgentExecutor::new(ModelType::Mock, "test-model".to_string()));
 
     let service = WorkflowService::new(&orchestrator, &executor, &db);
@@ -247,7 +251,7 @@ async fn test_workflow_service_get_execution_different_states() {
     let db = Arc::new(std::sync::Mutex::new(
         Database::open(temp_dir.path().join("test.db").to_str().unwrap()).unwrap(),
     ));
-    let orchestrator = Arc::new(tokio::sync::Mutex::new(Orchestrator::new()));
+    let orchestrator = Arc::new(Orchestrator::new());
     let executor = Arc::new(AgentExecutor::new(ModelType::Mock, "test-model".to_string()));
 
     let service = WorkflowService::new(&orchestrator, &executor, &db);
@@ -269,7 +273,7 @@ fn test_workflow_service_stop_workflow_not_found() {
     let db = Arc::new(std::sync::Mutex::new(
         Database::open(temp_dir.path().join("test.db").to_str().unwrap()).unwrap(),
     ));
-    let orchestrator = Arc::new(tokio::sync::Mutex::new(Orchestrator::new()));
+    let orchestrator = Arc::new(Orchestrator::new());
     let executor = Arc::new(AgentExecutor::new(ModelType::Mock, "test-model".to_string()));
 
     let service = WorkflowService::new(&orchestrator, &executor, &db);
@@ -297,7 +301,7 @@ fn test_workflow_service_stop_workflow_not_running() {
     let db = Arc::new(std::sync::Mutex::new(
         Database::open(temp_dir.path().join("test.db").to_str().unwrap()).unwrap(),
     ));
-    let orchestrator = Arc::new(tokio::sync::Mutex::new(Orchestrator::new()));
+    let orchestrator = Arc::new(Orchestrator::new());
     let executor = Arc::new(AgentExecutor::new(ModelType::Mock, "test-model".to_string()));
 
     // Create a workflow in Idle state
@@ -340,7 +344,7 @@ fn test_workflow_service_stop_workflow_running() {
     let db = Arc::new(std::sync::Mutex::new(
         Database::open(temp_dir.path().join("test.db").to_str().unwrap()).unwrap(),
     ));
-    let orchestrator = Arc::new(tokio::sync::Mutex::new(Orchestrator::new()));
+    let orchestrator = Arc::new(Orchestrator::new());
     let executor = Arc::new(AgentExecutor::new(ModelType::Mock, "test-model".to_string()));
 
     // Create a workflow in Running state
@@ -443,7 +447,7 @@ async fn test_workflow_service_get_execution_history_filtering() {
     let db = Arc::new(std::sync::Mutex::new(
         Database::open(temp_dir.path().join("test.db").to_str().unwrap()).unwrap(),
     ));
-    let orchestrator = Arc::new(tokio::sync::Mutex::new(Orchestrator::new()));
+    let orchestrator = Arc::new(Orchestrator::new());
     let executor = Arc::new(AgentExecutor::new(ModelType::Mock, "test-model".to_string()));
 
     let service = WorkflowService::new(&orchestrator, &executor, &db);
@@ -470,7 +474,7 @@ async fn test_workflow_service_execute_workflow_storage_error() {
     let db = Arc::new(std::sync::Mutex::new(
         Database::open(temp_dir.path().join("test.db").to_str().unwrap()).unwrap(),
     ));
-    let orchestrator = Arc::new(tokio::sync::Mutex::new(Orchestrator::new()));
+    let orchestrator = Arc::new(Orchestrator::new());
     let executor = Arc::new(AgentExecutor::new(ModelType::Mock, "test-model".to_string()));
 
     // Create a workflow in the database
@@ -537,15 +541,13 @@ async fn test_workflow_service_execute_workflow_storage_error() {
 
     let service = WorkflowService::new(&orchestrator, &executor, &db);
 
-    // The workflow exists, so this will get past the NotFound check
-    // and hit the "implementation in progress" error
+    // The workflow exists but has no steps, so it should complete successfully
     let result = service.execute_workflow(workflow_id, false).await;
-    assert!(result.is_err());
-
-    // Verify it's a validation error (the current implementation returns this)
-    if let Err(e) = result {
-        assert!(matches!(e, radium_core::workflow::engine::WorkflowEngineError::Validation(_)));
-    }
+    
+    // Empty workflow should complete successfully
+    assert!(result.is_ok());
+    let execution = result.unwrap();
+    assert_eq!(execution.workflow_id, workflow_id);
 }
 
 // Note: Testing database lock error (poisoned mutex) is difficult without

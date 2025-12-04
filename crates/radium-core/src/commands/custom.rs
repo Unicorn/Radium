@@ -435,4 +435,182 @@ template = "Project template"
         let command = registry.get("test").unwrap();
         assert_eq!(command.template, "Project template");
     }
+
+    #[test]
+    fn test_command_registry_get_not_found() {
+        let registry = CommandRegistry::new();
+        assert!(registry.get("nonexistent").is_none());
+    }
+
+    #[test]
+    fn test_command_registry_list() {
+        let temp_dir = TempDir::new().unwrap();
+        let commands_dir = temp_dir.path().join("commands");
+        fs::create_dir(&commands_dir).unwrap();
+
+        // Create multiple commands
+        for name in &["cmd1", "cmd2", "cmd3"] {
+            let command_file = commands_dir.join(format!("{}.toml", name));
+            let mut file = File::create(&command_file).unwrap();
+            file.write_all(format!(r#"
+name = "{}"
+description = "Test"
+template = "test"
+"#, name).as_bytes()).unwrap();
+        }
+
+        let mut registry = CommandRegistry::new().with_project_dir(&commands_dir);
+        registry.discover().unwrap();
+
+        let commands = registry.list();
+        assert_eq!(commands.len(), 3);
+        assert!(commands.contains(&"cmd1".to_string()));
+        assert!(commands.contains(&"cmd2".to_string()));
+        assert!(commands.contains(&"cmd3".to_string()));
+    }
+
+    #[test]
+    fn test_command_registry_len() {
+        let temp_dir = TempDir::new().unwrap();
+        let commands_dir = temp_dir.path().join("commands");
+        fs::create_dir(&commands_dir).unwrap();
+
+        let mut registry = CommandRegistry::new().with_project_dir(&commands_dir);
+        assert_eq!(registry.len(), 0);
+
+        // Create a command
+        let command_file = commands_dir.join("test.toml");
+        let mut file = File::create(&command_file).unwrap();
+        file.write_all(br#"
+name = "test"
+description = "Test"
+template = "test"
+"#).unwrap();
+
+        registry.discover().unwrap();
+        assert_eq!(registry.len(), 1);
+    }
+
+    #[test]
+    fn test_command_registry_is_empty() {
+        let registry = CommandRegistry::new();
+        assert!(registry.is_empty());
+
+        let temp_dir = TempDir::new().unwrap();
+        let commands_dir = temp_dir.path().join("commands");
+        fs::create_dir(&commands_dir).unwrap();
+
+        let command_file = commands_dir.join("test.toml");
+        let mut file = File::create(&command_file).unwrap();
+        file.write_all(br#"
+name = "test"
+description = "Test"
+template = "test"
+"#).unwrap();
+
+        let mut registry = CommandRegistry::new().with_project_dir(&commands_dir);
+        registry.discover().unwrap();
+        assert!(!registry.is_empty());
+    }
+
+    #[test]
+    fn test_custom_command_execute_error_missing_file() {
+        let command = CustomCommand {
+            name: "test".to_string(),
+            description: String::new(),
+            template: "Content: @{nonexistent.txt}".to_string(),
+            args: vec![],
+            namespace: None,
+        };
+
+        let temp_dir = TempDir::new().unwrap();
+        let result = command.execute(&[], temp_dir.path());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_custom_command_substitute_empty_args() {
+        let command = CustomCommand {
+            name: "test".to_string(),
+            description: String::new(),
+            template: "No args: {{args}}".to_string(),
+            args: vec![],
+            namespace: None,
+        };
+
+        let args = vec![];
+        let result = command.substitute_args(&command.template, &args).unwrap();
+        assert_eq!(result, "No args: ");
+    }
+
+    #[test]
+    fn test_custom_command_multiple_substitutions() {
+        let command = CustomCommand {
+            name: "test".to_string(),
+            description: String::new(),
+            template: "{{arg1}} {{arg2}} {{arg1}}".to_string(),
+            args: vec![],
+            namespace: None,
+        };
+
+        let args = vec!["A".to_string(), "B".to_string()];
+        let result = command.substitute_args(&command.template, &args).unwrap();
+        assert_eq!(result, "A B A");
+    }
+
+    #[test]
+    fn test_command_registry_multiple_namespaces() {
+        let temp_dir = TempDir::new().unwrap();
+        let commands_dir = temp_dir.path().join("commands");
+        fs::create_dir_all(&commands_dir.join("git")).unwrap();
+        fs::create_dir_all(&commands_dir.join("docker")).unwrap();
+
+        // Git command
+        let git_file = commands_dir.join("git").join("status.toml");
+        let mut file = File::create(&git_file).unwrap();
+        file.write_all(br#"
+name = "status"
+description = "Git status"
+template = "git status"
+"#).unwrap();
+
+        // Docker command
+        let docker_file = commands_dir.join("docker").join("ps.toml");
+        let mut file = File::create(&docker_file).unwrap();
+        file.write_all(br#"
+name = "ps"
+description = "Docker ps"
+template = "docker ps"
+"#).unwrap();
+
+        let mut registry = CommandRegistry::new().with_project_dir(&commands_dir);
+        registry.discover().unwrap();
+
+        assert!(registry.get("git:status").is_some());
+        assert!(registry.get("docker:ps").is_some());
+        assert_eq!(registry.len(), 2);
+    }
+
+    #[test]
+    fn test_custom_command_mixed_substitutions() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("data.txt");
+        let mut file = File::create(&file_path).unwrap();
+        file.write_all(b"file content").unwrap();
+        drop(file);
+
+        let command = CustomCommand {
+            name: "test".to_string(),
+            description: String::new(),
+            template: "Arg: {{arg1}}, File: @{data.txt}, Shell: !{echo hello}".to_string(),
+            args: vec![],
+            namespace: None,
+        };
+
+        let args = vec!["value".to_string()];
+        let result = command.execute(&args, temp_dir.path()).unwrap();
+        assert!(result.contains("Arg: value"));
+        assert!(result.contains("File: file content"));
+        assert!(result.contains("Shell: hello"));
+    }
 }
