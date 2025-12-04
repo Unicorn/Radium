@@ -267,18 +267,22 @@ mod tests {
     use crate::agents::config::AgentConfigFile;
 
     fn create_test_agent(id: &str, name: &str) -> AgentConfig {
-        AgentConfigFile {
+        use std::path::PathBuf;
+
+        AgentConfig {
             id: id.to_string(),
             name: name.to_string(),
             description: format!("Test agent: {}", name),
-            prompt_path: None,
+            prompt_path: PathBuf::from("test.md"),
             mirror_path: None,
             engine: None,
             model: None,
             reasoning_effort: None,
             loop_behavior: None,
             trigger_behavior: None,
-        }.into()
+            category: None,
+            file_path: None,
+        }
     }
 
     #[test]
