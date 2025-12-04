@@ -71,6 +71,39 @@ pub enum AgentsCommand {
         #[arg(short, long)]
         verbose: bool,
     },
+
+    /// Create a new agent template
+    Create {
+        /// Agent ID (e.g., "my-agent")
+        id: String,
+
+        /// Agent name (e.g., "My Agent")
+        name: String,
+
+        /// Agent description
+        #[arg(short, long)]
+        description: Option<String>,
+
+        /// Agent category (e.g., "custom")
+        #[arg(short, long)]
+        category: Option<String>,
+
+        /// Default engine (e.g., "gemini", "openai", "claude")
+        #[arg(short, long)]
+        engine: Option<String>,
+
+        /// Default model (e.g., "gemini-2.0-flash-exp")
+        #[arg(short, long)]
+        model: Option<String>,
+
+        /// Reasoning effort level (low, medium, high)
+        #[arg(short, long)]
+        reasoning: Option<String>,
+
+        /// Output directory (default: ./agents/)
+        #[arg(short, long)]
+        output: Option<String>,
+    },
 }
 
 #[derive(Subcommand, Debug, Clone)]

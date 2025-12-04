@@ -4,11 +4,13 @@
 
 use super::AgentsCommand;
 use colored::Colorize;
+use radium_core::agents::config::{AgentConfig, AgentConfigFile, ReasoningEffort};
 use radium_core::agents::discovery::AgentDiscovery;
-use radium_core::agents::config::AgentConfig;
 use serde_json::json;
-use tabled::{Table, Tabled, settings::Style};
 use std::collections::HashMap;
+use std::fs;
+use std::path::{Path, PathBuf};
+use tabled::{settings::Style, Table, Tabled};
 
 /// Execute the agents command.
 pub async fn execute(command: AgentsCommand) -> anyhow::Result<()> {
@@ -17,6 +19,28 @@ pub async fn execute(command: AgentsCommand) -> anyhow::Result<()> {
         AgentsCommand::Search { query, json } => search_agents(&query, json).await,
         AgentsCommand::Info { id, json } => show_agent_info(&id, json).await,
         AgentsCommand::Validate { verbose } => validate_agents(verbose).await,
+        AgentsCommand::Create {
+            id,
+            name,
+            description,
+            category,
+            engine,
+            model,
+            reasoning,
+            output,
+        } => {
+            create_agent(
+                &id,
+                &name,
+                description.as_deref(),
+                category.as_deref(),
+                engine.as_deref(),
+                model.as_deref(),
+                reasoning.as_deref(),
+                output.as_deref(),
+            )
+            .await
+        }
     }
 }
 
@@ -313,4 +337,178 @@ fn display_agents_detailed(agents: &HashMap<String, AgentConfig>) {
         }
         println!();
     }
+}
+
+/// Create a new agent template.
+#[allow(clippy::too_many_arguments)]
+async fn create_agent(
+    id: &str,
+    name: &str,
+    description: Option<&str>,
+    category: Option<&str>,
+    engine: Option<&str>,
+    model: Option<&str>,
+    reasoning: Option<&str>,
+    output_dir: Option<&str>,
+) -> anyhow::Result<()> {
+    // Validate agent ID
+    if id.is_empty() {
+        anyhow::bail!("Agent ID cannot be empty");
+    }
+
+    // Use default category if not provided
+    let category = category.unwrap_or("custom");
+
+    // Determine output directory
+    let base_dir = output_dir.unwrap_or("./agents");
+    let agent_dir = Path::new(base_dir).join(category);
+
+    // Create directory structure
+    fs::create_dir_all(&agent_dir)?;
+
+    // Create prompts directory
+    let prompts_dir = Path::new("./prompts/agents").join(category);
+    fs::create_dir_all(&prompts_dir)?;
+
+    // File paths
+    let config_path = agent_dir.join(format!("{}.toml", id));
+    let prompt_path = prompts_dir.join(format!("{}.md", id));
+
+    // Check if agent already exists
+    if config_path.exists() {
+        anyhow::bail!(
+            "Agent '{}' already exists at {}",
+            id,
+            config_path.display()
+        );
+    }
+
+    // Parse reasoning effort
+    let reasoning_effort = reasoning.and_then(|r| match r.to_lowercase().as_str() {
+        "low" => Some(ReasoningEffort::Low),
+        "medium" => Some(ReasoningEffort::Medium),
+        "high" => Some(ReasoningEffort::High),
+        _ => None,
+    });
+
+    // Build agent config
+    let prompt_path_relative = PathBuf::from(format!("prompts/agents/{}/{}.md", category, id));
+
+    let mut agent = AgentConfig::new(id, name, prompt_path_relative);
+    agent.description = description.unwrap_or("").to_string();
+
+    if let Some(eng) = engine {
+        agent = agent.with_engine(eng);
+    }
+
+    if let Some(mdl) = model {
+        agent = agent.with_model(mdl);
+    }
+
+    if let Some(effort) = reasoning_effort {
+        agent = agent.with_reasoning_effort(effort);
+    }
+
+    // Wrap in AgentConfigFile
+    let config_file = AgentConfigFile { agent };
+
+    // Save TOML configuration
+    config_file.save(&config_path)?;
+
+    // Generate prompt template
+    let prompt_template = generate_prompt_template(name, description);
+    fs::write(&prompt_path, prompt_template)?;
+
+    // Success output
+    println!();
+    println!("{}", "✅ Agent template created successfully!".bold().green());
+    println!();
+    println!("{}", "Files created:".bold());
+    println!("  • Configuration: {}", config_path.display().to_string().cyan());
+    println!("  • Prompt:        {}", prompt_path.display().to_string().cyan());
+    println!();
+    println!("{}", "Next steps:".bold());
+    println!("  1. Edit the prompt file to define agent behavior");
+    println!("  2. Validate: {}", format!("rad agents validate").yellow());
+    println!("  3. Test: {}", format!("rad agents info {}", id).yellow());
+    println!();
+
+    Ok(())
+}
+
+/// Generate a prompt template for a new agent.
+fn generate_prompt_template(name: &str, description: Option<&str>) -> String {
+    let desc = description.unwrap_or("Add agent description here");
+
+    format!(
+        r#"# {name}
+
+{desc}
+
+## Role
+
+Define the agent's role and primary responsibilities here.
+
+## Capabilities
+
+- List the agent's core capabilities
+- Include what tasks it can perform
+- Specify any constraints or limitations
+
+## Input
+
+Describe what inputs this agent expects:
+- Context from previous steps
+- Required parameters
+- Optional configuration
+
+## Output
+
+Describe what this agent produces:
+- Expected output format
+- Key deliverables
+- Success criteria
+
+## Instructions
+
+Provide step-by-step instructions for the agent:
+
+1. First step - explain what to do
+2. Second step - detail the process
+3. Third step - clarify expectations
+4. Continue as needed...
+
+## Examples
+
+### Example 1: [Scenario Name]
+
+**Input:**
+```
+Provide sample input
+```
+
+**Expected Output:**
+```
+Show expected result
+```
+
+### Example 2: [Another Scenario]
+
+**Input:**
+```
+Different scenario input
+```
+
+**Expected Output:**
+```
+Corresponding output
+```
+
+## Notes
+
+- Add any important notes
+- Include edge cases to consider
+- Document best practices
+"#
+    )
 }
