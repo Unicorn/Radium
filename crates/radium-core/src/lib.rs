@@ -46,6 +46,7 @@ pub mod proto {
 
 pub use agents::config::{AgentConfigError, AgentConfigFile, ReasoningEffort};
 pub use agents::discovery::{AgentDiscovery, DiscoveryError, DiscoveryOptions};
+pub use agents::registry::{AgentRegistry, RegistryError};
 pub use auth::{AuthError, AuthResult, CredentialStore, ProviderType};
 pub use checkpoint::{Checkpoint, CheckpointError, CheckpointManager, Result as CheckpointResult};
 pub use commands::{CommandError, CommandRegistry, CustomCommand, Result as CommandResult};
