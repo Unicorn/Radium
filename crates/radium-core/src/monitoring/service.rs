@@ -76,10 +76,7 @@ pub struct AgentRecord {
 impl AgentRecord {
     /// Creates a new agent record.
     pub fn new(id: String, agent_type: String) -> Self {
-        let start_time = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let start_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
 
         Self {
             id,
@@ -206,10 +203,7 @@ impl MonitoringService {
     /// # Errors
     /// Returns error if update fails
     pub fn complete_agent(&self, agent_id: &str, exit_code: i32) -> Result<()> {
-        let end_time = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let end_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
 
         let rows_affected = self.conn.execute(
             "UPDATE agents SET status = ?1, end_time = ?2, exit_code = ?3 WHERE id = ?4",
@@ -232,10 +226,7 @@ impl MonitoringService {
     /// # Errors
     /// Returns error if update fails
     pub fn fail_agent(&self, agent_id: &str, error_message: &str) -> Result<()> {
-        let end_time = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let end_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
 
         let rows_affected = self.conn.execute(
             "UPDATE agents SET status = ?1, end_time = ?2, error_message = ?3 WHERE id = ?4",
@@ -300,21 +291,23 @@ impl MonitoringService {
              FROM agents WHERE parent_id = ?1"
         )?;
 
-        let records = stmt.query_map(params![parent_id], |row| {
-            Ok(AgentRecord {
-                id: row.get(0)?,
-                parent_id: row.get(1)?,
-                plan_id: row.get(2)?,
-                agent_type: row.get(3)?,
-                status: AgentStatus::from_str(&row.get::<_, String>(4)?).unwrap(),
-                process_id: row.get(5)?,
-                start_time: row.get(6)?,
-                end_time: row.get(7)?,
-                exit_code: row.get(8)?,
-                error_message: row.get(9)?,
-                log_file: row.get(10)?,
-            })
-        })?.collect::<std::result::Result<Vec<_>, _>>()?;
+        let records = stmt
+            .query_map(params![parent_id], |row| {
+                Ok(AgentRecord {
+                    id: row.get(0)?,
+                    parent_id: row.get(1)?,
+                    plan_id: row.get(2)?,
+                    agent_type: row.get(3)?,
+                    status: AgentStatus::from_str(&row.get::<_, String>(4)?).unwrap(),
+                    process_id: row.get(5)?,
+                    start_time: row.get(6)?,
+                    end_time: row.get(7)?,
+                    exit_code: row.get(8)?,
+                    error_message: row.get(9)?,
+                    log_file: row.get(10)?,
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
 
         Ok(records)
     }
@@ -335,21 +328,23 @@ impl MonitoringService {
              FROM agents WHERE plan_id = ?1"
         )?;
 
-        let records = stmt.query_map(params![plan_id], |row| {
-            Ok(AgentRecord {
-                id: row.get(0)?,
-                parent_id: row.get(1)?,
-                plan_id: row.get(2)?,
-                agent_type: row.get(3)?,
-                status: AgentStatus::from_str(&row.get::<_, String>(4)?).unwrap(),
-                process_id: row.get(5)?,
-                start_time: row.get(6)?,
-                end_time: row.get(7)?,
-                exit_code: row.get(8)?,
-                error_message: row.get(9)?,
-                log_file: row.get(10)?,
-            })
-        })?.collect::<std::result::Result<Vec<_>, _>>()?;
+        let records = stmt
+            .query_map(params![plan_id], |row| {
+                Ok(AgentRecord {
+                    id: row.get(0)?,
+                    parent_id: row.get(1)?,
+                    plan_id: row.get(2)?,
+                    agent_type: row.get(3)?,
+                    status: AgentStatus::from_str(&row.get::<_, String>(4)?).unwrap(),
+                    process_id: row.get(5)?,
+                    start_time: row.get(6)?,
+                    end_time: row.get(7)?,
+                    exit_code: row.get(8)?,
+                    error_message: row.get(9)?,
+                    log_file: row.get(10)?,
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
 
         Ok(records)
     }

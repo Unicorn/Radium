@@ -1,6 +1,8 @@
 //! Mock engine provider for testing.
 
-use crate::engines::engine_trait::{Engine, EngineMetadata, ExecutionRequest, ExecutionResponse, TokenUsage};
+use crate::engines::engine_trait::{
+    Engine, EngineMetadata, ExecutionRequest, ExecutionResponse, TokenUsage,
+};
 use crate::engines::error::Result;
 use async_trait::async_trait;
 

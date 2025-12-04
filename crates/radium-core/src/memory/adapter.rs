@@ -149,15 +149,8 @@ impl MemoryAdapter for FileAdapter {
 
         // Truncate to last 2000 characters if needed
         if entry.output.len() > 2000 {
-            entry.output = entry
-                .output
-                .chars()
-                .rev()
-                .take(2000)
-                .collect::<String>()
-                .chars()
-                .rev()
-                .collect();
+            entry.output =
+                entry.output.chars().rev().take(2000).collect::<String>().chars().rev().collect();
         }
 
         self.write(agent_id, &entry).await?;

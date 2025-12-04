@@ -543,7 +543,7 @@ async fn test_workflow_service_execute_workflow_storage_error() {
 
     // The workflow exists but has no steps, so it should complete successfully
     let result = service.execute_workflow(workflow_id, false).await;
-    
+
     // Empty workflow should complete successfully
     assert!(result.is_ok());
     let execution = result.unwrap();

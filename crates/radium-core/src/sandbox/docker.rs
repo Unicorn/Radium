@@ -26,25 +26,16 @@ impl DockerSandbox {
     /// Returns error if Docker is not available
     pub fn new(config: SandboxConfig) -> Result<Self> {
         // Verify Docker is available
-        std::process::Command::new("docker")
-            .arg("--version")
-            .output()
-            .map_err(|e| {
-                SandboxError::ContainerRuntimeNotFound(format!("Docker not found: {}", e))
-            })?;
+        std::process::Command::new("docker").arg("--version").output().map_err(|e| {
+            SandboxError::ContainerRuntimeNotFound(format!("Docker not found: {}", e))
+        })?;
 
-        Ok(Self {
-            config,
-            container_id: None,
-        })
+        Ok(Self { config, container_id: None })
     }
 
     /// Gets the container image to use.
     fn get_image(&self) -> String {
-        self.config
-            .image
-            .clone()
-            .unwrap_or_else(|| "rust:latest".to_string())
+        self.config.image.clone().unwrap_or_else(|| "rust:latest".to_string())
     }
 
     /// Builds the docker run command arguments.
@@ -93,10 +84,7 @@ impl Sandbox for DockerSandbox {
         // Pull image if not exists
         let image = self.get_image();
 
-        let output = Command::new("docker")
-            .args(["pull", &image])
-            .output()
-            .await?;
+        let output = Command::new("docker").args(["pull", &image]).output().await?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -109,12 +97,7 @@ impl Sandbox for DockerSandbox {
         Ok(())
     }
 
-    async fn execute(
-        &self,
-        command: &str,
-        args: &[String],
-        _cwd: Option<&Path>,
-    ) -> Result<Output> {
+    async fn execute(&self, command: &str, args: &[String], _cwd: Option<&Path>) -> Result<Output> {
         let mut docker_args = self.build_run_args();
         docker_args.push(self.get_image());
         docker_args.push(command.to_string());
@@ -139,9 +122,7 @@ impl Drop for DockerSandbox {
     fn drop(&mut self) {
         // Cleanup container if still running
         if let Some(ref container_id) = self.container_id {
-            let _ = std::process::Command::new("docker")
-                .args(["rm", "-f", container_id])
-                .output();
+            let _ = std::process::Command::new("docker").args(["rm", "-f", container_id]).output();
         }
     }
 }
@@ -193,21 +174,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_docker_sandbox_execute() {
-        let config = SandboxConfig::new(SandboxType::Docker).with_image("alpine:latest".to_string());
+        let config =
+            SandboxConfig::new(SandboxType::Docker).with_image("alpine:latest".to_string());
 
         if let Ok(sandbox) = DockerSandbox::new(config) {
-            let result = sandbox
-                .execute("echo", &["hello".to_string()], None)
-                .await;
+            let result = sandbox.execute("echo", &["hello".to_string()], None).await;
 
             // This test will only pass if Docker is available
             match result {
                 Ok(output) => {
                     assert!(output.status.success());
-                    assert_eq!(
-                        String::from_utf8_lossy(&output.stdout).trim(),
-                        "hello"
-                    );
+                    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "hello");
                 }
                 Err(_) => {
                     println!("Docker not available or image pull failed, skipping test");

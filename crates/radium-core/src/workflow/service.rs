@@ -149,7 +149,8 @@ impl WorkflowService {
 
         // Execute workflow
         // Use the shared orchestrator which contains registered agents
-        let executor = WorkflowExecutor::new(Arc::clone(&self.orchestrator), Arc::clone(&self.executor));
+        let executor =
+            WorkflowExecutor::new(Arc::clone(&self.orchestrator), Arc::clone(&self.executor));
 
         // Use the new DB-aware execution method
         let context = executor.execute_workflow(&mut workflow, Arc::clone(&self.db)).await?;
@@ -241,7 +242,8 @@ impl WorkflowService {
 
         // Update workflow state to Idle if it's running
         if matches!(workflow.state, WorkflowState::Running) {
-            let engine = WorkflowEngine::new(Arc::clone(&self.orchestrator), Arc::clone(&self.executor));
+            let engine =
+                WorkflowEngine::new(Arc::clone(&self.orchestrator), Arc::clone(&self.executor));
             let idle_state = WorkflowState::Idle;
             engine.update_workflow_state(&mut workflow, &idle_state, workflow_repo)?;
         }

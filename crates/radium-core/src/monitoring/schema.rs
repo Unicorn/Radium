@@ -99,12 +99,16 @@ mod tests {
         initialize_schema(&conn).unwrap();
 
         // Verify agents table exists
-        let mut stmt = conn.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='agents'").unwrap();
+        let mut stmt = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='agents'")
+            .unwrap();
         let exists: bool = stmt.exists([]).unwrap();
         assert!(exists);
 
         // Verify telemetry table exists
-        let mut stmt = conn.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='telemetry'").unwrap();
+        let mut stmt = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='telemetry'")
+            .unwrap();
         let exists: bool = stmt.exists([]).unwrap();
         assert!(exists);
     }
@@ -116,11 +120,8 @@ mod tests {
 
         // Verify indexes exist
         let mut stmt = conn.prepare("SELECT name FROM sqlite_master WHERE type='index'").unwrap();
-        let indexes: Vec<String> = stmt
-            .query_map([], |row| row.get(0))
-            .unwrap()
-            .map(|r| r.unwrap())
-            .collect();
+        let indexes: Vec<String> =
+            stmt.query_map([], |row| row.get(0)).unwrap().map(|r| r.unwrap()).collect();
 
         assert!(indexes.iter().any(|name| name.contains("idx_agents_parent")));
         assert!(indexes.iter().any(|name| name.contains("idx_agents_plan")));
@@ -139,14 +140,16 @@ mod tests {
             "INSERT INTO agents (id, agent_type, status, start_time)
              VALUES ('parent-1', 'architect', 'running', 1000)",
             [],
-        ).unwrap();
+        )
+        .unwrap();
 
         // Insert child agent with valid parent
         conn.execute(
             "INSERT INTO agents (id, parent_id, agent_type, status, start_time)
              VALUES ('child-1', 'parent-1', 'developer', 'running', 1100)",
             [],
-        ).unwrap();
+        )
+        .unwrap();
 
         // Verify child agent exists
         let mut stmt = conn.prepare("SELECT COUNT(*) FROM agents WHERE id = 'child-1'").unwrap();
@@ -164,7 +167,8 @@ mod tests {
             "INSERT INTO agents (id, agent_type, status, start_time)
              VALUES ('agent-1', 'developer', 'running', 1000)",
             [],
-        ).unwrap();
+        )
+        .unwrap();
 
         // Insert telemetry
         conn.execute(
@@ -174,7 +178,8 @@ mod tests {
         ).unwrap();
 
         // Verify telemetry exists
-        let mut stmt = conn.prepare("SELECT COUNT(*) FROM telemetry WHERE agent_id = 'agent-1'").unwrap();
+        let mut stmt =
+            conn.prepare("SELECT COUNT(*) FROM telemetry WHERE agent_id = 'agent-1'").unwrap();
         let count: i32 = stmt.query_row([], |row| row.get(0)).unwrap();
         assert_eq!(count, 1);
     }

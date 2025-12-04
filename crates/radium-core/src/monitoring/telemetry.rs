@@ -46,10 +46,7 @@ pub struct TelemetryRecord {
 impl TelemetryRecord {
     /// Creates a new telemetry record.
     pub fn new(agent_id: String) -> Self {
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
 
         Self {
             agent_id,
@@ -255,24 +252,26 @@ impl TelemetryTracking for MonitoringService {
             "SELECT agent_id, timestamp, input_tokens, output_tokens, cached_tokens,
                     cache_creation_tokens, cache_read_tokens, total_tokens,
                     estimated_cost, model, provider
-             FROM telemetry WHERE agent_id = ?1 ORDER BY timestamp DESC"
+             FROM telemetry WHERE agent_id = ?1 ORDER BY timestamp DESC",
         )?;
 
-        let records = stmt.query_map(params![agent_id], |row| {
-            Ok(TelemetryRecord {
-                agent_id: row.get(0)?,
-                timestamp: row.get(1)?,
-                input_tokens: row.get(2)?,
-                output_tokens: row.get(3)?,
-                cached_tokens: row.get(4)?,
-                cache_creation_tokens: row.get(5)?,
-                cache_read_tokens: row.get(6)?,
-                total_tokens: row.get(7)?,
-                estimated_cost: row.get(8)?,
-                model: row.get(9)?,
-                provider: row.get(10)?,
-            })
-        })?.collect::<std::result::Result<Vec<_>, _>>()?;
+        let records = stmt
+            .query_map(params![agent_id], |row| {
+                Ok(TelemetryRecord {
+                    agent_id: row.get(0)?,
+                    timestamp: row.get(1)?,
+                    input_tokens: row.get(2)?,
+                    output_tokens: row.get(3)?,
+                    cached_tokens: row.get(4)?,
+                    cache_creation_tokens: row.get(5)?,
+                    cache_read_tokens: row.get(6)?,
+                    total_tokens: row.get(7)?,
+                    estimated_cost: row.get(8)?,
+                    model: row.get(9)?,
+                    provider: row.get(10)?,
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
 
         Ok(records)
     }
@@ -280,7 +279,7 @@ impl TelemetryTracking for MonitoringService {
     fn get_total_tokens(&self, agent_id: &str) -> Result<(u64, u64, u64)> {
         let mut stmt = self.conn.prepare(
             "SELECT SUM(input_tokens), SUM(output_tokens), SUM(total_tokens)
-             FROM telemetry WHERE agent_id = ?1"
+             FROM telemetry WHERE agent_id = ?1",
         )?;
 
         let result = stmt.query_row(params![agent_id], |row| {
@@ -295,13 +294,11 @@ impl TelemetryTracking for MonitoringService {
     }
 
     fn get_total_cost(&self, agent_id: &str) -> Result<f64> {
-        let mut stmt = self.conn.prepare(
-            "SELECT SUM(estimated_cost) FROM telemetry WHERE agent_id = ?1"
-        )?;
+        let mut stmt =
+            self.conn.prepare("SELECT SUM(estimated_cost) FROM telemetry WHERE agent_id = ?1")?;
 
-        let cost = stmt.query_row(params![agent_id], |row| {
-            Ok(row.get::<_, Option<f64>>(0)?.unwrap_or(0.0))
-        })?;
+        let cost = stmt
+            .query_row(params![agent_id], |row| Ok(row.get::<_, Option<f64>>(0)?.unwrap_or(0.0)))?;
 
         Ok(cost)
     }
@@ -321,8 +318,7 @@ mod tests {
 
     #[test]
     fn test_telemetry_record_with_tokens() {
-        let record = TelemetryRecord::new("agent-1".to_string())
-            .with_tokens(100, 50);
+        let record = TelemetryRecord::new("agent-1".to_string()).with_tokens(100, 50);
 
         assert_eq!(record.input_tokens, 100);
         assert_eq!(record.output_tokens, 50);
@@ -343,7 +339,8 @@ mod tests {
 
     #[test]
     fn test_parse_openai() {
-        let json = r#"{"usage": {"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150}}"#;
+        let json =
+            r#"{"usage": {"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150}}"#;
         let (input, output) = TelemetryParser::parse_openai(json).unwrap();
         assert_eq!(input, 100);
         assert_eq!(output, 50);

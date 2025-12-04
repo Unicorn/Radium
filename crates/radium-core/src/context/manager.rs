@@ -33,11 +33,7 @@ impl ContextManager {
         let workspace_root = workspace.root().to_path_buf();
         let injector = ContextInjector::new(&workspace_root);
 
-        Self {
-            workspace_root,
-            injector,
-            memory_store: None,
-        }
+        Self { workspace_root, injector, memory_store: None }
     }
 
     /// Creates a context manager for a specific plan.
@@ -58,11 +54,7 @@ impl ContextManager {
         // Initialize memory store for this plan
         let memory_store = MemoryStore::new(&workspace_root, requirement_id)?;
 
-        Ok(Self {
-            workspace_root,
-            injector,
-            memory_store: Some(memory_store),
-        })
+        Ok(Self { workspace_root, injector, memory_store: Some(memory_store) })
     }
 
     /// Gathers plan context information.
@@ -79,14 +71,12 @@ impl ContextManager {
         let workspace = Workspace::discover()?;
         let discovery = PlanDiscovery::new(&workspace);
 
-        let plan = discovery
-            .find_by_requirement_id(requirement_id)?
-            .ok_or_else(|| {
-                crate::context::error::ContextError::FileNotFound(format!(
-                    "Plan not found: {}",
-                    requirement_id
-                ))
-            })?;
+        let plan = discovery.find_by_requirement_id(requirement_id)?.ok_or_else(|| {
+            crate::context::error::ContextError::FileNotFound(format!(
+                "Plan not found: {}",
+                requirement_id
+            ))
+        })?;
 
         let mut context = String::new();
         context.push_str("# Plan Context\n\n");
@@ -244,8 +234,8 @@ impl ContextManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use std::fs;
+    use tempfile::TempDir;
 
     #[test]
     fn test_context_manager_new() {

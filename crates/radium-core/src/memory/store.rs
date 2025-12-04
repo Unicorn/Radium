@@ -344,7 +344,9 @@ mod tests {
         // Create store and save entry
         {
             let mut store = MemoryStore::new(temp_dir.path(), req_id).unwrap();
-            store.store(MemoryEntry::new("agent-1".to_string(), "test output".to_string())).unwrap();
+            store
+                .store(MemoryEntry::new("agent-1".to_string(), "test output".to_string()))
+                .unwrap();
         }
 
         // Open store and verify entry persisted

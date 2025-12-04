@@ -5,8 +5,8 @@
 //! - Tail context: `agent[tail:50]`
 
 use super::error::{ContextError, Result};
-use std::path::{Path, PathBuf};
 use std::fs;
+use std::path::{Path, PathBuf};
 
 /// Parsed injection directive.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,10 +44,7 @@ impl InjectionDirective {
 
         match directive_type {
             "input" => {
-                let files = value
-                    .split(',')
-                    .map(|s| PathBuf::from(s.trim()))
-                    .collect();
+                let files = value.split(',').map(|s| PathBuf::from(s.trim())).collect();
                 Ok(InjectionDirective::FileInput { files })
             }
             "tail" => {
@@ -121,9 +118,7 @@ impl ContextInjector {
     /// # Arguments
     /// * `base_dir` - Base directory for resolving relative paths
     pub fn new(base_dir: impl AsRef<Path>) -> Self {
-        Self {
-            base_dir: base_dir.as_ref().to_path_buf(),
-        }
+        Self { base_dir: base_dir.as_ref().to_path_buf() }
     }
 
     /// Injects file contents.
@@ -140,11 +135,7 @@ impl ContextInjector {
         let mut content = String::new();
 
         for file in files {
-            let path = if file.is_absolute() {
-                file.clone()
-            } else {
-                self.base_dir.join(file)
-            };
+            let path = if file.is_absolute() { file.clone() } else { self.base_dir.join(file) };
 
             if !path.exists() {
                 return Err(ContextError::FileNotFound(path.display().to_string()));
@@ -239,7 +230,8 @@ mod tests {
 
     #[test]
     fn test_extract_directives_single() {
-        let (agent, directives) = InjectionDirective::extract_directives("architect[input:spec.md]").unwrap();
+        let (agent, directives) =
+            InjectionDirective::extract_directives("architect[input:spec.md]").unwrap();
         assert_eq!(agent, "architect");
         assert_eq!(directives.len(), 1);
     }
@@ -278,10 +270,9 @@ mod tests {
         file2.write_all(b"Content 2").unwrap();
 
         let injector = ContextInjector::new(temp_dir.path());
-        let content = injector.inject_files(&[
-            PathBuf::from("file1.txt"),
-            PathBuf::from("file2.txt"),
-        ]).unwrap();
+        let content = injector
+            .inject_files(&[PathBuf::from("file1.txt"), PathBuf::from("file2.txt")])
+            .unwrap();
 
         assert!(content.contains("Content 1"));
         assert!(content.contains("Content 2"));

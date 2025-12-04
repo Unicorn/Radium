@@ -57,10 +57,7 @@ impl EngineRegistry {
             .read()
             .map_err(|e| EngineError::RegistryError(format!("Lock poisoned: {}", e)))?;
 
-        engines
-            .get(id)
-            .cloned()
-            .ok_or_else(|| EngineError::NotFound(id.to_string()))
+        engines.get(id).cloned().ok_or_else(|| EngineError::NotFound(id.to_string()))
     }
 
     /// Sets the default engine.
@@ -116,10 +113,7 @@ impl EngineRegistry {
             .read()
             .map_err(|e| EngineError::RegistryError(format!("Lock poisoned: {}", e)))?;
 
-        Ok(engines
-            .values()
-            .map(|engine| engine.metadata().clone())
-            .collect())
+        Ok(engines.values().map(|engine| engine.metadata().clone()).collect())
     }
 
     /// Checks if an engine is registered.
@@ -130,10 +124,7 @@ impl EngineRegistry {
     /// # Returns
     /// True if engine is registered
     pub fn has(&self, id: &str) -> bool {
-        self.engines
-            .read()
-            .map(|engines| engines.contains_key(id))
-            .unwrap_or(false)
+        self.engines.read().map(|engines| engines.contains_key(id)).unwrap_or(false)
     }
 
     /// Removes an engine.

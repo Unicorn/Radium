@@ -62,10 +62,7 @@ impl LogManager {
     /// Returns error if write fails
     pub fn append_log(&self, agent_id: &str, line: &str) -> Result<()> {
         let path = self.log_path(agent_id);
-        let mut file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(path)?;
+        let mut file = OpenOptions::new().create(true).append(true).open(path)?;
 
         writeln!(file, "{}", Self::strip_color_codes(line))?;
         Ok(())

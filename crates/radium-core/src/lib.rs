@@ -51,18 +51,26 @@ pub use auth::{AuthError, AuthResult, CredentialStore, ProviderType};
 pub use checkpoint::{Checkpoint, CheckpointError, CheckpointManager, Result as CheckpointResult};
 pub use commands::{CommandError, CommandRegistry, CustomCommand, Result as CommandResult};
 pub use config::Config;
-pub use context::{ContextError, ContextInjector, ContextManager, InjectionDirective, Result as ContextResult};
+pub use context::{
+    ContextError, ContextInjector, ContextManager, InjectionDirective, Result as ContextResult,
+};
 pub use engines::{
     BinaryDetector, Engine, EngineError, EngineMetadata, EngineRegistry, ExecutionRequest,
     ExecutionResponse, Result as EngineResult, TokenUsage,
 };
 pub use error::{RadiumError, Result};
-pub use memory::{FileAdapter, MemoryAdapter, MemoryEntry, MemoryError, MemoryStore, Result as MemoryResult};
+pub use memory::{
+    FileAdapter, MemoryAdapter, MemoryEntry, MemoryError, MemoryStore, Result as MemoryResult,
+};
 pub use models::agent::{Agent, AgentConfig, AgentError, AgentState};
-pub use monitoring::{AgentRecord, AgentStatus, LogManager, MonitoringError, MonitoringService, Result as MonitoringResult, TelemetryParser, TelemetryRecord, TelemetryTracking, initialize_schema};
 pub use models::plan::{Iteration, Plan, PlanError, PlanManifest, PlanStatus, PlanTask};
 pub use models::task::{Task, TaskError, TaskQueue, TaskResult, TaskState};
 pub use models::workflow::{Workflow, WorkflowError, WorkflowState, WorkflowStep};
+pub use monitoring::{
+    AgentRecord, AgentStatus, LogManager, MonitoringError, MonitoringService,
+    Result as MonitoringResult, TelemetryParser, TelemetryRecord, TelemetryTracking,
+    initialize_schema,
+};
 pub use planning::{
     ExecutionConfig, ExecutionError, ParsedIteration, ParsedPlan, ParsedTask, PlanExecutor,
     PlanGenerator, PlanGeneratorConfig, PlanParser, TaskResult as PlanTaskResult,

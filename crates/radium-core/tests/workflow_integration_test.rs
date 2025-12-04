@@ -67,10 +67,7 @@ async fn test_workflow_execution_end_to_end() {
         workflow_repo.get_by_id("workflow-1").unwrap()
     };
 
-    let context = workflow_executor
-        .execute_workflow(&mut workflow, Arc::clone(&db))
-        .await
-        .unwrap();
+    let context = workflow_executor.execute_workflow(&mut workflow, Arc::clone(&db)).await.unwrap();
 
     // Verify execution results
     assert_eq!(context.workflow_id, "workflow-1");
@@ -215,10 +212,8 @@ async fn test_workflow_state_persistence() {
         workflow_repo.get_by_id("workflow-1").unwrap()
     };
 
-    let _context = workflow_executor
-        .execute_workflow(&mut workflow, Arc::clone(&db))
-        .await
-        .unwrap();
+    let _context =
+        workflow_executor.execute_workflow(&mut workflow, Arc::clone(&db)).await.unwrap();
 
     // Verify final state persisted
     {

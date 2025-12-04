@@ -56,14 +56,10 @@ impl BinaryDetector {
             .map_err(|e| EngineError::ExecutionError(e.to_string()))?;
 
         if !output.status.success() {
-            return Err(EngineError::ExecutionError(
-                "Version command failed".to_string(),
-            ));
+            return Err(EngineError::ExecutionError("Version command failed".to_string()));
         }
 
-        let version = String::from_utf8_lossy(&output.stdout)
-            .trim()
-            .to_string();
+        let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
 
         Ok(version)
     }
@@ -89,15 +85,8 @@ impl BinaryDetector {
     /// # Returns
     /// List of available binary names
     pub fn detect_all() -> Vec<String> {
-        let known_binaries = vec![
-            "claude",
-            "codex",
-            "cursor",
-            "ccr",
-            "opencode",
-            "auggie",
-            "gemini",
-        ];
+        let known_binaries =
+            vec!["claude", "codex", "cursor", "ccr", "opencode", "auggie", "gemini"];
 
         known_binaries
             .into_iter()

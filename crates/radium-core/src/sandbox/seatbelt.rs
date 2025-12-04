@@ -33,15 +33,9 @@ impl SeatbeltSandbox {
         #[cfg(target_os = "macos")]
         {
             // Verify sandbox-exec is available
-            std::process::Command::new("which")
-                .arg("sandbox-exec")
-                .output()
-                .map_err(|e| {
-                    SandboxError::SeatbeltNotAvailable(format!(
-                        "sandbox-exec not found: {}",
-                        e
-                    ))
-                })?;
+            std::process::Command::new("which").arg("sandbox-exec").output().map_err(|e| {
+                SandboxError::SeatbeltNotAvailable(format!("sandbox-exec not found: {}", e))
+            })?;
 
             Ok(Self { config })
         }
@@ -52,11 +46,9 @@ impl SeatbeltSandbox {
         match &self.config.profile {
             SandboxProfile::Permissive => Ok(self.permissive_profile()),
             SandboxProfile::Restrictive => Ok(self.restrictive_profile()),
-            SandboxProfile::Custom(path) => {
-                std::fs::read_to_string(path).map_err(|e| {
-                    SandboxError::InvalidProfile(format!("Failed to read profile file: {}", e))
-                })
-            }
+            SandboxProfile::Custom(path) => std::fs::read_to_string(path).map_err(|e| {
+                SandboxError::InvalidProfile(format!("Failed to read profile file: {}", e))
+            }),
         }
     }
 
@@ -65,7 +57,9 @@ impl SeatbeltSandbox {
         let network_rule = match self.config.network {
             NetworkMode::Open => "(allow network*)",
             NetworkMode::Closed => "(deny network*)",
-            NetworkMode::Proxied => "(allow network* (require-entitlement \"com.apple.security.network.client\"))",
+            NetworkMode::Proxied => {
+                "(allow network* (require-entitlement \"com.apple.security.network.client\"))"
+            }
         };
 
         format!(
@@ -88,9 +82,7 @@ impl SeatbeltSandbox {
         let network_rule = match self.config.network {
             NetworkMode::Open => "(allow network*)",
             NetworkMode::Closed => "(deny network*)",
-            NetworkMode::Proxied => {
-                "(allow network-outbound (literal \"/var/run/mDNSResponder\"))"
-            }
+            NetworkMode::Proxied => "(allow network-outbound (literal \"/var/run/mDNSResponder\"))",
         };
 
         format!(
@@ -116,12 +108,7 @@ impl Sandbox for SeatbeltSandbox {
         Ok(())
     }
 
-    async fn execute(
-        &self,
-        command: &str,
-        args: &[String],
-        cwd: Option<&Path>,
-    ) -> Result<Output> {
+    async fn execute(&self, command: &str, args: &[String], cwd: Option<&Path>) -> Result<Output> {
         #[cfg(not(target_os = "macos"))]
         {
             return Err(SandboxError::SeatbeltNotAvailable(
@@ -223,8 +210,8 @@ mod tests {
     fn test_seatbelt_network_modes() {
         #[cfg(target_os = "macos")]
         {
-            let config = SandboxConfig::new(SandboxType::Seatbelt)
-                .with_network(NetworkMode::Closed);
+            let config =
+                SandboxConfig::new(SandboxType::Seatbelt).with_network(NetworkMode::Closed);
 
             if let Ok(sandbox) = SeatbeltSandbox::new(config) {
                 let profile = sandbox.permissive_profile();
@@ -245,10 +232,7 @@ mod tests {
                 match result {
                     Ok(output) => {
                         assert!(output.status.success());
-                        assert_eq!(
-                            String::from_utf8_lossy(&output.stdout).trim(),
-                            "hello"
-                        );
+                        assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "hello");
                     }
                     Err(_) => {
                         println!("sandbox-exec not available, skipping test");

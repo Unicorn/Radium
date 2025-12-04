@@ -35,8 +35,6 @@ pub mod providers;
 mod registry;
 
 pub use detection::BinaryDetector;
-pub use engine_trait::{
-    Engine, EngineMetadata, ExecutionRequest, ExecutionResponse, TokenUsage,
-};
+pub use engine_trait::{Engine, EngineMetadata, ExecutionRequest, ExecutionResponse, TokenUsage};
 pub use error::{EngineError, Result};
 pub use registry::EngineRegistry;
