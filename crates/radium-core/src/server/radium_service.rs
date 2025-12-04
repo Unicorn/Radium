@@ -90,16 +90,24 @@ fn storage_to_status(err: &crate::storage::StorageError, entity: &str, id: &str)
         crate::storage::StorageError::NotFound(_) => {
             Status::not_found(format!("{entity} {id} not found"))
         }
+        crate::storage::StorageError::InvalidData(msg) => {
+            Status::invalid_argument(format!("Invalid {entity} data: {msg}"))
+        }
         _ => Status::internal(format!("Failed to process {entity}: {err}")),
     }
 }
 
 /// Converts a `StorageError` to a gRPC `Status` for create operations.
 ///
-/// Logs the error and returns an internal status.
+/// Logs the error and returns an appropriate status.
 fn create_error(err: &crate::storage::StorageError, entity: &str) -> Status {
     error!(error = %err, "Failed to create {}", entity);
-    Status::internal(format!("Failed to create {entity}: {err}"))
+    match err {
+        crate::storage::StorageError::InvalidData(msg) => {
+            Status::invalid_argument(format!("Invalid {entity} data: {msg}"))
+        }
+        _ => Status::internal(format!("Failed to create {entity}: {err}")),
+    }
 }
 
 /// Converts a `StorageError` to a gRPC `Status` for list operations.
@@ -761,7 +769,11 @@ mod tests {
 
     #[test]
     fn test_storage_to_status_other_error() {
-        let err = StorageError::InvalidData("Invalid JSON".to_string());
+        // Test with a non-InvalidData error (Connection error)
+        let err = StorageError::Connection(rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_BUSY),
+            Some("database locked".to_string()),
+        ));
         let status = storage_to_status(&err, "agent", "agent-1");
         assert_eq!(status.code(), tonic::Code::Internal);
         assert!(status.message().contains("Failed to process agent"));
@@ -867,9 +879,9 @@ mod tests {
     #[test]
     fn test_storage_to_status_invalid_data() {
         let err = StorageError::InvalidData("Bad data".to_string());
-        let status = storage_to_status(&err, "workflow", "wf-1");
+        let status = storage_to_status(&err, "task", "task-1");
         assert_eq!(status.code(), tonic::Code::InvalidArgument);
-        assert!(status.message().contains("Invalid workflow data"));
+        assert!(status.message().contains("Invalid task data"));
     }
 
     #[test]
