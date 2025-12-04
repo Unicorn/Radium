@@ -1,7 +1,7 @@
 # Radium Project Progress Tracker
 
 **Last Updated**: 2025-12-04
-**Current Version**: 0.65.0
+**Current Version**: 0.66.0
 **Main Branch**: `main`
 **Development Branch**: `main`
 
@@ -35,6 +35,23 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
 
 ### Completed Recently
 
+- [x] **Step 9.2: Core Example Agents**: Practical agent library demonstrating workflows
+  - **Completed:** 2025-12-04
+  - **Commit:** feat(agents): add 5 core example agents with comprehensive prompts (Step 9.2) [RAD-AGENTS]
+  - **Files:** `agents/core/*.toml`, `prompts/agents/core/*.md` (10 files, 920 lines)
+  - **Agents Created:**
+    - **arch-agent**: System architecture and technical design decisions
+    - **plan-agent**: Requirements breakdown and task planning with iterations
+    - **code-agent**: Feature implementation with TDD approach
+    - **review-agent**: Code quality, security, and best practices review
+    - **doc-agent**: Technical documentation and API reference generation
+  - **Features:**
+    - Detailed role descriptions and capabilities for each agent
+    - Step-by-step instructions and workflows
+    - Real-world examples with complete inputs/outputs
+    - Best practices, principles, and review checklists
+    - Practical templates for consistent output formats
+    - All agents validated successfully
 - [x] **Step 9.1: Agent Template Generator**: CLI tool for creating agent templates
   - **Completed:** 2025-12-04
   - **Commit:** feat(cli): implement agent template generator (Step 9.1) [RAD-AGENT-CREATE]
@@ -215,6 +232,7 @@ radium/
 
 | Date | Changes |
 |------|---------|
+| 2025-12-04 | Claude | Completed Step 9.2: Created 5 core example agents (arch, plan, code, review, doc) |
 | 2025-12-04 | Claude | Completed Step 9.1: Agent Template Generator (`rad agents create` CLI tool) |
 | 2025-12-04 | Claude | Completed Step 8: Enhanced TUI (36 tests passing) |
 | 2025-12-03 | Claude | Completed Step 7: Engine Abstraction Layer (23 tests passing) |
