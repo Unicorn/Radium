@@ -64,10 +64,8 @@ impl WorkflowExecution {
 
 /// High-level service for workflow operations.
 pub struct WorkflowService {
-    /// Agent orchestrator (wrapped in Arc<Mutex> for sharing with RadiumService).
-    /// Note: Currently stored but not actively used in all methods - reserved for future workflow integration.
-    #[allow(dead_code)]
-    orchestrator: Arc<tokio::sync::Mutex<Orchestrator>>,
+    /// Agent orchestrator.
+    orchestrator: Arc<Orchestrator>,
     /// Agent executor.
     executor: Arc<AgentExecutor>,
     /// Database for repository access.
@@ -80,14 +78,14 @@ impl WorkflowService {
     /// Creates a new workflow service.
     ///
     /// # Arguments
-    /// * `orchestrator` - The agent orchestrator (wrapped in Arc<Mutex>)
+    /// * `orchestrator` - The agent orchestrator
     /// * `executor` - The agent executor
     /// * `db` - The database (wrapped in Arc<Mutex>)
     ///
     /// # Returns
     /// A new `WorkflowService` instance.
     pub fn new(
-        orchestrator: &Arc<tokio::sync::Mutex<Orchestrator>>,
+        orchestrator: &Arc<Orchestrator>,
         executor: &Arc<AgentExecutor>,
         db: &Arc<std::sync::Mutex<Database>>,
     ) -> Self {
@@ -97,16 +95,6 @@ impl WorkflowService {
             db: Arc::clone(db),
             execution_history: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
         }
-    }
-
-    /// Gets a reference to the orchestrator for creating engines/executors.
-    /// This creates a new Orchestrator instance since we can't clone the existing one.
-    /// In production, this would need to be refactored to share state properly.
-    fn get_orchestrator_for_execution() -> Arc<Orchestrator> {
-        // TODO: Refactor to properly share orchestrator state
-        // For now, create a new instance which will have empty registry
-        // This is a limitation that needs to be addressed
-        Arc::new(Orchestrator::new())
     }
 
     /// Executes a workflow.
@@ -130,7 +118,7 @@ impl WorkflowService {
         );
 
         // Load workflow
-        let _workflow = {
+        let mut workflow = {
             let mut db = self.db.lock().map_err(|e| {
                 error!(
                     workflow_id = %workflow_id,
@@ -160,24 +148,12 @@ impl WorkflowService {
         };
 
         // Execute workflow
-        // Note: We create a new orchestrator instance here because Orchestrator doesn't implement Clone
-        // In production, this should be refactored to properly share the orchestrator state
-        let orchestrator_arc = Self::get_orchestrator_for_execution();
-        let _executor = WorkflowExecutor::new(orchestrator_arc, Arc::clone(&self.executor));
+        // Use the shared orchestrator which contains registered agents
+        let executor = WorkflowExecutor::new(Arc::clone(&self.orchestrator), Arc::clone(&self.executor));
 
-        // We need to execute the workflow, but can't hold database locks across await.
-        // Solution: Use spawn_blocking for database operations and execute workflow steps
-        // by creating repositories for each step execution.
-        // This is not ideal but works around the Send constraint.
+        // Use the new DB-aware execution method
+        let context = executor.execute_workflow(&mut workflow, Arc::clone(&self.db)).await?;
 
-        // For now, return a placeholder error - full implementation requires
-        // refactoring executor to accept repository factories or similar pattern
-        Err(WorkflowEngineError::Validation(
-            "Workflow execution implementation in progress - repository access pattern needs refinement".to_string()
-        ))
-
-        // TODO: Complete implementation once repository access pattern is refined
-        /*
         // Create execution record
         let execution_id = uuid::Uuid::new_v4().to_string();
         let execution = WorkflowExecution::new(
@@ -198,7 +174,6 @@ impl WorkflowService {
         );
 
         Ok(execution)
-        */
     }
 
     /// Gets workflow execution history.
@@ -266,8 +241,7 @@ impl WorkflowService {
 
         // Update workflow state to Idle if it's running
         if matches!(workflow.state, WorkflowState::Running) {
-            let orchestrator_arc = Self::get_orchestrator_for_execution();
-            let engine = WorkflowEngine::new(orchestrator_arc, Arc::clone(&self.executor));
+            let engine = WorkflowEngine::new(Arc::clone(&self.orchestrator), Arc::clone(&self.executor));
             let idle_state = WorkflowState::Idle;
             engine.update_workflow_state(&mut workflow, &idle_state, workflow_repo)?;
         }

@@ -9,7 +9,7 @@ use tracing::{debug, error, info};
 use radium_orchestrator::{AgentExecutor, Orchestrator};
 
 use crate::models::{Workflow, WorkflowState};
-use crate::storage::{TaskRepository, WorkflowRepository};
+use crate::storage::{TaskRepository};
 
 use super::control_flow::{StepCondition, should_execute_step};
 use super::engine::{ExecutionContext, StepResult, WorkflowEngine, WorkflowEngineError};
@@ -44,9 +44,8 @@ impl WorkflowExecutor {
     /// stops and the workflow state is set to `Error`.
     ///
     /// # Arguments
-    /// * `workflow` - The workflow to execute
-    /// * `task_repo` - Repository for loading tasks
-    /// * `workflow_repo` - Repository for updating workflow state
+    /// * `workflow` - The workflow to execute (mutable reference)
+    /// * `db` - Shared database access
     ///
     /// # Returns
     /// `Ok(ExecutionContext)` with execution results if successful, or
@@ -54,8 +53,7 @@ impl WorkflowExecutor {
     pub async fn execute_workflow(
         &self,
         workflow: &mut Workflow,
-        task_repo: &dyn TaskRepository,
-        workflow_repo: &mut dyn WorkflowRepository,
+        db: Arc<std::sync::Mutex<crate::storage::Database>>,
     ) -> Result<ExecutionContext, WorkflowEngineError> {
         info!(
             workflow_id = %workflow.id,
@@ -89,8 +87,16 @@ impl WorkflowExecutor {
         sorted_steps.sort_by_key(|step| step.order);
 
         // Update workflow state to Running
-        let running_state = WorkflowState::Running;
-        self.engine.update_workflow_state(workflow, &running_state, workflow_repo)?;
+        {
+            let mut db_guard = db.lock().map_err(|e| {
+                WorkflowEngineError::Storage(crate::storage::StorageError::InvalidData(
+                    e.to_string(),
+                ))
+            })?;
+            let mut workflow_repo = crate::storage::SqliteWorkflowRepository::new(&mut *db_guard);
+            let running_state = WorkflowState::Running;
+            self.engine.update_workflow_state(workflow, &running_state, &mut workflow_repo)?;
+        }
 
         // Execute steps sequentially
         for (index, step) in sorted_steps.iter().enumerate() {
@@ -121,19 +127,67 @@ impl WorkflowExecutor {
             );
 
             // Execute the step
-            let step_result = match self.engine.execute_step(step, &context, task_repo).await {
-                Ok(result) => result,
+            // We need to load the task from DB, which requires a lock.
+            // But execute_step is async (agent call), so we can't hold the lock across it.
+            // Solution: Load task inside a block, then execute.
+            
+            let started_at = Utc::now();
+            let step_result: Result<StepResult, WorkflowEngineError> = async {
+                 // 1. Load task (Sync DB access)
+                let task = {
+                    let mut db_guard = db.lock().map_err(|e| {
+                         WorkflowEngineError::Storage(crate::storage::StorageError::InvalidData(e.to_string()))
+                    })?;
+                    let task_repo = crate::storage::SqliteTaskRepository::new(&mut *db_guard);
+                    task_repo.get_by_id(&step.task_id).map_err(|e| match e {
+                        crate::storage::StorageError::NotFound(_) => WorkflowEngineError::TaskNotFound(step.task_id.clone()),
+                        _ => WorkflowEngineError::Storage(e),
+                    })?
+                };
+
+                // 2. Prepare execution (CPU bound)
+                 let agent = self.engine.orchestrator.get_agent(&task.agent_id).await.ok_or_else(|| {
+                    WorkflowEngineError::AgentNotFound(task.agent_id.clone())
+                })?;
+
+                let input_str = match &task.input {
+                    serde_json::Value::String(s) => s.clone(),
+                    v => serde_json::to_string(v).map_err(|e| WorkflowEngineError::InvalidInput(e.to_string()))?,
+                };
+
+                // 3. Execute Agent (Async, no DB lock)
+                let execution_result = self.engine.executor.execute_agent_with_default_model(agent, &input_str).await.map_err(|e| {
+                    WorkflowEngineError::Execution(e.to_string())
+                })?;
+                
+                let completed_at = Utc::now();
+                 // Convert output
+                if execution_result.success {
+                    let output_value = match execution_result.output {
+                        radium_orchestrator::AgentOutput::Text(text) => serde_json::Value::String(text),
+                        radium_orchestrator::AgentOutput::StructuredData(data) => data,
+                        radium_orchestrator::AgentOutput::ToolCall { name, args } => {
+                            serde_json::json!({
+                                "type": "tool_call",
+                                "name": name,
+                                "args": args
+                            })
+                        }
+                        radium_orchestrator::AgentOutput::Terminate => serde_json::Value::String("terminated".to_string()),
+                    };
+                    Ok(StepResult::success(step.id.clone(), output_value, started_at, completed_at))
+                } else {
+                     let error_msg = execution_result.error.unwrap_or_else(|| "Unknown execution error".to_string());
+                     Ok(StepResult::failure(step.id.clone(), error_msg, started_at, completed_at))
+                }
+            }.await;
+
+            let step_result = match step_result {
+                Ok(res) => res,
                 Err(e) => {
-                    // Convert error to failed step result
-                    let error_msg = e.to_string();
-                    let started_at = Utc::now();
-                    let completed_at = Utc::now();
-                    StepResult::failure(
-                        step.id.clone(),
-                        error_msg.clone(),
-                        started_at,
-                        completed_at,
-                    )
+                     let error_msg = e.to_string();
+                     let completed_at = Utc::now();
+                     StepResult::failure(step.id.clone(), error_msg, started_at, completed_at)
                 }
             };
 
@@ -153,8 +207,16 @@ impl WorkflowExecutor {
                 );
 
                 // Update workflow state to Error
-                let error_state = WorkflowState::Error(error_msg.clone());
-                self.engine.update_workflow_state(workflow, &error_state, workflow_repo)?;
+                {
+                     let mut db_guard = db.lock().map_err(|e| {
+                        WorkflowEngineError::Storage(crate::storage::StorageError::InvalidData(
+                            e.to_string(),
+                        ))
+                    })?;
+                    let mut workflow_repo = crate::storage::SqliteWorkflowRepository::new(&mut *db_guard);
+                    let error_state = WorkflowState::Error(error_msg.clone());
+                    self.engine.update_workflow_state(workflow, &error_state, &mut workflow_repo)?;
+                }
 
                 return Err(WorkflowEngineError::Execution(error_msg));
             }
@@ -171,8 +233,16 @@ impl WorkflowExecutor {
         context.current_step_index = sorted_steps.len();
 
         // Update workflow state to Completed
-        let completed_state = WorkflowState::Completed;
-        self.engine.update_workflow_state(workflow, &completed_state, workflow_repo)?;
+        {
+             let mut db_guard = db.lock().map_err(|e| {
+                WorkflowEngineError::Storage(crate::storage::StorageError::InvalidData(
+                    e.to_string(),
+                ))
+            })?;
+            let mut workflow_repo = crate::storage::SqliteWorkflowRepository::new(&mut *db_guard);
+            let completed_state = WorkflowState::Completed;
+            self.engine.update_workflow_state(workflow, &completed_state, &mut workflow_repo)?;
+        }
 
         info!(
             workflow_id = %workflow.id,

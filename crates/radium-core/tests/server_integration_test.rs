@@ -146,15 +146,16 @@ async fn test_workflow_execution_flow() {
     let exec_resp = client.execute_workflow(exec_req).await.expect("Execute workflow failed");
     let exec_inner = exec_resp.into_inner();
     
-    // RAD-TEST-017: Workflow execution is currently a placeholder in WorkflowService
-    // We verify the RPC works and returns the expected placeholder error
-    assert!(!exec_inner.success);
-    assert!(exec_inner.error.is_some());
-    assert!(exec_inner.error.unwrap().contains("implementation in progress"));
+    // RAD-TEST-017: Workflow execution implementation fixed
+    // We verify the RPC works and returns success
+    if !exec_inner.success {
+        println!("Workflow execution failed with error: {:?}", exec_inner.error);
+        println!("Final state: {}", exec_inner.final_state);
+    }
+    assert!(exec_inner.success);
+    assert!(exec_inner.error.is_none());
     assert_eq!(exec_inner.workflow_id, "test-workflow-exec");
-
-    // Skip get execution check since execution didn't start
-    /*
+    
     // 4. Get Workflow Execution Status
     let get_exec_req = tonic::Request::new(GetWorkflowExecutionRequest {
         execution_id: exec_inner.execution_id.clone(),
@@ -167,5 +168,4 @@ async fn test_workflow_execution_flow() {
     // Verify final state is Completed
     let final_state: WorkflowState = serde_json::from_str(&execution.final_state).unwrap();
     assert!(matches!(final_state, WorkflowState::Completed));
-    */
 }

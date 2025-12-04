@@ -37,7 +37,7 @@ pub struct RadiumService {
     /// Database connection for persistence.
     db: Arc<Mutex<Database>>,
     /// Agent orchestrator for managing agent execution.
-    orchestrator: Arc<tokio::sync::Mutex<Orchestrator>>,
+    orchestrator: Arc<Orchestrator>,
 }
 
 impl RadiumService {
@@ -45,7 +45,7 @@ impl RadiumService {
     pub fn new(db: Database) -> Self {
         Self {
             db: Arc::new(Mutex::new(db)),
-            orchestrator: Arc::new(tokio::sync::Mutex::new(Orchestrator::new())),
+            orchestrator: Arc::new(Orchestrator::new()),
         }
     }
 
@@ -446,8 +446,6 @@ impl Radium for RadiumService {
         let inner = request.into_inner();
         info!(agent_id = %inner.agent_id, "ExecuteAgent request");
 
-        let orchestrator = self.orchestrator.lock().await;
-
         let result = if let (Some(model_type), Some(model_id)) = (inner.model_type, inner.model_id)
         {
             let model_type = match model_type.as_str() {
@@ -462,11 +460,11 @@ impl Radium for RadiumService {
                     }));
                 }
             };
-            orchestrator
+            self.orchestrator
                 .execute_agent_with_model(&inner.agent_id, &inner.input, model_type, model_id)
                 .await
         } else {
-            orchestrator.execute_agent(&inner.agent_id, &inner.input).await
+            self.orchestrator.execute_agent(&inner.agent_id, &inner.input).await
         };
 
         match result {
@@ -499,8 +497,7 @@ impl Radium for RadiumService {
         let inner = request.into_inner();
         info!(agent_id = %inner.agent_id, "StartAgent request");
 
-        let orchestrator = self.orchestrator.lock().await;
-        match orchestrator.start_agent(&inner.agent_id).await {
+        match self.orchestrator.start_agent(&inner.agent_id).await {
             Ok(()) => Ok(Response::new(StartAgentResponse { success: true, error: None })),
             Err(current_state) => Ok(Response::new(StartAgentResponse {
                 success: false,
@@ -516,8 +513,7 @@ impl Radium for RadiumService {
         let inner = request.into_inner();
         info!(agent_id = %inner.agent_id, "StopAgent request");
 
-        let orchestrator = self.orchestrator.lock().await;
-        match orchestrator.stop_agent(&inner.agent_id).await {
+        match self.orchestrator.stop_agent(&inner.agent_id).await {
             Ok(()) => Ok(Response::new(StopAgentResponse { success: true, error: None })),
             Err(current_state) => Ok(Response::new(StopAgentResponse {
                 success: false,
@@ -532,12 +528,11 @@ impl Radium for RadiumService {
     ) -> Result<Response<GetRegisteredAgentsResponse>, Status> {
         info!("GetRegisteredAgents request");
 
-        let orchestrator = self.orchestrator.lock().await;
-        let agents = orchestrator.list_agents().await;
+        let agents = self.orchestrator.list_agents().await;
 
         let mut registered_agents = Vec::new();
         for metadata in agents {
-            let state = orchestrator.get_agent_state(&metadata.id).await;
+            let state = self.orchestrator.get_agent_state(&metadata.id).await;
             registered_agents.push(RegisteredAgent {
                 id: metadata.id,
                 description: metadata.description,
@@ -559,8 +554,6 @@ impl Radium for RadiumService {
             "RegisterAgent request"
         );
 
-        let orchestrator = self.orchestrator.lock().await;
-
         let agent: Arc<dyn Agent + Send + Sync> = match inner.agent_type.as_str() {
             "echo" => Arc::new(EchoAgent::new(inner.agent_id.clone(), inner.description)),
             "simple" => Arc::new(SimpleAgent::new(inner.agent_id.clone(), inner.description)),
@@ -573,7 +566,7 @@ impl Radium for RadiumService {
             }
         };
 
-        orchestrator.register_agent(agent).await;
+        self.orchestrator.register_agent(agent).await;
 
         Ok(Response::new(RegisterAgentResponse { success: true, error: None }))
     }

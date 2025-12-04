@@ -183,9 +183,9 @@ impl StepResult {
 #[derive(Clone)]
 pub struct WorkflowEngine {
     /// Agent orchestrator for executing tasks.
-    orchestrator: Arc<Orchestrator>,
+    pub orchestrator: Arc<Orchestrator>,
     /// Agent executor for running agents.
-    executor: Arc<AgentExecutor>,
+    pub executor: Arc<AgentExecutor>,
 }
 
 impl WorkflowEngine {
