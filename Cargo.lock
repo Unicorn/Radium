@@ -1748,6 +1748,7 @@ dependencies = [
  "crossterm 0.28.1",
  "radium-core",
  "ratatui",
+ "serde_json",
  "tokio",
  "tonic",
  "tracing",

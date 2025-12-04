@@ -8,13 +8,15 @@
 		"build": "tauri build",
 		"tauri": "tauri",
 		"type-check": "tsc --noEmit",
-		"icon:generate": "cp ../../../images/logo-apple.png app-icon.png && cp app-icon.png src-tauri/app-icon.png && bun run tauri icon"
+		"icon:generate": "cp ../../../images/logo-apple.png app-icon.png && cp app-icon.png src-tauri/app-icon.png && bun run tauri icon",
+		"test:e2e": "playwright test"
 	},
 	"devDependencies": {
 		"@tauri-apps/cli": "^2",
 		"@types/node": "^20.0.0",
 		"sharp": "^0.33.0",
-		"typescript": "^5.3.0"
+		"typescript": "^5.3.0",
+		"@playwright/test": "^1.40.0"
 	},
 	"dependencies": {
 		"@tauri-apps/api": "^2",
