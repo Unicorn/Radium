@@ -1,7 +1,7 @@
 # Radium Project Progress Tracker
 
 **Last Updated**: 2025-12-04
-**Current Version**: 0.64.0
+**Current Version**: 0.65.0
 **Main Branch**: `main`
 **Development Branch**: `main`
 
@@ -35,6 +35,18 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
 
 ### Completed Recently
 
+- [x] **Step 9.1: Agent Template Generator**: CLI tool for creating agent templates
+  - **Completed:** 2025-12-04
+  - **Commit:** feat(cli): implement agent template generator (Step 9.1) [RAD-AGENT-CREATE]
+  - **Files:** `apps/cli/src/commands/{agents.rs,types.rs}`
+  - **Features:**
+    - `rad agents create` subcommand for generating agent templates
+    - Automatic TOML configuration file generation with agent metadata
+    - Comprehensive prompt template with structured sections (Role, Capabilities, Instructions, Examples)
+    - Customization support: engine, model, reasoning effort, category
+    - Agent ID uniqueness validation
+    - Automatic directory structure creation (./agents/{category}/, ./prompts/agents/{category}/)
+    - Clear next steps guidance for users
 - [x] **Step 8: Enhanced TUI**: Complete workflow dashboard with real-time visualization
   - **Completed:** 2025-12-04
   - **Commit:** feat(tui): implement enhanced TUI with workflow dashboard (Step 8)
@@ -203,6 +215,7 @@ radium/
 
 | Date | Changes |
 |------|---------|
+| 2025-12-04 | Claude | Completed Step 9.1: Agent Template Generator (`rad agents create` CLI tool) |
 | 2025-12-04 | Claude | Completed Step 8: Enhanced TUI (36 tests passing) |
 | 2025-12-03 | Claude | Completed Step 7: Engine Abstraction Layer (23 tests passing) |
 | 2025-12-03 | Claude | Completed Step 6.5: Sandboxing System (15 tests passing) |
