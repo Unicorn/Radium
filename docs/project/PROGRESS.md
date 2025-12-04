@@ -1,7 +1,7 @@
 # Radium Project Progress Tracker
 
-**Last Updated**: 2025-12-03
-**Current Version**: 0.63.0
+**Last Updated**: 2025-12-04
+**Current Version**: 0.64.0
 **Main Branch**: `main`
 **Development Branch**: `main`
 
@@ -27,6 +27,7 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
 | **Step 6: Monitoring** | ✅ Complete | 100% | Agent tracking, telemetry, logs, checkpoints (44 tests) |
 | **Step 6.5: Sandboxing** | ✅ Complete | 100% | Docker, Seatbelt, sandbox abstraction (15 tests) |
 | **Step 7: Engines** | ✅ Complete | 100% | Engine abstraction, registry, detection (23 tests) |
+| **Step 8: Enhanced TUI** | ✅ Complete | 100% | Workflow dashboard, agent timeline, components (36 tests) |
 
 ---
 
@@ -34,6 +35,19 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
 
 ### Completed Recently
 
+- [x] **Step 8: Enhanced TUI**: Complete workflow dashboard with real-time visualization
+  - **Completed:** 2025-12-04
+  - **Commit:** feat(tui): implement enhanced TUI with workflow dashboard (Step 8)
+  - **Files:** `apps/tui/src/{state,components}/*`, `apps/tui/src/views/workflow_dashboard.rs`
+  - **Tests:** 36 tests passing (26 state + 8 components + 2 views)
+  - **Features:**
+    - State management: WorkflowUIState, AgentState, TelemetryState, CheckpointState
+    - Components: AgentTimeline, OutputWindow, LogViewer, TelemetryBar, StatusFooter
+    - Components: CheckpointModal, LoopIndicator
+    - Workflow dashboard with multiple layouts (standard, loop, compact, error)
+    - Real-time agent tracking with status indicators and icons
+    - Token usage and cost tracking with color-coded displays
+    - Checkpoint and loop iteration visualization
 - [x] **BLOCKER-003**: Resolve workflow execution async DB access
   - **Completed:** 2025-12-03
   - **Commit:** fix(core): refactor workflow executor for async db access [BLOCKER-003]
@@ -139,7 +153,7 @@ Previous blockers resolved:
 
 ### Summary
 
-- **Total Tests**: ~187 passing, 0 failed, 6 ignored (manual execution)
+- **Total Tests**: ~223 passing, 0 failed, 6 ignored (manual execution)
 - **Unit Tests**: ✅ Comprehensive coverage across all core modules
 - **Integration Tests**: ✅ Core workflows tested
 - **E2E Tests**: ⚠️ Manual execution required (marked as ignored)
@@ -189,6 +203,7 @@ radium/
 
 | Date | Changes |
 |------|---------|
+| 2025-12-04 | Claude | Completed Step 8: Enhanced TUI (36 tests passing) |
 | 2025-12-03 | Claude | Completed Step 7: Engine Abstraction Layer (23 tests passing) |
 | 2025-12-03 | Claude | Completed Step 6.5: Sandboxing System (15 tests passing) |
 | 2025-12-03 | Claude | Completed Step 6: Monitoring & Telemetry (44 tests passing) |
