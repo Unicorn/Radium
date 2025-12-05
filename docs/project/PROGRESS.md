@@ -36,6 +36,18 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
 
 ### Completed Recently
 
+- [x] **Memory Module Test Enhancement**: Expanded test coverage to Excellent tier
+  - **Completed:** 2025-12-05
+  - **Commit:** test(memory): add comprehensive tests to memory module [RAD-TEST]
+  - **Tests Added:** 11 new tests to store.rs
+  - **Coverage:** Memory module 36 → 47 tests (reached Excellent tier)
+  - **Total Tests:** 838 passing (733 radium-core, 59 CLI, 36 TUI, 10 models)
+  - **Focus Areas:**
+    - Previously untested methods: get_mut(), all_entries()
+    - Unicode and special character handling in agent IDs
+    - Edge cases: long agent IDs, empty store operations
+    - Metadata management and overwriting behavior
+  - **Result:** 10 of 17 modules now at Excellent tier (40+ tests)
 - [x] **Planning Module Test Enhancement**: Expanded test coverage to Excellent tier
   - **Completed:** 2025-12-05
   - **Commit:** test(planning): add comprehensive edge case tests to planning module [RAD-TEST]
@@ -211,12 +223,12 @@ Previous blockers resolved:
 
 ### Summary
 
-- **Total Tests**: 827 passing (722 radium-core, 59 CLI, 36 TUI, 10 models), 0 failed, 2 ignored (manual execution)
+- **Total Tests**: 838 passing (733 radium-core, 59 CLI, 36 TUI, 10 models), 0 failed, 2 ignored (manual execution)
 - **Unit Tests**: ✅ Comprehensive coverage across all core modules
 - **Integration Tests**: ✅ Core workflows tested
 - **E2E Tests**: ⚠️ Manual execution required (2 marked as ignored)
 
-### Coverage by Module (radium-core: 722 tests)
+### Coverage by Module (radium-core: 733 tests)
 
 | Module | Tests | Coverage Level | Status |
 |--------|-------|----------------|--------|
@@ -226,9 +238,9 @@ Previous blockers resolved:
 | Storage | 56 | Excellent (40+) | ✅ |
 | Sandbox | 52 | Excellent (40+) | ✅ |
 | Context | 51 | Excellent (40+) | ✅ |
+| Memory | 47 | Excellent (40+) | ✅ |
 | Planning | 40 | Excellent (40+) | ✅ |
 | Agents | 40 | Excellent (40+) | ✅ |
-| Memory | 29 | Good (approaching 40+) | ✅ |
 | Monitoring | 29 | Good (approaching 40+) | ✅ |
 | Engines | 23 | Good (15-20+) | ✅ |
 | Workspace | 22 | Good (15-20+) | ✅ |
