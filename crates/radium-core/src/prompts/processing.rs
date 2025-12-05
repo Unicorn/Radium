@@ -459,4 +459,221 @@ mod tests {
         let result = process_with_file_injection(&template, &context, &options);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_cache_default() {
+        let cache = PromptCache::default();
+        assert_eq!(cache.stats().unwrap().ttl, None);
+    }
+
+    #[test]
+    fn test_cache_multiple_files() {
+        let cache = PromptCache::new();
+        let mut file1 = NamedTempFile::new().unwrap();
+        let mut file2 = NamedTempFile::new().unwrap();
+        file1.write_all(b"Content 1").unwrap();
+        file2.write_all(b"Content 2").unwrap();
+        file1.flush().unwrap();
+        file2.flush().unwrap();
+
+        cache.load(file1.path()).unwrap();
+        cache.load(file2.path()).unwrap();
+
+        assert_eq!(cache.stats().unwrap().size, 2);
+    }
+
+    #[test]
+    fn test_cache_stats_after_evict() {
+        let cache = PromptCache::new();
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(b"content").unwrap();
+        file.flush().unwrap();
+
+        cache.load(file.path()).unwrap();
+        cache.evict(file.path()).unwrap();
+
+        let stats = cache.stats().unwrap();
+        assert_eq!(stats.size, 0);
+    }
+
+    #[test]
+    fn test_cache_reload_after_clear() {
+        let cache = PromptCache::new();
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(b"content").unwrap();
+        file.flush().unwrap();
+
+        cache.load(file.path()).unwrap();
+        cache.clear().unwrap();
+        cache.load(file.path()).unwrap();
+
+        assert_eq!(cache.stats().unwrap().size, 1);
+    }
+
+    #[test]
+    fn test_file_injection_absolute_path() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("absolute.txt");
+        fs::write(&file_path, "Absolute path content").unwrap();
+
+        let template = PromptTemplate::from_string(format!("{{{{file:{}}}}}", file_path.display()));
+        let context = PromptContext::new();
+        let options = FileInjectionOptions::default();
+
+        let result = process_with_file_injection(&template, &context, &options).unwrap();
+        assert!(result.contains("Absolute path content"));
+    }
+
+    #[test]
+    fn test_file_injection_empty_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("empty.txt");
+        fs::write(&file_path, "").unwrap();
+
+        let template = PromptTemplate::from_string("Content: {{file:empty.txt}}");
+        let context = PromptContext::new();
+        let options = FileInjectionOptions {
+            base_path: Some(temp_dir.path().to_path_buf()),
+            ..Default::default()
+        };
+
+        let result = process_with_file_injection(&template, &context, &options).unwrap();
+        assert_eq!(result, "Content: ");
+    }
+
+    #[test]
+    fn test_file_injection_multiple_files() {
+        let temp_dir = TempDir::new().unwrap();
+        let file1 = temp_dir.path().join("file1.txt");
+        let file2 = temp_dir.path().join("file2.txt");
+        fs::write(&file1, "Content 1").unwrap();
+        fs::write(&file2, "Content 2").unwrap();
+
+        let template = PromptTemplate::from_string("{{file:file1.txt}} and {{file:file2.txt}}");
+        let context = PromptContext::new();
+        let options = FileInjectionOptions {
+            base_path: Some(temp_dir.path().to_path_buf()),
+            ..Default::default()
+        };
+
+        let result = process_with_file_injection(&template, &context, &options).unwrap();
+        assert!(result.contains("Content 1"));
+        assert!(result.contains("Content 2"));
+        assert!(result.contains("and"));
+    }
+
+    #[test]
+    fn test_file_injection_invalid_format() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+        fs::write(&file_path, "content").unwrap();
+
+        let template = PromptTemplate::from_string("{{file:test.txt:invalid}}");
+        let context = PromptContext::new();
+        let options = FileInjectionOptions {
+            base_path: Some(temp_dir.path().to_path_buf()),
+            ..Default::default()
+        };
+
+        // Should default to plain format
+        let result = process_with_file_injection(&template, &context, &options).unwrap();
+        assert!(result.contains("content"));
+        assert!(!result.contains("```"));
+    }
+
+    #[test]
+    fn test_file_injection_with_extension_detection() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("script.py");
+        fs::write(&file_path, "print('hello')").unwrap();
+
+        let template = PromptTemplate::from_string("{{file:script.py:code}}");
+        let context = PromptContext::new();
+        let options = FileInjectionOptions {
+            base_path: Some(temp_dir.path().to_path_buf()),
+            ..Default::default()
+        };
+
+        let result = process_with_file_injection(&template, &context, &options).unwrap();
+        assert!(result.contains("```py"));
+        assert!(result.contains("print('hello')"));
+    }
+
+    #[test]
+    fn test_find_file_placeholders_none() {
+        let placeholders = find_file_placeholders("No file placeholders here {{regular}}");
+        assert_eq!(placeholders.len(), 0);
+    }
+
+    #[test]
+    fn test_find_file_placeholders_multiple() {
+        let content = "{{file:a.txt}} and {{file:b.txt:code}} and {{file:c.txt:markdown}}";
+        let placeholders = find_file_placeholders(content);
+        assert_eq!(placeholders.len(), 3);
+    }
+
+    #[test]
+    fn test_file_injection_mixed_placeholders() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("data.txt");
+        fs::write(&file_path, "file content").unwrap();
+
+        let template = PromptTemplate::from_string("Hello {{name}}! File: {{file:data.txt}}");
+        let mut context = PromptContext::new();
+        context.set("name", "User");
+        let options = FileInjectionOptions {
+            base_path: Some(temp_dir.path().to_path_buf()),
+            ..Default::default()
+        };
+
+        let result = process_with_file_injection(&template, &context, &options).unwrap();
+        assert!(result.contains("Hello User!"));
+        assert!(result.contains("file content"));
+    }
+
+    #[test]
+    fn test_cache_same_file_multiple_loads() {
+        let cache = PromptCache::new();
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(b"content").unwrap();
+        file.flush().unwrap();
+
+        for _ in 0..5 {
+            cache.load(file.path()).unwrap();
+        }
+
+        // Should still only have one cached entry
+        assert_eq!(cache.stats().unwrap().size, 1);
+    }
+
+    #[test]
+    fn test_file_injection_no_base_path() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+        fs::write(&file_path, "content").unwrap();
+
+        let template = PromptTemplate::from_string(format!("{{{{file:{}}}}}", file_path.display()));
+        let context = PromptContext::new();
+        let options = FileInjectionOptions { base_path: None, ..Default::default() };
+
+        let result = process_with_file_injection(&template, &context, &options).unwrap();
+        assert!(result.contains("content"));
+    }
+
+    #[test]
+    fn test_cache_stats_ttl() {
+        use std::time::Duration;
+        let ttl = Duration::from_secs(300);
+        let cache = PromptCache::with_ttl(ttl);
+
+        let stats = cache.stats().unwrap();
+        assert_eq!(stats.ttl, Some(ttl));
+    }
+
+    #[test]
+    fn test_file_injection_format_enum() {
+        assert_eq!(FileInjectionFormat::default(), FileInjectionFormat::Plain);
+        assert_ne!(FileInjectionFormat::Plain, FileInjectionFormat::CodeBlock);
+        assert_ne!(FileInjectionFormat::CodeBlock, FileInjectionFormat::Markdown);
+    }
 }

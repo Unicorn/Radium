@@ -351,4 +351,222 @@ Please complete this by {{deadline}}.
         assert!(result.contains("analyze the code"));
         assert!(result.contains("tomorrow"));
     }
+
+    #[test]
+    fn test_context_remove() {
+        let mut context = PromptContext::new();
+        context.set("key1", "value1");
+        context.set("key2", "value2");
+
+        assert_eq!(context.remove("key1"), Some("value1".to_string()));
+        assert!(context.get("key1").is_none());
+        assert_eq!(context.get("key2"), Some("value2"));
+    }
+
+    #[test]
+    fn test_context_clear() {
+        let mut context = PromptContext::new();
+        context.set("key1", "value1");
+        context.set("key2", "value2");
+
+        context.clear();
+        assert!(context.get("key1").is_none());
+        assert!(context.get("key2").is_none());
+        assert!(!context.contains("key1"));
+    }
+
+    #[test]
+    fn test_context_empty_key() {
+        let mut context = PromptContext::new();
+        context.set("", "empty key");
+
+        assert_eq!(context.get(""), Some("empty key"));
+        assert!(context.contains(""));
+    }
+
+    #[test]
+    fn test_context_unicode() {
+        let mut context = PromptContext::new();
+        context.set("greeting", "こんにちは");
+        context.set("emoji", "🎉");
+
+        assert_eq!(context.get("greeting"), Some("こんにちは"));
+        assert_eq!(context.get("emoji"), Some("🎉"));
+    }
+
+    #[test]
+    fn test_template_load_not_found() {
+        let result = PromptTemplate::load("/nonexistent/path/template.md");
+        assert!(result.is_err());
+        match result {
+            Err(PromptError::NotFound(_)) => (),
+            _ => panic!("Expected NotFound error"),
+        }
+    }
+
+    #[test]
+    fn test_template_consecutive_placeholders() {
+        let template = PromptTemplate::from_string("{{first}}{{second}}{{third}}");
+        let mut context = PromptContext::new();
+        context.set("first", "A");
+        context.set("second", "B");
+        context.set("third", "C");
+
+        let result = template.render(&context).unwrap();
+        assert_eq!(result, "ABC");
+    }
+
+    #[test]
+    fn test_template_placeholders_at_boundaries() {
+        let template = PromptTemplate::from_string("{{start}} middle {{end}}");
+        let mut context = PromptContext::new();
+        context.set("start", "Beginning");
+        context.set("end", "Finish");
+
+        let result = template.render(&context).unwrap();
+        assert_eq!(result, "Beginning middle Finish");
+    }
+
+    #[test]
+    fn test_template_placeholder_only() {
+        let template = PromptTemplate::from_string("{{content}}");
+        let mut context = PromptContext::new();
+        context.set("content", "Complete replacement");
+
+        let result = template.render(&context).unwrap();
+        assert_eq!(result, "Complete replacement");
+    }
+
+    #[test]
+    fn test_template_no_placeholders() {
+        let template = PromptTemplate::from_string("This is plain text with no placeholders.");
+        let context = PromptContext::new();
+
+        let result = template.render(&context).unwrap();
+        assert_eq!(result, "This is plain text with no placeholders.");
+    }
+
+    #[test]
+    fn test_template_unclosed_placeholder() {
+        let template = PromptTemplate::from_string("Hello {{name! Missing closing braces");
+        let placeholders = template.list_placeholders();
+        assert_eq!(placeholders.len(), 0);
+    }
+
+    #[test]
+    fn test_template_triple_braces() {
+        let template = PromptTemplate::from_string("{{{name}}}");
+        let placeholders = template.list_placeholders();
+        // Parser finds {{ and reads until }}, so it captures {name (without closing brace)
+        assert_eq!(placeholders.len(), 1);
+        assert_eq!(placeholders[0], "{name");
+    }
+
+    #[test]
+    fn test_template_mixed_valid_invalid() {
+        let template = PromptTemplate::from_string("{{valid}} {invalid} {{another}}");
+        let placeholders = template.list_placeholders();
+        assert_eq!(placeholders.len(), 2);
+        assert!(placeholders.contains(&"valid".to_string()));
+        assert!(placeholders.contains(&"another".to_string()));
+    }
+
+    #[test]
+    fn test_template_render_empty_context() {
+        let template = PromptTemplate::from_string("Hello {{name}}! Age: {{age}}");
+        let context = PromptContext::new();
+
+        let result = template.render(&context).unwrap();
+        assert_eq!(result, "Hello ! Age: ");
+    }
+
+    #[test]
+    fn test_template_partial_replacement() {
+        let template = PromptTemplate::from_string("{{a}} {{b}} {{c}}");
+        let mut context = PromptContext::new();
+        context.set("a", "first");
+        context.set("c", "third");
+
+        let result = template.render(&context).unwrap();
+        assert_eq!(result, "first  third");
+    }
+
+    #[test]
+    fn test_template_same_placeholder_multiple_times() {
+        let template = PromptTemplate::from_string("{{name}} and {{name}} and {{name}}");
+        let mut context = PromptContext::new();
+        context.set("name", "Alice");
+
+        let result = template.render(&context).unwrap();
+        assert_eq!(result, "Alice and Alice and Alice");
+    }
+
+    #[test]
+    fn test_template_special_characters_in_value() {
+        let template = PromptTemplate::from_string("Code: {{code}}");
+        let mut context = PromptContext::new();
+        context.set("code", "fn main() { println!(\"Hello\"); }");
+
+        let result = template.render(&context).unwrap();
+        assert!(result.contains("fn main()"));
+        assert!(result.contains("println!"));
+    }
+
+    #[test]
+    fn test_render_options_strict_mode() {
+        let template = PromptTemplate::from_string("{{required}}");
+        let context = PromptContext::new();
+
+        let options = RenderOptions { strict: true, default_value: None };
+        let result = template.render_with_options(&context, &options);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_render_options_default_value_overrides_empty() {
+        let template = PromptTemplate::from_string("{{missing}}");
+        let context = PromptContext::new();
+
+        let options = RenderOptions { strict: false, default_value: Some("DEFAULT".to_string()) };
+        let result = template.render_with_options(&context, &options).unwrap();
+        assert_eq!(result, "DEFAULT");
+    }
+
+    #[test]
+    fn test_context_overwrite_value() {
+        let mut context = PromptContext::new();
+        context.set("key", "first");
+        context.set("key", "second");
+
+        assert_eq!(context.get("key"), Some("second"));
+    }
+
+    #[test]
+    fn test_template_file_path_preserved() {
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(b"content").unwrap();
+        file.flush().unwrap();
+
+        let template = PromptTemplate::load(file.path()).unwrap();
+        assert!(template.file_path().is_some());
+        assert_eq!(template.file_path().unwrap(), file.path());
+    }
+
+    #[test]
+    fn test_template_empty_content() {
+        let template = PromptTemplate::from_string("");
+        let context = PromptContext::new();
+
+        let result = template.render(&context).unwrap();
+        assert_eq!(result, "");
+    }
+
+    #[test]
+    fn test_find_placeholders_newlines() {
+        let template = PromptTemplate::from_string("Line 1: {{first}}\nLine 2: {{second}}");
+        let placeholders = template.list_placeholders();
+        assert_eq!(placeholders.len(), 2);
+        assert!(placeholders.contains(&"first".to_string()));
+        assert!(placeholders.contains(&"second".to_string()));
+    }
 }
