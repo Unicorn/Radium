@@ -1,7 +1,6 @@
 //! Unit tests for CLI commands.
 
 use radium_core::Workspace;
-use std::fs;
 use tempfile::TempDir;
 
 // Import command modules - we need to access them through the binary's module structure

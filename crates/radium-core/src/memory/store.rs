@@ -458,4 +458,152 @@ mod tests {
         assert_eq!(entry.output.len(), 2000);
         assert_eq!(entry.output, output);
     }
+
+    #[test]
+    fn test_memory_store_get_mut() {
+        let temp_dir = TempDir::new().unwrap();
+        let req_id = RequirementId::new(1);
+
+        let mut store = MemoryStore::new(temp_dir.path(), req_id).unwrap();
+        store.store(MemoryEntry::new("agent-1".to_string(), "original".to_string())).unwrap();
+
+        // Get mutable reference and modify
+        let entry = store.get_mut("agent-1").unwrap();
+        entry.output = "modified".to_string();
+
+        // Verify modification
+        let entry = store.get("agent-1").unwrap();
+        assert_eq!(entry.output, "modified");
+    }
+
+    #[test]
+    fn test_memory_store_get_mut_not_found() {
+        let temp_dir = TempDir::new().unwrap();
+        let req_id = RequirementId::new(1);
+
+        let mut store = MemoryStore::new(temp_dir.path(), req_id).unwrap();
+        let result = store.get_mut("nonexistent");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_memory_store_all_entries() {
+        let temp_dir = TempDir::new().unwrap();
+        let req_id = RequirementId::new(1);
+
+        let mut store = MemoryStore::new(temp_dir.path(), req_id).unwrap();
+        store.store(MemoryEntry::new("agent-1".to_string(), "output1".to_string())).unwrap();
+        store.store(MemoryEntry::new("agent-2".to_string(), "output2".to_string())).unwrap();
+
+        let all = store.all_entries();
+        assert_eq!(all.len(), 2);
+        assert!(all.contains_key("agent-1"));
+        assert!(all.contains_key("agent-2"));
+        assert_eq!(all.get("agent-1").unwrap().output, "output1");
+        assert_eq!(all.get("agent-2").unwrap().output, "output2");
+    }
+
+    #[test]
+    fn test_memory_entry_unicode_output() {
+        let unicode_output = "Hello 世界 🌍 émojis";
+        let entry = MemoryEntry::new("test-agent".to_string(), unicode_output.to_string());
+        assert_eq!(entry.output, unicode_output);
+    }
+
+    #[test]
+    fn test_memory_store_unicode_agent_id() {
+        let temp_dir = TempDir::new().unwrap();
+        let req_id = RequirementId::new(1);
+
+        let mut store = MemoryStore::new(temp_dir.path(), req_id).unwrap();
+        let unicode_id = "agent-世界";
+
+        store.store(MemoryEntry::new(unicode_id.to_string(), "output".to_string())).unwrap();
+
+        let entry = store.get(unicode_id).unwrap();
+        assert_eq!(entry.agent_id, unicode_id);
+    }
+
+    #[test]
+    fn test_memory_store_special_char_agent_id() {
+        let temp_dir = TempDir::new().unwrap();
+        let req_id = RequirementId::new(1);
+
+        let mut store = MemoryStore::new(temp_dir.path(), req_id).unwrap();
+        let special_id = "agent-with-dashes_and_underscores.123";
+
+        store.store(MemoryEntry::new(special_id.to_string(), "output".to_string())).unwrap();
+
+        let entry = store.get(special_id).unwrap();
+        assert_eq!(entry.agent_id, special_id);
+    }
+
+    #[test]
+    fn test_memory_store_clear_empty() {
+        let temp_dir = TempDir::new().unwrap();
+        let req_id = RequirementId::new(1);
+
+        let mut store = MemoryStore::new(temp_dir.path(), req_id).unwrap();
+        assert_eq!(store.list_agents().len(), 0);
+
+        // Clearing empty store should succeed
+        let result = store.clear();
+        assert!(result.is_ok());
+        assert_eq!(store.list_agents().len(), 0);
+    }
+
+    #[test]
+    fn test_memory_entry_multiple_metadata() {
+        let entry = MemoryEntry::new("test-agent".to_string(), "output".to_string())
+            .with_metadata("key1".to_string(), "value1".to_string())
+            .with_metadata("key2".to_string(), "value2".to_string())
+            .with_metadata("key3".to_string(), "value3".to_string())
+            .with_metadata("key4".to_string(), "value4".to_string());
+
+        assert_eq!(entry.metadata.len(), 4);
+        assert_eq!(entry.metadata.get("key1"), Some(&"value1".to_string()));
+        assert_eq!(entry.metadata.get("key2"), Some(&"value2".to_string()));
+        assert_eq!(entry.metadata.get("key3"), Some(&"value3".to_string()));
+        assert_eq!(entry.metadata.get("key4"), Some(&"value4".to_string()));
+    }
+
+    #[test]
+    fn test_memory_store_all_entries_empty() {
+        let temp_dir = TempDir::new().unwrap();
+        let req_id = RequirementId::new(1);
+
+        let store = MemoryStore::new(temp_dir.path(), req_id).unwrap();
+        let all = store.all_entries();
+        assert_eq!(all.len(), 0);
+    }
+
+    #[test]
+    fn test_memory_entry_long_agent_id() {
+        let long_id = "a".repeat(200);
+        let entry = MemoryEntry::new(long_id.clone(), "output".to_string());
+        assert_eq!(entry.agent_id, long_id);
+    }
+
+    #[test]
+    fn test_memory_store_overwrite_with_different_metadata() {
+        let temp_dir = TempDir::new().unwrap();
+        let req_id = RequirementId::new(1);
+
+        let mut store = MemoryStore::new(temp_dir.path(), req_id).unwrap();
+
+        // Store with metadata
+        let entry1 = MemoryEntry::new("agent-1".to_string(), "output1".to_string())
+            .with_metadata("old_key".to_string(), "old_value".to_string());
+        store.store(entry1).unwrap();
+
+        // Overwrite with different metadata
+        let entry2 = MemoryEntry::new("agent-1".to_string(), "output2".to_string())
+            .with_metadata("new_key".to_string(), "new_value".to_string());
+        store.store(entry2).unwrap();
+
+        let retrieved = store.get("agent-1").unwrap();
+        assert_eq!(retrieved.output, "output2");
+        assert_eq!(retrieved.metadata.get("new_key"), Some(&"new_value".to_string()));
+        assert_eq!(retrieved.metadata.get("old_key"), None);
+    }
 }

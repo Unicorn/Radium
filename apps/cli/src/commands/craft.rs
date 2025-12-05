@@ -9,7 +9,6 @@ use radium_core::{
     Workspace,
 };
 use radium_models::ModelFactory;
-use std::sync::Arc;
 
 /// Execute the craft command.
 ///
