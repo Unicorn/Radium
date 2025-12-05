@@ -353,3 +353,167 @@ The plan is complete when:
         task_count = plan.iterations.iter().map(|i| i.tasks.len()).sum::<usize>()
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::planning::parser::{ParsedIteration, ParsedPlan, ParsedTask};
+    use std::fs;
+    use tempfile::TempDir;
+
+    fn create_test_plan() -> ParsedPlan {
+        ParsedPlan {
+            project_name: "Test Project".to_string(),
+            description: Some("A test project".to_string()),
+            tech_stack: vec!["Rust".to_string(), "SQLite".to_string()],
+            iterations: vec![
+                ParsedIteration {
+                    number: 1,
+                    name: "Iteration 1: Setup".to_string(),
+                    description: Some("Setup phase".to_string()),
+                    goal: Some("Initialize project".to_string()),
+                    tasks: vec![ParsedTask {
+                        number: 1,
+                        title: "Create repo".to_string(),
+                        description: Some("Initialize repository".to_string()),
+                        agent_id: Some("setup-agent".to_string()),
+                        dependencies: vec![],
+                        acceptance_criteria: vec!["Repo created".to_string()],
+                    }],
+                },
+                ParsedIteration {
+                    number: 2,
+                    name: "Iteration 2: Development".to_string(),
+                    description: None,
+                    goal: None,
+                    tasks: vec![ParsedTask {
+                        number: 1,
+                        title: "Implement feature".to_string(),
+                        description: None,
+                        agent_id: None,
+                        dependencies: vec!["I1.T1".to_string()],
+                        acceptance_criteria: vec![],
+                    }],
+                },
+            ],
+        }
+    }
+
+    #[test]
+    fn test_generate_plan_files() {
+        let temp_dir = TempDir::new().unwrap();
+        let plan = create_test_plan();
+
+        generate_plan_files(temp_dir.path(), &plan).unwrap();
+
+        let plan_subdir = temp_dir.path().join("plan");
+        assert!(plan_subdir.exists());
+        assert!(plan_subdir.join("01_Plan_Overview_and_Setup.md").exists());
+        assert!(plan_subdir.join("02_Iteration_I1.md").exists());
+        assert!(plan_subdir.join("02_Iteration_I2.md").exists());
+        assert!(plan_subdir.join("03_Verification_and_Glossary.md").exists());
+        assert!(plan_subdir.join("coordinator-prompt.md").exists());
+    }
+
+    #[test]
+    fn test_generate_overview() {
+        let plan = create_test_plan();
+        let overview = generate_overview(&plan);
+
+        assert!(overview.contains("Test Project"));
+        assert!(overview.contains("A test project"));
+        assert!(overview.contains("Rust"));
+        assert!(overview.contains("SQLite"));
+        assert!(overview.contains("Iteration 1: Setup"));
+        assert!(overview.contains("Initialize project"));
+    }
+
+    #[test]
+    fn test_generate_overview_empty_tech_stack() {
+        let plan = ParsedPlan {
+            project_name: "Minimal".to_string(),
+            description: None,
+            tech_stack: vec![],
+            iterations: vec![],
+        };
+        let overview = generate_overview(&plan);
+
+        assert!(overview.contains("No tech stack specified"));
+    }
+
+    #[test]
+    fn test_generate_iteration_doc() {
+        let iteration = ParsedIteration {
+            number: 1,
+            name: "Test Iteration".to_string(),
+            description: Some("Test description".to_string()),
+            goal: Some("Test goal".to_string()),
+            tasks: vec![ParsedTask {
+                number: 1,
+                title: "Task 1".to_string(),
+                description: Some("First task".to_string()),
+                agent_id: Some("test-agent".to_string()),
+                dependencies: vec!["I0.T1".to_string()],
+                acceptance_criteria: vec!["Done".to_string()],
+            }],
+        };
+
+        let doc = generate_iteration_doc(&iteration, 1);
+
+        assert!(doc.contains("Iteration 1: Test Iteration"));
+        assert!(doc.contains("Test goal"));
+        assert!(doc.contains("Task 1"));
+        assert!(doc.contains("test-agent"));
+        assert!(doc.contains("I0.T1"));
+        assert!(doc.contains("Done"));
+    }
+
+    #[test]
+    fn test_generate_iteration_doc_minimal_task() {
+        let iteration = ParsedIteration {
+            number: 1,
+            name: "Minimal".to_string(),
+            description: None,
+            goal: None,
+            tasks: vec![ParsedTask {
+                number: 1,
+                title: "Basic".to_string(),
+                description: None,
+                agent_id: None,
+                dependencies: vec![],
+                acceptance_criteria: vec![],
+            }],
+        };
+
+        let doc = generate_iteration_doc(&iteration, 1);
+
+        assert!(doc.contains("Basic"));
+        assert!(doc.contains("auto"));
+        assert!(doc.contains("None"));
+        assert!(doc.contains("No goal specified"));
+        assert!(doc.contains("No description provided"));
+    }
+
+    #[test]
+    fn test_generate_verification() {
+        let plan = create_test_plan();
+        let verification = generate_verification(&plan);
+
+        assert!(verification.contains("2 iterations"));
+        assert!(verification.contains("2 tasks"));
+        assert!(verification.contains("Glossary"));
+        assert!(verification.contains("Troubleshooting"));
+    }
+
+    #[test]
+    fn test_generate_coordinator_prompt() {
+        let plan = create_test_plan();
+        let prompt = generate_coordinator_prompt(&plan);
+
+        assert!(prompt.contains("Test Project"));
+        assert!(prompt.contains("2")); // iteration count
+        assert!(prompt.contains("Role"));
+        assert!(prompt.contains("coordinator agent"));
+        assert!(prompt.contains("Execution Guidelines"));
+    }
+}

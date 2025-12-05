@@ -368,4 +368,118 @@ Goal: Set up the project foundation
         let plan = PlanParser::parse(response).unwrap();
         assert_eq!(plan.tech_stack, vec!["Rust", "PostgreSQL", "Docker"]);
     }
+
+    #[test]
+    fn test_parse_multiple_iterations() {
+        let response = r#"# Multi-Iteration Project
+
+Planning phase with multiple iterations.
+
+## Iteration 1: Foundation
+
+Goal: Build core infrastructure
+
+1. **Setup project** - Initialize codebase
+   - Agent: init-agent
+
+## Iteration 2: Features
+
+Goal: Implement main features
+
+1. **Add feature A** - First feature
+   - Agent: feature-agent
+   - Dependencies: I1.T1
+
+2. **Add feature B** - Second feature
+   - Agent: feature-agent
+   - Dependencies: I2.T1
+"#;
+
+        let plan = PlanParser::parse(response).unwrap();
+        assert_eq!(plan.iterations.len(), 2);
+        assert_eq!(plan.iterations[0].name, "Iteration 1: Foundation");
+        assert_eq!(plan.iterations[1].name, "Iteration 2: Features");
+        assert_eq!(plan.iterations[0].tasks.len(), 1);
+        assert_eq!(plan.iterations[1].tasks.len(), 2);
+    }
+
+    #[test]
+    fn test_parse_task_without_optional_fields() {
+        let response = r#"# Minimal Project
+
+## Iteration 1: Start
+
+1. **Basic task** - Just a simple task
+"#;
+
+        let plan = PlanParser::parse(response).unwrap();
+        let task = &plan.iterations[0].tasks[0];
+        assert_eq!(task.title, "Basic task");
+        assert_eq!(task.agent_id, None);
+        assert!(task.dependencies.is_empty());
+        assert!(task.acceptance_criteria.is_empty());
+    }
+
+    #[test]
+    fn test_parse_multiple_acceptance_criteria() {
+        let response = r#"# Project
+
+## Iteration 1: Test
+
+1. **Complex task** - Task with multiple criteria
+   - Acceptance: First criterion
+   - Acceptance: Second criterion
+   - Acceptance: Third criterion
+"#;
+
+        let plan = PlanParser::parse(response).unwrap();
+        let task = &plan.iterations[0].tasks[0];
+        assert_eq!(task.acceptance_criteria.len(), 3);
+        assert_eq!(task.acceptance_criteria[0], "First criterion");
+        assert_eq!(task.acceptance_criteria[1], "Second criterion");
+        assert_eq!(task.acceptance_criteria[2], "Third criterion");
+    }
+
+    #[test]
+    fn test_parse_complex_dependencies() {
+        let response = r#"# Project
+
+## Iteration 1: Test
+
+1. **Task with deps** - Multiple dependencies
+   - Dependencies: I1.T1, I1.T2, I2.T1
+"#;
+
+        let plan = PlanParser::parse(response).unwrap();
+        let task = &plan.iterations[0].tasks[0];
+        assert_eq!(task.dependencies, vec!["I1.T1", "I1.T2", "I2.T1"]);
+    }
+
+    #[test]
+    fn test_parse_error_missing_project_name() {
+        let response = r#"## Iteration 1: Test
+
+1. **Task** - Description
+"#;
+
+        let result = PlanParser::parse(response);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("project name"));
+    }
+
+    #[test]
+    fn test_parse_empty_input() {
+        let response = "";
+        let result = PlanParser::parse(response);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_project_name_only() {
+        let response = "# Solo Project";
+        let result = PlanParser::parse(response);
+        // Parser requires at least one iteration
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("No iterations found"));
+    }
 }
