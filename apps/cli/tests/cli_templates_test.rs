@@ -21,19 +21,20 @@ fn create_test_template(temp_dir: &TempDir, template_name: &str) {
     let templates_dir = temp_dir.path().join("templates");
     fs::create_dir_all(&templates_dir).unwrap();
 
+    // Use the correct WorkflowTemplate structure (matching basic-workflow.json format)
     let template_content = format!(
         r#"{{
   "name": "{}",
   "description": "A test workflow template",
   "steps": [
     {{
-      "id": "step-1",
-      "name": "Step 1",
-      "description": "First step",
-      "task_id": "task-1",
-      "order": 0
+      "agentId": "test-agent",
+      "agentName": "Test Agent",
+      "type": "step",
+      "executeOnce": false
     }}
-  ]
+  ],
+  "subAgentIds": ["test-agent"]
 }}
 "#,
         template_name
