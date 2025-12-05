@@ -36,6 +36,18 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
 
 ### Completed Recently
 
+- [x] **Planning Module Test Enhancement**: Expanded test coverage to Excellent tier
+  - **Completed:** 2025-12-05
+  - **Commit:** test(planning): add comprehensive edge case tests to planning module [RAD-TEST]
+  - **Tests Added:** 10 new tests (9 parser, 1 generator)
+  - **Coverage:** Planning module 31 → 40 tests (reached Excellent tier)
+  - **Total Tests:** 827 passing (722 radium-core, 59 CLI, 36 TUI, 10 models)
+  - **Focus Areas:**
+    - Parser edge cases: tech stack variants, keyword variations, missing fields
+    - Whitespace handling and robustness
+    - Non-sequential task number handling
+    - Prompt structure validation
+  - **Result:** 9 of 17 modules now at Excellent tier (40+ tests)
 - [x] **Step 9.3: Agent Creation Guide**: Comprehensive documentation for agent development
   - **Completed:** 2025-12-04
   - **Commit:** docs(agents): add comprehensive agent creation guide (Step 9.3) [RAD-DOCS]
@@ -194,17 +206,17 @@ Previous blockers resolved:
 
 ## 📊 Test Coverage Status
 
-**Last Updated:** 2025-12-04
+**Last Updated:** 2025-12-05
 **Test Suite Status:** ✅ All tests passing
 
 ### Summary
 
-- **Total Tests**: 819 passing (712 radium-core, 59 CLI, 36 TUI, 12 client), 0 failed, 2 ignored (manual execution)
+- **Total Tests**: 827 passing (722 radium-core, 59 CLI, 36 TUI, 10 models), 0 failed, 2 ignored (manual execution)
 - **Unit Tests**: ✅ Comprehensive coverage across all core modules
 - **Integration Tests**: ✅ Core workflows tested
 - **E2E Tests**: ⚠️ Manual execution required (2 marked as ignored)
 
-### Coverage by Module (radium-core: 712 tests)
+### Coverage by Module (radium-core: 722 tests)
 
 | Module | Tests | Coverage Level | Status |
 |--------|-------|----------------|--------|
@@ -214,8 +226,8 @@ Previous blockers resolved:
 | Storage | 56 | Excellent (40+) | ✅ |
 | Sandbox | 52 | Excellent (40+) | ✅ |
 | Context | 51 | Excellent (40+) | ✅ |
+| Planning | 40 | Excellent (40+) | ✅ |
 | Agents | 40 | Excellent (40+) | ✅ |
-| Planning | 30 | Good (approaching 40+) | ✅ |
 | Memory | 29 | Good (approaching 40+) | ✅ |
 | Monitoring | 29 | Good (approaching 40+) | ✅ |
 | Engines | 23 | Good (15-20+) | ✅ |
