@@ -427,4 +427,116 @@ mod tests {
         let total_cost = service.get_total_cost("agent-1").unwrap();
         assert!((total_cost - 2.0).abs() < 0.01);
     }
+
+    #[test]
+    fn test_telemetry_record_with_cache_stats() {
+        let record = TelemetryRecord::new("agent-1".to_string())
+            .with_cache_stats(100, 50, 25);
+
+        assert_eq!(record.cached_tokens, 100);
+        assert_eq!(record.cache_creation_tokens, 50);
+        assert_eq!(record.cache_read_tokens, 25);
+    }
+
+    #[test]
+    fn test_telemetry_record_with_model() {
+        let record = TelemetryRecord::new("agent-1".to_string())
+            .with_model("gpt-4".to_string(), "openai".to_string());
+
+        assert_eq!(record.model, Some("gpt-4".to_string()));
+        assert_eq!(record.provider, Some("openai".to_string()));
+    }
+
+    #[test]
+    fn test_calculate_cost_gpt4() {
+        let mut record = TelemetryRecord::new("agent-1".to_string())
+            .with_tokens(1_000_000, 1_000_000)
+            .with_model("gpt-4".to_string(), "openai".to_string());
+
+        record.calculate_cost();
+
+        // GPT-4: $30 input + $60 output = $90 per 1M tokens
+        assert!((record.estimated_cost - 90.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_calculate_cost_claude_opus() {
+        let mut record = TelemetryRecord::new("agent-1".to_string())
+            .with_tokens(1_000_000, 1_000_000)
+            .with_model("claude-3-opus".to_string(), "anthropic".to_string());
+
+        record.calculate_cost();
+
+        // Claude Opus: $15 input + $75 output = $90 per 1M tokens
+        assert!((record.estimated_cost - 90.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_calculate_cost_claude_haiku() {
+        let mut record = TelemetryRecord::new("agent-1".to_string())
+            .with_tokens(1_000_000, 1_000_000)
+            .with_model("claude-3-haiku".to_string(), "anthropic".to_string());
+
+        record.calculate_cost();
+
+        // Claude Haiku: $0.25 input + $1.25 output = $1.50 per 1M tokens
+        assert!((record.estimated_cost - 1.5).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_calculate_cost_zero_tokens() {
+        let mut record = TelemetryRecord::new("agent-1".to_string())
+            .with_tokens(0, 0)
+            .with_model("gpt-3.5-turbo".to_string(), "openai".to_string());
+
+        record.calculate_cost();
+
+        assert_eq!(record.estimated_cost, 0.0);
+    }
+
+    #[test]
+    fn test_calculate_cost_unknown_model() {
+        let mut record = TelemetryRecord::new("agent-1".to_string())
+            .with_tokens(1_000_000, 1_000_000)
+            .with_model("unknown-model".to_string(), "unknown".to_string());
+
+        record.calculate_cost();
+
+        // Default fallback: $1 input + $2 output = $3 per 1M tokens
+        assert!((record.estimated_cost - 3.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_parse_openai_invalid_json() {
+        let result = TelemetryParser::parse_openai("invalid json");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_anthropic_invalid_json() {
+        let result = TelemetryParser::parse_anthropic("invalid json");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_gemini_invalid_json() {
+        let result = TelemetryParser::parse_gemini("invalid json");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_telemetry_builder_pattern_chaining() {
+        let mut record = TelemetryRecord::new("agent-1".to_string())
+            .with_tokens(100, 50)
+            .with_cache_stats(10, 5, 3)
+            .with_model("gpt-3.5-turbo".to_string(), "openai".to_string());
+
+        record.calculate_cost();
+
+        assert_eq!(record.input_tokens, 100);
+        assert_eq!(record.output_tokens, 50);
+        assert_eq!(record.cached_tokens, 10);
+        assert_eq!(record.model, Some("gpt-3.5-turbo".to_string()));
+        assert!(record.estimated_cost > 0.0);
+    }
 }
