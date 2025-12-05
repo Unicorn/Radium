@@ -262,4 +262,58 @@ mod tests {
         // Should end with 'y's
         assert!(read_entry.output.ends_with(&"y".repeat(200)));
     }
+
+    #[tokio::test]
+    async fn test_file_adapter_read_nonexistent() {
+        let temp_dir = TempDir::new().unwrap();
+        let adapter = FileAdapter::new(temp_dir.path()).unwrap();
+
+        let result = adapter.read("nonexistent-agent").await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_file_adapter_list_empty() {
+        let temp_dir = TempDir::new().unwrap();
+        let adapter = FileAdapter::new(temp_dir.path()).unwrap();
+
+        let agents = adapter.list().await.unwrap();
+        assert_eq!(agents.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_file_adapter_delete_nonexistent() {
+        let temp_dir = TempDir::new().unwrap();
+        let adapter = FileAdapter::new(temp_dir.path()).unwrap();
+
+        // Delete should succeed even if file doesn't exist
+        let result = adapter.delete("nonexistent-agent").await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_file_adapter_append_creates_if_missing() {
+        let temp_dir = TempDir::new().unwrap();
+        let adapter = FileAdapter::new(temp_dir.path()).unwrap();
+
+        // Append to non-existent agent should create it
+        adapter.append("new-agent", "content").await.unwrap();
+
+        let entry = adapter.read("new-agent").await.unwrap();
+        assert_eq!(entry.agent_id, "new-agent");
+        assert_eq!(entry.output, "content");
+    }
+
+    #[tokio::test]
+    async fn test_file_adapter_multiple_appends() {
+        let temp_dir = TempDir::new().unwrap();
+        let adapter = FileAdapter::new(temp_dir.path()).unwrap();
+
+        adapter.append("agent", "part1").await.unwrap();
+        adapter.append("agent", " part2").await.unwrap();
+        adapter.append("agent", " part3").await.unwrap();
+
+        let entry = adapter.read("agent").await.unwrap();
+        assert_eq!(entry.output, "part1 part2 part3");
+    }
 }

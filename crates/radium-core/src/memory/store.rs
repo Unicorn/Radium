@@ -365,4 +365,97 @@ mod tests {
         let result = MemoryStore::open(temp_dir.path(), req_id);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_memory_store_multiple_entries_same_agent() {
+        let temp_dir = TempDir::new().unwrap();
+        let req_id = RequirementId::new(1);
+
+        let mut store = MemoryStore::new(temp_dir.path(), req_id).unwrap();
+
+        // Store first entry
+        store.store(MemoryEntry::new("agent-1".to_string(), "first output".to_string())).unwrap();
+
+        // Store second entry for same agent (should replace)
+        store.store(MemoryEntry::new("agent-1".to_string(), "second output".to_string())).unwrap();
+
+        let entry = store.get("agent-1").unwrap();
+        assert_eq!(entry.output, "second output");
+        assert_eq!(store.list_agents().len(), 1);
+    }
+
+    #[test]
+    fn test_memory_entry_empty_output() {
+        let entry = MemoryEntry::new("test-agent".to_string(), String::new());
+        assert_eq!(entry.agent_id, "test-agent");
+        assert!(entry.output.is_empty());
+    }
+
+    #[test]
+    fn test_memory_store_empty_list() {
+        let temp_dir = TempDir::new().unwrap();
+        let req_id = RequirementId::new(1);
+
+        let store = MemoryStore::new(temp_dir.path(), req_id).unwrap();
+        assert_eq!(store.list_agents().len(), 0);
+    }
+
+    #[test]
+    fn test_memory_store_metadata_persistence() {
+        let temp_dir = TempDir::new().unwrap();
+        let req_id = RequirementId::new(1);
+
+        // Create store with metadata
+        {
+            let mut store = MemoryStore::new(temp_dir.path(), req_id).unwrap();
+            let entry = MemoryEntry::new("agent-1".to_string(), "output".to_string())
+                .with_metadata("key".to_string(), "value".to_string());
+            store.store(entry).unwrap();
+        }
+
+        // Verify metadata persisted
+        {
+            let store = MemoryStore::open(temp_dir.path(), req_id).unwrap();
+            let entry = store.get("agent-1").unwrap();
+            assert_eq!(entry.metadata.get("key"), Some(&"value".to_string()));
+        }
+    }
+
+    #[test]
+    fn test_memory_store_requirement_id_isolation() {
+        let temp_dir = TempDir::new().unwrap();
+        let req_id_1 = RequirementId::new(1);
+        let req_id_2 = RequirementId::new(2);
+
+        // Store in req_id_1
+        {
+            let mut store1 = MemoryStore::new(temp_dir.path(), req_id_1).unwrap();
+            store1.store(MemoryEntry::new("agent-1".to_string(), "output1".to_string())).unwrap();
+        }
+
+        // Store in req_id_2
+        {
+            let mut store2 = MemoryStore::new(temp_dir.path(), req_id_2).unwrap();
+            store2.store(MemoryEntry::new("agent-1".to_string(), "output2".to_string())).unwrap();
+        }
+
+        // Verify isolation
+        {
+            let store1 = MemoryStore::open(temp_dir.path(), req_id_1).unwrap();
+            let entry1 = store1.get("agent-1").unwrap();
+            assert_eq!(entry1.output, "output1");
+
+            let store2 = MemoryStore::open(temp_dir.path(), req_id_2).unwrap();
+            let entry2 = store2.get("agent-1").unwrap();
+            assert_eq!(entry2.output, "output2");
+        }
+    }
+
+    #[test]
+    fn test_memory_entry_exact_limit() {
+        let output = "x".repeat(2000);
+        let entry = MemoryEntry::new("test-agent".to_string(), output.clone());
+        assert_eq!(entry.output.len(), 2000);
+        assert_eq!(entry.output, output);
+    }
 }
