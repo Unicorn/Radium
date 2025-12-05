@@ -36,6 +36,19 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
 
 ### Completed Recently
 
+- [x] **Monitoring Module Test Enhancement**: Expanded test coverage to Excellent tier
+  - **Completed:** 2025-12-05
+  - **Commit:** test(monitoring): add comprehensive tests to monitoring module [RAD-TEST]
+  - **Tests Added:** 11 new tests to telemetry.rs
+  - **Coverage:** Monitoring module 29 → 40 tests (reached Excellent tier)
+  - **Total Tests:** 849 passing (744 radium-core, 59 CLI, 36 TUI, 10 models)
+  - **Focus Areas:**
+    - Previously untested methods: with_cache_stats(), with_model()
+    - Model-specific cost calculations (GPT-4, Claude Opus, Claude Haiku)
+    - Zero tokens and unknown model edge cases
+    - Invalid JSON parsing error handling
+    - Full builder pattern chaining validation
+  - **Result:** 11 of 17 modules now at Excellent tier (40+ tests)
 - [x] **Memory Module Test Enhancement**: Expanded test coverage to Excellent tier
   - **Completed:** 2025-12-05
   - **Commit:** test(memory): add comprehensive tests to memory module [RAD-TEST]
@@ -223,12 +236,12 @@ Previous blockers resolved:
 
 ### Summary
 
-- **Total Tests**: 838 passing (733 radium-core, 59 CLI, 36 TUI, 10 models), 0 failed, 2 ignored (manual execution)
+- **Total Tests**: 849 passing (744 radium-core, 59 CLI, 36 TUI, 10 models), 0 failed, 2 ignored (manual execution)
 - **Unit Tests**: ✅ Comprehensive coverage across all core modules
 - **Integration Tests**: ✅ Core workflows tested
 - **E2E Tests**: ⚠️ Manual execution required (2 marked as ignored)
 
-### Coverage by Module (radium-core: 733 tests)
+### Coverage by Module (radium-core: 744 tests)
 
 | Module | Tests | Coverage Level | Status |
 |--------|-------|----------------|--------|
@@ -239,9 +252,9 @@ Previous blockers resolved:
 | Sandbox | 52 | Excellent (40+) | ✅ |
 | Context | 51 | Excellent (40+) | ✅ |
 | Memory | 47 | Excellent (40+) | ✅ |
+| Monitoring | 40 | Excellent (40+) | ✅ |
 | Planning | 40 | Excellent (40+) | ✅ |
 | Agents | 40 | Excellent (40+) | ✅ |
-| Monitoring | 29 | Good (approaching 40+) | ✅ |
 | Engines | 23 | Good (15-20+) | ✅ |
 | Workspace | 22 | Good (15-20+) | ✅ |
 | Policy | 21 | Good (15-20+) | ✅ |
