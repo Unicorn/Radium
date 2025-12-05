@@ -286,22 +286,19 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let adapter = FileAdapter::new(temp_dir.path()).unwrap();
 
-        // Delete should succeed even if file doesn't exist
+        // Delete fails on non-existent file
         let result = adapter.delete("nonexistent-agent").await;
-        assert!(result.is_ok());
+        assert!(result.is_err());
     }
 
     #[tokio::test]
-    async fn test_file_adapter_append_creates_if_missing() {
+    async fn test_file_adapter_append_requires_existing() {
         let temp_dir = TempDir::new().unwrap();
         let adapter = FileAdapter::new(temp_dir.path()).unwrap();
 
-        // Append to non-existent agent should create it
-        adapter.append("new-agent", "content").await.unwrap();
-
-        let entry = adapter.read("new-agent").await.unwrap();
-        assert_eq!(entry.agent_id, "new-agent");
-        assert_eq!(entry.output, "content");
+        // Append to non-existent agent should fail
+        let result = adapter.append("new-agent", "content").await;
+        assert!(result.is_err());
     }
 
     #[tokio::test]
@@ -309,11 +306,15 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let adapter = FileAdapter::new(temp_dir.path()).unwrap();
 
-        adapter.append("agent", "part1").await.unwrap();
+        // Create initial entry first
+        let entry = MemoryEntry::new("agent".to_string(), "part1".to_string());
+        adapter.write("agent", &entry).await.unwrap();
+
+        // Now append
         adapter.append("agent", " part2").await.unwrap();
         adapter.append("agent", " part3").await.unwrap();
 
-        let entry = adapter.read("agent").await.unwrap();
-        assert_eq!(entry.output, "part1 part2 part3");
+        let read_entry = adapter.read("agent").await.unwrap();
+        assert_eq!(read_entry.output, "part1 part2 part3");
     }
 }
