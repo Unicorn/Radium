@@ -257,4 +257,54 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn test_no_sandbox_default() {
+        let sandbox = NoSandbox::default();
+        assert_eq!(sandbox.sandbox_type(), SandboxType::None);
+    }
+
+    #[tokio::test]
+    async fn test_no_sandbox_execute_with_stderr() {
+        let sandbox = NoSandbox::new();
+        // Command that outputs to stderr
+        let output = sandbox
+            .execute("sh", &["-c".to_string(), "echo error >&2".to_string()], None)
+            .await
+            .unwrap();
+
+        assert!(output.status.success());
+        let stderr_str = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        assert_eq!(stderr_str, "error");
+    }
+
+    #[tokio::test]
+    async fn test_no_sandbox_execute_exit_code() {
+        let sandbox = NoSandbox::new();
+        let output =
+            sandbox.execute("sh", &["-c".to_string(), "exit 42".to_string()], None).await.unwrap();
+
+        assert!(!output.status.success());
+        assert_eq!(output.status.code(), Some(42));
+    }
+
+    #[tokio::test]
+    async fn test_no_sandbox_multiple_initializations() {
+        let mut sandbox = NoSandbox::new();
+
+        // Initialize multiple times should work
+        assert!(sandbox.initialize().await.is_ok());
+        assert!(sandbox.initialize().await.is_ok());
+        assert!(sandbox.initialize().await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_no_sandbox_multiple_cleanups() {
+        let mut sandbox = NoSandbox::new();
+
+        // Cleanup multiple times should work
+        assert!(sandbox.cleanup().await.is_ok());
+        assert!(sandbox.cleanup().await.is_ok());
+        assert!(sandbox.cleanup().await.is_ok());
+    }
 }

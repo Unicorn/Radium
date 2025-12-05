@@ -192,4 +192,79 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn test_docker_sandbox_get_image_default() {
+        let config = SandboxConfig::new(SandboxType::Docker);
+
+        if let Ok(sandbox) = DockerSandbox::new(config) {
+            let image = sandbox.get_image();
+            assert_eq!(image, "rust:latest");
+        }
+    }
+
+    #[test]
+    fn test_docker_sandbox_get_image_custom() {
+        let config =
+            SandboxConfig::new(SandboxType::Docker).with_image("alpine:latest".to_string());
+
+        if let Ok(sandbox) = DockerSandbox::new(config) {
+            let image = sandbox.get_image();
+            assert_eq!(image, "alpine:latest");
+        }
+    }
+
+    #[test]
+    fn test_docker_sandbox_build_args_network_open() {
+        let config = SandboxConfig::new(SandboxType::Docker).with_network(NetworkMode::Open);
+
+        if let Ok(sandbox) = DockerSandbox::new(config) {
+            let args = sandbox.build_run_args();
+            // Open network should not add network flags
+            assert!(!args.contains(&"--network=none".to_string()));
+            assert!(!args.contains(&"--network=host".to_string()));
+        }
+    }
+
+    #[test]
+    fn test_docker_sandbox_build_args_network_proxied() {
+        let config = SandboxConfig::new(SandboxType::Docker).with_network(NetworkMode::Proxied);
+
+        if let Ok(sandbox) = DockerSandbox::new(config) {
+            let args = sandbox.build_run_args();
+            assert!(args.contains(&"--network=host".to_string()));
+        }
+    }
+
+    #[test]
+    fn test_docker_sandbox_build_args_custom_flags() {
+        let flags = vec!["--privileged".to_string(), "--cap-add=SYS_ADMIN".to_string()];
+        let config = SandboxConfig::new(SandboxType::Docker).with_flags(flags.clone());
+
+        if let Ok(sandbox) = DockerSandbox::new(config) {
+            let args = sandbox.build_run_args();
+            assert!(args.contains(&"--privileged".to_string()));
+            assert!(args.contains(&"--cap-add=SYS_ADMIN".to_string()));
+        }
+    }
+
+    #[test]
+    fn test_docker_sandbox_type() {
+        let config = SandboxConfig::new(SandboxType::Docker);
+
+        if let Ok(sandbox) = DockerSandbox::new(config) {
+            assert_eq!(sandbox.sandbox_type(), SandboxType::Docker);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_docker_sandbox_cleanup() {
+        let config = SandboxConfig::new(SandboxType::Docker);
+
+        if let Ok(mut sandbox) = DockerSandbox::new(config) {
+            let result = sandbox.cleanup().await;
+            // Cleanup should always succeed (no-op with --rm)
+            assert!(result.is_ok());
+        }
+    }
 }

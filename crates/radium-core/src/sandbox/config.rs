@@ -286,4 +286,102 @@ mod tests {
         let config = SandboxConfig::new(SandboxType::None);
         assert!(config.custom_flags.is_empty());
     }
+
+    #[test]
+    fn test_sandbox_config_with_volumes() {
+        let volumes = vec!["/host1:/container1".to_string(), "/host2:/container2".to_string()];
+        let config = SandboxConfig::new(SandboxType::Docker).with_volumes(volumes.clone());
+
+        assert_eq!(config.volumes, volumes);
+        assert_eq!(config.volumes.len(), 2);
+    }
+
+    #[test]
+    fn test_sandbox_profile_custom() {
+        let custom_profile = SandboxProfile::Custom("/path/to/profile.sb".to_string());
+        let config = SandboxConfig::new(SandboxType::Seatbelt).with_profile(custom_profile.clone());
+
+        assert_eq!(config.profile, custom_profile);
+        if let SandboxProfile::Custom(path) = config.profile {
+            assert_eq!(path, "/path/to/profile.sb");
+        } else {
+            panic!("Expected Custom profile");
+        }
+    }
+
+    #[test]
+    fn test_sandbox_config_full_deserialization() {
+        let json = r#"{
+            "sandbox_type": "docker",
+            "profile": "restrictive",
+            "network": "closed",
+            "custom_flags": ["--flag1", "--flag2"],
+            "env": {"KEY": "value"},
+            "working_dir": "/app",
+            "volumes": ["/host:/container"],
+            "image": "rust:latest"
+        }"#;
+
+        let config: SandboxConfig = serde_json::from_str(json).unwrap();
+
+        assert_eq!(config.sandbox_type, SandboxType::Docker);
+        assert_eq!(config.profile, SandboxProfile::Restrictive);
+        assert_eq!(config.network, NetworkMode::Closed);
+        assert_eq!(config.custom_flags.len(), 2);
+        assert_eq!(config.env.get("KEY"), Some(&"value".to_string()));
+        assert_eq!(config.working_dir, Some("/app".to_string()));
+        assert_eq!(config.volumes.len(), 1);
+        assert_eq!(config.image, Some("rust:latest".to_string()));
+    }
+
+    #[test]
+    fn test_sandbox_config_partial_deserialization() {
+        let json = r#"{"sandbox_type": "seatbelt"}"#;
+        let config: SandboxConfig = serde_json::from_str(json).unwrap();
+
+        assert_eq!(config.sandbox_type, SandboxType::Seatbelt);
+        assert_eq!(config.profile, SandboxProfile::Permissive);
+        assert_eq!(config.network, NetworkMode::Open);
+        assert!(config.env.is_empty());
+        assert!(config.custom_flags.is_empty());
+    }
+
+    #[test]
+    fn test_network_mode_default() {
+        let network = NetworkMode::default();
+        assert_eq!(network, NetworkMode::Open);
+    }
+
+    #[test]
+    fn test_sandbox_profile_default() {
+        let profile = SandboxProfile::default();
+        assert_eq!(profile, SandboxProfile::Permissive);
+    }
+
+    #[test]
+    fn test_sandbox_config_empty_volumes() {
+        let config = SandboxConfig::default();
+        assert!(config.volumes.is_empty());
+    }
+
+    #[test]
+    fn test_sandbox_config_none_with_working_dir() {
+        let config =
+            SandboxConfig::new(SandboxType::None).with_working_dir("/workspace".to_string());
+
+        assert_eq!(config.working_dir, Some("/workspace".to_string()));
+    }
+
+    #[test]
+    fn test_sandbox_config_complex_env() {
+        let mut env = HashMap::new();
+        env.insert("PATH".to_string(), "/usr/local/bin:/usr/bin".to_string());
+        env.insert("HOME".to_string(), "/home/user".to_string());
+        env.insert("LANG".to_string(), "en_US.UTF-8".to_string());
+
+        let config = SandboxConfig::new(SandboxType::Docker).with_env(env.clone());
+
+        assert_eq!(config.env.len(), 3);
+        assert_eq!(config.env.get("PATH"), Some(&"/usr/local/bin:/usr/bin".to_string()));
+    }
 }
