@@ -87,7 +87,7 @@ pub async fn execute(path: Option<String>, use_defaults: bool) -> Result<()> {
             println!("  ✓ Created .radium directory");
             println!("  ✓ Created _internals directory");
             println!("  ✓ Created plan directory structure (backlog, development, etc.)");
-        },
+        }
         Err(e) => {
             anyhow::bail!("Failed to create workspace: {}", e);
         }

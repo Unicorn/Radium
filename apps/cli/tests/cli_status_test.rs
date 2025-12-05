@@ -8,11 +8,7 @@ use tempfile::TempDir;
 fn init_workspace(temp_dir: &TempDir) {
     let temp_path = temp_dir.path().to_str().unwrap();
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    cmd.arg("init")
-        .arg("--use-defaults")
-        .arg(temp_path)
-        .assert()
-        .success();
+    cmd.arg("init").arg("--use-defaults").arg(temp_path).assert().success();
 }
 
 #[test]
@@ -48,19 +44,15 @@ fn test_status_json_output() {
     init_workspace(&temp_dir);
 
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    let assert = cmd.current_dir(temp_dir.path())
-        .arg("status")
-        .arg("--json")
-        .assert()
-        .success();
+    let assert = cmd.current_dir(temp_dir.path()).arg("status").arg("--json").assert().success();
 
     let output = assert.get_output();
     let stdout = String::from_utf8_lossy(&output.stdout);
-    
+
     // Verify it's valid JSON
-    let json: serde_json::Value = serde_json::from_str(&stdout)
-        .expect("Status JSON output should be valid JSON");
-    
+    let json: serde_json::Value =
+        serde_json::from_str(&stdout).expect("Status JSON output should be valid JSON");
+
     // Verify JSON structure
     assert!(json.is_object(), "Status JSON should be an object");
     // The exact structure depends on implementation, but should have workspace info
@@ -108,4 +100,3 @@ fn test_status_in_subdirectory_of_workspace() {
         .success()
         .stdout(predicate::str::contains("Radium Status"));
 }
-

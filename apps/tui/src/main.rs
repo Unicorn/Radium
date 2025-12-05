@@ -17,7 +17,9 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use radium_tui::app::App;
 use radium_tui::navigation::View;
-use radium_tui::views::{render_agent_view, render_dashboard, render_task_view, render_workflow_view};
+use radium_tui::views::{
+    render_agent_view, render_dashboard, render_task_view, render_workflow_view,
+};
 
 /// Default server address
 const DEFAULT_SERVER_ADDR: &str = "http://127.0.0.1:50051";

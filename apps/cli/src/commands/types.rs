@@ -136,4 +136,3 @@ pub enum TemplatesCommand {
         verbose: bool,
     },
 }
-

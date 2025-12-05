@@ -250,10 +250,7 @@ mod tests {
 
         let mut metrics_cached = TokenMetrics::new();
         metrics_cached.add(1000, 500, 250);
-        assert_eq!(
-            metrics_cached.format(),
-            "1,000in / 500out / 250cached = 1,750 total"
-        );
+        assert_eq!(metrics_cached.format(), "1,000in / 500out / 250cached = 1,750 total");
     }
 
     #[test]

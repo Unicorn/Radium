@@ -15,9 +15,9 @@ impl TelemetryBar {
         let chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Percentage(40),  // Token info
-                Constraint::Percentage(30),  // Cost info
-                Constraint::Percentage(30),  // Model info
+                Constraint::Percentage(40), // Token info
+                Constraint::Percentage(30), // Cost info
+                Constraint::Percentage(30), // Model info
             ])
             .split(area);
 
@@ -70,12 +70,17 @@ impl TelemetryBar {
     }
 
     /// Renders an extended telemetry view with progress bar.
-    pub fn render_extended(frame: &mut Frame, area: Rect, telemetry: &TelemetryState, progress: u8) {
+    pub fn render_extended(
+        frame: &mut Frame,
+        area: Rect,
+        telemetry: &TelemetryState,
+        progress: u8,
+    ) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3),  // Progress bar
-                Constraint::Length(4),  // Telemetry info
+                Constraint::Length(3), // Progress bar
+                Constraint::Length(4), // Telemetry info
             ])
             .split(area);
 
@@ -86,7 +91,7 @@ impl TelemetryBar {
             .gauge_style(
                 Style::default()
                     .fg(if progress == 100 { Color::Green } else { Color::Blue })
-                    .bg(Color::Black)
+                    .bg(Color::Black),
             )
             .label(progress_label)
             .ratio(f64::from(progress) / 100.0);

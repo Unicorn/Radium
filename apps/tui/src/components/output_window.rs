@@ -15,8 +15,8 @@ impl OutputWindow {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Min(3),     // Output
-                Constraint::Length(1),  // Status line
+                Constraint::Min(3),    // Output
+                Constraint::Length(1), // Status line
             ])
             .split(area);
 
@@ -53,9 +53,7 @@ impl OutputWindow {
             Style::default().fg(Color::Yellow)
         };
 
-        let status = Paragraph::new(status_text)
-            .style(status_style)
-            .alignment(Alignment::Right);
+        let status = Paragraph::new(status_text).style(status_style).alignment(Alignment::Right);
         frame.render_widget(status, chunks[1]);
     }
 
@@ -64,18 +62,14 @@ impl OutputWindow {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(2),  // Title with scroll indicator
-                Constraint::Min(3),     // Output
-                Constraint::Length(1),  // Help text
+                Constraint::Length(2), // Title with scroll indicator
+                Constraint::Min(3),    // Output
+                Constraint::Length(1), // Help text
             ])
             .split(area);
 
         // Title with scroll indicator
-        let scroll_indicator = if buffer.is_at_bottom() {
-            "▼"
-        } else {
-            "▲"
-        };
+        let scroll_indicator = if buffer.is_at_bottom() { "▼" } else { "▲" };
 
         let title_text = format!(" {} {} ", title, scroll_indicator);
         let title_widget = Paragraph::new(title_text)

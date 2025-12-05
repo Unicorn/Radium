@@ -1,7 +1,7 @@
 //! Workflow dashboard view - enhanced TUI for workflow execution tracking.
 
-use crate::components::{AgentTimeline, OutputWindow, StatusFooter, TelemetryBar, LoopIndicator};
-use crate::state::{WorkflowUIState, WorkflowStatus};
+use crate::components::{AgentTimeline, LoopIndicator, OutputWindow, StatusFooter, TelemetryBar};
+use crate::state::{WorkflowStatus, WorkflowUIState};
 use ratatui::{
     prelude::*,
     widgets::{Block, Borders, Paragraph},
@@ -16,11 +16,11 @@ impl WorkflowDashboard {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3),   // Title
-                Constraint::Length(7),   // Telemetry
+                Constraint::Length(3),      // Title
+                Constraint::Length(7),      // Telemetry
                 Constraint::Percentage(40), // Agent timeline
                 Constraint::Percentage(40), // Output window
-                Constraint::Length(4),   // Status footer
+                Constraint::Length(4),      // Status footer
             ])
             .split(frame.area());
 
@@ -40,18 +40,10 @@ impl WorkflowDashboard {
         AgentTimeline::render(frame, chunks[2], &agents, None);
 
         // Output window
-        OutputWindow::render(
-            frame,
-            chunks[3],
-            &workflow_state.output_buffer,
-            "Workflow Output",
-        );
+        OutputWindow::render(frame, chunks[3], &workflow_state.output_buffer, "Workflow Output");
 
         // Status footer
-        let elapsed = workflow_state
-            .elapsed_time()
-            .map(|d| d.as_secs_f64())
-            .unwrap_or(0.0);
+        let elapsed = workflow_state.elapsed_time().map(|d| d.as_secs_f64()).unwrap_or(0.0);
 
         StatusFooter::render_extended(
             frame,
@@ -85,12 +77,12 @@ impl WorkflowDashboard {
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints([
-                    Constraint::Length(3),   // Title
-                    Constraint::Length(7),   // Telemetry
-                    Constraint::Length(8),   // Loop indicator
+                    Constraint::Length(3),      // Title
+                    Constraint::Length(7),      // Telemetry
+                    Constraint::Length(8),      // Loop indicator
                     Constraint::Percentage(30), // Agent timeline
                     Constraint::Percentage(30), // Output window
-                    Constraint::Length(4),   // Status footer
+                    Constraint::Length(4),      // Status footer
                 ])
                 .split(frame.area());
 
@@ -121,10 +113,7 @@ impl WorkflowDashboard {
             );
 
             // Status footer
-            let elapsed = workflow_state
-                .elapsed_time()
-                .map(|d| d.as_secs_f64())
-                .unwrap_or(0.0);
+            let elapsed = workflow_state.elapsed_time().map(|d| d.as_secs_f64()).unwrap_or(0.0);
 
             StatusFooter::render_extended(
                 frame,
@@ -146,8 +135,8 @@ impl WorkflowDashboard {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3),   // Title
-                Constraint::Length(3),   // Telemetry compact
+                Constraint::Length(3),      // Title
+                Constraint::Length(3),      // Telemetry compact
                 Constraint::Percentage(50), // Agent timeline
                 Constraint::Percentage(50), // Output window
             ])
@@ -164,12 +153,7 @@ impl WorkflowDashboard {
         AgentTimeline::render(frame, chunks[2], &agents, None);
 
         // Output window
-        OutputWindow::render(
-            frame,
-            chunks[3],
-            &workflow_state.output_buffer,
-            "Output",
-        );
+        OutputWindow::render(frame, chunks[3], &workflow_state.output_buffer, "Output");
     }
 
     /// Renders an error state.
@@ -202,12 +186,7 @@ impl WorkflowDashboard {
         AgentTimeline::render(frame, chunks[2], &agents, None);
 
         // Output window
-        OutputWindow::render(
-            frame,
-            chunks[3],
-            &workflow_state.output_buffer,
-            "Output",
-        );
+        OutputWindow::render(frame, chunks[3], &workflow_state.output_buffer, "Output");
     }
 
     /// Checks if the workflow is in an error state.

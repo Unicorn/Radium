@@ -11,12 +11,17 @@ pub struct AgentTimeline;
 
 impl AgentTimeline {
     /// Renders the agent timeline.
-    pub fn render(frame: &mut Frame, area: Rect, agents: &[AgentState], selected_index: Option<usize>) {
+    pub fn render(
+        frame: &mut Frame,
+        area: Rect,
+        agents: &[AgentState],
+        selected_index: Option<usize>,
+    ) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3),  // Title
-                Constraint::Min(5),     // Agent list
+                Constraint::Length(3), // Title
+                Constraint::Min(5),    // Agent list
             ])
             .split(area);
 
@@ -55,7 +60,9 @@ impl AgentTimeline {
                 );
 
                 let style = if Some(idx) == selected_index {
-                    Style::default().fg(status_color).add_modifier(Modifier::BOLD | Modifier::REVERSED)
+                    Style::default()
+                        .fg(status_color)
+                        .add_modifier(Modifier::BOLD | Modifier::REVERSED)
                 } else {
                     Style::default().fg(status_color)
                 };
@@ -64,8 +71,7 @@ impl AgentTimeline {
             })
             .collect();
 
-        let list = List::new(items)
-            .block(Block::default().borders(Borders::ALL).title(" Agents "));
+        let list = List::new(items).block(Block::default().borders(Borders::ALL).title(" Agents "));
         frame.render_widget(list, chunks[1]);
     }
 
@@ -88,9 +94,9 @@ impl AgentTimeline {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3),  // Title
-                Constraint::Length(6),  // Info
-                Constraint::Min(5),     // Output/sub-agents
+                Constraint::Length(3), // Title
+                Constraint::Length(6), // Info
+                Constraint::Min(5),    // Output/sub-agents
             ])
             .split(area);
 
@@ -143,7 +149,8 @@ impl AgentTimeline {
                 .block(Block::default().borders(Borders::ALL).title(" Sub-Agents "));
             frame.render_widget(sub_agents, chunks[2]);
         } else {
-            let output_lines = agent.output_buffer.lines.iter().take(10).cloned().collect::<Vec<_>>();
+            let output_lines =
+                agent.output_buffer.lines.iter().take(10).cloned().collect::<Vec<_>>();
             let output_text = output_lines.join("\n");
 
             let output = Paragraph::new(output_text)

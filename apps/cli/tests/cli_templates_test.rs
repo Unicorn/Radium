@@ -9,11 +9,7 @@ use tempfile::TempDir;
 fn init_workspace(temp_dir: &TempDir) {
     let temp_path = temp_dir.path().to_str().unwrap();
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    cmd.arg("init")
-        .arg("--use-defaults")
-        .arg(temp_path)
-        .assert()
-        .success();
+    cmd.arg("init").arg("--use-defaults").arg(temp_path).assert().success();
 }
 
 /// Helper to create a test workflow template
@@ -79,7 +75,8 @@ fn test_templates_list_json_output() {
     create_test_template(&temp_dir, "test-template");
 
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    let assert = cmd.current_dir(temp_dir.path())
+    let assert = cmd
+        .current_dir(temp_dir.path())
         .arg("templates")
         .arg("list")
         .arg("--json")
@@ -88,11 +85,11 @@ fn test_templates_list_json_output() {
 
     let output = assert.get_output();
     let stdout = String::from_utf8_lossy(&output.stdout);
-    
+
     // Verify it's valid JSON
-    let json: serde_json::Value = serde_json::from_str(&stdout)
-        .expect("Templates list JSON output should be valid JSON");
-    
+    let json: serde_json::Value =
+        serde_json::from_str(&stdout).expect("Templates list JSON output should be valid JSON");
+
     assert!(json.is_array(), "Templates list JSON should be an array");
 }
 
@@ -149,7 +146,8 @@ fn test_templates_info_json_output() {
     create_test_template(&temp_dir, "test-template");
 
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    let assert = cmd.current_dir(temp_dir.path())
+    let assert = cmd
+        .current_dir(temp_dir.path())
         .arg("templates")
         .arg("info")
         .arg("test-template")
@@ -159,11 +157,11 @@ fn test_templates_info_json_output() {
 
     let output = assert.get_output();
     let stdout = String::from_utf8_lossy(&output.stdout);
-    
+
     // Verify it's valid JSON
-    let json: serde_json::Value = serde_json::from_str(&stdout)
-        .expect("Template info JSON output should be valid JSON");
-    
+    let json: serde_json::Value =
+        serde_json::from_str(&stdout).expect("Template info JSON output should be valid JSON");
+
     assert!(json.is_object(), "Template info JSON should be an object");
     assert_eq!(json["name"], "test-template");
 }
@@ -175,11 +173,7 @@ fn test_templates_validate_valid() {
     create_test_template(&temp_dir, "test-template");
 
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    cmd.current_dir(temp_dir.path())
-        .arg("templates")
-        .arg("validate")
-        .assert()
-        .success();
+    cmd.current_dir(temp_dir.path()).arg("templates").arg("validate").assert().success();
 }
 
 #[test]
@@ -196,4 +190,3 @@ fn test_templates_validate_verbose() {
         .assert()
         .success();
 }
-

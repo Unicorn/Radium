@@ -93,7 +93,15 @@ pub async fn execute(
     println!("{}", "Executing plan...".bold());
     println!();
 
-    execute_plan(&mut manifest, &manifest_path, iteration.as_deref(), task.as_deref(), resume, json).await?;
+    execute_plan(
+        &mut manifest,
+        &manifest_path,
+        iteration.as_deref(),
+        task.as_deref(),
+        resume,
+        json,
+    )
+    .await?;
 
     println!();
     println!("{}", "Plan execution completed!".green().bold());
@@ -260,7 +268,11 @@ async fn execute_plan(
                             }
 
                             if response.lines().count() > 5 {
-                                println!("      {} ... ({} more lines)", "".dimmed(), response.lines().count() - 5);
+                                println!(
+                                    "      {} ... ({} more lines)",
+                                    "".dimmed(),
+                                    response.lines().count() - 5
+                                );
                             }
 
                             println!("      {}", "─".repeat(60).dimmed());
@@ -283,9 +295,17 @@ async fn execute_plan(
 
                         // Show progress
                         let progress = executor.calculate_progress(manifest);
-                        println!("      {} Progress: {}%", "•".dimmed(), progress.to_string().cyan());
+                        println!(
+                            "      {} Progress: {}%",
+                            "•".dimmed(),
+                            progress.to_string().cyan()
+                        );
                     } else {
-                        println!("      {} Execution failed: {}", "✗".red(), result.error.unwrap_or_default().red());
+                        println!(
+                            "      {} Execution failed: {}",
+                            "✗".red(),
+                            result.error.unwrap_or_default().red()
+                        );
                         bail!("Task execution failed");
                     }
                 }

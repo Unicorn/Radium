@@ -1,6 +1,6 @@
 //! Auth command implementation.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use colored::Colorize;
 use radium_core::auth::{CredentialStore, ProviderType};
 use serde_json::json;
@@ -36,10 +36,7 @@ pub async fn execute(command: AuthCommand) -> Result<()> {
 
 async fn login_provider(provider_name: &str) -> Result<()> {
     let provider_type = ProviderType::parse(provider_name).ok_or_else(|| {
-        anyhow!(
-            "Unknown provider: {}. Supported providers: gemini, openai",
-            provider_name
-        )
+        anyhow!("Unknown provider: {}. Supported providers: gemini, openai", provider_name)
     })?;
 
     println!();
@@ -63,14 +60,8 @@ async fn login_provider(provider_name: &str) -> Result<()> {
     store.store(provider_type, api_key)?;
 
     println!();
-    println!(
-        "{}",
-        format!("✓ Successfully authenticated with {}", provider_name).green()
-    );
-    println!(
-        "  Credentials stored in: {}",
-        "~/.radium/auth/credentials.json".yellow()
-    );
+    println!("{}", format!("✓ Successfully authenticated with {}", provider_name).green());
+    println!("  Credentials stored in: {}", "~/.radium/auth/credentials.json".yellow());
     println!();
 
     Ok(())
@@ -147,10 +138,9 @@ async fn logout_all_providers() -> Result<()> {
 
     for provider_type in ProviderType::all() {
         match store.remove(provider_type) {
-            Ok(()) => println!(
-                "{}",
-                format!("✓ Logged out from {}", provider_type.as_str()).green()
-            ),
+            Ok(()) => {
+                println!("{}", format!("✓ Logged out from {}", provider_type.as_str()).green())
+            }
             Err(e) => eprintln!(
                 "{}",
                 format!("✗ Error logging out from {}: {}", provider_type.as_str(), e).red()
@@ -260,10 +250,7 @@ async fn show_status(json_output: bool) -> Result<()> {
             }
         }
         println!();
-        println!(
-            "Credentials stored in: {}",
-            "~/.radium/auth/credentials.json".yellow()
-        );
+        println!("Credentials stored in: {}", "~/.radium/auth/credentials.json".yellow());
         println!();
     }
 

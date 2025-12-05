@@ -16,9 +16,9 @@ impl LoopIndicator {
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints([
-                    Constraint::Length(3),  // Title
-                    Constraint::Length(4),  // Current iteration info
-                    Constraint::Min(5),     // History
+                    Constraint::Length(3), // Title
+                    Constraint::Length(4), // Current iteration info
+                    Constraint::Min(5),    // History
                 ])
                 .split(area);
 
@@ -30,7 +30,9 @@ impl LoopIndicator {
             frame.render_widget(title, chunks[0]);
 
             // Current iteration info
-            let elapsed = if let Ok(duration) = std::time::SystemTime::now().duration_since(current_loop.start_time) {
+            let elapsed = if let Ok(duration) =
+                std::time::SystemTime::now().duration_since(current_loop.start_time)
+            {
                 format!("{:.1}s", duration.as_secs_f64())
             } else {
                 "?".to_string()
@@ -65,11 +67,7 @@ impl LoopIndicator {
             .loop_iterations
             .iter()
             .map(|loop_iter| {
-                let status = if loop_iter.is_active() {
-                    "Active"
-                } else {
-                    "Completed"
-                };
+                let status = if loop_iter.is_active() { "Active" } else { "Completed" };
 
                 let style = if loop_iter.is_active() {
                     Style::default().fg(Color::Yellow)
@@ -92,8 +90,8 @@ impl LoopIndicator {
             })
             .collect();
 
-        let list = List::new(items)
-            .block(Block::default().borders(Borders::ALL).title(" History "));
+        let list =
+            List::new(items).block(Block::default().borders(Borders::ALL).title(" History "));
         frame.render_widget(list, area);
     }
 
@@ -128,11 +126,8 @@ impl LoopIndicator {
         current_iteration: usize,
         max_iterations: usize,
     ) {
-        let ratio = if max_iterations > 0 {
-            current_iteration as f64 / max_iterations as f64
-        } else {
-            0.0
-        };
+        let ratio =
+            if max_iterations > 0 { current_iteration as f64 / max_iterations as f64 } else { 0.0 };
 
         let label = format!("Loop: {}/{}", current_iteration, max_iterations);
 
@@ -140,8 +135,12 @@ impl LoopIndicator {
             .block(Block::default().borders(Borders::ALL).title(" Loop Progress "))
             .gauge_style(
                 Style::default()
-                    .fg(if current_iteration >= max_iterations { Color::Green } else { Color::Magenta })
-                    .bg(Color::Black)
+                    .fg(if current_iteration >= max_iterations {
+                        Color::Green
+                    } else {
+                        Color::Magenta
+                    })
+                    .bg(Color::Black),
             )
             .label(label)
             .ratio(ratio);

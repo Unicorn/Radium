@@ -1,8 +1,8 @@
 //! Unit tests for CLI commands.
 
 use radium_core::Workspace;
-use tempfile::TempDir;
 use std::fs;
+use tempfile::TempDir;
 
 // Import command modules - we need to access them through the binary's module structure
 // Since main.rs is a binary, we'll test through integration tests or by making functions testable
@@ -32,4 +32,3 @@ async fn test_clean_command_no_workspace() {
 async fn test_clean_command_with_workspace() {
     // Integration test needed
 }
-

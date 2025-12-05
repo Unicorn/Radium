@@ -143,12 +143,8 @@ fn generate_basic_plan(
     // Parse iterations and tasks from spec (simple parsing for now)
     let (iterations, total_tasks) = parse_spec_structure(spec_content);
 
-    let mut plan = Plan::new(
-        *requirement_id,
-        project_name,
-        folder_name.to_string(),
-        "backlog".to_string(),
-    );
+    let mut plan =
+        Plan::new(*requirement_id, project_name, folder_name.to_string(), "backlog".to_string());
 
     plan.total_iterations = iterations as u32;
     plan.total_tasks = total_tasks as u32;

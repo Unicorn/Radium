@@ -59,12 +59,7 @@ fn test_init_with_relative_path() {
     std::fs::create_dir_all(&subdir).unwrap();
 
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    cmd.current_dir(&subdir)
-        .arg("init")
-        .arg("--use-defaults")
-        .arg("..")
-        .assert()
-        .success();
+    cmd.current_dir(&subdir).arg("init").arg("--use-defaults").arg("..").assert().success();
 
     // Verify workspace was created in parent directory
     assert!(temp_dir.path().join(".radium").exists());
@@ -76,11 +71,7 @@ fn test_init_with_absolute_path() {
     let temp_path = temp_dir.path().to_str().unwrap();
 
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    cmd.arg("init")
-        .arg("--use-defaults")
-        .arg(temp_path)
-        .assert()
-        .success();
+    cmd.arg("init").arg("--use-defaults").arg(temp_path).assert().success();
 
     assert!(temp_dir.path().join(".radium").exists());
 }
@@ -92,11 +83,7 @@ fn test_init_already_initialized() {
 
     // Initialize first time
     let mut cmd1 = Command::cargo_bin("radium-cli").unwrap();
-    cmd1.arg("init")
-        .arg("--use-defaults")
-        .arg(temp_path)
-        .assert()
-        .success();
+    cmd1.arg("init").arg("--use-defaults").arg(temp_path).assert().success();
 
     // Try to initialize again
     let mut cmd2 = Command::cargo_bin("radium-cli").unwrap();
@@ -114,11 +101,7 @@ fn test_init_creates_requirement_counter() {
     let temp_path = temp_dir.path().to_str().unwrap();
 
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    cmd.arg("init")
-        .arg("--use-defaults")
-        .arg(temp_path)
-        .assert()
-        .success();
+    cmd.arg("init").arg("--use-defaults").arg(temp_path).assert().success();
 
     // Verify requirement counter file exists (may be created lazily on first use)
     let counter_file = temp_dir.path().join(".radium").join("requirement-counter.json");
@@ -133,11 +116,7 @@ fn test_init_creates_all_stage_directories() {
     let temp_path = temp_dir.path().to_str().unwrap();
 
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    cmd.arg("init")
-        .arg("--use-defaults")
-        .arg(temp_path)
-        .assert()
-        .success();
+    cmd.arg("init").arg("--use-defaults").arg(temp_path).assert().success();
 
     let plan_dir = temp_dir.path().join(".radium").join("plan");
     let stages = ["backlog", "development", "review", "testing", "docs"];
@@ -155,11 +134,7 @@ fn test_init_creates_internals_structure() {
     let temp_path = temp_dir.path().to_str().unwrap();
 
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    cmd.arg("init")
-        .arg("--use-defaults")
-        .arg(temp_path)
-        .assert()
-        .success();
+    cmd.arg("init").arg("--use-defaults").arg(temp_path).assert().success();
 
     let internals_dir = temp_dir.path().join(".radium").join("_internals");
     let internals_subdirs = ["agents", "prompts"]; // config may not be created by init
@@ -179,11 +154,9 @@ fn test_init_with_nonexistent_parent_directory() {
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
     // The init command may create parent directories, so this might succeed
     // or fail depending on implementation. For now, we just verify it doesn't panic.
-    let result = cmd.arg("init")
-        .arg("--use-defaults")
-        .arg(nonexistent_path.to_str().unwrap())
-        .assert();
-    
+    let result =
+        cmd.arg("init").arg("--use-defaults").arg(nonexistent_path.to_str().unwrap()).assert();
+
     // Either success (if it creates dirs) or failure (if it doesn't) is acceptable
     // The important thing is it doesn't panic
     assert!(result.get_output().status.code().is_some());
@@ -204,4 +177,3 @@ fn test_init_output_format() {
         .stdout(predicate::str::contains("Initializing workspace at:"))
         .stdout(predicate::str::contains("Workspace initialized successfully!"));
 }
-

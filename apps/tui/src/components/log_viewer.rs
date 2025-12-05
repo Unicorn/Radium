@@ -16,17 +16,14 @@ impl LogViewer {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3),  // Title
-                Constraint::Min(5),     // Log content
-                Constraint::Length(2),  // Status
+                Constraint::Length(3), // Title
+                Constraint::Min(5),    // Log content
+                Constraint::Length(2), // Status
             ])
             .split(area);
 
         // Title
-        let file_name = log_path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("unknown.log");
+        let file_name = log_path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown.log");
         let title = format!("Log: {}", file_name);
         let title_widget = Paragraph::new(title)
             .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
@@ -129,8 +126,8 @@ impl LogViewer {
             })
             .collect();
 
-        let file_list = List::new(items)
-            .block(Block::default().borders(Borders::ALL).title(" Log Files "));
+        let file_list =
+            List::new(items).block(Block::default().borders(Borders::ALL).title(" Log Files "));
         frame.render_widget(file_list, chunks[0]);
 
         // Selected log viewer

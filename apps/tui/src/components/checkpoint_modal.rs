@@ -3,7 +3,7 @@
 use crate::state::{CheckpointInfo, CheckpointState};
 use ratatui::{
     prelude::*,
-    widgets::{Block, Borders, List, ListItem, Paragraph, Clear},
+    widgets::{Block, Borders, Clear, List, ListItem, Paragraph},
 };
 
 /// Checkpoint modal component
@@ -11,7 +11,12 @@ pub struct CheckpointModal;
 
 impl CheckpointModal {
     /// Renders the checkpoint modal dialog.
-    pub fn render(frame: &mut Frame, area: Rect, checkpoint_state: &CheckpointState, selected: usize) {
+    pub fn render(
+        frame: &mut Frame,
+        area: Rect,
+        checkpoint_state: &CheckpointState,
+        selected: usize,
+    ) {
         // Create a centered modal area
         let modal_area = Self::centered_rect(80, 70, area);
 
@@ -21,10 +26,10 @@ impl CheckpointModal {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3),   // Title
-                Constraint::Min(10),     // Checkpoint list
-                Constraint::Length(5),   // Details
-                Constraint::Length(2),   // Help
+                Constraint::Length(3), // Title
+                Constraint::Min(10),   // Checkpoint list
+                Constraint::Length(5), // Details
+                Constraint::Length(2), // Help
             ])
             .split(modal_area);
 
@@ -32,7 +37,11 @@ impl CheckpointModal {
         let title = Paragraph::new("Checkpoints")
             .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
             .alignment(Alignment::Center)
-            .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(Color::Cyan)));
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(Color::Cyan)),
+            );
         frame.render_widget(title, chunks[0]);
 
         // Checkpoint list
@@ -49,7 +58,9 @@ impl CheckpointModal {
                 .enumerate()
                 .map(|(idx, checkpoint)| {
                     let style = if idx == selected {
-                        Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD | Modifier::REVERSED)
+                        Style::default()
+                            .fg(Color::Yellow)
+                            .add_modifier(Modifier::BOLD | Modifier::REVERSED)
                     } else if !checkpoint.restorable {
                         Style::default().fg(Color::DarkGray)
                     } else {

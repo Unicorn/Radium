@@ -64,7 +64,8 @@ async fn list_templates(json_output: bool, verbose: bool) -> anyhow::Result<()> 
 /// Show detailed information about a specific template.
 async fn show_template_info(name: &str, json_output: bool) -> anyhow::Result<()> {
     let discovery = TemplateDiscovery::new();
-    let template = discovery.find_by_name(name)?
+    let template = discovery
+        .find_by_name(name)?
         .ok_or_else(|| anyhow::anyhow!("Template '{}' not found", name))?;
 
     if json_output {
@@ -163,9 +164,7 @@ async fn validate_templates(verbose: bool) -> anyhow::Result<()> {
     if errors.is_empty() {
         println!(
             "{}",
-            format!("✅ All {} templates validated successfully", templates.len())
-                .bold()
-                .green()
+            format!("✅ All {} templates validated successfully", templates.len()).bold().green()
         );
     } else {
         println!(
@@ -219,9 +218,7 @@ fn display_templates_table(templates: &std::collections::HashMap<String, Workflo
     // Sort by name
     rows.sort_by(|a, b| a.name.cmp(&b.name));
 
-    let table = Table::new(rows)
-        .with(Style::rounded())
-        .to_string();
+    let table = Table::new(rows).with(Style::rounded()).to_string();
 
     println!("{}", table);
     println!();

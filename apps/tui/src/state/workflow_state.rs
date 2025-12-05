@@ -1,6 +1,6 @@
 //! Workflow execution state tracking.
 
-use super::{AgentState, TelemetryState, CheckpointState, OutputBuffer};
+use super::{AgentState, CheckpointState, OutputBuffer, TelemetryState};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
@@ -152,10 +152,8 @@ impl WorkflowUIState {
     pub fn cancel(&mut self) {
         self.status = WorkflowStatus::Cancelled;
         self.end_time = Some(Instant::now());
-        self.output_buffer.append_line(format!(
-            "[{}] Workflow cancelled",
-            chrono::Utc::now().format("%H:%M:%S")
-        ));
+        self.output_buffer
+            .append_line(format!("[{}] Workflow cancelled", chrono::Utc::now().format("%H:%M:%S")));
     }
 
     /// Advances to the next step.
@@ -239,11 +237,7 @@ mod tests {
 
     #[test]
     fn test_workflow_lifecycle() {
-        let mut state = WorkflowUIState::new(
-            "wf-1".to_string(),
-            "Test Workflow".to_string(),
-            3
-        );
+        let mut state = WorkflowUIState::new("wf-1".to_string(), "Test Workflow".to_string(), 3);
 
         assert_eq!(state.status, WorkflowStatus::Idle);
 
@@ -264,11 +258,7 @@ mod tests {
 
     #[test]
     fn test_workflow_progress() {
-        let mut state = WorkflowUIState::new(
-            "wf-1".to_string(),
-            "Test Workflow".to_string(),
-            4
-        );
+        let mut state = WorkflowUIState::new("wf-1".to_string(), "Test Workflow".to_string(), 4);
 
         assert_eq!(state.progress_percentage(), 0);
 
@@ -288,11 +278,7 @@ mod tests {
 
     #[test]
     fn test_agent_registration() {
-        let mut state = WorkflowUIState::new(
-            "wf-1".to_string(),
-            "Test Workflow".to_string(),
-            1
-        );
+        let mut state = WorkflowUIState::new("wf-1".to_string(), "Test Workflow".to_string(), 1);
 
         state.register_agent("agent-1".to_string(), "Test Agent".to_string());
         assert!(state.get_agent("agent-1").is_some());
@@ -301,11 +287,7 @@ mod tests {
 
     #[test]
     fn test_workflow_failure() {
-        let mut state = WorkflowUIState::new(
-            "wf-1".to_string(),
-            "Test Workflow".to_string(),
-            2
-        );
+        let mut state = WorkflowUIState::new("wf-1".to_string(), "Test Workflow".to_string(), 2);
 
         state.start();
         state.fail("Test error".to_string());

@@ -10,7 +10,7 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use tabled::{settings::Style, Table, Tabled};
+use tabled::{Table, Tabled, settings::Style};
 
 /// Execute the agents command.
 pub async fn execute(command: AgentsCommand) -> anyhow::Result<()> {
@@ -134,9 +134,7 @@ async fn search_agents(query: &str, json_output: bool) -> anyhow::Result<()> {
         println!();
         println!(
             "{}",
-            format!("🔍 Found {} matching agents for '{}'", matches.len(), query)
-                .bold()
-                .green()
+            format!("🔍 Found {} matching agents for '{}'", matches.len(), query).bold().green()
         );
         println!();
         display_agents_table(&matches);
@@ -148,8 +146,8 @@ async fn search_agents(query: &str, json_output: bool) -> anyhow::Result<()> {
 /// Show detailed information about a specific agent.
 async fn show_agent_info(id: &str, json_output: bool) -> anyhow::Result<()> {
     let discovery = AgentDiscovery::new();
-    let agent = discovery.find_by_id(id)?
-        .ok_or_else(|| anyhow::anyhow!("Agent '{}' not found", id))?;
+    let agent =
+        discovery.find_by_id(id)?.ok_or_else(|| anyhow::anyhow!("Agent '{}' not found", id))?;
 
     if json_output {
         let info = json!({
@@ -224,11 +222,7 @@ async fn validate_agents(verbose: bool) -> anyhow::Result<()> {
         if !config.prompt_path.as_os_str().is_empty() {
             if !config.prompt_path.exists() && !config.prompt_path.is_absolute() {
                 // Try relative to config directory
-                if let Some(config_dir) = config
-                    .file_path
-                    .as_ref()
-                    .and_then(|p| p.parent())
-                {
+                if let Some(config_dir) = config.file_path.as_ref().and_then(|p| p.parent()) {
                     let full_path = config_dir.join(&config.prompt_path);
                     if !full_path.exists() {
                         agent_errors.push("Prompt file not found");
@@ -248,9 +242,7 @@ async fn validate_agents(verbose: bool) -> anyhow::Result<()> {
     if errors.is_empty() {
         println!(
             "{}",
-            format!("✅ All {} agents validated successfully", agents.len())
-                .bold()
-                .green()
+            format!("✅ All {} agents validated successfully", agents.len()).bold().green()
         );
     } else {
         println!(
@@ -307,9 +299,7 @@ fn display_agents_table(agents: &HashMap<String, AgentConfig>) {
     // Sort by ID
     rows.sort_by(|a, b| a.id.cmp(&b.id));
 
-    let table = Table::new(rows)
-        .with(Style::rounded())
-        .to_string();
+    let table = Table::new(rows).with(Style::rounded()).to_string();
 
     println!("{}", table);
     println!();
@@ -376,11 +366,7 @@ async fn create_agent(
 
     // Check if agent already exists
     if config_path.exists() {
-        anyhow::bail!(
-            "Agent '{}' already exists at {}",
-            id,
-            config_path.display()
-        );
+        anyhow::bail!("Agent '{}' already exists at {}", id, config_path.display());
     }
 
     // Parse reasoning effort

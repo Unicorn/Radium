@@ -56,10 +56,7 @@ impl AgentStatus {
 
     /// Returns whether the agent is in an active state.
     pub fn is_active(&self) -> bool {
-        matches!(
-            self,
-            Self::Starting | Self::Running | Self::Thinking | Self::ExecutingTool
-        )
+        matches!(self, Self::Starting | Self::Running | Self::Thinking | Self::ExecutingTool)
     }
 
     /// Returns whether the agent is in a terminal state.
@@ -212,10 +209,8 @@ impl AgentState {
     pub fn complete(&mut self) {
         self.status = AgentStatus::Completed;
         self.end_time = Some(Instant::now());
-        self.output_buffer.append_line(format!(
-            "[{}] Agent completed",
-            chrono::Utc::now().format("%H:%M:%S")
-        ));
+        self.output_buffer
+            .append_line(format!("[{}] Agent completed", chrono::Utc::now().format("%H:%M:%S")));
     }
 
     /// Fails the agent with an error message.
@@ -234,10 +229,8 @@ impl AgentState {
     pub fn cancel(&mut self) {
         self.status = AgentStatus::Cancelled;
         self.end_time = Some(Instant::now());
-        self.output_buffer.append_line(format!(
-            "[{}] Agent cancelled",
-            chrono::Utc::now().format("%H:%M:%S")
-        ));
+        self.output_buffer
+            .append_line(format!("[{}] Agent cancelled", chrono::Utc::now().format("%H:%M:%S")));
     }
 
     /// Registers a sub-agent.
@@ -279,12 +272,7 @@ impl AgentState {
 
     /// Returns a summary of the agent state.
     pub fn summary(&self) -> String {
-        format!(
-            "{} {} | {}",
-            self.status.icon(),
-            self.agent_name,
-            self.status.as_str()
-        )
+        format!("{} {} | {}", self.status.icon(), self.agent_name, self.status.as_str())
     }
 }
 

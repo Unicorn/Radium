@@ -11,12 +11,7 @@ pub struct StatusFooter;
 
 impl StatusFooter {
     /// Renders the status footer.
-    pub fn render(
-        frame: &mut Frame,
-        area: Rect,
-        status: WorkflowStatus,
-        status_message: &str,
-    ) {
+    pub fn render(frame: &mut Frame, area: Rect, status: WorkflowStatus, status_message: &str) {
         let chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
@@ -80,10 +75,10 @@ impl StatusFooter {
         let chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Percentage(25),  // Status
-                Constraint::Percentage(25),  // Step info
-                Constraint::Percentage(25),  // Time
-                Constraint::Percentage(25),  // Help
+                Constraint::Percentage(25), // Status
+                Constraint::Percentage(25), // Step info
+                Constraint::Percentage(25), // Time
+                Constraint::Percentage(25), // Help
             ])
             .split(area);
 

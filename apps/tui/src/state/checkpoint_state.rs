@@ -52,10 +52,7 @@ impl CheckpointInfo {
             String::new()
         };
 
-        format!(
-            "[Step {}] {} - {}{}",
-            self.step_number, self.name, time_str, commit_str
-        )
+        format!("[Step {}] {} - {}{}", self.step_number, self.name, time_str, commit_str)
     }
 }
 
@@ -142,8 +139,8 @@ impl CheckpointState {
         commit_hash: String,
     ) -> String {
         let id = format!("checkpoint-{}", self.checkpoints.len() + 1);
-        let checkpoint = CheckpointInfo::new(id.clone(), name, step_number)
-            .with_commit_hash(commit_hash);
+        let checkpoint =
+            CheckpointInfo::new(id.clone(), name, step_number).with_commit_hash(commit_hash);
         self.checkpoints.push(checkpoint);
         self.current_checkpoint = Some(id.clone());
         id
@@ -218,10 +215,7 @@ impl CheckpointState {
         let loop_count = self.total_loop_iterations();
 
         if loop_count > 0 {
-            format!(
-                "Checkpoints: {} | Loop iterations: {}",
-                checkpoint_count, loop_count
-            )
+            format!("Checkpoints: {} | Loop iterations: {}", checkpoint_count, loop_count)
         } else {
             format!("Checkpoints: {}", checkpoint_count)
         }
@@ -254,11 +248,8 @@ mod tests {
 
     #[test]
     fn test_checkpoint_info() {
-        let checkpoint = CheckpointInfo::new(
-            "cp-1".to_string(),
-            "Before file modification".to_string(),
-            5,
-        );
+        let checkpoint =
+            CheckpointInfo::new("cp-1".to_string(), "Before file modification".to_string(), 5);
 
         assert_eq!(checkpoint.id, "cp-1");
         assert_eq!(checkpoint.name, "Before file modification");
@@ -273,12 +264,8 @@ mod tests {
 
     #[test]
     fn test_checkpoint_with_commit() {
-        let checkpoint = CheckpointInfo::new(
-            "cp-1".to_string(),
-            "Test checkpoint".to_string(),
-            3,
-        )
-        .with_commit_hash("abc123def456".to_string());
+        let checkpoint = CheckpointInfo::new("cp-1".to_string(), "Test checkpoint".to_string(), 3)
+            .with_commit_hash("abc123def456".to_string());
 
         assert_eq!(checkpoint.commit_hash, Some("abc123def456".to_string()));
 

@@ -482,4 +482,140 @@ Goal: Implement main features
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("No iterations found"));
     }
+
+    #[test]
+    fn test_parse_tech_stack_with_asterisks() {
+        let response = r#"# Project
+
+## Technologies
+* Python
+* Flask
+* MongoDB
+
+## Iteration 1: Start
+1. **Task** - Description
+"#;
+
+        let plan = PlanParser::parse(response).unwrap();
+        assert_eq!(plan.tech_stack, vec!["Python", "Flask", "MongoDB"]);
+    }
+
+    #[test]
+    fn test_parse_task_with_depends_keyword() {
+        let response = r#"# Project
+
+## Iteration 1: Test
+1. **Task with depends** - Description
+   - Depends: I1.T1, I1.T2
+"#;
+
+        let plan = PlanParser::parse(response).unwrap();
+        let task = &plan.iterations[0].tasks[0];
+        assert_eq!(task.dependencies, vec!["I1.T1", "I1.T2"]);
+    }
+
+    #[test]
+    fn test_parse_iteration_without_goal() {
+        let response = r#"# Project
+
+## Iteration 1: No Goal Iteration
+
+1. **Task** - Do something
+"#;
+
+        let plan = PlanParser::parse(response).unwrap();
+        let iter = &plan.iterations[0];
+        assert_eq!(iter.goal, None);
+    }
+
+    #[test]
+    fn test_parse_task_title_without_bold() {
+        let response = r#"# Project
+
+## Iteration 1: Test
+1. Plain Task Title - Description
+"#;
+
+        let plan = PlanParser::parse(response).unwrap();
+        let task = &plan.iterations[0].tasks[0];
+        assert_eq!(task.title, "Plain Task Title");
+        assert_eq!(task.description, Some("Description".to_string()));
+    }
+
+    #[test]
+    fn test_parse_multiple_empty_lines() {
+        let response = r#"# Project
+
+
+
+## Iteration 1: Test
+
+
+1. **Task** - Description
+
+
+"#;
+
+        let plan = PlanParser::parse(response).unwrap();
+        assert_eq!(plan.iterations.len(), 1);
+        assert_eq!(plan.iterations[0].tasks.len(), 1);
+    }
+
+    #[test]
+    fn test_parse_project_with_whitespace() {
+        let response = r#"#    Project with Spaces
+
+## Iteration 1: Test
+1. **Task** - Description
+"#;
+
+        let plan = PlanParser::parse(response).unwrap();
+        assert_eq!(plan.project_name, "Project with Spaces");
+    }
+
+    #[test]
+    fn test_parse_empty_dependencies() {
+        let response = r#"# Project
+
+## Iteration 1: Test
+1. **Task** - Description
+   - Dependencies:
+"#;
+
+        let plan = PlanParser::parse(response).unwrap();
+        let task = &plan.iterations[0].tasks[0];
+        assert!(task.dependencies.is_empty());
+    }
+
+    #[test]
+    fn test_parse_task_numbers_non_sequential() {
+        let response = r#"# Project
+
+## Iteration 1: Test
+1. **First** - One
+3. **Third** - Three
+5. **Fifth** - Five
+"#;
+
+        let plan = PlanParser::parse(response).unwrap();
+        // Parser assigns sequential numbers internally
+        assert_eq!(plan.iterations[0].tasks.len(), 3);
+        assert_eq!(plan.iterations[0].tasks[0].number, 1);
+        assert_eq!(plan.iterations[0].tasks[1].number, 2);
+        assert_eq!(plan.iterations[0].tasks[2].number, 3);
+    }
+
+    #[test]
+    fn test_parse_no_description() {
+        let response = r#"# Minimal
+
+## Iteration 1: Test
+1. **Task**
+"#;
+
+        let plan = PlanParser::parse(response).unwrap();
+        assert_eq!(plan.description, None);
+        let task = &plan.iterations[0].tasks[0];
+        assert_eq!(task.description, None);
+    }
 }

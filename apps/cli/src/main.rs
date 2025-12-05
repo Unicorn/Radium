@@ -205,7 +205,9 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // If no command provided, show help
-    let command = if let Some(cmd) = args.command { cmd } else {
+    let command = if let Some(cmd) = args.command {
+        cmd
+    } else {
         Args::command().print_help()?;
         return Ok(());
     };

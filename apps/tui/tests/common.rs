@@ -1,10 +1,10 @@
 //! Shared test utilities for Radium TUI integration tests.
 
+use radium_core::proto::radium_client::RadiumClient;
 use radium_core::{config::Config, server};
 use std::net::TcpListener;
 use std::time::Duration;
 use tokio::time;
-use radium_core::proto::radium_client::RadiumClient;
 
 /// Finds an available port by binding to port 0 and returning the allocated port.
 ///

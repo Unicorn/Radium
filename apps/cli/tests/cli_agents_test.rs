@@ -9,11 +9,7 @@ use tempfile::TempDir;
 fn init_workspace(temp_dir: &TempDir) {
     let temp_path = temp_dir.path().to_str().unwrap();
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    cmd.arg("init")
-        .arg("--use-defaults")
-        .arg(temp_path)
-        .assert()
-        .success();
+    cmd.arg("init").arg("--use-defaults").arg(temp_path).assert().success();
 }
 
 /// Helper to create a test agent configuration
@@ -77,20 +73,16 @@ fn test_agents_list_json_output() {
     create_test_agent(&temp_dir, "test-agent", "Test Agent");
 
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    let assert = cmd.current_dir(temp_dir.path())
-        .arg("agents")
-        .arg("list")
-        .arg("--json")
-        .assert()
-        .success();
+    let assert =
+        cmd.current_dir(temp_dir.path()).arg("agents").arg("list").arg("--json").assert().success();
 
     let output = assert.get_output();
     let stdout = String::from_utf8_lossy(&output.stdout);
-    
+
     // Verify it's valid JSON
-    let json: serde_json::Value = serde_json::from_str(&stdout)
-        .expect("Agents list JSON output should be valid JSON");
-    
+    let json: serde_json::Value =
+        serde_json::from_str(&stdout).expect("Agents list JSON output should be valid JSON");
+
     assert!(json.is_array(), "Agents list JSON should be an array");
     assert!(json.as_array().unwrap().len() > 0, "Should have at least one agent");
 }
@@ -152,7 +144,8 @@ fn test_agents_search_json_output() {
     create_test_agent(&temp_dir, "test-agent", "Test Agent");
 
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    let assert = cmd.current_dir(temp_dir.path())
+    let assert = cmd
+        .current_dir(temp_dir.path())
         .arg("agents")
         .arg("search")
         .arg("test")
@@ -162,10 +155,10 @@ fn test_agents_search_json_output() {
 
     let output = assert.get_output();
     let stdout = String::from_utf8_lossy(&output.stdout);
-    
+
     // Verify it's valid JSON
-    let _json: serde_json::Value = serde_json::from_str(&stdout)
-        .expect("Agents search JSON output should be valid JSON");
+    let _json: serde_json::Value =
+        serde_json::from_str(&stdout).expect("Agents search JSON output should be valid JSON");
 }
 
 #[test]
@@ -206,7 +199,8 @@ fn test_agents_info_json_output() {
     create_test_agent(&temp_dir, "test-agent", "Test Agent");
 
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    let assert = cmd.current_dir(temp_dir.path())
+    let assert = cmd
+        .current_dir(temp_dir.path())
         .arg("agents")
         .arg("info")
         .arg("test-agent")
@@ -216,11 +210,11 @@ fn test_agents_info_json_output() {
 
     let output = assert.get_output();
     let stdout = String::from_utf8_lossy(&output.stdout);
-    
+
     // Verify it's valid JSON
-    let json: serde_json::Value = serde_json::from_str(&stdout)
-        .expect("Agent info JSON output should be valid JSON");
-    
+    let json: serde_json::Value =
+        serde_json::from_str(&stdout).expect("Agent info JSON output should be valid JSON");
+
     assert!(json.is_object(), "Agent info JSON should be an object");
     assert_eq!(json["id"], "test-agent");
 }
@@ -232,11 +226,7 @@ fn test_agents_validate_valid() {
     create_test_agent(&temp_dir, "test-agent", "Test Agent");
 
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    cmd.current_dir(temp_dir.path())
-        .arg("agents")
-        .arg("validate")
-        .assert()
-        .success();
+    cmd.current_dir(temp_dir.path()).arg("agents").arg("validate").assert().success();
 }
 
 #[test]
@@ -253,4 +243,3 @@ fn test_agents_validate_verbose() {
         .assert()
         .success();
 }
-

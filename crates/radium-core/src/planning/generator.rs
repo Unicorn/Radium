@@ -213,6 +213,28 @@ mod tests {
         assert!(prompt.contains(&spec));
     }
 
+    #[test]
+    fn test_create_plan_prompt_structure() {
+        let spec = "Test specification";
+        let prompt = PlanGenerator::create_plan_prompt(spec);
+
+        // Verify all key sections are present
+        assert!(prompt.contains("SPECIFICATION:"));
+        assert!(prompt.contains("Tech Stack"));
+        assert!(prompt.contains("Iteration 1:"));
+        assert!(prompt.contains("Agent:"));
+        assert!(prompt.contains("Dependencies:"));
+        assert!(prompt.contains("Acceptance:"));
+        assert!(prompt.contains("IMPORTANT GUIDELINES:"));
+
+        // Verify spec is included
+        assert!(prompt.contains("Test specification"));
+
+        // Verify guidelines are present
+        assert!(prompt.contains("Break the project into 3-5 logical iterations"));
+        assert!(prompt.contains("Each iteration should have 3-8 concrete tasks"));
+    }
+
     #[tokio::test]
     async fn test_plan_generator_generate_with_mock_model() {
         let generator = PlanGenerator::new();

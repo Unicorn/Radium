@@ -3,15 +3,15 @@
 //! This module provides state management for the enhanced TUI,
 //! tracking workflow execution, agent states, telemetry, and checkpoints.
 
-mod workflow_state;
 mod agent_state;
-mod telemetry_state;
 mod checkpoint_state;
+mod telemetry_state;
+mod workflow_state;
 
-pub use workflow_state::{WorkflowUIState, WorkflowStatus};
 pub use agent_state::{AgentState, AgentStatus, SubAgentState};
+pub use checkpoint_state::{CheckpointInfo, CheckpointState};
 pub use telemetry_state::{TelemetryState, TokenMetrics};
-pub use checkpoint_state::{CheckpointState, CheckpointInfo};
+pub use workflow_state::{WorkflowStatus, WorkflowUIState};
 
 /// Output buffer for agent execution
 #[derive(Debug, Clone)]
@@ -27,11 +27,7 @@ pub struct OutputBuffer {
 impl OutputBuffer {
     /// Creates a new output buffer with the specified capacity.
     pub fn new(max_lines: usize) -> Self {
-        Self {
-            lines: Vec::new(),
-            max_lines,
-            scroll_position: 0,
-        }
+        Self { lines: Vec::new(), max_lines, scroll_position: 0 }
     }
 
     /// Appends a line to the buffer, removing oldest if at capacity.

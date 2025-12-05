@@ -1,12 +1,12 @@
 //! Application state management
 
+use anyhow::Result;
+use crossterm::event::{KeyCode, KeyModifiers};
 use radium_core::radium_client::RadiumClient;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tonic::transport::Channel;
-use std::path::PathBuf;
-use anyhow::Result;
-use crossterm::event::{KeyCode, KeyModifiers};
 
 use crate::navigation::{Navigation, View};
 use crate::views;
