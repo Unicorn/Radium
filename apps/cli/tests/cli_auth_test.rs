@@ -8,11 +8,7 @@ use tempfile::TempDir;
 fn init_workspace(temp_dir: &TempDir) {
     let temp_path = temp_dir.path().to_str().unwrap();
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    cmd.arg("init")
-        .arg("--use-defaults")
-        .arg(temp_path)
-        .assert()
-        .success();
+    cmd.arg("init").arg("--use-defaults").arg(temp_path).assert().success();
 }
 
 #[test]
@@ -21,11 +17,7 @@ fn test_auth_status() {
     init_workspace(&temp_dir);
 
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    cmd.current_dir(temp_dir.path())
-        .arg("auth")
-        .arg("status")
-        .assert()
-        .success();
+    cmd.current_dir(temp_dir.path()).arg("auth").arg("status").assert().success();
 }
 
 #[test]
@@ -34,19 +26,15 @@ fn test_auth_status_json() {
     init_workspace(&temp_dir);
 
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    let assert = cmd.current_dir(temp_dir.path())
-        .arg("auth")
-        .arg("status")
-        .arg("--json")
-        .assert()
-        .success();
+    let assert =
+        cmd.current_dir(temp_dir.path()).arg("auth").arg("status").arg("--json").assert().success();
 
     let output = assert.get_output();
     let stdout = String::from_utf8_lossy(&output.stdout);
-    
+
     // Verify it's valid JSON
-    let _json: serde_json::Value = serde_json::from_str(&stdout)
-        .expect("Auth status JSON output should be valid JSON");
+    let _json: serde_json::Value =
+        serde_json::from_str(&stdout).expect("Auth status JSON output should be valid JSON");
 }
 
 #[test]
@@ -80,4 +68,3 @@ fn test_auth_logout_invalid_provider() {
 // Note: Login/logout tests that require interactive input are harder to test
 // They would need mocking or non-interactive flags. For now, we test the
 // status command and error cases for invalid providers.
-

@@ -430,8 +430,7 @@ mod tests {
 
     #[test]
     fn test_telemetry_record_with_cache_stats() {
-        let record = TelemetryRecord::new("agent-1".to_string())
-            .with_cache_stats(100, 50, 25);
+        let record = TelemetryRecord::new("agent-1".to_string()).with_cache_stats(100, 50, 25);
 
         assert_eq!(record.cached_tokens, 100);
         assert_eq!(record.cache_creation_tokens, 50);

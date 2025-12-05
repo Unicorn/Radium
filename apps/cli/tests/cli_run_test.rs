@@ -9,11 +9,7 @@ use tempfile::TempDir;
 fn init_workspace(temp_dir: &TempDir) {
     let temp_path = temp_dir.path().to_str().unwrap();
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    cmd.arg("init")
-        .arg("--use-defaults")
-        .arg(temp_path)
-        .assert()
-        .success();
+    cmd.arg("init").arg("--use-defaults").arg(temp_path).assert().success();
 }
 
 /// Helper to create a test agent configuration
@@ -26,8 +22,9 @@ fn create_test_agent(temp_dir: &TempDir, agent_id: &str, name: &str) {
     fs::create_dir_all(&prompts_dir).unwrap();
     fs::write(
         prompts_dir.join(format!("{}.md", agent_id)),
-        format!("# {}\n\nYou are a test agent.\n\n## User Input\n\n{{user_input}}", name)
-    ).unwrap();
+        format!("# {}\n\nYou are a test agent.\n\n## User Input\n\n{{user_input}}", name),
+    )
+    .unwrap();
 
     let config_content = format!(
         r#"[agent]
@@ -122,12 +119,13 @@ fn test_run_with_directory() {
     // Note: When --dir is used, agent discovery happens in that directory
     // So we need agents there, or the test should expect failure
     // For now, we'll just verify the command runs without panic
-    let result = cmd.arg("run")
+    let result = cmd
+        .arg("run")
         .arg("--dir")
         .arg(subdir.to_str().unwrap())
         .arg("test-agent 'Test prompt'")
         .assert();
-    
+
     // Either success or failure is acceptable depending on agent discovery
     assert!(result.get_output().status.code().is_some());
 }
@@ -141,12 +139,8 @@ fn test_run_invalid_script_format() {
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
     // The run command may accept various formats, so we just verify it doesn't panic
     // The exact behavior depends on implementation
-    let result = cmd.current_dir(temp_dir.path())
-        .arg("run")
-        .arg("invalid-format")
-        .assert();
-    
+    let result = cmd.current_dir(temp_dir.path()).arg("run").arg("invalid-format").assert();
+
     // Either success or failure is acceptable, just verify it doesn't panic
     assert!(result.get_output().status.code().is_some());
 }
-

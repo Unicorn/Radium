@@ -9,11 +9,7 @@ use tempfile::TempDir;
 fn init_workspace(temp_dir: &TempDir) {
     let temp_path = temp_dir.path().to_str().unwrap();
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    cmd.arg("init")
-        .arg("--use-defaults")
-        .arg(temp_path)
-        .assert()
-        .success();
+    cmd.arg("init").arg("--use-defaults").arg(temp_path).assert().success();
 }
 
 /// Helper to create a test agent configuration
@@ -26,8 +22,9 @@ fn create_test_agent(temp_dir: &TempDir, agent_id: &str, name: &str) {
     fs::create_dir_all(&prompts_dir).unwrap();
     fs::write(
         prompts_dir.join(format!("{}.md", agent_id)),
-        format!("# {}\n\nYou are a test agent.\n\n## User Input\n\n{{user_input}}", name)
-    ).unwrap();
+        format!("# {}\n\nYou are a test agent.\n\n## User Input\n\n{{user_input}}", name),
+    )
+    .unwrap();
 
     let config_content = format!(
         r#"[agent]
@@ -57,7 +54,9 @@ fn test_step_no_agents() {
         .arg("test-agent")
         .assert()
         .failure() // Should fail if no agents found
-        .stderr(predicate::str::contains("No agents found").or(predicate::str::contains("not found")));
+        .stderr(
+            predicate::str::contains("No agents found").or(predicate::str::contains("not found")),
+        );
 }
 
 #[test]
@@ -142,4 +141,3 @@ fn test_step_with_reasoning_override() {
         .assert()
         .success();
 }
-
