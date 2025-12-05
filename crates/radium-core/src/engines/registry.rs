@@ -305,4 +305,184 @@ mod tests {
         let result = registry.get_default();
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_registry_default_trait() {
+        let registry = EngineRegistry::default();
+        assert_eq!(registry.count(), 0);
+    }
+
+    #[test]
+    fn test_registry_get_default_no_default_set() {
+        let registry = EngineRegistry::new();
+        let result = registry.get_default();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_registry_set_default_nonexistent() {
+        let registry = EngineRegistry::new();
+        let result = registry.set_default("nonexistent");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_registry_has_nonexistent() {
+        let registry = EngineRegistry::new();
+        assert!(!registry.has("nonexistent"));
+    }
+
+    #[test]
+    fn test_registry_count_empty() {
+        let registry = EngineRegistry::new();
+        assert_eq!(registry.count(), 0);
+    }
+
+    #[test]
+    fn test_registry_count_multiple() {
+        let registry = EngineRegistry::new();
+        registry.register(Arc::new(MockEngine::new("engine-1"))).unwrap();
+        registry.register(Arc::new(MockEngine::new("engine-2"))).unwrap();
+        registry.register(Arc::new(MockEngine::new("engine-3"))).unwrap();
+        assert_eq!(registry.count(), 3);
+    }
+
+    #[test]
+    fn test_registry_duplicate_registration() {
+        let registry = EngineRegistry::new();
+        registry.register(Arc::new(MockEngine::new("test-engine"))).unwrap();
+        registry.register(Arc::new(MockEngine::new("test-engine"))).unwrap();
+        // Should overwrite, not add
+        assert_eq!(registry.count(), 1);
+    }
+
+    #[test]
+    fn test_registry_list_empty() {
+        let registry = EngineRegistry::new();
+        let list = registry.list().unwrap();
+        assert_eq!(list.len(), 0);
+    }
+
+    #[test]
+    fn test_registry_unregister_nonexistent() {
+        let registry = EngineRegistry::new();
+        // Unregistering nonexistent should not error
+        let result = registry.unregister("nonexistent");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_registry_multiple_engines_different_ids() {
+        let registry = EngineRegistry::new();
+        let engine1 = Arc::new(MockEngine::new("engine-1"));
+        let engine2 = Arc::new(MockEngine::new("engine-2"));
+        let engine3 = Arc::new(MockEngine::new("engine-3"));
+
+        registry.register(engine1).unwrap();
+        registry.register(engine2).unwrap();
+        registry.register(engine3).unwrap();
+
+        assert!(registry.has("engine-1"));
+        assert!(registry.has("engine-2"));
+        assert!(registry.has("engine-3"));
+        assert_eq!(registry.count(), 3);
+    }
+
+    #[test]
+    fn test_registry_set_default_then_change() {
+        let registry = EngineRegistry::new();
+        registry.register(Arc::new(MockEngine::new("engine-1"))).unwrap();
+        registry.register(Arc::new(MockEngine::new("engine-2"))).unwrap();
+
+        registry.set_default("engine-1").unwrap();
+        let default1 = registry.get_default().unwrap();
+        assert_eq!(default1.metadata().id, "engine-1");
+
+        registry.set_default("engine-2").unwrap();
+        let default2 = registry.get_default().unwrap();
+        assert_eq!(default2.metadata().id, "engine-2");
+    }
+
+    #[test]
+    fn test_registry_get_after_unregister() {
+        let registry = EngineRegistry::new();
+        registry.register(Arc::new(MockEngine::new("test-engine"))).unwrap();
+
+        registry.unregister("test-engine").unwrap();
+
+        let result = registry.get("test-engine");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_registry_list_order_independence() {
+        let registry = EngineRegistry::new();
+        registry.register(Arc::new(MockEngine::new("c-engine"))).unwrap();
+        registry.register(Arc::new(MockEngine::new("a-engine"))).unwrap();
+        registry.register(Arc::new(MockEngine::new("b-engine"))).unwrap();
+
+        let list = registry.list().unwrap();
+        assert_eq!(list.len(), 3);
+        // All engines should be present regardless of order
+        let ids: Vec<String> = list.iter().map(|m| m.id.clone()).collect();
+        assert!(ids.contains(&"a-engine".to_string()));
+        assert!(ids.contains(&"b-engine".to_string()));
+        assert!(ids.contains(&"c-engine".to_string()));
+    }
+
+    #[test]
+    fn test_registry_has_after_register() {
+        let registry = EngineRegistry::new();
+        assert!(!registry.has("test-engine"));
+
+        registry.register(Arc::new(MockEngine::new("test-engine"))).unwrap();
+        assert!(registry.has("test-engine"));
+    }
+
+    #[test]
+    fn test_registry_count_after_operations() {
+        let registry = EngineRegistry::new();
+        assert_eq!(registry.count(), 0);
+
+        registry.register(Arc::new(MockEngine::new("engine-1"))).unwrap();
+        assert_eq!(registry.count(), 1);
+
+        registry.register(Arc::new(MockEngine::new("engine-2"))).unwrap();
+        assert_eq!(registry.count(), 2);
+
+        registry.unregister("engine-1").unwrap();
+        assert_eq!(registry.count(), 1);
+
+        registry.unregister("engine-2").unwrap();
+        assert_eq!(registry.count(), 0);
+    }
+
+    #[test]
+    fn test_registry_get_metadata() {
+        let registry = EngineRegistry::new();
+        let engine = Arc::new(MockEngine::new("test-engine"));
+        registry.register(engine).unwrap();
+
+        let retrieved = registry.get("test-engine").unwrap();
+        let metadata = retrieved.metadata();
+        assert_eq!(metadata.id, "test-engine");
+        assert_eq!(metadata.name, "Mock test-engine");
+    }
+
+    #[test]
+    fn test_registry_unregister_multiple() {
+        let registry = EngineRegistry::new();
+        registry.register(Arc::new(MockEngine::new("engine-1"))).unwrap();
+        registry.register(Arc::new(MockEngine::new("engine-2"))).unwrap();
+        registry.register(Arc::new(MockEngine::new("engine-3"))).unwrap();
+        assert_eq!(registry.count(), 3);
+
+        registry.unregister("engine-1").unwrap();
+        registry.unregister("engine-3").unwrap();
+
+        assert_eq!(registry.count(), 1);
+        assert!(registry.has("engine-2"));
+        assert!(!registry.has("engine-1"));
+        assert!(!registry.has("engine-3"));
+    }
 }
