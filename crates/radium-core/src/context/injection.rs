@@ -303,4 +303,155 @@ mod tests {
         let tail = injector.extract_tail(text, 10);
         assert_eq!(tail, "line1\nline2");
     }
+
+    #[test]
+    fn test_parse_unknown_directive_type() {
+        let result = InjectionDirective::parse("unknown:value");
+        assert!(result.is_err());
+        if let Err(ContextError::InvalidSyntax(msg)) = result {
+            assert!(msg.contains("Unknown directive type"));
+        }
+    }
+
+    #[test]
+    fn test_parse_empty_directive() {
+        let result = InjectionDirective::parse("");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_file_input_with_whitespace() {
+        let directive = InjectionDirective::parse("input: file1.md , file2.md ").unwrap();
+        match directive {
+            InjectionDirective::FileInput { files } => {
+                assert_eq!(files.len(), 2);
+                assert_eq!(files[0], PathBuf::from("file1.md"));
+                assert_eq!(files[1], PathBuf::from("file2.md"));
+            }
+            _ => panic!("Expected FileInput directive"),
+        }
+    }
+
+    #[test]
+    fn test_parse_tail_zero() {
+        let directive = InjectionDirective::parse("tail:0").unwrap();
+        match directive {
+            InjectionDirective::TailContext { lines } => {
+                assert_eq!(lines, 0);
+            }
+            _ => panic!("Expected TailContext directive"),
+        }
+    }
+
+    #[test]
+    fn test_extract_directives_with_whitespace() {
+        let (agent, directives) =
+            InjectionDirective::extract_directives("  architect  [  input:spec.md  ]  ").unwrap();
+        assert_eq!(agent, "architect");
+        assert_eq!(directives.len(), 1);
+    }
+
+    #[test]
+    fn test_extract_directives_empty_agent_name() {
+        let result = InjectionDirective::extract_directives("[input:file.md]");
+        assert!(result.is_ok());
+        let (agent, _) = result.unwrap();
+        assert_eq!(agent, "");
+    }
+
+    #[test]
+    fn test_extract_directives_multiple_same_type() {
+        let (agent, directives) =
+            InjectionDirective::extract_directives("agent[input:file1.md;input:file2.md]").unwrap();
+        assert_eq!(agent, "agent");
+        assert_eq!(directives.len(), 2);
+    }
+
+    #[test]
+    fn test_inject_files_empty_list() {
+        let temp_dir = TempDir::new().unwrap();
+        let injector = ContextInjector::new(temp_dir.path());
+        let content = injector.inject_files(&[]).unwrap();
+        assert_eq!(content, "");
+    }
+
+    #[test]
+    fn test_inject_files_absolute_path() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("absolute.txt");
+
+        let mut file = File::create(&file_path).unwrap();
+        file.write_all(b"Absolute content").unwrap();
+        drop(file);
+
+        let injector = ContextInjector::new(temp_dir.path());
+        let content = injector.inject_files(&[file_path.clone()]).unwrap();
+
+        assert!(content.contains("Absolute content"));
+        assert!(content.contains("absolute.txt"));
+    }
+
+    #[test]
+    fn test_inject_files_empty_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("empty.txt");
+
+        File::create(&file_path).unwrap();
+
+        let injector = ContextInjector::new(temp_dir.path());
+        let content = injector.inject_files(&[PathBuf::from("empty.txt")]).unwrap();
+
+        assert!(content.contains("empty.txt"));
+    }
+
+    #[test]
+    fn test_extract_tail_empty_text() {
+        let injector = ContextInjector::new(".");
+        let tail = injector.extract_tail("", 5);
+        assert_eq!(tail, "");
+    }
+
+    #[test]
+    fn test_extract_tail_single_line() {
+        let injector = ContextInjector::new(".");
+        let tail = injector.extract_tail("single line", 1);
+        assert_eq!(tail, "single line");
+    }
+
+    #[test]
+    fn test_extract_tail_zero_lines() {
+        let injector = ContextInjector::new(".");
+        let text = "line1\nline2\nline3";
+        let tail = injector.extract_tail(text, 0);
+        assert_eq!(tail, "");
+    }
+
+    #[test]
+    fn test_extract_tail_exact_match() {
+        let injector = ContextInjector::new(".");
+        let text = "line1\nline2\nline3";
+        let tail = injector.extract_tail(text, 3);
+        assert_eq!(tail, "line1\nline2\nline3");
+    }
+
+    #[test]
+    fn test_parse_file_input_empty_filename() {
+        let directive = InjectionDirective::parse("input:").unwrap();
+        match directive {
+            InjectionDirective::FileInput { files } => {
+                assert_eq!(files.len(), 1);
+                assert_eq!(files[0], PathBuf::from(""));
+            }
+            _ => panic!("Expected FileInput directive"),
+        }
+    }
+
+    #[test]
+    fn test_extract_directives_multiple_brackets() {
+        // Only first bracket pair should be processed
+        let (agent, directives) =
+            InjectionDirective::extract_directives("agent[input:file.md][tail:10]").unwrap();
+        assert_eq!(agent, "agent");
+        assert_eq!(directives.len(), 1);
+    }
 }

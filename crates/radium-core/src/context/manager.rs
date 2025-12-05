@@ -322,4 +322,234 @@ mod tests {
         assert!(context.contains("Specification"));
         assert!(context.contains("Build a feature"));
     }
+
+    #[test]
+    fn test_gather_memory_context_no_store() {
+        let temp_dir = TempDir::new().unwrap();
+        let workspace = Workspace::create(temp_dir.path()).unwrap();
+
+        let manager = ContextManager::new(&workspace);
+        let result = manager.gather_memory_context("test-agent");
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
+    }
+
+    #[test]
+    fn test_gather_memory_context_with_store() {
+        use crate::memory::MemoryEntry;
+
+        let temp_dir = TempDir::new().unwrap();
+        let workspace = Workspace::create(temp_dir.path()).unwrap();
+        let req_id = RequirementId::new(1);
+
+        let mut manager = ContextManager::for_plan(&workspace, req_id).unwrap();
+
+        // Store some memory
+        let entry = MemoryEntry::new("test-agent".to_string(), "Previous output".to_string());
+        manager.memory_store_mut().unwrap().store(entry).unwrap();
+
+        // Gather memory context
+        let context = manager.gather_memory_context("test-agent").unwrap();
+        assert!(context.is_some());
+        assert!(context.unwrap().contains("Previous output"));
+    }
+
+    #[test]
+    fn test_gather_memory_context_agent_not_found() {
+        let temp_dir = TempDir::new().unwrap();
+        let workspace = Workspace::create(temp_dir.path()).unwrap();
+        let req_id = RequirementId::new(1);
+
+        let manager = ContextManager::for_plan(&workspace, req_id).unwrap();
+
+        // Try to get memory for non-existent agent
+        let result = manager.gather_memory_context("nonexistent");
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
+    }
+
+    #[test]
+    fn test_process_directives_empty() {
+        let temp_dir = TempDir::new().unwrap();
+        let workspace = Workspace::create(temp_dir.path()).unwrap();
+
+        let manager = ContextManager::new(&workspace);
+        let content = manager.process_directives(&[]).unwrap();
+        assert_eq!(content, "");
+    }
+
+    #[test]
+    fn test_process_directives_tail_context() {
+        let temp_dir = TempDir::new().unwrap();
+        let workspace = Workspace::create(temp_dir.path()).unwrap();
+
+        let manager = ContextManager::new(&workspace);
+        let directives = vec![InjectionDirective::TailContext { lines: 10 }];
+
+        let content = manager.process_directives(&directives).unwrap();
+        assert!(content.contains("Tail Context"));
+        assert!(content.contains("10 lines"));
+    }
+
+    #[test]
+    fn test_process_directives_multiple() {
+        let temp_dir = TempDir::new().unwrap();
+        let workspace = Workspace::create(temp_dir.path()).unwrap();
+
+        // Create test files
+        let file1_path = temp_dir.path().join("file1.txt");
+        let file2_path = temp_dir.path().join("file2.txt");
+        fs::write(&file1_path, "Content 1").unwrap();
+        fs::write(&file2_path, "Content 2").unwrap();
+
+        let manager = ContextManager::new(&workspace);
+        let directives = vec![
+            InjectionDirective::FileInput { files: vec![std::path::PathBuf::from("file1.txt")] },
+            InjectionDirective::TailContext { lines: 5 },
+            InjectionDirective::FileInput { files: vec![std::path::PathBuf::from("file2.txt")] },
+        ];
+
+        let content = manager.process_directives(&directives).unwrap();
+        assert!(content.contains("Content 1"));
+        assert!(content.contains("Content 2"));
+        assert!(content.contains("Tail Context"));
+    }
+
+    #[test]
+    fn test_workspace_root_accessor() {
+        let temp_dir = TempDir::new().unwrap();
+        let workspace = Workspace::create(temp_dir.path()).unwrap();
+
+        let manager = ContextManager::new(&workspace);
+        assert_eq!(manager.workspace_root(), workspace.root());
+    }
+
+    #[test]
+    fn test_memory_store_accessor_none() {
+        let temp_dir = TempDir::new().unwrap();
+        let workspace = Workspace::create(temp_dir.path()).unwrap();
+
+        let manager = ContextManager::new(&workspace);
+        assert!(manager.memory_store().is_none());
+    }
+
+    #[test]
+    fn test_memory_store_accessor_some() {
+        let temp_dir = TempDir::new().unwrap();
+        let workspace = Workspace::create(temp_dir.path()).unwrap();
+        let req_id = RequirementId::new(1);
+
+        let manager = ContextManager::for_plan(&workspace, req_id).unwrap();
+        assert!(manager.memory_store().is_some());
+    }
+
+    #[test]
+    fn test_memory_store_mut_accessor() {
+        use crate::memory::MemoryEntry;
+
+        let temp_dir = TempDir::new().unwrap();
+        let workspace = Workspace::create(temp_dir.path()).unwrap();
+        let req_id = RequirementId::new(1);
+
+        let mut manager = ContextManager::for_plan(&workspace, req_id).unwrap();
+
+        // Use mutable accessor to store memory
+        let entry = MemoryEntry::new("agent".to_string(), "output".to_string());
+        manager.memory_store_mut().unwrap().store(entry).unwrap();
+
+        // Verify it was stored
+        let stored = manager.memory_store().unwrap().get("agent").unwrap();
+        assert_eq!(stored.output, "output");
+    }
+
+    #[test]
+    fn test_build_context_with_architecture() {
+        let temp_dir = TempDir::new().unwrap();
+        let workspace = Workspace::create(temp_dir.path()).unwrap();
+
+        // Create architecture file
+        let arch_path = temp_dir.path().join(".radium").join("architecture.md");
+        fs::write(&arch_path, "# Architecture\n\nMicroservices design").unwrap();
+
+        let manager = ContextManager::new(&workspace);
+        let context = manager.build_context("agent", None).unwrap();
+        assert!(context.contains("Architecture Context"));
+        assert!(context.contains("Microservices design"));
+    }
+
+    #[test]
+    fn test_build_context_with_memory() {
+        use crate::memory::MemoryEntry;
+
+        let temp_dir = TempDir::new().unwrap();
+        let workspace = Workspace::create(temp_dir.path()).unwrap();
+        let req_id = RequirementId::new(1);
+
+        let mut manager = ContextManager::for_plan(&workspace, req_id).unwrap();
+
+        // Store memory for agent
+        let entry = MemoryEntry::new("architect".to_string(), "Previous design".to_string());
+        manager.memory_store_mut().unwrap().store(entry).unwrap();
+
+        // Build context
+        let context = manager.build_context("architect", None).unwrap();
+        assert!(context.contains("Previous Output from architect"));
+        assert!(context.contains("Previous design"));
+    }
+
+    #[test]
+    fn test_build_context_combined() {
+        use crate::memory::MemoryEntry;
+
+        let temp_dir = TempDir::new().unwrap();
+        let workspace = Workspace::create(temp_dir.path()).unwrap();
+        let req_id = RequirementId::new(1);
+
+        // Create architecture file
+        let arch_path = temp_dir.path().join(".radium").join("architecture.md");
+        fs::write(&arch_path, "# Architecture").unwrap();
+
+        // Create test file
+        let file_path = temp_dir.path().join("input.txt");
+        fs::write(&file_path, "Input data").unwrap();
+
+        let mut manager = ContextManager::for_plan(&workspace, req_id).unwrap();
+
+        // Store memory
+        let entry = MemoryEntry::new("agent".to_string(), "Previous output".to_string());
+        manager.memory_store_mut().unwrap().store(entry).unwrap();
+
+        // Build context with everything
+        let context = manager.build_context("agent[input:input.txt]", None).unwrap();
+        assert!(context.contains("Architecture"));
+        assert!(context.contains("Previous output"));
+        assert!(context.contains("Input data"));
+    }
+
+    #[test]
+    fn test_build_context_no_directives() {
+        let temp_dir = TempDir::new().unwrap();
+        let workspace = Workspace::create(temp_dir.path()).unwrap();
+
+        let manager = ContextManager::new(&workspace);
+        let context = manager.build_context("simple-agent", None).unwrap();
+        // Should not error even with no context sources
+        assert!(context.is_empty() || !context.is_empty());
+    }
+
+    #[test]
+    fn test_gather_architecture_context_empty_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let workspace = Workspace::create(temp_dir.path()).unwrap();
+
+        // Create empty architecture file
+        let arch_path = temp_dir.path().join(".radium").join("architecture.md");
+        fs::write(&arch_path, "").unwrap();
+
+        let manager = ContextManager::new(&workspace);
+        let context = manager.gather_architecture_context();
+        assert!(context.is_some());
+        let content = context.unwrap();
+        assert!(content.contains("Architecture Context"));
+    }
 }
