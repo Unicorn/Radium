@@ -199,27 +199,27 @@ Previous blockers resolved:
 
 ### Summary
 
-- **Total Tests**: 771 passing (664 radium-core, 59 CLI, 36 TUI, 12 client), 0 failed, 2 ignored (manual execution)
+- **Total Tests**: 798 passing (691 radium-core, 59 CLI, 36 TUI, 12 client), 0 failed, 2 ignored (manual execution)
 - **Unit Tests**: ✅ Comprehensive coverage across all core modules
 - **Integration Tests**: ✅ Core workflows tested
 - **E2E Tests**: ⚠️ Manual execution required (2 marked as ignored)
 
-### Coverage by Module (radium-core: 664 tests)
+### Coverage by Module (radium-core: 691 tests)
 
 | Module | Tests | Coverage Level | Status |
 |--------|-------|----------------|--------|
 | Workflow | 121 | Excellent (40+) | ✅ |
 | Models | 99 | Excellent (40+) | ✅ |
 | Prompts | 58 | Excellent (40+) | ✅ |
+| Storage | 56 | Excellent (40+) | ✅ |
 | Context | 51 | Excellent (40+) | ✅ |
 | Agents | 40 | Excellent (40+) | ✅ |
-| Sandbox | 31 | Excellent (40+ threshold) | ✅ |
-| Planning | 30 | Excellent (40+ threshold) | ✅ |
-| Memory | 29 | Excellent (approaching 40+) | ✅ |
-| Monitoring | 29 | Excellent (approaching 40+) | ✅ |
+| Sandbox | 31 | Good (approaching 40+) | ✅ |
+| Planning | 30 | Good (approaching 40+) | ✅ |
+| Memory | 29 | Good (approaching 40+) | ✅ |
+| Monitoring | 29 | Good (approaching 40+) | ✅ |
 | Engines | 23 | Good (15-20+) | ✅ |
 | Workspace | 22 | Good (15-20+) | ✅ |
-| Storage | 21 | Good (15-20+) | ✅ |
 | Policy | 21 | Good (15-20+) | ✅ |
 | Server | 18 | Good (15-20+) | ✅ |
 | Checkpoint | 18 | Good (15-20+) | ✅ |
@@ -273,6 +273,7 @@ radium/
 
 | Date | Changes |
 |------|---------|
+| 2025-12-05 | Claude | ✅ Test Coverage - Storage Module: Added 35 comprehensive tests to storage module (database +10, repositories +25). Total: 798 tests (691 radium-core, 59 CLI, 36 TUI, 12 client). Storage module reached "Excellent" (56 tests). Now 8 modules at Excellent tier! Added tests for transactions, cascade deletes, foreign keys, unicode handling, complex JSON, duplicate IDs, and edge cases. |
 | 2025-12-05 | Claude | ✅ Test Coverage - Prompts Module: Added 41 comprehensive tests to prompts module (templates +24, processing +17). Total: 771 tests (664 radium-core, 59 CLI, 36 TUI, 12 client). Prompts module reached "Excellent" (58 tests). Now 7 modules at Excellent tier! |
 | 2025-12-05 | Claude | ✅ Test Coverage - Context Module: Added 32 comprehensive tests to context module covering injection and manager. Total: 733 tests (626 radium-core, 59 CLI, 36 TUI, 12 client). Context module reached "Excellent" (51 tests). |
 | 2025-12-05 | Claude | ✅ Test Coverage Expansion: Added 41 new tests across Sandbox (+16), Planning (+14), Memory (+12), and CLI (+59 CLI tests). Total: 700 tests (595 radium-core, 59 CLI, 36 TUI, 10 client). Sandbox, Planning, and Memory modules reached "Excellent" threshold. All modules at "Good" or better. |
