@@ -262,4 +262,184 @@ mod tests {
         let count: i64 = stmt.query_row([], |row| row.get(0)).unwrap();
         assert_eq!(count, 5);
     }
+
+    #[test]
+    fn test_database_transaction_commit() {
+        let mut db = Database::open_in_memory().unwrap();
+
+        let result = db.transaction(|tx| {
+            tx.execute(
+                "INSERT INTO agents (id, name, description, config_json, state, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                rusqlite::params!["tx-agent", "TX Agent", "Test", "{}", "idle", "2023-01-01T00:00:00Z", "2023-01-01T00:00:00Z"],
+            )?;
+            Ok(())
+        });
+
+        assert!(result.is_ok());
+
+        // Verify the insert was committed
+        let mut stmt = db.conn().prepare("SELECT id FROM agents WHERE id = ?").unwrap();
+        let exists = stmt.exists(rusqlite::params!["tx-agent"]).unwrap();
+        assert!(exists);
+    }
+
+    #[test]
+    fn test_database_transaction_rollback() {
+        let mut db = Database::open_in_memory().unwrap();
+
+        let result: StorageResult<()> = db.transaction(|tx| {
+            tx.execute(
+                "INSERT INTO agents (id, name, description, config_json, state, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                rusqlite::params!["rollback-agent", "Rollback Agent", "Test", "{}", "idle", "2023-01-01T00:00:00Z", "2023-01-01T00:00:00Z"],
+            )?;
+            // Simulate an error to trigger rollback
+            Err(crate::storage::error::StorageError::InvalidData("Simulated error".to_string()))
+        });
+
+        assert!(result.is_err());
+
+        // Verify the insert was rolled back
+        let mut stmt = db.conn().prepare("SELECT id FROM agents WHERE id = ?").unwrap();
+        let exists = stmt.exists(rusqlite::params!["rollback-agent"]).unwrap();
+        assert!(!exists);
+    }
+
+    #[test]
+    fn test_database_indexes_created() {
+        let db = Database::open_in_memory().unwrap();
+
+        // Check that indexes were created
+        let mut stmt = db
+            .conn()
+            .prepare("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'idx_%'")
+            .unwrap();
+        let indexes: Vec<String> =
+            stmt.query_map([], |row| row.get(0)).unwrap().map(|r| r.unwrap()).collect();
+
+        assert!(indexes.contains(&"idx_tasks_agent_id".to_string()));
+        assert!(indexes.contains(&"idx_workflow_steps_workflow_id".to_string()));
+    }
+
+    #[test]
+    fn test_database_open_with_special_chars_path() {
+        use std::fs;
+        let temp_dir = std::env::temp_dir();
+        let db_path = temp_dir.join("test db with spaces.db");
+        let _ = fs::remove_file(&db_path);
+
+        let _db = Database::open(db_path.to_str().unwrap()).unwrap();
+        assert!(db_path.exists());
+
+        // Clean up
+        let _ = fs::remove_file(&db_path);
+    }
+
+    #[test]
+    fn test_database_persistence() {
+        use std::fs;
+        let temp_dir = std::env::temp_dir();
+        let db_path = temp_dir.join("persistence_test.db");
+        let _ = fs::remove_file(&db_path);
+
+        // Create database and insert data
+        {
+            let mut db = Database::open(db_path.to_str().unwrap()).unwrap();
+            db.conn_mut()
+                .execute(
+                    "INSERT INTO agents (id, name, description, config_json, state, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    rusqlite::params!["persist-agent", "Persist", "Test", "{}", "idle", "2023-01-01T00:00:00Z", "2023-01-01T00:00:00Z"],
+                )
+                .unwrap();
+        } // Database is closed here
+
+        // Reopen and verify data persists
+        {
+            let db = Database::open(db_path.to_str().unwrap()).unwrap();
+            let mut stmt = db.conn().prepare("SELECT id FROM agents WHERE id = ?").unwrap();
+            let exists = stmt.exists(rusqlite::params!["persist-agent"]).unwrap();
+            assert!(exists);
+        }
+
+        // Clean up
+        let _ = fs::remove_file(&db_path);
+    }
+
+    #[test]
+    fn test_database_transaction_with_return_value() {
+        let mut db = Database::open_in_memory().unwrap();
+
+        let result: StorageResult<i64> = db.transaction(|tx| {
+            tx.execute(
+                "INSERT INTO agents (id, name, description, config_json, state, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                rusqlite::params!["return-agent", "Return", "Test", "{}", "idle", "2023-01-01T00:00:00Z", "2023-01-01T00:00:00Z"],
+            )?;
+            let count: i64 = tx.query_row("SELECT COUNT(*) FROM agents", [], |row| row.get(0))?;
+            Ok(count)
+        });
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 1);
+    }
+
+    #[test]
+    fn test_database_foreign_key_constraint() {
+        let mut db = Database::open_in_memory().unwrap();
+
+        // Enable foreign key constraints
+        db.conn_mut().execute("PRAGMA foreign_keys = ON", []).unwrap();
+
+        // Try to insert a workflow step with invalid workflow_id
+        let result = db.conn_mut().execute(
+            "INSERT INTO workflow_steps (id, workflow_id, name, description, task_id, config_json, step_order) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            rusqlite::params!["step-1", "nonexistent-workflow", "Step", "Test", "task-1", "null", 0],
+        );
+
+        // Should fail due to foreign key constraint
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_database_cascade_delete() {
+        let mut db = Database::open_in_memory().unwrap();
+
+        // Enable foreign key constraints
+        db.conn_mut().execute("PRAGMA foreign_keys = ON", []).unwrap();
+
+        // Insert workflow
+        db.conn_mut()
+            .execute(
+                "INSERT INTO workflows (id, name, description, state, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                rusqlite::params!["wf-cascade", "Cascade WF", "Test", "\"Idle\"", "2023-01-01T00:00:00Z", "2023-01-01T00:00:00Z"],
+            )
+            .unwrap();
+
+        // Insert workflow step
+        db.conn_mut()
+            .execute(
+                "INSERT INTO workflow_steps (id, workflow_id, name, description, task_id, config_json, step_order) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                rusqlite::params!["step-cascade", "wf-cascade", "Step", "Test", "task-1", "null", 0],
+            )
+            .unwrap();
+
+        // Delete workflow
+        db.conn_mut()
+            .execute("DELETE FROM workflows WHERE id = ?", rusqlite::params!["wf-cascade"])
+            .unwrap();
+
+        // Verify step was cascaded
+        let mut stmt = db.conn().prepare("SELECT id FROM workflow_steps WHERE id = ?").unwrap();
+        let exists = stmt.exists(rusqlite::params!["step-cascade"]).unwrap();
+        assert!(!exists);
+    }
+
+    #[test]
+    fn test_database_conn_immutable() {
+        let db = Database::open_in_memory().unwrap();
+        let conn = db.conn();
+
+        // Verify we can read from the immutable connection
+        let mut stmt = conn.prepare("SELECT COUNT(*) FROM agents").unwrap();
+        let count: i64 = stmt.query_row([], |row| row.get(0)).unwrap();
+        assert_eq!(count, 0);
+    }
 }

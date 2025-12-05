@@ -981,4 +981,366 @@ mod tests {
         let result = repo.delete("nonexistent-task");
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_agent_repository_create_duplicate_id() {
+        let mut db = setup_db();
+        let mut repo = SqliteAgentRepository::new(&mut db);
+
+        let config = AgentConfig::new("test-model".to_string());
+        let agent = Agent::new(
+            "duplicate-agent".to_string(),
+            "Agent 1".to_string(),
+            "First".to_string(),
+            config.clone(),
+        );
+
+        repo.create(&agent).unwrap();
+
+        // Try to create another agent with the same ID
+        let agent2 = Agent::new(
+            "duplicate-agent".to_string(),
+            "Agent 2".to_string(),
+            "Second".to_string(),
+            config,
+        );
+
+        let result = repo.create(&agent2);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_agent_repository_unicode_name() {
+        let mut db = setup_db();
+        let mut repo = SqliteAgentRepository::new(&mut db);
+
+        let config = AgentConfig::new("test-model".to_string());
+        let agent = Agent::new(
+            "unicode-agent".to_string(),
+            "エージェント 🤖".to_string(),
+            "描述文本 with émojis 🎉".to_string(),
+            config,
+        );
+
+        repo.create(&agent).unwrap();
+        let retrieved = repo.get_by_id("unicode-agent").unwrap();
+
+        assert_eq!(retrieved.name, "エージェント 🤖");
+        assert_eq!(retrieved.description, "描述文本 with émojis 🎉");
+    }
+
+    #[test]
+    fn test_agent_repository_complex_config() {
+        use radium_abstraction::ModelParameters;
+
+        let mut db = setup_db();
+        let mut repo = SqliteAgentRepository::new(&mut db);
+
+        let mut config = AgentConfig::new("test-model".to_string());
+        config.model_parameters = Some(ModelParameters {
+            temperature: Some(0.7),
+            top_p: Some(0.9),
+            max_tokens: Some(2000),
+            stop_sequences: None,
+        });
+        config.max_iterations = Some(10);
+        config.timeout_seconds = Some(300);
+
+        let agent = Agent::new(
+            "complex-agent".to_string(),
+            "Complex Agent".to_string(),
+            "Agent with complex config".to_string(),
+            config.clone(),
+        );
+
+        repo.create(&agent).unwrap();
+        let retrieved = repo.get_by_id("complex-agent").unwrap();
+
+        assert!(retrieved.config.model_parameters.is_some());
+        let params = retrieved.config.model_parameters.unwrap();
+        assert_eq!(params.max_tokens, Some(2000));
+        assert_eq!(params.temperature, Some(0.7));
+        assert_eq!(params.top_p, Some(0.9));
+        assert_eq!(retrieved.config.max_iterations, Some(10));
+        assert_eq!(retrieved.config.timeout_seconds, Some(300));
+    }
+
+    #[test]
+    fn test_agent_repository_get_all_empty() {
+        let mut db = setup_db();
+        let repo = SqliteAgentRepository::new(&mut db);
+
+        let all = repo.get_all().unwrap();
+        assert_eq!(all.len(), 0);
+    }
+
+    #[test]
+    fn test_agent_repository_update_nonexistent() {
+        let mut db = setup_db();
+        let mut repo = SqliteAgentRepository::new(&mut db);
+
+        let config = AgentConfig::new("test-model".to_string());
+        let agent = Agent::new(
+            "nonexistent-agent".to_string(),
+            "Test".to_string(),
+            "Test".to_string(),
+            config,
+        );
+
+        let result = repo.update(&agent);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_workflow_repository_get_nonexistent() {
+        let mut db = setup_db();
+        let repo = SqliteWorkflowRepository::new(&mut db);
+
+        let result = repo.get_by_id("nonexistent-workflow");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_workflow_repository_delete_nonexistent() {
+        let mut db = setup_db();
+        let mut repo = SqliteWorkflowRepository::new(&mut db);
+
+        let result = repo.delete("nonexistent-workflow");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_workflow_repository_with_multiple_steps() {
+        let mut db = setup_db();
+        let mut repo = SqliteWorkflowRepository::new(&mut db);
+
+        let mut workflow = Workflow::new(
+            "multi-step-workflow".to_string(),
+            "Multi-Step Workflow".to_string(),
+            "Workflow with multiple steps".to_string(),
+        );
+
+        // Add multiple steps
+        for i in 0..5 {
+            let step = WorkflowStep::new(
+                format!("step-{}", i),
+                format!("Step {}", i),
+                format!("Description {}", i),
+                format!("task-{}", i),
+                i,
+            );
+            workflow.add_step(step).unwrap();
+        }
+
+        repo.create(&workflow).unwrap();
+        let retrieved = repo.get_by_id("multi-step-workflow").unwrap();
+
+        assert_eq!(retrieved.steps.len(), 5);
+        // Verify steps are in order
+        for (i, step) in retrieved.steps.iter().enumerate() {
+            assert_eq!(step.order, i as u32);
+        }
+    }
+
+    #[test]
+    fn test_workflow_repository_update_steps() {
+        let mut db = setup_db();
+        let mut repo = SqliteWorkflowRepository::new(&mut db);
+
+        let mut workflow = Workflow::new(
+            "update-steps-workflow".to_string(),
+            "Update Steps".to_string(),
+            "Test updating steps".to_string(),
+        );
+
+        let step1 = WorkflowStep::new(
+            "step-1".to_string(),
+            "Step 1".to_string(),
+            "First step".to_string(),
+            "task-1".to_string(),
+            0,
+        );
+        workflow.add_step(step1).unwrap();
+
+        repo.create(&workflow).unwrap();
+
+        // Update workflow with different steps
+        workflow.steps.clear();
+        let step2 = WorkflowStep::new(
+            "step-2".to_string(),
+            "Step 2".to_string(),
+            "Second step".to_string(),
+            "task-2".to_string(),
+            0,
+        );
+        workflow.add_step(step2).unwrap();
+
+        repo.update(&workflow).unwrap();
+        let retrieved = repo.get_by_id("update-steps-workflow").unwrap();
+
+        assert_eq!(retrieved.steps.len(), 1);
+        assert_eq!(retrieved.steps[0].id, "step-2");
+    }
+
+    #[test]
+    fn test_workflow_repository_empty_steps() {
+        let mut db = setup_db();
+        let mut repo = SqliteWorkflowRepository::new(&mut db);
+
+        let workflow = Workflow::new(
+            "empty-workflow".to_string(),
+            "Empty Workflow".to_string(),
+            "Workflow with no steps".to_string(),
+        );
+
+        repo.create(&workflow).unwrap();
+        let retrieved = repo.get_by_id("empty-workflow").unwrap();
+
+        assert_eq!(retrieved.steps.len(), 0);
+    }
+
+    #[test]
+    fn test_task_repository_get_nonexistent() {
+        let mut db = setup_db();
+        let repo = SqliteTaskRepository::new(&mut db);
+
+        let result = repo.get_by_id("nonexistent-task");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_task_repository_update_nonexistent() {
+        let mut db = setup_db();
+        let mut repo = SqliteTaskRepository::new(&mut db);
+
+        let task = Task::new(
+            "nonexistent-task".to_string(),
+            "Test".to_string(),
+            "Test".to_string(),
+            "agent-1".to_string(),
+            Value::Null,
+        );
+
+        let result = repo.update(&task);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_task_repository_get_by_agent_id_empty() {
+        let mut db = setup_db();
+        let repo = SqliteTaskRepository::new(&mut db);
+
+        let tasks = repo.get_by_agent_id("nonexistent-agent").unwrap();
+        assert_eq!(tasks.len(), 0);
+    }
+
+    #[test]
+    fn test_task_repository_with_result() {
+        let mut db = setup_db();
+        let mut repo = SqliteTaskRepository::new(&mut db);
+
+        let mut task = Task::new(
+            "task-with-result".to_string(),
+            "Task With Result".to_string(),
+            "Task that has a result".to_string(),
+            "agent-1".to_string(),
+            Value::String("input data".to_string()),
+        );
+
+        repo.create(&task).unwrap();
+
+        // Update with result
+        let started = chrono::Utc::now();
+        let completed = started + chrono::Duration::seconds(5);
+        task.result = Some(crate::models::TaskResult {
+            output: Value::String("output data".to_string()),
+            error: None,
+            started_at: started,
+            completed_at: Some(completed),
+            duration_ms: Some(5000),
+        });
+        task.set_state(TaskState::Completed);
+        repo.update(&task).unwrap();
+
+        let retrieved = repo.get_by_id("task-with-result").unwrap();
+        assert!(retrieved.result.is_some());
+        assert_eq!(retrieved.state, TaskState::Completed);
+    }
+
+    #[test]
+    fn test_task_repository_complex_input() {
+        let mut db = setup_db();
+        let mut repo = SqliteTaskRepository::new(&mut db);
+
+        let complex_input = serde_json::json!({
+            "prompt": "Test prompt",
+            "parameters": {
+                "temperature": 0.7,
+                "max_tokens": 100
+            },
+            "metadata": {
+                "user_id": "user-123",
+                "session": "session-456"
+            }
+        });
+
+        let task = Task::new(
+            "complex-task".to_string(),
+            "Complex Task".to_string(),
+            "Task with complex JSON input".to_string(),
+            "agent-1".to_string(),
+            complex_input.clone(),
+        );
+
+        repo.create(&task).unwrap();
+        let retrieved = repo.get_by_id("complex-task").unwrap();
+
+        assert_eq!(retrieved.input, complex_input);
+    }
+
+    #[test]
+    fn test_agent_repository_get_all_ordering() {
+        let mut db = setup_db();
+        let mut repo = SqliteAgentRepository::new(&mut db);
+
+        let config = AgentConfig::new("test-model".to_string());
+
+        // Create agents with different timestamps
+        for i in 0..3 {
+            let agent = Agent::new(
+                format!("agent-{}", i),
+                format!("Agent {}", i),
+                "Description".to_string(),
+                config.clone(),
+            );
+            repo.create(&agent).unwrap();
+            // Small delay to ensure different timestamps
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+
+        let all = repo.get_all().unwrap();
+        // Should be ordered by created_at DESC (newest first)
+        assert_eq!(all.len(), 3);
+        assert_eq!(all[0].id, "agent-2");
+        assert_eq!(all[1].id, "agent-1");
+        assert_eq!(all[2].id, "agent-0");
+    }
+
+    #[test]
+    fn test_workflow_repository_get_all_empty() {
+        let mut db = setup_db();
+        let repo = SqliteWorkflowRepository::new(&mut db);
+
+        let all = repo.get_all().unwrap();
+        assert_eq!(all.len(), 0);
+    }
+
+    #[test]
+    fn test_task_repository_get_all_empty() {
+        let mut db = setup_db();
+        let repo = SqliteTaskRepository::new(&mut db);
+
+        let all = repo.get_all().unwrap();
+        assert_eq!(all.len(), 0);
+    }
 }
