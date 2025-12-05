@@ -25,9 +25,11 @@ pub mod config;
 pub mod context;
 pub mod engines;
 pub mod error;
+// pub mod learning;  // Module not yet implemented
 pub mod memory;
 pub mod models;
 pub mod monitoring;
+pub mod oversight;
 pub mod planning;
 pub mod policy;
 pub mod prompts;
@@ -59,6 +61,11 @@ pub use engines::{
     ExecutionResponse, Result as EngineResult, TokenUsage,
 };
 pub use error::{RadiumError, Result};
+// Learning module not yet implemented
+// pub use learning::{
+//     CategorySummary, LearningEntry, LearningError, LearningStore, LearningType,
+//     Result as LearningResult, STANDARD_CATEGORIES,
+// };
 pub use memory::{
     FileAdapter, MemoryAdapter, MemoryEntry, MemoryError, MemoryStore, Result as MemoryResult,
 };
@@ -75,9 +82,12 @@ pub use planning::{
     ExecutionConfig, ExecutionError, ParsedIteration, ParsedPlan, ParsedTask, PlanExecutor,
     PlanGenerator, PlanGeneratorConfig, PlanParser, TaskResult as PlanTaskResult,
 };
+pub use oversight::{
+    MetacognitiveError, MetacognitiveService, OversightRequest, OversightResponse, Result as OversightResult,
+};
 pub use policy::{
-    ApprovalMode, PolicyAction, PolicyDecision, PolicyEngine, PolicyError, PolicyPriority,
-    PolicyResult, PolicyRule,
+    ApprovalMode, ConstitutionManager, PolicyAction, PolicyDecision, PolicyEngine, PolicyError,
+    PolicyPriority, PolicyResult, PolicyRule,
 };
 pub use prompts::{PromptContext, PromptError, PromptTemplate};
 pub use proto::radium_client;
@@ -94,7 +104,8 @@ pub use workflow::{
     BehaviorAction, BehaviorError, CheckpointDecision, CheckpointEvaluator, CheckpointState,
     ExecutionContext, LoopBehaviorConfig, LoopCounters, LoopDecision, LoopEvaluator, StepRecord,
     StepResult, StepStatus, StepTracker, StepTrackingError, TriggerBehaviorConfig, TriggerDecision,
-    TriggerEvaluator, WorkflowEngine, WorkflowEngineError, WorkflowTemplate, WorkflowTemplateError,
+    TriggerEvaluator, VibeCheckDecision, VibeCheckEvaluator, VibeCheckState, WorkflowEngine,
+    WorkflowEngineError, WorkflowTemplate, WorkflowTemplateError,
 };
 pub use workspace::{
     DiscoveredPlan, PlanDiscovery, PlanDiscoveryOptions, RequirementId, RequirementIdError, SortBy,

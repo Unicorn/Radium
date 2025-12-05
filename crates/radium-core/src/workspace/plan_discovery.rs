@@ -404,4 +404,116 @@ mod tests {
         assert_eq!(plans.len(), 1);
         assert_eq!(plans[0].plan.stage, "backlog");
     }
+
+    #[test]
+    fn test_plan_discovery_sort_by_created_at_ascending() {
+        let temp = TempDir::new().unwrap();
+        let workspace = Workspace::create(temp.path()).unwrap();
+
+        let req1 = RequirementId::from_str("REQ-001").unwrap();
+        let req2 = RequirementId::from_str("REQ-002").unwrap();
+
+        create_test_plan(&workspace, "backlog", req1, "REQ-001-test1");
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        create_test_plan(&workspace, "backlog", req2, "REQ-002-test2");
+
+        let options = PlanDiscoveryOptions {
+            stage: None,
+            sort_by: SortBy::CreatedAt,
+            sort_order: SortOrder::Ascending,
+        };
+
+        let plans = workspace.plans().discover_with_options(&options).unwrap();
+        assert_eq!(plans.len(), 2);
+        // Earlier created plan should be first
+        assert!(plans[0].plan.created_at <= plans[1].plan.created_at);
+    }
+
+    #[test]
+    fn test_plan_discovery_sort_by_requirement_id_descending() {
+        let temp = TempDir::new().unwrap();
+        let workspace = Workspace::create(temp.path()).unwrap();
+
+        let req1 = RequirementId::from_str("REQ-001").unwrap();
+        let req2 = RequirementId::from_str("REQ-003").unwrap();
+
+        create_test_plan(&workspace, "backlog", req1, "REQ-001-test1");
+        create_test_plan(&workspace, "backlog", req2, "REQ-003-test2");
+
+        let options = PlanDiscoveryOptions {
+            stage: None,
+            sort_by: SortBy::RequirementId,
+            sort_order: SortOrder::Descending,
+        };
+
+        let plans = workspace.plans().discover_with_options(&options).unwrap();
+        assert_eq!(plans.len(), 2);
+        // Higher requirement ID should be first
+        assert_eq!(plans[0].plan.requirement_id, req2);
+        assert_eq!(plans[1].plan.requirement_id, req1);
+    }
+
+    #[test]
+    fn test_find_by_requirement_id_not_found() {
+        let temp = TempDir::new().unwrap();
+        let workspace = Workspace::create(temp.path()).unwrap();
+
+        let req_id = RequirementId::from_str("REQ-999").unwrap();
+        let found = workspace.find_plan_by_id(req_id).unwrap();
+
+        assert!(found.is_none());
+    }
+
+    #[test]
+    fn test_find_by_folder_name_not_found() {
+        let temp = TempDir::new().unwrap();
+        let workspace = Workspace::create(temp.path()).unwrap();
+
+        let found = workspace.find_plan_by_folder("REQ-999-nonexistent").unwrap();
+
+        assert!(found.is_none());
+    }
+
+    #[test]
+    fn test_discover_all_empty_workspace() {
+        let temp = TempDir::new().unwrap();
+        let workspace = Workspace::create(temp.path()).unwrap();
+
+        let plans = workspace.discover_plans().unwrap();
+        assert_eq!(plans.len(), 0);
+    }
+
+    #[test]
+    fn test_discovered_plan_load_manifest_not_found() {
+        let temp = TempDir::new().unwrap();
+        let workspace = Workspace::create(temp.path()).unwrap();
+
+        let req_id = RequirementId::from_str("REQ-001").unwrap();
+        let plan_dir = workspace.structure().create_plan_dir("backlog", "REQ-001-test").unwrap();
+
+        // Create plan.json but NOT the manifest
+        let plan = Plan::new(
+            req_id,
+            "Test Project".to_string(),
+            "REQ-001-test".to_string(),
+            "backlog".to_string(),
+        );
+        let plan_json = serde_json::to_string_pretty(&plan).unwrap();
+        fs::write(plan_dir.join("plan.json"), plan_json).unwrap();
+
+        let found = workspace.find_plan_by_id(req_id).unwrap().unwrap();
+        assert!(!found.has_manifest);
+
+        let result = found.load_manifest();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_plan_discovery_options_default() {
+        let options = PlanDiscoveryOptions::default();
+
+        assert!(options.stage.is_none());
+        assert!(matches!(options.sort_by, SortBy::UpdatedAt));
+        assert!(matches!(options.sort_order, SortOrder::Descending));
+    }
 }

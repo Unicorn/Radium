@@ -21,6 +21,8 @@ pub enum BehaviorActionType {
     Continue,
     /// Stop the current loop.
     Stop,
+    /// Request metacognitive oversight (vibe check).
+    VibeCheck,
 }
 
 /// Full behavior action with metadata.

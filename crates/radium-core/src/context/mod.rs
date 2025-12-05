@@ -37,9 +37,11 @@
 //! ```
 
 mod error;
+mod history;
 mod injection;
 mod manager;
 
 pub use error::{ContextError, Result};
+pub use history::{HistoryError, HistoryManager, Interaction, Result as HistoryResult};
 pub use injection::{ContextInjector, InjectionDirective};
 pub use manager::ContextManager;

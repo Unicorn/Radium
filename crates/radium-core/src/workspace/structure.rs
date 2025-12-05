@@ -315,4 +315,68 @@ mod tests {
         assert_eq!(prompts_dir, temp.path().join(".radium/plan/backlog/REQ-001-test/prompts"));
         assert_eq!(plan_dir, temp.path().join(".radium/plan/backlog/REQ-001-test/plan"));
     }
+
+    #[test]
+    fn test_workspace_structure_internal_dirs_count() {
+        let temp = TempDir::new().unwrap();
+        let structure = WorkspaceStructure::new(temp.path());
+
+        let internal_dirs = structure.internal_dirs();
+        assert_eq!(internal_dirs.len(), 6);
+    }
+
+    #[test]
+    fn test_workspace_structure_is_complete_false_on_fresh() {
+        let temp = TempDir::new().unwrap();
+        let structure = WorkspaceStructure::new(temp.path());
+
+        // Before creating anything, structure should not be complete
+        assert!(!structure.is_complete());
+    }
+
+    #[test]
+    fn test_workspace_structure_is_complete_missing_internals() {
+        let temp = TempDir::new().unwrap();
+        let structure = WorkspaceStructure::new(temp.path());
+
+        // Create radium_root and plans_root but not internals
+        std::fs::create_dir_all(structure.radium_root_dir()).unwrap();
+        std::fs::create_dir_all(structure.plans_root_dir()).unwrap();
+        for dir in structure.stage_dirs() {
+            std::fs::create_dir_all(&dir).unwrap();
+        }
+
+        // Should not be complete without internals directory
+        assert!(!structure.is_complete());
+    }
+
+    #[test]
+    fn test_workspace_structure_is_complete_missing_plan() {
+        let temp = TempDir::new().unwrap();
+        let structure = WorkspaceStructure::new(temp.path());
+
+        // Create radium_root and internals but not plans
+        std::fs::create_dir_all(structure.radium_root_dir()).unwrap();
+        std::fs::create_dir_all(structure.internals_dir()).unwrap();
+        for dir in structure.internal_dirs() {
+            std::fs::create_dir_all(&dir).unwrap();
+        }
+
+        // Should not be complete without plan directories
+        assert!(!structure.is_complete());
+    }
+
+    #[test]
+    fn test_workspace_structure_all_internal_paths() {
+        let temp = TempDir::new().unwrap();
+        let structure = WorkspaceStructure::new(temp.path());
+
+        // Test all internal directory paths
+        assert_eq!(structure.artifacts_dir(), temp.path().join(".radium/_internals/artifacts"));
+        assert_eq!(structure.memory_dir(), temp.path().join(".radium/_internals/memory"));
+        assert_eq!(structure.logs_dir(), temp.path().join(".radium/_internals/logs"));
+        assert_eq!(structure.prompts_dir(), temp.path().join(".radium/_internals/prompts"));
+        assert_eq!(structure.inputs_dir(), temp.path().join(".radium/_internals/inputs"));
+        assert_eq!(structure.agents_dir(), temp.path().join(".radium/_internals/agents"));
+    }
 }

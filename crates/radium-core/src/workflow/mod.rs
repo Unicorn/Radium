@@ -17,7 +17,8 @@ pub mod templates;
 pub use behaviors::{
     BehaviorAction, BehaviorError, BehaviorEvaluator, CheckpointDecision, CheckpointEvaluator,
     CheckpointState, LoopBehaviorConfig, LoopCounters, LoopDecision, LoopEvaluator,
-    TriggerBehaviorConfig, TriggerDecision, TriggerEvaluator,
+    TriggerBehaviorConfig, TriggerDecision, TriggerEvaluator, VibeCheckDecision,
+    VibeCheckEvaluator, VibeCheckState,
 };
 pub use engine::{ExecutionContext, StepResult, WorkflowEngine, WorkflowEngineError};
 pub use executor::WorkflowExecutor;

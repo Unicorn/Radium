@@ -6,13 +6,14 @@
 //! - **Loop**: Repeat previous steps with max iterations
 //! - **Trigger**: Dynamically insert agent execution
 //! - **Checkpoint**: Pause workflow execution for manual intervention
+//! - **VibeCheck**: Request metacognitive oversight to prevent reasoning lock-in
 //!
 //! ## How it works
 //!
 //! Agents can write a `radium/.radium/memory/behavior.json` file with:
 //! ```json
 //! {
-//!   "action": "loop" | "trigger" | "checkpoint" | "continue" | "stop",
+//!   "action": "loop" | "trigger" | "checkpoint" | "continue" | "stop" | "vibecheck",
 //!   "reason": "Why this action was chosen",
 //!   "triggerAgentId": "agent-to-trigger" // Required for trigger action
 //! }
@@ -22,8 +23,10 @@ pub mod checkpoint;
 pub mod loop_behavior;
 pub mod trigger;
 pub mod types;
+pub mod vibe_check;
 
 pub use checkpoint::{CheckpointDecision, CheckpointEvaluator, CheckpointState};
 pub use loop_behavior::{LoopBehaviorConfig, LoopCounters, LoopDecision, LoopEvaluator};
 pub use trigger::{TriggerBehaviorConfig, TriggerDecision, TriggerEvaluator};
 pub use types::{BehaviorAction, BehaviorError, BehaviorEvaluator};
+pub use vibe_check::{VibeCheckDecision, VibeCheckEvaluator, VibeCheckState};

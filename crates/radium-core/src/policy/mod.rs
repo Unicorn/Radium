@@ -12,6 +12,7 @@
 //! - Approval modes (yolo, autoEdit, ask)
 //! - Pattern matching for tool names and arguments
 //! - Special handling for shell commands and MCP tools
+//! - Session-based constitution rules for per-session enforcement
 //!
 //! # Example
 //!
@@ -27,9 +28,11 @@
 //! # }
 //! ```
 
+mod constitution;
 mod rules;
 mod types;
 
+pub use constitution::ConstitutionManager;
 pub use rules::{PolicyEngine, PolicyRule};
 pub use types::{
     ApprovalMode, PolicyAction, PolicyDecision, PolicyError, PolicyPriority, PolicyResult,

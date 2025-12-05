@@ -305,4 +305,78 @@ mod tests {
 
         assert!(!workspace.is_empty().unwrap());
     }
+
+    #[test]
+    fn test_workspace_is_valid_false_on_nonexistent() {
+        let temp = TempDir::new().unwrap();
+        let workspace = Workspace { root: temp.path().join("nonexistent") };
+
+        assert!(!workspace.is_valid());
+    }
+
+    #[test]
+    fn test_workspace_is_valid_false_on_invalid() {
+        let temp = TempDir::new().unwrap();
+        // Create temp directory but don't create .radium subdirectory
+        let workspace = Workspace { root: temp.path().to_path_buf() };
+
+        assert!(!workspace.is_valid());
+    }
+
+    #[test]
+    fn test_workspace_discover_with_create_if_missing() {
+        let temp = TempDir::new().unwrap();
+        let workspace_root = temp.path().join("new-workspace");
+
+        let config = WorkspaceConfig { root: Some(workspace_root.clone()), create_if_missing: true };
+
+        let workspace = Workspace::discover_with_config(&config).unwrap();
+
+        assert!(workspace.is_valid());
+        assert!(workspace_root.exists());
+    }
+
+    #[test]
+    fn test_workspace_discover_without_create_if_missing_error() {
+        let temp = TempDir::new().unwrap();
+        let workspace_root = temp.path().join("nonexistent");
+
+        let config =
+            WorkspaceConfig { root: Some(workspace_root), create_if_missing: false };
+
+        let result = Workspace::discover_with_config(&config);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_workspace_stage_dir_for_all_stages() {
+        let temp = TempDir::new().unwrap();
+        let workspace = Workspace::create(temp.path()).unwrap();
+
+        let backlog = workspace.stage_dir(STAGE_BACKLOG);
+        let development = workspace.stage_dir(STAGE_DEVELOPMENT);
+        let review = workspace.stage_dir(STAGE_REVIEW);
+        let testing = workspace.stage_dir(STAGE_TESTING);
+        let docs = workspace.stage_dir(STAGE_DOCS);
+
+        assert!(backlog.to_string_lossy().contains("backlog"));
+        assert!(development.to_string_lossy().contains("development"));
+        assert!(review.to_string_lossy().contains("review"));
+        assert!(testing.to_string_lossy().contains("testing"));
+        assert!(docs.to_string_lossy().contains("docs"));
+    }
+
+    #[test]
+    fn test_workspace_is_empty_with_non_req_directory() {
+        let temp = TempDir::new().unwrap();
+        let workspace = Workspace::create(temp.path()).unwrap();
+
+        // Create a directory that doesn't start with REQ-
+        let non_req_dir = workspace.stage_dir(STAGE_BACKLOG).join("other-directory");
+        std::fs::create_dir_all(&non_req_dir).unwrap();
+
+        // Workspace should still be considered empty
+        assert!(workspace.is_empty().unwrap());
+    }
 }
