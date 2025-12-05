@@ -199,17 +199,18 @@ Previous blockers resolved:
 
 ### Summary
 
-- **Total Tests**: 733 passing (626 radium-core, 59 CLI, 36 TUI, 12 client), 0 failed, 2 ignored (manual execution)
+- **Total Tests**: 771 passing (664 radium-core, 59 CLI, 36 TUI, 12 client), 0 failed, 2 ignored (manual execution)
 - **Unit Tests**: ✅ Comprehensive coverage across all core modules
 - **Integration Tests**: ✅ Core workflows tested
 - **E2E Tests**: ⚠️ Manual execution required (2 marked as ignored)
 
-### Coverage by Module (radium-core: 626 tests)
+### Coverage by Module (radium-core: 664 tests)
 
 | Module | Tests | Coverage Level | Status |
 |--------|-------|----------------|--------|
 | Workflow | 121 | Excellent (40+) | ✅ |
 | Models | 99 | Excellent (40+) | ✅ |
+| Prompts | 58 | Excellent (40+) | ✅ |
 | Context | 51 | Excellent (40+) | ✅ |
 | Agents | 40 | Excellent (40+) | ✅ |
 | Sandbox | 31 | Excellent (40+ threshold) | ✅ |
@@ -220,7 +221,6 @@ Previous blockers resolved:
 | Workspace | 22 | Good (15-20+) | ✅ |
 | Storage | 21 | Good (15-20+) | ✅ |
 | Policy | 21 | Good (15-20+) | ✅ |
-| Prompts | 20 | Good (15-20+) | ✅ |
 | Server | 18 | Good (15-20+) | ✅ |
 | Checkpoint | 18 | Good (15-20+) | ✅ |
 | Auth | 18 | Good (15-20+) | ✅ |
@@ -273,6 +273,7 @@ radium/
 
 | Date | Changes |
 |------|---------|
+| 2025-12-05 | Claude | ✅ Test Coverage - Prompts Module: Added 41 comprehensive tests to prompts module (templates +24, processing +17). Total: 771 tests (664 radium-core, 59 CLI, 36 TUI, 12 client). Prompts module reached "Excellent" (58 tests). Now 7 modules at Excellent tier! |
 | 2025-12-05 | Claude | ✅ Test Coverage - Context Module: Added 32 comprehensive tests to context module covering injection and manager. Total: 733 tests (626 radium-core, 59 CLI, 36 TUI, 12 client). Context module reached "Excellent" (51 tests). |
 | 2025-12-05 | Claude | ✅ Test Coverage Expansion: Added 41 new tests across Sandbox (+16), Planning (+14), Memory (+12), and CLI (+59 CLI tests). Total: 700 tests (595 radium-core, 59 CLI, 36 TUI, 10 client). Sandbox, Planning, and Memory modules reached "Excellent" threshold. All modules at "Good" or better. |
 | 2025-12-04 | Claude | ✅ Test Coverage Improvements: Fixed compilation errors and added 33 new tests across critical modules (checkpoint +10, commands +9, server +7, storage +7). Total: 554 tests passing. All modules now at "Good" or "Excellent" coverage. |
