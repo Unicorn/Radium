@@ -228,9 +228,130 @@ impl AgentConfigFile {
     /// Returns error if file cannot be read or parsed.
     pub fn load(path: impl AsRef<std::path::Path>) -> Result<Self> {
         let content = std::fs::read_to_string(path.as_ref())?;
-        let config: Self = toml::from_str(&content)?;
+        let mut config: Self = toml::from_str(&content)?;
         config.validate()?;
+        
+        // Convert persona TOML to PersonaConfig if present
+        if let Some(ref persona_toml) = config.persona {
+            config.agent.persona_config = Some(config.parse_persona_config(persona_toml)?);
+        }
+        
         Ok(config)
+    }
+
+    /// Parses persona configuration from TOML format.
+    fn parse_persona_config(&self, persona_toml: &PersonaConfigToml) -> Result<crate::agents::persona::PersonaConfig> {
+        use crate::agents::persona::{PerformanceConfig, PerformanceProfile, RecommendedModels, SimpleModelRecommendation};
+
+        let models = if let Some(ref models_toml) = persona_toml.models {
+            // Parse primary model (required) - can be "engine:model" or just "model" (uses agent's engine)
+            let primary = if models_toml.primary.contains(':') {
+                let parts: Vec<&str> = models_toml.primary.split(':').collect();
+                if parts.len() != 2 {
+                    return Err(AgentConfigError::Invalid(
+                        "persona.models.primary must be in format 'engine:model' or 'model'".to_string(),
+                    ));
+                }
+                SimpleModelRecommendation {
+                    engine: parts[0].to_string(),
+                    model: parts[1].to_string(),
+                }
+            } else {
+                // Use agent's engine if available, otherwise default to gemini
+                let engine = self.agent.engine.as_ref()
+                    .map(|e| e.clone())
+                    .unwrap_or_else(|| "gemini".to_string());
+                SimpleModelRecommendation {
+                    engine,
+                    model: models_toml.primary.clone(),
+                }
+            };
+
+            // Parse fallback (optional)
+            let fallback = models_toml.fallback.as_ref().map(|f| {
+                if f.contains(':') {
+                    let parts: Vec<&str> = f.split(':').collect();
+                    if parts.len() == 2 {
+                        SimpleModelRecommendation {
+                            engine: parts[0].to_string(),
+                            model: parts[1].to_string(),
+                        }
+                    } else {
+                        SimpleModelRecommendation {
+                            engine: primary.engine.clone(),
+                            model: f.clone(),
+                        }
+                    }
+                } else {
+                    SimpleModelRecommendation {
+                        engine: primary.engine.clone(),
+                        model: f.clone(),
+                    }
+                }
+            });
+
+            // Parse premium (optional)
+            let premium = models_toml.premium.as_ref().map(|p| {
+                if p.contains(':') {
+                    let parts: Vec<&str> = p.split(':').collect();
+                    if parts.len() == 2 {
+                        SimpleModelRecommendation {
+                            engine: parts[0].to_string(),
+                            model: parts[1].to_string(),
+                        }
+                    } else {
+                        SimpleModelRecommendation {
+                            engine: primary.engine.clone(),
+                            model: p.clone(),
+                        }
+                    }
+                } else {
+                    SimpleModelRecommendation {
+                        engine: primary.engine.clone(),
+                        model: p.clone(),
+                    }
+                }
+            });
+
+            RecommendedModels {
+                primary,
+                fallback,
+                premium,
+            }
+        } else {
+            return Err(AgentConfigError::Invalid(
+                "persona.models is required when persona section is present".to_string(),
+            ));
+        };
+
+        let performance = if let Some(ref perf_toml) = persona_toml.performance {
+            let profile = match perf_toml.profile.to_lowercase().as_str() {
+                "speed" => PerformanceProfile::Speed,
+                "balanced" => PerformanceProfile::Balanced,
+                "thinking" => PerformanceProfile::Thinking,
+                "expert" => PerformanceProfile::Expert,
+                _ => {
+                    return Err(AgentConfigError::Invalid(format!(
+                        "invalid performance profile: {} (must be speed, balanced, thinking, or expert)",
+                        perf_toml.profile
+                    )));
+                }
+            };
+            PerformanceConfig {
+                profile,
+                estimated_tokens: perf_toml.estimated_tokens,
+            }
+        } else {
+            PerformanceConfig {
+                profile: PerformanceProfile::Balanced,
+                estimated_tokens: None,
+            }
+        };
+
+        Ok(crate::agents::persona::PersonaConfig {
+            models,
+            performance,
+        })
     }
 
     /// Save agent configuration to a TOML file.

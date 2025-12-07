@@ -2,7 +2,7 @@
 //!
 //! Selects appropriate models based on agent persona, availability, and cost constraints.
 
-use crate::agents::persona::{ModelPricing, ModelPricingDB, ModelRecommendation, PerformanceProfile, PersonaConfig};
+use crate::agents::persona::{ModelPricing, ModelPricingDB, PerformanceProfile, PersonaConfig, SimpleModelRecommendation};
 use thiserror::Error;
 
 /// Model selection errors.
@@ -28,7 +28,7 @@ pub type Result<T> = std::result::Result<T, SelectionError>;
 #[derive(Debug, Clone)]
 pub struct SelectionResult {
     /// Selected model recommendation.
-    pub model: ModelRecommendation,
+    pub model: SimpleModelRecommendation,
     /// Selection reason.
     pub reason: String,
     /// Estimated cost for this selection.
@@ -64,7 +64,7 @@ impl DefaultModelSelector {
     }
 
     /// Checks if a model is available (placeholder - would check API in production).
-    fn is_model_available(&self, _model: &ModelRecommendation) -> bool {
+    fn is_model_available(&self, _model: &SimpleModelRecommendation) -> bool {
         // In production, this would check API availability
         // For now, assume all models are available
         true
@@ -75,7 +75,7 @@ impl DefaultModelSelector {
         &self,
         persona: &PersonaConfig,
         use_premium: bool,
-    ) -> Result<ModelRecommendation> {
+    ) -> Result<SimpleModelRecommendation> {
         match persona.performance.profile {
             PerformanceProfile::Speed => {
                 // For speed, prefer primary (usually fastest)
@@ -115,7 +115,7 @@ impl DefaultModelSelector {
     }
 
     /// Estimates cost for a model recommendation.
-    fn estimate_cost(&self, model: &ModelRecommendation, estimated_tokens: Option<u64>) -> f64 {
+    fn estimate_cost(&self, model: &SimpleModelRecommendation, estimated_tokens: Option<u64>) -> f64 {
         let pricing = self.pricing_db.get_pricing(&model.model);
         let tokens = estimated_tokens.unwrap_or(2000); // Default estimate
         // Assume 70% input, 30% output
@@ -224,12 +224,12 @@ impl FallbackChainSelector {
         Err(SelectionError::NoModelAvailable)
     }
 
-    fn is_model_available(&self, _model: &ModelRecommendation) -> bool {
+    fn is_model_available(&self, _model: &SimpleModelRecommendation) -> bool {
         // Placeholder - would check API in production
         true
     }
 
-    fn estimate_cost(&self, model: &ModelRecommendation, estimated_tokens: Option<u64>) -> f64 {
+    fn estimate_cost(&self, model: &SimpleModelRecommendation, estimated_tokens: Option<u64>) -> f64 {
         let pricing = self.pricing_db.get_pricing(&model.model);
         let tokens = estimated_tokens.unwrap_or(2000);
         let input_tokens = (tokens as f64 * 0.7) as u64;
@@ -263,11 +263,11 @@ mod tests {
     fn test_fallback_chain() {
         let selector = FallbackChainSelector::new();
         let persona = PersonaConfig::with_models(
-            ModelRecommendation {
+            SimpleModelRecommendation {
                 engine: "gemini".to_string(),
                 model: "primary".to_string(),
             },
-            Some(ModelRecommendation {
+            Some(SimpleModelRecommendation {
                 engine: "openai".to_string(),
                 model: "fallback".to_string(),
             }),

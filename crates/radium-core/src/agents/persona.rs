@@ -36,9 +36,12 @@ impl std::fmt::Display for PerformanceProfile {
     }
 }
 
-/// Model recommendation configuration.
+/// Simple model recommendation for persona system.
+///
+/// This is a simplified version for TOML configuration.
+/// For full metadata, see `AgentMetadata::ModelRecommendation`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ModelRecommendation {
+pub struct SimpleModelRecommendation {
     /// Engine to use (e.g., "gemini", "openai").
     pub engine: String,
     /// Model ID (e.g., "gemini-2.0-flash-exp").
@@ -49,13 +52,13 @@ pub struct ModelRecommendation {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RecommendedModels {
     /// Primary recommended model for most tasks.
-    pub primary: ModelRecommendation,
+    pub primary: SimpleModelRecommendation,
     /// Fallback model when primary is unavailable.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub fallback: Option<ModelRecommendation>,
+    pub fallback: Option<SimpleModelRecommendation>,
     /// Premium model for critical or complex tasks.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub premium: Option<ModelRecommendation>,
+    pub premium: Option<SimpleModelRecommendation>,
 }
 
 /// Performance configuration for an agent.
@@ -84,7 +87,7 @@ impl PersonaConfig {
     pub fn new(engine: impl Into<String>, model: impl Into<String>) -> Self {
         Self {
             models: RecommendedModels {
-                primary: ModelRecommendation {
+                primary: SimpleModelRecommendation {
                     engine: engine.into(),
                     model: model.into(),
                 },
@@ -100,9 +103,9 @@ impl PersonaConfig {
 
     /// Creates a persona config with full model recommendations.
     pub fn with_models(
-        primary: ModelRecommendation,
-        fallback: Option<ModelRecommendation>,
-        premium: Option<ModelRecommendation>,
+        primary: SimpleModelRecommendation,
+        fallback: Option<SimpleModelRecommendation>,
+        premium: Option<SimpleModelRecommendation>,
     ) -> Self {
         Self {
             models: RecommendedModels {
