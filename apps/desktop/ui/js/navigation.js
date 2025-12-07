@@ -32,6 +32,8 @@ function navigate(page) {
     window.loadTasks();
   } else if (page === 'orchestrator' && window.loadRegisteredAgents) {
     window.loadRegisteredAgents();
+  } else if (page === 'extensions' && window.loadExtensions) {
+    window.loadExtensions();
   }
 }
 
@@ -42,7 +44,7 @@ window.navigate = navigate;
 document.addEventListener('DOMContentLoaded', () => {
   // Check hash for initial page
   const hash = window.location.hash.slice(1);
-  if (hash && ['dashboard', 'agents', 'workflows', 'tasks', 'orchestrator'].includes(hash)) {
+  if (hash && ['dashboard', 'agents', 'workflows', 'tasks', 'orchestrator', 'extensions'].includes(hash)) {
     navigate(hash);
   } else {
     navigate('dashboard');
