@@ -1058,4 +1058,79 @@ trigger_agent_id = "helper-agent"
         };
         assert!(config.validate().is_err());
     }
+
+    #[test]
+    fn test_reject_config_with_missing_required_fields() {
+        use std::fs;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config_dir = temp_dir.path().join("agents");
+        fs::create_dir_all(&config_dir).unwrap();
+
+        // Test: Empty agent ID
+        let config = AgentConfigFile {
+            agent: AgentConfig {
+                id: String::new(),
+                name: "Test Agent".to_string(),
+                prompt_path: PathBuf::from("test.md"),
+                description: String::new(),
+                mirror_path: None,
+                engine: None,
+                model: None,
+                reasoning_effort: None,
+                loop_behavior: None,
+                trigger_behavior: None,
+                category: None,
+                file_path: None,
+                capabilities: AgentCapabilities::default(),
+                sandbox: None,
+            }
+            .with_file_path(config_dir.join("empty-id.toml")),
+        };
+        assert!(config.validate().is_err());
+
+        // Test: Empty agent name
+        let config = AgentConfigFile {
+            agent: AgentConfig {
+                id: "test-agent".to_string(),
+                name: String::new(),
+                prompt_path: PathBuf::from("test.md"),
+                description: String::new(),
+                mirror_path: None,
+                engine: None,
+                model: None,
+                reasoning_effort: None,
+                loop_behavior: None,
+                trigger_behavior: None,
+                category: None,
+                file_path: None,
+                capabilities: AgentCapabilities::default(),
+                sandbox: None,
+            }
+            .with_file_path(config_dir.join("empty-name.toml")),
+        };
+        assert!(config.validate().is_err());
+
+        // Test: Empty prompt path
+        let config = AgentConfigFile {
+            agent: AgentConfig {
+                id: "test-agent".to_string(),
+                name: "Test Agent".to_string(),
+                prompt_path: PathBuf::new(),
+                description: String::new(),
+                mirror_path: None,
+                engine: None,
+                model: None,
+                reasoning_effort: None,
+                loop_behavior: None,
+                trigger_behavior: None,
+                category: None,
+                file_path: None,
+                capabilities: AgentCapabilities::default(),
+                sandbox: None,
+            }
+            .with_file_path(config_dir.join("empty-prompt.toml")),
+        };
+        assert!(config.validate().is_err());
+    }
 }
