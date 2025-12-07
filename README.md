@@ -261,6 +261,63 @@ Control orchestration via TUI commands:
 - [Orchestration Workflows](docs/examples/orchestration-workflows.md) - Example workflows
 - [Orchestration Testing Guide](docs/user-guide/orchestration-testing.md) - Manual testing procedures
 
+## Engine Management
+
+Radium supports multiple AI providers through a unified engine abstraction layer. You can list, configure, and switch between different engines seamlessly.
+
+### Quick Start
+
+```bash
+# List all available engines
+rad engines list
+
+# Show detailed information about an engine
+rad engines show gemini
+
+# Check authentication status
+rad engines status
+
+# Set default engine
+rad engines set-default gemini
+
+# Check engine health
+rad engines health
+```
+
+### Available Engines
+
+- **Gemini** (`gemini`): Google's Gemini models (gemini-pro, gemini-2.0-flash-exp)
+- **Claude** (`claude`): Anthropic's Claude models (claude-3-opus, claude-3-sonnet, claude-3-haiku)
+- **OpenAI** (`openai`): OpenAI GPT models (gpt-4, gpt-4-turbo, gpt-3.5-turbo)
+- **Mock** (`mock`): Testing engine for development
+
+### Authentication
+
+Set up API keys for each provider:
+
+```bash
+# Authenticate with a provider
+rad auth login gemini
+rad auth login claude
+rad auth login openai
+```
+
+Credentials are securely stored in `~/.radium/credentials.json`.
+
+### Configuration
+
+Engine settings are stored in `.radium/config.toml`:
+
+```toml
+[engines]
+default = "gemini"
+```
+
+### Documentation
+
+- [Engine Abstraction Architecture](docs/architecture/engine-abstraction.md) - Technical architecture details
+- [Adding New Engine Providers](docs/guides/adding-new-engine-provider.md) - Developer guide for adding providers
+
 ## Session Analytics
 
 Radium automatically tracks every agent session, providing detailed analytics on costs, performance, and optimization opportunities.
