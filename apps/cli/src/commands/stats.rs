@@ -29,7 +29,7 @@ pub enum StatsCommand {
     /// Show historical session summaries
     History {
         /// Number of sessions to show (default: 10)
-        #[arg(short, long, default_value = "10")]
+        #[arg(short = 'n', long, default_value = "10")]
         limit: usize,
         /// Output as JSON
         #[arg(long)]
