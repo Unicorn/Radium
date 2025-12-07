@@ -8,6 +8,9 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 use super::types::{BehaviorAction, BehaviorActionType, BehaviorError, BehaviorEvaluator};
+use crate::context::ContextManager;
+use crate::oversight::{MetacognitiveService, OversightRequest};
+use crate::policy::ConstitutionManager;
 
 /// Decision result from vibe check evaluation.
 #[derive(Debug, Clone, PartialEq)]
@@ -145,7 +148,7 @@ impl VibeCheckEvaluator {
         Self
     }
 
-    /// Evaluates vibe check behavior.
+    /// Evaluates vibe check behavior (synchronous, basic detection only).
     ///
     /// # Arguments
     /// * `behavior_file` - Path to behavior.json
@@ -156,6 +159,9 @@ impl VibeCheckEvaluator {
     /// `Ok(Some(VibeCheckDecision))` if vibe check should be triggered,
     /// `Ok(None)` if no vibe check behavior,
     /// `Err(BehaviorError)` on evaluation error.
+    ///
+    /// Note: This method only detects if a vibecheck should be triggered.
+    /// For full oversight with MetacognitiveService, use `evaluate_with_oversight`.
     pub fn evaluate_vibe_check(
         &self,
         behavior_file: &Path,
@@ -173,7 +179,7 @@ impl VibeCheckEvaluator {
         }
 
         // For now, create a basic decision that triggers oversight
-        // The actual oversight LLM call will be handled by the oversight service
+        // The actual oversight LLM call will be handled by evaluate_with_oversight
         let mut decision = VibeCheckDecision::new(
             true,
             0.5, // Default risk score - will be updated by oversight service
@@ -187,6 +193,101 @@ impl VibeCheckEvaluator {
         }
 
         Ok(Some(decision))
+    }
+
+    /// Evaluates vibe check behavior with full metacognitive oversight.
+    ///
+    /// This method:
+    /// 1. Detects if vibecheck should be triggered
+    /// 2. Gathers context from ContextManager, LearningStore, and ConstitutionManager
+    /// 3. Calls MetacognitiveService for oversight feedback
+    /// 4. Returns VibeCheckDecision with oversight response
+    ///
+    /// # Arguments
+    /// * `behavior_file` - Path to behavior.json
+    /// * `output` - Output from agent execution
+    /// * `vibe_context` - VibeCheckContext for phase-aware evaluation
+    /// * `metacognitive` - MetacognitiveService for oversight
+    /// * `context_manager` - ContextManager for gathering history and learning context
+    /// * `constitution_manager` - ConstitutionManager for session rules
+    /// * `session_id` - Session ID for constitution and history
+    ///
+    /// # Returns
+    /// `Ok(Some(VibeCheckDecision))` with oversight feedback if vibe check triggered,
+    /// `Ok(None)` if no vibe check behavior,
+    /// `Err(BehaviorError)` on evaluation error.
+    pub async fn evaluate_with_oversight(
+        &self,
+        behavior_file: &Path,
+        output: &str,
+        vibe_context: &VibeCheckContext,
+        metacognitive: &MetacognitiveService,
+        context_manager: &ContextManager,
+        constitution_manager: &ConstitutionManager,
+        session_id: Option<&str>,
+    ) -> Result<Option<VibeCheckDecision>, BehaviorError> {
+        // First check if vibecheck should be triggered
+        let Some(mut decision) = self.evaluate_vibe_check(behavior_file, output, vibe_context)? else {
+            return Ok(None);
+        };
+
+        // Gather context for oversight request
+        let goal = vibe_context.goal.clone().unwrap_or_else(|| "Unknown goal".to_string());
+        let plan = vibe_context.plan.clone().unwrap_or_else(|| "No plan specified".to_string());
+
+        // Build oversight request
+        let mut oversight_request = OversightRequest::new(vibe_context.phase, goal, plan)
+            .with_progress(vibe_context.progress.clone().unwrap_or_default())
+            .with_task_context(vibe_context.task_context.clone().unwrap_or_default());
+        
+        if let Some(user_prompt) = vibe_context.user_prompt.clone() {
+            oversight_request = oversight_request.with_user_prompt(user_prompt);
+        }
+
+        // Add learning context if available
+        if let Some(learning_context) = context_manager.gather_learning_context(3) {
+            // Remove the markdown header that gather_learning_context adds
+            let context = learning_context
+                .strip_prefix("# Learning Context\n\n")
+                .and_then(|s| s.strip_suffix("\n"))
+                .unwrap_or(&learning_context)
+                .to_string();
+            oversight_request = oversight_request.with_learning_context(context);
+        }
+
+        // Add history summary if available (from memory context)
+        if let Ok(Some(history)) = context_manager.gather_memory_context("agent") {
+            oversight_request = oversight_request.with_history_summary(history);
+        }
+
+        // Add constitution rules if session ID provided
+        if let Some(sid) = session_id {
+            let rules = constitution_manager.get_constitution(sid);
+            oversight_request = oversight_request.with_constitution_rules(rules);
+        }
+
+        // Add session ID if provided
+        if let Some(sid) = session_id {
+            oversight_request = oversight_request.with_session_id(sid);
+        }
+
+        // Call metacognitive service for oversight
+        match metacognitive.generate_oversight(&oversight_request).await {
+            Ok(oversight_response) => {
+                // Update decision with oversight response
+                decision.risk_score = oversight_response.risk_score;
+                decision.advice = oversight_response.advice;
+                decision.traits = oversight_response.traits;
+                decision.uncertainties = oversight_response.uncertainties;
+                Ok(Some(decision))
+            }
+            Err(e) => {
+                // On error, return decision with error message in advice
+                decision.advice = format!("Oversight service error: {}", e);
+                decision.risk_score = 0.8; // High risk due to oversight failure
+                Ok(Some(decision))
+            }
+        }
     }
 }
 

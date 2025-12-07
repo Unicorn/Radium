@@ -168,6 +168,83 @@ impl LearningIntegration {
     pub fn learning_store(&self) -> &Arc<std::sync::Mutex<LearningStore>> {
         &self.learning_store
     }
+
+    /// Updates learning store from oversight response.
+    ///
+    /// This method:
+    /// 1. Extracts traits/patterns from oversight response
+    /// 2. Adds mistakes to learning store if harmful patterns detected
+    /// 3. Generates skillbook updates via SkillManager
+    /// 4. Applies updates to learning store
+    ///
+    /// # Arguments
+    /// * `oversight_response` - The oversight response containing patterns
+    /// * `question_context` - Description of the task domain
+    /// * `progress` - Current progress summary
+    ///
+    /// # Returns
+    /// `Ok(())` if updates were applied successfully,
+    /// `Err` if processing failed
+    pub async fn update_from_oversight(
+        &self,
+        oversight_response: &crate::oversight::OversightResponse,
+        question_context: &str,
+        progress: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if !self.config.enabled {
+            return Ok(());
+        }
+
+        // 1. Extract traits and add as mistakes if harmful patterns detected
+        {
+            let mut store = self
+                .learning_store
+                .lock()
+                .map_err(|e| format!("Failed to lock learning store: {}", e))?;
+
+            // Add mistakes for detected harmful traits
+            for trait_name in &oversight_response.traits {
+                // Only add if it's a known harmful category
+                if matches!(
+                    trait_name.as_str(),
+                    "Complex Solution Bias" | "Feature Creep" | "Premature Implementation"
+                        | "Misalignment" | "Overtooling"
+                ) {
+                    let _ = store.add_entry(
+                        crate::learning::store::LearningType::Mistake,
+                        trait_name.clone(),
+                        format!("Detected during oversight: {}", oversight_response.advice),
+                        Some("Review oversight feedback and adjust approach".to_string()),
+                    );
+                }
+            }
+        }
+
+        // 2. Generate skillbook updates from oversight
+        let update_batch = {
+            let store = self
+                .learning_store
+                .lock()
+                .map_err(|e| format!("Failed to lock learning store: {}", e))?;
+            self.skill_manager
+                .generate_updates(oversight_response, &store, question_context, progress)
+                .await
+                .map_err(|e| format!("Skill manager update generation failed: {}", e))?
+        };
+
+        // 3. Apply updates to learning store
+        if !update_batch.is_empty() {
+            let mut store = self
+                .learning_store
+                .lock()
+                .map_err(|e| format!("Failed to lock learning store: {}", e))?;
+            store
+                .apply_update(&update_batch)
+                .map_err(|e| format!("Failed to apply learning updates: {}", e))?;
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]

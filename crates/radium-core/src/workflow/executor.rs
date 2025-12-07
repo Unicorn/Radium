@@ -497,6 +497,35 @@ impl WorkflowExecutor {
                 "Workflow step completed successfully"
             );
 
+            // Check for vibecheck behavior and handle if present
+            if let Some(workspace) = Workspace::discover().ok() {
+                let ws_structure = WorkspaceStructure::new(workspace.root());
+                let behavior_file = ws_structure.memory_dir().join("behavior.json");
+                
+                if behavior_file.exists() {
+                    use crate::workflow::behaviors::vibe_check::{VibeCheckContext, VibeCheckEvaluator, WorkflowPhase};
+                    use crate::workflow::behaviors::types::BehaviorAction;
+                    
+                    // Try to read behavior action
+                    if let Ok(Some(action)) = BehaviorAction::read_from_file(&behavior_file) {
+                        use crate::workflow::behaviors::types::BehaviorActionType;
+                        if action.action == BehaviorActionType::VibeCheck {
+                            debug!(
+                                workflow_id = %workflow.id,
+                                step_id = %step.id,
+                                "VibeCheck behavior detected - oversight would be triggered here"
+                            );
+                            // Note: Full oversight integration requires MetacognitiveService,
+                            // ContextManager, and ConstitutionManager which are not currently
+                            // available in WorkflowExecutor. This is a placeholder for the
+                            // integration point. The actual oversight call should be made via
+                            // VibeCheckEvaluator::evaluate_with_oversight() when those services
+                            // are available.
+                        }
+                    }
+                }
+            }
+
             // Execute workflow step hooks for behavior evaluation
             if let Some(ref registry) = self.hook_registry {
                 if let Some(workspace) = Workspace::discover().ok() {
