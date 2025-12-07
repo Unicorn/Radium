@@ -147,28 +147,28 @@ impl ProgressRepository for DatabaseProgressRepository {
             )
             .map_err(|e| CollaborationError::DatabaseError(StorageError::Connection(e)))?;
 
-        let result: Option<ProgressSnapshot> = stmt
-            .query_row([agent_id], |row| {
-                let status_str: String = row.get(3)?;
-                let status = ProgressStatus::from_str(&status_str).map_err(|_| {
-                    rusqlite::Error::InvalidColumnType(
-                        3,
-                        "status".to_string(),
-                        rusqlite::types::Type::Text,
-                    )
-                })?;
+        match stmt.query_row([agent_id], |row| {
+            let status_str: String = row.get(3)?;
+            let status = ProgressStatus::from_str(&status_str).map_err(|_| {
+                rusqlite::Error::InvalidColumnType(
+                    3,
+                    "status".to_string(),
+                    rusqlite::types::Type::Text,
+                )
+            })?;
 
-                Ok(ProgressSnapshot {
-                    agent_id: row.get(0)?,
-                    timestamp: row.get(1)?,
-                    percentage: row.get::<_, i64>(2)? as u8,
-                    status,
-                    message: row.get(4)?,
-                })
+            Ok(ProgressSnapshot {
+                agent_id: row.get(0)?,
+                timestamp: row.get(1)?,
+                percentage: row.get::<_, i64>(2)? as u8,
+                status,
+                message: row.get(4)?,
             })
-            .map_err(|e| CollaborationError::DatabaseError(StorageError::Connection(e)))?;
-
-        Ok(result)
+        }) {
+            Ok(snapshot) => Ok(Some(snapshot)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(CollaborationError::DatabaseError(StorageError::Connection(e))),
+        }
     }
 
     fn get_progress_for_agents(&self, agent_ids: &[String]) -> Result<Vec<ProgressSnapshot>> {

@@ -10,10 +10,14 @@
 pub mod error;
 pub mod lock_manager;
 pub mod message_bus;
+pub mod progress;
 
 pub use error::{CollaborationError, Result};
 pub use lock_manager::{LockHandle, LockType, ResourceLockManager};
 pub use message_bus::{
     AgentMessage, DatabaseMessageRepository, MessageBus, MessageRepository, MessageType,
+};
+pub use progress::{
+    AggregatedProgress, ProgressRepository, ProgressSnapshot, ProgressStatus, ProgressTracker,
 };
 
