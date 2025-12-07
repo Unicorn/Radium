@@ -49,6 +49,7 @@ mod files;
 mod history;
 mod injection;
 mod manager;
+pub mod metrics;
 pub mod sources;
 mod templates;
 mod validator;
@@ -58,6 +59,7 @@ pub use files::ContextFileLoader;
 pub use history::{HistoryError, HistoryManager, Interaction, Result as HistoryResult};
 pub use injection::{ContextInjector, InjectionDirective};
 pub use manager::ContextManager;
+pub use metrics::{AggregatedContextMetrics, ContextMetrics, Percentiles};
 pub use sources::{
     BraingridReader, HttpReader, JiraReader, LocalFileReader, SourceError, SourceMetadata,
     SourceReader, SourceRegistry,

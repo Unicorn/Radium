@@ -606,7 +606,7 @@ async fn list_custom_commands() -> Result<()> {
     // Show namespaced commands
     if !namespaced.is_empty() {
         for (namespace, cmds) in namespaced {
-            println!("  {} {}:", namespace.cyan().bold());
+            println!("  {}:", namespace.cyan().bold());
             for cmd in cmds {
                 println!("    {} {}:{} - {}", "•".cyan(), namespace.cyan(), cmd.name.cyan(), cmd.description.dimmed());
             }
