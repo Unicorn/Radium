@@ -10,6 +10,7 @@ pub mod content;
 pub mod error;
 pub mod integration;
 pub mod messages;
+pub mod orchestration_bridge;
 pub mod prompts;
 pub mod tools;
 pub mod transport;
