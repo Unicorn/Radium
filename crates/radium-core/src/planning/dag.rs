@@ -647,5 +647,178 @@ mod tests {
         assert_eq!(level2.len(), 1);
         assert!(level2.contains(&"I1.T4".to_string()));
     }
+
+    #[test]
+    fn test_dag_complex_dependency_patterns() {
+        let req_id = RequirementId::from_str("REQ-001").unwrap();
+        let mut manifest = PlanManifest::new(req_id, "Complex Project".to_string());
+
+        // Create a complex dependency pattern: multiple chains converging
+        let mut iter1 = Iteration::new(1, "Iteration 1".to_string());
+        
+        // Chain 1: T1 -> T2 -> T5
+        let task1 = PlanTask::new("I1", 1, "Task 1".to_string());
+        let mut task2 = PlanTask::new("I1", 2, "Task 2".to_string());
+        task2.dependencies.push("I1.T1".to_string());
+        let mut task5 = PlanTask::new("I1", 5, "Task 5".to_string());
+        task5.dependencies.push("I1.T2".to_string());
+        
+        // Chain 2: T3 -> T4 -> T5 (converges with Chain 1)
+        let task3 = PlanTask::new("I1", 3, "Task 3".to_string());
+        let mut task4 = PlanTask::new("I1", 4, "Task 4".to_string());
+        task4.dependencies.push("I1.T3".to_string());
+        task5.dependencies.push("I1.T4".to_string());
+        
+        iter1.add_task(task1);
+        iter1.add_task(task2);
+        iter1.add_task(task3);
+        iter1.add_task(task4);
+        iter1.add_task(task5);
+        manifest.add_iteration(iter1);
+
+        let dag = DependencyGraph::from_manifest(&manifest).unwrap();
+        
+        // Should detect no cycles
+        assert!(dag.detect_cycles().is_ok());
+        
+        // Topological sort should respect dependencies
+        let sorted = dag.topological_sort().unwrap();
+        assert_eq!(sorted.len(), 5);
+        
+        // T1 and T3 should come first (no dependencies)
+        assert!(sorted.iter().position(|t| t == "I1.T1").unwrap() < sorted.iter().position(|t| t == "I1.T2").unwrap());
+        assert!(sorted.iter().position(|t| t == "I1.T3").unwrap() < sorted.iter().position(|t| t == "I1.T4").unwrap());
+        
+        // T2 and T4 should come before T5
+        assert!(sorted.iter().position(|t| t == "I1.T2").unwrap() < sorted.iter().position(|t| t == "I1.T5").unwrap());
+        assert!(sorted.iter().position(|t| t == "I1.T4").unwrap() < sorted.iter().position(|t| t == "I1.T5").unwrap());
+        
+        // Execution levels
+        let levels = dag.calculate_execution_levels();
+        assert_eq!(levels.get("I1.T1"), Some(&0));
+        assert_eq!(levels.get("I1.T3"), Some(&0));
+        assert_eq!(levels.get("I1.T2"), Some(&1));
+        assert_eq!(levels.get("I1.T4"), Some(&1));
+        assert_eq!(levels.get("I1.T5"), Some(&2));
+    }
+
+    #[test]
+    fn test_dag_multiple_cycles() {
+        let req_id = RequirementId::from_str("REQ-001").unwrap();
+        let mut manifest = PlanManifest::new(req_id, "Multi Cycle Project".to_string());
+
+        // Create two separate cycles in different iterations
+        let mut iter1 = Iteration::new(1, "Iteration 1".to_string());
+        let mut task1 = PlanTask::new("I1", 1, "Task 1".to_string());
+        let mut task2 = PlanTask::new("I1", 2, "Task 2".to_string());
+        task1.dependencies.push("I1.T2".to_string());
+        task2.dependencies.push("I1.T1".to_string());
+        iter1.add_task(task1);
+        iter1.add_task(task2);
+        manifest.add_iteration(iter1);
+
+        let result = DependencyGraph::from_manifest(&manifest);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            DagError::CycleDetected(path) => {
+                // Should detect the cycle
+                assert!(path.contains("I1.T1") || path.contains("I1.T2"));
+            }
+            _ => panic!("Expected CycleDetected error"),
+        }
+    }
+
+    #[test]
+    fn test_dag_self_reference() {
+        let req_id = RequirementId::from_str("REQ-001").unwrap();
+        let mut manifest = PlanManifest::new(req_id, "Self Ref Project".to_string());
+
+        let mut iter1 = Iteration::new(1, "Iteration 1".to_string());
+        let mut task1 = PlanTask::new("I1", 1, "Task 1".to_string());
+        task1.dependencies.push("I1.T1".to_string()); // Self-reference
+        iter1.add_task(task1);
+        manifest.add_iteration(iter1);
+
+        let result = DependencyGraph::from_manifest(&manifest);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            DagError::CycleDetected(_) => {} // Self-reference creates a cycle
+            _ => panic!("Expected CycleDetected error for self-reference"),
+        }
+    }
+
+    #[test]
+    fn test_dag_empty_manifest() {
+        let req_id = RequirementId::from_str("REQ-001").unwrap();
+        let manifest = PlanManifest::new(req_id, "Empty Project".to_string());
+
+        let dag = DependencyGraph::from_manifest(&manifest).unwrap();
+        assert_eq!(dag.node_count(), 0);
+        assert_eq!(dag.edge_count(), 0);
+        
+        let sorted = dag.topological_sort().unwrap();
+        assert!(sorted.is_empty());
+        
+        let levels = dag.calculate_execution_levels();
+        assert!(levels.is_empty());
+    }
+
+    #[test]
+    fn test_dag_single_task_no_dependencies() {
+        let req_id = RequirementId::from_str("REQ-001").unwrap();
+        let mut manifest = PlanManifest::new(req_id, "Single Task Project".to_string());
+
+        let mut iter1 = Iteration::new(1, "Iteration 1".to_string());
+        let task1 = PlanTask::new("I1", 1, "Task 1".to_string());
+        iter1.add_task(task1);
+        manifest.add_iteration(iter1);
+
+        let dag = DependencyGraph::from_manifest(&manifest).unwrap();
+        assert_eq!(dag.node_count(), 1);
+        assert_eq!(dag.edge_count(), 0);
+        
+        assert!(dag.detect_cycles().is_ok());
+        
+        let sorted = dag.topological_sort().unwrap();
+        assert_eq!(sorted.len(), 1);
+        assert_eq!(sorted[0], "I1.T1");
+        
+        let levels = dag.calculate_execution_levels();
+        assert_eq!(levels.get("I1.T1"), Some(&0));
+    }
+
+    #[test]
+    fn test_dag_topological_sort_respects_dependencies() {
+        let manifest = create_test_manifest();
+        let dag = DependencyGraph::from_manifest(&manifest).unwrap();
+
+        // Topological sort should ensure T1 comes before T2, and T2 before T3
+        let sorted = dag.topological_sort().unwrap();
+        let t1_pos = sorted.iter().position(|t| t == "I1.T1").unwrap();
+        let t2_pos = sorted.iter().position(|t| t == "I1.T2").unwrap();
+        let t3_pos = sorted.iter().position(|t| t == "I1.T3").unwrap();
+
+        assert!(t1_pos < t2_pos);
+        assert!(t2_pos < t3_pos);
+    }
+
+    #[test]
+    fn test_dag_invalid_task_id_format() {
+        let req_id = RequirementId::from_str("REQ-001").unwrap();
+        let mut manifest = PlanManifest::new(req_id, "Invalid ID Project".to_string());
+
+        let mut iter1 = Iteration::new(1, "Iteration 1".to_string());
+        let mut task1 = PlanTask::new("I1", 1, "Task 1".to_string());
+        task1.dependencies.push("INVALID".to_string()); // Non-existent dependency
+        iter1.add_task(task1);
+        manifest.add_iteration(iter1);
+
+        let result = DependencyGraph::from_manifest(&manifest);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            DagError::DependencyNotFound(_) => {} // Invalid format is treated as missing dependency
+            _ => panic!("Expected DependencyNotFound error"),
+        }
+    }
 }
 

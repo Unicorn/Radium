@@ -1,0 +1,5 @@
+[command]
+name = "test"
+description = "Run build tests"
+template = "# Build Test Results\n\n!{cargo test --release}\n\n## Test Coverage\n\n!{cargo test --all-features -- --nocapture}"
+

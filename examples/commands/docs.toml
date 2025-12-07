@@ -1,0 +1,5 @@
+[command]
+name = "docs"
+description = "Show project documentation"
+template = "# Project Documentation\n\n@{README.md}\n\n## API Reference\n\n@{docs/API.md}"
+

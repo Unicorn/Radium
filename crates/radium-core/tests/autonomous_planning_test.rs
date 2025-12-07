@@ -5,9 +5,12 @@
 
 use radium_abstraction::{ChatMessage, Model, ModelError, ModelParameters, ModelResponse};
 use radium_core::agents::registry::AgentRegistry;
-use radium_core::planning::autonomous::{
-    AutonomousPlanner, PlanValidator, PlanningError, ValidationReport, WorkflowGenerator,
+#[cfg(feature = "workflow")]
+use radium_core::planning::{
+    AutonomousPlanner, DependencyGraph, ParsedIteration, ParsedPlan, ParsedTask,
+    PlanValidator, PlanningError, ValidationReport, WorkflowGenerator,
 };
+#[cfg(not(feature = "workflow"))]
 use radium_core::planning::{DependencyGraph, ParsedIteration, ParsedPlan, ParsedTask};
 use std::sync::Arc;
 
@@ -209,6 +212,7 @@ Goal: Setup project structure
     .to_string()
 }
 
+#[cfg(feature = "workflow")]
 #[tokio::test]
 async fn test_plan_validator_valid_plan() {
     let registry = Arc::new(AgentRegistry::new());
@@ -221,6 +225,7 @@ async fn test_plan_validator_valid_plan() {
     assert!(report.errors.is_empty());
 }
 
+#[cfg(feature = "workflow")]
 #[tokio::test]
 async fn test_plan_validator_cyclic_dependencies() {
     let registry = Arc::new(AgentRegistry::new());
@@ -233,6 +238,7 @@ async fn test_plan_validator_cyclic_dependencies() {
     assert!(report.errors.iter().any(|e| e.contains("circular dependency")));
 }
 
+#[cfg(feature = "workflow")]
 #[tokio::test]
 async fn test_plan_validator_missing_dependency() {
     let registry = Arc::new(AgentRegistry::new());
@@ -248,6 +254,7 @@ async fn test_plan_validator_missing_dependency() {
         .any(|e| e.contains("non-existent dependency")));
 }
 
+#[cfg(feature = "workflow")]
 #[tokio::test]
 async fn test_plan_validator_unknown_agent() {
     let registry = Arc::new(AgentRegistry::new());
@@ -264,6 +271,7 @@ async fn test_plan_validator_unknown_agent() {
         .any(|w| w.contains("unknown agent")));
 }
 
+#[cfg(feature = "workflow")]
 #[tokio::test]
 async fn test_workflow_generator_valid_plan() {
     let generator = WorkflowGenerator::new();
@@ -300,10 +308,11 @@ async fn test_workflow_generator_valid_plan() {
     let workflow = generator.generate_workflow(&plan, &dag).unwrap();
 
     // Workflow should have steps in dependency order
-    assert_eq!(workflow.steps().len(), 2);
+    assert_eq!(workflow.steps.len(), 2);
     // Steps should be in topological order (T1 before T2)
 }
 
+#[cfg(feature = "workflow")]
 #[tokio::test]
 async fn test_autonomous_planner_successful_generation() {
     let registry = Arc::new(AgentRegistry::new());
@@ -320,9 +329,10 @@ async fn test_autonomous_planner_successful_generation() {
 
     assert_eq!(autonomous_plan.plan.project_name, "Test Project");
     assert!(!autonomous_plan.plan.iterations.is_empty());
-    assert!(!autonomous_plan.workflow.steps().is_empty());
+    assert!(!autonomous_plan.workflow.steps.is_empty());
 }
 
+#[cfg(feature = "workflow")]
 #[tokio::test]
 async fn test_autonomous_planner_validation_retry() {
     let registry = Arc::new(AgentRegistry::new());
@@ -354,6 +364,7 @@ async fn test_autonomous_planner_validation_retry() {
     assert!(result.is_ok());
 }
 
+#[cfg(feature = "workflow")]
 #[tokio::test]
 async fn test_autonomous_planner_validation_failure_after_max_retries() {
     let registry = Arc::new(AgentRegistry::new());
@@ -388,6 +399,7 @@ async fn test_autonomous_planner_validation_failure_after_max_retries() {
     }
 }
 
+#[cfg(feature = "workflow")]
 #[tokio::test]
 async fn test_autonomous_planner_cycle_detection_integration() {
     let registry = Arc::new(AgentRegistry::new());
@@ -421,6 +433,178 @@ async fn test_autonomous_planner_cycle_detection_integration() {
     match result.unwrap_err() {
         PlanningError::Dag(_) => {} // DAG error indicates cycle
         e => panic!("Expected DAG error (cycle), got {:?}", e),
+    }
+}
+
+#[cfg(feature = "workflow")]
+#[tokio::test]
+async fn test_plan_validator_multi_stage_validation() {
+    let registry = Arc::new(AgentRegistry::new());
+    let validator = PlanValidator::new(registry);
+
+    // Create plan with multiple validation issues
+    let plan = ParsedPlan {
+        project_name: "Multi Issue Project".to_string(),
+        description: None,
+        tech_stack: vec![],
+        iterations: vec![
+            ParsedIteration {
+                number: 1,
+                name: "Iteration 1".to_string(),
+                description: None,
+                goal: None,
+                tasks: vec![
+                    ParsedTask {
+                        number: 1,
+                        title: "Task 1".to_string(),
+                        description: None,
+                        agent_id: Some("unknown-agent".to_string()), // Unknown agent (warning)
+                        dependencies: vec!["I5.T1".to_string()], // Missing dependency (error)
+                        acceptance_criteria: vec![],
+                    },
+                    ParsedTask {
+                        number: 2,
+                        title: "Task 2".to_string(),
+                        description: None,
+                        agent_id: Some("code-agent".to_string()),
+                        dependencies: vec!["I1.T1".to_string()], // Valid dependency
+                        acceptance_criteria: vec![],
+                    },
+                ],
+            },
+        ],
+    };
+
+    let report = validator.validate_plan(&plan);
+
+    // Should have both errors and warnings
+    assert!(!report.is_valid);
+    assert!(report.errors.iter().any(|e| e.contains("non-existent dependency")));
+    assert!(report.warnings.iter().any(|w| w.contains("unknown agent")));
+}
+
+#[cfg(feature = "workflow")]
+#[tokio::test]
+async fn test_plan_validator_agent_registry_integration() {
+    let registry = Arc::new(AgentRegistry::new());
+    let validator = PlanValidator::new(registry.clone());
+
+    // Create plan with known and unknown agents
+    let plan = ParsedPlan {
+        project_name: "Agent Test Project".to_string(),
+        description: None,
+        tech_stack: vec![],
+        iterations: vec![ParsedIteration {
+            number: 1,
+            name: "Iteration 1".to_string(),
+            description: None,
+            goal: None,
+            tasks: vec![
+                ParsedTask {
+                    number: 1,
+                    title: "Task 1".to_string(),
+                    description: None,
+                    agent_id: Some("code-agent".to_string()), // Known agent
+                    dependencies: vec![],
+                    acceptance_criteria: vec![],
+                },
+                ParsedTask {
+                    number: 2,
+                    title: "Task 2".to_string(),
+                    description: None,
+                    agent_id: Some("nonexistent-agent".to_string()), // Unknown agent
+                    dependencies: vec![],
+                    acceptance_criteria: vec![],
+                },
+                ParsedTask {
+                    number: 3,
+                    title: "Task 3".to_string(),
+                    description: None,
+                    agent_id: Some("auto".to_string()), // Auto agent (should not warn)
+                    dependencies: vec![],
+                    acceptance_criteria: vec![],
+                },
+            ],
+        }],
+    };
+
+    let report = validator.validate_plan(&plan);
+
+    // Should be valid (unknown agents are warnings, not errors)
+    assert!(report.is_valid);
+    // Should have warning for unknown agent
+    assert!(report.warnings.iter().any(|w| w.contains("nonexistent-agent")));
+    // Should not warn about "auto" agent
+    assert!(!report.warnings.iter().any(|w| w.contains("auto")));
+}
+
+#[cfg(feature = "workflow")]
+#[tokio::test]
+async fn test_autonomous_planner_validation_retry_with_feedback() {
+    let registry = Arc::new(AgentRegistry::new());
+    let planner = AutonomousPlanner::new(registry);
+
+    // First response has missing dependency, second has valid plan
+    let invalid_response = r#"# Test Project
+
+## Iteration 1: Setup
+
+1. **Task 1** - Setup
+   - Dependencies: I5.T1
+2. **Task 2** - Build
+   - Dependencies: I1.T1
+"#
+    .to_string();
+
+    let valid_response = create_valid_plan_response();
+
+    let model = Arc::new(MockPlanModel::new(vec![
+        invalid_response,
+        valid_response,
+    ]));
+
+    let goal = "Build a test project";
+    let result = planner.plan_from_goal(goal, model).await;
+
+    // Should succeed after retry with feedback
+    assert!(result.is_ok());
+    let autonomous_plan = result.unwrap();
+    assert_eq!(autonomous_plan.plan.project_name, "Test Project");
+}
+
+#[cfg(feature = "workflow")]
+#[tokio::test]
+async fn test_autonomous_planner_validation_retry_max_attempts() {
+    let registry = Arc::new(AgentRegistry::new());
+    let planner = AutonomousPlanner::new(registry);
+
+    // Always return invalid plan with missing dependency
+    let invalid_response = r#"# Test Project
+
+## Iteration 1: Setup
+
+1. **Task 1** - Setup
+   - Dependencies: I5.T1
+2. **Task 2** - Build
+   - Dependencies: I1.T1
+"#
+    .to_string();
+
+    // Should try 3 times total (initial + 2 retries)
+    let model = Arc::new(MockPlanModel::new(vec![
+        invalid_response.clone(),
+        invalid_response.clone(),
+        invalid_response,
+    ]));
+
+    let goal = "Build a test project";
+    let result = planner.plan_from_goal(goal, model).await;
+
+    // Should fail after max retries
+    assert!(result.is_err());
+    match result.unwrap_err() {
+        PlanningError::ValidationFailed(_) => {}
+        e => panic!("Expected ValidationFailed, got {:?}", e),
     }
 }
 

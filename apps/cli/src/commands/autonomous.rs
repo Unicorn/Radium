@@ -23,8 +23,9 @@ pub async fn execute(goal: String) -> Result<()> {
 
     // Initialize database
     let db_path = workspace.radium_dir().join("radium.db");
+    let db_path_str = db_path.to_string_lossy();
     let db = Arc::new(std::sync::Mutex::new(
-        Database::open(&db_path).context("Failed to open database")?,
+        Database::open(&db_path_str).context("Failed to open database")?,
     ));
 
     // Initialize orchestrator and executor

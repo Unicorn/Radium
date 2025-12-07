@@ -428,6 +428,7 @@ mod tests {
         let registry = Arc::new(HookRegistry::new());
         
         let config = HookConfig {
+            enable_profiling: false,
             hooks: vec![HookDefinition {
                 name: "test-hook".to_string(),
                 hook_type: "before_model".to_string(),

@@ -1,0 +1,6 @@
+[command]
+name = "commit"
+description = "Create a git commit with message"
+template = "Committing changes...\n\n!{git add -A}\n!{git commit -m \"{{args}}\"}\n\nCommit created successfully!"
+args = ["message"]
+

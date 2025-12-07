@@ -1,0 +1,5 @@
+[command]
+name = "git-status"
+description = "Show git status with context"
+template = "# Git Status\n\n!{git status}\n\n# Recent Commits\n\n!{git log --oneline -5}"
+

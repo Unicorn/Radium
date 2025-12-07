@@ -1,0 +1,6 @@
+[command]
+name = "test"
+description = "Run tests with filter"
+template = "Running tests for {{arg1}}...\n\n!{cargo test --lib {{arg1}}}"
+args = ["filter"]
+

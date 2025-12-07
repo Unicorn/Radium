@@ -221,8 +221,8 @@ pub async fn execute(
             // Set model info
             if let Some(model) = agent.model.as_deref() {
                 telemetry = telemetry.with_model(model.to_string(), selected_engine.to_string());
-            } else if let Some(ref model) = response.model {
-                telemetry = telemetry.with_model(model.clone(), selected_engine.to_string());
+            } else {
+                telemetry = telemetry.with_model(response.model.clone(), selected_engine.to_string());
             }
             
             // Set token usage from response
@@ -413,9 +413,7 @@ async fn execute_agent_with_engine(
                     "  Output: {} tokens",
                     usage.output_tokens.to_string().dimmed()
                 );
-                if let Some(total) = usage.total_tokens {
-                    println!("  Total: {} tokens", total.to_string().cyan());
-                }
+                println!("  Total: {} tokens", usage.total_tokens.to_string().cyan());
             }
 
             Ok(response)

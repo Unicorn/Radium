@@ -599,23 +599,216 @@ pub struct AutonomousPlan {
 mod tests {
     use super::*;
     use crate::agents::registry::AgentRegistry;
+    use crate::planning::{ParsedIteration, ParsedPlan, ParsedTask};
 
     #[test]
     fn test_plan_validator_dependency_validation() {
-        // This test would require creating a mock plan
-        // For now, we'll test the logic structure
         let registry = Arc::new(AgentRegistry::new());
         let validator = PlanValidator::new(registry);
+
+        // Create plan with valid and invalid dependencies
+        let plan = ParsedPlan {
+            project_name: "Dependency Test".to_string(),
+            description: None,
+            tech_stack: vec![],
+            iterations: vec![
+                ParsedIteration {
+                    number: 1,
+                    name: "Iteration 1".to_string(),
+                    description: None,
+                    goal: None,
+                    tasks: vec![
+                        ParsedTask {
+                            number: 1,
+                            title: "Task 1".to_string(),
+                            description: None,
+                            agent_id: Some("code-agent".to_string()),
+                            dependencies: vec![],
+                            acceptance_criteria: vec![],
+                        },
+                        ParsedTask {
+                            number: 2,
+                            title: "Task 2".to_string(),
+                            description: None,
+                            agent_id: Some("code-agent".to_string()),
+                            dependencies: vec!["I1.T1".to_string()], // Valid dependency
+                            acceptance_criteria: vec![],
+                        },
+                        ParsedTask {
+                            number: 3,
+                            title: "Task 3".to_string(),
+                            description: None,
+                            agent_id: Some("code-agent".to_string()),
+                            dependencies: vec!["I5.T1".to_string()], // Invalid dependency
+                            acceptance_criteria: vec![],
+                        },
+                    ],
+                },
+            ],
+        };
+
+        let report = validator.validate_plan(&plan);
         
-        // Test would validate dependency references
-        assert!(true); // Placeholder
+        // Should have error for invalid dependency
+        assert!(!report.is_valid);
+        assert!(report.errors.iter().any(|e| e.contains("non-existent dependency")));
     }
 
     #[test]
+    fn test_plan_validator_agent_validation() {
+        let registry = Arc::new(AgentRegistry::new());
+        let validator = PlanValidator::new(registry);
+
+        let plan = ParsedPlan {
+            project_name: "Agent Validation Test".to_string(),
+            description: None,
+            tech_stack: vec![],
+            iterations: vec![ParsedIteration {
+                number: 1,
+                name: "Iteration 1".to_string(),
+                description: None,
+                goal: None,
+                tasks: vec![
+                    ParsedTask {
+                        number: 1,
+                        title: "Task 1".to_string(),
+                        description: None,
+                        agent_id: Some("unknown-agent-123".to_string()),
+                        dependencies: vec![],
+                        acceptance_criteria: vec![],
+                    },
+                ],
+            }],
+        };
+
+        let report = validator.validate_plan(&plan);
+        
+        // Unknown agents are warnings, not errors
+        assert!(report.is_valid);
+        assert!(report.warnings.iter().any(|w| w.contains("unknown agent")));
+    }
+
+    #[test]
+    fn test_plan_validator_auto_agent_no_warning() {
+        let registry = Arc::new(AgentRegistry::new());
+        let validator = PlanValidator::new(registry);
+
+        let plan = ParsedPlan {
+            project_name: "Auto Agent Test".to_string(),
+            description: None,
+            tech_stack: vec![],
+            iterations: vec![ParsedIteration {
+                number: 1,
+                name: "Iteration 1".to_string(),
+                description: None,
+                goal: None,
+                tasks: vec![ParsedTask {
+                    number: 1,
+                    title: "Task 1".to_string(),
+                    description: None,
+                    agent_id: Some("auto".to_string()), // "auto" should not trigger warning
+                    dependencies: vec![],
+                    acceptance_criteria: vec![],
+                }],
+            }],
+        };
+
+        let report = validator.validate_plan(&plan);
+        
+        // "auto" agent should not generate warnings
+        assert!(report.is_valid);
+        assert!(!report.warnings.iter().any(|w| w.contains("auto")));
+    }
+
+    #[test]
+    fn test_plan_validator_empty_plan() {
+        let registry = Arc::new(AgentRegistry::new());
+        let validator = PlanValidator::new(registry);
+
+        let plan = ParsedPlan {
+            project_name: "Empty Plan".to_string(),
+            description: None,
+            tech_stack: vec![],
+            iterations: vec![],
+        };
+
+        let report = validator.validate_plan(&plan);
+        
+        // Empty plan should be valid (no errors)
+        assert!(report.is_valid);
+        assert!(report.errors.is_empty());
+    }
+
+    #[cfg(feature = "workflow")]
+    #[test]
     fn test_workflow_generator_ordering() {
         let generator = WorkflowGenerator::new();
-        // Test would verify workflow steps are in correct order
-        assert!(true); // Placeholder
+        
+        // Create a plan with dependencies
+        let plan = ParsedPlan {
+            project_name: "Workflow Test".to_string(),
+            description: None,
+            tech_stack: vec![],
+            iterations: vec![ParsedIteration {
+                number: 1,
+                name: "Iteration 1".to_string(),
+                description: None,
+                goal: None,
+                tasks: vec![
+                    ParsedTask {
+                        number: 1,
+                        title: "Task 1".to_string(),
+                        description: None,
+                        agent_id: Some("code-agent".to_string()),
+                        dependencies: vec![],
+                        acceptance_criteria: vec![],
+                    },
+                    ParsedTask {
+                        number: 2,
+                        title: "Task 2".to_string(),
+                        description: None,
+                        agent_id: Some("code-agent".to_string()),
+                        dependencies: vec!["I1.T1".to_string()],
+                        acceptance_criteria: vec![],
+                    },
+                ],
+            }],
+        };
+
+        // Convert to manifest for DAG
+        use crate::models::{Iteration, PlanManifest, PlanTask};
+        use crate::workspace::RequirementId;
+        use std::str::FromStr;
+
+        let req_id = RequirementId::from_str("TEST").unwrap();
+        let mut manifest = PlanManifest::new(req_id, plan.project_name.clone());
+
+        for parsed_iter in &plan.iterations {
+            let mut iteration = Iteration::new(parsed_iter.number, parsed_iter.name.clone());
+            for parsed_task in &parsed_iter.tasks {
+                let mut task = PlanTask::new(
+                    &format!("I{}", parsed_iter.number),
+                    parsed_task.number,
+                    parsed_task.title.clone(),
+                );
+                task.dependencies = parsed_task.dependencies.clone();
+                iteration.add_task(task);
+            }
+            manifest.add_iteration(iteration);
+        }
+
+        let dag = DependencyGraph::from_manifest(&manifest).unwrap();
+        let workflow = generator.generate_workflow(&plan, &dag).unwrap();
+
+        // Workflow should have steps in dependency order
+        // Access steps as a field, not a method
+        let steps = &workflow.steps;
+        assert_eq!(steps.len(), 2);
+        
+        // Verify workflow was generated successfully
+        // The exact structure depends on WorkflowStep implementation
+        // Just verify we have the expected number of steps
+        assert!(!steps.is_empty());
     }
 }
 

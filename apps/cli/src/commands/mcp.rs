@@ -344,8 +344,9 @@ async fn setup_wizard(
         }
         TransportType::Sse | TransportType::Http => {
             let transport_name = if transport == TransportType::Sse { "SSE" } else { "HTTP" };
+            let help_message = format!("The {} endpoint URL (e.g., 'http://localhost:8080/mcp')", transport_name);
             let url_input = Text::new("Server URL:")
-                .with_help_message(format!("The {} endpoint URL (e.g., 'http://localhost:8080/mcp')", transport_name))
+                .with_help_message(&help_message)
                 .prompt()
                 .context("Failed to read URL")?;
 
