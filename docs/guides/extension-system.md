@@ -240,6 +240,6 @@ Planned features (not yet implemented):
 
 ## References
 
-- [REQ-018: Extension System](../plan/03-later/REQ-018-extension-system.md)
+- **Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "extension"`
 - [Gemini CLI Extensions](../features/gemini-cli-enhancements.md#extension-system)
 

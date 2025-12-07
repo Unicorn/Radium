@@ -1,6 +1,6 @@
 # Vibe-Check MCP Integration Summary
 
-> **Note**: Detailed feature requirements have been extracted to [REQ-014: Vibe Check (Metacognitive Oversight)](../plan/02-next/REQ-014-vibe-check.md) for structured implementation planning.
+> **Note**: Detailed feature requirements are tracked in Braingrid. Query for current status: `braingrid requirement list -p PROJ-14 | grep -i "vibe\|oversight"`
 
 **Date**: 2025-01-XX  
 **Status**: ✅ Complete  

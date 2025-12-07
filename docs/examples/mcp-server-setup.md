@@ -149,5 +149,5 @@ Tokens are stored per server in JSON format:
 ## Next Steps
 
 - See [MCP Integration](../features/mcp-integration.md) for API usage
-- Check [REQ-009](../plan/02-next/REQ-009-mcp-integration.md) for implementation details
+- **Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "mcp"`
 
