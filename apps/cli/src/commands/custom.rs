@@ -6,11 +6,14 @@ use super::CustomCommand;
 use anyhow::{Context, bail};
 use colored::Colorize;
 use radium_core::commands::{CommandRegistry, CustomCommand as CoreCustomCommand};
+use radium_core::hooks::loader::HookLoader;
+use radium_core::hooks::registry::HookRegistry;
 use radium_core::Workspace;
 use serde_json::json;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use tabled::{Table, Tabled, settings::Style};
 
 /// Execute the custom command.
@@ -212,9 +215,21 @@ async fn execute_command(name: &str, args: &[String]) -> anyhow::Result<()> {
     }
     println!();
 
-    // Execute command
+    // Load hook registry if workspace exists
+    let hook_registry = if let Some(ref ws) = workspace {
+        let registry = Arc::new(HookRegistry::new());
+        // Load hooks from workspace and extensions (best effort, don't fail if loading fails)
+        let _ = HookLoader::load_from_workspace(ws.root(), &registry).await;
+        let _ = HookLoader::load_from_extensions(&registry).await;
+        Some(registry)
+    } else {
+        None
+    };
+
+    // Execute command with hooks
     let output = command
-        .execute(args, &workspace_root)
+        .execute_with_hooks(args, &workspace_root, hook_registry)
+        .await
         .context("Failed to execute custom command")?;
 
     // Print output

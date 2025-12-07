@@ -32,6 +32,10 @@ pub enum CommandError {
     /// File injection error.
     #[error("file injection error: {0}")]
     FileInjection(String),
+
+    /// Tool execution denied by hook.
+    #[error("tool execution denied: {0}")]
+    ToolDenied(String),
 }
 
 /// Result type for command operations.

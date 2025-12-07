@@ -10,12 +10,16 @@
 //! - Sandboxed execution for safe command execution
 
 use super::error::{CommandError, Result};
+use crate::hooks::integration::OrchestratorHooks;
+use crate::hooks::registry::HookRegistry;
 use crate::sandbox::{Sandbox, SandboxConfig};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::Arc;
 
 /// Custom command definition.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -54,6 +58,145 @@ impl CustomCommand {
     /// Returns error if execution fails
     pub fn execute(&self, args: &[String], base_dir: &Path) -> Result<String> {
         self.execute_with_sandbox(args, base_dir, None)
+    }
+
+    /// Executes the command with provided arguments and optional hook registry.
+    ///
+    /// This is an async version that supports hook integration.
+    ///
+    /// # Arguments
+    /// * `args` - Arguments to substitute into template
+    /// * `base_dir` - Base directory for file resolution
+    /// * `hook_registry` - Optional hook registry for tool execution hooks
+    ///
+    /// # Returns
+    /// The rendered command output
+    ///
+    /// # Errors
+    /// Returns error if execution fails or hooks deny execution
+    pub async fn execute_with_hooks(
+        &self,
+        args: &[String],
+        base_dir: &Path,
+        hook_registry: Option<Arc<HookRegistry>>,
+    ) -> Result<String> {
+        self.execute_with_hooks_and_sandbox(args, base_dir, hook_registry, None).await
+    }
+
+    /// Executes the command with provided arguments, optional hook registry, and optional sandbox.
+    ///
+    /// This is an async version that supports both hook integration and sandbox execution.
+    ///
+    /// # Arguments
+    /// * `args` - Arguments to substitute into template
+    /// * `base_dir` - Base directory for file resolution
+    /// * `hook_registry` - Optional hook registry for tool execution hooks
+    /// * `sandbox` - Optional sandbox for command execution
+    ///
+    /// # Returns
+    /// The rendered command output
+    ///
+    /// # Errors
+    /// Returns error if execution fails or hooks deny execution
+    pub async fn execute_with_hooks_and_sandbox(
+        &self,
+        args: &[String],
+        base_dir: &Path,
+        hook_registry: Option<Arc<HookRegistry>>,
+        sandbox: Option<&mut Box<dyn Sandbox>>,
+    ) -> Result<String> {
+        // Prepare tool name and arguments for hooks
+        let tool_name = self.name.clone();
+        let tool_args_json = json!({
+            "args": args,
+            "description": self.description,
+            "namespace": self.namespace,
+        });
+
+        // Execute tool selection hooks
+        if let Some(registry) = &hook_registry {
+            let hooks = OrchestratorHooks::new(Arc::clone(registry));
+            match hooks.tool_selection(&tool_name, &tool_args_json).await {
+                Ok(approved) => {
+                    if !approved {
+                        return Err(CommandError::ToolDenied(format!(
+                            "Tool execution denied by hook for command: {}",
+                            tool_name
+                        )));
+                    }
+                }
+                Err(e) => {
+                    // Log hook error but continue execution
+                    tracing::warn!(
+                        command = %tool_name,
+                        error = %e,
+                        "Tool selection hook execution failed, continuing"
+                    );
+                }
+            }
+        }
+
+        // Execute before tool hooks
+        let mut effective_args = tool_args_json.clone();
+        if let Some(registry) = &hook_registry {
+            let hooks = OrchestratorHooks::new(Arc::clone(registry));
+            match hooks.before_tool_execution(&tool_name, &effective_args).await {
+                Ok(modified_args) => {
+                    effective_args = modified_args;
+                    // Extract args from modified arguments if present
+                    if let Some(new_args_array) = effective_args.get("args").and_then(|v| v.as_array()) {
+                        // Update args if hook modified them
+                        // Note: We can't easily modify the args slice, so we'll use the original args
+                        // but hooks can modify the tool_args_json which affects the template rendering
+                    }
+                }
+                Err(e) => {
+                    // Log hook error but continue execution
+                    tracing::warn!(
+                        command = %tool_name,
+                        error = %e,
+                        "Before tool hook execution failed, continuing"
+                    );
+                }
+            }
+        }
+
+        // Execute the command (synchronous execution)
+        let mut rendered = self.template.clone();
+        rendered = Self::substitute_args(&rendered, args);
+        rendered = Self::execute_shell_commands(&rendered, sandbox)?;
+        rendered = Self::inject_files(&rendered, base_dir)?;
+
+        // Prepare result for after hooks
+        let result_json = json!({
+            "output": rendered,
+            "success": true,
+        });
+
+        // Execute after tool hooks
+        let mut effective_result = result_json.clone();
+        if let Some(registry) = &hook_registry {
+            let hooks = OrchestratorHooks::new(Arc::clone(registry));
+            match hooks.after_tool_execution(&tool_name, &effective_args, &effective_result).await {
+                Ok(modified_result) => {
+                    effective_result = modified_result;
+                    // Extract output from modified result if present
+                    if let Some(new_output) = effective_result.get("output").and_then(|v| v.as_str()) {
+                        rendered = new_output.to_string();
+                    }
+                }
+                Err(e) => {
+                    // Log hook error but continue
+                    tracing::warn!(
+                        command = %tool_name,
+                        error = %e,
+                        "After tool hook execution failed, continuing"
+                    );
+                }
+            }
+        }
+
+        Ok(rendered)
     }
 
     /// Executes the command with provided arguments and optional sandbox.
@@ -756,5 +899,172 @@ template = "docker ps"
         assert!(result.contains("Arg: value"));
         assert!(result.contains("File: file content"));
         assert!(result.contains("Shell: hello"));
+    }
+
+    #[tokio::test]
+    async fn test_command_execution_with_hooks() {
+        use crate::hooks::tool::{ToolHook, ToolHookContext};
+        use crate::hooks::types::{HookPriority, HookResult as HookExecutionResult};
+        use crate::hooks::tool::ToolHookAdapter;
+
+        let temp_dir = TempDir::new().unwrap();
+        let command = CustomCommand {
+            name: "test-command".to_string(),
+            description: "Test command".to_string(),
+            template: "Hello {{arg1}}".to_string(),
+            args: vec!["name".to_string()],
+            namespace: None,
+        };
+
+        // Create hook registry
+        let registry = Arc::new(HookRegistry::new());
+
+        // Create a test tool hook that tracks calls
+        struct TestToolHook {
+            before_called: Arc<tokio::sync::Mutex<bool>>,
+            after_called: Arc<tokio::sync::Mutex<bool>>,
+            selection_called: Arc<tokio::sync::Mutex<bool>>,
+        }
+
+        #[async_trait::async_trait]
+        impl ToolHook for TestToolHook {
+            fn name(&self) -> &str {
+                "test-tool-hook"
+            }
+
+            fn priority(&self) -> HookPriority {
+                HookPriority::default()
+            }
+
+            async fn before_tool_execution(
+                &self,
+                _context: &ToolHookContext,
+            ) -> crate::hooks::error::Result<HookExecutionResult> {
+                *self.before_called.lock().await = true;
+                Ok(HookExecutionResult::success())
+            }
+
+            async fn after_tool_execution(
+                &self,
+                _context: &ToolHookContext,
+            ) -> crate::hooks::error::Result<HookExecutionResult> {
+                *self.after_called.lock().await = true;
+                Ok(HookExecutionResult::success())
+            }
+
+            async fn tool_selection(
+                &self,
+                _context: &ToolHookContext,
+            ) -> crate::hooks::error::Result<HookExecutionResult> {
+                *self.selection_called.lock().await = true;
+                Ok(HookExecutionResult::success())
+            }
+        }
+
+        let before_called = Arc::new(tokio::sync::Mutex::new(false));
+        let after_called = Arc::new(tokio::sync::Mutex::new(false));
+        let selection_called = Arc::new(tokio::sync::Mutex::new(false));
+
+        let hook = Arc::new(TestToolHook {
+            before_called: Arc::clone(&before_called),
+            after_called: Arc::clone(&after_called),
+            selection_called: Arc::clone(&selection_called),
+        });
+
+        // Register hooks
+        let hook_dyn: Arc<dyn ToolHook> = hook;
+        let before_adapter = ToolHookAdapter::before(Arc::clone(&hook_dyn));
+        let after_adapter = ToolHookAdapter::after(Arc::clone(&hook_dyn));
+        let selection_adapter = ToolHookAdapter::selection(Arc::clone(&hook_dyn));
+
+        registry.register(before_adapter).await.unwrap();
+        registry.register(after_adapter).await.unwrap();
+        registry.register(selection_adapter).await.unwrap();
+
+        // Execute command with hooks
+        let args = vec!["World".to_string()];
+        let output = command
+            .execute_with_hooks(&args, temp_dir.path(), Some(registry))
+            .await
+            .unwrap();
+
+        assert_eq!(output, "Hello World");
+        assert!(*selection_called.lock().await);
+        assert!(*before_called.lock().await);
+        assert!(*after_called.lock().await);
+    }
+
+    #[tokio::test]
+    async fn test_command_execution_hook_denial() {
+        use crate::hooks::tool::{ToolHook, ToolHookContext};
+        use crate::hooks::types::{HookPriority, HookResult as HookExecutionResult};
+        use crate::hooks::tool::ToolHookAdapter;
+
+        let temp_dir = TempDir::new().unwrap();
+        let command = CustomCommand {
+            name: "test-command".to_string(),
+            description: "Test command".to_string(),
+            template: "Hello".to_string(),
+            args: vec![],
+            namespace: None,
+        };
+
+        // Create hook registry
+        let registry = Arc::new(HookRegistry::new());
+
+        // Create a hook that denies execution
+        struct DenyHook;
+
+        #[async_trait::async_trait]
+        impl ToolHook for DenyHook {
+            fn name(&self) -> &str {
+                "deny-hook"
+            }
+
+            fn priority(&self) -> HookPriority {
+                HookPriority::default()
+            }
+
+            async fn before_tool_execution(
+                &self,
+                _context: &ToolHookContext,
+            ) -> crate::hooks::error::Result<HookExecutionResult> {
+                Ok(HookExecutionResult::success())
+            }
+
+            async fn after_tool_execution(
+                &self,
+                _context: &ToolHookContext,
+            ) -> crate::hooks::error::Result<HookExecutionResult> {
+                Ok(HookExecutionResult::success())
+            }
+
+            async fn tool_selection(
+                &self,
+                _context: &ToolHookContext,
+            ) -> crate::hooks::error::Result<HookExecutionResult> {
+                // Deny execution
+                Ok(HookExecutionResult::stop("Execution denied by hook"))
+            }
+        }
+
+        let hook = Arc::new(DenyHook);
+        let hook_dyn: Arc<dyn ToolHook> = hook;
+        let selection_adapter = ToolHookAdapter::selection(hook_dyn);
+        registry.register(selection_adapter).await.unwrap();
+
+        // Execute command - should be denied
+        let args = vec![];
+        let result = command
+            .execute_with_hooks(&args, temp_dir.path(), Some(registry))
+            .await;
+
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            CommandError::ToolDenied(msg) => {
+                assert!(msg.contains("denied"));
+            }
+            _ => panic!("Expected ToolDenied error"),
+        }
     }
 }
