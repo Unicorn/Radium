@@ -1,7 +1,7 @@
 # MCP Integration
 
 > **Status**: ✅ Implemented  
-> **REQ**: [REQ-009](../plan/02-next/REQ-009-mcp-integration.md)
+> **Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "mcp"`
 
 Radium integrates with the Model Context Protocol (MCP) to enable external tool discovery and execution from MCP servers. This extends Radium's capabilities through an extensible tool ecosystem.
 
@@ -150,7 +150,7 @@ See [MCP Server Setup Examples](../examples/mcp-server-setup.md) for detailed ex
 
 ## References
 
-- [REQ-009: MCP Integration](../plan/02-next/REQ-009-mcp-integration.md)
+- **Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "mcp"`
 - [MCP Protocol Specification](https://modelcontextprotocol.io)
 - [Gemini CLI MCP Documentation](https://geminicli.com/docs/tools/mcp-server)
 

@@ -19,7 +19,7 @@
 
 - [x] Workspace directory structure (`.radium/_internals`, `.radium/plan`)
 - [x] `.radium/` internal workspace management
-- [x] Requirement ID system (REQ-XXX format)
+- [x] Requirement ID system (REQ-XXX format for local plans)
 - [x] Plan discovery and listing
 - [x] Plan structure types and validation
 
@@ -127,7 +127,7 @@
   - [x] Plan manifest generation with iterations/tasks
   - [x] plan.json and plan_manifest.json output
 - [x] `rad craft` with PlanExecutor (~305 lines)
-  - [x] Plan discovery by REQ-ID or folder name
+  - [x] Plan discovery by requirement ID or folder name
   - [x] Iteration-by-iteration execution
   - [x] Task-by-task execution with state persistence
   - [x] Resume from checkpoint (full implementation)
@@ -254,7 +254,7 @@
 
 **Why Next**: Critical for agent safety and alignment. Research shows +27% success rate and -41% harmful actions. Prevents reasoning lock-in and improves alignment with user intent.
 
-**Requirements**: [REQ-014: Vibe Check (Metacognitive Oversight)](../plan/02-next/REQ-014-vibe-check.md)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "vibe\|oversight\|metacognitive"`
 
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-66-metacognitive-oversight-system) for detailed tasks.
 
@@ -278,7 +278,7 @@
 
 **Why Next**: Security and safety for agent execution, especially for shell commands and file operations.
 
-**Requirements**: [REQ-008: Sandboxing](../plan/02-next/REQ-008-sandboxing.md)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "sandbox"`
 
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-65-sandboxing) for detailed tasks.
 
@@ -304,7 +304,7 @@
 
 **Completed**: Engine abstraction layer fully implemented with 23+ tests passing. Engine registry, binary detection, and trait system all working.
 
-**Requirements**: [REQ-015: Engine Abstraction Layer](../plan/03-later/REQ-015-engine-abstraction.md)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "engine\|abstraction"`
 
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-7-engine-abstraction-layer) for detailed tasks.
 
@@ -322,7 +322,7 @@
 
 **Completed**: Enhanced TUI fully implemented with 36+ tests passing. Complete workflow dashboard with state management, components, and real-time visualization.
 
-**Requirements**: [REQ-016: TUI Improvements](../plan/03-later/REQ-016-tui-improvements.md)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "tui\|improvement"`
 
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-8-enhanced-tui) for detailed tasks.
 
@@ -370,7 +370,7 @@
 - Foundation for multi-model orchestration
 - 72 existing agents ready to enhance
 
-**Requirements**: [REQ-017: Agent Library](../plan/03-later/REQ-017-agent-library.md)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "agent.*library"`
 
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-9-agent-library) for detailed tasks.
 
@@ -389,9 +389,7 @@
 - **Extension System** (installable extensions with gemini-extension.json)
 - **Hooks System** for behavior customization
 
-**Requirements**: 
-- [REQ-018: Extension System](../plan/03-later/REQ-018-extension-system.md)
-- [REQ-019: Hooks System](../plan/03-later/REQ-019-hooks-system.md)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "extension\|hooks"`
 
 **Why Later**: Advanced features that enhance usability but aren't core to functionality.
 

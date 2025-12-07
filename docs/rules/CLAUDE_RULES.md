@@ -14,7 +14,7 @@ This document outlines the guidelines for Claude Code to work effectively in par
 
 Before picking up ANY task from the roadmap:
 
-- [ ] **Check BrainGrid for related REQs and tasks** - Use `braingrid requirement list -p PROJ-14` and `braingrid task list -r REQ-X -p PROJ-14`
+- [ ] **Check Braingrid for related REQs and tasks** - Use `braingrid requirement list -p PROJ-14` and `braingrid task list -r REQ-XXX -p PROJ-14` (replace REQ-XXX with actual REQ ID)
 - [ ] Read `roadmap/PROGRESS.md` to understand current status
 - [ ] Check `.clinerules` and `.cursor/rules` for any active work
 - [ ] Update the relevant task status in `PROGRESS.md` to **"In Progress - Claude"**
@@ -68,13 +68,13 @@ After completing a task:
 - [ ] Run `npm run deny` and `npm run audit` if dependencies changed
 - [ ] Update `roadmap/PROGRESS.md` with completion status
 - [ ] **Update BrainGrid task status** if applicable: `braingrid task update TASK-X -p PROJ-14 --status COMPLETED --notes "Completed in commit [hash]"`
-- [ ] Create git commit with message format: `feat/fix/refactor(scope): description [RAD-XXX] [REQ-X]` (include REQ/TASK IDs if applicable)
+- [ ] Create git commit with message format: `feat/fix/refactor(scope): description [RAD-XXX] [REQ-XXX]` (include REQ/TASK IDs from Braingrid if applicable)
 - [ ] Include emoji footer: `🤖 Claude Code`
 
 ## Commit Message Format
 
 ```
-feat(module): brief description [RAD-XXX] [REQ-1] [TASK-1]
+feat(module): brief description [RAD-XXX] [REQ-XXX] [TASK-X]
 
 - Detailed bullet points of changes
 - What was implemented and why
@@ -85,10 +85,10 @@ feat(module): brief description [RAD-XXX] [REQ-1] [TASK-1]
 Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
-**Include BrainGrid References:**
-- Add `[REQ-X]` if the work relates to a BrainGrid requirement
-- Add `[TASK-X]` if completing a specific BrainGrid task
-- Example: `feat(auth): add OAuth2 support [RAD-123] [REQ-5] [TASK-12]`
+**Include Braingrid References:**
+- Add `[REQ-XXX]` if the work relates to a Braingrid requirement (query Braingrid for actual ID)
+- Add `[TASK-X]` if completing a specific Braingrid task (query Braingrid for actual ID)
+- Example: `feat(auth): add OAuth2 support [RAD-123] [REQ-XXX] [TASK-X]` (use actual IDs from Braingrid)
 
 ## When Blocked
 
@@ -151,11 +151,11 @@ The project must always maintain:
 # List all requirements
 braingrid requirement list -p PROJ-14
 
-# Show specific requirement details
-braingrid requirement show REQ-1 -p PROJ-14
+# Show specific requirement details (replace REQ-XXX with actual REQ ID)
+braingrid requirement show REQ-XXX -p PROJ-14
 
-# List tasks for a requirement
-braingrid task list -r REQ-1 -p PROJ-14
+# List tasks for a requirement (replace REQ-XXX with actual REQ ID)
+braingrid task list -r REQ-XXX -p PROJ-14
 
 # Update task status
 braingrid task update TASK-1 -p PROJ-14 --status IN_PROGRESS

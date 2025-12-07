@@ -1,7 +1,7 @@
 # Context Files Manual Testing Guide
 
 **Feature**: Hierarchical Context Files (GEMINI.md)  
-**REQ**: BG REQ-11  
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "context"`  
 **Date**: 2025-01-XX
 
 ## Overview

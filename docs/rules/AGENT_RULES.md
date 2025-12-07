@@ -25,11 +25,11 @@ braingrid requirement list -p PROJ-14
 # If working on a specific feature, search for related REQs
 braingrid requirement list -p PROJ-14 --format json | grep -i "feature-name"
 
-# Check tasks for a specific requirement
-braingrid task list -r REQ-1 -p PROJ-14
+# Check tasks for a specific requirement (replace REQ-XXX with actual REQ ID)
+braingrid task list -r REQ-XXX -p PROJ-14
 
-# View full requirement details
-braingrid requirement show REQ-1 -p PROJ-14
+# View full requirement details (replace REQ-XXX with actual REQ ID)
+braingrid requirement show REQ-XXX -p PROJ-14
 ```
 
 **What to look for:**
@@ -75,18 +75,18 @@ Before writing any code, update both local progress and BrainGrid:
 - [ ] **RAD-XXX**: Task description
   - **Status:** In Progress  <!-- Changed from "Not Started" -->
   - **Assignee:** [Your Agent Name]  <!-- Added -->
-  - **BrainGrid REQ:** REQ-1 (if applicable)
-  - **BrainGrid Task:** TASK-1 (if applicable)
+  - **BrainGrid REQ:** REQ-XXX (query Braingrid to find actual REQ ID)
+  - **BrainGrid Task:** TASK-X (query Braingrid to find actual task ID)
   - ...
 ```
 
 **Update BrainGrid Task Status (if applicable):**
 ```bash
-# Update task status to IN_PROGRESS
-braingrid task update TASK-1 -p PROJ-14 --status IN_PROGRESS
+# Update task status to IN_PROGRESS (replace TASK-X with actual task ID from Braingrid)
+braingrid task update TASK-X -p PROJ-14 --status IN_PROGRESS
 
-# Or if working on a requirement level
-braingrid requirement update REQ-1 -p PROJ-14 --status IN_PROGRESS
+# Or if working on a requirement level (replace REQ-XXX with actual REQ ID)
+braingrid requirement update REQ-XXX -p PROJ-14 --status IN_PROGRESS
 ```
 
 **When to update BrainGrid:**
@@ -259,18 +259,18 @@ Move task from Active to Completed:
   - **Completed:** YYYY-MM-DD
   - **Commit:** abc1234
   - **Files:** list of files changed
-  - **BrainGrid REQ:** REQ-1
-  - **BrainGrid Task:** TASK-1
+  - **BrainGrid REQ:** REQ-XXX (query Braingrid for actual ID)
+  - **BrainGrid Task:** TASK-X (query Braingrid for actual ID)
 ```
 
 **Update BrainGrid:**
 ```bash
-# Mark task as completed
-braingrid task update TASK-1 -p PROJ-14 --status COMPLETED \
+# Mark task as completed (replace TASK-X with actual task ID from Braingrid)
+braingrid task update TASK-X -p PROJ-14 --status COMPLETED \
   --notes "Completed in commit abc1234. Files changed: [list]"
 
-# If completing a requirement, update requirement status
-braingrid requirement update REQ-1 -p PROJ-14 --status COMPLETED
+# If completing a requirement, update requirement status (replace REQ-XXX with actual REQ ID)
+braingrid requirement update REQ-XXX -p PROJ-14 --status COMPLETED
 ```
 
 **Automatic Updates:**
@@ -495,9 +495,9 @@ Before ending a session or switching tasks:
 | Action | Command |
 |--------|---------|
 | List requirements | `braingrid requirement list -p PROJ-14` |
-| Show requirement | `braingrid requirement show REQ-1 -p PROJ-14` |
-| List tasks | `braingrid task list -r REQ-1 -p PROJ-14` |
-| Update task | `braingrid task update TASK-1 -p PROJ-14 --status IN_PROGRESS` |
+| Show requirement | `braingrid requirement show REQ-XXX -p PROJ-14` (replace REQ-XXX) |
+| List tasks | `braingrid task list -r REQ-XXX -p PROJ-14` (replace REQ-XXX) |
+| Update task | `braingrid task update TASK-X -p PROJ-14 --status IN_PROGRESS` (replace TASK-X) |
 | Create requirement | `braingrid specify -p PROJ-14 --prompt "Feature description"` |
 | Project status | `braingrid status` |
 
@@ -523,21 +523,23 @@ Before ending a session or switching tasks:
 1. **Discovery Phase:**
    ```bash
    braingrid requirement list -p PROJ-14
-   braingrid requirement show REQ-1 -p PROJ-14
+   # Find relevant REQ, then view details (replace REQ-XXX with actual ID)
+   braingrid requirement show REQ-XXX -p PROJ-14
    ```
 
 2. **Task Selection:**
    ```bash
-   braingrid task list -r REQ-1 -p PROJ-14
+   # List tasks for the REQ you're working on (replace REQ-XXX with actual ID)
+   braingrid task list -r REQ-XXX -p PROJ-14
    ```
 
 3. **Status Updates:**
    ```bash
-   # Starting work
-   braingrid task update TASK-1 -p PROJ-14 --status IN_PROGRESS
+   # Starting work (replace TASK-X with actual task ID from Braingrid)
+   braingrid task update TASK-X -p PROJ-14 --status IN_PROGRESS
    
-   # Completing work
-   braingrid task update TASK-1 -p PROJ-14 --status COMPLETED \
+   # Completing work (replace TASK-X with actual task ID)
+   braingrid task update TASK-X -p PROJ-14 --status COMPLETED \
      --notes "Completed in commit abc123. Implements feature X."
    ```
 
@@ -550,8 +552,8 @@ Before ending a session or switching tasks:
 
 - **Braingrid is Primary:** Braingrid is the source of truth. PROGRESS.md is a secondary summary.
 - **Update Braingrid First:** Always update Braingrid task status, then update PROGRESS.md if needed
-- **Reference Links:** Include Braingrid REQ links in PROGRESS.md: `REQ-163 ([Braingrid](URL))`
-- **Commit Messages:** Reference REQ/TASK IDs in commit messages: `[REQ-163]` or `[TASK-1]`
+- **Reference Links:** When needed, include Braingrid REQ links in PROGRESS.md (query Braingrid for current REQ IDs)
+- **Commit Messages:** Reference REQ/TASK IDs in commit messages: `[REQ-XXX]` or `[TASK-X]` (use actual IDs from Braingrid)
 - **Delete Local Copies:** Once a REQ has full task breakdown in Braingrid, delete local markdown copies
 
 ## 📚 Quick Reference

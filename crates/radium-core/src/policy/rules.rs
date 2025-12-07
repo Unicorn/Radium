@@ -4,10 +4,13 @@ use glob::Pattern;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
+use std::sync::Arc;
 
 use super::types::{
     ApprovalMode, PolicyAction, PolicyDecision, PolicyError, PolicyPriority, PolicyResult,
 };
+use crate::hooks::registry::{HookRegistry, HookType};
+use crate::hooks::types::HookContext;
 
 /// A single policy rule for tool execution control.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -121,6 +124,8 @@ pub struct PolicyEngine {
     approval_mode: ApprovalMode,
     /// Loaded policy rules, sorted by priority (highest first).
     rules: Vec<PolicyRule>,
+    /// Optional hook registry for tool execution interception.
+    hook_registry: Option<Arc<HookRegistry>>,
 }
 
 impl PolicyEngine {
@@ -128,11 +133,24 @@ impl PolicyEngine {
     ///
     /// # Arguments
     /// * `approval_mode` - The default approval mode
+    /// * `hook_registry` - Optional hook registry for tool execution interception
     ///
     /// # Returns
     /// A new `PolicyEngine` with no custom rules.
     pub fn new(approval_mode: ApprovalMode) -> PolicyResult<Self> {
-        Ok(Self { approval_mode, rules: Vec::new() })
+        Ok(Self { approval_mode, rules: Vec::new(), hook_registry: None })
+    }
+
+    /// Creates a new policy engine with hook registry.
+    ///
+    /// # Arguments
+    /// * `approval_mode` - The default approval mode
+    /// * `hook_registry` - Hook registry for tool execution interception
+    ///
+    /// # Returns
+    /// A new `PolicyEngine` with no custom rules.
+    pub fn with_hooks(approval_mode: ApprovalMode, hook_registry: Arc<HookRegistry>) -> PolicyResult<Self> {
+        Ok(Self { approval_mode, rules: Vec::new(), hook_registry: Some(hook_registry) })
     }
 
     /// Creates a policy engine by loading rules from a TOML file.
@@ -153,12 +171,21 @@ impl PolicyEngine {
         let config: PolicyConfig = toml::from_str(&content)
             .map_err(|e| PolicyError::ParseError { path: path.to_path_buf(), source: e })?;
 
-        let mut engine = Self { approval_mode: config.approval_mode, rules: config.rules };
+        let mut engine = Self {
+            approval_mode: config.approval_mode,
+            rules: config.rules,
+            hook_registry: None,
+        };
 
         // Sort rules by priority (highest first)
         engine.rules.sort_by(|a, b| b.priority.cmp(&a.priority));
 
         Ok(engine)
+    }
+
+    /// Sets the hook registry for this policy engine.
+    pub fn set_hook_registry(&mut self, hook_registry: Arc<HookRegistry>) {
+        self.hook_registry = Some(hook_registry);
     }
 
     /// Adds a policy rule to this engine.
@@ -183,16 +210,58 @@ impl PolicyEngine {
     /// A `PolicyDecision` indicating whether to allow, deny, or ask for the execution.
     ///
     /// # Evaluation Logic
-    /// 1. Check all rules in priority order (Admin > User > Default)
-    /// 2. Return the action from the first matching rule
-    /// 3. If no rules match, apply approval mode defaults:
+    /// 1. Execute BeforeTool hooks (if registered) to allow modification of tool name/args
+    /// 2. Check all rules in priority order (Admin > User > Default)
+    /// 3. Return the action from the first matching rule
+    /// 4. If no rules match, apply approval mode defaults:
     ///    - `yolo`: Allow all
     ///    - `autoEdit`: Allow edits (write_file, edit_file), ask for others
     ///    - `ask`: Ask for all
-    pub fn evaluate_tool(&self, tool_name: &str, args: &[&str]) -> PolicyResult<PolicyDecision> {
+    pub async fn evaluate_tool(&self, tool_name: &str, args: &[&str]) -> PolicyResult<PolicyDecision> {
+        // Execute BeforeTool hooks to allow modification
+        let mut effective_tool_name = tool_name.to_string();
+        let mut effective_args: Vec<String> = args.iter().map(|s| s.to_string()).collect();
+
+        if let Some(registry) = &self.hook_registry {
+            let hook_context = HookContext::new(
+                "before_tool",
+                serde_json::json!({
+                    "tool_name": tool_name,
+                    "args": args,
+                }),
+            );
+
+            if let Ok(results) = registry.execute_hooks(HookType::BeforeTool, &hook_context).await {
+                for result in results {
+                    // If hook says to stop, deny execution
+                    if !result.should_continue {
+                        return Ok(PolicyDecision::new(PolicyAction::Deny).with_reason(
+                            result.message.unwrap_or_else(|| "Tool execution denied by hook".to_string()),
+                        ));
+                    }
+
+                    // If hook modifies tool name or args, use the modified version
+                    if let Some(modified_data) = result.modified_data {
+                        if let Some(new_tool_name) = modified_data.get("tool_name").and_then(|v| v.as_str()) {
+                            effective_tool_name = new_tool_name.to_string();
+                        }
+                        if let Some(new_args) = modified_data.get("args").and_then(|v| v.as_array()) {
+                            effective_args = new_args
+                                .iter()
+                                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                                .collect::<Vec<_>>();
+                        }
+                    }
+                }
+            }
+        }
+
+        // Convert effective_args back to &[&str] for policy evaluation
+        let args_refs: Vec<&str> = effective_args.iter().map(|s| s.as_str()).collect();
+
         // Check rules in priority order
         for rule in &self.rules {
-            if rule.matches(tool_name, args)? {
+            if rule.matches(&effective_tool_name, &args_refs)? {
                 return Ok(PolicyDecision::new(rule.action).with_rule(&rule.name).with_reason(
                     rule.reason.clone().unwrap_or_else(|| format!("Matched rule: {}", rule.name)),
                 ));
@@ -204,7 +273,7 @@ impl PolicyEngine {
             ApprovalMode::Yolo => PolicyAction::Allow,
             ApprovalMode::AutoEdit => {
                 // Auto-approve edit operations
-                if Self::is_edit_operation(tool_name) {
+                if Self::is_edit_operation(&effective_tool_name) {
                     PolicyAction::Allow
                 } else {
                     PolicyAction::AskUser
@@ -246,6 +315,39 @@ impl PolicyEngine {
     #[must_use]
     pub fn rule_count(&self) -> usize {
         self.rules.len()
+    }
+
+    /// Executes AfterTool hooks after tool execution.
+    ///
+    /// # Arguments
+    /// * `tool_name` - The name of the tool that was executed
+    /// * `args` - Arguments that were passed to the tool
+    /// * `result` - The result of tool execution
+    ///
+    /// # Returns
+    /// Vector of hook results, or error if hook execution failed.
+    pub async fn execute_after_tool_hooks(
+        &self,
+        tool_name: &str,
+        args: &[&str],
+        result: &serde_json::Value,
+    ) -> Result<Vec<crate::hooks::types::HookResult>, PolicyError> {
+        if let Some(registry) = &self.hook_registry {
+            let hook_context = HookContext::new(
+                "after_tool",
+                serde_json::json!({
+                    "tool_name": tool_name,
+                    "args": args,
+                    "result": result,
+                }),
+            );
+
+            registry.execute_hooks(HookType::AfterTool, &hook_context).await.map_err(|e| {
+                PolicyError::PatternError(format!("Hook execution failed: {}", e))
+            })
+        } else {
+            Ok(Vec::new())
+        }
     }
 }
 
@@ -341,46 +443,46 @@ mod tests {
         assert_eq!(engine.rules[2].name, "default-rule");
     }
 
-    #[test]
-    fn test_policy_engine_evaluate_matching_rule() {
+    #[tokio::test]
+    async fn test_policy_engine_evaluate_matching_rule() {
         let mut engine = PolicyEngine::new(ApprovalMode::Ask).unwrap();
         engine.add_rule(PolicyRule::new("allow-reads", "read_*", PolicyAction::Allow));
 
-        let decision = engine.evaluate_tool("read_file", &["config.toml"]).unwrap();
+        let decision = engine.evaluate_tool("read_file", &["config.toml"]).await.unwrap();
         assert!(decision.is_allowed());
         assert_eq!(decision.matched_rule.as_deref(), Some("allow-reads"));
     }
 
-    #[test]
-    fn test_policy_engine_evaluate_no_match_yolo() {
+    #[tokio::test]
+    async fn test_policy_engine_evaluate_no_match_yolo() {
         let engine = PolicyEngine::new(ApprovalMode::Yolo).unwrap();
 
-        let decision = engine.evaluate_tool("some_tool", &[]).unwrap();
+        let decision = engine.evaluate_tool("some_tool", &[]).await.unwrap();
         assert!(decision.is_allowed());
         assert!(decision.matched_rule.is_none());
     }
 
-    #[test]
-    fn test_policy_engine_evaluate_no_match_ask() {
+    #[tokio::test]
+    async fn test_policy_engine_evaluate_no_match_ask() {
         let engine = PolicyEngine::new(ApprovalMode::Ask).unwrap();
 
-        let decision = engine.evaluate_tool("some_tool", &[]).unwrap();
+        let decision = engine.evaluate_tool("some_tool", &[]).await.unwrap();
         assert!(decision.requires_approval());
     }
 
-    #[test]
-    fn test_policy_engine_evaluate_auto_edit_mode() {
+    #[tokio::test]
+    async fn test_policy_engine_evaluate_auto_edit_mode() {
         let engine = PolicyEngine::new(ApprovalMode::AutoEdit).unwrap();
 
         // Edit operations should be auto-approved
-        let decision = engine.evaluate_tool("write_file", &["file.txt"]).unwrap();
+        let decision = engine.evaluate_tool("write_file", &["file.txt"]).await.unwrap();
         assert!(decision.is_allowed());
 
-        let decision = engine.evaluate_tool("edit_file", &["file.txt"]).unwrap();
+        let decision = engine.evaluate_tool("edit_file", &["file.txt"]).await.unwrap();
         assert!(decision.is_allowed());
 
         // Non-edit operations should require approval
-        let decision = engine.evaluate_tool("delete_file", &["file.txt"]).unwrap();
+        let decision = engine.evaluate_tool("delete_file", &["file.txt"]).await.unwrap();
         assert!(decision.requires_approval());
     }
 
@@ -418,8 +520,8 @@ reason = "Shell commands disabled for security"
         assert_eq!(engine.rules[0].priority, PolicyPriority::Admin);
     }
 
-    #[test]
-    fn test_policy_engine_rule_priority_override() {
+    #[tokio::test]
+    async fn test_policy_engine_rule_priority_override() {
         let mut engine = PolicyEngine::new(ApprovalMode::Ask).unwrap();
 
         // Add general allow rule (user priority)
@@ -436,12 +538,12 @@ reason = "Shell commands disabled for security"
         );
 
         // Admin rule should match first and deny
-        let decision = engine.evaluate_tool("bash:sh", &["rm", "-rf"]).unwrap();
+        let decision = engine.evaluate_tool("bash:sh", &["rm", "-rf"]).await.unwrap();
         assert!(decision.is_denied());
         assert_eq!(decision.matched_rule.as_deref(), Some("deny-rm"));
 
         // Without rm arg, admin rule doesn't match, user rule allows
-        let decision = engine.evaluate_tool("bash:ls", &["-la"]).unwrap();
+        let decision = engine.evaluate_tool("bash:ls", &["-la"]).await.unwrap();
         assert!(decision.is_allowed());
         assert_eq!(decision.matched_rule.as_deref(), Some("allow-all-bash"));
     }

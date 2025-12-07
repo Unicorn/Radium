@@ -3,6 +3,10 @@
 > **Goal**: Achieve complete legacy system feature parity in 10 steps  
 > **Reference**: See [legacy-system-feature-backlog.md](./legacy-system-feature-backlog.md) for complete feature catalog  
 > **Last Updated**: 2025-01-XX (includes vibe-check integration and gap analysis)
+> 
+> **📋 For current REQ status and tasks, query Braingrid:**  
+> `braingrid requirement list -p PROJ-14`  
+> See [BRAINGRID_WORKFLOW.md](./BRAINGRID_WORKFLOW.md) for details.
 
 ## Overview
 
@@ -14,7 +18,7 @@ This plan breaks down legacy system feature parity into 10 actionable steps, int
 
 ## Step 0: Workspace System
 
-**Requirements**: [REQ-001: Workspace System](../plan/01-now/REQ-001-workspace-system.md)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "workspace"`
 
 **Priority**: 🔴 Critical  
 **Est. Time**: 10-14 hours  
@@ -44,7 +48,7 @@ Establish the workspace structure that all legacy system features depend on.
 #### 0.2: Requirement ID System (2-3h)
 **File**: `crates/radium-core/src/workspace/requirement_id.rs`
 
-- RequirementId type (REQ-XXX format)
+- RequirementId type (REQ-XXX format for local plans)
 - Auto-incrementing from counter file (`.radium/requirement-counter.json`)
 - Validation and parsing
 - Thread-safe counter management
@@ -66,7 +70,7 @@ Establish the workspace structure that all legacy system features depend on.
 **File**: `crates/radium-core/src/workspace/plan_discovery.rs`
 
 - Scan all workspace stages for plans
-- Find plan by REQ-ID or folder name
+- Find plan by requirement ID or folder name
 - List all plans with metadata
 - Calculate progress percentages
 - Sort by date or ID
@@ -82,7 +86,7 @@ Establish the workspace structure that all legacy system features depend on.
 ### Success Criteria
 
 - Can create complete workspace structure
-- Can generate requirement IDs (REQ-001, REQ-002, etc.)
+- Can generate requirement IDs (REQ-001, REQ-002, etc. for local plans)
 - Can discover plans in all stages
 - Can calculate plan progress
 
@@ -90,10 +94,7 @@ Establish the workspace structure that all legacy system features depend on.
 
 ## Step 1: Agent Configuration System
 
-**Requirements**: 
-- [REQ-002: Agent Configuration System](../plan/01-now/REQ-002-agent-configuration.md)
-- [REQ-009: MCP Integration](../plan/02-next/REQ-009-mcp-integration.md) (Future)
-- [REQ-011: Context Files](../plan/02-next/REQ-011-context-files.md) (Future)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "agent\|mcp\|context"`
 
 **Priority**: 🔴 Critical  
 **Est. Time**: 15-18 hours  
@@ -182,7 +183,7 @@ Implement agent configuration and prompt system matching legacy system's structu
 
 ### Step 2: Core CLI Commands
 
-**Requirements**: [REQ-003: Core CLI Commands](../plan/01-now/REQ-003-core-cli-commands.md)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "cli\|command"`
 
 **Status**: ✅ Complete (Implementation) | ❌ 0% Test Coverage  
 **Priority**: 🔴 Critical  
@@ -304,9 +305,7 @@ Implement agent configuration and prompt system matching legacy system's structu
 
 ## Step 3: Workflow Behaviors
 
-**Requirements**: 
-- [REQ-004: Workflow Behaviors](../plan/01-now/REQ-004-workflow-behaviors.md)
-- [REQ-010: Policy Engine](../plan/02-next/REQ-010-policy-engine.md)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "workflow\|policy"`
 
 **Status**: ✅ Complete (Implementation) | ⚠️ ~70% Test Coverage  
 **Priority**: 🟡 High  
@@ -417,7 +416,7 @@ Implement workflow behaviors (loop, trigger, checkpoint) matching legacy system'
 
 ## Step 4: Plan Generation & Execution
 
-**Requirements**: [REQ-005: Plan Generation & Execution](../plan/02-next/REQ-005-plan-generation.md)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "plan\|generation"`
 
 **Priority**: 🟡 High  
 **Est. Time**: 15-20 hours  
@@ -451,7 +450,7 @@ Implement full `rad plan` and `rad craft` commands for plan generation and execu
 **File**: `radium/apps/cli/src/commands/craft.rs`
 
 - Plan selection menu
-- Plan discovery by REQ-ID or folder name
+- Plan discovery by requirement ID or folder name
 - Iteration-by-iteration execution
 - Task-by-task execution
 - Resume from checkpoint
@@ -478,9 +477,7 @@ Implement full `rad plan` and `rad craft` commands for plan generation and execu
 
 ## Step 5: Memory & Context System
 
-**Requirements**: 
-- [REQ-006: Memory & Context System](../plan/02-next/REQ-006-memory-context.md)
-- [REQ-012: Custom Commands](../plan/02-next/REQ-012-custom-commands.md)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "memory\|context\|command"`
 
 **Priority**: 🟡 High  
 **Est. Time**: 15-18 hours  
@@ -495,7 +492,7 @@ Implement plan-scoped memory and context management for agent execution.
 #### 5.1: Plan-Scoped Memory Store (3-4h)
 **Files**: `crates/radium-core/src/memory/mod.rs`, `store.rs`
 
-- Memory directory per plan: `radium/backlog/REQ-XXX/memory/`
+- Memory directory per plan: `radium/backlog/<requirement-id>/memory/`
 - Memory store interface
 - Agent output storage (last 2000 chars)
 - Timestamp tracking
@@ -571,9 +568,7 @@ Implement plan-scoped memory and context management for agent execution.
 
 ## Step 6: Monitoring & Telemetry
 
-**Requirements**: 
-- [REQ-007: Monitoring & Telemetry](../plan/02-next/REQ-007-monitoring-telemetry.md)
-- [REQ-013: Checkpointing](../plan/02-next/REQ-013-checkpointing.md)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "monitoring\|telemetry\|checkpoint"`
 
 **Priority**: 🟡 High  
 **Est. Time**: 18-22 hours  
@@ -659,7 +654,7 @@ Implement agent monitoring and telemetry tracking matching legacy system's syste
 
 ## Step 6.5: Sandboxing
 
-**Requirements**: [REQ-008: Sandboxing](../plan/02-next/REQ-008-sandboxing.md)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "sandbox"`
 
 **Priority**: 🟡 High  
 **Est. Time**: 12-15 hours  
@@ -729,7 +724,7 @@ Implement sandboxing support for safe agent execution, especially for shell comm
 
 ## Step 6.6: Metacognitive Oversight System
 
-**Requirements**: [REQ-014: Vibe Check (Metacognitive Oversight)](../plan/02-next/REQ-014-vibe-check.md)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "vibe\|oversight\|metacognitive"`
 
 **Status**: ✅ Complete  
 **Priority**: 🟡 High  
@@ -869,7 +864,7 @@ Implement Chain-Pattern Interrupt (CPI) system for agent oversight, preventing r
 
 ## Step 7: Engine Abstraction Layer
 
-**Requirements**: [REQ-015: Engine Abstraction Layer](../plan/03-later/REQ-015-engine-abstraction.md)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "engine\|abstraction"`
 
 **Priority**: 🟢 Medium  
 **Est. Time**: 15-20 hours  
@@ -950,7 +945,7 @@ Support multiple AI engines/providers matching legacy system's engine system.
 
 ## Step 8: Enhanced TUI
 
-**Requirements**: [REQ-016: TUI Improvements](../plan/03-later/REQ-016-tui-improvements.md)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "tui\|improvement"`
 
 **Priority**: 🟢 Medium  
 **Est. Time**: 15-20 hours  
@@ -1039,7 +1034,7 @@ Enhance TUI to match legacy system's workflow dashboard functionality.
 
 ## Step 9: Agent Library (70+ Agents)
 
-**Requirements**: [REQ-017: Agent Library](../plan/03-later/REQ-017-agent-library.md)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "agent.*library"`
 
 **Priority**: 🟢 Medium  
 **Est. Time**: 30-40 hours  

@@ -1,7 +1,7 @@
 # Context Files Test Report
 
 **Feature**: Hierarchical Context Files (GEMINI.md)  
-**REQ**: BG REQ-11  
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "context"`  
 **Date**: 2025-01-XX  
 **Status**: ✅ PASSED
 
@@ -170,7 +170,7 @@ None. All requirements have been met.
 
 ## Acceptance Criteria Verification
 
-All acceptance criteria from BG REQ-11 have been met:
+All acceptance criteria for the context files feature have been met:
 
 - [x] Context files can be loaded hierarchically ✅
 - [x] Context file discovery works automatically ✅
@@ -183,7 +183,7 @@ All acceptance criteria from BG REQ-11 have been met:
 
 ✅ **All tests pass. Implementation is complete and ready for review.**
 
-The context files feature has been fully implemented with comprehensive test coverage. All 15 test scenarios are covered by automated tests, and the implementation meets all requirements from BG REQ-11.
+The context files feature has been fully implemented with comprehensive test coverage. All 15 test scenarios are covered by automated tests. See Braingrid for current requirement status.
 
 ## Manual Testing Notes
 

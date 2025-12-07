@@ -42,7 +42,7 @@ Gemini CLI is an open-source AI agent that brings the power of Gemini directly i
 - Supports community-contributed MCP servers
 - Foundation for extensible tool ecosystem
 
-**Requirements**: [REQ-009: MCP Integration](../plan/02-next/REQ-009-mcp-integration.md)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "mcp"`
 
 **Reference**: [Gemini CLI MCP Documentation](https://geminicli.com/docs/tools/mcp-server)
 
@@ -77,7 +77,7 @@ Gemini CLI is an open-source AI agent that brings the power of Gemini directly i
 - Enterprise-ready with admin policy support
 - User-friendly approval workflows
 
-**Requirements**: [REQ-010: Policy Engine](../plan/02-next/REQ-010-policy-engine.md)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "policy"`
 
 **Reference**: [Gemini CLI Policy Engine Documentation](https://geminicli.com/docs/core/policy-engine)
 
@@ -111,7 +111,7 @@ Gemini CLI is an open-source AI agent that brings the power of Gemini directly i
 - Modular context organization
 - Team-shared context files via version control
 
-**Requirements**: [REQ-011: Context Files](../plan/02-next/REQ-011-context-files.md)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "context"`
 
 **Reference**: [Gemini CLI Context Files Documentation](https://geminicli.com/docs/cli/gemini-md)
 
@@ -146,7 +146,7 @@ Gemini CLI is an open-source AI agent that brings the power of Gemini directly i
 - Project-specific and user-specific commands
 - Improved developer productivity
 
-**Requirements**: [REQ-012: Custom Commands](../plan/02-next/REQ-012-custom-commands.md)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "custom.*command"`
 
 **Reference**: [Gemini CLI Custom Commands Documentation](https://geminicli.com/docs/cli/custom-commands)
 
@@ -180,7 +180,7 @@ Gemini CLI is an open-source AI agent that brings the power of Gemini directly i
 - Conversation context preservation
 - Confidence in trying new approaches
 
-**Requirements**: [REQ-013: Checkpointing](../plan/02-next/REQ-013-checkpointing.md)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "checkpoint"`
 
 **Reference**: [Gemini CLI Checkpointing Documentation](https://geminicli.com/docs/cli/checkpointing)
 
@@ -214,7 +214,7 @@ Gemini CLI is an open-source AI agent that brings the power of Gemini directly i
 - Reproducible environments
 - Reduced risk of accidental damage
 
-**Requirements**: [REQ-008: Sandboxing](../plan/02-next/REQ-008-sandboxing.md)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "sandbox"`
 
 **Reference**: [Gemini CLI Sandboxing Documentation](https://geminicli.com/docs/cli/sandbox)
 
@@ -252,7 +252,7 @@ Gemini CLI is an open-source AI agent that brings the power of Gemini directly i
 - Extensible platform ecosystem
 - Workspace-specific extensions
 
-**Requirements**: [REQ-018: Extension System](../plan/03-later/REQ-018-extension-system.md)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "extension"`
 
 **Reference**: [Gemini CLI Extensions Documentation](https://geminicli.com/docs/extensions/index)
 
@@ -286,7 +286,7 @@ Gemini CLI is an open-source AI agent that brings the power of Gemini directly i
 - Telemetry and monitoring integration
 - Plugin-like functionality
 
-**Requirements**: [REQ-019: Hooks System](../plan/03-later/REQ-019-hooks-system.md)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "hooks"`
 
 **Reference**: Gemini CLI hooks system (internal implementation)
 

@@ -18,14 +18,15 @@ You are an expert software engineer who writes clean, efficient, and well-tested
 
 ## Instructions
 
-1. **Check BrainGrid for related requirements** - Before starting, check for existing REQs and tasks:
+1. **Check Braingrid for related requirements** - Before starting, check for existing REQs and tasks:
    ```bash
    braingrid requirement list -p PROJ-14
-   braingrid task list -r REQ-1 -p PROJ-14  # if working on a specific REQ
+   # Find relevant REQ, then list tasks (replace REQ-XXX with actual REQ ID)
+   braingrid task list -r REQ-XXX -p PROJ-14
    ```
    - Review related REQs for context and acceptance criteria
    - Check task status and dependencies
-   - Update task status when starting work: `braingrid task update TASK-X -p PROJ-14 --status IN_PROGRESS`
+   - Update task status when starting work (replace TASK-X with actual task ID): `braingrid task update TASK-X -p PROJ-14 --status IN_PROGRESS`
 
 2. **Read the specification carefully** - Understand requirements, acceptance criteria, and constraints
    - Cross-reference with BrainGrid REQ content if available
@@ -91,7 +92,7 @@ You are an expert software engineer who writes clean, efficient, and well-tested
 When working on features:
 - **Before starting:** Check for related REQs: `braingrid requirement list -p PROJ-14`
 - **When starting:** Update task status: `braingrid task update TASK-X -p PROJ-14 --status IN_PROGRESS`
-- **During work:** Reference REQ/TASK IDs in commit messages: `[REQ-1] [TASK-1]`
+- **During work:** Reference REQ/TASK IDs in commit messages: `[REQ-XXX] [TASK-X]` (use actual IDs from Braingrid)
 - **When completing:** Update task status: `braingrid task update TASK-X -p PROJ-14 --status COMPLETED --notes "Completed in commit [hash]"`
 - **Creating new work:** Use `braingrid specify` for substantial new features
 ```

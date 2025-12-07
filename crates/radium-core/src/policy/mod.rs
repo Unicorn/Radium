@@ -23,7 +23,7 @@
 //! let engine = PolicyEngine::new(ApprovalMode::Ask)?;
 //!
 //! // Check if a tool execution is allowed
-//! let decision = engine.evaluate_tool("read_file", &["config.toml"])?;
+//! let decision = engine.evaluate_tool("read_file", &["config.toml"]).await?;
 //! # Ok(())
 //! # }
 //! ```

@@ -1,7 +1,7 @@
 # Context Files Issues Log
 
 **Feature**: Hierarchical Context Files (GEMINI.md)  
-**REQ**: BG REQ-11  
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "context"`  
 **Date**: 2025-01-XX
 
 ## Issues Found During Testing
@@ -48,7 +48,7 @@ All issues have been resolved. No open issues.
 
 ## Future Enhancements (Out of Scope)
 
-The following enhancements are not part of BG REQ-11 but could be considered for future work:
+The following enhancements are not part of the current context files implementation but could be considered for future work:
 
 1. **Advanced Context Merging Strategies**
    - Currently uses simple prepending
