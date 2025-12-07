@@ -27,7 +27,7 @@ async fn test_connection_error_propagation() {
     if let Err(err) = result {
         // Should be a transport or connection error
         assert!(
-            matches!(err, McpError::Transport(_)) || matches!(err, McpError::Connection(_)),
+            matches!(err, McpError::Transport { .. }) || matches!(err, McpError::Connection { .. }),
             "Expected Transport or Connection error, got: {}",
             err
         );
@@ -50,7 +50,7 @@ async fn test_config_error_missing_required_fields() {
     let result = McpClient::connect(&config).await;
     assert!(result.is_err());
     if let Err(err) = result {
-        assert!(matches!(err, McpError::Config(_)));
+        assert!(matches!(err, McpError::Config { .. }));
         assert!(err.to_string().contains("command") || err.to_string().contains("required"));
     }
 }
@@ -70,7 +70,7 @@ async fn test_config_error_missing_url_for_remote_transport() {
     let result = McpClient::connect(&config).await;
     assert!(result.is_err());
     if let Err(err) = result {
-        assert!(matches!(err, McpError::Config(_)));
+        assert!(matches!(err, McpError::Config { .. }));
         assert!(err.to_string().contains("url") || err.to_string().contains("required"));
     }
 }
@@ -79,7 +79,7 @@ async fn test_config_error_missing_url_for_remote_transport() {
 async fn test_protocol_error_malformed_json() {
     // This test would require a mock server that returns malformed JSON
     // For now, we test that protocol errors can be created and displayed
-    let err = McpError::Protocol("Invalid JSON-RPC message format".to_string());
+    let err = McpError::protocol("Invalid JSON-RPC message format", "test suggestion");
     assert!(err.to_string().contains("protocol error"));
     assert!(err.to_string().contains("Invalid JSON-RPC"));
 }
@@ -98,7 +98,7 @@ async fn test_server_not_found_error() {
 async fn test_tool_not_found_error() {
     // This would require a connected server with known tools
     // For now, test error type creation
-    let err = McpError::ToolNotFound("nonexistent-tool".to_string());
+    let err = McpError::tool_not_found("nonexistent-tool", "test suggestion");
     assert!(err.to_string().contains("tool not found"));
     assert!(err.to_string().contains("nonexistent-tool"));
 }
@@ -106,7 +106,7 @@ async fn test_tool_not_found_error() {
 #[tokio::test]
 async fn test_authentication_error_scenarios() {
     // Test authentication error creation
-    let err = McpError::Authentication("OAuth token expired".to_string());
+    let err = McpError::authentication("OAuth token expired", "test suggestion");
     assert!(err.to_string().contains("authentication error"));
     assert!(err.to_string().contains("OAuth token expired"));
 }
@@ -201,22 +201,22 @@ async fn test_error_message_clarity() {
     // Test that error messages are clear and actionable
     let errors = vec![
         (
-            McpError::Config("Stdio transport requires 'command' field".to_string()),
+            McpError::config("Stdio transport requires 'command' field", "test suggestion"),
             "command",
             "requires",
         ),
         (
-            McpError::Connection("Failed to connect to server 'test' after 30s".to_string()),
+            McpError::connection("Failed to connect to server 'test' after 30s", "test suggestion"),
             "Failed to connect",
             "test",
         ),
         (
-            McpError::Transport("Failed to spawn process: No such file or directory".to_string()),
+            McpError::transport("Failed to spawn process: No such file or directory", "test suggestion"),
             "Failed to spawn",
             "process",
         ),
         (
-            McpError::Authentication("OAuth token expired for server 'test'".to_string()),
+            McpError::authentication("OAuth token expired for server 'test'", "test suggestion"),
             "OAuth token expired",
             "test",
         ),
@@ -278,7 +278,7 @@ async fn test_timeout_scenario() {
         Ok(Err(e)) => {
             // Expected - connection failed
             assert!(
-                matches!(e, McpError::Transport(_)) || matches!(e, McpError::Connection(_)),
+                matches!(e, McpError::Transport { .. }) || matches!(e, McpError::Connection { .. }),
                 "Expected Transport or Connection error, got: {:?}",
                 e
             );
@@ -371,13 +371,13 @@ command = "nonexistent_command_xyz_12345"
 async fn test_all_error_variants_handled() {
     // Ensure all error variants can be created and handled
     let error_variants = vec![
-        McpError::Connection("test".to_string()),
-        McpError::Transport("test".to_string()),
-        McpError::Protocol("test".to_string()),
-        McpError::ServerNotFound("test".to_string()),
-        McpError::ToolNotFound("test".to_string()),
-        McpError::Authentication("test".to_string()),
-        McpError::Config("test".to_string()),
+        McpError::connection("test", "suggestion"),
+        McpError::transport("test", "suggestion"),
+        McpError::protocol("test", "suggestion"),
+        McpError::server_not_found("test", "suggestion"),
+        McpError::tool_not_found("test", "suggestion"),
+        McpError::authentication("test", "suggestion"),
+        McpError::config("test", "suggestion"),
     ];
     
     for err in error_variants {
@@ -416,9 +416,9 @@ async fn test_error_context_preservation() {
 async fn test_malformed_message_handling() {
     // Test handling of malformed JSON-RPC messages
     // This would typically be tested with a mock server, but we can test error creation
-    let err = McpError::Protocol("Invalid JSON-RPC message: missing 'jsonrpc' field".to_string());
+    let err = McpError::protocol("Invalid JSON-RPC message: missing 'jsonrpc' field", "test suggestion");
     
-    assert!(matches!(err, McpError::Protocol(_)));
+    assert!(matches!(err, McpError::Protocol { .. }));
     assert!(err.to_string().contains("protocol error"));
     assert!(err.to_string().contains("JSON-RPC"));
 }
@@ -427,7 +427,7 @@ async fn test_malformed_message_handling() {
 async fn test_error_in_error_scenarios() {
     // Test that errors during error handling don't cause panics
     // E.g., error while formatting error message
-    let err = McpError::Config("test".to_string());
+    let err = McpError::config("test", "suggestion");
     
     // Should be able to convert to string even in error scenarios
     let msg = err.to_string();
