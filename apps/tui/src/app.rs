@@ -892,12 +892,12 @@ impl App {
             id
         });
 
-        // Add user message to conversation
         let max_history = self.config.performance.max_conversation_history;
+
+        // Add user message to conversation
         self.prompt_data.add_conversation_message(format!("You: {}", input), max_history);
 
         // Show thinking indicator
-        let max_history = self.config.performance.max_conversation_history;
         self.prompt_data.add_conversation_message("🤔 Analyzing...".to_string(), max_history);
 
         // Record start time for elapsed time calculation
