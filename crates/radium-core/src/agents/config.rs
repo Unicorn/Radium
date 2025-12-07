@@ -1360,6 +1360,90 @@ reasoning_effort = "invalid"
     }
 
     #[test]
+    fn test_agent_config_load_file_not_found() {
+        let result = AgentConfigFile::load("/nonexistent/path/agent.toml");
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            AgentConfigError::Io(_) => {}
+            _ => panic!("Expected I/O error for missing file"),
+        }
+    }
+
+    #[test]
+    fn test_agent_config_load_invalid_toml() {
+        use std::fs;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config_path = temp_dir.path().join("invalid.toml");
+        
+        // Write invalid TOML
+        fs::write(&config_path, "invalid toml content {").unwrap();
+        
+        let result = AgentConfigFile::load(&config_path);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            AgentConfigError::Toml(_) => {}
+            _ => panic!("Expected TOML parse error"),
+        }
+    }
+
+    #[test]
+    fn test_agent_config_save_permission_error() {
+        use std::fs;
+        #[cfg(unix)]
+        use std::os::unix::fs::PermissionsExt;
+        
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config_path = temp_dir.path().join("readonly.toml");
+        
+        // Create a read-only file
+        fs::write(&config_path, "[agent]\nid = \"test\"").unwrap();
+        #[cfg(unix)]
+        {
+            let mut perms = fs::metadata(&config_path).unwrap().permissions();
+            perms.set_mode(0o444); // Read-only
+            fs::set_permissions(&config_path, perms).unwrap();
+        }
+        
+        let config = AgentConfigFile {
+            agent: AgentConfig::new("test", "Test", PathBuf::from("test.md")),
+            persona: None,
+        };
+        
+        // On Unix, this should fail with permission error
+        #[cfg(unix)]
+        {
+            let result = config.save(&config_path);
+            assert!(result.is_err());
+        }
+    }
+
+    #[test]
+    fn test_agent_config_load_corrupted_file() {
+        use std::fs;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config_path = temp_dir.path().join("corrupted.toml");
+        
+        // Write file with null bytes (corrupted)
+        fs::write(&config_path, b"[\x00agent]\nid = \"test\"").unwrap();
+        
+        let result = AgentConfigFile::load(&config_path);
+        // Should fail to parse
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_agent_config_save_to_nonexistent_directory() {
+        let config = AgentConfigFile {
+            agent: AgentConfig::new("test", "Test", PathBuf::from("test.md")),
+            persona: None,
+        };
+        
+        // Try to save to a path in a nonexistent directory
+        let result = config.save("/nonexistent/dir/agent.toml");
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn test_invalid_model_class_enum() {
         use std::fs;
 
