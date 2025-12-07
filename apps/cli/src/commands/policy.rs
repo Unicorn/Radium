@@ -351,3 +351,180 @@ reason = "MCP tools may have side effects"
     Ok(())
 }
 
+/// Add a new policy rule.
+async fn add_policy(
+    name: String,
+    priority: Option<String>,
+    action: Option<String>,
+    tool_pattern: Option<String>,
+    arg_pattern: Option<String>,
+    reason: Option<String>,
+) -> anyhow::Result<()> {
+    let workspace = Workspace::discover()?;
+    let radium_dir = workspace.root().join(".radium");
+    let policy_file = radium_dir.join("policy.toml");
+
+    // Ensure .radium directory exists
+    std::fs::create_dir_all(&radium_dir)?;
+
+    // If no policy file exists, create one
+    if !policy_file.exists() {
+        let default_policy = r#"approval_mode = "ask"
+
+"#;
+        std::fs::write(&policy_file, default_policy)?;
+    }
+
+    // Read existing policy
+    let content = std::fs::read_to_string(&policy_file)?;
+    let mut config: toml::Value = toml::from_str(&content)?;
+
+    // Get rules array or create new one
+    let rules = config.get_mut("rules").and_then(|v| v.as_array_mut());
+    let rules = if let Some(rules) = rules {
+        rules
+    } else {
+        config.as_table_mut().unwrap().insert(
+            "rules".to_string(),
+            toml::Value::Array(vec![]),
+        );
+        config.get_mut("rules").unwrap().as_array_mut().unwrap()
+    };
+
+    // Collect inputs interactively if not provided
+    use std::io::{self, Write};
+    let priority = priority.unwrap_or_else(|| {
+        print!("Priority (admin/user/default) [user]: ");
+        io::stdout().flush().unwrap();
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).unwrap();
+        let input = input.trim();
+        if input.is_empty() { "user".to_string() } else { input.to_string() }
+    });
+
+    let action = action.unwrap_or_else(|| {
+        print!("Action (allow/deny/ask_user) [ask_user]: ");
+        io::stdout().flush().unwrap();
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).unwrap();
+        let input = input.trim();
+        if input.is_empty() { "ask_user".to_string() } else { input.to_string() }
+    });
+
+    let tool_pattern = tool_pattern.unwrap_or_else(|| {
+        print!("Tool pattern (glob pattern, e.g., 'read_*'): ");
+        io::stdout().flush().unwrap();
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).unwrap();
+        input.trim().to_string()
+    });
+
+    if tool_pattern.is_empty() {
+        return Err(anyhow::anyhow!("Tool pattern is required"));
+    }
+
+    // Validate priority
+    let priority_lower = priority.to_lowercase();
+    if !["admin", "user", "default"].contains(&priority_lower.as_str()) {
+        return Err(anyhow::anyhow!("Priority must be one of: admin, user, default"));
+    }
+
+    // Validate action
+    let action_lower = action.to_lowercase();
+    if !["allow", "deny", "ask_user"].contains(&action_lower.as_str()) {
+        return Err(anyhow::anyhow!("Action must be one of: allow, deny, ask_user"));
+    }
+
+    // Create new rule
+    let mut rule = toml::map::Map::new();
+    rule.insert("name".to_string(), toml::Value::String(name.clone()));
+    rule.insert("priority".to_string(), toml::Value::String(priority_lower));
+    rule.insert("action".to_string(), toml::Value::String(action_lower));
+    rule.insert("tool_pattern".to_string(), toml::Value::String(tool_pattern.clone()));
+    
+    if let Some(arg_pattern) = arg_pattern {
+        if !arg_pattern.is_empty() {
+            rule.insert("arg_pattern".to_string(), toml::Value::String(arg_pattern));
+        }
+    }
+
+    if let Some(reason) = reason {
+        if !reason.is_empty() {
+            rule.insert("reason".to_string(), toml::Value::String(reason));
+        }
+    }
+
+    // Basic validation - check that tool_pattern is not empty (already done above)
+    // Full validation will happen when PolicyEngine::from_file is called
+
+    // Add rule to array
+    rules.push(toml::Value::Table(rule));
+
+    // Write back to file
+    let new_content = toml::to_string_pretty(&config)?;
+    std::fs::write(&policy_file, new_content)?;
+
+    println!("✓ Added policy rule: {}", name);
+    println!("  Tool pattern: {}", tool_pattern);
+    println!("  Priority: {}", priority_lower);
+    println!("  Action: {}", action_lower);
+
+    Ok(())
+}
+
+/// Remove a policy rule by name.
+async fn remove_policy(name: String) -> anyhow::Result<()> {
+    let workspace = Workspace::discover()?;
+    let policy_file = workspace.root().join(".radium").join("policy.toml");
+
+    if !policy_file.exists() {
+        return Err(anyhow::anyhow!("Policy file not found: {}", policy_file.display()));
+    }
+
+    // Read existing policy
+    let content = std::fs::read_to_string(&policy_file)?;
+    let mut config: toml::Value = toml::from_str(&content)?;
+
+    // Get rules array
+    let Some(rules) = config.get_mut("rules").and_then(|v| v.as_array_mut()) else {
+        return Err(anyhow::anyhow!("No rules found in policy file"));
+    };
+
+    // Find and remove rule by name
+    let initial_len = rules.len();
+    rules.retain(|rule| {
+        if let Some(rule_table) = rule.as_table() {
+            rule_table.get("name")
+                .and_then(|v| v.as_str())
+                .map(|n| n != name)
+                .unwrap_or(true)
+        } else {
+            true
+        }
+    });
+
+    if rules.len() == initial_len {
+        return Err(anyhow::anyhow!("Rule '{}' not found", name));
+    }
+
+    // Confirm removal
+    use std::io::{self, Write};
+    print!("Remove rule '{}'? (y/N): ", name);
+    io::stdout().flush().unwrap();
+    let mut input = String::new();
+    io::stdin().read_line(&mut input).unwrap();
+    let input = input.trim().to_lowercase();
+    if input != "y" && input != "yes" {
+        println!("Cancelled.");
+        return Ok(());
+    }
+
+    // Write back to file
+    let new_content = toml::to_string_pretty(&config)?;
+    std::fs::write(&policy_file, new_content)?;
+
+    println!("✓ Removed policy rule: {}", name);
+
+    Ok(())
+}
+

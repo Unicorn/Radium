@@ -328,6 +328,13 @@ enum Command {
     #[command(subcommand)]
     Policy(policy::PolicyCommand),
 
+    /// Constitution management
+    ///
+    /// Manage session-based constitution rules for per-session constraints.
+    /// Constitution rules are automatically cleaned up after 1 hour of inactivity.
+    #[command(subcommand)]
+    Constitution(commands::ConstitutionCommand),
+
     /// Context file management
     ///
     /// List, show, and validate context files (GEMINI.md) in the workspace.
@@ -530,6 +537,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Policy(cmd) => {
             policy::execute_policy_command(cmd).await?;
+        }
+        Command::Constitution(cmd) => {
+            commands::constitution::execute_constitution_command(cmd).await?;
         }
         Command::Context(cmd) => {
             context::execute(cmd).await?;

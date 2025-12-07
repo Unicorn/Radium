@@ -20,6 +20,7 @@ pub mod init;
 pub mod monitor;
 pub mod plan;
 pub mod policy;
+pub mod constitution;
 pub mod run;
 pub mod sandbox;
 pub mod stats;
@@ -37,3 +38,4 @@ pub use types::{AgentsCommand, AuthCommand, EnginesCommand, ExtensionCommand, Ho
 pub use context::ContextCommand;
 pub use budget::BudgetCommand;
 pub use policy::{execute_policy_command, PolicyCommand};
+pub use constitution::{execute_constitution_command, ConstitutionCommand};
