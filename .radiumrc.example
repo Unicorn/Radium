@@ -1,0 +1,30 @@
+# Radium CLI Configuration File
+# Copy this file to .radiumrc in your project root or ~/.radium/config.toml for global config
+
+# Default engine to use (claude, openai, gemini, mock)
+engine = "mock"
+
+# Default model to use
+model = "default"
+
+# Default workspace path (optional)
+# workspace = "/path/to/workspace"
+
+# Log level (trace, debug, info, warn, error)
+log_level = "info"
+
+# Output format preferences
+[output]
+# Default output format: "human" or "json"
+format = "human"
+# Always use JSON output
+always_json = false
+
+# Command aliases
+[aliases]
+# Short aliases for common commands
+c = "craft"
+p = "plan"
+s = "status"
+a = "agents"
+

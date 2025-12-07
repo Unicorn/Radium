@@ -1,5 +1,7 @@
 //! Configuration module for Radium Core.
 
+pub mod cli_config;
+
 use std::net::SocketAddr;
 
 use serde::Deserialize;

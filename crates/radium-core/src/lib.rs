@@ -61,7 +61,7 @@ pub use auth::{AuthError, AuthResult, CredentialStore, ProviderType};
 pub use checkpoint::{Checkpoint, CheckpointError, CheckpointManager, Result as CheckpointResult};
 pub use client::ClientHelper;
 pub use commands::{CommandError, CommandRegistry, CustomCommand, Result as CommandResult};
-pub use config::Config;
+pub use config::{Config, cli_config::{CliConfig, CliConfigError, CliConfigResult}};
 pub use context::{
     ContextError, ContextInjector, ContextManager, InjectionDirective, Result as ContextResult,
 };

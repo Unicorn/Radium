@@ -4,6 +4,7 @@
 //! orchestration system and workflow execution engine.
 
 mod commands;
+mod config;
 mod validation;
 
 use clap::{CommandFactory, Parser, Subcommand};
@@ -361,9 +362,21 @@ async fn main() -> anyhow::Result<()> {
         FmtSubscriber::builder().with_max_level(level).without_time().with_target(false).finish();
     tracing::subscriber::set_global_default(subscriber)?;
 
-    // Set workspace if provided
+    // Load configuration
+    let cli_config = config::load_config();
+    
+    // Apply config to environment (only if not already set)
+    // SAFETY: We're in single-threaded main() before any async/spawning
+    unsafe {
+        config::apply_config_to_env(&cli_config);
+    }
+
+    // Set workspace if provided (CLI arg takes precedence)
     if let Some(workspace) = args.workspace {
         // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { std::env::set_var("RADIUM_WORKSPACE", workspace) };
+    } else if let Some(ref workspace) = cli_config.workspace {
+        // Use workspace from config if not provided via CLI
         unsafe { std::env::set_var("RADIUM_WORKSPACE", workspace) };
     }
 
