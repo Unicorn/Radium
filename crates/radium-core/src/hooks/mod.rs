@@ -9,6 +9,8 @@
 
 #[cfg(feature = "workflow")]
 pub mod adapters;
+pub mod composition;
+pub mod marketplace;
 pub mod config;
 pub mod error;
 pub mod error_hooks;
@@ -24,6 +26,9 @@ pub mod types;
 
 #[cfg(feature = "workflow")]
 pub use adapters::{BehaviorEvaluatorAdapter, BehaviorHookRegistrar};
+pub use composition::{
+    CompositeHook, ConditionalHook, HookChain, HookCompositionBuilder,
+};
 pub use config::HookConfig;
 pub use error::{HookError, Result as HookResult};
 pub use error_hooks::{ErrorHook, ErrorHookContext, ErrorHookType};
