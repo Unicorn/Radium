@@ -194,7 +194,7 @@ pub async fn execute_mcp_command(command: McpCommand) -> anyhow::Result<()> {
                     } else {
                         // Show status for all servers
                         let mut has_tokens = false;
-                        for server_config in &servers {
+                        for server_config in servers {
                             if let Some(token) = token_manager.get_token(&server_config.name) {
                                 has_tokens = true;
                                 let expired = token_manager.is_token_expired(&server_config.name);

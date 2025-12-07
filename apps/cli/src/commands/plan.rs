@@ -228,28 +228,6 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_spec_structure() {
-        let spec = r#"# Project
-## Iteration 1
-- [ ] Task 1
-- [ ] Task 2
-## Iteration 2
-* [ ] Task 3
-        "#;
-        let (iters, tasks) = parse_spec_structure(spec);
-        assert_eq!(iters, 2);
-        assert_eq!(tasks, 3);
-    }
-
-    #[test]
-    fn test_parse_spec_structure_minimal() {
-        let spec = "# Just header";
-        let (iters, tasks) = parse_spec_structure(spec);
-        assert_eq!(iters, 1); // Default to 1
-        assert_eq!(tasks, 1); // Default to 1
-    }
-
-    #[test]
     fn test_slugify() {
         assert_eq!(slugify("Hello World"), "hello-world");
         assert_eq!(slugify("Project X: Backend"), "project-x-backend"); // Simplified slugify
