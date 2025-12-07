@@ -40,7 +40,7 @@ fn test_path_traversal_prevention() {
 
     for malicious_path in malicious_paths {
         manifest.components.prompts.clear();
-        manifest.components.prompts.push(malicious_path.clone());
+        manifest.components.prompts.push(malicious_path.to_string());
 
         let manifest_json = serde_json::to_string(&manifest).unwrap();
         fs::write(&manifest_path, manifest_json).unwrap();
