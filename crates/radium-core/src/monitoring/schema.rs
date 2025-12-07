@@ -53,6 +53,7 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
             tool_args TEXT,
             tool_approved BOOLEAN,
             tool_approval_type TEXT,
+            engine_id TEXT,
             FOREIGN KEY (agent_id) REFERENCES agents(id)
         )",
         [],

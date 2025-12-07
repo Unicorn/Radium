@@ -28,6 +28,7 @@ pub async fn execute(
     dry_run: bool,
     json: bool,
     yolo: bool,
+    engine: Option<String>,
 ) -> anyhow::Result<()> {
     println!("{}", "rad craft".bold().cyan());
     println!();
@@ -240,6 +241,7 @@ async fn execute_plan(
     resume: bool,
     _json: bool,
     yolo: bool,
+    engine: Option<&str>,
     context_files: Option<String>,
     executed_agent_ids: &mut Option<&mut Vec<String>>,
     session_id: &str,
@@ -412,10 +414,18 @@ async fn execute_plan(
             }
 
             // Create model instance
-            let engine = "mock"; // Default to mock for now
-            let model_id = String::new();
+            // Engine resolution: CLI flag → Agent config → Default "mock"
+            let selected_engine = engine
+                .or_else(|| agent.engine.as_deref())
+                .unwrap_or("mock");
+            let model_id = agent.model.as_deref().unwrap_or("default").to_string();
 
-            let model = match ModelFactory::create_from_str(engine, model_id) {
+            // Display engine info if different from agent config
+            if engine.is_some() && engine != agent.engine.as_deref() {
+                println!("      {} Using engine override: {}", "→".cyan(), selected_engine.cyan());
+            }
+
+            let model = match ModelFactory::create_from_str(selected_engine, model_id) {
                 Ok(m) => m,
                 Err(e) => {
                     println!("      {} Failed to create model: {}", "✗".red(), e.to_string().red());

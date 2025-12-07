@@ -57,6 +57,9 @@ pub struct TelemetryRecord {
     
     /// Tool approval type ("user", "auto", "policy").
     pub tool_approval_type: Option<String>,
+    
+    /// Engine ID used for this execution (e.g., "claude", "openai", "gemini").
+    pub engine_id: Option<String>,
 }
 
 impl TelemetryRecord {
@@ -80,6 +83,7 @@ impl TelemetryRecord {
             tool_args: None,
             tool_approved: None,
             tool_approval_type: None,
+            engine_id: None,
         }
     }
 
@@ -311,7 +315,7 @@ impl TelemetryTracking for MonitoringService {
         let mut stmt = self.conn.prepare(
             "SELECT agent_id, timestamp, input_tokens, output_tokens, cached_tokens,
                     cache_creation_tokens, cache_read_tokens, total_tokens,
-                    estimated_cost, model, provider, tool_name, tool_args, tool_approved, tool_approval_type
+                    estimated_cost, model, provider, tool_name, tool_args, tool_approved, tool_approval_type, engine_id
              FROM telemetry WHERE agent_id = ?1 ORDER BY timestamp DESC",
         )?;
 
@@ -333,6 +337,7 @@ impl TelemetryTracking for MonitoringService {
                     tool_args: row.get(12)?,
                     tool_approved: row.get(13)?,
                     tool_approval_type: row.get(14)?,
+                    engine_id: row.get(15)?,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;

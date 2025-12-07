@@ -11,6 +11,7 @@ pub mod context;
 pub mod craft;
 pub mod custom;
 pub mod doctor;
+pub mod engines;
 pub mod extension;
 pub mod hooks;
 pub mod init;

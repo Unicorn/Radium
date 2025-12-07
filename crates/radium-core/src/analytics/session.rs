@@ -44,6 +44,8 @@ pub struct SessionMetrics {
     pub lines_removed: i64,
     /// Model usage statistics (model -> (requests, input_tokens, output_tokens))
     pub model_usage: HashMap<String, ModelUsageStats>,
+    /// Engine usage statistics (engine_id -> (requests, input_tokens, output_tokens))
+    pub engine_usage: HashMap<String, ModelUsageStats>,
     /// Total cached tokens
     pub total_cached_tokens: u64,
     /// Total cache creation tokens
@@ -88,6 +90,7 @@ impl Default for SessionMetrics {
             lines_added: 0,
             lines_removed: 0,
             model_usage: HashMap::new(),
+            engine_usage: HashMap::new(),
             total_cached_tokens: 0,
             total_cache_creation_tokens: 0,
             total_cache_read_tokens: 0,
@@ -199,6 +202,25 @@ impl SessionAnalytics {
                 stats.output_tokens += record.output_tokens;
                 stats.cached_tokens += record.cached_tokens;
                 stats.estimated_cost += record.estimated_cost;
+
+                // Aggregate engine usage
+                if let Some(ref engine_id) = record.engine_id {
+                    let engine_stats = metrics.engine_usage.entry(engine_id.clone()).or_insert_with(|| {
+                        ModelUsageStats {
+                            requests: 0,
+                            input_tokens: 0,
+                            output_tokens: 0,
+                            cached_tokens: 0,
+                            estimated_cost: 0.0,
+                        }
+                    });
+
+                    engine_stats.requests += 1;
+                    engine_stats.input_tokens += record.input_tokens;
+                    engine_stats.output_tokens += record.output_tokens;
+                    engine_stats.cached_tokens += record.cached_tokens;
+                    engine_stats.estimated_cost += record.estimated_cost;
+                }
 
                 // Aggregate totals
                 metrics.total_cached_tokens += record.cached_tokens;

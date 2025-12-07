@@ -107,6 +107,10 @@ enum Command {
         /// Enable continuous execution mode (YOLO mode) - runs until all tasks complete
         #[arg(long)]
         yolo: bool,
+
+        /// Engine to use for execution (e.g., "claude", "openai", "gemini")
+        #[arg(long)]
+        engine: Option<String>,
     },
 
     /// Complete a requirement from source to execution
@@ -217,6 +221,12 @@ enum Command {
     /// Agent management
     #[command(subcommand)]
     Agents(AgentsCommand),
+
+    /// Engine management
+    ///
+    /// List, inspect, and manage AI engine providers.
+    #[command(subcommand)]
+    Engines(commands::EnginesCommand),
 
     /// Monitor agent execution and telemetry
     ///
@@ -341,8 +351,8 @@ async fn main() -> anyhow::Result<()> {
         Command::Plan { input, id, name } => {
             plan::execute(input, id, name).await?;
         }
-        Command::Craft { plan_identifier, iteration, task, resume, dry_run, json, yolo } => {
-            craft::execute(plan_identifier, iteration, task, resume, dry_run, json, yolo).await?;
+        Command::Craft { plan_identifier, iteration, task, resume, dry_run, json, yolo, engine } => {
+            craft::execute(plan_identifier, iteration, task, resume, dry_run, json, yolo, engine).await?;
         }
         Command::Complete { source } => {
             complete::execute(source).await?;
@@ -376,6 +386,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Agents(cmd) => {
             agents::execute(cmd).await?;
+        }
+        Command::Engines(cmd) => {
+            engines::execute(cmd).await?;
         }
         Command::Monitor(cmd) => {
             monitor::execute(cmd).await?;
