@@ -1,5 +1,7 @@
 //! Command parsing and execution for unified prompt interface.
 
+pub mod models;
+
 /// A parsed command from user input.
 #[derive(Debug, Clone)]
 pub struct Command {
@@ -46,6 +48,8 @@ pub enum DisplayContext {
     Dashboard,
     /// Viewing help information
     Help,
+    /// Viewing model selector
+    ModelSelector,
 }
 
 impl Default for DisplayContext {
@@ -63,6 +67,7 @@ impl DisplayContext {
             Self::SessionList => "Chat Sessions".to_string(),
             Self::Dashboard => "Dashboard".to_string(),
             Self::Help => "Help".to_string(),
+            Self::ModelSelector => "Model Selection".to_string(),
         }
     }
 }

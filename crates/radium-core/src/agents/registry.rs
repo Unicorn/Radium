@@ -284,7 +284,7 @@ mod tests {
         let registry = AgentRegistry::new();
         let agent = create_test_agent("test-1", "Test Agent");
 
-        registry.register(agent.clone()).unwrap();
+        registry.register(agent).unwrap();
         assert_eq!(registry.count().unwrap(), 1);
 
         let retrieved = registry.get("test-1").unwrap();

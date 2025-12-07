@@ -15,7 +15,7 @@ use ratatui::prelude::*;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use radium_tui::app::App;
-use radium_tui::views::{render_prompt, render_setup_wizard};
+use radium_tui::views::{render_prompt, render_setup_wizard, render_splash};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -43,6 +43,25 @@ async fn main() -> Result<()> {
     enable_raw_mode()?;
     stdout().execute(EnterAlternateScreen)?;
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
+
+    // Show splash screen
+    let start_time = std::time::Instant::now();
+    let splash_duration = Duration::from_millis(800);
+    
+    while start_time.elapsed() < splash_duration {
+        terminal.draw(|frame| {
+            render_splash(frame, frame.area(), "Loading workspace...");
+        })?;
+        
+        if event::poll(Duration::from_millis(50))? {
+            if let Event::Key(key) = event::read()? {
+                if key.kind == KeyEventKind::Press {
+                    // Skip splash on any key press
+                    break;
+                }
+            }
+        }
+    }
 
     // Create app
     let mut app = App::new();

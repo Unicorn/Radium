@@ -166,7 +166,7 @@ mod tests {
     #[tokio::test]
     async fn test_sandbox_factory_no_sandbox() {
         let config = SandboxConfig::default();
-        let sandbox = SandboxFactory::create(config).unwrap();
+        let sandbox = SandboxFactory::create(&config).unwrap();
         assert_eq!(sandbox.sandbox_type(), SandboxType::None);
     }
 
@@ -223,7 +223,7 @@ mod tests {
         #[cfg(not(feature = "docker-sandbox"))]
         {
             let config = SandboxConfig { sandbox_type: SandboxType::Docker, ..Default::default() };
-            let result = SandboxFactory::create(config);
+            let result = SandboxFactory::create(&config);
             assert!(result.is_err());
             if let Err(SandboxError::NotAvailable(sandbox_type)) = result {
                 assert_eq!(sandbox_type, "docker");
@@ -236,7 +236,7 @@ mod tests {
         #[cfg(not(feature = "podman-sandbox"))]
         {
             let config = SandboxConfig { sandbox_type: SandboxType::Podman, ..Default::default() };
-            let result = SandboxFactory::create(config);
+            let result = SandboxFactory::create(&config);
             assert!(result.is_err());
             if let Err(SandboxError::NotAvailable(sandbox_type)) = result {
                 assert_eq!(sandbox_type, "podman");
@@ -250,7 +250,7 @@ mod tests {
         {
             let config =
                 SandboxConfig { sandbox_type: SandboxType::Seatbelt, ..Default::default() };
-            let result = SandboxFactory::create(config);
+            let result = SandboxFactory::create(&config);
             assert!(result.is_err());
             if let Err(SandboxError::NotAvailable(sandbox_type)) = result {
                 assert_eq!(sandbox_type, "seatbelt");

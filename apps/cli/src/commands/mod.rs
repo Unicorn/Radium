@@ -11,6 +11,7 @@ pub mod init;
 pub mod monitor;
 pub mod plan;
 pub mod run;
+pub mod stats;
 pub mod status;
 pub mod step;
 pub mod templates;

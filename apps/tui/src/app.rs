@@ -7,6 +7,7 @@ use radium_core::auth::{CredentialStore, ProviderType};
 use crate::commands::{Command, DisplayContext};
 use crate::setup::SetupWizard;
 use crate::views::PromptData;
+use crate::workspace::WorkspaceStatus;
 
 /// Main application with unified prompt interface.
 pub struct App {
@@ -24,6 +25,8 @@ pub struct App {
     pub available_commands: Vec<(&'static str, &'static str)>,
     /// Setup wizard (if running)
     pub setup_wizard: Option<SetupWizard>,
+    /// Workspace status
+    pub workspace_status: Option<WorkspaceStatus>,
 }
 
 impl App {
@@ -37,11 +40,16 @@ impl App {
 
         let available_commands = vec![
             ("help", "Show all available commands"),
+            ("auth", "Authenticate with AI providers"),
             ("agents", "List all available agents"),
             ("chat", "Start chat with an agent"),
             ("sessions", "Show your chat sessions"),
             ("dashboard", "Show system dashboard"),
+            ("models", "Select AI model"),
         ];
+
+        // Initialize workspace
+        let workspace_status = crate::workspace::initialize_workspace().ok();
 
         let mut app = Self {
             should_quit: false,
@@ -51,6 +59,7 @@ impl App {
             setup_complete,
             available_commands,
             setup_wizard: None,
+            workspace_status,
         };
 
         // Show setup wizard if not configured, otherwise start chat
@@ -64,50 +73,50 @@ impl App {
         app
     }
 
-    fn show_setup_instructions(&mut self) {
+    fn start_default_chat(&mut self) {
+        // Show welcome screen instead of trying to start chat
+        // This avoids the "agent not found" error
         self.prompt_data.context = DisplayContext::Help;
         self.prompt_data.clear_output();
+
         self.prompt_data.add_output("Welcome to Radium! 🚀".to_string());
         self.prompt_data.add_output("".to_string());
-        self.prompt_data.add_output("⚠️  No AI providers configured yet.".to_string());
+        self.prompt_data.add_output("Radium is your AI-powered development assistant.".to_string());
         self.prompt_data.add_output("".to_string());
-        self.prompt_data.add_output("To get started, authenticate with an AI provider:".to_string());
-        self.prompt_data.add_output("".to_string());
-        self.prompt_data.add_output("  Using the CLI (recommended):".to_string());
-        self.prompt_data.add_output("    rad auth login gemini".to_string());
-        self.prompt_data.add_output("    rad auth login openai".to_string());
-        self.prompt_data.add_output("".to_string());
-        self.prompt_data.add_output("  Or use environment variables:".to_string());
-        self.prompt_data.add_output("    export GEMINI_API_KEY='your-key-here'".to_string());
-        self.prompt_data.add_output("    export OPENAI_API_KEY='your-key-here'".to_string());
-        self.prompt_data.add_output("".to_string());
-        self.prompt_data.add_output("Credentials are stored in: ~/.radium/auth/credentials.json".to_string());
-        self.prompt_data.add_output("".to_string());
-        self.prompt_data.add_output("After authenticating, restart the TUI.".to_string());
-        self.prompt_data.add_output("".to_string());
-        self.prompt_data.add_output("Type /help to see available commands.".to_string());
-    }
 
-    fn start_default_chat(&mut self) {
-        // Start in direct chat mode - user can just start typing
-        let session_id = format!("session_{}", chrono::Utc::now().format("%Y%m%d_%H%M%S"));
+        // Check if we have any agents available
+        let has_agents = crate::chat_executor::get_available_agents()
+            .map(|agents| !agents.is_empty())
+            .unwrap_or(false);
 
-        // Use a default "assistant" agent
-        let agent_id = "assistant".to_string();
+        if has_agents {
+            self.prompt_data.add_output("🤖 Quick Start:".to_string());
+            self.prompt_data.add_output("  /agents - See available AI agents".to_string());
+            self.prompt_data.add_output("  /chat <agent> - Start chatting with an agent".to_string());
+        } else {
+            self.prompt_data.add_output("⚠️  No agents configured yet.".to_string());
+            self.prompt_data.add_output("".to_string());
+            self.prompt_data.add_output("To get started, create an agent configuration:".to_string());
+            self.prompt_data.add_output("  1. Create ~/.radium/agents/ directory".to_string());
+            self.prompt_data.add_output("  2. Add an agent JSON file (see example below)".to_string());
+            self.prompt_data.add_output("".to_string());
+            self.prompt_data.add_output("Example agent config (~/.radium/agents/assistant.json):".to_string());
+            self.prompt_data.add_output("  {".to_string());
+            self.prompt_data.add_output("    \"id\": \"assistant\",".to_string());
+            self.prompt_data.add_output("    \"name\": \"Assistant\",".to_string());
+            self.prompt_data.add_output("    \"description\": \"General purpose AI assistant\",".to_string());
+            self.prompt_data.add_output("    \"system_prompt\": \"You are a helpful AI assistant.\",".to_string());
+            self.prompt_data.add_output("    \"model\": \"gemini-1.5-flash\"".to_string());
+            self.prompt_data.add_output("  }".to_string());
+        }
 
-        self.current_agent = Some(agent_id.clone());
-        self.current_session = Some(session_id.clone());
-
-        self.prompt_data.context = DisplayContext::Chat {
-            agent_id: agent_id.clone(),
-            session_id: session_id.clone(),
-        };
-
-        self.prompt_data.conversation.clear();
-        self.prompt_data.conversation.push("Welcome to Radium! I'm your AI assistant.".to_string());
-        self.prompt_data.conversation.push("".to_string());
-        self.prompt_data.conversation.push("Just start typing to chat, or use /help for commands.".to_string());
-        self.prompt_data.conversation.push("Available: /agents, /sessions, /dashboard".to_string());
+        self.prompt_data.add_output("".to_string());
+        self.prompt_data.add_output("📚 Available Commands:".to_string());
+        self.prompt_data.add_output("  /help - Show all commands".to_string());
+        self.prompt_data.add_output("  /auth - Manage authentication".to_string());
+        self.prompt_data.add_output("  /dashboard - View system status".to_string());
+        self.prompt_data.add_output("".to_string());
+        self.prompt_data.add_output("Type a command to get started!".to_string());
     }
 
     pub async fn handle_key(&mut self, key: KeyCode, modifiers: KeyModifiers) -> Result<()> {
@@ -133,21 +142,112 @@ impl App {
                 self.should_quit = true;
             }
 
-            // Enter - process command or send message
-            KeyCode::Enter => {
+            // Arrow keys for command menu navigation
+            KeyCode::Up if !self.prompt_data.command_suggestions.is_empty() => {
+                self.prompt_data.selected_suggestion_index =
+                    self.prompt_data.selected_suggestion_index.saturating_sub(1);
+            }
+            KeyCode::Down if !self.prompt_data.command_suggestions.is_empty() => {
+                let max_index = self.prompt_data.command_suggestions.len().saturating_sub(1);
+                self.prompt_data.selected_suggestion_index =
+                    (self.prompt_data.selected_suggestion_index + 1).min(max_index);
+            }
+
+            // Tab to autocomplete selected command
+            KeyCode::Tab if !self.prompt_data.command_suggestions.is_empty() => {
+                self.autocomplete_selected_command();
+            }
+
+            // Escape to cancel command menu
+            KeyCode::Esc if !self.prompt_data.command_suggestions.is_empty() => {
+                self.prompt_data.command_suggestions.clear();
+                self.prompt_data.selected_suggestion_index = 0;
+            }
+
+            // Enter - process command or send message (unless in command palette)
+            KeyCode::Enter if !self.prompt_data.command_palette_active => {
                 self.handle_enter().await?;
             }
 
-            // Backspace
-            KeyCode::Backspace => {
+            // Backspace (unless in command palette)
+            KeyCode::Backspace if !self.prompt_data.command_palette_active => {
                 self.prompt_data.pop_char();
                 self.update_command_suggestions();
             }
 
+            // Scrollback navigation
+            KeyCode::PageUp => {
+                self.prompt_data.scrollback_offset =
+                    (self.prompt_data.scrollback_offset + 10).min(
+                        self.prompt_data.conversation.len().saturating_sub(1)
+                    );
+            }
+            KeyCode::PageDown => {
+                self.prompt_data.scrollback_offset =
+                    self.prompt_data.scrollback_offset.saturating_sub(10);
+            }
+            KeyCode::Home => {
+                self.prompt_data.scrollback_offset = 0;
+            }
+            KeyCode::End => {
+                self.prompt_data.scrollback_offset = self.prompt_data.conversation.len();
+            }
+
+            // Command palette (Ctrl+P)
+            KeyCode::Char('p') if modifiers.contains(KeyModifiers::CONTROL) => {
+                self.prompt_data.command_palette_active = true;
+                self.prompt_data.command_palette_query.clear();
+                self.update_command_palette();
+            }
+
+            // Escape to close command palette
+            KeyCode::Esc if self.prompt_data.command_palette_active => {
+                self.prompt_data.command_palette_active = false;
+                self.prompt_data.command_palette_query.clear();
+                self.prompt_data.command_suggestions.clear();
+            }
+
+            // Enter in command palette
+            KeyCode::Enter if self.prompt_data.command_palette_active => {
+                if let Some(suggestion) = self.prompt_data.command_suggestions
+                    .get(self.prompt_data.selected_suggestion_index)
+                {
+                    if let Some(cmd) = suggestion.split(" - ").next() {
+                        self.prompt_data.input = cmd.to_string();
+                        self.prompt_data.command_palette_active = false;
+                        self.prompt_data.command_palette_query.clear();
+                        // Execute the command
+                        self.handle_enter().await?;
+                    }
+                }
+            }
+
+            // Arrow keys in command palette
+            KeyCode::Up if self.prompt_data.command_palette_active => {
+                self.prompt_data.selected_suggestion_index =
+                    self.prompt_data.selected_suggestion_index.saturating_sub(1);
+            }
+            KeyCode::Down if self.prompt_data.command_palette_active => {
+                let max_index = self.prompt_data.command_suggestions.len().saturating_sub(1);
+                self.prompt_data.selected_suggestion_index =
+                    (self.prompt_data.selected_suggestion_index + 1).min(max_index);
+            }
+
+            // Backspace in command palette
+            KeyCode::Backspace if self.prompt_data.command_palette_active => {
+                self.prompt_data.command_palette_query.pop();
+                self.update_command_palette();
+            }
+
             // Regular characters
             KeyCode::Char(c) if !modifiers.contains(KeyModifiers::CONTROL) => {
-                self.prompt_data.push_char(c);
-                self.update_command_suggestions();
+                if self.prompt_data.command_palette_active {
+                    self.prompt_data.command_palette_query.push(c);
+                    self.update_command_palette();
+                } else {
+                    self.prompt_data.push_char(c);
+                    self.update_command_suggestions();
+                }
             }
 
             _ => {}
@@ -177,9 +277,11 @@ impl App {
     async fn execute_command(&mut self, cmd: Command) -> Result<()> {
         match cmd.name.as_str() {
             "help" => self.show_help(),
+            "auth" => self.start_auth_wizard(),
             "agents" => self.show_agents().await?,
             "sessions" => self.show_sessions().await?,
             "dashboard" => self.show_dashboard().await?,
+            "models" => self.show_models().await?,
             "chat" => {
                 if cmd.args.is_empty() {
                     self.prompt_data.add_output("Usage: /chat <agent-id>".to_string());
@@ -201,6 +303,8 @@ impl App {
         self.prompt_data.add_output("Radium TUI Commands:".to_string());
         self.prompt_data.add_output("".to_string());
         self.prompt_data
+            .add_output("  /auth           - Authenticate with AI providers".to_string());
+        self.prompt_data
             .add_output("  /chat <agent>   - Start chat with an agent".to_string());
         self.prompt_data
             .add_output("  /agents         - List all available agents".to_string());
@@ -208,10 +312,17 @@ impl App {
             .add_output("  /sessions       - Show your chat sessions".to_string());
         self.prompt_data
             .add_output("  /dashboard      - Show dashboard stats".to_string());
+        self.prompt_data
+            .add_output("  /models         - Select AI model".to_string());
         self.prompt_data.add_output("  /help           - Show this help".to_string());
         self.prompt_data.add_output("".to_string());
         self.prompt_data
             .add_output("When in a chat, type normally to send messages.".to_string());
+    }
+
+    fn start_auth_wizard(&mut self) {
+        // Trigger the setup wizard for authentication
+        self.setup_wizard = Some(SetupWizard::new());
     }
 
     async fn show_agents(&mut self) -> Result<()> {
@@ -227,9 +338,25 @@ impl App {
     async fn show_sessions(&mut self) -> Result<()> {
         self.prompt_data.context = DisplayContext::SessionList;
 
-        // TODO: Load actual sessions from history
-        self.prompt_data.sessions = vec![];
+        // Load actual sessions from history
+        let workspace_root = self.workspace_status.as_ref()
+            .and_then(|s| s.root.clone());
+        let session_manager = crate::session_manager::SessionManager::new(workspace_root)?;
+        let sessions_by_date = session_manager.load_sessions()?;
 
+        // Flatten sessions for display
+        self.prompt_data.sessions = sessions_by_date
+            .values()
+            .flatten()
+            .map(|s| (s.session_id.clone(), s.message_count))
+            .collect();
+
+        Ok(())
+    }
+
+    async fn show_models(&mut self) -> Result<()> {
+        self.prompt_data.context = DisplayContext::ModelSelector;
+        // Model selection will be handled in render
         Ok(())
     }
 
@@ -309,13 +436,28 @@ impl App {
             .conversation
             .push(format!("You: {}", message));
 
+        // Save session update
+        let workspace_root = self.workspace_status.as_ref()
+            .and_then(|s| s.root.clone());
+        if let Ok(session_manager) = crate::session_manager::SessionManager::new(workspace_root) {
+            let _ = session_manager.update_session(&session_id, &agent_id, &message);
+        }
+
         // Execute agent
         match crate::chat_executor::execute_chat_message(&agent_id, &message, &session_id).await {
             Ok(result) => {
                 if result.success {
+                    let response = result.response.clone();
                     self.prompt_data
                         .conversation
-                        .push(format!("Agent: {}", result.response));
+                        .push(format!("Agent: {}", response));
+
+                    // Save agent response to session
+                    let workspace_root_clone = self.workspace_status.as_ref()
+                        .and_then(|s| s.root.clone());
+                    if let Ok(session_manager) = crate::session_manager::SessionManager::new(workspace_root_clone) {
+                        let _ = session_manager.update_session(&session_id, &agent_id, &response);
+                    }
                 } else {
                     let error_msg = result
                         .error
@@ -341,6 +483,7 @@ impl App {
         // Only show suggestions if typing a slash command
         if !input.starts_with('/') {
             self.prompt_data.command_suggestions.clear();
+            self.prompt_data.selected_suggestion_index = 0;
             return;
         }
 
@@ -355,7 +498,57 @@ impl App {
             .collect();
 
         self.prompt_data.command_suggestions = suggestions;
+
+        // Reset selection if list changed
+        self.prompt_data.selected_suggestion_index = 0;
     }
+
+    fn autocomplete_selected_command(&mut self) {
+        if let Some(suggestion) = self.prompt_data.command_suggestions
+            .get(self.prompt_data.selected_suggestion_index)
+        {
+            // Extract just the command part (before the ' - ')
+            if let Some(cmd) = suggestion.split(" - ").next() {
+                self.prompt_data.input = cmd.to_string();
+                self.prompt_data.command_suggestions.clear();
+                self.prompt_data.selected_suggestion_index = 0;
+            }
+        }
+    }
+
+    fn update_command_palette(&mut self) {
+        // Use fuzzy matching for command palette
+        let query = &self.prompt_data.command_palette_query.to_lowercase();
+        
+        self.prompt_data.command_suggestions = self
+            .available_commands
+            .iter()
+            .filter(|(cmd, _desc)| {
+                cmd.contains(query) || 
+                cmd.starts_with(query) ||
+                fuzzy_match(cmd, query)
+            })
+            .map(|(cmd, desc)| format!("/{} - {}", cmd, desc))
+            .collect();
+    }
+}
+
+/// Simple fuzzy match helper (basic implementation).
+fn fuzzy_match(text: &str, query: &str) -> bool {
+    let text_lower = text.to_lowercase();
+    let mut query_chars = query.chars();
+    let mut text_chars = text_lower.chars();
+    
+    while let Some(qc) = query_chars.next() {
+        loop {
+            match text_chars.next() {
+                Some(tc) if tc == qc => break,
+                Some(_) => continue,
+                None => return false,
+            }
+        }
+    }
+    true
 }
 
 impl Default for App {

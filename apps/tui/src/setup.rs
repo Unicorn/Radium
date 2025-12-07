@@ -7,7 +7,6 @@ use crossterm::event::{KeyCode, KeyModifiers};
 use radium_core::auth::{CredentialStore, ProviderType};
 
 use crate::icons::Icons;
-use crate::theme::THEME;
 
 /// Setup wizard state.
 #[derive(Debug, Clone, PartialEq)]
@@ -180,14 +179,29 @@ impl SetupWizard {
                     (ProviderType::OpenAI, "OpenAI (GPT)", "Most capable models"),
                 ];
 
+                // Check which providers are already configured
+                let (gemini_connected, openai_connected) = if let Ok(store) = CredentialStore::new() {
+                    (
+                        store.is_configured(ProviderType::Gemini),
+                        store.is_configured(ProviderType::OpenAI),
+                    )
+                } else {
+                    (false, false)
+                };
+
                 for (i, (provider_type, name, desc)) in providers.iter().enumerate() {
                     let is_selected = selected_providers.contains(provider_type);
                     let is_cursor = i == *cursor;
+                    let is_connected = match provider_type {
+                        ProviderType::Gemini => gemini_connected,
+                        ProviderType::OpenAI => openai_connected,
+                    };
 
                     let checkbox = if is_selected { "[x]" } else { "[ ]" };
                     let cursor_mark = if is_cursor { ">" } else { " " };
+                    let status = if is_connected { " ✓ Connected" } else { "" };
 
-                    lines.push(format!("{} {} {} - {}", cursor_mark, checkbox, name, desc));
+                    lines.push(format!("{} {} {}{} - {}", cursor_mark, checkbox, name, status, desc));
                 }
 
                 lines.push("".to_string());

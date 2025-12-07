@@ -10,8 +10,8 @@ use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 use commands::{
-    agents, auth, chat, checkpoint, clean, craft, doctor, init, monitor, plan, run, status, step,
-    templates,
+    agents, auth, chat, checkpoint, clean, craft, doctor, init, monitor, plan, run, stats, status,
+    step, templates,
 };
 
 /// Radium CLI - Next-generation agentic orchestration tool
@@ -206,6 +206,13 @@ enum Command {
     #[command(subcommand)]
     Monitor(monitor::MonitorCommand),
 
+    /// Session statistics and analytics
+    ///
+    /// View comprehensive session reports with metrics, token tracking,
+    /// and cost transparency.
+    #[command(subcommand)]
+    Stats(stats::StatsCommand),
+
     /// Manage checkpoints for agent work snapshots
     ///
     /// List and restore git-based checkpoints created during workflow execution.
@@ -301,6 +308,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Monitor(cmd) => {
             monitor::execute(cmd).await?;
+        }
+        Command::Stats(cmd) => {
+            stats::execute(cmd).await?;
         }
         Command::Checkpoint(cmd) => {
             checkpoint::execute(cmd).await?;

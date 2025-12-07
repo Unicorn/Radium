@@ -8,7 +8,7 @@ use tracing::{debug, error, info};
 
 use radium_orchestrator::{AgentExecutor, Orchestrator};
 
-use crate::checkpoint::{Checkpoint, CheckpointManager};
+use crate::checkpoint::CheckpointManager;
 use crate::models::{Workflow, WorkflowState};
 use crate::monitoring::{AgentRecord, AgentStatus, MonitoringService};
 use crate::storage::TaskRepository;
@@ -191,9 +191,8 @@ impl WorkflowExecutor {
                 let mut checkpoint_id: Option<String> = None;
                 
                 if let Some(ref monitoring) = self.monitoring {
-                    let record = AgentRecord::new(agent_id.clone(), "workflow".to_string())
-                        .with_plan(context.workflow_id.clone());
-                    if let Ok(mut svc) = monitoring.lock() {
+                    let record = AgentRecord::new(agent_id.clone(), "workflow".to_string());
+                    if let Ok(svc) = monitoring.lock() {
                         if let Err(e) = svc.register_agent(&record) {
                             debug!(
                                 agent_id = %agent_id,
@@ -209,7 +208,7 @@ impl WorkflowExecutor {
                 // 2.6. Create checkpoint before step execution (if checkpoint manager available)
                 // This creates a snapshot before any file modifications
                 if let Some(ref checkpoint_mgr) = self.checkpoint_manager {
-                    if let Ok(mut cm) = checkpoint_mgr.lock() {
+                    if let Ok(cm) = checkpoint_mgr.lock() {
                         match cm.create_checkpoint(Some(format!("Before workflow step: {}", step.id))) {
                             Ok(checkpoint) => {
                                 checkpoint_id = Some(checkpoint.id.clone());
@@ -244,7 +243,7 @@ impl WorkflowExecutor {
                 
                 // 4. Record telemetry if available
                 if let Some(ref monitoring) = self.monitoring {
-                    if let Ok(mut svc) = monitoring.lock() {
+                    if let Ok(svc) = monitoring.lock() {
                         if let Some(ref telemetry) = execution_result.telemetry {
                             use crate::monitoring::{TelemetryRecord, TelemetryTracking};
                             let mut record = TelemetryRecord::new(agent_id.clone())
@@ -278,7 +277,7 @@ impl WorkflowExecutor {
                 
                 // 5. Update monitoring status based on execution result
                 if let Some(ref monitoring) = self.monitoring {
-                    if let Ok(mut svc) = monitoring.lock() {
+                    if let Ok(svc) = monitoring.lock() {
                         if execution_result.success {
                             let _ = svc.complete_agent(&agent_id, 0);
                         } else {
@@ -328,10 +327,9 @@ impl WorkflowExecutor {
                             
                             // Perform restore if checkpoint ID is available
                             if let Some(ref cp_id) = restore_checkpoint_id {
-                                if let Some(ref checkpoint_mgr) = self.checkpoint_manager {
-                                    if let Ok(mut cm) = checkpoint_mgr.lock() {
-                                        match cm.restore_checkpoint(cp_id) {
-                                            Ok(_) => {
+                                                if let Some(ref checkpoint_mgr) = self.checkpoint_manager {
+                                                    if let Ok(cm) = checkpoint_mgr.lock() {                                        match cm.restore_checkpoint(cp_id) {
+                                            Ok(()) => {
                                                 info!(
                                                     workflow_id = %context.workflow_id,
                                                     step_id = %step.id,
@@ -363,9 +361,9 @@ impl WorkflowExecutor {
                             // If restore was requested, add note to output
                             if restore_requested {
                                 let restore_note = if restore_checkpoint_id.is_some() {
-                                    format!("\n\n[Checkpoint restored. You may need to re-propose tool calls.]")
+                                    "\n\n[Checkpoint restored. You may need to re-propose tool calls.]".to_string()
                                 } else {
-                                    format!("\n\n[Restore requested but no checkpoint ID found.]")
+                                    "\n\n[Restore requested but no checkpoint ID found.]".to_string()
                                 };
                                 serde_json::Value::String(format!("{}{}", text, restore_note))
                             } else {
@@ -493,7 +491,7 @@ mod tests {
         let orchestrator = Arc::new(Orchestrator::new());
         let executor = Arc::new(AgentExecutor::with_mock_model());
         let workflow_executor =
-            WorkflowExecutor::new(Arc::clone(&orchestrator), Arc::clone(&executor));
+            WorkflowExecutor::new(Arc::clone(&orchestrator), Arc::clone(&executor), None);
 
         // Register an agent
         let agent = Arc::new(SimpleAgent::new("test-agent".to_string(), "Test agent".to_string()));
@@ -578,7 +576,7 @@ mod tests {
         let orchestrator = Arc::new(Orchestrator::new());
         let executor = Arc::new(AgentExecutor::with_mock_model());
         let workflow_executor =
-            WorkflowExecutor::new(Arc::clone(&orchestrator), Arc::clone(&executor));
+            WorkflowExecutor::new(Arc::clone(&orchestrator), Arc::clone(&executor), None);
 
         // Register an agent
         let agent = Arc::new(SimpleAgent::new("test-agent".to_string(), "Test agent".to_string()));
@@ -635,7 +633,7 @@ mod tests {
         let orchestrator = Arc::new(Orchestrator::new());
         let executor = Arc::new(AgentExecutor::with_mock_model());
         let workflow_executor =
-            WorkflowExecutor::new(Arc::clone(&orchestrator), Arc::clone(&executor));
+            WorkflowExecutor::new(Arc::clone(&orchestrator), Arc::clone(&executor), None);
 
         // Create workflow with no steps (valid - will complete immediately)
         {
@@ -670,7 +668,7 @@ mod tests {
         let orchestrator = Arc::new(Orchestrator::new());
         let executor = Arc::new(AgentExecutor::with_mock_model());
         let workflow_executor =
-            WorkflowExecutor::new(Arc::clone(&orchestrator), Arc::clone(&executor));
+            WorkflowExecutor::new(Arc::clone(&orchestrator), Arc::clone(&executor), None);
 
         // Create workflow and set it to Running state
         {
@@ -707,7 +705,7 @@ mod tests {
         let orchestrator = Arc::new(Orchestrator::new());
         let executor = Arc::new(AgentExecutor::with_mock_model());
         let workflow_executor =
-            WorkflowExecutor::new(Arc::clone(&orchestrator), Arc::clone(&executor));
+            WorkflowExecutor::new(Arc::clone(&orchestrator), Arc::clone(&executor), None);
 
         // Register an agent
         let agent = Arc::new(SimpleAgent::new("test-agent".to_string(), "Test agent".to_string()));
@@ -805,7 +803,7 @@ mod tests {
         let orchestrator = Arc::new(Orchestrator::new());
         let executor = Arc::new(AgentExecutor::with_mock_model());
         let workflow_executor =
-            WorkflowExecutor::new(Arc::clone(&orchestrator), Arc::clone(&executor));
+            WorkflowExecutor::new(Arc::clone(&orchestrator), Arc::clone(&executor), None);
 
         // Register an agent
         let agent = Arc::new(SimpleAgent::new("test-agent".to_string(), "Test agent".to_string()));

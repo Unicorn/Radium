@@ -50,5 +50,20 @@ chrono = { version = "0.4", features = ["serde"] }
 
 # JSON parsing for chat history
 serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+
+# Home directory detection
+dirs = "5.0"
+
+# Enhanced input handling
+tui-input = "0.8"
+tui-textarea = "0.4"
+unicode-width = "0.1"
+textwrap = "0.16"
+fuzzy-matcher = "0.3"  # For command palette
+
+# Optional (for Phase 4):
+# termimad = "0.29"       # Markdown rendering (disabled due to crossterm version conflict)
+# syntect = "5.0"         # Syntax highlighting
 
 [dev-dependencies]

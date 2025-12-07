@@ -1,7 +1,7 @@
 # Completed Work
 
 > **Status**: All core infrastructure milestones complete ✅  
-> **Last Updated**: 2025-12-02
+> **Last Updated**: 2025-01-XX
 
 ## Overview
 
@@ -151,6 +151,36 @@ With these milestones complete, Radium now has:
 - M5: Desktop App & Monorepo
 
 **Current State**: Production-ready core platform with full gRPC API, agent orchestration, workflow execution, and three user interfaces (CLI, TUI, Desktop).
+
+## ✅ Recent Completions (2025-01-XX)
+
+### TUI Improvements (Complete)
+- ✅ Automatic workspace initialization
+- ✅ Splash screen and branded header
+- ✅ Enhanced status indicators with icons
+- ✅ Model selection UI (`/models` command)
+- ✅ Enhanced agent browser
+- ✅ Session history (`/sessions` command)
+- ✅ Loading states for async operations
+- ✅ Command palette (Ctrl+P) with fuzzy search
+- ✅ Markdown rendering for agent responses
+- ✅ Scrollback buffer (PgUp/PgDn)
+- ✅ Split view for complex workflows
+- ✅ Session persistence
+
+### Session Reports & Analytics (Complete)
+- ✅ Session analytics module with metrics aggregation
+- ✅ Report generation (human-readable and JSON)
+- ✅ Code change tracking via git diff
+- ✅ CLI commands: `rad stats session`, `rad stats model`, `rad stats history`, `rad stats export`
+- ✅ Session persistence in `.radium/_internals/sessions/`
+- ✅ Integration with existing telemetry infrastructure
+- ✅ Cost transparency and cache optimization metrics
+
+**Key Files**:
+- `crates/radium-core/src/analytics/` - Analytics engine
+- `apps/cli/src/commands/stats.rs` - CLI commands
+- `apps/tui/src/views/` - TUI improvements
 
 ### 🔄 Current Focus
 

@@ -166,7 +166,6 @@ impl TuiError {
                         Style::default().fg(THEME.error).add_modifier(Modifier::BOLD)
                     )
                 )
-                .alignment(Alignment::Left),
             );
 
         let inner = block.inner(area);

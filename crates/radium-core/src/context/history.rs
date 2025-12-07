@@ -3,6 +3,7 @@
 //! Provides history continuity by tracking interactions per session ID
 //! and generating summaries to prevent context window bloat.
 
+use std::fmt::Write;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -137,13 +138,17 @@ impl HistoryManager {
                 interaction.output.clone()
             };
 
-            summary.push_str(&format!(
-                "Interaction {}: Goal: {}, Plan: {}, Guidance: {}\n",
+            writeln!(
+                summary,
+                "Interaction {}: Goal: {}, Plan: {}, Guidance: {}",
                 i + 1,
                 interaction.goal,
                 interaction.plan,
                 output_preview
-            ));
+            )
+            .unwrap_or_else(|e| {
+                tracing::error!("Failed to write history summary: {}", e);
+            });
         }
 
         summary

@@ -6,6 +6,8 @@ pub mod errors;
 pub mod icons;
 pub mod navigation;
 pub mod setup;
+pub mod session_manager;
 pub mod state;
 pub mod theme;
 pub mod views;
+pub mod workspace;
