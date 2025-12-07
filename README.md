@@ -12,6 +12,7 @@ Radium is a high-performance, Rust-based platform for creating, managing, and de
 - **🤖 Flexible Model Support**: Works with major AI models (Gemini, OpenAI, etc.)
 - **⚙️ Powerful Workflow Engine**: Define complex task chains and decision trees
 - **📊 Comprehensive Monitoring**: Real-time tracking of agents and workflows
+- **📈 Session Analytics**: Track costs, performance, and optimize agent sessions
 - **🔧 Auto-Managed Server**: Embedded server lifecycle management for seamless deployment
 
 ## Quick Start
@@ -256,6 +257,42 @@ Control orchestration via TUI commands:
 - [Orchestration User Guide](docs/user-guide/orchestration.md) - Complete user guide
 - [Orchestration Workflows](docs/examples/orchestration-workflows.md) - Example workflows
 - [Orchestration Testing Guide](docs/user-guide/orchestration-testing.md) - Manual testing procedures
+
+## Session Analytics
+
+Radium automatically tracks every agent session, providing detailed analytics on costs, performance, and optimization opportunities.
+
+### Quick Start
+
+```bash
+# View current session statistics
+rad stats session
+
+# View model usage breakdown
+rad stats model
+
+# View session history
+rad stats history
+
+# Compare two sessions
+rad stats compare <session-id-1> <session-id-2>
+
+# Export analytics data
+rad stats export --output analytics.json
+```
+
+### Key Features
+
+- **Cost Tracking**: Monitor token usage and estimated costs per model
+- **Performance Metrics**: Analyze wall time, agent active time, and tool execution time
+- **Session Comparison**: Compare sessions to identify improvements or regressions
+- **Cache Optimization**: Track cache effectiveness and savings
+- **Code Change Tracking**: Automatically track code changes via git diff
+
+### Documentation
+
+- [Session Analytics Guide](docs/features/session-analytics.md) - Complete feature documentation
+- [Optimizing Costs](docs/guides/optimizing-costs.md) - Strategies for reducing session costs
 
 ## Documentation
 
