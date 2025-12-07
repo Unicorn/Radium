@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use inquire::Confirm;
 
-use super::{display, extract, helper, SourceValidationResult};
+use super::{display, extract, helper};
 
 /// Validates sources from text and prompts user if validation fails.
 ///

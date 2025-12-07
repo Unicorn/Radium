@@ -125,3 +125,303 @@ impl HookConfig {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_hook_config_from_str_valid() {
+        let content = r#"
+            enable_profiling = true
+            [[hooks]]
+            name = "test-hook"
+            type = "before_model"
+            priority = 100
+            enabled = true
+        "#;
+        
+        let config = HookConfig::from_str(content);
+        assert!(config.is_ok());
+        let config = config.unwrap();
+        assert!(config.enable_profiling);
+        assert_eq!(config.hooks.len(), 1);
+        assert_eq!(config.hooks[0].name, "test-hook");
+    }
+
+    #[test]
+    fn test_hook_config_from_str_invalid_toml() {
+        let content = "invalid toml {";
+        let result = HookConfig::from_str(content);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_hook_config_from_file() {
+        let temp = TempDir::new().unwrap();
+        let config_file = temp.path().join("hooks.toml");
+        
+        let content = r#"
+            [[hooks]]
+            name = "test-hook"
+            type = "before_model"
+        "#;
+        std::fs::write(&config_file, content).unwrap();
+        
+        let config = HookConfig::from_file(&config_file);
+        assert!(config.is_ok());
+    }
+
+    #[test]
+    fn test_hook_config_from_file_nonexistent() {
+        let result = HookConfig::from_file("/nonexistent/path/hooks.toml");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_hook_config_save() {
+        let temp = TempDir::new().unwrap();
+        let config_file = temp.path().join("hooks.toml");
+        
+        let mut config = HookConfig {
+            hooks: vec![HookDefinition {
+                name: "test-hook".to_string(),
+                hook_type: "before_model".to_string(),
+                priority: Some(100),
+                enabled: true,
+                script: None,
+                config: None,
+            }],
+            enable_profiling: false,
+        };
+        
+        let result = config.save(&config_file);
+        assert!(result.is_ok());
+        assert!(config_file.exists());
+    }
+
+    #[test]
+    fn test_hook_config_save_creates_parent_dir() {
+        let temp = TempDir::new().unwrap();
+        let config_file = temp.path().join("subdir").join("hooks.toml");
+        
+        let config = HookConfig {
+            hooks: vec![],
+            enable_profiling: false,
+        };
+        
+        let result = config.save(&config_file);
+        assert!(result.is_ok());
+        assert!(config_file.exists());
+    }
+
+    #[test]
+    fn test_hook_config_set_hook_enabled() {
+        let mut config = HookConfig {
+            hooks: vec![HookDefinition {
+                name: "test-hook".to_string(),
+                hook_type: "before_model".to_string(),
+                priority: None,
+                enabled: true,
+                script: None,
+                config: None,
+            }],
+            enable_profiling: false,
+        };
+        
+        let result = config.set_hook_enabled("test-hook", false);
+        assert!(result.is_ok());
+        assert!(!config.hooks[0].enabled);
+    }
+
+    #[test]
+    fn test_hook_config_set_hook_enabled_not_found() {
+        let mut config = HookConfig {
+            hooks: vec![],
+            enable_profiling: false,
+        };
+        
+        let result = config.set_hook_enabled("nonexistent", true);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_hook_config_is_hook_enabled() {
+        let config = HookConfig {
+            hooks: vec![HookDefinition {
+                name: "test-hook".to_string(),
+                hook_type: "before_model".to_string(),
+                priority: None,
+                enabled: true,
+                script: None,
+                config: None,
+            }],
+            enable_profiling: false,
+        };
+        
+        assert_eq!(config.is_hook_enabled("test-hook"), Some(true));
+        assert_eq!(config.is_hook_enabled("nonexistent"), None);
+    }
+
+    #[test]
+    fn test_hook_config_validate_empty_name() {
+        let config = HookConfig {
+            hooks: vec![HookDefinition {
+                name: String::new(),
+                hook_type: "before_model".to_string(),
+                priority: None,
+                enabled: true,
+                script: None,
+                config: None,
+            }],
+            enable_profiling: false,
+        };
+        
+        let result = config.validate();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_hook_config_validate_empty_type() {
+        let config = HookConfig {
+            hooks: vec![HookDefinition {
+                name: "test-hook".to_string(),
+                hook_type: String::new(),
+                priority: None,
+                enabled: true,
+                script: None,
+                config: None,
+            }],
+            enable_profiling: false,
+        };
+        
+        let result = config.validate();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_hook_config_validate_invalid_type() {
+        let config = HookConfig {
+            hooks: vec![HookDefinition {
+                name: "test-hook".to_string(),
+                hook_type: "invalid_type".to_string(),
+                priority: None,
+                enabled: true,
+                script: Some("script.sh".to_string()),
+                config: None,
+            }],
+            enable_profiling: false,
+        };
+        
+        let result = config.validate();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_hook_config_validate_no_script_or_config() {
+        let config = HookConfig {
+            hooks: vec![HookDefinition {
+                name: "test-hook".to_string(),
+                hook_type: "before_model".to_string(),
+                priority: None,
+                enabled: true,
+                script: None,
+                config: None,
+            }],
+            enable_profiling: false,
+        };
+        
+        let result = config.validate();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_hook_config_validate_with_script() {
+        let config = HookConfig {
+            hooks: vec![HookDefinition {
+                name: "test-hook".to_string(),
+                hook_type: "before_model".to_string(),
+                priority: None,
+                enabled: true,
+                script: Some("script.sh".to_string()),
+                config: None,
+            }],
+            enable_profiling: false,
+        };
+        
+        let result = config.validate();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_hook_config_validate_with_config() {
+        let config = HookConfig {
+            hooks: vec![HookDefinition {
+                name: "test-hook".to_string(),
+                hook_type: "before_model".to_string(),
+                priority: None,
+                enabled: true,
+                script: None,
+                config: Some(toml::Value::String("config".to_string())),
+            }],
+            enable_profiling: false,
+        };
+        
+        let result = config.validate();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_hook_config_validate_all_valid_types() {
+        let valid_types = [
+            "before_model", "after_model", "before_tool", "after_tool",
+            "tool_selection", "error_interception", "error_transformation",
+            "error_recovery", "error_logging", "telemetry_collection",
+            "custom_logging", "metrics_aggregation", "performance_monitoring",
+        ];
+        
+        for hook_type in &valid_types {
+            let config = HookConfig {
+                hooks: vec![HookDefinition {
+                    name: "test-hook".to_string(),
+                    hook_type: hook_type.to_string(),
+                    priority: None,
+                    enabled: true,
+                    script: Some("script.sh".to_string()),
+                    config: None,
+                }],
+                enable_profiling: false,
+            };
+            
+            let result = config.validate();
+            assert!(result.is_ok(), "Hook type {} should be valid", hook_type);
+        }
+    }
+
+    #[test]
+    fn test_hook_definition_default_enabled() {
+        let hook = HookDefinition {
+            name: "test".to_string(),
+            hook_type: "before_model".to_string(),
+            priority: None,
+            enabled: default_enabled(),
+            script: None,
+            config: None,
+        };
+        assert!(hook.enabled);
+    }
+
+    #[test]
+    fn test_hook_config_enable_profiling_default() {
+        let content = r#"
+            [[hooks]]
+            name = "test-hook"
+            type = "before_model"
+            script = "script.sh"
+        "#;
+        
+        let config = HookConfig::from_str(content).unwrap();
+        assert!(!config.enable_profiling); // Default is false
+    }
+}

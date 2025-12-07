@@ -2,7 +2,7 @@
 
 use anyhow::{Context, Result};
 use clap::Subcommand;
-use radium_core::monitoring::{AgentStatus, AgentUsage, MonitoringService, TelemetrySummary, TelemetryTracking, UsageFilter};
+use radium_core::monitoring::{AgentStatus, AgentUsage, MonitoringService, TelemetryTracking, UsageFilter};
 use radium_core::workspace::Workspace;
 
 /// Monitoring subcommands

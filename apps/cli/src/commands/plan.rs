@@ -5,13 +5,12 @@
 use anyhow::{Context, bail};
 use colored::Colorize;
 use radium_core::{
-    generate_plan_files, Iteration, Plan, PlanGenerator, PlanManifest, PlanParser, PlanStatus,
+    generate_plan_files, Iteration, Plan, PlanGenerator, PlanManifest,
     PlanTask, RequirementId, Workspace,
 };
 use radium_models::ModelFactory;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 /// Execute the plan command.
 ///

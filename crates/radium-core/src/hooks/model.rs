@@ -123,3 +123,131 @@ impl crate::hooks::registry::Hook for ModelHookAdapter {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::hooks::types::HookResult as HookExecutionResult;
+
+    struct MockModelHook {
+        name: String,
+        priority: HookPriority,
+        before_called: Arc<tokio::sync::Mutex<bool>>,
+        after_called: Arc<tokio::sync::Mutex<bool>>,
+    }
+
+    #[async_trait]
+    impl ModelHook for MockModelHook {
+        fn name(&self) -> &str {
+            &self.name
+        }
+
+        fn priority(&self) -> HookPriority {
+            self.priority
+        }
+
+        async fn before_model_call(&self, _context: &ModelHookContext) -> Result<HookExecutionResult> {
+            *self.before_called.lock().await = true;
+            Ok(HookExecutionResult::success())
+        }
+
+        async fn after_model_call(&self, _context: &ModelHookContext) -> Result<HookExecutionResult> {
+            *self.after_called.lock().await = true;
+            Ok(HookExecutionResult::success())
+        }
+    }
+
+    #[test]
+    fn test_model_hook_type_variants() {
+        assert_eq!(ModelHookType::Before, ModelHookType::Before);
+        assert_eq!(ModelHookType::After, ModelHookType::After);
+    }
+
+    #[test]
+    fn test_model_hook_context_before() {
+        let ctx = ModelHookContext::before(
+            "test input".to_string(),
+            "gpt-4".to_string(),
+        );
+        assert_eq!(ctx.input, "test input");
+        assert_eq!(ctx.model_id, "gpt-4");
+        assert!(ctx.response.is_none());
+        assert!(ctx.modified_input.is_none());
+    }
+
+    #[test]
+    fn test_model_hook_context_after() {
+        let ctx = ModelHookContext::after(
+            "test input".to_string(),
+            "gpt-4".to_string(),
+            "test response".to_string(),
+        );
+        assert_eq!(ctx.input, "test input");
+        assert_eq!(ctx.model_id, "gpt-4");
+        assert_eq!(ctx.response, Some("test response".to_string()));
+    }
+
+    #[test]
+    fn test_model_hook_context_to_hook_context() {
+        let ctx = ModelHookContext::before("test".to_string(), "gpt-4".to_string());
+        let hook_ctx = ctx.to_hook_context(ModelHookType::Before);
+        assert_eq!(hook_ctx.hook_type, "before_model");
+    }
+
+    #[tokio::test]
+    async fn test_model_hook_adapter_before() {
+        let hook = Arc::new(MockModelHook {
+            name: "test".to_string(),
+            priority: HookPriority::default(),
+            before_called: Arc::new(tokio::sync::Mutex::new(false)),
+            after_called: Arc::new(tokio::sync::Mutex::new(false)),
+        });
+        let called = Arc::clone(&hook.before_called);
+        
+        let adapter = ModelHookAdapter::before(hook);
+        assert_eq!(adapter.name(), "test");
+        assert_eq!(adapter.priority().value(), HookPriority::default().value());
+        assert_eq!(adapter.hook_type(), HookType::BeforeModel);
+
+        let ctx = ModelHookContext::before("test".to_string(), "gpt-4".to_string());
+        let hook_ctx = ctx.to_hook_context(ModelHookType::Before);
+        let result = adapter.execute(&hook_ctx).await;
+        assert!(result.is_ok());
+        assert!(*called.lock().await);
+    }
+
+    #[tokio::test]
+    async fn test_model_hook_adapter_after() {
+        let hook = Arc::new(MockModelHook {
+            name: "test".to_string(),
+            priority: HookPriority::default(),
+            before_called: Arc::new(tokio::sync::Mutex::new(false)),
+            after_called: Arc::new(tokio::sync::Mutex::new(false)),
+        });
+        let called = Arc::clone(&hook.after_called);
+        
+        let adapter = ModelHookAdapter::after(hook);
+        assert_eq!(adapter.hook_type(), HookType::AfterModel);
+
+        let ctx = ModelHookContext::after("test".to_string(), "gpt-4".to_string(), "response".to_string());
+        let hook_ctx = ctx.to_hook_context(ModelHookType::After);
+        let result = adapter.execute(&hook_ctx).await;
+        assert!(result.is_ok());
+        assert!(*called.lock().await);
+    }
+
+    #[tokio::test]
+    async fn test_model_hook_adapter_serialization_error() {
+        let hook = Arc::new(MockModelHook {
+            name: "test".to_string(),
+            priority: HookPriority::default(),
+            before_called: Arc::new(tokio::sync::Mutex::new(false)),
+            after_called: Arc::new(tokio::sync::Mutex::new(false)),
+        });
+        
+        let adapter = ModelHookAdapter::before(hook);
+        let invalid_ctx = HookContext::new("before_model", serde_json::Value::String("invalid".to_string()));
+        let result = adapter.execute(&invalid_ctx).await;
+        assert!(result.is_err());
+    }
+}

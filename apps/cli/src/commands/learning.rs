@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use clap::Subcommand;
 use colored::Colorize;
 use radium_core::learning::{
-    LearningStore, LearningType, STANDARD_CATEGORIES, STANDARD_SECTIONS,
+    LearningStore, LearningType, STANDARD_SECTIONS,
 };
 use radium_core::workspace::Workspace;
 use serde_json::json;

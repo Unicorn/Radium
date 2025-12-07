@@ -5,12 +5,10 @@
 use super::CustomCommand;
 use anyhow::{Context, bail};
 use colored::Colorize;
-use radium_core::commands::{CommandRegistry, CustomCommand as CoreCustomCommand};
+use radium_core::commands::CommandRegistry;
 use radium_core::hooks::loader::HookLoader;
 use radium_core::hooks::registry::HookRegistry;
 use radium_core::Workspace;
-use serde_json::json;
-use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;

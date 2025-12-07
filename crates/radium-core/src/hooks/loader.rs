@@ -443,4 +443,133 @@ mod tests {
         let count = loader.load_hooks_from_config(&config, &registry, None::<&Path>).await.unwrap();
         assert_eq!(count, 0);
     }
+
+    #[test]
+    fn test_hook_loader_new() {
+        let loader = HookLoader::new();
+        assert!(loader.factories.is_empty());
+    }
+
+    #[test]
+    fn test_hook_loader_register_factory() {
+        let mut loader = HookLoader::new();
+        fn test_factory(_def: &HookDefinition) -> Result<Option<Arc<dyn Hook>>> {
+            Ok(None)
+        }
+        
+        loader.register_factory("test-hook", test_factory);
+        assert!(loader.factories.contains_key("test-hook"));
+    }
+
+    #[tokio::test]
+    async fn test_load_hooks_from_config_disabled_hook() {
+        let loader = HookLoader::new();
+        let registry = Arc::new(HookRegistry::new());
+        
+        let config = HookConfig {
+            enable_profiling: false,
+            hooks: vec![HookDefinition {
+                name: "test-hook".to_string(),
+                hook_type: "before_model".to_string(),
+                priority: Some(100),
+                enabled: false, // Disabled
+                script: Some("script.sh".to_string()),
+                config: None,
+            }],
+        };
+
+        let count = loader.load_hooks_from_config(&config, &registry, None::<&Path>).await.unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[tokio::test]
+    async fn test_load_hooks_from_config_multiple_hooks() {
+        let loader = HookLoader::new();
+        let registry = Arc::new(HookRegistry::new());
+        
+        let config = HookConfig {
+            enable_profiling: false,
+            hooks: vec![
+                HookDefinition {
+                    name: "hook1".to_string(),
+                    hook_type: "before_model".to_string(),
+                    priority: Some(100),
+                    enabled: true,
+                    script: Some("script1.sh".to_string()),
+                    config: None,
+                },
+                HookDefinition {
+                    name: "hook2".to_string(),
+                    hook_type: "after_model".to_string(),
+                    priority: Some(200),
+                    enabled: true,
+                    script: Some("script2.sh".to_string()),
+                    config: None,
+                },
+            ],
+        };
+
+        let count = loader.load_hooks_from_config(&config, &registry, None::<&Path>).await.unwrap();
+        assert_eq!(count, 0); // No factories, so 0 loaded
+    }
+
+    #[tokio::test]
+    async fn test_load_hooks_from_config_with_workspace_root() {
+        let temp = TempDir::new().unwrap();
+        let loader = HookLoader::new();
+        let registry = Arc::new(HookRegistry::new());
+        
+        let config = HookConfig {
+            enable_profiling: false,
+            hooks: vec![HookDefinition {
+                name: "test-hook".to_string(),
+                hook_type: "before_model".to_string(),
+                priority: Some(100),
+                enabled: true,
+                script: Some("script.sh".to_string()),
+                config: None,
+            }],
+        };
+
+        let count = loader.load_hooks_from_config(&config, &registry, Some(temp.path())).await.unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_hook_loader_create_hook_from_definition_no_factory() {
+        let loader = HookLoader::new();
+        let def = HookDefinition {
+            name: "test-hook".to_string(),
+            hook_type: "before_model".to_string(),
+            priority: None,
+            enabled: true,
+            script: None,
+            config: None,
+        };
+        
+        let result = loader.create_hook_from_definition(&def);
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
+    }
+
+    #[test]
+    fn test_hook_loader_create_hook_from_definition_with_factory() {
+        let mut loader = HookLoader::new();
+        fn test_factory(_def: &HookDefinition) -> Result<Option<Arc<dyn Hook>>> {
+            Ok(None)
+        }
+        
+        loader.register_factory("test-hook", test_factory);
+        let def = HookDefinition {
+            name: "test-hook".to_string(),
+            hook_type: "before_model".to_string(),
+            priority: None,
+            enabled: true,
+            script: None,
+            config: None,
+        };
+        
+        let result = loader.create_hook_from_definition(&def);
+        assert!(result.is_ok());
+    }
 }

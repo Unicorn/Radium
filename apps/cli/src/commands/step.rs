@@ -11,9 +11,8 @@ use radium_core::{
     PromptTemplate, Workspace,
     engines::{Engine, EngineRegistry, ExecutionRequest},
     engines::providers::{ClaudeEngine, GeminiEngine, MockEngine, OpenAIEngine},
-    memory::{MemoryEntry, MemoryStore},
 };
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::fs;
 use uuid::Uuid;
 
@@ -239,7 +238,7 @@ pub async fn execute(
 
     // Complete agent in monitoring
     if let Some(monitoring) = monitoring.as_ref() {
-        use radium_core::monitoring::AgentStatus;
+        
         match execution_result {
             Ok(_) => {
                 let _ = monitoring.complete_agent(&tracked_agent_id, 0);

@@ -146,3 +146,170 @@ impl crate::hooks::registry::Hook for ToolHookAdapter {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::hooks::types::HookResult as HookExecutionResult;
+
+    struct MockToolHook {
+        name: String,
+        priority: HookPriority,
+        before_called: Arc<tokio::sync::Mutex<bool>>,
+        after_called: Arc<tokio::sync::Mutex<bool>>,
+        selection_called: Arc<tokio::sync::Mutex<bool>>,
+    }
+
+    #[async_trait]
+    impl ToolHook for MockToolHook {
+        fn name(&self) -> &str {
+            &self.name
+        }
+
+        fn priority(&self) -> HookPriority {
+            self.priority
+        }
+
+        async fn before_tool_execution(&self, _context: &ToolHookContext) -> Result<HookExecutionResult> {
+            *self.before_called.lock().await = true;
+            Ok(HookExecutionResult::success())
+        }
+
+        async fn after_tool_execution(&self, _context: &ToolHookContext) -> Result<HookExecutionResult> {
+            *self.after_called.lock().await = true;
+            Ok(HookExecutionResult::success())
+        }
+
+        async fn tool_selection(&self, _context: &ToolHookContext) -> Result<HookExecutionResult> {
+            *self.selection_called.lock().await = true;
+            Ok(HookExecutionResult::success())
+        }
+    }
+
+    #[test]
+    fn test_tool_hook_type_variants() {
+        assert_eq!(ToolHookType::Before, ToolHookType::Before);
+        assert_eq!(ToolHookType::After, ToolHookType::After);
+        assert_eq!(ToolHookType::Selection, ToolHookType::Selection);
+    }
+
+    #[test]
+    fn test_tool_hook_context_before() {
+        let ctx = ToolHookContext::before(
+            "test-tool".to_string(),
+            serde_json::json!({"arg": "value"}),
+        );
+        assert_eq!(ctx.tool_name, "test-tool");
+        assert!(ctx.result.is_none());
+        assert!(ctx.modified_arguments.is_none());
+    }
+
+    #[test]
+    fn test_tool_hook_context_after() {
+        let ctx = ToolHookContext::after(
+            "test-tool".to_string(),
+            serde_json::json!({"arg": "value"}),
+            serde_json::json!({"result": "success"}),
+        );
+        assert_eq!(ctx.tool_name, "test-tool");
+        assert!(ctx.result.is_some());
+    }
+
+    #[test]
+    fn test_tool_hook_context_selection() {
+        let ctx = ToolHookContext::selection(
+            "test-tool".to_string(),
+            serde_json::json!({"arg": "value"}),
+        );
+        assert_eq!(ctx.tool_name, "test-tool");
+        assert!(ctx.result.is_none());
+    }
+
+    #[test]
+    fn test_tool_hook_context_to_hook_context() {
+        let ctx = ToolHookContext::before("test".to_string(), serde_json::json!({}));
+        let hook_ctx = ctx.to_hook_context(ToolHookType::Before);
+        assert_eq!(hook_ctx.hook_type, "before_tool");
+    }
+
+    #[tokio::test]
+    async fn test_tool_hook_adapter_before() {
+        let hook = Arc::new(MockToolHook {
+            name: "test".to_string(),
+            priority: HookPriority::default(),
+            before_called: Arc::new(tokio::sync::Mutex::new(false)),
+            after_called: Arc::new(tokio::sync::Mutex::new(false)),
+            selection_called: Arc::new(tokio::sync::Mutex::new(false)),
+        });
+        let called = Arc::clone(&hook.before_called);
+        
+        let adapter = ToolHookAdapter::before(hook);
+        assert_eq!(adapter.name(), "test");
+        assert_eq!(adapter.priority().value(), HookPriority::default().value());
+        assert_eq!(adapter.hook_type(), HookType::BeforeTool);
+
+        let ctx = ToolHookContext::before("test".to_string(), serde_json::json!({}));
+        let hook_ctx = ctx.to_hook_context(ToolHookType::Before);
+        let result = adapter.execute(&hook_ctx).await;
+        assert!(result.is_ok());
+        assert!(*called.lock().await);
+    }
+
+    #[tokio::test]
+    async fn test_tool_hook_adapter_after() {
+        let hook = Arc::new(MockToolHook {
+            name: "test".to_string(),
+            priority: HookPriority::default(),
+            before_called: Arc::new(tokio::sync::Mutex::new(false)),
+            after_called: Arc::new(tokio::sync::Mutex::new(false)),
+            selection_called: Arc::new(tokio::sync::Mutex::new(false)),
+        });
+        let called = Arc::clone(&hook.after_called);
+        
+        let adapter = ToolHookAdapter::after(hook);
+        assert_eq!(adapter.hook_type(), HookType::AfterTool);
+
+        let ctx = ToolHookContext::after("test".to_string(), serde_json::json!({}), serde_json::json!({}));
+        let hook_ctx = ctx.to_hook_context(ToolHookType::After);
+        let result = adapter.execute(&hook_ctx).await;
+        assert!(result.is_ok());
+        assert!(*called.lock().await);
+    }
+
+    #[tokio::test]
+    async fn test_tool_hook_adapter_selection() {
+        let hook = Arc::new(MockToolHook {
+            name: "test".to_string(),
+            priority: HookPriority::default(),
+            before_called: Arc::new(tokio::sync::Mutex::new(false)),
+            after_called: Arc::new(tokio::sync::Mutex::new(false)),
+            selection_called: Arc::new(tokio::sync::Mutex::new(false)),
+        });
+        let called = Arc::clone(&hook.selection_called);
+        
+        let adapter = ToolHookAdapter::selection(hook);
+        assert_eq!(adapter.hook_type(), HookType::ToolSelection);
+
+        let ctx = ToolHookContext::selection("test".to_string(), serde_json::json!({}));
+        let hook_ctx = ctx.to_hook_context(ToolHookType::Selection);
+        let result = adapter.execute(&hook_ctx).await;
+        assert!(result.is_ok());
+        assert!(*called.lock().await);
+    }
+
+    #[tokio::test]
+    async fn test_tool_hook_adapter_serialization_error() {
+        let hook = Arc::new(MockToolHook {
+            name: "test".to_string(),
+            priority: HookPriority::default(),
+            before_called: Arc::new(tokio::sync::Mutex::new(false)),
+            after_called: Arc::new(tokio::sync::Mutex::new(false)),
+            selection_called: Arc::new(tokio::sync::Mutex::new(false)),
+        });
+        
+        let adapter = ToolHookAdapter::before(hook);
+        let invalid_ctx = HookContext::new("before_tool", serde_json::Value::String("invalid".to_string()));
+        let result = adapter.execute(&invalid_ctx).await;
+        assert!(result.is_err());
+    }
+}

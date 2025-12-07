@@ -280,15 +280,16 @@ async fn setup_wizard(
         .collect();
 
     // Step 1: Server name
+    let existing_servers_clone = existing_servers.clone();
     let server_name = Text::new("Server name:")
         .with_help_message("A unique identifier for this MCP server")
-        .with_validator(|name: &str| {
+        .with_validator(move |name: &str| {
             if name.is_empty() {
                 return Ok(inquire::validator::Validation::Invalid(
                     "Server name cannot be empty".into(),
                 ));
             }
-            if existing_servers.contains(&name.to_string()) {
+            if existing_servers_clone.contains(&name.to_string()) {
                 return Ok(inquire::validator::Validation::Invalid(
                     format!("A server named '{}' already exists", name).into(),
                 ));

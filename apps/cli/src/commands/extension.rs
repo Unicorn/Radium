@@ -7,7 +7,7 @@ use colored::Colorize;
 use inquire::Confirm;
 use radium_core::extensions::{
     ExtensionDiscovery, ExtensionManager, ExtensionPublisher, ExtensionSigner, InstallOptions,
-    MarketplaceClient, MarketplaceExtension, PublishingError, SignatureVerifier,
+    MarketplaceClient, PublishingError, SignatureVerifier,
     TrustedKeysManager,
 };
 use serde_json::json;
@@ -104,7 +104,7 @@ async fn install_extension(
             // For URLs, we can't check ahead of time, so skip the check
             None
         } else {
-            Some(Path::new(actual_source))
+            Some(Path::new(&actual_source))
         };
         
         if let Some(path) = source_path {
@@ -151,7 +151,7 @@ async fn install_extension(
 
     println!("{}", "Installing extension files...".bright_black());
 
-    match manager.install_from_source(actual_source, options) {
+    match manager.install_from_source(&actual_source, options) {
         Ok(extension) => {
             println!(
                 "{}",
@@ -955,13 +955,16 @@ async fn check_for_updates(json: bool) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let mut marketplace = MarketplaceClient::new().unwrap_or_else(|_| {
-        MarketplaceClient::with_url("http://localhost:8080".to_string()).unwrap()
-    });
+    let marketplace = std::rc::Rc::new(std::cell::RefCell::new(
+        MarketplaceClient::new().unwrap_or_else(|_| {
+            MarketplaceClient::with_url("http://localhost:8080".to_string()).unwrap()
+        })
+    ));
 
     // Get latest versions from marketplace
-    let get_latest = |name: &str| -> Option<(String, Option<String>, Option<String>)> {
-        marketplace.get_extension_info(name).ok().flatten().map(|ext| {
+    let marketplace_clone = marketplace.clone();
+    let get_latest = move |name: &str| -> Option<(String, Option<String>, Option<String>)> {
+        marketplace_clone.borrow_mut().get_extension_info(name).ok().flatten().map(|ext| {
             (ext.version, Some(ext.description), Some(ext.download_url))
         })
     };
@@ -1006,18 +1009,21 @@ async fn check_for_updates(json: bool) -> anyhow::Result<()> {
 
 /// Update an extension or all extensions.
 async fn update_extension(name: Option<&str>, all: bool, dry_run: bool) -> anyhow::Result<()> {
-    use radium_core::extensions::{ExtensionManager, MarketplaceClient, InstallOptions, UpdateChecker};
+    use radium_core::extensions::{ExtensionManager, MarketplaceClient, UpdateChecker};
 
     let manager = ExtensionManager::new()?;
-    let mut marketplace = MarketplaceClient::new().unwrap_or_else(|_| {
-        MarketplaceClient::with_url("http://localhost:8080".to_string()).unwrap()
-    });
+    let marketplace = std::rc::Rc::new(std::cell::RefCell::new(
+        MarketplaceClient::new().unwrap_or_else(|_| {
+            MarketplaceClient::with_url("http://localhost:8080".to_string()).unwrap()
+        })
+    ));
 
     if all {
         // Update all extensions
         let extensions = manager.list()?;
-        let get_latest = |name: &str| -> Option<(String, Option<String>, Option<String>)> {
-            marketplace.get_extension_info(name).ok().flatten().map(|ext| {
+        let marketplace_clone = marketplace.clone();
+        let get_latest = move |name: &str| -> Option<(String, Option<String>, Option<String>)> {
+            marketplace_clone.borrow_mut().get_extension_info(name).ok().flatten().map(|ext| {
                 (ext.version, Some(ext.description), Some(ext.download_url))
             })
         };
@@ -1048,7 +1054,8 @@ async fn update_extension(name: Option<&str>, all: bool, dry_run: bool) -> anyho
 
         for update in &updates {
             print!("  Updating {}... ", update.name.bright_white());
-            match update_single_extension(&manager, &mut marketplace, &update.name, &update.download_url.as_ref().unwrap()).await {
+            let download_url = update.download_url.as_ref().unwrap().clone();
+            match update_single_extension(&manager, &mut *marketplace.borrow_mut(), &update.name, &download_url).await {
                 Ok(_) => {
                     println!("{}", "✓".green());
                     updated += 1;
@@ -1068,7 +1075,7 @@ async fn update_extension(name: Option<&str>, all: bool, dry_run: bool) -> anyho
     } else if let Some(ext_name) = name {
         // Update single extension
         if dry_run {
-            if let Some(ext_info) = marketplace.get_extension_info(ext_name)? {
+            if let Some(ext_info) = marketplace.borrow_mut().get_extension_info(ext_name)? {
                 if let Some(installed) = manager.get(ext_name)? {
                     if UpdateChecker::check_for_update(&installed, &ext_info.version)? {
                         println!("{}", format!("Would update {} {} → {}", 
@@ -1086,8 +1093,9 @@ async fn update_extension(name: Option<&str>, all: bool, dry_run: bool) -> anyho
                 return Err(anyhow::anyhow!("Extension '{}' not found in marketplace", ext_name));
             }
         } else {
-            if let Some(ext_info) = marketplace.get_extension_info(ext_name)? {
-                update_single_extension(&manager, &mut marketplace, ext_name, &ext_info.download_url).await?;
+            if let Some(ext_info) = marketplace.borrow_mut().get_extension_info(ext_name)? {
+                let download_url = ext_info.download_url.clone();
+                update_single_extension(&manager, &mut *marketplace.borrow_mut(), ext_name, &download_url).await?;
                 println!("{}", format!("✓ Extension '{}' updated successfully", ext_name).green());
             } else {
                 return Err(anyhow::anyhow!("Extension '{}' not found in marketplace", ext_name));
@@ -1124,7 +1132,7 @@ async fn update_single_extension(
 /// Manage extension analytics.
 async fn manage_analytics(action: &str, name: Option<&str>, json: bool) -> anyhow::Result<()> {
     use radium_core::extensions::ExtensionAnalyticsService;
-    use std::path::PathBuf;
+    
 
     // Get analytics data directory
     let data_dir = dirs::home_dir()

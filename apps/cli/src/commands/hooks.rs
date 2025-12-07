@@ -6,7 +6,6 @@ use radium_core::hooks::config::HookConfig;
 use radium_core::hooks::error_hooks::{ErrorHookContext, ErrorHookType};
 use radium_core::hooks::loader::HookLoader;
 use radium_core::hooks::model::{ModelHookContext, ModelHookType};
-use radium_core::hooks::profiler::ProfilingReport;
 use radium_core::hooks::registry::{HookRegistry, HookType};
 use radium_core::hooks::telemetry::TelemetryHookContext;
 use radium_core::hooks::tool::{ToolHookContext, ToolHookType};

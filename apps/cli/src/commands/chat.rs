@@ -288,7 +288,7 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
             Ok(_) => {
                 // Complete agent in monitoring
                 if let Some(monitoring) = monitoring.as_ref() {
-                    use radium_core::monitoring::AgentStatus;
+                    
                     let _ = monitoring.complete_agent(&tracked_agent_id, 0);
                 }
                 
@@ -303,7 +303,7 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
             Err(e) => {
                 // Mark agent as failed
                 if let Some(monitoring) = monitoring.as_ref() {
-                    use radium_core::monitoring::AgentStatus;
+                    
                     let _ = monitoring.fail_agent(&tracked_agent_id, &e.to_string());
                 }
                 eprintln!("\n{}: {}", "Error".red().bold(), e);
@@ -503,7 +503,7 @@ async fn load_mcp_prompts(
     registry: &mut SlashCommandRegistry,
     workspace: &Workspace,
 ) -> Result<()> {
-    let mut integration = mcp_integration.lock().await;
+    let integration = mcp_integration.lock().await;
 
     // Re-initialize if needed
     if integration.connected_server_count().await == 0 {

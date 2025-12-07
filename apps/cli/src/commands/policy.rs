@@ -1,7 +1,7 @@
 //! Policy management commands.
 
 use clap::Subcommand;
-use radium_core::policy::{ApprovalMode, ConflictDetector, ConflictResolver, PolicyEngine, ResolutionStrategy, merge_template, PolicyTemplate, TemplateDiscovery};
+use radium_core::policy::{ApprovalMode, ConflictDetector, PolicyEngine, ResolutionStrategy, merge_template, TemplateDiscovery};
 use radium_core::workspace::Workspace;
 use std::path::PathBuf;
 

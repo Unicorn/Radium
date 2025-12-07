@@ -33,9 +33,8 @@ pub mod validate;
 pub mod vibecheck;
 
 // Re-export types for convenience
-pub use types::{AgentsCommand, AuthCommand, EnginesCommand, ExtensionCommand, HooksCommand};
+pub use types::{AgentsCommand, AuthCommand, EnginesCommand, ExtensionCommand};
 pub use types::{CustomCommand, TemplatesCommand};
 pub use context::ContextCommand;
 pub use budget::BudgetCommand;
-pub use policy::{execute_policy_command, PolicyCommand};
-pub use constitution::{execute_constitution_command, ConstitutionCommand};
+pub use constitution::ConstitutionCommand;

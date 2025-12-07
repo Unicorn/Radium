@@ -525,7 +525,7 @@ async fn execute_plan(
 
                         // Complete agent in monitoring
                         if let Some(monitoring) = monitoring {
-                            use radium_core::monitoring::AgentStatus;
+                            
                             let _ = monitoring.complete_agent(&tracked_agent_id, 0);
                         }
 

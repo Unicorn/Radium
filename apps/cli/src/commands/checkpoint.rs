@@ -3,7 +3,7 @@
 use anyhow::{Context, Result};
 use clap::Subcommand;
 use colored::Colorize;
-use radium_core::checkpoint::{CheckpointDiff, CheckpointManager};
+use radium_core::checkpoint::CheckpointManager;
 use radium_core::workspace::Workspace;
 
 /// Checkpoint subcommands

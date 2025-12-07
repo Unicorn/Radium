@@ -777,7 +777,7 @@ async fn show_agent_cost(
     output_tokens: Option<u64>,
     json_output: bool,
 ) -> anyhow::Result<()> {
-    use radium_core::agents::persona::{ModelPricingDB, PerformanceProfile};
+    use radium_core::agents::persona::ModelPricingDB;
     
     let discovery = AgentDiscovery::new();
     let agent =
@@ -2201,7 +2201,7 @@ async fn execute_analytics(
     to_date: Option<&str>,
     json_output: bool,
 ) -> anyhow::Result<()> {
-    use chrono::{NaiveDate, Utc};
+    use chrono::NaiveDate;
     use rusqlite::Connection;
     use std::path::PathBuf;
     use radium_core::agents::persona::ModelPricingDB;

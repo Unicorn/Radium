@@ -2,7 +2,6 @@
 
 use clap::Subcommand;
 use colored::Colorize;
-use radium_core::agents::persona::ModelPricingDB;
 use serde_json::json;
 use std::fs;
 use std::path::PathBuf;

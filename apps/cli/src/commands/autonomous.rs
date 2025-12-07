@@ -8,7 +8,6 @@ use radium_core::autonomous::{AutonomousConfig, AutonomousOrchestrator};
 use radium_core::agents::registry::AgentRegistry;
 use radium_core::models::selector::ModelSelector;
 use radium_core::storage::Database;
-use radium_abstraction::Model;
 use radium_orchestrator::{AgentExecutor, Orchestrator};
 use std::sync::Arc;
 
@@ -38,7 +37,22 @@ pub async fn execute(goal: String) -> Result<()> {
 
     // Initialize model selector and get model
     let mut model_selector = ModelSelector::new();
-    let default_metadata = radium_core::agents::AgentMetadata::default();
+    let default_metadata = radium_core::agents::AgentMetadata {
+        name: "autonomous".to_string(),
+        display_name: None,
+        category: None,
+        color: "blue".to_string(),
+        summary: None,
+        description: "Autonomous agent".to_string(),
+        recommended_models: None,
+        capabilities: None,
+        performance_profile: None,
+        quality_gates: None,
+        works_well_with: None,
+        typical_workflows: None,
+        tools: None,
+        constraints: None,
+    };
     let model = model_selector
         .select_model(&radium_core::models::selector::SelectionOptions {
             agent_metadata: &default_metadata,

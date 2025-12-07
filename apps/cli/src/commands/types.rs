@@ -1,6 +1,6 @@
 //! Command type definitions shared between main.rs and tests.
 
-use clap::{Args, Subcommand};
+use clap::Subcommand;
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum AuthCommand {

@@ -6,10 +6,10 @@
 use anyhow::{Context, bail};
 use colored::Colorize;
 use radium_core::{
-    generate_plan_files, Iteration, Plan, PlanGenerator, PlanManifest, PlanParser, PlanStatus,
+    generate_plan_files, Iteration, Plan, PlanGenerator, PlanManifest, PlanStatus,
     PlanTask, RequirementId, Workspace,
-    workflow::{detect_source, fetch_source_content, SourceDetectionError, SourceFetchError, SourceType},
-    context::ContextFileLoader, ExecutionConfig, monitoring::MonitoringService, PlanDiscovery,
+    workflow::{detect_source, fetch_source_content, SourceFetchError, SourceType},
+    context::ContextFileLoader, ExecutionConfig, monitoring::MonitoringService,
     PlanExecutor, RunMode,
 };
 use radium_models::ModelFactory;
@@ -447,7 +447,7 @@ async fn execute_plan_yolo(
 
                             // Complete agent in monitoring
                             if let Some(monitoring) = monitoring {
-                                use radium_core::monitoring::AgentStatus;
+                                
                                 let _ = monitoring.complete_agent(&tracked_agent_id, 0);
                             }
 

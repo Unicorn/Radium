@@ -11,7 +11,6 @@ use radium_core::{
     workspace::Workspace,
     workflow::behaviors::vibe_check::{VibeCheckContext, WorkflowPhase as VibeCheckWorkflowPhase},
 };
-use radium_abstraction::Model;
 use radium_models::ModelFactory;
 
 /// Execute the vibe check command.
