@@ -15,9 +15,6 @@ use crate::error::{RadiumError, Result};
 use crate::proto::radium_client::RadiumClient;
 use crate::server::manager::EmbeddedServer;
 
-/// Default server address
-const DEFAULT_SERVER_ADDRESS: &str = "http://127.0.0.1:50051";
-
 /// Default timeout for server readiness check
 const DEFAULT_READINESS_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -208,10 +205,14 @@ mod tests {
 
     #[test]
     fn test_client_helper_embedded_disabled() {
-        std::env::set_var("RADIUM_DISABLE_EMBEDDED_SERVER", "true");
+        unsafe {
+            std::env::set_var("RADIUM_DISABLE_EMBEDDED_SERVER", "true");
+        }
         let helper = ClientHelper::new();
         assert!(!helper.is_embedded_enabled());
-        std::env::remove_var("RADIUM_DISABLE_EMBEDDED_SERVER");
+        unsafe {
+            std::env::remove_var("RADIUM_DISABLE_EMBEDDED_SERVER");
+        }
     }
 
     #[tokio::test]
@@ -229,7 +230,9 @@ mod tests {
         config.server.enable_grpc_web = false;
 
         // Ensure embedded is enabled
-        std::env::remove_var("RADIUM_DISABLE_EMBEDDED_SERVER");
+        unsafe {
+            std::env::remove_var("RADIUM_DISABLE_EMBEDDED_SERVER");
+        }
 
         let mut helper = ClientHelper::with_config(config);
         let client = helper.connect().await.unwrap();
@@ -254,7 +257,9 @@ mod tests {
             .unwrap();
         config.server.enable_grpc_web = false;
 
-        std::env::remove_var("RADIUM_DISABLE_EMBEDDED_SERVER");
+        unsafe {
+            std::env::remove_var("RADIUM_DISABLE_EMBEDDED_SERVER");
+        }
 
         let mut helper = ClientHelper::with_config(config);
         let _client = helper.connect().await.unwrap();

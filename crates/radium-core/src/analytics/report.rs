@@ -1,5 +1,7 @@
 //! Session report generation and formatting.
 
+use std::fmt::Write;
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -35,58 +37,65 @@ impl ReportFormatter {
 
         // Interaction Summary
         output.push_str("Interaction Summary\n");
-        output.push_str(&format!("Session ID:                 {}\n", m.session_id));
-        output.push_str(&format!(
-            "Tool Calls:                 {} ( ✓ {} x {} )\n",
+        writeln!(output, "Session ID:                 {}", m.session_id).unwrap();
+        writeln!(
+            output,
+            "Tool Calls:                 {} ( ✓ {} x {} )",
             m.tool_calls, m.successful_tool_calls, m.failed_tool_calls
-        ));
-        output.push_str(&format!("Success Rate:               {:.1}%\n", m.success_rate()));
-        output.push_str(&format!(
-            "Code Changes:               +{} -{}\n",
+        ).unwrap();
+        writeln!(output, "Success Rate:               {:.1}%", m.success_rate()).unwrap();
+        writeln!(
+            output,
+            "Code Changes:               +{} -{}",
             m.lines_added, m.lines_removed
-        ));
-        output.push_str("\n");
+        ).unwrap();
+        output.push('\n');
 
         // Performance
         output.push_str("Performance\n");
-        output.push_str(&format!(
-            "Wall Time:                  {}\n",
+        writeln!(
+            output,
+            "Wall Time:                  {}",
             Self::format_duration(m.wall_time)
-        ));
-        output.push_str(&format!(
-            "Agent Active:               {}\n",
+        ).unwrap();
+        writeln!(
+            output,
+            "Agent Active:               {}",
             Self::format_duration(m.agent_active_time)
-        ));
-        output.push_str(&format!(
-            "  » API Time:               {} ({:.1}%)\n",
+        ).unwrap();
+        writeln!(
+            output,
+            "  » API Time:               {} ({:.1}%)",
             Self::format_duration(m.api_time),
             if m.agent_active_time.as_secs() > 0 {
                 (m.api_time.as_secs_f64() / m.agent_active_time.as_secs_f64()) * 100.0
             } else {
                 0.0
             }
-        ));
-        output.push_str(&format!(
-            "  » Tool Time:              {} ({:.1}%)\n",
+        ).unwrap();
+        writeln!(
+            output,
+            "  » Tool Time:              {} ({:.1}%)",
             Self::format_duration(m.tool_time),
             if m.agent_active_time.as_secs() > 0 {
                 (m.tool_time.as_secs_f64() / m.agent_active_time.as_secs_f64()) * 100.0
             } else {
                 0.0
             }
-        ));
-        output.push_str("\n");
+        ).unwrap();
+        output.push('\n');
 
         // Model Usage
         output.push_str("Model Usage                  Reqs   Input Tokens  Output Tokens\n");
         output.push_str("───────────────────────────────────────────────────────────────\n");
         for (model, stats) in &m.model_usage {
-            output.push_str(&format!(
-                "{:<28} {:>6} {:>14} {:>14}\n",
+            writeln!(
+                output,
+                "{:<28} {:>6} {:>14} {:>14}",
                 model, stats.requests, stats.input_tokens, stats.output_tokens
-            ));
+            ).unwrap();
         }
-        output.push_str("\n");
+        output.push('\n');
 
         // Cache savings
         if m.total_cached_tokens > 0 {
@@ -96,13 +105,14 @@ impl ReportFormatter {
             } else {
                 0.0
             };
-            output.push_str(&format!(
-                "Savings Highlight: {} ({:.1}%) of input tokens were served from\n",
+            writeln!(
+                output,
+                "Savings Highlight: {} ({:.1}%) of input tokens were served from",
                 Self::format_number(m.total_cached_tokens),
                 cache_percentage
-            ));
+            ).unwrap();
             output.push_str("cache, reducing costs.\n");
-            output.push_str("\n");
+            output.push('\n');
         }
 
         // Tip

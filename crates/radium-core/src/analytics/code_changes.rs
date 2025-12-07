@@ -71,13 +71,15 @@ impl CodeChanges {
     pub fn from_git_since(workspace_root: &Path, since_timestamp: u64) -> Result<Self> {
         // Convert timestamp to git date format
         let since_date = chrono::DateTime::from_timestamp(since_timestamp as i64, 0)
-            .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
-            .unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
+            .map_or_else(
+                || "1970-01-01 00:00:00".to_string(),
+                |dt| dt.format("%Y-%m-%d %H:%M:%S").to_string(),
+            );
 
         // Get commits since timestamp
         let mut cmd = Command::new("git");
         cmd.current_dir(workspace_root);
-        cmd.args(&["log", "--since", &since_date, "--pretty=format:%H", "--reverse"]);
+        cmd.args(["log", "--since", &since_date, "--pretty=format:%H", "--reverse"]);
         
         let output = cmd.output()?;
         

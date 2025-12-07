@@ -226,8 +226,8 @@ impl CommandRegistry {
                 }
 
                 // Register command
-                let name = if let Some(ref ns) = namespace {
-                    format!("{}:{}", ns, command.name)
+                let name = if let Some(ns) = namespace {
+                    format!("{}:{}", &ns, command.name)
                 } else {
                     command.name.clone()
                 };
@@ -236,8 +236,8 @@ impl CommandRegistry {
             } else if path.is_dir() {
                 // Recurse into subdirectories for namespaced commands
                 let dir_name = path.file_name().and_then(|s| s.to_str()).unwrap_or("").to_string();
-                let new_namespace = if let Some(ref ns) = namespace {
-                    format!("{}:{}", ns, dir_name)
+                let new_namespace = if let Some(ns) = namespace {
+                    format!("{}:{}", &ns, dir_name)
                 } else {
                     dir_name
                 };
@@ -560,7 +560,7 @@ template = "test"
         };
 
         let args = vec![];
-        let result = command.substitute_args(&command.template, &args).unwrap();
+        let result = CustomCommand::substitute_args(&command.template, &args);
         assert_eq!(result, "No args: ");
     }
 
@@ -575,7 +575,7 @@ template = "test"
         };
 
         let args = vec!["A".to_string(), "B".to_string()];
-        let result = command.substitute_args(&command.template, &args).unwrap();
+        let result = CustomCommand::substitute_args(&command.template, &args);
         assert_eq!(result, "A B A");
     }
 

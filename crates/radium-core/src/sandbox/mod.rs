@@ -26,6 +26,8 @@
 mod config;
 mod docker;
 mod error;
+#[cfg(feature = "podman-sandbox")]
+mod podman;
 #[allow(clippy::module_inception)]
 mod sandbox;
 mod seatbelt;
