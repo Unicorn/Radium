@@ -36,6 +36,52 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
 
 ### Completed Recently
 
+- [x] **Session Reports & Analytics System**: Comprehensive session reporting with metrics and cost transparency
+  - **Completed:** 2025-01-XX
+  - **Commit:** feat(analytics): implement session reports & analytics system
+  - **Files:** 
+    - `crates/radium-core/src/analytics/` (session, report, storage, code_changes)
+    - `apps/cli/src/commands/stats.rs`
+  - **Features:**
+    - Session metrics aggregation (wall time, agent active time, API/tool time)
+    - Tool metrics (success rate, calls)
+    - Model usage per-model (tokens, requests, costs)
+    - Code change tracking via git diff (lines added/removed)
+    - Cache optimization metrics
+    - Cost transparency
+    - CLI commands: `rad stats session`, `rad stats model`, `rad stats history`, `rad stats export`
+    - Session persistence in `.radium/_internals/sessions/`
+  - **Integration:** Works with existing telemetry infrastructure
+
+- [x] **TUI Improvements**: Complete TUI enhancement with all planned features
+  - **Completed:** 2025-01-XX
+  - **Commit:** feat(analytics): implement session reports & analytics system (includes TUI work)
+  - **Files:**
+    - `apps/tui/src/workspace.rs` - Automatic workspace initialization
+    - `apps/tui/src/views/splash.rs` - Splash screen
+    - `apps/tui/src/views/header.rs` - Branded header
+    - `apps/tui/src/views/loading.rs` - Loading states
+    - `apps/tui/src/views/sessions.rs` - Session history
+    - `apps/tui/src/views/model_selector.rs` - Model selection UI
+    - `apps/tui/src/views/markdown.rs` - Markdown rendering
+    - `apps/tui/src/views/split.rs` - Split view
+    - `apps/tui/src/session_manager.rs` - Session persistence
+    - `apps/tui/src/commands/models.rs` - Model selection command
+  - **Features:**
+    - Automatic workspace initialization
+    - Splash screen and branded header
+    - Enhanced status indicators with icons
+    - Model selection UI (`/models` command)
+    - Enhanced agent browser
+    - Session history (`/sessions` command)
+    - Loading states for async operations
+    - Command palette (Ctrl+P) with fuzzy search
+    - Markdown rendering for agent responses
+    - Scrollback buffer (PgUp/PgDn)
+    - Split view for complex workflows
+    - Session persistence
+  - **Tests:** 7 tests passing (4 unit + 3 integration for markdown)
+
 - [x] **Workspace Module Test Enhancement**: Expanded test coverage to Excellent tier
   - **Completed:** 2025-12-05
   - **Commit:** test(workspace): add comprehensive tests to workspace module [RAD-TEST]
