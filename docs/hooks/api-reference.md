@@ -354,12 +354,24 @@ log_level = "info"
 
 ### HookLoader
 
-Loader for discovering and loading hooks from extensions.
+Loader for discovering and loading hooks from extensions and workspace.
 
 ```rust
-pub struct HookLoader;
+pub struct HookLoader {
+    factories: HashMap<String, HookFactory>,
+}
+
+pub type HookFactory = fn(&HookDefinition) -> Result<Option<Arc<dyn Hook>>>;
 
 impl HookLoader {
+    pub fn new() -> Self;
+    pub fn register_factory(&mut self, pattern: impl Into<String>, factory: HookFactory);
+    pub async fn load_hooks_from_config<P: AsRef<Path>>(
+        &self,
+        config: &HookConfig,
+        registry: &Arc<HookRegistry>,
+        workspace_root: Option<P>,
+    ) -> Result<usize>;
     pub async fn load_from_extensions(registry: &Arc<HookRegistry>) -> Result<usize>;
     pub async fn load_from_directory<P: AsRef<Path>>(
         dir: P,
@@ -372,6 +384,8 @@ impl HookLoader {
     pub fn discover_config_files() -> Result<Vec<PathBuf>>;
 }
 ```
+
+**Note**: For v1.0, hooks must be registered programmatically. The loader discovers configurations and sets enable/disable state. Hook factories can be registered to automatically instantiate hooks from configurations. Dynamic library loading is deferred to v2.0.
 
 ## Error Types
 
@@ -426,11 +440,14 @@ pub struct OrchestratorHooks {
 
 impl OrchestratorHooks {
     pub fn new(registry: Arc<HookRegistry>) -> Self;
-    pub async fn before_model_call(&self, agent_id: &str, input: &str) -> Result<serde_json::Value>;
-    pub async fn after_model_call(&self, agent_id: &str, output: &str) -> Result<serde_json::Value>;
+    pub async fn before_model_call(&self, input: &str, model_id: &str) -> Result<(String, Option<serde_json::Value>)>;
+    pub async fn after_model_call(&self, input: &str, model_id: &str, response: &str) -> Result<String>;
     pub async fn before_tool_execution(&self, tool_name: &str, arguments: &serde_json::Value) -> Result<serde_json::Value>;
     pub async fn after_tool_execution(&self, tool_name: &str, arguments: &serde_json::Value, result: &serde_json::Value) -> Result<serde_json::Value>;
+    pub async fn tool_selection(&self, tool_name: &str, arguments: &serde_json::Value) -> Result<bool>;
     pub async fn error_interception(&self, error_message: &str, error_type: &str, error_source: Option<&str>) -> Result<Option<String>>;
+    pub async fn error_transformation(&self, error_message: &str, error_type: &str, error_source: Option<&str>) -> Result<Option<String>>;
+    pub async fn error_recovery(&self, error_message: &str, error_type: &str, error_source: Option<&str>) -> Result<Option<String>>;
     pub async fn telemetry_collection(&self, event_type: &str, data: &serde_json::Value) -> Result<()>;
 }
 ```

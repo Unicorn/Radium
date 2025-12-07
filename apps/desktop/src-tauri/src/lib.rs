@@ -721,7 +721,9 @@ async fn get_extension_manager(state: &tauri::State<'_, AppState>) -> Result<Ext
     if manager_opt.is_none() {
         *manager_opt = Some(ExtensionManager::new().map_err(|e| format!("Failed to create extension manager: {}", e))?);
     }
-    Ok(manager_opt.as_ref().unwrap().clone())
+    // ExtensionManager doesn't implement Clone, so we create a new one with the same directory
+    let extensions_dir = manager_opt.as_ref().unwrap().extensions_dir().to_path_buf();
+    Ok(ExtensionManager::with_directory(extensions_dir))
 }
 
 /// List all installed extensions
@@ -1101,7 +1103,9 @@ async fn get_extension_manager(state: &tauri::State<'_, AppState>) -> Result<Ext
     if manager_opt.is_none() {
         *manager_opt = Some(ExtensionManager::new().map_err(|e| format!("Failed to create extension manager: {}", e))?);
     }
-    Ok(manager_opt.as_ref().unwrap().clone())
+    // ExtensionManager doesn't implement Clone, so we create a new one with the same directory
+    let extensions_dir = manager_opt.as_ref().unwrap().extensions_dir().to_path_buf();
+    Ok(ExtensionManager::with_directory(extensions_dir))
 }
 
 /// List all installed extensions

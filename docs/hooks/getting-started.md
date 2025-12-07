@@ -13,11 +13,15 @@ Hooks allow you to:
 
 ## Installation
 
-Hooks are installed via extensions. To use a hook:
+Hooks can be used in two ways:
 
-1. Install an extension that provides hooks
-2. Configure hooks in your workspace (`.radium/hooks.toml`) or extension manifest
-3. Hooks are automatically loaded and registered at startup
+1. **Programmatic Registration**: Register hooks directly in code (recommended for custom hooks)
+2. **Configuration-Based**: Configure hooks in workspace (`.radium/hooks.toml`) or extension manifest
+
+For configuration-based hooks:
+1. Create hook configuration in `.radium/hooks.toml`
+2. Register hooks programmatically (config controls enable/disable state)
+3. Hooks are automatically discovered and enabled/disabled based on configuration
 
 ## Basic Usage
 

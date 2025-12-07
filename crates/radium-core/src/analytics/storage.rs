@@ -2,8 +2,24 @@
 
 use super::report::SessionReport;
 use anyhow::Result;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
+
+/// Lightweight session metadata for efficient listing.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionMetadata {
+    /// Session ID
+    pub session_id: String,
+    /// Report generation timestamp
+    pub generated_at: DateTime<Utc>,
+    /// Session duration
+    pub duration: Duration,
+    /// Total tool calls
+    pub tool_calls: u64,
+}
 
 /// Session report storage manager.
 pub struct SessionStorage {

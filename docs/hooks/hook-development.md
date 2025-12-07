@@ -275,14 +275,53 @@ See the example hooks in `examples/hooks/`:
 - `logging-hook`: Logs model calls
 - `metrics-hook`: Aggregates telemetry data
 
-## Packaging and Distribution
+## Registering Hooks
+
+### Programmatic Registration
+
+Register hooks directly in your code:
+
+```rust
+use radium_core::hooks::registry::HookRegistry;
+use std::sync::Arc;
+
+let registry = Arc::new(HookRegistry::new());
+let hook = Arc::new(MyModelHook::new("my-hook", 100));
+let adapter = ModelHookAdapter::before(hook);
+registry.register(adapter).await?;
+```
+
+### Configuration-Based Registration
+
+For v1.0, hooks must be registered programmatically, but configuration controls enable/disable state:
+
+1. Create `.radium/hooks.toml`:
+```toml
+[[hooks]]
+name = "my-hook"
+type = "before_model"
+priority = 100
+enabled = true
+```
+
+2. Register the hook programmatically, then load configuration:
+```rust
+// Register hook
+let hook = Arc::new(MyModelHook::new("my-hook", 100));
+registry.register(ModelHookAdapter::before(hook)).await?;
+
+// Load configuration (sets enabled state)
+HookLoader::load_from_workspace(workspace_root, &registry).await?;
+```
+
+The configuration will set the enabled/disabled state of already-registered hooks.
 
 ### Extension Integration
 
 To distribute your hook via extensions:
 
 1. Create an extension manifest (`radium-extension.json`)
-2. Add hooks to the `components.hooks` field
+2. Add hook configuration files to the extension
 3. Package the extension
 
 Example manifest:
@@ -294,23 +333,12 @@ Example manifest:
   "description": "My custom hook",
   "author": "Your Name",
   "components": {
-    "hooks": ["hooks/*.so"]
+    "hooks": ["hooks/*.toml"]
   }
 }
 ```
 
-### Workspace Configuration
-
-Alternatively, configure hooks directly in workspace:
-
-```toml
-# .radium/hooks.toml
-[[hooks]]
-name = "my-hook"
-type = "before_model"
-priority = 100
-enabled = true
-```
+Note: For v1.0, hooks must be registered programmatically. Configuration files control enable/disable state. Dynamic library loading is deferred to v2.0.
 
 ## Debugging
 
