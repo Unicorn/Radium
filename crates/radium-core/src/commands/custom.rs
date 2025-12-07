@@ -136,7 +136,7 @@ impl CustomCommand {
             let command_str = &result[start + 2..end];
 
             // Execute shell command
-            let output = if let Some(sandbox) = sandbox {
+            let output = if let Some(ref sandbox) = sandbox {
                 // Execute in sandbox (blocking call to async method)
                 let rt = tokio::runtime::Handle::try_current()
                     .ok()

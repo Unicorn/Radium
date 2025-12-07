@@ -12,7 +12,7 @@ use std::time::Duration;
 use thiserror::Error;
 
 /// Reason for agent reassignment.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ReassignmentReason {
     /// Agent failed during execution.
     AgentFailure {
@@ -94,7 +94,7 @@ impl AgentPerformanceTracker {
     /// * `duration` - Execution duration
     pub fn record_execution(&self, agent_id: &str, success: bool, duration: Duration) {
         let mut stats = self.agent_stats.lock().unwrap();
-        let agent_stat = stats.entry(agent_id.to_string()).or_insert_with(AgentStats::new());
+        let agent_stat = stats.entry(agent_id.to_string()).or_insert_with(|| AgentStats::new());
 
         if success {
             agent_stat.success_count += 1;

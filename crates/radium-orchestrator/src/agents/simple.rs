@@ -77,7 +77,7 @@ mod tests {
 
         let context = AgentContext {
             model: model.as_ref(),
-            collaboration: None,
+            // Collaboration context removed to avoid circular dependency
         };
         let result = agent.execute("Hello, world!", context).await;
 

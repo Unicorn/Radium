@@ -72,6 +72,7 @@ impl Database {
                 description TEXT NOT NULL,
                 config_json TEXT NOT NULL,
                 state TEXT NOT NULL,
+                capabilities TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )

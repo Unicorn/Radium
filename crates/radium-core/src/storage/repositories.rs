@@ -279,9 +279,10 @@ impl AgentRepository for SqliteAgentRepository<'_> {
         validate_entity(agent)?;
         let config_json = serde_json::to_string(&agent.config)?;
         let state_json = serde_json::to_string(&agent.state)?;
+        let capabilities_json = agent.capabilities.as_ref().map(|v| serde_json::to_string(v)).transpose()?;
         self.db.conn_mut().execute(
-            "INSERT INTO agents (id, name, description, config_json, state, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![agent.id, agent.name, agent.description, config_json, state_json, agent.created_at.to_rfc3339(), agent.updated_at.to_rfc3339()],
+            "INSERT INTO agents (id, name, description, config_json, state, capabilities, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![agent.id, agent.name, agent.description, config_json, state_json, capabilities_json, agent.created_at.to_rfc3339(), agent.updated_at.to_rfc3339()],
         )?;
         info!(agent_id = %agent.id, "Created agent");
         Ok(())
@@ -289,7 +290,7 @@ impl AgentRepository for SqliteAgentRepository<'_> {
 
     fn get_by_id(&self, id: &str) -> StorageResult<Agent> {
         let mut stmt = self.db.conn().prepare(
-            "SELECT id, name, description, config_json, state, created_at, updated_at FROM agents WHERE id = ?1"
+            "SELECT id, name, description, config_json, state, capabilities, created_at, updated_at FROM agents WHERE id = ?1"
         )?;
         let mut rows = stmt.query_map(params![id], |row| {
             let id: String = row.get(0)?;
@@ -297,10 +298,11 @@ impl AgentRepository for SqliteAgentRepository<'_> {
             let description: String = row.get(2)?;
             let config: AgentConfig = parse_json_field(row, 3, "config_json")?;
             let state: AgentState = parse_json_field(row, 4, "state")?;
-            let created_at = parse_timestamp(row, 5, "created_at")?;
-            let updated_at = parse_timestamp(row, 6, "updated_at")?;
+            let capabilities: Option<serde_json::Value> = parse_optional_json_field(row, 5, "capabilities")?;
+            let created_at = parse_timestamp(row, 6, "created_at")?;
+            let updated_at = parse_timestamp(row, 7, "updated_at")?;
 
-            Ok(Agent { id, name, description, config, state, created_at, updated_at })
+            Ok(Agent { id, name, description, config, state, capabilities, created_at, updated_at })
         })?;
         match rows.next() {
             Some(Ok(agent)) => Ok(agent),
@@ -311,20 +313,22 @@ impl AgentRepository for SqliteAgentRepository<'_> {
 
     fn get_all(&self) -> StorageResult<Vec<Agent>> {
         let mut stmt = self.db.conn().prepare(
-            "SELECT id, name, description, config_json, state, created_at, updated_at FROM agents ORDER BY created_at DESC"
+            "SELECT id, name, description, config_json, state, capabilities, created_at, updated_at FROM agents ORDER BY created_at DESC"
         )?;
         let agents = stmt
             .query_map([], |row| {
                 let config: AgentConfig = parse_json_field(row, 3, "config_json")?;
                 let state: AgentState = parse_json_field(row, 4, "state")?;
-                let created_at = parse_timestamp(row, 5, "created_at")?;
-                let updated_at = parse_timestamp(row, 6, "updated_at")?;
+                let capabilities: Option<serde_json::Value> = parse_optional_json_field(row, 5, "capabilities")?;
+                let created_at = parse_timestamp(row, 6, "created_at")?;
+                let updated_at = parse_timestamp(row, 7, "updated_at")?;
                 Ok(Agent {
                     id: row.get(0)?,
                     name: row.get(1)?,
                     description: row.get(2)?,
                     config,
                     state,
+                    capabilities,
                     created_at,
                     updated_at,
                 })
@@ -337,9 +341,10 @@ impl AgentRepository for SqliteAgentRepository<'_> {
         validate_entity(agent)?;
         let config_json = serde_json::to_string(&agent.config)?;
         let state_json = serde_json::to_string(&agent.state)?;
+        let capabilities_json = agent.capabilities.as_ref().map(|v| serde_json::to_string(v)).transpose()?;
         let rows_affected = self.db.conn_mut().execute(
-            "UPDATE agents SET name = ?2, description = ?3, config_json = ?4, state = ?5, updated_at = ?6 WHERE id = ?1",
-            params![agent.id, agent.name, agent.description, config_json, state_json, agent.updated_at.to_rfc3339()],
+            "UPDATE agents SET name = ?2, description = ?3, config_json = ?4, state = ?5, capabilities = ?6, updated_at = ?7 WHERE id = ?1",
+            params![agent.id, agent.name, agent.description, config_json, state_json, capabilities_json, agent.updated_at.to_rfc3339()],
         )?;
         if rows_affected == 0 {
             return Err(not_found_error::<Agent>(&agent.id));

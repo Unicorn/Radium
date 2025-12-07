@@ -10,6 +10,7 @@ pub mod orchestration;
 pub mod plugin;
 pub mod queue;
 pub mod registry;
+pub mod selector;
 
 use async_trait::async_trait;
 use radium_abstraction::{Model, ModelError};
@@ -39,6 +40,7 @@ pub use orchestration::{
 pub use plugin::{InMemoryPlugin, Plugin, PluginLoader, PluginMetadata};
 pub use queue::{ExecutionQueue, ExecutionTask, Priority, QueueMetrics};
 pub use registry::{AgentMetadata, AgentRegistry};
+pub use selector::{AgentSelector, ModelClass, SelectionCriteria, SelectionError};
 
 // Re-export orchestration error separately to avoid conflicts
 pub use error::OrchestrationError;
@@ -48,9 +50,8 @@ pub use error::OrchestrationError;
 pub struct AgentContext<'a> {
     /// The model to use for generation.
     pub model: &'a (dyn Model + Send + Sync),
-    /// Optional collaboration context for multi-agent features.
-    /// None for agents that don't need collaboration features.
-    pub collaboration: Option<std::sync::Arc<radium_core::collaboration::agent_extensions::CollaborationContext>>,
+    // Note: Collaboration context removed to avoid circular dependency with radium-core
+    // Collaboration features would be passed through execute_agent method if needed
 }
 
 /// Represents the output produced by an agent.
@@ -109,6 +110,8 @@ pub struct Orchestrator {
     executor: Arc<AgentExecutor>,
     /// Queue processor for background task execution.
     processor: QueueProcessor,
+    /// Agent selector for dynamic agent selection.
+    selector: Arc<AgentSelector>,
 }
 
 impl Orchestrator {
@@ -126,8 +129,19 @@ impl Orchestrator {
             Arc::clone(&queue),
             Arc::clone(&executor),
         );
+        let selector = Arc::new(AgentSelector::new(
+            Arc::clone(&registry),
+            Arc::clone(&queue),
+        ));
 
-        Self { registry, lifecycle, queue, executor, processor }
+        Self {
+            registry,
+            lifecycle,
+            queue,
+            executor,
+            processor,
+            selector,
+        }
     }
 
     /// Starts the queue processor to begin processing queued tasks.
@@ -166,6 +180,24 @@ impl Orchestrator {
         self.registry.register_agent(agent).await
     }
 
+    /// Registers an agent with capabilities in the orchestrator.
+    ///
+    /// # Arguments
+    /// * `agent` - The agent to register (wrapped in Arc for thread-safe sharing)
+    /// * `capabilities` - Optional capabilities JSON for dynamic selection
+    ///
+    /// # Returns
+    /// Returns `true` if the agent was newly registered, `false` if it replaced an existing agent.
+    pub async fn register_agent_with_capabilities(
+        &self,
+        agent: std::sync::Arc<dyn Agent + Send + Sync>,
+        capabilities: Option<serde_json::Value>,
+    ) -> bool {
+        self.registry
+            .register_agent_with_capabilities(agent, capabilities)
+            .await
+    }
+
     /// Retrieves an agent by ID.
     ///
     /// # Arguments
@@ -183,6 +215,14 @@ impl Orchestrator {
     /// Returns a vector of agent metadata.
     pub async fn list_agents(&self) -> Vec<AgentMetadata> {
         self.registry.list_agents().await
+    }
+
+    /// Returns a reference to the agent selector.
+    ///
+    /// # Returns
+    /// A reference to the agent selector for dynamic agent selection.
+    pub fn selector(&self) -> Arc<AgentSelector> {
+        Arc::clone(&self.selector)
     }
 
     /// Unregisters an agent from the orchestrator.
@@ -309,18 +349,68 @@ impl Orchestrator {
     /// Executes an agent with the given input.
     ///
     /// # Arguments
-    /// * `agent_id` - The ID of the agent to execute
+    /// * `agent_id` - The ID of the agent to execute (if None, uses criteria for dynamic selection)
     /// * `input` - The input for the agent
-    /// * `collaboration_context` - Optional collaboration context (for multi-agent features)
+    /// * `criteria` - Optional selection criteria for dynamic agent selection (used when agent_id is None)
     ///
     /// # Returns
     /// Returns `Ok(ExecutionResult)` if the agent was found and executed, `Err` otherwise.
+    ///
+    /// # Errors
+    /// Returns `ModelError` if:
+    /// - Both agent_id and criteria are None
+    /// - No agents match the selection criteria
+    /// - Agent execution fails
     pub async fn execute_agent(
+        &self,
+        agent_id: Option<&str>,
+        input: &str,
+        criteria: Option<SelectionCriteria>,
+    ) -> std::result::Result<ExecutionResult, ModelError> {
+        // If agent_id is provided, use it directly (backward compatibility)
+        if let Some(id) = agent_id {
+            return self.execute_agent_with_collaboration(id, input, None).await;
+        }
+
+        // If agent_id is None, criteria must be provided
+        let criteria = criteria.ok_or_else(|| {
+            ModelError::UnsupportedModelProvider(
+                "Either agent_id or criteria must be provided".to_string(),
+            )
+        })?;
+
+        // Use AgentSelector to find the best agent
+        // SelectionCriteria already has model_class as Option<ModelClass>
+        let selected_agent_id = self
+            .selector
+            .select_best_agent(criteria)
+            .await
+            .map_err(|e| {
+                ModelError::UnsupportedModelProvider(format!(
+                    "Failed to select agent: {}",
+                    e
+                ))
+            })?;
+
+        // Execute with selected agent
+        self.execute_agent_with_collaboration(&selected_agent_id, input, None).await
+    }
+
+    /// Executes an agent with the given input (backward compatibility method).
+    ///
+    /// # Arguments
+    /// * `agent_id` - The ID of the agent to execute
+    /// * `input` - The input for the agent
+    ///
+    /// # Returns
+    /// Returns `Ok(ExecutionResult)` if the agent was found and executed, `Err` otherwise.
+    #[deprecated(note = "Use execute_agent with Option<&str> for agent_id instead")]
+    pub async fn execute_agent_legacy(
         &self,
         agent_id: &str,
         input: &str,
     ) -> std::result::Result<ExecutionResult, ModelError> {
-        self.execute_agent_with_collaboration(agent_id, input, None).await
+        self.execute_agent(Some(agent_id), input, None).await
     }
 
     /// Executes an agent with optional collaboration context.
@@ -336,7 +426,7 @@ impl Orchestrator {
         &self,
         agent_id: &str,
         input: &str,
-        collaboration_context: Option<std::sync::Arc<dyn std::any::Any + Send + Sync>>,
+        _collaboration_context: Option<std::sync::Arc<dyn std::any::Any + Send + Sync>>,
     ) -> std::result::Result<ExecutionResult, ModelError> {
         // Check if agent is registered
         let agent = self.get_agent(agent_id).await.ok_or_else(|| {
@@ -684,7 +774,7 @@ mod tests {
         let agent = Arc::new(EchoAgent::new("test-agent".to_string(), "Test agent".to_string()));
         orchestrator.register_agent(agent).await;
 
-        let result = orchestrator.execute_agent("test-agent", "test input").await;
+        let result = orchestrator.execute_agent(Some("test-agent"), "test input", None).await;
         assert!(result.is_ok());
         let execution_result = result.unwrap();
         assert!(execution_result.success);
@@ -712,7 +802,7 @@ mod tests {
     #[tokio::test]
     async fn test_orchestrator_execute_nonexistent_agent() {
         let orchestrator = Orchestrator::new();
-        let result = orchestrator.execute_agent("nonexistent", "test input").await;
+        let result = orchestrator.execute_agent(Some("nonexistent"), "test input", None).await;
         assert!(result.is_err());
     }
 

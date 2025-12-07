@@ -229,7 +229,7 @@ impl ToolHandler for AgentToolHandler {
 
         // Execute the agent if orchestrator is available
         if let Some(ref orchestrator) = self.orchestrator {
-            match orchestrator.execute_agent(&self.agent_id, &input).await {
+            match orchestrator.execute_agent(Some(&self.agent_id), &input, None).await {
                 Ok(execution_result) => {
                     // Convert AgentOutput to string
                     let output_text = match execution_result.output {

@@ -109,6 +109,9 @@ pub struct Agent {
     pub config: AgentConfig,
     /// Current runtime state of the agent.
     pub state: AgentState,
+    /// Agent capabilities for dynamic selection (model_class, cost_tier, etc.) stored as JSON.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<serde_json::Value>,
     /// Timestamp when the agent was created.
     pub created_at: DateTime<Utc>,
     /// Timestamp when the agent was last updated.
@@ -134,6 +137,7 @@ impl Agent {
             description,
             config,
             state: AgentState::default(),
+            capabilities: None,
             created_at: now,
             updated_at: now,
         }
@@ -249,6 +253,7 @@ impl AgentBuilder {
             description,
             config,
             state: self.state.unwrap_or_default(),
+            capabilities: None,
             created_at: now,
             updated_at: now,
         };

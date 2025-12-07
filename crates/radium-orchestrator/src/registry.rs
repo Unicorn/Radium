@@ -18,12 +18,16 @@ pub struct AgentMetadata {
     pub description: String,
     /// Whether the agent is currently registered.
     pub registered: bool,
+    /// Agent capabilities for dynamic selection (stored as JSON).
+    pub capabilities: Option<serde_json::Value>,
 }
 
 /// Registry for managing agents.
 pub struct AgentRegistry {
     /// Map of agent ID to agent instance.
     agents: Arc<RwLock<HashMap<String, Arc<dyn Agent + Send + Sync>>>>,
+    /// Map of agent ID to capabilities (JSON).
+    capabilities: Arc<RwLock<HashMap<String, serde_json::Value>>>,
 }
 
 impl fmt::Debug for AgentRegistry {
@@ -38,7 +42,10 @@ impl AgentRegistry {
     /// Creates a new empty agent registry.
     #[must_use]
     pub fn new() -> Self {
-        Self { agents: Arc::new(RwLock::new(HashMap::new())) }
+        Self {
+            agents: Arc::new(RwLock::new(HashMap::new())),
+            capabilities: Arc::new(RwLock::new(HashMap::new())),
+        }
     }
 
     /// Registers an agent in the registry.
@@ -49,6 +56,22 @@ impl AgentRegistry {
     /// # Returns
     /// Returns `true` if the agent was newly registered, `false` if it replaced an existing agent.
     pub async fn register_agent(&self, agent: Arc<dyn Agent + Send + Sync>) -> bool {
+        self.register_agent_with_capabilities(agent, None).await
+    }
+
+    /// Registers an agent in the registry with capabilities.
+    ///
+    /// # Arguments
+    /// * `agent` - The agent to register
+    /// * `capabilities` - Optional capabilities JSON for the agent
+    ///
+    /// # Returns
+    /// Returns `true` if the agent was newly registered, `false` if it replaced an existing agent.
+    pub async fn register_agent_with_capabilities(
+        &self,
+        agent: Arc<dyn Agent + Send + Sync>,
+        capabilities: Option<serde_json::Value>,
+    ) -> bool {
         let id = agent.id().to_string();
 
         debug!(agent_id = %id, "Registering agent");
@@ -56,6 +79,11 @@ impl AgentRegistry {
         let mut agents = self.agents.write().await;
         let was_new = !agents.contains_key(&id);
         agents.insert(id.clone(), agent);
+
+        if let Some(caps) = capabilities {
+            let mut caps_map = self.capabilities.write().await;
+            caps_map.insert(id.clone(), caps);
+        }
 
         if !was_new {
             warn!(agent_id = %id, "Agent replaced in registry");
@@ -86,14 +114,28 @@ impl AgentRegistry {
         debug!("Listing all agents");
 
         let agents = self.agents.read().await;
+        let capabilities = self.capabilities.read().await;
         agents
             .iter()
             .map(|(id, agent)| AgentMetadata {
                 id: id.clone(),
                 description: agent.description().to_string(),
                 registered: true,
+                capabilities: capabilities.get(id).cloned(),
             })
             .collect()
+    }
+
+    /// Gets capabilities for a specific agent.
+    ///
+    /// # Arguments
+    /// * `agent_id` - The agent ID
+    ///
+    /// # Returns
+    /// Returns the capabilities JSON if available, None otherwise.
+    pub async fn get_capabilities(&self, agent_id: &str) -> Option<serde_json::Value> {
+        let capabilities = self.capabilities.read().await;
+        capabilities.get(agent_id).cloned()
     }
 
     /// Unregisters an agent from the registry.
@@ -109,7 +151,10 @@ impl AgentRegistry {
         let mut agents = self.agents.write().await;
         let removed = agents.remove(id).is_some();
 
-        if !removed {
+        if removed {
+            let mut capabilities = self.capabilities.write().await;
+            capabilities.remove(id);
+        } else {
             warn!(agent_id = %id, "Attempted to unregister non-existent agent");
         }
 

@@ -9,10 +9,9 @@ use tonic::{Request, Response, Status};
 use tracing::{error, info, warn};
 
 use radium_orchestrator::{
-    Agent, AgentContext, ChatAgent, EchoAgent, Orchestrator, SelectionCriteria, SelectionError,
-    SimpleAgent,
+    Agent, AgentContext, ChatAgent, EchoAgent, ModelClass, Orchestrator, SelectionCriteria,
+    SelectionError, SimpleAgent,
 };
-use radium_core::agents::config::ModelClass;
 
 use crate::models::{Task, Workflow};
 use crate::proto::radium_server::Radium;

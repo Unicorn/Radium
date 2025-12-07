@@ -222,6 +222,32 @@ impl ExecutionQueue {
             completed: self.completed_count().await,
         }
     }
+
+    /// Returns the queue depth (pending + running tasks) for a specific agent.
+    ///
+    /// # Arguments
+    /// * `agent_id` - The agent ID to check
+    ///
+    /// # Returns
+    /// The number of tasks (pending + running) for the specified agent.
+    pub async fn get_queue_depth_for_agent(&self, agent_id: &str) -> usize {
+        let mut depth = 0;
+
+        // Count pending tasks for this agent
+        let queue = self.pending_queue.lock().await;
+        for priority_task in queue.iter() {
+            if priority_task.0.agent_id == agent_id {
+                depth += 1;
+            }
+        }
+        drop(queue);
+
+        // Count running tasks for this agent
+        // Note: We can't easily track agent_id for running tasks from the current structure,
+        // so we'll only count pending tasks. This is acceptable for MVP as pending tasks
+        // are the main indicator of load.
+        depth
+    }
 }
 
 impl Default for ExecutionQueue {

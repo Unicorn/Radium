@@ -342,7 +342,7 @@ impl AgentExecutor {
             // Create agent context with current model
             let context = AgentContext {
                 model: current_model.as_ref(),
-                collaboration: None, // Collaboration context is injected by RadiumService wrapper
+                // Collaboration context removed to avoid circular dependency
             };
 
             // Execute the agent

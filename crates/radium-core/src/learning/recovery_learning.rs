@@ -312,6 +312,7 @@ impl RecoveryLearning {
         if let Some(pattern) = patterns.get(&failure_type_key) {
             // Rank strategies by success rate
             let mut scored: Vec<(RecoveryStrategy, f32)> = available_strategies
+                .clone()
                 .into_iter()
                 .map(|strategy| {
                     let strategy_name = self.strategy_to_string(&strategy);

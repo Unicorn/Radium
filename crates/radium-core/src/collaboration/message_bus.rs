@@ -199,7 +199,7 @@ pub struct MessageBus {
     /// Database repository for message persistence.
     repository: Arc<dyn MessageRepository>,
     /// Channels for each registered agent (agent_id -> sender).
-    channels: Arc<Mutex<HashMap<String, mpsc::UnboundedSender<AgentMessage>>>>,
+    channels: Arc<StdMutex<HashMap<String, mpsc::UnboundedSender<AgentMessage>>>>,
 }
 
 impl MessageBus {
@@ -208,7 +208,7 @@ impl MessageBus {
         let repository: Arc<dyn MessageRepository> = Arc::new(DatabaseMessageRepository::new(db));
         Self {
             repository,
-            channels: Arc::new(Mutex::new(HashMap::new())),
+            channels: Arc::new(StdMutex::new(HashMap::new())),
         }
     }
 

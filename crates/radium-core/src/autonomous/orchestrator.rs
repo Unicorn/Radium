@@ -7,7 +7,7 @@ use crate::agents::registry::AgentRegistry;
 use crate::checkpoint::CheckpointManager;
 use crate::learning::store::LearningStore;
 use crate::learning::recovery_learning::RecoveryLearning;
-use crate::planning::autonomous::{AutonomousPlan, AutonomousPlanner, PlanningError};
+use crate::planning::{AutonomousPlan, AutonomousPlanner, PlanningError};
 use crate::workflow::engine::ExecutionContext;
 use crate::workflow::executor::WorkflowExecutor;
 use crate::workflow::failure::FailurePolicy;

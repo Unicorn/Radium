@@ -139,7 +139,7 @@ mod tests {
         // First message
         let context1 = AgentContext {
             model: model.as_ref(),
-            collaboration: None,
+            // Collaboration context removed to avoid circular dependency
         };
         let result1 = agent.execute("Hello!", context1).await;
         assert!(result1.is_ok());
@@ -148,7 +148,7 @@ mod tests {
         // Second message (should have context)
         let context2 = AgentContext {
             model: model.as_ref(),
-            collaboration: None,
+            // Collaboration context removed to avoid circular dependency
         };
         let result2 = agent.execute("What did I say?", context2).await;
         assert!(result2.is_ok());
@@ -162,7 +162,7 @@ mod tests {
 
         let context = AgentContext {
             model: model.as_ref(),
-            collaboration: None,
+            // Collaboration context removed to avoid circular dependency
         };
         agent.execute("Hello!", context).await.unwrap();
         assert_eq!(agent.history_len().await, 2);
@@ -184,7 +184,7 @@ mod tests {
         for i in 0..5 {
             let context = AgentContext {
             model: model.as_ref(),
-            collaboration: None,
+            // Collaboration context removed to avoid circular dependency
         };
             agent.execute(&format!("Message {}", i), context).await.unwrap();
         }
