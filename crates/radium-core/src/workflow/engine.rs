@@ -33,6 +33,15 @@ pub struct ExecutionContext {
     pub started_at: DateTime<Utc>,
     /// Timestamp when execution completed (if finished).
     pub completed_at: Option<DateTime<Utc>>,
+    /// ID of the parent agent if this is a worker (for delegation).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_agent_id: Option<String>,
+    /// Delegation depth (0 = root, 1 = first level worker, etc.).
+    #[serde(default)]
+    pub delegation_depth: usize,
+    /// IDs of worker agents spawned by this agent.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub worker_ids: Vec<String>,
 }
 
 impl ExecutionContext {
@@ -51,6 +60,9 @@ impl ExecutionContext {
             step_results: HashMap::new(),
             started_at: Utc::now(),
             completed_at: None,
+            parent_agent_id: None,
+            delegation_depth: 0,
+            worker_ids: Vec::new(),
         }
     }
 

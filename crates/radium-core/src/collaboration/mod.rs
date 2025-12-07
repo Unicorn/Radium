@@ -7,11 +7,15 @@
 //! - Task delegation with supervisor-worker patterns
 //! - Progress tracking and synchronization
 
+pub mod delegation;
 pub mod error;
 pub mod lock_manager;
 pub mod message_bus;
 pub mod progress;
 
+pub use delegation::{
+    DelegationInfo, DelegationManager, DelegationRepository, WorkerStatus,
+};
 pub use error::{CollaborationError, Result};
 pub use lock_manager::{LockHandle, LockType, ResourceLockManager};
 pub use message_bus::{
