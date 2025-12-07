@@ -337,7 +337,7 @@ impl Orchestrator {
         }
 
         // Execute the agent
-        let result = self.executor.execute_agent_with_default_model(agent, input).await?;
+        let result = self.executor.execute_agent_with_default_model(agent, input, None).await?;
 
         // Mark agent as idle if execution completed
         if result.success {
@@ -392,7 +392,7 @@ impl Orchestrator {
 
         // Execute the agent
         let result =
-            self.executor.execute_agent_with_model(agent, input, model_type, model_id).await?;
+            self.executor.execute_agent_with_model(agent, input, model_type, model_id, None).await?;
 
         // Mark agent as idle if execution completed
         if result.success {

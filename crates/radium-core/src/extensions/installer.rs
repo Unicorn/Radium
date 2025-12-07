@@ -123,6 +123,46 @@ impl ExtensionManager {
         Ok(())
     }
 
+    /// Installs an extension from a local directory, archive, or URL.
+    ///
+    /// # Arguments
+    /// * `source` - Path to extension package directory, archive file, or URL
+    /// * `options` - Installation options
+    ///
+    /// # Returns
+    /// Installed extension
+    ///
+    /// # Errors
+    /// Returns error if installation fails
+    pub fn install_from_source(&self, source: &str, options: InstallOptions) -> Result<Extension> {
+        // Check if source is a URL
+        if source.starts_with("http://") || source.starts_with("https://") {
+            return self.install_from_url(source, options);
+        }
+
+        let source_path = Path::new(source);
+        if !source_path.exists() {
+            return Err(ExtensionInstallerError::NotFound(format!(
+                "Extension source not found: {}",
+                source
+            )));
+        }
+
+        // Check if source is an archive file
+        if source_path.is_file() {
+            let extension = source_path.extension()
+                .and_then(|s| s.to_str())
+                .unwrap_or("");
+            
+            if extension == "gz" || extension == "tgz" || source.ends_with(".tar.gz") {
+                return self.install_from_archive(source_path, options);
+            }
+        }
+
+        // Otherwise, treat as directory
+        self.install(source_path, options)
+    }
+
     /// Installs an extension from a local directory.
     ///
     /// # Arguments
@@ -185,10 +225,10 @@ impl ExtensionManager {
         Ok(extension)
     }
 
-    /// Installs an extension from a URL (skeleton implementation).
+    /// Installs an extension from a URL.
     ///
     /// # Arguments
-    /// * `url` - Extension URL
+    /// * `url` - Extension URL (must point to a .tar.gz archive)
     /// * `options` - Installation options
     ///
     /// # Returns
@@ -196,19 +236,115 @@ impl ExtensionManager {
     ///
     /// # Errors
     /// Returns error if installation fails
+    pub fn install_from_url(&self, url: &str, options: InstallOptions) -> Result<Extension> {
+        use std::io::Write;
+        use tempfile::NamedTempFile;
+
+        // Download the archive to a temporary file
+        let response = reqwest::blocking::get(url)
+            .map_err(|e| ExtensionInstallerError::Io(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Failed to download extension: {}", e),
+            )))?;
+
+        if !response.status().is_success() {
+            return Err(ExtensionInstallerError::Conflict(format!(
+                "Failed to download extension: HTTP {}",
+                response.status()
+            )));
+        }
+
+        // Create temporary file for download
+        let mut temp_file = NamedTempFile::new()
+            .map_err(|e| ExtensionInstallerError::Io(e))?;
+        
+        let bytes = response.bytes()
+            .map_err(|e| ExtensionInstallerError::Io(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Failed to read response: {}", e),
+            )))?;
+
+        temp_file.write_all(&bytes)
+            .map_err(|e| ExtensionInstallerError::Io(e))?;
+        
+        temp_file.flush()
+            .map_err(|e| ExtensionInstallerError::Io(e))?;
+
+        // Install from the temporary archive file
+        let temp_path = temp_file.path();
+        let result = self.install_from_archive(temp_path, options);
+        
+        // Keep temp file alive until installation completes
+        drop(temp_file);
+        
+        result
+    }
+
+    /// Installs an extension from an archive file (.tar.gz).
     ///
-    /// # Note
-    /// This is a basic skeleton. Full URL installation would require:
-    /// - HTTP client to download
-    /// - Archive extraction (zip, tar.gz)
-    /// - Temporary directory management
-    pub fn install_from_url(&self, _url: &str, _options: InstallOptions) -> Result<Extension> {
-        // TODO: Implement URL-based installation
-        // This would involve:
-        // 1. Downloading from URL
-        // 2. Extracting archive
-        // 3. Installing from extracted directory
-        Err(ExtensionInstallerError::Conflict("URL installation not yet implemented".to_string()))
+    /// # Arguments
+    /// * `archive_path` - Path to .tar.gz archive file
+    /// * `options` - Installation options
+    ///
+    /// # Returns
+    /// Installed extension
+    ///
+    /// # Errors
+    /// Returns error if installation fails
+    pub fn install_from_archive(&self, archive_path: &Path, options: InstallOptions) -> Result<Extension> {
+        use flate2::read::GzDecoder;
+        use std::fs::File;
+        use tar::Archive;
+        use tempfile::TempDir;
+
+        // Create temporary directory for extraction
+        let temp_dir = TempDir::new()
+            .map_err(|e| ExtensionInstallerError::Io(e))?;
+
+        // Open and extract the archive
+        let file = File::open(archive_path)
+            .map_err(|e| ExtensionInstallerError::Io(e))?;
+        
+        let tar = GzDecoder::new(file);
+        let mut archive = Archive::new(tar);
+        
+        // Extract with security checks (prevent path traversal)
+        archive.set_unpack_xattrs(false);
+        archive.set_preserve_permissions(false);
+        
+        archive.unpack(temp_dir.path())
+            .map_err(|e| ExtensionInstallerError::Io(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Failed to extract archive: {}", e),
+            )))?;
+
+        // Find the extension directory in the extracted archive
+        // It might be at the root or in a subdirectory
+        let extracted_path = if temp_dir.path().join(MANIFEST_FILE).exists() {
+            temp_dir.path().to_path_buf()
+        } else {
+            // Look for a subdirectory containing the manifest
+            let entries = std::fs::read_dir(temp_dir.path())
+                .map_err(|e| ExtensionInstallerError::Io(e))?;
+            
+            let mut found_path = None;
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() && path.join(MANIFEST_FILE).exists() {
+                    found_path = Some(path);
+                    break;
+                }
+            }
+            
+            found_path.ok_or_else(|| ExtensionInstallerError::Structure(
+                ExtensionStructureError::InvalidStructure(
+                    "Archive does not contain a valid extension structure".to_string()
+                )
+            ))?
+        };
+
+        // Install from extracted directory
+        self.install(&extracted_path, options)
     }
 
     /// Uninstalls an extension by name.

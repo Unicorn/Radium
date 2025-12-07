@@ -30,25 +30,6 @@ async fn install_extension(
 ) -> anyhow::Result<()> {
     let manager = ExtensionManager::new()?;
 
-    // Check if source is a URL or local path
-    let is_url = source.starts_with("http://") || source.starts_with("https://");
-
-    if is_url {
-        println!("{}", "Installing extension from URL...".yellow());
-        println!("{}", "URL installation is not yet implemented.".red());
-        return Err(anyhow::anyhow!("URL installation not yet implemented"));
-    }
-
-    // Local path installation
-    let package_path = Path::new(source);
-    if !package_path.exists() {
-        return Err(anyhow::anyhow!("Extension package not found: {}", source));
-    }
-
-    if !package_path.is_dir() {
-        return Err(anyhow::anyhow!("Extension source must be a directory: {}", source));
-    }
-
     println!("{}", format!("Installing extension from: {}", source).yellow());
 
     let options = InstallOptions {
@@ -57,7 +38,7 @@ async fn install_extension(
         validate_after_install: true,
     };
 
-    match manager.install(package_path, options) {
+    match manager.install_from_source(source, options) {
         Ok(extension) => {
             println!(
                 "{}",

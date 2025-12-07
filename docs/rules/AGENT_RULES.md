@@ -4,10 +4,10 @@
 
 ## 🚨 Critical Rules - Read First
 
-1. **ALWAYS read `roadmap/PROGRESS.md` before starting ANY work**
-2. **ALWAYS check BrainGrid for related REQs and tasks** before starting work
+1. **BRAINGRID IS THE SOURCE OF TRUTH** - All REQs and tasks are in Braingrid (PROJ-14). Local markdown files are deprecated.
+2. **ALWAYS check Braingrid first** for related REQs and tasks before starting work
 3. **NEVER work on a task that is assigned to another agent/person**
-4. **UPDATE progress immediately when starting or completing tasks** (both local and BrainGrid)
+4. **UPDATE Braingrid immediately** when starting or completing tasks (Braingrid is primary, PROGRESS.md is secondary)
 5. **COMMIT after each logical unit of work is complete**
 6. **RUN all checks before committing** (`cargo check`, `cargo clippy`, `cargo test`)
 
@@ -15,8 +15,8 @@
 
 ## 📖 Before Starting Work
 
-### Step 1: Check BrainGrid for Related Requirements and Tasks
-**ALWAYS check BrainGrid first** to understand the project's structured requirements:
+### Step 1: Check Braingrid for Related Requirements and Tasks
+**BRAINGRID IS THE SOURCE OF TRUTH** - Always check Braingrid first to understand the project's structured requirements. Local markdown files (like `BG-REQ-*.md`) are deprecated and should not be used once REQs are in Braingrid.
 
 ```bash
 # List all requirements for the project
@@ -47,8 +47,9 @@ braingrid requirement show REQ-1 -p PROJ-14
 
 **If no related REQ exists:**
 - Consider creating a new REQ if the work is substantial
-- Use `braingrid specify` to create a requirement from a prompt
-- Link the REQ to your work in commit messages
+- Use `braingrid specify -p PROJ-14 --prompt "description"` to create a requirement from a prompt
+- Braingrid will automatically analyze and break the REQ into tasks
+- Link the REQ to your work in commit messages: `[REQ-XXX]`
 
 ### Step 2: Read Progress File
 ```
@@ -547,16 +548,19 @@ Before ending a session or switching tasks:
 
 ### Integration with Local Progress
 
-- **Sync Status:** Keep BrainGrid task status in sync with PROGRESS.md
-- **Reference Links:** Include REQ/TASK IDs in PROGRESS.md entries
-- **Commit Messages:** Reference REQ/TASK IDs in commit messages: `[REQ-1]` or `[TASK-1]`
+- **Braingrid is Primary:** Braingrid is the source of truth. PROGRESS.md is a secondary summary.
+- **Update Braingrid First:** Always update Braingrid task status, then update PROGRESS.md if needed
+- **Reference Links:** Include Braingrid REQ links in PROGRESS.md: `REQ-163 ([Braingrid](URL))`
+- **Commit Messages:** Reference REQ/TASK IDs in commit messages: `[REQ-163]` or `[TASK-1]`
+- **Delete Local Copies:** Once a REQ has full task breakdown in Braingrid, delete local markdown copies
 
 ## 📚 Quick Reference
 
 | Action | Command/Location |
 |--------|-----------------|
-| View progress | `roadmap/PROGRESS.md` |
-| Check BrainGrid | `braingrid requirement list -p PROJ-14` |
+| View progress | `docs/project/PROGRESS.md` (summary) |
+| **Check Braingrid (SOURCE OF TRUTH)** | `braingrid requirement list -p PROJ-14` |
+| Braingrid workflow | `docs/project/BRAINGRID_WORKFLOW.md` |
 | Check code | `cargo check --all-targets` |
 | Run linter | `cargo clippy --all-targets -- -D warnings` |
 | Run tests | `cargo test` |

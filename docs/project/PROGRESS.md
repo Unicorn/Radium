@@ -85,6 +85,7 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
 - [x] **Task 1-17: Complete MCP Integration Implementation** - Completed
   - **Completed:** 2025-01-XX
   - **Commit:** feat(mcp): implement complete MCP integration [REQ-009]
+  - **Note:** Should be ported to Braingrid for task breakdown and tracking
   - **Files:**
     - `crates/radium-core/src/mcp/` - Complete MCP module implementation
     - `apps/cli/src/commands/mcp.rs` - CLI commands for MCP management
@@ -102,11 +103,11 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
   - **Tests:** Comprehensive unit tests for all MCP components
   - **Status:** Ready for review
 
-### REQ-019: Hooks System ✅ COMPLETE
+### REQ-155: Hooks System ([Braingrid](https://app.braingrid.ai/requirements/overview?id=c44f69fb-4ba8-43dc-99db-e4256cb8c8a6)) 🚧 IN_PROGRESS
 
-- [x] **Task 1-10: Complete Hooks System Implementation** - Completed
-  - **Completed:** 2025-01-XX
-  - **Commit:** feat(hooks): implement complete hooks system [REQ-019]
+- [ ] **Tasks in Braingrid**: 14 tasks defined, 0 completed
+  - **Status:** IN_PROGRESS in Braingrid
+  - **Commit:** feat(hooks): implement complete hooks system [REQ-155]
   - **Files:**
     - `crates/radium-core/src/hooks/` - Complete hooks module implementation
     - `crates/radium-core/tests/hooks_integration_test.rs` - Integration tests
@@ -119,13 +120,13 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
     - TOML-based hook configuration with validation
     - OrchestratorHooks helper for integration with orchestrator providers
   - **Tests:** Comprehensive unit and integration tests (4+ tests)
-  - **Status:** Ready for review
+  - **Status:** 🚧 IN_PROGRESS in Braingrid (REQ-155) - See Braingrid for current task status
 
 ### Completed Recently
 
-- [x] **REQ-011: Context Files System**: Hierarchical context file loading with GEMINI.md support
+- [x] **REQ-163: Context Files System** ([Braingrid](https://app.braingrid.ai/requirements/overview?id=958cb2e0-8d3d-4253-8083-64f0c799905f)): Hierarchical context file loading with GEMINI.md support
   - **Completed:** 2025-01-XX
-  - **Commit:** feat(context): implement context files loader and integration [REQ-011]
+  - **Commit:** feat(context): implement context files loader and integration [REQ-163]
   - **Files:**
     - `crates/radium-core/src/context/files.rs` - Context file loader implementation (518 lines, 21 unit tests)
     - `crates/radium-core/src/context/manager.rs` - ContextManager integration (10 tests)
@@ -145,7 +146,7 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
     - E2E tests: 5 tests (real workflow scenarios)
     - ContextManager tests: 10 tests (integration, caching, precedence)
   - **Test Coverage:** >85% for context files module
-  - **Status:** Ready for review with comprehensive test coverage
+  - **Status:** ✅ COMPLETED in Braingrid (REQ-163) - All 17 tasks completed
 
 - [x] **Session Reports & Analytics System**: Comprehensive session reporting with metrics and cost transparency
   - **Completed:** 2025-01-XX
