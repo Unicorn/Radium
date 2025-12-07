@@ -4,7 +4,6 @@
 // temperature settings, and provider-specific options.
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 /// Orchestration configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]

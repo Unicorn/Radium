@@ -42,12 +42,26 @@ pub struct AgentToolRegistry {
     agents: HashMap<String, AgentMetadata>,
     /// Cached tools
     tools: Vec<Tool>,
+    /// Optional orchestrator for agent execution
+    orchestrator: Option<Arc<crate::Orchestrator>>,
 }
 
 impl AgentToolRegistry {
     /// Create a new empty registry
     pub fn new() -> Self {
-        Self { agents: HashMap::new(), tools: Vec::new() }
+        Self { agents: HashMap::new(), tools: Vec::new(), orchestrator: None }
+    }
+
+    /// Create a new registry with an orchestrator for agent execution
+    pub fn with_orchestrator(orchestrator: Arc<crate::Orchestrator>) -> Self {
+        Self { agents: HashMap::new(), tools: Vec::new(), orchestrator: Some(orchestrator) }
+    }
+
+    /// Set the orchestrator for agent execution
+    pub fn set_orchestrator(&mut self, orchestrator: Arc<crate::Orchestrator>) {
+        self.orchestrator = Some(orchestrator);
+        // Rebuild tools with the new orchestrator
+        self.build_tools();
     }
 
     /// Load agents from default directories
@@ -132,19 +146,22 @@ impl AgentToolRegistry {
         self.tools.clear();
 
         for (id, agent) in &self.agents {
-            let tool = Self::agent_to_tool(id, agent);
+            let tool = self.agent_to_tool(id, agent);
             self.tools.push(tool);
         }
     }
 
     /// Convert an agent metadata to a tool definition
-    fn agent_to_tool(id: &str, agent: &AgentMetadata) -> Tool {
+    fn agent_to_tool(&self, id: &str, agent: &AgentMetadata) -> Tool {
         let parameters = ToolParameters::new()
             .add_property("task", "string", "The task for the agent to perform", true)
             .add_property("context", "string", "Additional context for the task (optional)", false);
 
-        let handler =
-            Arc::new(AgentToolHandler { agent_id: id.to_string(), agent_name: agent.name.clone() });
+        let handler = Arc::new(AgentToolHandler {
+            agent_id: id.to_string(),
+            agent_name: agent.name.clone(),
+            orchestrator: self.orchestrator.clone(),
+        });
 
         Tool::new(
             format!("agent_{}", id),
@@ -187,6 +204,7 @@ impl Default for AgentToolRegistry {
 struct AgentToolHandler {
     agent_id: String,
     agent_name: String,
+    orchestrator: Option<Arc<crate::Orchestrator>>,
 }
 
 #[async_trait]
@@ -200,16 +218,67 @@ impl ToolHandler for AgentToolHandler {
             }
         })?;
 
-        let context = args.get_string("context").unwrap_or_default();
+        let context_str = args.get_string("context").unwrap_or_default();
 
-        // TODO: Actually execute the agent
-        // For now, return a placeholder result
-        let output =
-            format!("[Agent: {}] Task received: {}\nContext: {}", self.agent_name, task, context);
+        // Build full input with context if provided
+        let input = if context_str.is_empty() {
+            task.clone()
+        } else {
+            format!("{}\n\nContext: {}", task, context_str)
+        };
 
-        Ok(ToolResult::success(output)
-            .with_metadata("agent_id", &self.agent_id)
-            .with_metadata("agent_name", &self.agent_name))
+        // Execute the agent if orchestrator is available
+        if let Some(ref orchestrator) = self.orchestrator {
+            match orchestrator.execute_agent(&self.agent_id, &input).await {
+                Ok(execution_result) => {
+                    // Convert AgentOutput to string
+                    let output_text = match execution_result.output {
+                        crate::AgentOutput::Text(text) => text,
+                        crate::AgentOutput::StructuredData(data) => {
+                            serde_json::to_string_pretty(&data).unwrap_or_else(|_| format!("{:?}", data))
+                        }
+                        crate::AgentOutput::ToolCall { name, args } => {
+                            format!("Tool call: {} with args: {:?}", name, args)
+                        }
+                        crate::AgentOutput::Terminate => "Agent terminated".to_string(),
+                    };
+
+                    if execution_result.success {
+                        let mut result = ToolResult::success(&output_text)
+                            .with_metadata("agent_id", &self.agent_id)
+                            .with_metadata("agent_name", &self.agent_name);
+
+                        // Add duration if available
+                        if let Some(ref telemetry) = execution_result.telemetry {
+                            if let Some(model_id) = &telemetry.model_id {
+                                result = result.with_metadata("model_id", model_id);
+                            }
+                        }
+
+                        Ok(result)
+                    } else {
+                        let error_msg = execution_result.error.unwrap_or_else(|| output_text.clone());
+                        Ok(ToolResult::error(format!("Agent execution failed: {}", error_msg))
+                            .with_metadata("agent_id", &self.agent_id)
+                            .with_metadata("agent_name", &self.agent_name))
+                    }
+                }
+                Err(e) => Ok(ToolResult::error(format!("Agent execution error: {}", e))
+                    .with_metadata("agent_id", &self.agent_id)
+                    .with_metadata("agent_name", &self.agent_name)),
+            }
+        } else {
+            // No orchestrator - return placeholder
+            let output = format!(
+                "[Agent: {}] Task received: {}\nContext: {}\n(No orchestrator configured - placeholder mode)",
+                self.agent_name, task, context_str
+            );
+
+            Ok(ToolResult::success(output)
+                .with_metadata("agent_id", &self.agent_id)
+                .with_metadata("agent_name", &self.agent_name)
+                .with_metadata("placeholder", "true"))
+        }
     }
 }
 
@@ -293,7 +362,8 @@ mod tests {
             color: "blue".to_string(),
         };
 
-        let tool = AgentToolRegistry::agent_to_tool("test-agent", &agent);
+        let registry = AgentToolRegistry::new();
+        let tool = registry.agent_to_tool("test-agent", &agent);
 
         assert_eq!(tool.id, "agent_test-agent");
         assert_eq!(tool.name, "test_agent");
