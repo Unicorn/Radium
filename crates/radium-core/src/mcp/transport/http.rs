@@ -10,12 +10,24 @@ pub struct HttpTransport {
     client: reqwest::Client,
     /// Connection status.
     connected: bool,
+    /// OAuth authorization header (if configured).
+    auth_header: Option<String>,
 }
 
 impl HttpTransport {
     /// Create a new HTTP transport.
     pub fn new(url: String) -> Self {
-        Self { url, client: reqwest::Client::new(), connected: false }
+        Self { url, client: reqwest::Client::new(), connected: false, auth_header: None }
+    }
+
+    /// Create a new HTTP transport with OAuth authentication.
+    pub fn new_with_auth(url: String, auth_header: Option<String>) -> Self {
+        Self { url, client: reqwest::Client::new(), connected: false, auth_header }
+    }
+
+    /// Update the authorization header (for token refresh).
+    pub fn set_auth_header(&mut self, auth_header: Option<String>) {
+        self.auth_header = auth_header;
     }
 }
 
@@ -27,7 +39,11 @@ impl McpTransport for HttpTransport {
         }
 
         // Test connection with a simple request
-        let response = self.client.get(&self.url).send().await.map_err(|e| {
+        let mut request = self.client.get(&self.url);
+        if let Some(ref auth) = self.auth_header {
+            request = request.header("Authorization", auth.as_str());
+        }
+        let response = request.send().await.map_err(|e| {
             McpError::Transport(format!("Failed to connect to HTTP endpoint: {}", e))
         })?;
 
@@ -56,10 +72,16 @@ impl McpTransport for HttpTransport {
             return Err(McpError::Connection("Not connected".to_string()));
         }
 
-        let response = self
+        let mut request = self
             .client
             .post(&self.url)
-            .header("Content-Type", "application/json")
+            .header("Content-Type", "application/json");
+        
+        if let Some(ref auth) = self.auth_header {
+            request = request.header("Authorization", auth.as_str());
+        }
+
+        let response = request
             .body(message.to_vec())
             .send()
             .await
@@ -83,7 +105,11 @@ impl McpTransport for HttpTransport {
         // For HTTP transport, we typically send a request and get a response
         // This is a simplified implementation - in practice, you might use long polling
         // or WebSockets for bidirectional communication
-        let response = self.client.get(&self.url).send().await.map_err(|e| {
+        let mut request = self.client.get(&self.url);
+        if let Some(ref auth) = self.auth_header {
+            request = request.header("Authorization", auth.as_str());
+        }
+        let response = request.send().await.map_err(|e| {
             McpError::Transport(format!("Failed to receive message via HTTP: {}", e))
         })?;
 

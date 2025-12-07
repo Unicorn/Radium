@@ -4,6 +4,7 @@ use crate::mcp::McpTransport;
 use crate::mcp::messages::{InitializeParams, InitializeResult, JsonRpcRequest, JsonRpcResponse};
 use crate::mcp::transport::{HttpTransport, SseTransport, StdioTransport};
 use crate::mcp::{McpError, McpServerConfig, McpServerInfo, Result, TransportType};
+use crate::mcp::auth::OAuthTokenManager;
 use serde_json::json;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -16,6 +17,10 @@ pub struct McpClient {
     server_info: McpServerInfo,
     /// Request ID counter.
     request_id: Arc<Mutex<u64>>,
+    /// OAuth token manager (if authentication is configured).
+    token_manager: Option<Arc<Mutex<OAuthTokenManager>>>,
+    /// Server configuration (for auth refresh).
+    server_config: Option<McpServerConfig>,
 }
 
 impl McpClient {
@@ -25,6 +30,37 @@ impl McpClient {
     ///
     /// Returns an error if the client cannot be created or connected.
     pub async fn connect(server_config: &McpServerConfig) -> Result<Self> {
+        // Initialize OAuth token manager if auth is configured
+        let token_manager = if let Some(ref auth_config) = server_config.auth {
+            if auth_config.auth_type == "oauth" {
+                let storage_dir = OAuthTokenManager::default_storage_dir();
+                let mut manager = OAuthTokenManager::new(storage_dir);
+                manager.load_tokens()?;
+                Some(Arc::new(Mutex::new(manager)))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Ensure token is valid before connecting (for OAuth)
+        if let Some(ref token_mgr) = token_manager {
+            let mut mgr = token_mgr.lock().await;
+            if let Some(ref auth_config) = server_config.auth {
+                if mgr.is_token_expired(&server_config.name) {
+                    // Try to refresh token if expired
+                    if let Err(e) = mgr.refresh_token(&server_config.name, auth_config).await {
+                        tracing::warn!(
+                            "Failed to refresh OAuth token for server '{}': {}. Connection may fail.",
+                            server_config.name,
+                            e
+                        );
+                    }
+                }
+            }
+        }
+
         // Create transport based on configuration
         let transport: Box<dyn McpTransport> = match server_config.transport {
             TransportType::Stdio => {
@@ -40,7 +76,18 @@ impl McpClient {
                 let url = server_config.url.clone().ok_or_else(|| {
                     McpError::Config("SSE transport requires 'url' field".to_string())
                 })?;
-                let mut sse_transport = SseTransport::new(url);
+                // Get OAuth token for SSE transport
+                let auth_header = if let Some(ref token_mgr) = token_manager {
+                    let mgr = token_mgr.lock().await;
+                    if let Some(token) = mgr.get_token(&server_config.name) {
+                        Some(format!("Bearer {}", token.access_token))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+                let mut sse_transport = SseTransport::new_with_auth(url, auth_header);
                 sse_transport.connect().await?;
                 Box::new(sse_transport)
             }
@@ -48,7 +95,18 @@ impl McpClient {
                 let url = server_config.url.clone().ok_or_else(|| {
                     McpError::Config("HTTP transport requires 'url' field".to_string())
                 })?;
-                let mut http_transport = HttpTransport::new(url);
+                // Get OAuth token for HTTP transport
+                let auth_header = if let Some(ref token_mgr) = token_manager {
+                    let mgr = token_mgr.lock().await;
+                    if let Some(token) = mgr.get_token(&server_config.name) {
+                        Some(format!("Bearer {}", token.access_token))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+                let mut http_transport = HttpTransport::new_with_auth(url, auth_header);
                 http_transport.connect().await?;
                 Box::new(http_transport)
             }
@@ -72,7 +130,13 @@ impl McpClient {
             }),
         };
 
-        Ok(Self { transport, server_info, request_id: Arc::new(Mutex::new(0)) })
+        Ok(Self {
+            transport,
+            server_info,
+            request_id: Arc::new(Mutex::new(0)),
+            token_manager,
+            server_config: Some(server_config.clone()),
+        })
     }
 
     /// Initialize the MCP connection with the server.
@@ -138,6 +202,25 @@ impl McpClient {
         method: &str,
         params: Option<serde_json::Value>,
     ) -> Result<serde_json::Value> {
+        // Check and refresh OAuth token if needed before sending request
+        if let (Some(token_mgr), Some(server_config)) = (&self.token_manager, &self.server_config) {
+            if let Some(ref auth_config) = server_config.auth {
+                let mut mgr = token_mgr.lock().await;
+                if mgr.is_token_expired(&server_config.name) {
+                    if let Err(e) = mgr.refresh_token(&server_config.name, auth_config).await {
+                        tracing::warn!(
+                            "Failed to refresh OAuth token for server '{}': {}",
+                            server_config.name,
+                            e
+                        );
+                    }
+                    // Note: Transport auth header is set at connection time
+                    // For token refresh, we'd need to reconnect or have transport update method
+                    // For now, token refresh will be used on next connection
+                }
+            }
+        }
+
         let mut request_id = self.request_id.lock().await;
         *request_id += 1;
         let id = *request_id;

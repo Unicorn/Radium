@@ -16,6 +16,8 @@ pub struct SseTransport {
     message_buffer: Arc<Mutex<Vec<Vec<u8>>>>,
     /// Connection status.
     connected: bool,
+    /// OAuth authorization header (if configured).
+    auth_header: Option<String>,
 }
 
 impl SseTransport {
@@ -27,7 +29,25 @@ impl SseTransport {
             event_source: None,
             message_buffer: Arc::new(Mutex::new(Vec::new())),
             connected: false,
+            auth_header: None,
         }
+    }
+
+    /// Create a new SSE transport with OAuth authentication.
+    pub fn new_with_auth(url: String, auth_header: Option<String>) -> Self {
+        Self {
+            url,
+            client: reqwest::Client::new(),
+            event_source: None,
+            message_buffer: Arc::new(Mutex::new(Vec::new())),
+            connected: false,
+            auth_header,
+        }
+    }
+
+    /// Update the authorization header (for token refresh).
+    pub fn set_auth_header(&mut self, auth_header: Option<String>) {
+        self.auth_header = auth_header;
     }
 }
 
@@ -38,11 +58,17 @@ impl McpTransport for SseTransport {
             return Err(McpError::Connection("Already connected".to_string()));
         }
 
-        let response = self
+        let mut request = self
             .client
             .get(&self.url)
             .header("Accept", "text/event-stream")
-            .header("Cache-Control", "no-cache")
+            .header("Cache-Control", "no-cache");
+        
+        if let Some(ref auth) = self.auth_header {
+            request = request.header("Authorization", auth.as_str());
+        }
+
+        let response = request
             .send()
             .await
             .map_err(|e| {
@@ -99,10 +125,16 @@ impl McpTransport for SseTransport {
         // SSE is typically one-way (server to client)
         // For bidirectional communication, we might need a separate HTTP endpoint
         // For now, we'll use a POST request to send messages
-        let response = self
+        let mut request = self
             .client
             .post(&self.url)
-            .header("Content-Type", "application/json")
+            .header("Content-Type", "application/json");
+        
+        if let Some(ref auth) = self.auth_header {
+            request = request.header("Authorization", auth.as_str());
+        }
+
+        let response = request
             .body(message.to_vec())
             .send()
             .await
