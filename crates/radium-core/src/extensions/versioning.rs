@@ -101,6 +101,21 @@ impl VersionComparator {
     }
 }
 
+/// Information about an available update.
+#[derive(Debug, Clone)]
+pub struct UpdateInfo {
+    /// Extension name
+    pub name: String,
+    /// Current installed version
+    pub current_version: String,
+    /// Available new version
+    pub new_version: String,
+    /// Optional description of the update
+    pub description: Option<String>,
+    /// Optional download URL
+    pub download_url: Option<String>,
+}
+
 /// Update checker for detecting available updates.
 pub struct UpdateChecker;
 
@@ -118,6 +133,40 @@ impl UpdateChecker {
     /// Returns error if version comparison fails
     pub fn check_for_update(extension: &Extension, new_version_str: &str) -> Result<bool> {
         VersionComparator::is_newer(new_version_str, &extension.version)
+    }
+
+    /// Checks all installed extensions for available updates.
+    ///
+    /// # Arguments
+    /// * `extensions` - List of installed extensions
+    /// * `get_latest_version` - Function to get latest version for an extension
+    ///
+    /// # Returns
+    /// Vector of UpdateInfo for extensions with available updates
+    ///
+    /// # Errors
+    /// Returns error if version comparison fails
+    pub fn check_all_updates<F>(extensions: &[Extension], get_latest_version: F) -> Result<Vec<UpdateInfo>>
+    where
+        F: Fn(&str) -> Option<(String, Option<String>, Option<String>)>, // (version, description, download_url)
+    {
+        let mut updates = Vec::new();
+
+        for extension in extensions {
+            if let Some((new_version, description, download_url)) = get_latest_version(&extension.name) {
+                if Self::check_for_update(extension, &new_version)? {
+                    updates.push(UpdateInfo {
+                        name: extension.name.clone(),
+                        current_version: extension.version.clone(),
+                        new_version,
+                        description,
+                        download_url,
+                    });
+                }
+            }
+        }
+
+        Ok(updates)
     }
 
     /// Validates that a new version is compatible with constraints.

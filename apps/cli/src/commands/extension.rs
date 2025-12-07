@@ -43,6 +43,12 @@ pub async fn execute(command: ExtensionCommand) -> anyhow::Result<()> {
         ExtensionCommand::Publish { path, api_key, sign_with_key } => {
             publish_extension(&path, api_key.as_deref(), sign_with_key.as_deref()).await
         }
+        ExtensionCommand::CheckUpdates { json } => {
+            check_for_updates(json).await
+        }
+        ExtensionCommand::Update { name, all, dry_run } => {
+            update_extension(name.as_deref(), all, dry_run).await
+        }
     }
 }
 
@@ -922,6 +928,188 @@ async fn publish_extension(
     println!("{}", format!("✓ Extension '{}' published successfully", published.name).green());
     println!("  Version: {}", published.version.bright_black());
     println!("  Download URL: {}", published.download_url);
+
+    Ok(())
+}
+
+/// Check for available extension updates.
+async fn check_for_updates(json: bool) -> anyhow::Result<()> {
+    use radium_core::extensions::{ExtensionManager, MarketplaceClient, UpdateChecker};
+
+    let manager = ExtensionManager::new()?;
+    let extensions = manager.list()?;
+
+    if extensions.is_empty() {
+        if json {
+            println!("[]");
+        } else {
+            println!("{}", "No extensions installed.".bright_black());
+        }
+        return Ok(());
+    }
+
+    let mut marketplace = MarketplaceClient::new().unwrap_or_else(|_| {
+        MarketplaceClient::with_url("http://localhost:8080".to_string()).unwrap()
+    });
+
+    // Get latest versions from marketplace
+    let get_latest = |name: &str| -> Option<(String, Option<String>, Option<String>)> {
+        marketplace.get_extension_info(name).ok().flatten().map(|ext| {
+            (ext.version, Some(ext.description), Some(ext.download_url))
+        })
+    };
+
+    let updates = UpdateChecker::check_all_updates(&extensions, get_latest)
+        .map_err(|e| anyhow::anyhow!("Failed to check updates: {}", e))?;
+
+    if json {
+        let json_updates: Vec<serde_json::Value> = updates.iter().map(|u| {
+            json!({
+                "name": u.name,
+                "current_version": u.current_version,
+                "new_version": u.new_version,
+                "description": u.description,
+                "download_url": u.download_url,
+            })
+        }).collect();
+        println!("{}", serde_json::to_string_pretty(&json_updates)?);
+    } else {
+        if updates.is_empty() {
+            println!("{}", "✓ All extensions are up to date.".green());
+        } else {
+            println!("{}", format!("Found {} available update(s):", updates.len()).yellow());
+            println!();
+            for update in &updates {
+                println!("  {} {} → {}", 
+                    update.name.bright_white().bold(),
+                    update.current_version.bright_black(),
+                    update.new_version.green().bold()
+                );
+                if let Some(desc) = &update.description {
+                    println!("    {}", desc.bright_black());
+                }
+            }
+            println!();
+            println!("{}", "Run 'rad extension update <name>' to update an extension, or 'rad extension update --all' to update all.".bright_black());
+        }
+    }
+
+    Ok(())
+}
+
+/// Update an extension or all extensions.
+async fn update_extension(name: Option<&str>, all: bool, dry_run: bool) -> anyhow::Result<()> {
+    use radium_core::extensions::{ExtensionManager, MarketplaceClient, InstallOptions, UpdateChecker};
+
+    let manager = ExtensionManager::new()?;
+    let mut marketplace = MarketplaceClient::new().unwrap_or_else(|_| {
+        MarketplaceClient::with_url("http://localhost:8080".to_string()).unwrap()
+    });
+
+    if all {
+        // Update all extensions
+        let extensions = manager.list()?;
+        let get_latest = |name: &str| -> Option<(String, Option<String>, Option<String>)> {
+            marketplace.get_extension_info(name).ok().flatten().map(|ext| {
+                (ext.version, Some(ext.description), Some(ext.download_url))
+            })
+        };
+
+        let updates = UpdateChecker::check_all_updates(&extensions, get_latest)
+            .map_err(|e| anyhow::anyhow!("Failed to check updates: {}", e))?;
+
+        if updates.is_empty() {
+            println!("{}", "✓ All extensions are up to date.".green());
+            return Ok(());
+        }
+
+        if dry_run {
+            println!("{}", format!("Would update {} extension(s):", updates.len()).yellow());
+            for update in &updates {
+                println!("  {} {} → {}", 
+                    update.name.bright_white().bold(),
+                    update.current_version.bright_black(),
+                    update.new_version.green().bold()
+                );
+            }
+            return Ok(());
+        }
+
+        println!("{}", format!("Updating {} extension(s)...", updates.len()).yellow());
+        let mut updated = 0;
+        let mut failed = 0;
+
+        for update in &updates {
+            print!("  Updating {}... ", update.name.bright_white());
+            match update_single_extension(&manager, &mut marketplace, &update.name, &update.download_url.as_ref().unwrap()).await {
+                Ok(_) => {
+                    println!("{}", "✓".green());
+                    updated += 1;
+                }
+                Err(e) => {
+                    println!("{} {}", "✗".red(), e.to_string().bright_red());
+                    failed += 1;
+                }
+            }
+        }
+
+        println!();
+        println!("{}", format!("✓ Updated {} extension(s)", updated).green());
+        if failed > 0 {
+            println!("{}", format!("✗ Failed to update {} extension(s)", failed).red());
+        }
+    } else if let Some(ext_name) = name {
+        // Update single extension
+        if dry_run {
+            if let Some(ext_info) = marketplace.get_extension_info(ext_name)? {
+                if let Some(installed) = manager.get(ext_name)? {
+                    if UpdateChecker::check_for_update(&installed, &ext_info.version)? {
+                        println!("{}", format!("Would update {} {} → {}", 
+                            ext_name.bright_white().bold(),
+                            installed.version.bright_black(),
+                            ext_info.version.green().bold()
+                        ).yellow());
+                    } else {
+                        println!("{}", format!("{} is already up to date (v{})", ext_name, installed.version).bright_black());
+                    }
+                } else {
+                    return Err(anyhow::anyhow!("Extension '{}' not found", ext_name));
+                }
+            } else {
+                return Err(anyhow::anyhow!("Extension '{}' not found in marketplace", ext_name));
+            }
+        } else {
+            if let Some(ext_info) = marketplace.get_extension_info(ext_name)? {
+                update_single_extension(&manager, &mut marketplace, ext_name, &ext_info.download_url).await?;
+                println!("{}", format!("✓ Extension '{}' updated successfully", ext_name).green());
+            } else {
+                return Err(anyhow::anyhow!("Extension '{}' not found in marketplace", ext_name));
+            }
+        }
+    } else {
+        return Err(anyhow::anyhow!("Either specify an extension name or use --all"));
+    }
+
+    Ok(())
+}
+
+/// Helper function to update a single extension.
+async fn update_single_extension(
+    manager: &ExtensionManager,
+    _marketplace: &mut MarketplaceClient,
+    name: &str,
+    download_url: &str,
+) -> anyhow::Result<()> {
+    use radium_core::extensions::InstallOptions;
+
+    let options = InstallOptions {
+        overwrite: true,
+        install_dependencies: true,
+        validate_after_install: true,
+    };
+
+    manager.install_from_source(download_url, options)
+        .map_err(|e| anyhow::anyhow!("Update failed: {}", e))?;
 
     Ok(())
 }

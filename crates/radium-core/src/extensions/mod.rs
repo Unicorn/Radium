@@ -45,7 +45,7 @@ pub use signing::{
 pub use structure::{
     Extension, ExtensionStructureError, default_extensions_dir, workspace_extensions_dir,
 };
-pub use versioning::{UpdateChecker, VersionComparator, VersioningError};
+pub use versioning::{UpdateChecker, UpdateInfo, VersionComparator, VersioningError};
 
 /// Unified error type for extension operations.
 #[derive(Debug, thiserror::Error)]

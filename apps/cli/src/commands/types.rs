@@ -548,6 +548,46 @@ pub enum ExtensionCommand {
         #[arg(long)]
         sign_with_key: Option<String>,
     },
+
+    /// Check for available extension updates
+    ///
+    /// # Examples
+    ///
+    /// Check for updates:
+    ///   $ rad extension check-updates
+    ///
+    /// Check and output as JSON:
+    ///   $ rad extension check-updates --json
+    CheckUpdates {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Update an extension to the latest version
+    ///
+    /// # Examples
+    ///
+    /// Update a specific extension:
+    ///   $ rad extension update my-extension
+    ///
+    /// Update all extensions:
+    ///   $ rad extension update --all
+    ///
+    /// Preview updates without applying:
+    ///   $ rad extension update --all --dry-run
+    Update {
+        /// Extension name (or --all for all extensions)
+        name: Option<String>,
+
+        /// Update all extensions
+        #[arg(long)]
+        all: bool,
+
+        /// Preview updates without applying
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
 #[derive(Subcommand, Debug, Clone)]
