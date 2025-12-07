@@ -8,6 +8,7 @@ pub mod clean;
 pub mod craft;
 pub mod doctor;
 pub mod extension;
+pub mod hooks;
 pub mod init;
 pub mod mcp;
 pub mod monitor;
@@ -20,4 +21,4 @@ pub mod templates;
 pub mod types;
 
 // Re-export types for convenience
-pub use types::{AgentsCommand, AuthCommand, ExtensionCommand, TemplatesCommand};
+pub use types::{AgentsCommand, AuthCommand, ExtensionCommand, HooksCommand, TemplatesCommand};

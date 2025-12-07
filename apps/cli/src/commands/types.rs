@@ -138,6 +138,46 @@ pub enum TemplatesCommand {
 }
 
 #[derive(Subcommand, Debug, Clone)]
+pub enum HooksCommand {
+    /// List all registered hooks
+    List {
+        /// Filter by hook type
+        #[arg(long)]
+        r#type: Option<String>,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+
+        /// Show detailed information
+        #[arg(short, long)]
+        verbose: bool,
+    },
+
+    /// Show detailed information about a specific hook
+    Info {
+        /// Hook name
+        name: String,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Enable a hook
+    Enable {
+        /// Hook name
+        name: String,
+    },
+
+    /// Disable a hook
+    Disable {
+        /// Hook name
+        name: String,
+    },
+}
+
+#[derive(Subcommand, Debug, Clone)]
 pub enum ExtensionCommand {
     /// Install an extension from a local path or URL
     Install {

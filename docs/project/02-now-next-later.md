@@ -409,7 +409,7 @@
 
 **Why Later**: API key authentication covers 90% of LLM providers. OAuth needed for enterprise SSO and cloud platform integrations.
 
-**Reference**: See [authentication-system-plan.md](./authentication-system-plan.md#future-enhancements-option-b-multi-method-auth) for detailed design.
+**Reference**: See BrainGrid for authentication requirements: `braingrid requirement list -p PROJ-14 | grep -i "auth"`
 
 ---
 
@@ -478,6 +478,6 @@ Feature parity is achieved when:
 - **Feature Backlog**: [legacy-system-feature-backlog.md](./legacy-system-feature-backlog.md)
 - **Completed Work**: [01-completed.md](./01-completed.md)
 - **Feature Gaps**: [FEATURE_GAPS.md](../archive/status-reports/FEATURE_GAPS.md) - Track implemented but not integrated features (archived - all gaps resolved)
-- **Vibe-Check Integration**: [VIBE_CHECK_INTEGRATION.md](./VIBE_CHECK_INTEGRATION.md)
+- **Vibe-Check Integration**: See BrainGrid REQ-119: `braingrid requirement show REQ-119 -p PROJ-14`
 - **Gemini CLI Enhancements**: [gemini-cli-enhancements.md](../features/gemini-cli-enhancements.md)
 
