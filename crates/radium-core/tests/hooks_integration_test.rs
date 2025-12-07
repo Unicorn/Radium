@@ -2,12 +2,10 @@
 
 use radium_core::hooks::config::HookConfig;
 use radium_core::hooks::integration::OrchestratorHooks;
-use radium_core::hooks::model::{ModelHook, ModelHookContext, ModelHookType};
-use radium_core::hooks::registry::{Hook, HookRegistry, HookType};
-use radium_core::hooks::telemetry::TelemetryHookContext;
-use radium_core::hooks::tool::{ToolHook, ToolHookContext, ToolHookType};
-use radium_core::hooks::types::{HookContext, HookPriority, HookResult as HookExecutionResult};
-use radium_core::hooks::error_hooks::{ErrorHook, ErrorHookContext, ErrorHookType};
+use radium_core::hooks::model::ModelHook;
+use radium_core::hooks::registry::{HookRegistry, HookType};
+use radium_core::hooks::tool::ToolHook;
+use radium_core::hooks::types::{HookPriority, HookResult as HookExecutionResult};
 use std::sync::Arc;
 
 struct TestModelHook {
@@ -58,8 +56,9 @@ async fn test_model_hooks_integration() {
     });
 
     // Register before and after hooks
-    let before_adapter = radium_core::hooks::model::ModelHookAdapter::before(Arc::clone(&hook));
-    let after_adapter = radium_core::hooks::model::ModelHookAdapter::after(Arc::clone(&hook));
+    let hook_dyn: Arc<dyn ModelHook> = hook;
+    let before_adapter = radium_core::hooks::model::ModelHookAdapter::before(Arc::clone(&hook_dyn));
+    let after_adapter = radium_core::hooks::model::ModelHookAdapter::after(Arc::clone(&hook_dyn));
 
     registry.register(before_adapter).await.unwrap();
     registry.register(after_adapter).await.unwrap();
@@ -87,7 +86,7 @@ struct TestToolHook {
     name: String,
     priority: HookPriority,
     before_called: Arc<tokio::sync::Mutex<bool>>,
-    after_called: Arc<tokio::sync::Mutex::new(false)>,
+    after_called: Arc<tokio::sync::Mutex<bool>>,
 }
 
 #[async_trait::async_trait]
@@ -137,8 +136,9 @@ async fn test_tool_hooks_integration() {
         after_called: Arc::clone(&after_called),
     });
 
-    let before_adapter = radium_core::hooks::tool::ToolHookAdapter::before(Arc::clone(&hook));
-    let after_adapter = radium_core::hooks::tool::ToolHookAdapter::after(Arc::clone(&hook));
+    let hook_dyn: Arc<dyn ToolHook> = hook;
+    let before_adapter = radium_core::hooks::tool::ToolHookAdapter::before(Arc::clone(&hook_dyn));
+    let after_adapter = radium_core::hooks::tool::ToolHookAdapter::after(Arc::clone(&hook_dyn));
 
     registry.register(before_adapter).await.unwrap();
     registry.register(after_adapter).await.unwrap();
