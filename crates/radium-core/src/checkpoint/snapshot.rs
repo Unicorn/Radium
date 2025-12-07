@@ -20,6 +20,10 @@ pub struct Checkpoint {
     pub timestamp: u64,
     /// User-provided description.
     pub description: Option<String>,
+    /// Task ID associated with this checkpoint (for recovery).
+    pub task_id: Option<String>,
+    /// Workflow ID associated with this checkpoint (for recovery).
+    pub workflow_id: Option<String>,
 }
 
 impl Checkpoint {
@@ -27,7 +31,15 @@ impl Checkpoint {
     pub fn new(id: String, commit_hash: String) -> Self {
         let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
 
-        Self { id, commit_hash, agent_id: None, timestamp, description: None }
+        Self {
+            id,
+            commit_hash,
+            agent_id: None,
+            timestamp,
+            description: None,
+            task_id: None,
+            workflow_id: None,
+        }
     }
 
     /// Sets the agent ID.
@@ -41,6 +53,20 @@ impl Checkpoint {
     #[must_use]
     pub fn with_description(mut self, description: String) -> Self {
         self.description = Some(description);
+        self
+    }
+
+    /// Sets the task ID.
+    #[must_use]
+    pub fn with_task_id(mut self, task_id: String) -> Self {
+        self.task_id = Some(task_id);
+        self
+    }
+
+    /// Sets the workflow ID.
+    #[must_use]
+    pub fn with_workflow_id(mut self, workflow_id: String) -> Self {
+        self.workflow_id = Some(workflow_id);
         self
     }
 }
@@ -147,6 +173,57 @@ impl CheckpointManager {
         }
 
         Ok(checkpoint)
+    }
+
+    /// Creates a checkpoint with task and workflow metadata.
+    ///
+    /// # Arguments
+    /// * `description` - Optional description for the checkpoint
+    /// * `task_id` - Optional task ID associated with this checkpoint
+    /// * `workflow_id` - Optional workflow ID associated with this checkpoint
+    ///
+    /// # Returns
+    /// The created checkpoint
+    ///
+    /// # Errors
+    /// Returns error if git operations fail
+    pub fn create_checkpoint_with_metadata(
+        &self,
+        description: Option<String>,
+        task_id: Option<String>,
+        workflow_id: Option<String>,
+    ) -> Result<Checkpoint> {
+        let mut checkpoint = self.create_checkpoint(description)?;
+        if let Some(tid) = task_id {
+            checkpoint = checkpoint.with_task_id(tid);
+        }
+        if let Some(wid) = workflow_id {
+            checkpoint = checkpoint.with_workflow_id(wid);
+        }
+        Ok(checkpoint)
+    }
+
+    /// Finds a checkpoint for a specific step.
+    ///
+    /// # Arguments
+    /// * `step_id` - The step ID to find checkpoint for
+    ///
+    /// # Returns
+    /// The checkpoint if found, None otherwise
+    pub fn find_checkpoint_for_step(&self, step_id: &str) -> Option<Checkpoint> {
+        if let Ok(checkpoints) = self.list_checkpoints() {
+            checkpoints
+                .into_iter()
+                .find(|cp| {
+                    cp.task_id.as_ref().map(|tid| tid == step_id).unwrap_or(false)
+                        || cp.description
+                            .as_ref()
+                            .map(|d| d.contains(step_id))
+                            .unwrap_or(false)
+                })
+        } else {
+            None
+        }
     }
 
     /// Lists all checkpoints.

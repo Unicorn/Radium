@@ -11,6 +11,7 @@ pub mod engine;
 pub mod executor;
 pub mod failure;
 pub mod parallel;
+pub mod recovery;
 pub mod service;
 pub mod step_tracking;
 pub mod template_discovery;
@@ -26,6 +27,9 @@ pub use engine::{ExecutionContext, StepResult, WorkflowEngine, WorkflowEngineErr
 pub use executor::WorkflowExecutor;
 pub use failure::{
     FailureClassifier, FailureHistory, FailurePolicy, FailureRecord, FailureType,
+};
+pub use recovery::{
+    RecoveryContext, RecoveryError, RecoveryManager, RecoveryStrategy, Result as RecoveryResult,
 };
 pub use service::{WorkflowExecution, WorkflowService};
 pub use step_tracking::{StepRecord, StepStatus, StepTracker, StepTrackingError};
