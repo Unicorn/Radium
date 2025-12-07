@@ -74,7 +74,7 @@ pub use extensions::{
 };
 pub use hooks::{
     Hook, HookConfig, HookContext, HookError, HookPriority, HookRegistry, HookResult as HookExecutionResult, HookType,
-    HookResult, ModelHookContext, ModelHookType, TelemetryHookContext, ToolHookContext, ToolHookType,
+    HookResult, ModelHookContext, ModelHookType, OrchestratorHooks, TelemetryHookContext, ToolHookContext, ToolHookType,
 };
 pub use learning::{
     CategorySummary, LearningEntry, LearningError, LearningStore, LearningType, Skill, SkillStatus,

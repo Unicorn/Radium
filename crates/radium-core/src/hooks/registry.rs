@@ -183,3 +183,134 @@ impl HookRegistry {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::hooks::types::HookContext;
+
+    struct TestHook {
+        name: String,
+        priority: HookPriority,
+        hook_type: HookType,
+    }
+
+    #[async_trait]
+    impl Hook for TestHook {
+        fn name(&self) -> &str {
+            &self.name
+        }
+
+        fn priority(&self) -> HookPriority {
+            self.priority
+        }
+
+        fn hook_type(&self) -> HookType {
+            self.hook_type
+        }
+
+        async fn execute(&self, _context: &HookContext) -> Result<HookExecutionResult> {
+            Ok(HookExecutionResult::success())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_hook_registry_register() {
+        let registry = HookRegistry::new();
+        let hook = Arc::new(TestHook {
+            name: "test-hook".to_string(),
+            priority: HookPriority::default(),
+            hook_type: HookType::BeforeModel,
+        });
+
+        registry.register(hook).await.unwrap();
+        assert_eq!(registry.count().await, 1);
+    }
+
+    #[tokio::test]
+    async fn test_hook_registry_unregister() {
+        let registry = HookRegistry::new();
+        let hook = Arc::new(TestHook {
+            name: "test-hook".to_string(),
+            priority: HookPriority::default(),
+            hook_type: HookType::BeforeModel,
+        });
+
+        registry.register(hook).await.unwrap();
+        assert_eq!(registry.count().await, 1);
+
+        registry.unregister("test-hook").await.unwrap();
+        assert_eq!(registry.count().await, 0);
+    }
+
+    #[tokio::test]
+    async fn test_hook_registry_priority_order() {
+        let registry = HookRegistry::new();
+
+        let hook1 = Arc::new(TestHook {
+            name: "low-priority".to_string(),
+            priority: HookPriority::new(50),
+            hook_type: HookType::BeforeModel,
+        });
+
+        let hook2 = Arc::new(TestHook {
+            name: "high-priority".to_string(),
+            priority: HookPriority::new(150),
+            hook_type: HookType::BeforeModel,
+        });
+
+        registry.register(hook1.clone()).await.unwrap();
+        registry.register(hook2.clone()).await.unwrap();
+
+        let hooks = registry.get_hooks(HookType::BeforeModel).await;
+        assert_eq!(hooks.len(), 2);
+        // Higher priority should be first
+        assert_eq!(hooks[0].name(), "high-priority");
+        assert_eq!(hooks[1].name(), "low-priority");
+    }
+
+    #[tokio::test]
+    async fn test_hook_registry_execute_hooks() {
+        let registry = HookRegistry::new();
+        let hook = Arc::new(TestHook {
+            name: "test-hook".to_string(),
+            priority: HookPriority::default(),
+            hook_type: HookType::BeforeModel,
+        });
+
+        registry.register(hook).await.unwrap();
+
+        let context = HookContext::new("before_model", serde_json::json!({}));
+        let results = registry.execute_hooks(HookType::BeforeModel, &context).await.unwrap();
+
+        assert_eq!(results.len(), 1);
+        assert!(results[0].success);
+    }
+
+    #[tokio::test]
+    async fn test_hook_registry_filter_by_type() {
+        let registry = HookRegistry::new();
+
+        let model_hook = Arc::new(TestHook {
+            name: "model-hook".to_string(),
+            priority: HookPriority::default(),
+            hook_type: HookType::BeforeModel,
+        });
+
+        let tool_hook = Arc::new(TestHook {
+            name: "tool-hook".to_string(),
+            priority: HookPriority::default(),
+            hook_type: HookType::BeforeTool,
+        });
+
+        registry.register(model_hook).await.unwrap();
+        registry.register(tool_hook).await.unwrap();
+
+        let model_hooks = registry.get_hooks(HookType::BeforeModel).await;
+        assert_eq!(model_hooks.len(), 1);
+        assert_eq!(model_hooks[0].name(), "model-hook");
+
+        let tool_hooks = registry.get_hooks(HookType::BeforeTool).await;
+        assert_eq!(tool_hooks.len(), 1);
+        assert_eq!(tool_hooks[0].name(), "tool-hook");
+    }
+}
