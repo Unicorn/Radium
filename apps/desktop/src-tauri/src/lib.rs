@@ -7,6 +7,8 @@ pub mod client;
 use client::ClientManager;
 use radium_core::config::Config;
 use radium_core::server::manager::EmbeddedServer;
+use radium_core::workflow::{CompletionEvent, CompletionOptions, CompletionService};
+use radium_core::Workspace;
 use radium_core::proto::{
     Agent, CreateAgentRequest, CreateTaskRequest, CreateWorkflowRequest, DeleteAgentRequest,
     DeleteWorkflowRequest, ExecuteAgentRequest, ExecuteWorkflowRequest, GetAgentRequest, GetTaskRequest,
@@ -840,6 +842,61 @@ async fn stop_agent(
     } else {
         Err(result.error.unwrap_or_else(|| "Unknown error".to_string()))
     }
+}
+
+/// Complete a requirement from source
+#[tauri::command]
+async fn complete_task(
+    source: String,
+    app_handle: tauri::AppHandle,
+) -> Result<String, String> {
+    info!(source = %source, "Complete task command received");
+
+    // Discover workspace
+    let workspace = Workspace::discover()
+        .map_err(|e| format!("Failed to discover workspace: {}", e))?;
+    workspace
+        .ensure_structure()
+        .map_err(|e| format!("Failed to ensure workspace structure: {}", e))?;
+
+    // Create completion service
+    let service = CompletionService::new();
+
+    // Create options
+    let options = CompletionOptions {
+        workspace_path: workspace.root().to_path_buf(),
+        engine: std::env::var("RADIUM_ENGINE").unwrap_or_else(|_| "mock".to_string()),
+        model_id: std::env::var("RADIUM_MODEL").ok(),
+        requirement_id: None,
+    };
+
+    // Execute workflow
+    let mut event_rx = service
+        .execute(source.clone(), options)
+        .await
+        .map_err(|e| format!("Failed to start completion workflow: {}", e))?;
+
+    // Process events and emit to frontend
+    let mut last_event: Option<String> = None;
+    while let Some(event) = event_rx.recv().await {
+        let event_json = serde_json::to_string(&event)
+            .map_err(|e| format!("Failed to serialize event: {}", e))?;
+
+        // Emit event to frontend
+        app_handle
+            .emit("complete-progress", event_json.clone())
+            .map_err(|e| format!("Failed to emit event: {}", e))?;
+
+        last_event = Some(event_json);
+
+        // Break on completion or error
+        match event {
+            CompletionEvent::Completed | CompletionEvent::Error { .. } => break,
+            _ => {}
+        }
+    }
+
+    Ok(last_event.unwrap_or_else(|| "{\"type\":\"unknown\"}".to_string()))
 }
 
 /// Get all registered agents

@@ -447,16 +447,30 @@ async fn create_agent(
     interactive: bool,
 ) -> anyhow::Result<()> {
     // Interactive mode: prompt for all fields
-    let (id, name, description, category, engine, model, reasoning) = if interactive {
-        let (id_val, name_val, desc, cat, eng, mdl, reas) = interactive_prompt_agent_details(id, name, description, category, engine, model, reasoning)?;
-        // Store in a way we can use
-        (id_val.as_str(), name_val.as_str(), desc.as_deref(), cat.as_deref(), eng.as_deref(), mdl.as_deref(), reas.as_deref())
+    let (id_str, name_str, description_str, category_str, engine_str, model_str, reasoning_str) = if interactive {
+        interactive_prompt_agent_details(id, name, description, category, engine, model, reasoning)?
     } else {
         // Validate required fields for non-interactive mode
         let id = id.ok_or_else(|| anyhow::anyhow!("Agent ID is required (use --interactive to prompt)"))?;
         let name = name.ok_or_else(|| anyhow::anyhow!("Agent name is required (use --interactive to prompt)"))?;
-        (id, name, description, category, engine, model, reasoning)
+        (
+            id.to_string(),
+            name.to_string(),
+            description.map(|s| s.to_string()),
+            category.map(|s| s.to_string()),
+            engine.map(|s| s.to_string()),
+            model.map(|s| s.to_string()),
+            reasoning.map(|s| s.to_string()),
+        )
     };
+    
+    let id = id_str.as_str();
+    let name = name_str.as_str();
+    let description = description_str.as_deref();
+    let category = category_str.as_deref();
+    let engine = engine_str.as_deref();
+    let model = model_str.as_deref();
+    let reasoning = reasoning_str.as_deref();
 
     // Validate agent ID
     if id.is_empty() {

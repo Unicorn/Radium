@@ -749,6 +749,39 @@ impl Radium for RadiumService {
 
         Ok(Response::new(ListWorkflowExecutionsResponse { executions: proto_executions }))
     }
+
+    async fn validate_sources(
+        &self,
+        request: Request<ValidateSourcesRequest>,
+    ) -> Result<Response<ValidateSourcesResponse>, Status> {
+        use crate::context::validator::SourceValidator;
+        use crate::context::sources::registry::SourceRegistry;
+        
+        let req = request.into_inner();
+        let sources = req.sources;
+        
+        info!("ValidateSources RPC called with {} sources", sources.len());
+        
+        // Create source validator
+        let registry = SourceRegistry::new();
+        let validator = SourceValidator::new(Arc::new(registry));
+        
+        // Validate sources
+        let results = validator.validate_sources(sources).await;
+        
+        // Convert to proto
+        let proto_results: Vec<SourceValidationResult> = results
+            .into_iter()
+            .map(|result| SourceValidationResult {
+                source: result.source,
+                accessible: result.accessible,
+                error_message: result.error_message.unwrap_or_default(),
+                size_bytes: result.size_bytes.unwrap_or(0),
+            })
+            .collect();
+        
+        Ok(Response::new(ValidateSourcesResponse { results: proto_results }))
+    }
 }
 
 #[cfg(test)]
