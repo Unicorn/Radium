@@ -54,10 +54,33 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
             tool_approved BOOLEAN,
             tool_approval_type TEXT,
             engine_id TEXT,
+            behavior_type TEXT,
+            behavior_invocation_count INTEGER,
+            behavior_duration_ms INTEGER,
+            behavior_outcome TEXT,
             FOREIGN KEY (agent_id) REFERENCES agents(id)
         )",
         [],
     )?;
+    
+    // Migrate existing tables to add behavior columns if they don't exist
+    // This allows upgrading existing databases without recreating them
+    let _ = conn.execute(
+        "ALTER TABLE telemetry ADD COLUMN behavior_type TEXT",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE telemetry ADD COLUMN behavior_invocation_count INTEGER",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE telemetry ADD COLUMN behavior_duration_ms INTEGER",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE telemetry ADD COLUMN behavior_outcome TEXT",
+        [],
+    );
 
     // Indexes for efficient queries
     conn.execute(
