@@ -163,7 +163,7 @@ impl OAuthTokenManager {
             .clone();
 
         // Get refresh token
-        let refresh_token = token.refresh_token.ok_or_else(|| {
+        let refresh_token = token.refresh_token.clone().ok_or_else(|| {
             McpError::Authentication(format!(
                 "No refresh token available for server: {}",
                 server_name
