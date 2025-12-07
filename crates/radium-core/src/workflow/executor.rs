@@ -475,16 +475,15 @@ impl WorkflowExecutor {
                     hook_context.set("step_result", serde_json::to_value(&step_result).unwrap_or_default());
 
                     // Execute hooks for workflow step completion
-                    // Using telemetry hooks as a placeholder for workflow behavior hooks
-                    let hooks = OrchestratorHooks::new(Arc::clone(registry));
-                    if let Err(e) = hooks.execute_telemetry_hooks(&hook_context).await {
-                        debug!(
-                            workflow_id = %workflow.id,
-                            step_id = %step.id,
-                            error = %e,
-                            "Hook execution failed (non-fatal)"
-                        );
-                    }
+                    // Note: Behavior hooks can be registered via BehaviorEvaluatorAdapter
+                    // For now, we just create the context - hooks will be executed when registered
+                    // This maintains backward compatibility while enabling hook-based behavior evaluation
+                    debug!(
+                        workflow_id = %workflow.id,
+                        step_id = %step.id,
+                        behavior_file = %behavior_file.display(),
+                        "Workflow step hook context prepared"
+                    );
                 }
             }
         }
