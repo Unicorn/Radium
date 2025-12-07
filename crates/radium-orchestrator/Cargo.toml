@@ -14,6 +14,7 @@ workspace = true
 # Internal crates
 radium-abstraction.workspace = true
 radium-models.workspace = true
+radium-core.workspace = true  # TODO: Circular dependency - needs architectural refactoring
 
 # Async runtime
 tokio.workspace = true

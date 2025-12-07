@@ -7,6 +7,7 @@ pub mod agent_tools;
 pub mod config;
 pub mod context;
 pub mod engine;
+pub mod mcp_tools;
 pub mod providers;
 pub mod service;
 pub mod tool;

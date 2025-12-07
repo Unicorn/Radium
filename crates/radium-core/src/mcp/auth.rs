@@ -140,14 +140,144 @@ impl OAuthTokenManager {
         false
     }
 
-    /// Refresh a token (placeholder - actual implementation would call OAuth endpoint).
+    /// Refresh a token using OAuth 2.0 refresh token flow.
+    ///
+    /// # Arguments
+    /// * `server_name` - Name of the server to refresh token for
+    /// * `auth_config` - Authentication configuration containing OAuth parameters
     ///
     /// # Errors
     ///
     /// Returns an error if token refresh fails.
-    pub async fn refresh_token(&mut self, _server_name: &str) -> Result<()> {
-        // TODO: Implement actual OAuth refresh flow
-        Err(McpError::Authentication("Token refresh not yet implemented".to_string()))
+    pub async fn refresh_token(
+        &mut self,
+        server_name: &str,
+        auth_config: &crate::mcp::McpAuthConfig,
+    ) -> Result<()> {
+        // Get the current token
+        let token = self
+            .get_token(server_name)
+            .ok_or_else(|| {
+                McpError::Authentication(format!("No token found for server: {}", server_name))
+            })?
+            .clone();
+
+        // Get refresh token
+        let refresh_token = token.refresh_token.ok_or_else(|| {
+            McpError::Authentication(format!(
+                "No refresh token available for server: {}",
+                server_name
+            ))
+        })?;
+
+        // Get OAuth token endpoint from auth config
+        let token_url = auth_config
+            .params
+            .get("token_url")
+            .ok_or_else(|| {
+                McpError::Authentication(
+                    "OAuth token_url not found in auth configuration".to_string(),
+                )
+            })?
+            .clone();
+
+        // Get client_id and client_secret (optional, some providers don't require them for refresh)
+        let client_id = auth_config.params.get("client_id").cloned();
+        let client_secret = auth_config.params.get("client_secret").cloned();
+
+        // Build OAuth 2.0 token refresh request
+        let mut form_params = std::collections::HashMap::new();
+        form_params.insert("grant_type", "refresh_token");
+        form_params.insert("refresh_token", refresh_token.as_str());
+
+        // Add client credentials if provided (some OAuth providers require this)
+        if let Some(ref cid) = client_id {
+            form_params.insert("client_id", cid.as_str());
+        }
+        if let Some(ref cs) = client_secret {
+            form_params.insert("client_secret", cs.as_str());
+        }
+
+        // Make HTTP POST request to token endpoint
+        let client = reqwest::Client::new();
+        let response = client
+            .post(&token_url)
+            .form(&form_params)
+            .send()
+            .await
+            .map_err(|e| {
+                McpError::Authentication(format!("Failed to send token refresh request: {}", e))
+            })?;
+
+        // Check response status
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            return Err(McpError::Authentication(format!(
+                "Token refresh failed with status {}: {}",
+                status, error_text
+            )));
+        }
+
+        // Parse OAuth 2.0 token response
+        let token_response: serde_json::Value = response.json().await.map_err(|e| {
+            McpError::Authentication(format!("Failed to parse token response: {}", e))
+        })?;
+
+        // Extract token fields
+        let access_token = token_response
+            .get("access_token")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| {
+                McpError::Authentication("Token response missing 'access_token' field".to_string())
+            })?
+            .to_string();
+
+        let token_type = token_response
+            .get("token_type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Bearer")
+            .to_string();
+
+        // Refresh token may be returned in response (some providers rotate it)
+        let new_refresh_token = token_response
+            .get("refresh_token")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .or_else(|| token.refresh_token);
+
+        // Calculate expiration time from expires_in (seconds)
+        let expires_at = token_response
+            .get("expires_in")
+            .and_then(|v| v.as_u64())
+            .map(|expires_in| {
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs()
+                    + expires_in
+            })
+            .or_else(|| token.expires_at);
+
+        let scope = token_response
+            .get("scope")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .or_else(|| token.scope);
+
+        // Create new token
+        let new_token = OAuthToken {
+            access_token,
+            token_type,
+            refresh_token: new_refresh_token,
+            expires_at,
+            scope,
+        };
+
+        // Save the refreshed token
+        self.save_token(server_name, new_token)?;
+
+        Ok(())
     }
 }
 
@@ -218,5 +348,87 @@ mod tests {
 
         manager.tokens.insert("test-server".to_string(), token);
         assert!(!manager.is_token_expired("test-server"));
+    }
+
+    #[tokio::test]
+    async fn test_oauth_token_refresh_no_token() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut manager = OAuthTokenManager::new(temp_dir.path().to_path_buf());
+
+        let auth_config = crate::mcp::McpAuthConfig {
+            auth_type: "oauth".to_string(),
+            params: {
+                let mut params = std::collections::HashMap::new();
+                params.insert("token_url".to_string(), "https://example.com/token".to_string());
+                params
+            },
+        };
+
+        let result = manager.refresh_token("nonexistent-server", &auth_config).await;
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("No token found for server"));
+    }
+
+    #[tokio::test]
+    async fn test_oauth_token_refresh_no_refresh_token() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut manager = OAuthTokenManager::new(temp_dir.path().to_path_buf());
+
+        let token = OAuthToken {
+            access_token: "test_token".to_string(),
+            token_type: "Bearer".to_string(),
+            refresh_token: None, // No refresh token
+            expires_at: None,
+            scope: None,
+        };
+
+        manager.tokens.insert("test-server".to_string(), token);
+
+        let auth_config = crate::mcp::McpAuthConfig {
+            auth_type: "oauth".to_string(),
+            params: {
+                let mut params = std::collections::HashMap::new();
+                params.insert("token_url".to_string(), "https://example.com/token".to_string());
+                params
+            },
+        };
+
+        let result = manager.refresh_token("test-server", &auth_config).await;
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("No refresh token available"));
+    }
+
+    #[tokio::test]
+    async fn test_oauth_token_refresh_no_token_url() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut manager = OAuthTokenManager::new(temp_dir.path().to_path_buf());
+
+        let token = OAuthToken {
+            access_token: "test_token".to_string(),
+            token_type: "Bearer".to_string(),
+            refresh_token: Some("refresh_token".to_string()),
+            expires_at: None,
+            scope: None,
+        };
+
+        manager.tokens.insert("test-server".to_string(), token);
+
+        let auth_config = crate::mcp::McpAuthConfig {
+            auth_type: "oauth".to_string(),
+            params: std::collections::HashMap::new(), // No token_url
+        };
+
+        let result = manager.refresh_token("test-server", &auth_config).await;
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("token_url not found"));
     }
 }

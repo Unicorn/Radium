@@ -13,6 +13,7 @@ use super::{
     config::{OrchestrationConfig, ProviderType},
     context::{Message, OrchestrationContext},
     engine::{EngineConfig, OrchestrationEngine},
+    tool::Tool,
     providers::{
         claude::ClaudeOrchestrator, gemini::GeminiOrchestrator, openai::OpenAIOrchestrator,
         prompt_based::PromptBasedOrchestrator,
@@ -73,17 +74,31 @@ pub struct OrchestrationService {
 
 impl OrchestrationService {
     /// Initialize orchestration service with configuration
-    pub async fn initialize(config: OrchestrationConfig) -> Result<Self> {
+    ///
+    /// # Arguments
+    /// * `config` - Orchestration configuration
+    /// * `mcp_tools` - Optional list of MCP tools to include (initialized at application level)
+    pub async fn initialize(
+        config: OrchestrationConfig,
+        mcp_tools: Option<Vec<Tool>>,
+    ) -> Result<Self> {
         // Initialize tool registry
         let mut tool_registry = AgentToolRegistry::new();
         tool_registry.load_agents()?;
         let tool_registry = Arc::new(RwLock::new(tool_registry));
 
+        // Collect all tools (agent + optional MCP)
+        let mut tools = tool_registry.read().await.get_tools().to_vec();
+        if let Some(mcp_tools) = mcp_tools {
+            let mcp_count = mcp_tools.len();
+            tools.extend(mcp_tools);
+            tracing::info!("Added {} MCP tools to orchestration", mcp_count);
+        }
+
         // Create provider based on configuration
         let provider = Self::create_provider(&config)?;
 
-        // Create orchestration engine
-        let tools = tool_registry.read().await.get_tools().to_vec();
+        // Create orchestration engine with all tools (agent + MCP)
         let engine_config = EngineConfig {
             max_iterations: config.default_provider_config().max_tool_iterations,
             timeout_seconds: 120,

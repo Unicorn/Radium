@@ -47,6 +47,13 @@ impl McpToolRegistry {
         self.tools.values().collect()
     }
 
+    /// Get all registered tools with their registered names (may be prefixed).
+    ///
+    /// Returns a vector of tuples: (registered_name, tool)
+    pub fn get_all_tools_with_names(&self) -> Vec<(String, &McpTool)> {
+        self.tools.iter().map(|(name, tool)| (name.clone(), tool)).collect()
+    }
+
     /// Check if a tool exists.
     pub fn has_tool(&self, name: &str) -> bool {
         self.tools.contains_key(name) || self.tool_name_map.contains_key(name)

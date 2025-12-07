@@ -1,0 +1,25 @@
+# Cursor Rules for Radium Development
+
+These rules reference the shared agent instructions. See `docs/development/agent-instructions.md` for complete guidelines.
+
+## Core Instructions
+
+Follow all guidelines in `docs/development/agent-instructions.md`, especially:
+
+- Braingrid integration and REQ-XXX handling
+- Task status updates in real-time
+- Git commit message format: `[REQ-XXX] [TASK-X] Description`
+- Testing requirements for all features
+- Status workflow: IN_PROGRESS → COMPLETED → REVIEW
+
+## Quick Reference
+
+When working on REQ-XXX:
+1. Check Braingrid: `braingrid requirement show REQ-XXX -p PROJ-14`
+2. Ensure tasks exist and are well-defined
+3. Set REQ status to IN_PROGRESS when starting
+4. Update task status as you work
+5. Mark REQ as REVIEW when all tasks complete and tests pass
+
+For full instructions, see: `docs/development/agent-instructions.md`
+

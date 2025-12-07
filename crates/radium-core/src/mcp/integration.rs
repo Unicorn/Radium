@@ -81,6 +81,23 @@ impl McpIntegration {
             .collect()
     }
 
+    /// Get all tool definitions with their full metadata from all MCP servers.
+    ///
+    /// Returns a vector of tuples: (server_name, tool_name, tool_definition)
+    /// where tool_name is the name used in the registry (may be prefixed for conflicts).
+    pub async fn get_all_tool_definitions(&self) -> Vec<(String, String, crate::mcp::McpTool)> {
+        let tool_registries = self.tool_registries.lock().await;
+        let mut result = Vec::new();
+
+        for (server_name, registry) in tool_registries.iter() {
+            for (tool_name, tool) in registry.get_all_tools_with_names() {
+                result.push((server_name.clone(), tool_name, tool.clone()));
+            }
+        }
+
+        result
+    }
+
     /// Execute a tool from an MCP server.
     ///
     /// # Errors
