@@ -47,7 +47,17 @@ pub async fn execute(command: AgentsCommand) -> anyhow::Result<()> {
             .await
         }
         AgentsCommand::Info { id, json } => show_agent_info(&id, json).await,
-        AgentsCommand::Persona { id, json } => show_agent_persona(&id, json).await,
+        AgentsCommand::Persona { id, list, validate, json } => {
+            if list {
+                execute_persona_list(json).await
+            } else if validate {
+                let agent_id = id.ok_or_else(|| anyhow::anyhow!("Agent ID required for --validate"))?;
+                execute_persona_validate(&agent_id, json).await
+            } else {
+                let agent_id = id.ok_or_else(|| anyhow::anyhow!("Agent ID required (or use --list)"))?;
+                show_agent_persona(&agent_id, json).await
+            }
+        }
         AgentsCommand::Cost { id, input_tokens, output_tokens, json } => {
             show_agent_cost(&id, input_tokens, output_tokens, json).await
         }
@@ -553,6 +563,208 @@ async fn show_agent_persona(id: &str, json_output: bool) -> anyhow::Result<()> {
             println!("  2. TOML [agent.persona] section in the agent config file");
             println!();
         }
+    }
+
+    Ok(())
+}
+
+/// List all agents with persona configurations.
+async fn execute_persona_list(json_output: bool) -> anyhow::Result<()> {
+    use radium_core::agents::persona::ModelPricingDB;
+
+    let discovery = AgentDiscovery::new();
+    let agents = discovery.discover_all()?;
+    let pricing_db = ModelPricingDB::new();
+
+    let mut persona_agents = Vec::new();
+
+    for (_, agent) in agents.iter() {
+        if let Some(persona) = &agent.persona_config {
+            let mut estimated_cost = 0.0;
+            let estimated_tokens = persona.performance.estimated_tokens.unwrap_or(2000);
+            let input_tokens = (estimated_tokens as f64 * 0.7) as u64;
+            let output_tokens = (estimated_tokens as f64 * 0.3) as u64;
+            
+            estimated_cost = pricing_db
+                .get_pricing(&persona.models.primary.model)
+                .estimate_cost(input_tokens, output_tokens);
+
+            persona_agents.push((
+                agent.id.clone(),
+                agent.category.clone().unwrap_or_else(|| "unknown".to_string()),
+                format!("{:?}", persona.performance.profile),
+                format!("{}:{}", persona.models.primary.engine, persona.models.primary.model),
+                estimated_cost,
+            ));
+        }
+    }
+
+    // Sort by category then agent ID
+    persona_agents.sort_by(|a, b| {
+        a.1.cmp(&b.1).then_with(|| a.0.cmp(&b.0))
+    });
+
+    if persona_agents.is_empty() {
+        if !json_output {
+            println!("{}", "No agents with persona configurations found.".yellow());
+        }
+        return Ok(());
+    }
+
+    if json_output {
+        let output: Vec<_> = persona_agents
+            .iter()
+            .map(|(id, category, profile, model, cost)| {
+                json!({
+                    "agent_id": id,
+                    "category": category,
+                    "profile": profile,
+                    "primary_model": model,
+                    "estimated_cost_per_execution": cost,
+                })
+            })
+            .collect();
+        println!("{}", serde_json::to_string_pretty(&output)?);
+    } else {
+        println!();
+        println!("{}", "🎭 Agents with Persona Configurations".bold().cyan());
+        println!();
+
+        #[derive(Tabled)]
+        struct PersonaListRow {
+            #[tabled(rename = "Agent ID")]
+            agent_id: String,
+            #[tabled(rename = "Category")]
+            category: String,
+            #[tabled(rename = "Profile")]
+            profile: String,
+            #[tabled(rename = "Primary Model")]
+            primary_model: String,
+            #[tabled(rename = "Est. Cost/Exec ($)")]
+            cost: String,
+        }
+
+        let rows: Vec<PersonaListRow> = persona_agents
+            .iter()
+            .map(|(id, cat, profile, model, cost)| PersonaListRow {
+                agent_id: id.clone(),
+                category: cat.clone(),
+                profile: profile.clone(),
+                primary_model: model.clone(),
+                cost: format!("{:.4}", cost),
+            })
+            .collect();
+
+        let table = Table::new(rows).with(Style::rounded()).to_string();
+        println!("{}", table);
+        println!();
+    }
+
+    Ok(())
+}
+
+/// Validate persona configuration for an agent.
+async fn execute_persona_validate(agent_id: &str, json_output: bool) -> anyhow::Result<()> {
+    use radium_core::agents::persona::{ModelPricingDB, PerformanceProfile};
+
+    let discovery = AgentDiscovery::new();
+    let agent = discovery
+        .find_by_id(agent_id)?
+        .ok_or_else(|| anyhow::anyhow!("Agent '{}' not found", agent_id))?;
+
+    let pricing_db = ModelPricingDB::new();
+    let mut errors = Vec::new();
+    let mut warnings = Vec::new();
+
+    if let Some(persona) = &agent.persona_config {
+        // Validate primary model exists in pricing DB
+        if pricing_db.get_pricing(&persona.models.primary.model).input_cost_per_million == 0.0
+            && pricing_db.get_pricing(&persona.models.primary.model).output_cost_per_million == 0.0
+        {
+            warnings.push(format!(
+                "Primary model '{}' not found in pricing database (using default pricing)",
+                persona.models.primary.model
+            ));
+        }
+
+        // Validate fallback model if present
+        if let Some(fallback) = &persona.models.fallback {
+            if pricing_db.get_pricing(&fallback.model).input_cost_per_million == 0.0
+                && pricing_db.get_pricing(&fallback.model).output_cost_per_million == 0.0
+            {
+                warnings.push(format!(
+                    "Fallback model '{}' not found in pricing database (using default pricing)",
+                    fallback.model
+                ));
+            }
+        }
+
+        // Validate premium model if present
+        if let Some(premium) = &persona.models.premium {
+            if pricing_db.get_pricing(&premium.model).input_cost_per_million == 0.0
+                && pricing_db.get_pricing(&premium.model).output_cost_per_million == 0.0
+            {
+                warnings.push(format!(
+                    "Premium model '{}' not found in pricing database (using default pricing)",
+                    premium.model
+                ));
+            }
+        }
+
+        // Profile is already validated by the type system, but we can check if it's reasonable
+        match persona.performance.profile {
+            PerformanceProfile::Expert => {
+                if persona.models.premium.is_none() {
+                    warnings.push("Expert profile typically requires a premium model".to_string());
+                }
+            }
+            _ => {}
+        }
+    } else {
+        errors.push("No persona configuration found".to_string());
+    }
+
+    let is_valid = errors.is_empty();
+
+    if json_output {
+        let output = json!({
+            "agent_id": agent_id,
+            "valid": is_valid,
+            "errors": errors,
+            "warnings": warnings,
+        });
+        println!("{}", serde_json::to_string_pretty(&output)?);
+    } else {
+        println!();
+        if is_valid {
+            println!("{}", format!("✅ Persona configuration for '{}' is valid", agent_id).bold().green());
+            if !warnings.is_empty() {
+                println!();
+                println!("{}", "Warnings:".bold().yellow());
+                for warning in &warnings {
+                    println!("  ⚠ {}", warning.yellow());
+                }
+            }
+        } else {
+            println!("{}", format!("❌ Persona configuration for '{}' has errors", agent_id).bold().red());
+            println!();
+            println!("{}", "Errors:".bold().red());
+            for error in &errors {
+                println!("  • {}", error.red());
+            }
+            if !warnings.is_empty() {
+                println!();
+                println!("{}", "Warnings:".bold().yellow());
+                for warning in &warnings {
+                    println!("  ⚠ {}", warning.yellow());
+                }
+            }
+        }
+        println!();
+    }
+
+    if !is_valid {
+        anyhow::bail!("Persona validation failed");
     }
 
     Ok(())
