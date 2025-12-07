@@ -79,26 +79,26 @@ Advanced features for future implementation:
 
 | REQ ID | Title | Phase | Status | Priority | Effort |
 |--------|-------|-------|--------|----------|--------|
-| REQ-001 | Workspace System | NOW | Completed | Critical | 10-14h |
-| REQ-002 | Agent Configuration | NOW | Completed | Critical | 15-18h |
-| REQ-003 | Core CLI Commands | NOW | Completed | Critical | 11-14h |
-| REQ-004 | Workflow Behaviors | NOW | Completed | High | 21-26h |
-| REQ-005 | Plan Generation | NEXT | Completed | High | 15-20h |
-| REQ-006 | Memory & Context | NEXT | Completed | High | 19-23h |
-| REQ-007 | Monitoring & Telemetry | NEXT | Completed | High | 18-22h |
-| REQ-008 | Sandboxing | NEXT | Completed | High | 12-15h |
-| REQ-009 | MCP Integration | NEXT | Not Started | High | TBD |
-| REQ-010 | Policy Engine | NEXT | Completed | High | TBD |
-| REQ-011 | Context Files | NEXT | Not Started | High | TBD |
-| REQ-012 | Custom Commands | NEXT | Completed | High | TBD |
-| REQ-013 | Checkpointing | NEXT | Completed | High | TBD |
-| REQ-014 | Vibe Check | NEXT | Completed | High | 20-27h |
-| REQ-015 | Engine Abstraction | LATER | Completed | Medium | 15-20h |
-| REQ-016 | TUI Improvements | LATER | Completed | Medium | 15-20h |
-| REQ-017 | Agent Library | LATER | Completed | Medium | 30-40h |
-| REQ-018 | Extension System | LATER | Not Started | Low | TBD |
-| REQ-019 | Hooks System | LATER | Not Started | Low | TBD |
-| REQ-020 | Session Analytics | LATER | Completed | Low | TBD |
+| REQ-001 | Workspace System | NOW | Completed | Critical | 10-14h | [View](01-now/REQ-001-workspace-system.md) |
+| REQ-002 | Agent Configuration | NOW | Completed | Critical | 15-18h | [View](01-now/REQ-002-agent-configuration.md) |
+| REQ-003 | Core CLI Commands | NOW | Completed | Critical | 11-14h | [View](01-now/REQ-003-core-cli-commands.md) |
+| REQ-004 | Workflow Behaviors | NOW | Completed | High | 21-26h | [View](01-now/REQ-004-workflow-behaviors.md) |
+| REQ-005 | Plan Generation | NEXT | Completed | High | 15-20h | [View](02-next/REQ-005-plan-generation.md) |
+| REQ-006 | Memory & Context | NEXT | Completed | High | 19-23h | [View](02-next/REQ-006-memory-context.md) |
+| REQ-007 | Monitoring & Telemetry | NEXT | Completed | High | 18-22h | [View](02-next/REQ-007-monitoring-telemetry.md) |
+| REQ-008 | Sandboxing | NEXT | Completed | High | 12-15h | [View](02-next/REQ-008-sandboxing.md) |
+| REQ-009 | MCP Integration | NEXT | Not Started | High | 4-5h | [View](02-next/REQ-009-mcp-integration.md) |
+| REQ-010 | Policy Engine | NEXT | Completed | High | 6-7h | [View](02-next/REQ-010-policy-engine.md) |
+| REQ-011 | Context Files | NEXT | Not Started | High | 3-4h | [View](02-next/REQ-011-context-files.md) |
+| REQ-012 | Custom Commands | NEXT | Completed | High | 5-6h | [View](02-next/REQ-012-custom-commands.md) |
+| REQ-013 | Checkpointing | NEXT | Completed | High | 6-7h | [View](02-next/REQ-013-checkpointing.md) |
+| REQ-014 | Vibe Check | NEXT | Completed | High | 20-27h | [View](02-next/REQ-014-vibe-check.md) |
+| REQ-015 | Engine Abstraction | LATER | Completed | Medium | 15-20h | [View](03-later/REQ-015-engine-abstraction.md) |
+| REQ-016 | TUI Improvements | LATER | Completed | Medium | 15-20h | [View](03-later/REQ-016-tui-improvements.md) |
+| REQ-017 | Agent Library | LATER | Completed | Medium | 30-40h | [View](03-later/REQ-017-agent-library.md) |
+| REQ-018 | Extension System | LATER | Not Started | Low | TBD | [View](03-later/REQ-018-extension-system.md) |
+| REQ-019 | Hooks System | LATER | Not Started | Low | TBD | [View](03-later/REQ-019-hooks-system.md) |
+| REQ-020 | Session Analytics | LATER | Completed | Low | TBD | [View](03-later/REQ-020-session-analytics.md) |
 
 ## REQ Naming Convention
 
@@ -156,6 +156,15 @@ Each REQ is designed to be:
 - Detailed enough for task breakdown without external context
 - Structured for direct consumption by Braingrid
 - Traceable back to original documentation
+
+### Sync Status
+
+**Last Synced**: 2025-12-07  
+**Status**: ✅ All 20 REQs synced to Braingrid (PROJ-14)
+
+All local REQ documents have been synced to Braingrid for initial parity. The sync script (`scripts/sync-reqs-to-braingrid.py`) can be used to keep local and Braingrid REQs in sync.
+
+**Sync Summary**: See [SYNC_SUMMARY.md](SYNC_SUMMARY.md) for detailed sync results.
 
 ## Status Legend
 
