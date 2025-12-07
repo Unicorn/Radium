@@ -52,6 +52,9 @@ pub async fn execute(command: ExtensionCommand) -> anyhow::Result<()> {
         ExtensionCommand::Analytics { action, name, json } => {
             manage_analytics(&action, name.as_deref(), json).await
         }
+        ExtensionCommand::Graph { name, format, conflicts_only } => {
+            show_dependency_graph(name.as_deref(), &format, conflicts_only).await
+        }
     }
 }
 
@@ -1113,6 +1116,159 @@ async fn update_single_extension(
 
     manager.install_from_source(download_url, options)
         .map_err(|e| anyhow::anyhow!("Update failed: {}", e))?;
+
+    Ok(())
+}
+
+/// Manage extension analytics.
+async fn manage_analytics(action: &str, name: Option<&str>, json: bool) -> anyhow::Result<()> {
+    use radium_core::extensions::ExtensionAnalyticsService;
+    use std::path::PathBuf;
+
+    // Get analytics data directory
+    let data_dir = dirs::home_dir()
+        .ok_or_else(|| anyhow::anyhow!("Cannot determine home directory"))?
+        .join(".radium")
+        .join("analytics");
+
+    let mut service = ExtensionAnalyticsService::new(data_dir);
+
+    match action {
+        "status" => {
+            if json {
+                println!("{}", serde_json::json!({
+                    "enabled": service.is_enabled()
+                }));
+            } else {
+                if service.is_enabled() {
+                    println!("{}", "Analytics: Enabled".green());
+                } else {
+                    println!("{}", "Analytics: Disabled".bright_black());
+                    println!("{}", "Run 'rad extension analytics opt-in' to enable.".bright_black());
+                }
+            }
+        }
+        "opt-in" => {
+            service.enable()
+                .map_err(|e| anyhow::anyhow!("Failed to enable analytics: {}", e))?;
+            if !json {
+                println!("{}", "✓ Analytics enabled".green());
+                println!("{}", "Extension usage data will be collected locally.".bright_black());
+            }
+        }
+        "opt-out" => {
+            service.disable()
+                .map_err(|e| anyhow::anyhow!("Failed to disable analytics: {}", e))?;
+            if !json {
+                println!("{}", "✓ Analytics disabled".green());
+                println!("{}", "All analytics data has been cleared.".bright_black());
+            }
+        }
+        "view" => {
+            if !service.is_enabled() {
+                return Err(anyhow::anyhow!("Analytics is not enabled. Run 'rad extension analytics opt-in' first."));
+            }
+
+            if let Some(ext_name) = name {
+                let analytics = service.get_analytics(ext_name)
+                    .map_err(|e| anyhow::anyhow!("Failed to get analytics: {}", e))?;
+
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&analytics)?);
+                } else {
+                    println!("{}", format!("Analytics for '{}':", ext_name).yellow());
+                    println!("  Installs: {}", analytics.install_count);
+                    println!("  Uninstalls: {}", analytics.uninstall_count);
+                    println!("  Usage events: {}", analytics.usage_count);
+                    println!("  Error events: {}", analytics.error_count);
+                    if let Some(first) = analytics.first_installed {
+                        println!("  First installed: {}", first.format("%Y-%m-%d %H:%M:%S"));
+                    }
+                    if let Some(last) = analytics.last_used {
+                        println!("  Last used: {}", last.format("%Y-%m-%d %H:%M:%S"));
+                    }
+                }
+            } else {
+                let all_analytics = service.get_all_analytics()
+                    .map_err(|e| anyhow::anyhow!("Failed to get analytics: {}", e))?;
+
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&all_analytics)?);
+                } else {
+                    if all_analytics.is_empty() {
+                        println!("{}", "No analytics data available.".bright_black());
+                    } else {
+                        println!("{}", format!("Analytics for {} extension(s):", all_analytics.len()).yellow());
+                        for analytics in all_analytics {
+                            println!("  {}: {} installs, {} usage events", 
+                                analytics.extension_name.bright_white(),
+                                analytics.install_count,
+                                analytics.usage_count
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        "clear" => {
+            service.clear_data()
+                .map_err(|e| anyhow::anyhow!("Failed to clear analytics: {}", e))?;
+            if !json {
+                println!("{}", "✓ Analytics data cleared".green());
+            }
+        }
+        _ => {
+            return Err(anyhow::anyhow!("Unknown action: {}. Use: status, opt-in, opt-out, view, clear", action));
+        }
+    }
+
+    Ok(())
+}
+
+/// Show extension dependency graph.
+async fn show_dependency_graph(name: Option<&str>, format: &str, conflicts_only: bool) -> anyhow::Result<()> {
+    use radium_core::extensions::{ExtensionManager, DependencyGraph};
+
+    let manager = ExtensionManager::new()?;
+    let extensions = manager.list()?;
+
+    if extensions.is_empty() {
+        println!("{}", "No extensions installed.".bright_black());
+        return Ok(());
+    }
+
+    let graph = DependencyGraph::from_extensions(&extensions);
+
+    if conflicts_only {
+        let cycles = graph.detect_cycles();
+        if cycles.is_empty() {
+            println!("{}", "✓ No circular dependencies detected".green());
+        } else {
+            println!("{}", format!("Found {} circular dependency chain(s):", cycles.len()).yellow());
+            for cycle in cycles {
+                println!("  {}", cycle.join(" -> "));
+            }
+        }
+        return Ok(());
+    }
+
+    match format {
+        "dot" => {
+            println!("{}", graph.to_dot());
+        }
+        "json" => {
+            println!("{}", serde_json::to_string_pretty(&graph.to_json())?);
+        }
+        "ascii" | _ => {
+            if let Some(ext_name) = name {
+                println!("{}", format!("Dependency graph for '{}':", ext_name).yellow());
+                println!("{}", graph.to_ascii_tree(Some(ext_name)));
+            } else {
+                println!("{}", "Extension Dependency Graph:".yellow());
+                println!("{}", graph.to_ascii_tree(None));
+            }
+        }
+    }
 
     Ok(())
 }

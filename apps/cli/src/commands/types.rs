@@ -650,6 +650,37 @@ pub enum ExtensionCommand {
         #[arg(long)]
         json: bool,
     },
+
+    /// Show extension dependency graph
+    ///
+    /// # Examples
+    ///
+    /// Show full dependency graph:
+    ///   $ rad extension graph
+    ///
+    /// Show dependencies for specific extension:
+    ///   $ rad extension graph my-extension
+    ///
+    /// Export as DOT format:
+    ///   $ rad extension graph --format dot
+    ///
+    /// Export as JSON:
+    ///   $ rad extension graph --format json
+    ///
+    /// Show only conflicts:
+    ///   $ rad extension graph --conflicts-only
+    Graph {
+        /// Extension name (optional, shows full graph if not provided)
+        name: Option<String>,
+
+        /// Output format: ascii, dot, json
+        #[arg(long, default_value = "ascii")]
+        format: String,
+
+        /// Show only conflicts
+        #[arg(long)]
+        conflicts_only: bool,
+    },
 }
 
 #[derive(Subcommand, Debug, Clone)]

@@ -20,6 +20,7 @@
 pub mod analytics;
 #[cfg(feature = "workflow")]
 pub mod conflict;
+pub mod dependency_graph;
 pub mod discovery;
 pub mod installer;
 pub mod integration;
@@ -47,6 +48,7 @@ pub use structure::{
     Extension, ExtensionStructureError, default_extensions_dir, workspace_extensions_dir,
 };
 pub use analytics::{ExtensionAnalytics, ExtensionAnalyticsError, ExtensionAnalyticsService, ExtensionEvent, ExtensionEventType};
+pub use dependency_graph::{DependencyGraph, DependencyGraphError, GraphNode};
 pub use versioning::{UpdateChecker, UpdateInfo, VersionComparator, VersioningError};
 
 /// Unified error type for extension operations.
