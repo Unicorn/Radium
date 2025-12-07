@@ -187,11 +187,11 @@ impl CheckpointModal {
     fn render_diff_preview(frame: &mut Frame, area: Rect, checkpoint: &CheckpointInfo) {
         let diff_text = vec![
             format!("Diff Preview: {}", checkpoint.id),
-            "",
-            "Note: Full diff preview requires CheckpointManager integration.",
-            "This feature shows file-level changes between checkpoints.",
-            "",
-            "To see full diff, use: rad checkpoint show <id>",
+            "".to_string(),
+            "Note: Full diff preview requires CheckpointManager integration.".to_string(),
+            "This feature shows file-level changes between checkpoints.".to_string(),
+            "".to_string(),
+            "To see full diff, use: rad checkpoint show <id>".to_string(),
         ];
 
         let diff = Paragraph::new(diff_text.join("\n"))

@@ -228,7 +228,7 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
         }
         DisplayContext::Chat { .. } => {
             // Render chat with markdown support and viewport culling
-            let scroll_offset = data.scrollback_offset;
+            // Note: scrollback_offset is used in get_visible_conversation()
             
             // Calculate viewport height (subtract borders and padding)
             let viewport_height = chunks[1].height.saturating_sub(2) as usize; // Subtract top/bottom borders

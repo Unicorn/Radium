@@ -6,7 +6,6 @@ use radium_core::auth::{CredentialStore, ProviderType};
 use radium_core::mcp::{McpIntegration, SlashCommandRegistry};
 // TODO: CompletionService, CompletionEvent, CompletionOptions need to be implemented or imported from correct location
 // use radium_core::workflow::{CompletionEvent, CompletionOptions, CompletionService};
-use radium_core::Workspace;
 use radium_orchestrator::{OrchestrationConfig, OrchestrationService};
 use std::sync::Arc;
 use tokio::sync::Mutex;
