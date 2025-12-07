@@ -190,69 +190,6 @@ fn create_plan_structure(plan_dir: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Generates a basic plan from specification content.
-fn generate_basic_plan(
-    spec_content: &str,
-    requirement_id: &RequirementId,
-    folder_name: &str,
-) -> anyhow::Result<Plan> {
-    // Extract project name
-    let project_name =
-        extract_project_name(spec_content).unwrap_or_else(|| "Untitled Project".to_string());
-
-    // Parse iterations and tasks from spec (simple parsing for now)
-    let (iterations, total_tasks) = parse_spec_structure(spec_content);
-
-    let mut plan =
-        Plan::new(*requirement_id, project_name, folder_name.to_string(), "backlog".to_string());
-
-    plan.total_iterations = iterations as u32;
-    plan.total_tasks = total_tasks as u32;
-
-    Ok(plan)
-}
-
-/// Generates a plan manifest with iterations and tasks.
-fn generate_manifest(plan: &Plan, _spec_content: &str) -> PlanManifest {
-    use std::collections::HashMap;
-
-    // Generate basic iterations (for now, just create I1, I2, I3)
-    let iterations = (1..=plan.total_iterations)
-        .map(|i| Iteration {
-            id: format!("I{}", i),
-            number: i,
-            name: format!("Iteration {}", i),
-            description: Some(format!("Iteration {} tasks", i)),
-            goal: Some(format!("Complete iteration {}", i)),
-            tasks: vec![PlanTask {
-                id: format!("I{}.T1", i),
-                number: 1,
-                title: format!("Task 1 for iteration {}", i),
-                description: Some("Generated task".to_string()),
-                completed: false,
-                agent_id: None,
-                dependencies: Vec::new(),
-                acceptance_criteria: Vec::new(),
-                metadata: HashMap::new(),
-            }],
-            status: PlanStatus::NotStarted,
-            metadata: HashMap::new(),
-        })
-        .collect();
-
-    let mut metadata = HashMap::new();
-    metadata.insert("created_at".to_string(), serde_json::json!(plan.created_at.to_rfc3339()));
-    metadata.insert("updated_at".to_string(), serde_json::json!(plan.updated_at.to_rfc3339()));
-    metadata.insert("total_iterations".to_string(), serde_json::json!(plan.total_iterations));
-
-    PlanManifest {
-        requirement_id: plan.requirement_id,
-        project_name: plan.project_name.clone(),
-        iterations,
-        metadata,
-    }
-}
-
 /// Extracts project name from specification content.
 fn extract_project_name(content: &str) -> Option<String> {
     // Look for first # header
@@ -263,35 +200,6 @@ fn extract_project_name(content: &str) -> Option<String> {
         }
     }
     None
-}
-
-/// Parses specification structure to count iterations and tasks.
-fn parse_spec_structure(content: &str) -> (usize, usize) {
-    let mut iterations = 0;
-    let mut tasks = 0;
-
-    for line in content.lines() {
-        let trimmed = line.trim();
-        // Count ## headers as iterations
-        if trimmed.starts_with("## ") {
-            iterations += 1;
-        }
-        // Count - [ ] as tasks
-        if trimmed.starts_with("- [ ]") || trimmed.starts_with("* [ ]") {
-            tasks += 1;
-        }
-    }
-
-    // Ensure at least 1 iteration
-    if iterations == 0 {
-        iterations = 1;
-    }
-    // Ensure at least 1 task per iteration
-    if tasks == 0 {
-        tasks = iterations;
-    }
-
-    (iterations, tasks)
 }
 
 /// Converts a string to a URL-friendly slug.
