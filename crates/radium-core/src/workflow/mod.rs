@@ -12,6 +12,7 @@ pub mod executor;
 pub mod failure;
 pub mod parallel;
 pub mod recovery;
+pub mod reassignment;
 pub mod service;
 pub mod step_tracking;
 pub mod template_discovery;
@@ -30,6 +31,10 @@ pub use failure::{
 };
 pub use recovery::{
     RecoveryContext, RecoveryError, RecoveryManager, RecoveryStrategy, Result as RecoveryResult,
+};
+pub use reassignment::{
+    AgentPerformanceTracker, AgentReassignment, AgentSelector, AgentStats, ReassignmentError,
+    ReassignmentReason, ReassignmentRecord,
 };
 pub use service::{WorkflowExecution, WorkflowService};
 pub use step_tracking::{StepRecord, StepStatus, StepTracker, StepTrackingError};

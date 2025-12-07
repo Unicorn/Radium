@@ -239,6 +239,50 @@ impl AgentRegistry {
         Ok(agents.len())
     }
 
+    /// Finds agents by category.
+    ///
+    /// # Arguments
+    /// * `category` - The category to match (case-insensitive partial match)
+    ///
+    /// # Returns
+    /// Vector of agents in the category
+    ///
+    /// # Errors
+    /// Returns error if lock is poisoned
+    pub fn find_by_category(&self, category: &str) -> Result<Vec<AgentConfig>> {
+        let category_lower = category.to_lowercase();
+        self.filter(|agent| {
+            agent.category
+                .as_ref()
+                .map(|c| c.to_lowercase().contains(&category_lower))
+                .unwrap_or(false)
+        })
+    }
+
+    /// Finds agents similar to a given agent (same category).
+    ///
+    /// # Arguments
+    /// * `agent_id` - The agent ID to find similar agents for
+    ///
+    /// # Returns
+    /// Vector of similar agents (excluding the original)
+    ///
+    /// # Errors
+    /// Returns error if agent not found or lock is poisoned
+    pub fn find_similar(&self, agent_id: &str) -> Result<Vec<AgentConfig>> {
+        let agent = self.get(agent_id)?;
+        let category = agent.category.clone();
+
+        if let Some(cat) = category {
+            self.find_by_category(&cat).map(|mut agents| {
+                agents.retain(|a| a.id != agent_id);
+                agents
+            })
+        } else {
+            Ok(Vec::new())
+        }
+    }
+
     /// Clears all registered agents.
     ///
     /// # Errors
