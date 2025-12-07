@@ -57,11 +57,20 @@ pub struct ExtensionComponents {
     /// Custom command file paths (glob patterns).
     #[serde(default)]
     pub commands: Vec<String>,
+
+    /// Hook file paths (glob patterns for native libraries or WASM modules).
+    #[serde(default)]
+    pub hooks: Vec<String>,
 }
 
 impl Default for ExtensionComponents {
     fn default() -> Self {
-        Self { prompts: Vec::new(), mcp_servers: Vec::new(), commands: Vec::new() }
+        Self {
+            prompts: Vec::new(),
+            mcp_servers: Vec::new(),
+            commands: Vec::new(),
+            hooks: Vec::new(),
+        }
     }
 }
 
@@ -196,6 +205,14 @@ impl ExtensionManifest {
             }
         }
 
+        for path in &self.components.hooks {
+            if path.trim().is_empty() {
+                return Err(ExtensionManifestError::InvalidComponentPath(
+                    "empty hook path".to_string(),
+                ));
+            }
+        }
+
         Ok(())
     }
 
@@ -264,7 +281,8 @@ mod tests {
             "components": {
                 "prompts": ["prompts/*.md"],
                 "mcp_servers": ["mcp/*.json"],
-                "commands": ["commands/*.toml"]
+                "commands": ["commands/*.toml"],
+                "hooks": ["hooks/*.so"]
             },
             "dependencies": []
         }"#;
@@ -279,6 +297,7 @@ mod tests {
         assert_eq!(manifest.components.prompts.len(), 1);
         assert_eq!(manifest.components.mcp_servers.len(), 1);
         assert_eq!(manifest.components.commands.len(), 1);
+        assert_eq!(manifest.components.hooks.len(), 1);
     }
 
     #[test]
@@ -517,6 +536,27 @@ mod tests {
         assert!(manifest.components.prompts.is_empty());
         assert!(manifest.components.mcp_servers.is_empty());
         assert!(manifest.components.commands.is_empty());
+        assert!(manifest.components.hooks.is_empty());
+    }
+
+    #[test]
+    fn test_validate_empty_hook_path() {
+        let mut components = ExtensionComponents::default();
+        components.hooks.push("".to_string());
+
+        let manifest = ExtensionManifest {
+            name: "test".to_string(),
+            version: "1.0.0".to_string(),
+            description: "Test".to_string(),
+            author: "Author".to_string(),
+            components,
+            dependencies: Vec::new(),
+            metadata: HashMap::new(),
+        };
+
+        let result = manifest.validate();
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ExtensionManifestError::InvalidComponentPath(_)));
     }
 
     #[test]
@@ -530,6 +570,7 @@ mod tests {
                 prompts: vec!["prompts/*.md".to_string()],
                 mcp_servers: vec!["mcp/*.json".to_string()],
                 commands: vec!["commands/*.toml".to_string()],
+                hooks: vec!["hooks/*.so".to_string()],
             },
             dependencies: vec!["dep1".to_string()],
             metadata: HashMap::new(),
@@ -541,5 +582,6 @@ mod tests {
         assert_eq!(manifest.name, deserialized.name);
         assert_eq!(manifest.version, deserialized.version);
         assert_eq!(manifest.components.prompts.len(), deserialized.components.prompts.len());
+        assert_eq!(manifest.components.hooks.len(), deserialized.components.hooks.len());
     }
 }

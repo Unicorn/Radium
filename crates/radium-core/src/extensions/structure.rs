@@ -30,6 +30,7 @@ pub type Result<T> = std::result::Result<T, ExtensionStructureError>;
 pub const COMPONENT_PROMPTS: &str = "prompts";
 pub const COMPONENT_MCP: &str = "mcp";
 pub const COMPONENT_COMMANDS: &str = "commands";
+pub const COMPONENT_HOOKS: &str = "hooks";
 
 /// Manifest file name.
 pub const MANIFEST_FILE: &str = "radium-extension.json";
@@ -81,6 +82,11 @@ impl Extension {
         self.install_path.join(COMPONENT_COMMANDS)
     }
 
+    /// Gets the hooks directory path.
+    pub fn hooks_dir(&self) -> PathBuf {
+        self.install_path.join(COMPONENT_HOOKS)
+    }
+
     /// Gets the manifest file path.
     pub fn manifest_path(&self) -> PathBuf {
         self.install_path.join(MANIFEST_FILE)
@@ -130,6 +136,16 @@ impl Extension {
                 return Err(ExtensionStructureError::InvalidStructure(format!(
                     "commands directory not found: {}",
                     commands_dir.display()
+                )));
+            }
+        }
+
+        if !self.manifest.components.hooks.is_empty() {
+            let hooks_dir = self.hooks_dir();
+            if !hooks_dir.exists() {
+                return Err(ExtensionStructureError::InvalidStructure(format!(
+                    "hooks directory not found: {}",
+                    hooks_dir.display()
                 )));
             }
         }
@@ -220,6 +236,31 @@ impl Extension {
 
         Ok(paths)
     }
+
+    /// Gets all hook file paths based on manifest patterns.
+    pub fn get_hook_paths(&self) -> Result<Vec<PathBuf>> {
+        let hooks_dir = self.hooks_dir();
+        let mut paths = Vec::new();
+
+        for pattern in &self.manifest.components.hooks {
+            let resolved = self.resolve_component_path(pattern);
+            if resolved.exists() && resolved.is_file() {
+                paths.push(resolved);
+            } else if hooks_dir.exists() {
+                // Try to match pattern in hooks directory
+                let glob_pattern = hooks_dir.join(pattern);
+                if let Ok(matched) = glob::glob(&glob_pattern.to_string_lossy()) {
+                    for entry in matched.flatten() {
+                        if entry.is_file() {
+                            paths.push(entry);
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(paths)
+    }
 }
 
 /// Gets the default user-level extensions directory.
@@ -298,6 +339,16 @@ pub fn validate_package_structure(package_path: &Path) -> Result<()> {
         }
     }
 
+    if !manifest.components.hooks.is_empty() {
+        let hooks_dir = package_path.join(COMPONENT_HOOKS);
+        if !hooks_dir.exists() {
+            return Err(ExtensionStructureError::InvalidStructure(format!(
+                "hooks directory not found: {}",
+                hooks_dir.display()
+            )));
+        }
+    }
+
     Ok(())
 }
 
@@ -341,6 +392,7 @@ mod tests {
         assert_eq!(extension.prompts_dir(), PathBuf::from("/extensions/test-ext/prompts"));
         assert_eq!(extension.mcp_dir(), PathBuf::from("/extensions/test-ext/mcp"));
         assert_eq!(extension.commands_dir(), PathBuf::from("/extensions/test-ext/commands"));
+        assert_eq!(extension.hooks_dir(), PathBuf::from("/extensions/test-ext/hooks"));
         assert_eq!(
             extension.manifest_path(),
             PathBuf::from("/extensions/test-ext/radium-extension.json")
@@ -488,6 +540,16 @@ mod tests {
         let extension = Extension::new(manifest, install_path);
 
         let paths = extension.get_command_paths().unwrap();
+        assert!(paths.is_empty());
+    }
+
+    #[test]
+    fn test_extension_get_hook_paths_empty() {
+        let manifest = create_test_manifest("test-ext");
+        let install_path = PathBuf::from("/extensions/test-ext");
+        let extension = Extension::new(manifest, install_path);
+
+        let paths = extension.get_hook_paths().unwrap();
         assert!(paths.is_empty());
     }
 }
