@@ -253,11 +253,11 @@ impl WorkflowGenerator {
     }
 
     /// Finds a task in the plan by task ID.
-    fn find_task_in_plan(
+    fn find_task_in_plan<'a>(
         &self,
-        plan: &ParsedPlan,
+        plan: &'a ParsedPlan,
         task_id: &str,
-    ) -> Option<(&ParsedIteration, &ParsedTask)> {
+    ) -> Option<(&'a ParsedIteration, &'a ParsedTask)> {
         for iteration in &plan.iterations {
             let iter_prefix = format!("I{}.T", iteration.number);
             if let Some(task_num_str) = task_id.strip_prefix(&iter_prefix) {

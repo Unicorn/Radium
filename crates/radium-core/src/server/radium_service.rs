@@ -78,7 +78,7 @@ impl RadiumService {
                 let worker_id = worker_id.to_string();
                 let task_input = task_input.to_string();
                 Box::pin(async move {
-                    match orchestrator.execute_agent(&worker_id, &task_input).await {
+                    match orchestrator.execute_agent(Some(&worker_id), &task_input, None).await {
                         Ok(result) => Ok(crate::collaboration::delegation::WorkerExecutionResult {
                             success: result.success,
                             output: Some(format!("{:?}", result.output)),
@@ -606,7 +606,7 @@ impl Radium for RadiumService {
                 .execute_agent_with_model(&agent_id, &inner.input, model_type, model_id)
                 .await
         } else {
-            self.orchestrator.execute_agent(&agent_id, &inner.input).await
+            self.orchestrator.execute_agent(Some(&agent_id), &inner.input, None).await
         };
 
         match result {
