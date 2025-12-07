@@ -6,7 +6,9 @@ use super::{AgentsCommand, MigrateSubcommand};
 use colored::Colorize;
 use radium_core::agents::config::{AgentConfig, AgentConfigFile, ReasoningEffort};
 use radium_core::agents::discovery::AgentDiscovery;
-use radium_core::agents::registry::{AgentRegistry, FilterCriteria, SortOrder};
+use radium_core::agents::registry::{
+    AgentRegistry, FilterCriteria, LogicMode, SearchMode, SortField, SortOrder,
+};
 use serde_json::json;
 use std::collections::HashMap;
 use std::fs;
@@ -23,9 +25,23 @@ pub async fn execute(command: AgentsCommand) -> anyhow::Result<()> {
             category,
             engine,
             model,
+            tags,
             sort,
+            fuzzy,
+            or,
         } => {
-            search_agents(&query, json, category.as_deref(), engine.as_deref(), model.as_deref(), sort.as_deref()).await
+            search_agents(
+                &query,
+                json,
+                category.as_deref(),
+                engine.as_deref(),
+                model.as_deref(),
+                tags.as_deref(),
+                sort.as_deref(),
+                fuzzy,
+                or,
+            )
+            .await
         }
         AgentsCommand::Info { id, json } => show_agent_info(&id, json).await,
         AgentsCommand::Validate { verbose, json } => validate_agents(verbose, json).await,
@@ -112,8 +128,12 @@ async fn search_agents(
     category_filter: Option<&str>,
     engine_filter: Option<&str>,
     model_filter: Option<&str>,
+    tags_filter: Option<&str>,
     sort_option: Option<&str>,
+    fuzzy: bool,
+    or_logic: bool,
 ) -> anyhow::Result<()> {
+
     // Create registry and discover agents
     let registry = AgentRegistry::with_discovery()?;
 
@@ -128,39 +148,81 @@ async fn search_agents(
     if let Some(modl) = model_filter {
         criteria.model = Some(modl.to_string());
     }
+    if let Some(tags_str) = tags_filter {
+        criteria.tags = Some(tags_str.split(',').map(|s| s.trim().to_string()).collect());
+    }
+
+    // Set search mode and logic mode
+    criteria.search_mode = if fuzzy {
+        SearchMode::Fuzzy
+    } else {
+        SearchMode::Contains
+    };
+    criteria.logic_mode = if or_logic {
+        LogicMode::Or
+    } else {
+        LogicMode::And
+    };
 
     // Apply filters if any are specified
     let mut candidates = if criteria.category.is_some()
         || criteria.engine.is_some()
         || criteria.model.is_some()
+        || criteria.tags.is_some()
     {
         registry.filter_combined(&criteria)?
     } else {
         registry.list_all()?
     };
 
-    // Apply text search query
-    let query_lower = query.to_lowercase();
-    candidates.retain(|config| {
-        config.id.to_lowercase().contains(&query_lower)
-            || config.name.to_lowercase().contains(&query_lower)
-            || config.description.to_lowercase().contains(&query_lower)
-            || config
-                .category
-                .as_ref()
-                .map(|c| c.to_lowercase().contains(&query_lower))
-                .unwrap_or(false)
-    });
+    // Apply text search query using the search mode
+    if !query.is_empty() {
+        let search_mode = if fuzzy {
+            SearchMode::Fuzzy
+        } else {
+            SearchMode::Contains
+        };
+        let search_results = registry.search_with_mode(query, search_mode)?;
+        // Intersect with filtered results
+        let search_ids: std::collections::HashSet<String> =
+            search_results.iter().map(|a| a.id.clone()).collect();
+        candidates.retain(|config| search_ids.contains(&config.id));
+    }
 
     // Apply sorting if specified
     if let Some(sort_str) = sort_option {
-        let sort_order = match sort_str.to_lowercase().as_str() {
-            "name" => SortOrder::Name,
-            "category" => SortOrder::Category,
-            "engine" => SortOrder::Engine,
-            _ => {
-                eprintln!("{} Invalid sort option: {}. Valid options: name, category, engine", "⚠️".yellow(), sort_str);
-                SortOrder::Name // Default to name
+        let sort_order = if sort_str.contains(',') {
+            // Multi-field sort
+            let fields: Vec<SortField> = sort_str
+                .split(',')
+                .map(|s| s.trim().to_lowercase())
+                .filter_map(|s| match s.as_str() {
+                    "name" => Some(SortField::Name),
+                    "category" => Some(SortField::Category),
+                    "engine" => Some(SortField::Engine),
+                    "model" => Some(SortField::Model),
+                    "id" => Some(SortField::Id),
+                    _ => None,
+                })
+                .collect();
+            if fields.is_empty() {
+                SortOrder::Name
+            } else {
+                SortOrder::Multiple(fields)
+            }
+        } else {
+            match sort_str.to_lowercase().as_str() {
+                "name" => SortOrder::Name,
+                "category" => SortOrder::Category,
+                "engine" => SortOrder::Engine,
+                _ => {
+                    eprintln!(
+                        "{} Invalid sort option: {}. Valid options: name, category, engine, model, id or comma-separated (e.g., category,name)",
+                        "⚠️".yellow(),
+                        sort_str
+                    );
+                    SortOrder::Name // Default to name
+                }
             }
         };
         // Create a temporary registry with filtered agents for sorting
@@ -217,7 +279,11 @@ async fn search_agents(
             "{}",
             format!("🔍 Found {} matching agents for '{}'", matches.len(), query).bold().green()
         );
-        if category_filter.is_some() || engine_filter.is_some() || model_filter.is_some() {
+        if category_filter.is_some()
+            || engine_filter.is_some()
+            || model_filter.is_some()
+            || tags_filter.is_some()
+        {
             println!("  {} Filters applied:", "•".cyan());
             if let Some(cat) = category_filter {
                 println!("    Category: {}", cat.cyan());
@@ -227,6 +293,15 @@ async fn search_agents(
             }
             if let Some(modl) = model_filter {
                 println!("    Model: {}", modl.cyan());
+            }
+            if let Some(tags) = tags_filter {
+                println!("    Tags: {}", tags.cyan());
+            }
+            if fuzzy {
+                println!("    Search mode: {}", "fuzzy".cyan());
+            }
+            if or_logic {
+                println!("    Logic: {}", "OR".cyan());
             }
         }
         if let Some(sort_str) = sort_option {

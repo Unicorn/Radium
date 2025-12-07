@@ -66,9 +66,21 @@ pub enum AgentsCommand {
         #[arg(long)]
         model: Option<String>,
 
-        /// Sort results by field (name, category, engine)
+        /// Filter by tags (comma-separated)
+        #[arg(long)]
+        tags: Option<String>,
+
+        /// Sort results by field (name, category, engine) or multiple fields (category,name)
         #[arg(long)]
         sort: Option<String>,
+
+        /// Use fuzzy search instead of exact/contains
+        #[arg(long)]
+        fuzzy: bool,
+
+        /// Use OR logic for filters (default: AND)
+        #[arg(long)]
+        or: bool,
     },
 
     /// Show detailed information about a specific agent
@@ -410,5 +422,49 @@ pub enum CustomCommand {
         /// Show detailed validation information
         #[arg(short, long)]
         verbose: bool,
+    },
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum EnginesCommand {
+    /// List all available engines
+    List {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Show detailed information about a specific engine
+    Show {
+        /// Engine ID
+        engine_id: String,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Show authentication status for all engines
+    Status {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Set the default engine
+    SetDefault {
+        /// Engine ID
+        engine_id: String,
+    },
+
+    /// Check health of all engines
+    Health {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+
+        /// Timeout in seconds for each health check
+        #[arg(long, default_value = "5")]
+        timeout: u64,
     },
 }

@@ -7,9 +7,42 @@ use crate::agents::discovery::{AgentDiscovery, DiscoveryOptions};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use thiserror::Error;
+use strsim::levenshtein;
+
+/// Search mode for text matching.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SearchMode {
+    /// Exact match (case-insensitive).
+    Exact,
+    /// Contains match (substring, case-insensitive).
+    Contains,
+    /// Fuzzy match using Levenshtein distance.
+    Fuzzy,
+}
+
+impl Default for SearchMode {
+    fn default() -> Self {
+        SearchMode::Contains
+    }
+}
+
+/// Logic mode for combining filter criteria.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LogicMode {
+    /// All criteria must match (AND).
+    And,
+    /// Any criteria can match (OR).
+    Or,
+}
+
+impl Default for LogicMode {
+    fn default() -> Self {
+        LogicMode::And
+    }
+}
 
 /// Filter criteria for agent filtering.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct FilterCriteria {
     /// Filter by category (partial match, case-insensitive).
     pub category: Option<String>,
@@ -17,10 +50,32 @@ pub struct FilterCriteria {
     pub engine: Option<String>,
     /// Filter by model (partial match, case-insensitive).
     pub model: Option<String>,
+    /// Filter by tags (any tag must match).
+    pub tags: Option<Vec<String>>,
+    /// Search mode for text matching.
+    pub search_mode: SearchMode,
+    /// Logic mode for combining criteria.
+    pub logic_mode: LogicMode,
+    /// Similarity threshold for fuzzy search (0.0 to 1.0, default 0.7).
+    pub fuzzy_threshold: f64,
+}
+
+impl Default for FilterCriteria {
+    fn default() -> Self {
+        Self {
+            category: None,
+            engine: None,
+            model: None,
+            tags: None,
+            search_mode: SearchMode::Contains,
+            logic_mode: LogicMode::And,
+            fuzzy_threshold: 0.7,
+        }
+    }
 }
 
 /// Sort order for agent sorting.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SortOrder {
     /// Sort by agent name (alphabetical).
     Name,
@@ -28,6 +83,23 @@ pub enum SortOrder {
     Category,
     /// Sort by engine (alphabetical).
     Engine,
+    /// Sort by multiple fields (chained sorting).
+    Multiple(Vec<SortField>),
+}
+
+/// Sort field for multi-field sorting.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SortField {
+    /// Sort by agent name.
+    Name,
+    /// Sort by category.
+    Category,
+    /// Sort by engine.
+    Engine,
+    /// Sort by model.
+    Model,
+    /// Sort by ID.
+    Id,
 }
 
 /// Agent registry errors.
@@ -220,12 +292,57 @@ impl AgentRegistry {
     ///
     /// Returns error if lock is poisoned.
     pub fn search(&self, query: &str) -> Result<Vec<AgentConfig>> {
+        self.search_with_mode(query, SearchMode::Contains)
+    }
+
+    /// Searches agents with a specific search mode.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if lock is poisoned.
+    pub fn search_with_mode(&self, query: &str, mode: SearchMode) -> Result<Vec<AgentConfig>> {
         let query_lower = query.to_lowercase();
+        let threshold = 0.7; // Default fuzzy threshold
 
         self.filter(|agent| {
-            agent.name.to_lowercase().contains(&query_lower)
-                || agent.description.to_lowercase().contains(&query_lower)
+            let name_lower = agent.name.to_lowercase();
+            let desc_lower = agent.description.to_lowercase();
+            let id_lower = agent.id.to_lowercase();
+
+            match mode {
+                SearchMode::Exact => {
+                    name_lower == query_lower
+                        || desc_lower == query_lower
+                        || id_lower == query_lower
+                }
+                SearchMode::Contains => {
+                    name_lower.contains(&query_lower)
+                        || desc_lower.contains(&query_lower)
+                        || id_lower.contains(&query_lower)
+                }
+                SearchMode::Fuzzy => {
+                    Self::fuzzy_match(&name_lower, &query_lower, threshold)
+                        || Self::fuzzy_match(&desc_lower, &query_lower, threshold)
+                        || Self::fuzzy_match(&id_lower, &query_lower, threshold)
+                }
+            }
         })
+    }
+
+    /// Checks if two strings match using fuzzy matching.
+    fn fuzzy_match(text: &str, query: &str, threshold: f64) -> bool {
+        if text.is_empty() || query.is_empty() {
+            return false;
+        }
+
+        let distance = levenshtein(text, query);
+        let max_len = text.len().max(query.len());
+        if max_len == 0 {
+            return false;
+        }
+
+        let similarity = 1.0 - (distance as f64 / max_len as f64);
+        similarity >= threshold
     }
 
     /// Returns the number of registered agents.
@@ -351,43 +468,73 @@ impl AgentRegistry {
 
     /// Filters agents using combined criteria.
     ///
-    /// All specified criteria must match (AND logic).
+    /// Uses AND or OR logic based on `criteria.logic_mode`.
     ///
     /// # Errors
     ///
     /// Returns error if lock is poisoned.
     pub fn filter_combined(&self, criteria: &FilterCriteria) -> Result<Vec<AgentConfig>> {
         self.filter(|agent| {
+            let mut matches = Vec::new();
+
             // Category filter
             if let Some(ref category) = criteria.category {
                 let category_lower = category.to_lowercase();
-                if !agent.category.as_ref().map_or(false, |c| {
-                    c.to_lowercase().contains(&category_lower)
-                }) {
-                    return false;
-                }
+                let agent_category = agent.category.as_ref().map(|c| c.to_lowercase()).unwrap_or_default();
+                matches.push(Self::match_field(&agent_category, &category_lower, criteria.search_mode, criteria.fuzzy_threshold));
             }
 
             // Engine filter
             if let Some(ref engine) = criteria.engine {
                 let engine_lower = engine.to_lowercase();
-                if !agent.engine.as_ref().map_or(false, |e| e.to_lowercase() == engine_lower) {
-                    return false;
-                }
+                let agent_engine = agent.engine.as_ref().map(|e| e.to_lowercase()).unwrap_or_default();
+                matches.push(Self::match_field(&agent_engine, &engine_lower, SearchMode::Exact, criteria.fuzzy_threshold));
             }
 
             // Model filter
             if let Some(ref model) = criteria.model {
                 let model_lower = model.to_lowercase();
-                if !agent.model.as_ref().map_or(false, |m| {
-                    m.to_lowercase().contains(&model_lower)
-                }) {
-                    return false;
-                }
+                let agent_model = agent.model.as_ref().map(|m| m.to_lowercase()).unwrap_or_default();
+                matches.push(Self::match_field(&agent_model, &model_lower, criteria.search_mode, criteria.fuzzy_threshold));
             }
 
-            true
+            // Tags filter
+            if let Some(ref tags) = criteria.tags {
+                let agent_tags = Self::extract_tags(agent);
+                let tag_match = tags.iter().any(|tag| {
+                    agent_tags.iter().any(|agent_tag| {
+                        Self::match_field(agent_tag, tag, criteria.search_mode, criteria.fuzzy_threshold)
+                    })
+                });
+                matches.push(tag_match);
+            }
+
+            // Apply logic mode
+            if matches.is_empty() {
+                true // No filters specified, include all
+            } else {
+                match criteria.logic_mode {
+                    LogicMode::And => matches.iter().all(|&m| m),
+                    LogicMode::Or => matches.iter().any(|&m| m),
+                }
+            }
         })
+    }
+
+    /// Matches a field value against a query using the specified search mode.
+    fn match_field(field: &str, query: &str, mode: SearchMode, threshold: f64) -> bool {
+        match mode {
+            SearchMode::Exact => field == query,
+            SearchMode::Contains => field.contains(query),
+            SearchMode::Fuzzy => Self::fuzzy_match(field, query, threshold),
+        }
+    }
+
+    /// Extracts tags from an agent (placeholder - tags not yet in AgentConfig).
+    /// This is a placeholder for future tag support.
+    fn extract_tags(_agent: &AgentConfig) -> Vec<String> {
+        // TODO: Extract tags from agent metadata when tags are added to AgentConfig
+        Vec::new()
     }
 
     /// Sorts agents by the specified order.
@@ -416,6 +563,38 @@ impl AgentRegistry {
                         .as_ref()
                         .unwrap_or(&String::new())
                         .cmp(b.engine.as_ref().unwrap_or(&String::new()))
+                });
+            }
+            SortOrder::Multiple(fields) => {
+                agents.sort_by(|a, b| {
+                    for field in &fields {
+                        let cmp = match field {
+                            SortField::Name => a.name.cmp(&b.name),
+                            SortField::Category => {
+                                a.category
+                                    .as_ref()
+                                    .unwrap_or(&String::new())
+                                    .cmp(b.category.as_ref().unwrap_or(&String::new()))
+                            }
+                            SortField::Engine => {
+                                a.engine
+                                    .as_ref()
+                                    .unwrap_or(&String::new())
+                                    .cmp(b.engine.as_ref().unwrap_or(&String::new()))
+                            }
+                            SortField::Model => {
+                                a.model
+                                    .as_ref()
+                                    .unwrap_or(&String::new())
+                                    .cmp(b.model.as_ref().unwrap_or(&String::new()))
+                            }
+                            SortField::Id => a.id.cmp(&b.id),
+                        };
+                        if cmp != std::cmp::Ordering::Equal {
+                            return cmp;
+                        }
+                    }
+                    std::cmp::Ordering::Equal
                 });
             }
         }
