@@ -1,0 +1,8 @@
+name = "example"
+description = "An example custom command"
+version = "1.0.0"
+
+[command]
+executable = "echo"
+args = ["Hello from extension command!"]
+

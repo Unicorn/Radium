@@ -38,8 +38,30 @@ rad extension info my-extension
 
 ### Searching Extensions
 
+Search locally installed extensions:
+
 ```bash
 rad extension search "github"
+```
+
+Search marketplace extensions:
+
+```bash
+rad extension search "github" --marketplace-only
+```
+
+Search both local and marketplace:
+
+```bash
+rad extension search "github"
+```
+
+### Browsing Marketplace
+
+Browse popular extensions from the marketplace:
+
+```bash
+rad extension browse
 ```
 
 ### Creating a New Extension
@@ -52,6 +74,36 @@ rad extension create my-extension --author "Your Name" --description "My extensi
 
 ```bash
 rad extension uninstall my-extension
+```
+
+### Installing from Marketplace
+
+Install an extension directly from the marketplace by name:
+
+```bash
+rad extension install marketplace-extension-name
+```
+
+### Signing and Verifying Extensions
+
+Sign an extension:
+
+```bash
+rad extension sign ./my-extension --generate-key
+```
+
+Verify an extension signature:
+
+```bash
+rad extension verify my-extension
+```
+
+### Publishing to Marketplace
+
+Publish your extension to the marketplace:
+
+```bash
+rad extension publish ./my-extension --api-key YOUR_API_KEY
 ```
 
 ### Advanced Installation Options
@@ -124,7 +176,9 @@ Project-level extensions take precedence over user-level extensions.
 
 ## Documentation
 
+- [Quickstart Guide](quickstart.md) - Get started in 10 minutes
 - [Creating Extensions](creating-extensions.md) - Guide for extension authors
+- [Publishing Guide](publishing-guide.md) - How to publish to the marketplace
 - [Architecture](architecture.md) - Technical architecture documentation
 
 ## Examples
