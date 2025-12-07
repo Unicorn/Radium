@@ -35,7 +35,7 @@ impl Model for RecoverableErrorModel {
         
         if attempt < self.max_failures {
             // Simulate recoverable error
-            Err(ModelError::ApiError(format!("{}: {}", self.error_message, attempt)))
+            Err(ModelError::RequestError(format!("{}: {}", self.error_message, attempt)))
         } else {
             // Succeed after max_failures attempts
             Ok(ModelResponse {
@@ -80,7 +80,7 @@ impl Model for FatalErrorModel {
         _params: Option<ModelParameters>,
     ) -> Result<ModelResponse, ModelError> {
         // Always fail with fatal error
-        Err(ModelError::ApiError(self.error_message.clone()))
+        Err(ModelError::RequestError(self.error_message.clone()))
     }
 
     async fn generate_chat_completion(

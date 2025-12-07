@@ -2249,6 +2249,7 @@ dependencies = [
  "clap",
  "clap_complete",
  "colored",
+ "criterion",
  "dirs",
  "inquire",
  "predicates",
