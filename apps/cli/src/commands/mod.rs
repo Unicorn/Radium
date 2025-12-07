@@ -22,4 +22,5 @@ pub mod templates;
 pub mod types;
 
 // Re-export types for convenience
-pub use types::{AgentsCommand, AuthCommand, ContextCommand, ExtensionCommand, HooksCommand, TemplatesCommand};
+pub use types::{AgentsCommand, AuthCommand, ExtensionCommand, HooksCommand, TemplatesCommand};
+pub use context::ContextCommand;

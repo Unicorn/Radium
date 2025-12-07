@@ -258,7 +258,7 @@ enum Command {
 }
 
 // Command types are now in commands::types module
-use commands::{AgentsCommand, AuthCommand, ContextCommand, ExtensionCommand, HooksCommand, TemplatesCommand};
+use commands::{AgentsCommand, AuthCommand, ExtensionCommand, TemplatesCommand};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

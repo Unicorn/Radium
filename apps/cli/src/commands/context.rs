@@ -259,7 +259,7 @@ async fn validate_context_files() -> Result<()> {
 }
 
 /// Context command subcommands.
-#[derive(Debug, Clone)]
+#[derive(clap::Subcommand, Debug, Clone)]
 pub enum ContextCommand {
     /// List all context files in workspace.
     List,
