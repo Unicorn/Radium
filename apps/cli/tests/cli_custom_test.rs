@@ -18,8 +18,7 @@ fn create_test_command(temp_dir: &TempDir, name: &str, description: &str, templa
     fs::create_dir_all(&commands_dir).unwrap();
 
     let toml_content = format!(
-        r#"[command]
-name = "{}"
+        r#"name = "{}"
 description = "{}"
 template = "{}"
 "#,
@@ -35,8 +34,7 @@ fn create_namespaced_command(temp_dir: &TempDir, namespace: &str, name: &str, de
     fs::create_dir_all(&commands_dir).unwrap();
 
     let toml_content = format!(
-        r#"[command]
-name = "{}"
+        r#"name = "{}"
 description = "{}"
 template = "{}"
 "#,
