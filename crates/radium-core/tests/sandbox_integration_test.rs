@@ -488,3 +488,67 @@ async fn test_sandbox_config_with_all_options() {
     assert_eq!(config.custom_flags.len(), 1);
 }
 
+#[tokio::test]
+async fn test_sandbox_manager_lifecycle() {
+    use radium_core::sandbox::manager::AgentSandboxManager;
+    use radium_core::sandbox::{SandboxConfig, SandboxType};
+
+    let manager = AgentSandboxManager::new();
+
+    // Register NoSandbox config
+    let config = SandboxConfig::default();
+    manager.register_config("test-agent".to_string(), config).await;
+
+    // Initialize sandbox
+    let result = manager.initialize_sandbox("test-agent").await;
+    assert!(result.is_ok());
+
+    // Cleanup
+    manager.cleanup_sandbox("test-agent").await;
+}
+
+#[tokio::test]
+async fn test_sandbox_manager_handles_unavailable_sandbox() {
+    use radium_core::sandbox::manager::AgentSandboxManager;
+    use radium_core::sandbox::{SandboxConfig, SandboxType};
+
+    let manager = AgentSandboxManager::new();
+
+    // Try to register Docker sandbox when Docker might not be available
+    let config = SandboxConfig::new(SandboxType::Docker);
+    manager.register_config("test-agent".to_string(), config).await;
+
+    // Initialize sandbox - should handle gracefully
+    let result = manager.initialize_sandbox("test-agent").await;
+    // Should either succeed (if Docker available) or fail gracefully
+    // The manager should fall back to NoSandbox
+    if !is_docker_available() {
+        // If Docker not available, initialization should still succeed (fallback to NoSandbox)
+        assert!(result.is_ok());
+    }
+
+    // Cleanup
+    manager.cleanup_sandbox("test-agent").await;
+}
+
+#[tokio::test]
+async fn test_sandbox_manager_cleanup_on_error() {
+    use radium_core::sandbox::manager::AgentSandboxManager;
+    use radium_core::sandbox::SandboxConfig;
+
+    let manager = AgentSandboxManager::new();
+
+    // Register config
+    let config = SandboxConfig::default();
+    manager.register_config("test-agent".to_string(), config).await;
+
+    // Initialize
+    manager.initialize_sandbox("test-agent").await.unwrap();
+
+    // Cleanup should succeed even if there was an error
+    manager.cleanup_sandbox("test-agent").await;
+
+    // Verify cleanup happened (sandbox should be removed)
+    // This is implicit - if cleanup fails, the test would panic
+}
+

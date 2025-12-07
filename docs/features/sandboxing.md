@@ -2,6 +2,19 @@
 
 Radium provides a comprehensive sandboxing system for safe agent execution. Sandboxing isolates agent commands and file operations to prevent unauthorized access to system resources and protect against malicious code execution.
 
+## Quick Start
+
+```bash
+# Initialize workspace with Docker sandbox
+rad init --sandbox docker
+
+# Or set sandbox configuration later
+rad sandbox set docker --network closed
+
+# Test sandbox availability
+rad sandbox test docker
+```
+
 ## Overview
 
 The sandboxing system enables safe execution of shell commands and file operations by agents. It supports multiple sandbox types, each with different isolation mechanisms:
@@ -144,9 +157,29 @@ rad sandbox test docker
 # Show current configuration
 rad sandbox config
 
+# Set default sandbox configuration for workspace
+rad sandbox set docker --network closed --image alpine:latest
+
 # Check prerequisites
 rad sandbox doctor
 ```
+
+### Setting Sandbox Configuration
+
+You can set the default sandbox configuration for your workspace:
+
+```bash
+# Set Docker sandbox with closed network
+rad sandbox set docker --network closed
+
+# Set Podman sandbox with custom image
+rad sandbox set podman --network open --image rust:latest
+
+# Set sandbox with volume mounts
+rad sandbox set docker --network closed --volumes /host:/container
+```
+
+The configuration is saved to `.radium/config.toml` and will be used as the default for agents that don't specify their own sandbox configuration.
 
 ## Architecture
 
@@ -170,10 +203,13 @@ All sandboxes implement the `Sandbox` trait with three main methods:
 
 When an agent has a sandbox configuration:
 
-1. Sandbox is created from agent config during initialization
-2. Sandbox is initialized before agent execution
-3. Commands execute through the sandbox
-4. Sandbox is cleaned up after execution (even on errors)
+1. Sandbox configuration is registered with the agent executor
+2. Sandbox is created from agent config during agent initialization
+3. Sandbox is initialized before agent execution
+4. Shell commands execute through the sandbox (via `execute_with_sandbox()`)
+5. Sandbox is cleaned up after execution (even on errors)
+
+If a sandbox is not available (e.g., Docker not installed), the system gracefully falls back to NoSandbox with a warning logged.
 
 ## Examples
 

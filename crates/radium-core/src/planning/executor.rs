@@ -70,7 +70,10 @@
 //! - [Autonomous Planning](autonomous) - Plan generation
 //! - [DAG System](dag) - Dependency management
 
+use crate::context::ContextManager;
+use crate::memory::{MemoryEntry, MemoryStore};
 use crate::models::{Iteration, PlanManifest, PlanStatus, PlanTask};
+use crate::workspace::RequirementId;
 use crate::{AgentDiscovery, PromptContext, PromptTemplate};
 use radium_abstraction::Model;
 use std::path::Path;
@@ -267,10 +270,20 @@ pub struct ExecutionConfig {
     pub state_path: std::path::PathBuf,
 
     /// Optional context files content to inject into prompts.
+    /// Deprecated: Use context_manager instead.
     pub context_files: Option<String>,
 
     /// Execution mode (bounded or continuous).
     pub run_mode: RunMode,
+
+    /// Optional context manager for advanced context gathering.
+    pub context_manager: Option<Arc<std::sync::Mutex<ContextManager>>>,
+
+    /// Optional memory store for persisting agent outputs.
+    pub memory_store: Option<Arc<std::sync::Mutex<MemoryStore>>>,
+
+    /// Requirement ID for this plan (needed for context gathering).
+    pub requirement_id: Option<RequirementId>,
 }
 
 impl Default for ExecutionConfig {
@@ -282,6 +295,9 @@ impl Default for ExecutionConfig {
             state_path: std::path::PathBuf::from("plan/plan_manifest.json"),
             context_files: None,
             run_mode: RunMode::Bounded(5),
+            context_manager: None,
+            memory_store: None,
+            requirement_id: None,
         }
     }
 }
@@ -491,7 +507,7 @@ impl PlanExecutor {
         let prompt_content = std::fs::read_to_string(&agent.prompt_path)?;
         let template = PromptTemplate::from_string(prompt_content);
 
-        // Create context with task information
+        // Build context using ContextManager if available, otherwise use simple context
         let mut context = PromptContext::new();
         context.set("task_id", task.id.clone());
         context.set("task_title", task.title.clone());
@@ -499,13 +515,31 @@ impl PlanExecutor {
             context.set("task_description", desc.clone());
         }
 
-        // Inject context files if available
+        // Use ContextManager to build comprehensive context if available
+        if let Some(ref context_manager) = self.config.context_manager {
+            let invocation = format!("{agent_id}");
+            let requirement_id = self.config.requirement_id;
+            let mut manager = context_manager.lock().map_err(|e| {
+                ExecutionError::Prompt(format!("Context manager lock failed: {}", e))
+            })?;
+            match manager.build_context(&invocation, requirement_id) {
+                Ok(context_str) => {
+                    // Inject the built context as a variable
+                    context.set("context", context_str);
+                }
+                Err(e) => {
+                    // Log error but continue with basic context
+                    eprintln!("Warning: Context building failed: {}", e);
+                }
+            }
+        }
+
+        // Inject context files if available (legacy support, for backward compatibility)
         if let Some(ref context_files) = self.config.context_files {
             context.set("context_files", context_files.clone());
         }
 
-        let rendered =
-            template.render(&context).map_err(|e| ExecutionError::Prompt(e.to_string()))?;
+        let rendered = template.render(&context).map_err(|e| ExecutionError::Prompt(e.to_string()))?;
 
         // Execute with model
         match model.generate_text(&rendered, None).await {
@@ -514,10 +548,23 @@ impl PlanExecutor {
                     .usage
                     .map(|u| (u.prompt_tokens as usize, u.completion_tokens as usize));
 
+                let response_content = response.content.clone();
+
+                // Store agent output to MemoryStore if available
+                if let Some(ref memory_store) = self.config.memory_store {
+                    let entry = MemoryEntry::new(agent_id.clone(), response_content.clone());
+                    if let Ok(mut store) = memory_store.lock() {
+                        if let Err(e) = store.store(entry) {
+                            // Log error but don't fail execution
+                            eprintln!("Warning: Failed to store agent output to memory: {}", e);
+                        }
+                    }
+                }
+
                 Ok(TaskResult {
                     task_id: task.id.clone(),
                     success: true,
-                    response: Some(response.content),
+                    response: Some(response_content),
                     error: None,
                     tokens_used,
                 })

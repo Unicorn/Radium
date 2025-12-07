@@ -153,21 +153,5 @@ impl SandboxManagerTrait for AgentSandboxManager {
         // through a different mechanism (e.g., via command execution context)
         None
     }
-
-    /// Gets an active sandbox instance for command execution.
-    ///
-    /// # Arguments
-    /// * `agent_id` - The agent ID
-    ///
-    /// # Returns
-    /// A mutable reference to the sandbox if active, None otherwise
-    pub async fn get_sandbox_for_execution(&self, agent_id: &str) -> Option<Box<dyn SandboxTrait + Send + Sync>> {
-        let mut sandboxes = self.active_sandboxes.write().await;
-        // Note: This removes the sandbox from the map, so it should be returned after use
-        // For now, we'll need to handle this differently - maybe use Arc<Mutex<>> for sharing
-        // For the initial implementation, we'll return None and handle sandbox access
-        // through the execute_shell_commands method which already accepts sandbox
-        None
-    }
 }
 

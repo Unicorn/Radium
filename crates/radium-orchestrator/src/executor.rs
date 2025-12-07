@@ -10,13 +10,13 @@ use crate::{
 use radium_abstraction::ModelError;
 use radium_models::{ModelFactory, ModelType};
 use serde_json::Value;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fmt;
 use std::path::Path;
 use std::process::Command;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{RwLock, Semaphore, mpsc};
+use tokio::sync::{Semaphore, mpsc};
 use tokio::time;
 use tracing::{debug, error, info, warn};
 
@@ -117,7 +117,7 @@ impl fmt::Debug for AgentExecutor {
         f.debug_struct("AgentExecutor")
             .field("default_model_type", &self.default_model_type)
             .field("default_model_id", &self.default_model_id)
-            .field("sandbox_configs", &"<sandbox_configs>")
+            .field("sandbox_manager", &if self.sandbox_manager.is_some() { "Some" } else { "None" })
             .finish()
     }
 }

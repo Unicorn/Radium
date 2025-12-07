@@ -144,17 +144,25 @@ description = "Executes code in a sandbox"
 prompt_path = "prompts/agents/core/code-exec-agent.md"
 
 [agent.sandbox]
-type = "docker"                    # Options: "docker", "podman", "seatbelt", "none"
+sandbox_type = "docker"            # Options: "docker", "podman", "seatbelt", "none"
+network = "closed"                 # Network mode: "open", "closed", or "proxied"
+profile = "restrictive"             # Sandbox profile: "permissive", "restrictive", or "custom(path)"
 image = "rust:latest"              # Docker/Podman image (required for docker/podman)
-profile = "restricted"              # Sandbox profile (optional)
-network_mode = "isolated"           # Network mode (optional)
+working_dir = "/app"               # Working directory inside sandbox (optional)
+volumes = ["/host:/container"]     # Volume mounts in host:container format (optional)
+env = { "KEY" = "value" }          # Environment variables (optional)
+custom_flags = ["--cap-add=SYS_ADMIN"]  # Custom flags for container execution (optional)
 ```
 
 **Fields:**
-- **`type`** (string, required): Sandbox type - `"docker"`, `"podman"`, `"seatbelt"` (macOS only), or `"none"`
+- **`sandbox_type`** (string, required): Sandbox type - `"docker"`, `"podman"`, `"seatbelt"` (macOS only), or `"none"`
+- **`network`** (string, optional): Network mode - `"open"`, `"closed"`, or `"proxied"` (default: `"open"`)
+- **`profile`** (string, optional): Sandbox profile - `"permissive"`, `"restrictive"`, or `"custom(path)"` (default: `"permissive"`)
 - **`image`** (string, optional): Container image for Docker/Podman sandboxes
-- **`profile`** (string, optional): Sandbox profile (e.g., "restricted", "permissive")
-- **`network_mode`** (string, optional): Network isolation mode - `"isolated"`, `"bridged"`, or `"host"`
+- **`working_dir`** (string, optional): Working directory inside sandbox
+- **`volumes`** (array of strings, optional): Volume mounts in `host:container` format
+- **`env`** (table, optional): Environment variables as key-value pairs
+- **`custom_flags`** (array of strings, optional): Additional flags for container execution
 
 **Sandbox Types:**
 - **`docker`**: Uses Docker containers for isolation (requires Docker)

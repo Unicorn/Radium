@@ -585,9 +585,10 @@ async fn validate_agents(verbose: bool, json_output: bool, strict: bool) -> anyh
                                     }
                                 }
                             }
+                        }
 
-                            // Validate loop behavior if present
-                            if let Some(loop_behavior) = &agent.loop_behavior {
+                        // Validate loop behavior if present
+                        if let Some(loop_behavior) = &agent.loop_behavior {
                                 if loop_behavior.steps == 0 {
                                     validation_result.errors.push(
                                         "Loop behavior: steps must be greater than 0".to_string(),

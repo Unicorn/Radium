@@ -7,11 +7,13 @@ use chrono::Utc;
 use colored::Colorize;
 use radium_core::{
     analytics::{ReportFormatter, SessionAnalytics, SessionReport, SessionStorage},
-    context::ContextFileLoader, AgentDiscovery, monitoring::MonitoringService, PromptContext,
+    context::{ContextFileLoader, ContextManager}, AgentDiscovery, monitoring::MonitoringService, PromptContext,
     PromptTemplate, Workspace,
     engines::{Engine, EngineRegistry, ExecutionRequest},
     engines::providers::{ClaudeEngine, GeminiEngine, MockEngine, OpenAIEngine},
+    memory::{MemoryEntry, MemoryStore},
 };
+use std::sync::{Arc, Mutex};
 use std::fs;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -133,7 +135,25 @@ pub async fn execute(
     let mut context = PromptContext::new();
     context.set("user_input", user_input.clone());
 
-    // Inject context files if available
+    // Use ContextManager to build comprehensive context if available
+    let mut additional_context = String::new();
+    if let Some(ref mut manager) = context_manager {
+        // Build context with agent invocation
+        let invocation = format!("{id}");
+        match manager.build_context(&invocation, None) {
+            Ok(ctx) => {
+                additional_context = ctx;
+                // Inject as context variable
+                context.set("context", additional_context.clone());
+            }
+            Err(e) => {
+                // Log but continue - context gathering is optional
+                eprintln!("  {} Warning: Failed to gather context: {}", "⚠".yellow(), e);
+            }
+        }
+    }
+
+    // Inject context files if available (for backward compatibility)
     if !context_files.is_empty() {
         context.set("context_files", context_files.clone());
         let context_file_paths = loader.get_context_file_paths(&current_dir);

@@ -158,9 +158,9 @@ impl AgentDiscovery {
                 if content.trim_start().starts_with("---") {
                     if let Ok((metadata, _)) = AgentMetadata::from_markdown(&content) {
                         // Convert AgentMetadata to PersonaConfig if recommended_models exist
-                        if let Some(recommended_models) = metadata.recommended_models {
+                        if let Some(ref recommended_models) = metadata.recommended_models {
                             let persona_config = Self::convert_metadata_to_persona(
-                                &recommended_models,
+                                recommended_models,
                                 &metadata,
                             );
                             // YAML frontmatter takes precedence over TOML persona config

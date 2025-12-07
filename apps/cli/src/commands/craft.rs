@@ -11,9 +11,11 @@ use std::time::Instant;
 use tokio::signal;
 use radium_core::{
     analytics::{ReportFormatter, SessionAnalytics, SessionReport, SessionStorage},
-    context::ContextFileLoader, AgentDiscovery, ExecutionConfig, monitoring::MonitoringService, PlanDiscovery,
+    context::{ContextFileLoader, ContextManager}, AgentDiscovery, ExecutionConfig, monitoring::MonitoringService, PlanDiscovery,
     PlanExecutor, PlanManifest, PlanStatus, RequirementId, RunMode, Workspace,
+    memory::MemoryStore,
 };
+use std::sync::{Arc, Mutex};
 use radium_models::ModelFactory;
 use uuid::Uuid;
 
@@ -139,6 +141,7 @@ pub async fn execute(
         &session_id,
         monitoring.as_ref(),
         &agents,
+        &workspace,
     )
     .await?;
 
@@ -253,6 +256,7 @@ async fn execute_plan(
     session_id: &str,
     monitoring: Option<&MonitoringService>,
     agents: &std::collections::HashMap<String, radium_core::agents::config::AgentConfig>,
+    workspace: &Workspace,
 ) -> anyhow::Result<()> {
     // Determine run mode based on yolo flag
     let run_mode = if yolo {
@@ -260,6 +264,21 @@ async fn execute_plan(
     } else {
         RunMode::Bounded(5) // Default bounded limit
     };
+
+    // Initialize MemoryStore and ContextManager for the plan
+    let requirement_id = manifest.requirement_id;
+    
+    // Create memory store for persisting agent outputs
+    let memory_store = Arc::new(Mutex::new(
+        MemoryStore::new(workspace.root(), requirement_id)
+            .context("Failed to create memory store")?
+    ));
+
+    // Create context manager for comprehensive context gathering
+    let context_manager = Arc::new(Mutex::new(
+        ContextManager::for_plan(&workspace, requirement_id)
+            .context("Failed to create context manager")?
+    ));
 
     // Create executor with configuration
     let config = ExecutionConfig {
@@ -269,6 +288,9 @@ async fn execute_plan(
         state_path: manifest_path.to_path_buf(),
         context_files,
         run_mode,
+        context_manager: Some(context_manager),
+        memory_store: Some(memory_store),
+        requirement_id: Some(requirement_id),
     };
     let executor = PlanExecutor::with_config(config);
 
