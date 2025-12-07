@@ -144,6 +144,43 @@ rad agents create my-agent "My Agent" --category core
 - [Developer Guide: Agent System Architecture](docs/developer-guide/agent-system-architecture.md) - Technical architecture details
 - [Examples](examples/agents/) - Example agent configurations
 
+## Context Files
+
+Context files (GEMINI.md) provide persistent instructions to agents without repeating them in every prompt. They support hierarchical loading (global, project, subdirectory) and can import other files using `@file.md` syntax.
+
+### Quick Example
+
+Create a context file at your project root:
+
+```markdown
+# Project Context
+
+This project uses Rust and follows these guidelines:
+- Use `cargo fmt` for formatting
+- Write comprehensive tests for all public APIs
+- Document all public types and functions
+
+@docs/coding-standards.md
+```
+
+### CLI Commands
+
+```bash
+# List all context files in workspace
+rad context list
+
+# Show which context files would be loaded for a path
+rad context show src/
+
+# Validate all context files
+rad context validate
+```
+
+### Documentation
+
+- [Context Files Feature Guide](docs/features/context-files.md) - Complete guide for context files
+- [Examples](examples/context-files/) - Example context files and templates
+
 ## Documentation
 
 - [Project Overview](docs/project/00-project-overview.md)
