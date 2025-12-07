@@ -17,11 +17,13 @@
 //! # }
 //! ```
 
+pub mod conflict;
 pub mod discovery;
 pub mod installer;
 pub mod integration;
 pub mod manifest;
 pub mod structure;
+pub mod validator;
 
 pub use discovery::{DiscoveryOptions, ExtensionDiscovery, ExtensionDiscoveryError};
 pub use installer::{ExtensionInstallerError, ExtensionManager, InstallOptions};

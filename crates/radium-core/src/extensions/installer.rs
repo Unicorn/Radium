@@ -3,12 +3,14 @@
 //! Provides functionality for installing, uninstalling, and updating
 //! extension packages.
 
+use crate::extensions::conflict::{ConflictDetector, ConflictError};
 use crate::extensions::discovery::{DiscoveryOptions, ExtensionDiscovery, ExtensionDiscoveryError};
 use crate::extensions::manifest::ExtensionManifest;
 use crate::extensions::structure::{
     Extension, ExtensionStructureError, MANIFEST_FILE, default_extensions_dir,
     validate_package_structure,
 };
+use crate::extensions::validator::{ExtensionValidator, ExtensionValidationError};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
@@ -46,6 +48,14 @@ pub enum ExtensionInstallerError {
     /// Installation conflict.
     #[error("installation conflict: {0}")]
     Conflict(String),
+
+    /// Validation error.
+    #[error("validation error: {0}")]
+    Validation(#[from] ExtensionValidationError),
+
+    /// Conflict detection error.
+    #[error("conflict error: {0}")]
+    ConflictDetection(#[from] ConflictError),
 }
 
 /// Result type for installer operations.
@@ -132,6 +142,12 @@ impl ExtensionManager {
         // Load manifest
         let manifest_path = package_path.join(MANIFEST_FILE);
         let manifest = ExtensionManifest::load(&manifest_path)?;
+
+        // Validate extension
+        ExtensionValidator::validate(package_path, &manifest)?;
+
+        // Check for conflicts
+        ConflictDetector::check_conflicts(&manifest, package_path)?;
 
         // Check if already installed
         if self.discovery.get(&manifest.name)?.is_some() {
@@ -283,14 +299,16 @@ impl ExtensionManager {
     /// # Errors
     /// Returns error if dependencies are missing
     fn validate_dependencies(&self, manifest: &ExtensionManifest) -> Result<()> {
-        for dep_name in &manifest.dependencies {
-            if self.discovery.get(dep_name)?.is_none() {
-                return Err(ExtensionInstallerError::Dependency(format!(
-                    "Missing dependency: '{}'",
-                    dep_name
-                )));
-            }
-        }
+        // Get list of installed extension names
+        let installed_extensions: Vec<String> = self.discovery.discover_all()?
+            .into_iter()
+            .map(|ext| ext.name)
+            .collect();
+
+        // Validate dependencies using validator
+        ExtensionValidator::validate_dependencies(manifest, &installed_extensions)
+            .map_err(|e| ExtensionInstallerError::Validation(e))?;
+
         Ok(())
     }
 
