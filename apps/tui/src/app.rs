@@ -970,9 +970,10 @@ impl App {
                 }
             }
         } else if parts.len() >= 1 {
-            // Main command is complete - show subcommands if available
+            // Main command is complete - show subcommands or arguments
             let main_cmd = parts[0];
 
+            // First check for subcommands
             if let Some(subcommands) = self.available_subcommands.get(main_cmd) {
                 let subquery = if parts.len() > 1 { parts[1] } else { "" };
 
@@ -982,6 +983,25 @@ impl App {
                         .filter(|(subcmd, _desc)| subcmd.starts_with(subquery))
                         .map(|(subcmd, desc)| format!("/{} {} - {}", main_cmd, subcmd, desc))
                 );
+            } else {
+                // No subcommands - check for dynamic argument completion
+                match main_cmd {
+                    "chat" if parts.len() <= 2 => {
+                        // Suggest agent IDs for /chat command
+                        if let Ok(agents) = crate::chat_executor::get_available_agents() {
+                            let query = if parts.len() > 1 { parts[1] } else { "" };
+                            suggestions.extend(
+                                agents
+                                    .iter()
+                                    .filter(|(agent_id, _desc)| agent_id.to_lowercase().contains(&query.to_lowercase()))
+                                    .map(|(agent_id, desc)| format!("/chat {} - {}", agent_id, desc))
+                            );
+                        }
+                    }
+                    _ => {
+                        // No dynamic completion for this command
+                    }
+                }
             }
         }
 
