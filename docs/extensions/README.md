@@ -181,6 +181,8 @@ Project-level extensions take precedence over user-level extensions.
 - [Creating Extensions](creating-extensions.md) - Guide for extension authors
 - [Publishing Guide](publishing-guide.md) - How to publish to the marketplace
 - [Marketplace Guide](marketplace.md) - Discover and use marketplace features
+- [API Reference](api-reference.md) - Complete API documentation for developers
+- [Integration Guide](integration-guide.md) - How to integrate the extension system
 - [Architecture](architecture.md) - Technical architecture documentation
 
 ## Examples
