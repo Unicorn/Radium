@@ -13,6 +13,8 @@ example-extension/
 │   └── example-server.json
 ├── commands/                 # Custom commands
 │   └── example-command.toml
+├── hooks/                    # Hook configurations
+│   └── example-hook.toml
 └── README.md                 # This file
 ```
 
@@ -38,6 +40,10 @@ Example MCP server configuration in `mcp/example-server.json`.
 
 Example custom command in `commands/example-command.toml`.
 
+### Hooks
+
+Example hook configuration in `hooks/example-hook.toml`. Hooks allow you to customize agent behavior at various points in the execution flow.
+
 ## Usage
 
 After installation, the extension components will be available to Radium:
@@ -45,6 +51,7 @@ After installation, the extension components will be available to Radium:
 - Prompts will be discoverable by the agent system
 - MCP servers can be configured and used
 - Commands can be executed via the CLI
+- Hooks will be automatically discovered and can be managed via `rad hooks list`
 
 ## See Also
 

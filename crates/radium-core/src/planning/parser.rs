@@ -53,9 +53,39 @@ pub struct PlanParser;
 impl PlanParser {
     /// Parses a plan from LLM response text.
     ///
-    /// Expects a structured response with markdown headers and task lists.
+    /// Supports two formats:
+    /// 1. JSON format (plain JSON or JSON in markdown code blocks)
+    /// 2. Markdown format with headers and task lists
     ///
-    /// # Format Expected:
+    /// The parser auto-detects the format and uses the appropriate parsing method.
+    ///
+    /// # JSON Format Expected:
+    /// ```json
+    /// {
+    ///   "project_name": "Project Name",
+    ///   "description": "Description...",
+    ///   "tech_stack": ["Tech1", "Tech2"],
+    ///   "iterations": [
+    ///     {
+    ///       "number": 1,
+    ///       "name": "Iteration 1",
+    ///       "goal": "Goal description",
+    ///       "tasks": [
+    ///         {
+    ///           "number": 1,
+    ///           "title": "Task title",
+    ///           "description": "Task description",
+    ///           "agent_id": "agent-id",
+    ///           "dependencies": ["I1.T2"],
+    ///           "acceptance_criteria": ["Criteria"]
+    ///         }
+    ///       ]
+    ///     }
+    ///   ]
+    /// }
+    /// ```
+    ///
+    /// # Markdown Format Expected:
     /// ```markdown
     /// # Project Name
     ///
@@ -72,6 +102,55 @@ impl PlanParser {
     ///    - Acceptance: Criteria here
     /// ```
     pub fn parse(response: &str) -> Result<ParsedPlan, String> {
+        // Try to extract JSON from markdown code blocks first
+        if let Some(json_content) = Self::extract_json_from_markdown(response) {
+            return Self::parse_json(&json_content);
+        }
+
+        // Try to parse as pure JSON
+        if let Ok(plan) = Self::parse_json(response) {
+            return Ok(plan);
+        }
+
+        // Fall back to markdown parsing
+        Self::parse_markdown(response)
+    }
+
+    /// Extracts JSON from markdown code blocks.
+    ///
+    /// Looks for ```json ... ``` or ``` ... ``` blocks containing JSON.
+    fn extract_json_from_markdown(text: &str) -> Option<String> {
+        // Look for ```json ... ``` blocks
+        if let Some(start) = text.find("```json") {
+            let after_start = &text[start + 7..];
+            if let Some(end) = after_start.find("```") {
+                return Some(after_start[..end].trim().to_string());
+            }
+        }
+
+        // Look for ``` ... ``` blocks that might contain JSON
+        if let Some(start) = text.find("```") {
+            let after_start = &text[start + 3..];
+            if let Some(end) = after_start.find("```") {
+                let content = after_start[..end].trim();
+                // Check if it looks like JSON (starts with { or [)
+                if content.starts_with('{') || content.starts_with('[') {
+                    return Some(content.to_string());
+                }
+            }
+        }
+
+        None
+    }
+
+    /// Parses JSON into a ParsedPlan.
+    fn parse_json(json_str: &str) -> Result<ParsedPlan, String> {
+        serde_json::from_str::<ParsedPlan>(json_str.trim())
+            .map_err(|e| format!("JSON parsing failed: {}", e))
+    }
+
+    /// Parses markdown format into a ParsedPlan.
+    fn parse_markdown(response: &str) -> Result<ParsedPlan, String> {
         let lines: Vec<&str> = response.lines().collect();
 
         // Extract project name (first # header)

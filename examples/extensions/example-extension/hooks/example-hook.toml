@@ -1,0 +1,23 @@
+# Example Hook Configuration
+# This file demonstrates how to configure hooks in an extension
+
+[[hooks]]
+name = "example-model-logger"
+type = "before_model"
+priority = 100
+enabled = true
+
+[hooks.config]
+log_level = "info"
+log_format = "json"
+
+[[hooks]]
+name = "example-error-handler"
+type = "error_interception"
+priority = 200
+enabled = true
+
+[hooks.config]
+notify_on_error = true
+retry_count = 3
+

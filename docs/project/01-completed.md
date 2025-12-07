@@ -2,10 +2,16 @@
 
 > **Status**: All core infrastructure milestones complete ✅  
 > **Last Updated**: 2025-01-XX
+> 
+> **📋 For detailed completed requirements and tasks, query Braingrid:**  
+> `braingrid requirement list -p PROJ-14 --status COMPLETED`  
+> See [BRAINGRID_WORKFLOW.md](./BRAINGRID_WORKFLOW.md) for details.
 
 ## Overview
 
 Radium has completed all foundational milestones (M1-M5), establishing a solid Rust-based backend with gRPC API, agent orchestration, workflow engine, CLI/TUI interfaces, and desktop application.
+
+> **Note:** This document provides a high-level historical summary. For detailed task breakdowns, implementation details, and current status, see BrainGrid (PROJ-14).
 
 ## ✅ Milestone 1: Core Backend Infrastructure (100% Complete)
 

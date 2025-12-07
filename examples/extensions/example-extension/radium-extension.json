@@ -6,7 +6,8 @@
   "components": {
     "prompts": ["prompts/*.md"],
     "mcp_servers": ["mcp/*.json"],
-    "commands": ["commands/*.toml"]
+    "commands": ["commands/*.toml"],
+    "hooks": ["hooks/*.toml"]
   },
   "dependencies": []
 }

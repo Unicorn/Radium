@@ -99,10 +99,9 @@ pub async fn execute(
     // Create model instance (default to mock for now, can be configured later)
     let engine = std::env::var("RADIUM_ENGINE").unwrap_or_else(|_| "mock".to_string());
     let model_id = std::env::var("RADIUM_MODEL").unwrap_or_else(|_| String::new());
-    let model: Arc<dyn radium_abstraction::Model> = Arc::new(
-        ModelFactory::create_from_str(&engine, model_id)
-            .context("Failed to create model for plan generation")?,
-    );
+    let model = ModelFactory::create_from_str(&engine, model_id)
+        .context("Failed to create model for plan generation")?;
+    let model_arc: Arc<dyn radium_abstraction::Model> = Arc::new(model);
 
     // Generate plan using AI
     let generator = PlanGenerator::new();
