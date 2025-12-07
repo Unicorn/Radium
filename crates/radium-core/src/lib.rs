@@ -40,7 +40,7 @@ pub mod oversight;
 pub mod planning;
 // pub mod policy;  // TEMPORARILY DISABLED: depends on hooks
 pub mod prompts;
-// pub mod sandbox;  // TEMPORARILY DISABLED: depends on radium-orchestrator (circular dependency)
+pub mod sandbox;
 // pub mod server;  // TEMPORARILY DISABLED: depends on radium-orchestrator (circular dependency)
 pub mod storage;
 // pub mod workflow;  // TEMPORARILY DISABLED: depends on radium-orchestrator (circular dependency)
@@ -60,7 +60,7 @@ pub use analytics::{ReportFormatter, SessionAnalytics, SessionMetrics, SessionRe
 pub use auth::{AuthError, AuthResult, CredentialStore, ProviderType};
 pub use checkpoint::{Checkpoint, CheckpointError, CheckpointManager, Result as CheckpointResult};
 pub use client::ClientHelper;
-pub use commands::{CommandError, CommandRegistry, CustomCommand, Result as CommandResult};
+// pub use commands::{CommandError, CommandRegistry, CustomCommand, Result as CommandResult};  // DISABLED: commands module
 pub use config::{Config, cli_config::{CliConfig, CliConfigError, CliConfigResult}};
 pub use context::{
     ContextError, ContextInjector, ContextManager, InjectionDirective, Result as ContextResult,
@@ -95,11 +95,11 @@ pub use models::agent::{Agent, AgentConfig, AgentError, AgentState};
 pub use models::plan::{Iteration, Plan, PlanError, PlanManifest, PlanStatus, PlanTask};
 pub use models::task::{Task, TaskError, TaskQueue, TaskResult, TaskState};
 pub use models::workflow::{Workflow, WorkflowError, WorkflowState, WorkflowStep};
-pub use monitoring::{
-    AgentRecord, AgentStatus, LogManager, MonitoringError, MonitoringService,
-    Result as MonitoringResult, TelemetryParser, TelemetryRecord, TelemetryTracking,
-    initialize_schema,
-};
+// pub use monitoring::{  // DISABLED: monitoring module
+//     AgentRecord, AgentStatus, LogManager, MonitoringError, MonitoringService,
+//     Result as MonitoringResult, TelemetryParser, TelemetryRecord, TelemetryTracking,
+//     initialize_schema,
+// };
 pub use oversight::{
     MetacognitiveError, MetacognitiveService, OversightRequest, OversightResponse,
     Result as OversightResult,
@@ -109,10 +109,10 @@ pub use planning::{
     PlanExecutor, PlanGenerator, PlanGeneratorConfig, PlanParser, RunMode,
     TaskResult as PlanTaskResult,
 };
-pub use policy::{
-    ApprovalMode, ConstitutionManager, PolicyAction, PolicyDecision, PolicyEngine, PolicyError,
-    PolicyPriority, PolicyResult, PolicyRule,
-};
+// pub use policy::{  // DISABLED: policy module
+//     ApprovalMode, ConstitutionManager, PolicyAction, PolicyDecision, PolicyEngine, PolicyError,
+//     PolicyPriority, PolicyResult, PolicyRule,
+// };
 pub use prompts::{PromptContext, PromptError, PromptTemplate};
 pub use proto::radium_client;
 pub use proto::{PingRequest, PingResponse};
@@ -120,17 +120,19 @@ pub use sandbox::{
     NetworkMode, NoSandbox, Result as SandboxResult, Sandbox, SandboxConfig, SandboxError,
     SandboxFactory, SandboxProfile, SandboxType,
 };
+#[cfg(feature = "orchestrator-integration")]
+pub use sandbox::AgentSandboxManager;
 pub use storage::{
     AgentRepository, Database, SqliteAgentRepository, SqliteTaskRepository,
     SqliteWorkflowRepository, StorageError, TaskRepository, WorkflowRepository,
 };
-pub use workflow::{
-    BehaviorAction, BehaviorError, CheckpointDecision, CheckpointEvaluator, CheckpointState,
-    ExecutionContext, LoopBehaviorConfig, LoopCounters, LoopDecision, LoopEvaluator, StepRecord,
-    StepResult, StepStatus, StepTracker, StepTrackingError, TriggerBehaviorConfig, TriggerDecision,
-    TriggerEvaluator, VibeCheckDecision, VibeCheckEvaluator, VibeCheckState, WorkflowEngine,
-    WorkflowEngineError, WorkflowTemplate, WorkflowTemplateError,
-};
+// pub use workflow::{  // DISABLED: workflow module
+//     BehaviorAction, BehaviorError, CheckpointDecision, CheckpointEvaluator, CheckpointState,
+//     ExecutionContext, LoopBehaviorConfig, LoopCounters, LoopDecision, LoopEvaluator, StepRecord,
+//     StepResult, StepStatus, StepTracker, StepTrackingError, TriggerBehaviorConfig, TriggerDecision,
+//     TriggerEvaluator, VibeCheckDecision, VibeCheckEvaluator, VibeCheckState, WorkflowEngine,
+//     WorkflowEngineError, WorkflowTemplate, WorkflowTemplateError,
+// };
 pub use workspace::{
     DiscoveredPlan, PlanDiscovery, PlanDiscoveryOptions, RequirementId, RequirementIdError, SortBy,
     SortOrder, Workspace, WorkspaceConfig, WorkspaceError, WorkspaceStructure,

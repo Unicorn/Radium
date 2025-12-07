@@ -26,6 +26,7 @@
 mod config;
 mod docker;
 mod error;
+#[cfg(feature = "orchestrator-integration")]
 mod manager;
 #[cfg(feature = "podman-sandbox")]
 mod podman;
@@ -35,6 +36,7 @@ mod seatbelt;
 
 pub use config::{NetworkMode, SandboxConfig, SandboxProfile, SandboxType};
 pub use error::{Result, SandboxError};
+#[cfg(feature = "orchestrator-integration")]
 pub use manager::AgentSandboxManager;
 pub use sandbox::{NoSandbox, Sandbox, SandboxFactory};
 

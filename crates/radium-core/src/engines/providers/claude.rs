@@ -79,7 +79,39 @@ struct AnthropicRequest {
 #[derive(Debug, Serialize)]
 struct AnthropicMessage {
     role: String,
-    content: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    content: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    content_blocks: Option<Vec<AnthropicContentBlock>>,
+}
+
+/// Anthropic API content block for multimodal support.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+enum AnthropicContentBlock {
+    Text {
+        #[serde(rename = "type")]
+        content_type: String,
+        text: String,
+    },
+    Image {
+        #[serde(rename = "type")]
+        content_type: String,
+        source: AnthropicImageSource,
+    },
+}
+
+/// Anthropic API image source.
+#[derive(Debug, Serialize, Deserialize)]
+struct AnthropicImageSource {
+    #[serde(rename = "type")]
+    source_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    media_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data: Option<String>, // base64 encoded
+    #[serde(skip_serializing_if = "Option::is_none")]
+    url: Option<String>,
 }
 
 /// Anthropic API response structure.
@@ -131,10 +163,80 @@ impl Engine for ClaudeEngine {
 
         // Build Anthropic API request
         let max_tokens = request.max_tokens.unwrap_or(4096);
-        let messages = vec![AnthropicMessage {
-            role: "user".to_string(),
-            content: request.prompt,
-        }];
+        
+        // Check for vision/image content in params
+        let mut content_blocks: Vec<AnthropicContentBlock> = Vec::new();
+        
+        // Add text content
+        if !request.prompt.is_empty() {
+            content_blocks.push(AnthropicContentBlock::Text {
+                content_type: "text".to_string(),
+                text: request.prompt.clone(),
+            });
+        }
+        
+        // Check for images in params
+        if let Some(images) = request.params.get("images") {
+            if let Some(image_array) = images.as_array() {
+                for image_value in image_array {
+                    if let Some(image_obj) = image_value.as_object() {
+                        if let Some(image_type) = image_obj.get("type").and_then(|v| v.as_str()) {
+                            match image_type {
+                                "base64" => {
+                                    if let (Some(media_type), Some(data)) = (
+                                        image_obj.get("media_type").and_then(|v| v.as_str()),
+                                        image_obj.get("data").and_then(|v| v.as_str()),
+                                    ) {
+                                        content_blocks.push(AnthropicContentBlock::Image {
+                                            content_type: "image".to_string(),
+                                            source: AnthropicImageSource {
+                                                source_type: "base64".to_string(),
+                                                media_type: Some(media_type.to_string()),
+                                                data: Some(data.to_string()),
+                                                url: None,
+                                            },
+                                        });
+                                    }
+                                }
+                                "url" => {
+                                    if let Some(url) = image_obj.get("url").and_then(|v| v.as_str()) {
+                                        content_blocks.push(AnthropicContentBlock::Image {
+                                            content_type: "image".to_string(),
+                                            source: AnthropicImageSource {
+                                                source_type: "url".to_string(),
+                                                media_type: None,
+                                                data: None,
+                                                url: Some(url.to_string()),
+                                            },
+                                        });
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Build message - use content_blocks if we have images, otherwise use simple content
+        let message = if content_blocks.len() > 1 || (content_blocks.len() == 1 && matches!(content_blocks[0], AnthropicContentBlock::Image { .. })) {
+            // Use content_blocks for multimodal
+            AnthropicMessage {
+                role: "user".to_string(),
+                content: None,
+                content_blocks: Some(content_blocks),
+            }
+        } else {
+            // Simple text message
+            AnthropicMessage {
+                role: "user".to_string(),
+                content: Some(request.prompt),
+                content_blocks: None,
+            }
+        };
+        
+        let messages = vec![message];
 
         let anthropic_request = AnthropicRequest {
             model: request.model,
@@ -158,10 +260,44 @@ impl Engine for ClaudeEngine {
                 EngineError::ExecutionError(format!("Failed to send request to Anthropic API: {}", e))
             })?;
 
-        // Check response status
+        // Check response status and handle errors
         let status = response.status();
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            
+            // Enhanced error handling
+            if status == 429 {
+                // Rate limit error
+                let retry_after = response.headers()
+                    .get("retry-after")
+                    .and_then(|h| h.to_str().ok())
+                    .and_then(|s| s.parse::<u64>().ok());
+                
+                let mut error_msg = "Rate limit exceeded".to_string();
+                if let Some(seconds) = retry_after {
+                    error_msg.push_str(&format!(". Retry after {} seconds", seconds));
+                }
+                error_msg.push_str(". Consider reducing request frequency or upgrading your plan.");
+                
+                return Err(EngineError::ExecutionError(error_msg));
+            } else if status == 402 || status == 403 {
+                // Quota or authentication error
+                return Err(EngineError::AuthenticationFailed(format!(
+                    "Quota exceeded or authentication failed. Check your API key and billing status. Error: {}",
+                    error_text
+                )));
+            } else if status == 400 {
+                // Bad request - try to parse error details
+                if let Ok(error_json): Result<serde_json::Value, _> = serde_json::from_str(&error_text) {
+                    if let Some(error_detail) = error_json.get("error").and_then(|e| e.get("message")) {
+                        return Err(EngineError::ExecutionError(format!(
+                            "Invalid request: {}",
+                            error_detail
+                        )));
+                    }
+                }
+            }
+            
             return Err(EngineError::ExecutionError(format!(
                 "Anthropic API error ({}): {}",
                 status, error_text

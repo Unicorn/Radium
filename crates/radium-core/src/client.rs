@@ -13,6 +13,7 @@ use tracing::info;
 use crate::config::Config;
 use crate::error::{RadiumError, Result};
 use crate::proto::radium_client::RadiumClient;
+#[cfg(feature = "orchestrator-integration")]
 use crate::server::manager::EmbeddedServer;
 
 /// Default timeout for server readiness check
