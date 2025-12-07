@@ -631,6 +631,7 @@ mod tests {
             file_path: None,
             capabilities: crate::agents::config::AgentCapabilities::default(),
             sandbox: None,
+            persona_config: None,
         }
     }
 
@@ -1009,6 +1010,10 @@ mod tests {
             category: Some("core".to_string()),
             engine: Some("gemini".to_string()),
             model: None,
+            tags: None,
+            search_mode: SearchMode::Contains,
+            logic_mode: LogicMode::And,
+            fuzzy_threshold: 0.7,
         };
         let filtered = registry.filter_combined(&criteria).unwrap();
         assert_eq!(filtered.len(), 1);
@@ -1019,6 +1024,10 @@ mod tests {
             category: Some("core".to_string()),
             engine: Some("gemini".to_string()),
             model: Some("flash".to_string()),
+            tags: None,
+            search_mode: SearchMode::Contains,
+            logic_mode: LogicMode::And,
+            fuzzy_threshold: 0.7,
         };
         let filtered = registry.filter_combined(&criteria).unwrap();
         assert_eq!(filtered.len(), 1);

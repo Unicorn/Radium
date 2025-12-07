@@ -9,14 +9,15 @@ use crate::{
 };
 use radium_abstraction::ModelError;
 use radium_models::{ModelFactory, ModelType};
+use radium_core::sandbox::{SandboxConfig, SandboxFactory, Sandbox as SandboxTrait, SandboxError};
 use serde_json::Value;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::path::Path;
 use std::process::Command;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{Semaphore, mpsc};
+use tokio::sync::{RwLock, Semaphore, mpsc};
 use tokio::time;
 use tracing::{debug, error, info, warn};
 
@@ -94,6 +95,10 @@ pub struct AgentExecutor {
     default_model_type: ModelType,
     /// Default model ID to use if not specified.
     default_model_id: String,
+    /// Sandbox configurations by agent ID.
+    sandbox_configs: Arc<RwLock<HashMap<String, SandboxConfig>>>,
+    /// Active sandbox instances by agent ID (for current execution).
+    active_sandboxes: Arc<RwLock<HashMap<String, Box<dyn SandboxTrait + Send + Sync>>>>,
 }
 
 impl fmt::Debug for AgentExecutor {
@@ -101,6 +106,7 @@ impl fmt::Debug for AgentExecutor {
         f.debug_struct("AgentExecutor")
             .field("default_model_type", &self.default_model_type)
             .field("default_model_id", &self.default_model_id)
+            .field("sandbox_configs", &"<sandbox_configs>")
             .finish()
     }
 }
@@ -113,13 +119,140 @@ impl AgentExecutor {
     /// * `default_model_id` - Default model ID to use
     #[must_use]
     pub fn new(default_model_type: ModelType, default_model_id: String) -> Self {
-        Self { default_model_type, default_model_id }
+        Self {
+            default_model_type,
+            default_model_id,
+            sandbox_configs: Arc::new(RwLock::new(HashMap::new())),
+            active_sandboxes: Arc::new(RwLock::new(HashMap::new())),
+        }
     }
 
     /// Creates a new agent executor with Mock model as default.
     #[must_use]
     pub fn with_mock_model() -> Self {
         Self::new(ModelType::Mock, "mock-model".to_string())
+    }
+
+    /// Registers a sandbox configuration for an agent.
+    ///
+    /// # Arguments
+    /// * `agent_id` - The agent ID
+    /// * `config` - The sandbox configuration
+    pub async fn register_sandbox_config(&self, agent_id: String, config: SandboxConfig) {
+        let mut configs = self.sandbox_configs.write().await;
+        configs.insert(agent_id, config);
+    }
+
+    /// Gets the sandbox configuration for an agent.
+    ///
+    /// # Arguments
+    /// * `agent_id` - The agent ID
+    ///
+    /// # Returns
+    /// The sandbox configuration if registered, None otherwise
+    pub async fn get_sandbox_config(&self, agent_id: &str) -> Option<SandboxConfig> {
+        let configs = self.sandbox_configs.read().await;
+        configs.get(agent_id).cloned()
+    }
+
+    /// Gets an active sandbox instance for an agent.
+    ///
+    /// # Arguments
+    /// * `agent_id` - The agent ID
+    ///
+    /// # Returns
+    /// A mutable reference to the sandbox if active, None otherwise
+    pub async fn get_active_sandbox(&self, agent_id: &str) -> Option<Box<dyn SandboxTrait + Send + Sync>> {
+        let mut sandboxes = self.active_sandboxes.write().await;
+        sandboxes.remove(agent_id)
+    }
+
+    /// Creates and initializes a sandbox for an agent if configured.
+    ///
+    /// # Arguments
+    /// * `agent_id` - The agent ID
+    ///
+    /// # Returns
+    /// Ok(()) if sandbox was created and initialized, or if no sandbox config exists.
+    /// Returns error if sandbox creation/initialization fails.
+    async fn initialize_sandbox_for_agent(&self, agent_id: &str) -> Result<(), String> {
+        let sandbox_config = {
+            let configs = self.sandbox_configs.read().await;
+            configs.get(agent_id).cloned()
+        };
+
+        if let Some(config) = sandbox_config {
+            match SandboxFactory::create(&config) {
+                Ok(mut sandbox) => {
+                    // Initialize the sandbox
+                    if let Err(e) = sandbox.initialize().await {
+                        // If sandbox is not available, fall back to NoSandbox with warning
+                        if matches!(e, SandboxError::NotAvailable(_)) {
+                            warn!(
+                                agent_id = %agent_id,
+                                error = %e,
+                                "Sandbox not available, falling back to NoSandbox"
+                            );
+                            // Create NoSandbox as fallback
+                            let no_sandbox_config = SandboxConfig::default();
+                            if let Ok(mut no_sandbox) = SandboxFactory::create(&no_sandbox_config) {
+                                if no_sandbox.initialize().await.is_ok() {
+                                    let mut active = self.active_sandboxes.write().await;
+                                    active.insert(agent_id.to_string(), no_sandbox);
+                                }
+                            }
+                        } else {
+                            return Err(format!("Failed to initialize sandbox: {}", e));
+                        }
+                    } else {
+                        // Successfully initialized, store it
+                        let mut active = self.active_sandboxes.write().await;
+                        active.insert(agent_id.to_string(), sandbox);
+                        debug!(agent_id = %agent_id, "Sandbox initialized for agent");
+                    }
+                }
+                Err(e) => {
+                    // If sandbox creation fails (e.g., NotAvailable), fall back to NoSandbox
+                    if matches!(e, SandboxError::NotAvailable(_)) {
+                        warn!(
+                            agent_id = %agent_id,
+                            error = %e,
+                            "Sandbox not available, falling back to NoSandbox"
+                        );
+                        let no_sandbox_config = SandboxConfig::default();
+                        if let Ok(mut no_sandbox) = SandboxFactory::create(&no_sandbox_config) {
+                            if no_sandbox.initialize().await.is_ok() {
+                                let mut active = self.active_sandboxes.write().await;
+                                active.insert(agent_id.to_string(), no_sandbox);
+                            }
+                        }
+                    } else {
+                        return Err(format!("Failed to create sandbox: {}", e));
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Cleans up the sandbox for an agent.
+    ///
+    /// # Arguments
+    /// * `agent_id` - The agent ID
+    async fn cleanup_sandbox_for_agent(&self, agent_id: &str) {
+        let mut sandboxes = self.active_sandboxes.write().await;
+        if let Some(mut sandbox) = sandboxes.remove(agent_id) {
+            if let Err(e) = sandbox.cleanup().await {
+                warn!(
+                    agent_id = %agent_id,
+                    error = %e,
+                    "Failed to cleanup sandbox"
+                );
+            } else {
+                debug!(agent_id = %agent_id, "Sandbox cleaned up for agent");
+            }
+        }
     }
 
     /// Creates a checkpoint when all providers are exhausted.

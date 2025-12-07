@@ -284,6 +284,7 @@ mod tests {
                 .with_engine("gemini")
                 .with_model("gemini-2.0-flash-exp")
                 .with_reasoning_effort(ReasoningEffort::Medium),
+            persona: None,
         };
 
         let config_path = category_dir.join(format!("{}.toml", id));
@@ -390,6 +391,7 @@ mod tests {
             agent: AgentConfig::new("test-agent", "Test Agent", PathBuf::from("prompts/test.md"))
                 .with_description("Test")
                 .with_file_path(agents_dir.join("test-agent.toml")),
+            persona: None,
         };
         config.save(&agents_dir.join("test-agent.toml")).unwrap();
 
