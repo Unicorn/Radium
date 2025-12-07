@@ -44,6 +44,7 @@ pub async fn execute(command: AgentsCommand) -> anyhow::Result<()> {
             .await
         }
         AgentsCommand::Info { id, json } => show_agent_info(&id, json).await,
+        AgentsCommand::Persona { id, json } => show_agent_persona(&id, json).await,
         AgentsCommand::Validate { verbose, json, strict } => {
             validate_agents(verbose, json, strict).await
         }
@@ -370,6 +371,101 @@ async fn show_agent_info(id: &str, json_output: bool) -> anyhow::Result<()> {
             println!("  {}", path.display().to_string().dimmed());
         }
         println!();
+    }
+
+    Ok(())
+}
+
+/// Show persona configuration for an agent.
+async fn show_agent_persona(id: &str, json_output: bool) -> anyhow::Result<()> {
+    let discovery = AgentDiscovery::new();
+    let agent =
+        discovery.find_by_id(id)?.ok_or_else(|| anyhow::anyhow!("Agent '{}' not found", id))?;
+
+    if let Some(persona) = &agent.persona_config {
+        if json_output {
+            let persona_json = json!({
+                "agent_id": agent.id,
+                "agent_name": agent.name,
+                "models": {
+                    "primary": {
+                        "engine": persona.models.primary.engine,
+                        "model": persona.models.primary.model,
+                    },
+                    "fallback": persona.models.fallback.as_ref().map(|f| json!({
+                        "engine": f.engine,
+                        "model": f.model,
+                    })),
+                    "premium": persona.models.premium.as_ref().map(|p| json!({
+                        "engine": p.engine,
+                        "model": p.model,
+                    })),
+                },
+                "performance": {
+                    "profile": format!("{:?}", persona.performance.profile),
+                    "estimated_tokens": persona.performance.estimated_tokens,
+                },
+            });
+            println!("{}", serde_json::to_string_pretty(&persona_json)?);
+        } else {
+            println!();
+            println!("{}", format!("🎭 Persona: {}", agent.name).bold().cyan());
+            println!();
+            println!("{}", "Model Recommendations:".bold());
+            println!(
+                "  {} Primary:   {} / {}",
+                "•".green(),
+                persona.models.primary.engine.cyan(),
+                persona.models.primary.model.cyan()
+            );
+            if let Some(fallback) = &persona.models.fallback {
+                println!(
+                    "  {} Fallback:  {} / {}",
+                    "•".yellow(),
+                    fallback.engine.cyan(),
+                    fallback.model.cyan()
+                );
+            }
+            if let Some(premium) = &persona.models.premium {
+                println!(
+                    "  {} Premium:   {} / {}",
+                    "•".magenta(),
+                    premium.engine.cyan(),
+                    premium.model.cyan()
+                );
+            }
+            println!();
+            println!("{}", "Performance Profile:".bold());
+            println!(
+                "  Profile: {}",
+                format!("{:?}", persona.performance.profile).cyan()
+            );
+            if let Some(tokens) = persona.performance.estimated_tokens {
+                println!("  Estimated Tokens: {}", tokens.to_string().cyan());
+            }
+            println!();
+        }
+    } else {
+        if json_output {
+            let no_persona = json!({
+                "agent_id": agent.id,
+                "agent_name": agent.name,
+                "persona": null,
+                "message": "No persona configuration found for this agent",
+            });
+            println!("{}", serde_json::to_string_pretty(&no_persona)?);
+        } else {
+            println!();
+            println!(
+                "{}",
+                format!("⚠️  No persona configuration found for agent '{}'", id).yellow()
+            );
+            println!();
+            println!("Persona configuration can be added via:");
+            println!("  1. YAML frontmatter in the agent's prompt file");
+            println!("  2. TOML [agent.persona] section in the agent config file");
+            println!();
+        }
     }
 
     Ok(())

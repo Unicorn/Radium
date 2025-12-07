@@ -1,4 +1,74 @@
 //! Plan execution with state persistence and progress tracking.
+//!
+//! This module provides the plan executor that executes plans with intelligent retry logic,
+//! error categorization, state persistence, and multiple execution modes.
+//!
+//! # Overview
+//!
+//! The plan executor provides:
+//!
+//! - **Intelligent Retry Logic**: Automatic retries with exponential backoff for recoverable errors
+//! - **Error Categorization**: Distinguishes between recoverable and fatal errors
+//! - **Execution Modes**: Bounded (limited iterations) and Continuous (run until complete)
+//! - **State Persistence**: Saves progress after each task for checkpoint recovery
+//! - **Dependency Validation**: Ensures task dependencies are met before execution
+//! - **Context File Support**: Injects context files into agent prompts
+//!
+//! # Execution Lifecycle
+//!
+//! 1. **Load Manifest**: Load plan manifest from disk (or create new)
+//! 2. **Resume Checkpoint**: If resuming, skip completed tasks
+//! 3. **Iteration Loop**: Execute iterations based on RunMode
+//! 4. **Task Execution**: For each task:
+//!    - Check dependencies
+//!    - Execute with retry logic
+//!    - Save state after completion
+//! 5. **Progress Tracking**: Update and display progress
+//!
+//! # Retry Logic
+//!
+//! The executor uses exponential backoff for retries:
+//!
+//! - **Max Retries**: Configurable (default: 3)
+//! - **Backoff**: delay = base_delay * 2^attempt
+//! - **Error Categorization**: Only retries recoverable errors
+//!
+//! # Error Categories
+//!
+//! - **Recoverable**: Network errors, rate limits, timeouts, server errors (5xx)
+//! - **Fatal**: Auth failures, missing config, invalid data, dependency errors
+//!
+//! # Example
+//!
+//! ```rust,no_run
+//! use radium_core::planning::executor::{PlanExecutor, ExecutionConfig, RunMode};
+//! use radium_core::models::PlanManifest;
+//! use std::path::PathBuf;
+//!
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! let config = ExecutionConfig {
+//!     resume: false,
+//!     skip_completed: true,
+//!     check_dependencies: true,
+//!     state_path: PathBuf::from("plan/plan_manifest.json"),
+//!     context_files: None,
+//!     run_mode: RunMode::Bounded(5), // Limit to 5 iterations
+//! };
+//!
+//! let executor = PlanExecutor::with_config(config);
+//! let manifest = executor.load_manifest(&config.state_path)?;
+//!
+//! // Execute tasks...
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! # See Also
+//!
+//! - [User Guide](../../../docs/features/plan-execution.md) - Complete user documentation
+//! - [CLI Commands](../../../docs/cli/commands/plan-execution.md) - Command-line usage
+//! - [Autonomous Planning](autonomous) - Plan generation
+//! - [DAG System](dag) - Dependency management
 
 use crate::models::{Iteration, PlanManifest, PlanStatus, PlanTask};
 use crate::{AgentDiscovery, PromptContext, PromptTemplate};

@@ -74,6 +74,13 @@ pub async fn execute(command: SandboxCommand) -> anyhow::Result<()> {
         SandboxCommand::Test { sandbox_type, json } => test_sandbox(sandbox_type.as_deref(), json).await,
         SandboxCommand::Config { json } => show_config(json).await,
         SandboxCommand::Doctor { json } => doctor_check(json).await,
+        SandboxCommand::Set {
+            sandbox_type,
+            network,
+            image,
+            working_dir,
+            volumes,
+        } => set_sandbox(sandbox_type, network, image, working_dir, volumes).await,
     }
 }
 
@@ -315,9 +322,40 @@ async fn test_sandbox(sandbox_type: Option<&str>, json_output: bool) -> anyhow::
 
 /// Show current sandbox configuration.
 async fn show_config(json_output: bool) -> anyhow::Result<()> {
-    // For now, show default configuration
-    // In the future, this could load from workspace config
-    let config = SandboxConfig::default();
+    use radium_core::workspace::Workspace;
+    use std::fs;
+    use toml;
+
+    // Try to load from workspace config
+    let config = if let Ok(workspace) = Workspace::discover() {
+        let config_path = workspace.radium_dir().join("config.toml");
+        if config_path.exists() {
+            if let Ok(content) = fs::read_to_string(&config_path) {
+                if let Ok(workspace_config) = toml::from_str::<toml::Value>(&content) {
+                    if let Some(sandbox_table) = workspace_config.get("sandbox") {
+                        // Deserialize sandbox config from TOML table
+                    if let Ok(sandbox_config) = toml::from_str::<SandboxConfig>(
+                        &toml::to_string(sandbox_table)?
+                    ) {
+                        sandbox_config
+                    } else {
+                        SandboxConfig::default()
+                    }
+                    } else {
+                        SandboxConfig::default()
+                    }
+                } else {
+                    SandboxConfig::default()
+                }
+            } else {
+                SandboxConfig::default()
+            }
+        } else {
+            SandboxConfig::default()
+        }
+    } else {
+        SandboxConfig::default()
+    };
 
     if json_output {
         let mut env_map = HashMap::new();
@@ -372,7 +410,9 @@ async fn show_config(json_output: bool) -> anyhow::Result<()> {
             println!("  Custom Flags: {}", config.custom_flags.join(" "));
         }
         println!();
-        println!("{}", "Note: Configuration loaded from defaults. Workspace config support coming soon.".dimmed());
+        if config.sandbox_type == SandboxType::None && config.network == NetworkMode::Open {
+            println!("{}", "Note: Using default configuration (NoSandbox). Use 'rad sandbox set' to configure.".dimmed());
+        }
         println!();
     }
 
@@ -498,6 +538,124 @@ async fn doctor_check(json_output: bool) -> anyhow::Result<()> {
         }
         println!();
     }
+
+    Ok(())
+}
+
+/// Set sandbox configuration for workspace.
+async fn set_sandbox(
+    sandbox_type: String,
+    network: Option<String>,
+    image: Option<String>,
+    working_dir: Option<String>,
+    volumes: Vec<String>,
+) -> anyhow::Result<()> {
+    use radium_core::sandbox::{NetworkMode, SandboxConfig, SandboxFactory, SandboxType};
+    use radium_core::workspace::Workspace;
+    use std::fs;
+    use toml;
+
+    // Parse sandbox type
+    let sandbox_type_enum = match sandbox_type.to_lowercase().as_str() {
+        "none" => SandboxType::None,
+        "docker" => SandboxType::Docker,
+        "podman" => SandboxType::Podman,
+        "seatbelt" => SandboxType::Seatbelt,
+        _ => {
+            return Err(anyhow::anyhow!(
+                "Invalid sandbox type: {}. Valid types: none, docker, podman, seatbelt",
+                sandbox_type
+            ));
+        }
+    };
+
+    // Validate sandbox availability before saving
+    let test_config = SandboxConfig::new(sandbox_type_enum.clone());
+    match SandboxFactory::create(&test_config) {
+        Ok(_) => {
+            // Sandbox is available
+        }
+        Err(e) => {
+            if matches!(e, radium_core::sandbox::SandboxError::NotAvailable(_)) {
+                println!("{}", format!("⚠ Warning: Sandbox type '{}' is not available on this system", sandbox_type).yellow());
+                println!("{}", "Configuration will be saved, but sandbox will not be used until available.".dimmed());
+            } else {
+                return Err(anyhow::anyhow!("Failed to validate sandbox: {}", e));
+            }
+        }
+    }
+
+    // Parse network mode
+    let network_mode = if let Some(net) = network {
+        match net.to_lowercase().as_str() {
+            "open" => NetworkMode::Open,
+            "closed" => NetworkMode::Closed,
+            "proxied" => NetworkMode::Proxied,
+            _ => {
+                return Err(anyhow::anyhow!(
+                    "Invalid network mode: {}. Valid modes: open, closed, proxied",
+                    net
+                ));
+            }
+        }
+    } else {
+        NetworkMode::Open // Default
+    };
+
+    // Build sandbox config
+    let mut config = SandboxConfig::new(sandbox_type_enum)
+        .with_network(network_mode);
+
+    if let Some(img) = image {
+        config = config.with_image(img);
+    }
+
+    if let Some(wd) = working_dir {
+        config = config.with_working_dir(wd);
+    }
+
+    if !volumes.is_empty() {
+        config = config.with_volumes(volumes);
+    }
+
+    // Discover workspace
+    let workspace = Workspace::discover()
+        .map_err(|_| anyhow::anyhow!("No Radium workspace found. Run 'rad init' first."))?;
+
+    // Load existing config or create new
+    let config_path = workspace.radium_dir().join("config.toml");
+    let mut workspace_config: toml::Value = if config_path.exists() {
+        let content = fs::read_to_string(&config_path)?;
+        toml::from_str(&content)?
+    } else {
+        toml::Value::Table(toml::map::Map::new())
+    };
+
+    // Update sandbox section
+    let sandbox_table = toml::to_value(&config)?;
+    workspace_config
+        .as_table_mut()
+        .ok_or_else(|| anyhow::anyhow!("Invalid config format"))?
+        .insert("sandbox".to_string(), sandbox_table);
+
+    // Write config back
+    let config_str = toml::to_string_pretty(&workspace_config)?;
+    fs::write(&config_path, config_str)?;
+
+    println!();
+    println!("{}", "✓ Sandbox configuration updated".green().bold());
+    println!("  Type: {}", sandbox_type.bold());
+    println!("  Network: {}", format!("{:?}", network_mode).bold());
+    if let Some(ref img) = image {
+        println!("  Image: {}", img.bold());
+    }
+    if let Some(ref wd) = working_dir {
+        println!("  Working Directory: {}", wd.bold());
+    }
+    if !volumes.is_empty() {
+        println!("  Volumes: {}", volumes.join(", ").bold());
+    }
+    println!();
 
     Ok(())
 }

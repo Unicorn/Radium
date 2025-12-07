@@ -3,6 +3,8 @@
 //! Scans agent directories for TOML configuration files and loads them.
 
 use crate::agents::config::{AgentConfig, AgentConfigFile};
+use crate::agents::metadata::AgentMetadata;
+use crate::agents::persona::{PersonaConfig, PerformanceConfig, PerformanceProfile, RecommendedModels, SimpleModelRecommendation};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -149,6 +151,26 @@ impl AgentDiscovery {
             }
         }
 
+        // Parse YAML frontmatter from prompt file if present
+        // This enhances the agent with persona metadata from the prompt
+        if let Some(prompt_path) = self.resolve_prompt_path(&agent.prompt_path, path) {
+            if let Ok(content) = fs::read_to_string(&prompt_path) {
+                if content.trim_start().starts_with("---") {
+                    if let Ok((metadata, _)) = AgentMetadata::from_markdown(&content) {
+                        // Convert AgentMetadata to PersonaConfig if recommended_models exist
+                        if let Some(recommended_models) = metadata.recommended_models {
+                            let persona_config = Self::convert_metadata_to_persona(
+                                &recommended_models,
+                                &metadata,
+                            );
+                            // YAML frontmatter takes precedence over TOML persona config
+                            agent.persona_config = Some(persona_config);
+                        }
+                    }
+                }
+            }
+        }
+
         // Apply sub-agent filter if set
         if let Some(filter) = &self.options.sub_agent_filter {
             if !filter.contains(&agent.id) {
@@ -236,6 +258,73 @@ impl AgentDiscovery {
         }
 
         paths
+    }
+
+    /// Resolve prompt path relative to config file location.
+    fn resolve_prompt_path(&self, prompt_path: &PathBuf, config_path: &Path) -> Option<PathBuf> {
+        if prompt_path.is_absolute() {
+            if prompt_path.exists() {
+                Some(prompt_path.clone())
+            } else {
+                None
+            }
+        } else if let Some(config_dir) = config_path.parent() {
+            let resolved = config_dir.join(prompt_path);
+            if resolved.exists() {
+                Some(resolved)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
+    /// Convert AgentMetadata::RecommendedModels to PersonaConfig.
+    fn convert_metadata_to_persona(
+        recommended_models: &crate::agents::metadata::RecommendedModels,
+        metadata: &AgentMetadata,
+    ) -> PersonaConfig {
+        // Convert primary model
+        let primary = SimpleModelRecommendation {
+            engine: recommended_models.primary.engine.clone(),
+            model: recommended_models.primary.model.clone(),
+        };
+
+        // Convert fallback model if present
+        let fallback = recommended_models.fallback.as_ref().map(|f| SimpleModelRecommendation {
+            engine: f.engine.clone(),
+            model: f.model.clone(),
+        });
+
+        // Convert premium model if present
+        let premium = recommended_models.premium.as_ref().map(|p| SimpleModelRecommendation {
+            engine: p.engine.clone(),
+            model: p.model.clone(),
+        });
+
+        // Determine performance profile from primary model's priority
+        let performance_profile = match recommended_models.primary.priority {
+            crate::agents::metadata::ModelPriority::Speed => PerformanceProfile::Speed,
+            crate::agents::metadata::ModelPriority::Balanced => PerformanceProfile::Balanced,
+            crate::agents::metadata::ModelPriority::Thinking => PerformanceProfile::Thinking,
+            crate::agents::metadata::ModelPriority::Expert => PerformanceProfile::Expert,
+        };
+
+        // Create performance config
+        let performance = PerformanceConfig {
+            profile: performance_profile,
+            estimated_tokens: None, // estimated_tokens not in AgentMetadata, can be added later
+        };
+
+        PersonaConfig {
+            models: RecommendedModels {
+                primary,
+                fallback,
+                premium,
+            },
+            performance,
+        }
     }
 
     /// Find an agent by ID.

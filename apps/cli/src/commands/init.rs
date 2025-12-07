@@ -11,7 +11,13 @@ use std::path::PathBuf;
 
 /// Execute the init command.
 
-pub async fn execute(path: Option<String>, use_defaults: bool, with_context: bool) -> Result<()> {
+pub async fn execute(
+    path: Option<String>,
+    use_defaults: bool,
+    with_context: bool,
+    sandbox: Option<String>,
+    sandbox_network: Option<String>,
+) -> Result<()> {
     println!("{}", "rad init".bold().cyan());
 
     println!();
@@ -109,6 +115,81 @@ pub async fn execute(path: Option<String>, use_defaults: bool, with_context: boo
                 println!("  {} Failed to create GEMINI.md: {}", "!".yellow(), e);
             }
         }
+    }
+
+    // Configure sandbox if requested
+    if let Some(sandbox_type_str) = sandbox {
+        use radium_core::sandbox::{NetworkMode, SandboxConfig, SandboxFactory, SandboxType};
+        use toml;
+
+        // Parse sandbox type
+        let sandbox_type_enum = match sandbox_type_str.to_lowercase().as_str() {
+            "none" => SandboxType::None,
+            "docker" => SandboxType::Docker,
+            "podman" => SandboxType::Podman,
+            "seatbelt" => SandboxType::Seatbelt,
+            _ => {
+                println!("  {} Invalid sandbox type: {}, using 'none'", "!".yellow(), sandbox_type_str);
+                SandboxType::None
+            }
+        };
+
+        // Parse network mode
+        let network_mode = if let Some(net) = sandbox_network {
+            match net.to_lowercase().as_str() {
+                "open" => NetworkMode::Open,
+                "closed" => NetworkMode::Closed,
+                "proxied" => NetworkMode::Proxied,
+                _ => {
+                    println!("  {} Invalid network mode: {}, using 'open'", "!".yellow(), net);
+                    NetworkMode::Open
+                }
+            }
+        } else {
+            NetworkMode::Open // Default
+        };
+
+        // Validate sandbox availability
+        let test_config = SandboxConfig::new(sandbox_type_enum.clone());
+        match SandboxFactory::create(&test_config) {
+            Ok(_) => {
+                // Sandbox is available
+            }
+            Err(e) => {
+                if matches!(e, radium_core::sandbox::SandboxError::NotAvailable(_)) {
+                    println!("  {} Warning: Sandbox type '{}' is not available on this system", "!".yellow(), sandbox_type_str);
+                    println!("  {} Configuration will be saved, but sandbox will not be used until available.", " ".dimmed());
+                } else {
+                    println!("  {} Failed to validate sandbox: {}", "!".yellow(), e);
+                }
+            }
+        }
+
+        // Create sandbox config
+        let sandbox_config = SandboxConfig::new(sandbox_type_enum)
+            .with_network(network_mode);
+
+        // Load or create workspace config
+        let config_path = target_path.join(".radium").join("config.toml");
+        let mut workspace_config: toml::Value = if config_path.exists() {
+            let content = fs::read_to_string(&config_path)?;
+            toml::from_str(&content)?
+        } else {
+            toml::Value::Table(toml::map::Map::new())
+        };
+
+        // Update sandbox section
+        let sandbox_table = toml::to_value(&sandbox_config)?;
+        workspace_config
+            .as_table_mut()
+            .ok_or_else(|| anyhow::anyhow!("Invalid config format"))?
+            .insert("sandbox".to_string(), sandbox_table);
+
+        // Write config back
+        let config_str = toml::to_string_pretty(&workspace_config)?;
+        fs::write(&config_path, config_str)?;
+
+        println!("  ✓ Configured sandbox: {}", sandbox_type_str.bold());
     }
 
     println!();

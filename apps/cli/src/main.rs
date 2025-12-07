@@ -59,6 +59,14 @@ enum Command {
         /// Create a starter GEMINI.md context file
         #[arg(long)]
         with_context: bool,
+
+        /// Sandbox type to configure (docker, podman, seatbelt, none)
+        #[arg(long)]
+        sandbox: Option<String>,
+
+        /// Network mode for sandbox (open, closed, proxied)
+        #[arg(long)]
+        sandbox_network: Option<String>,
     },
 
     /// Generate a plan from a specification file
@@ -427,8 +435,8 @@ async fn main() -> anyhow::Result<()> {
 
     // Execute command
     match command {
-        Command::Init { path, use_defaults, with_context } => {
-            init::execute(path, use_defaults, with_context).await?;
+        Command::Init { path, use_defaults, with_context, sandbox, sandbox_network } => {
+            init::execute(path, use_defaults, with_context, sandbox, sandbox_network).await?;
         }
         Command::Plan { input, id, name } => {
             plan::execute(input, id, name).await?;

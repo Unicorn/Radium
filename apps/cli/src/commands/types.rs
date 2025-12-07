@@ -93,6 +93,16 @@ pub enum AgentsCommand {
         json: bool,
     },
 
+    /// Show persona configuration for an agent
+    Persona {
+        /// Agent ID
+        id: String,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
     /// Validate agent configurations
     Validate {
         /// Show detailed validation errors
