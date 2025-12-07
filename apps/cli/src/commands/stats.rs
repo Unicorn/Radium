@@ -2,7 +2,7 @@
 
 use anyhow::{Context, Result};
 use clap::Subcommand;
-use radium_core::analytics::{ReportFormatter, SessionAnalytics, SessionReport, SessionStorage};
+use radium_core::analytics::{ComparisonFormatter, ReportFormatter, SessionAnalytics, SessionComparison, SessionReport, SessionStorage};
 use radium_core::monitoring::MonitoringService;
 use radium_core::workspace::Workspace;
 use std::fs;
@@ -51,6 +51,16 @@ pub enum StatsCommand {
         /// Session ID (optional, exports all if not specified)
         session_id: Option<String>,
     },
+    /// Compare two sessions
+    Compare {
+        /// First session ID
+        session_a: String,
+        /// Second session ID
+        session_b: String,
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 /// Execute stats command
@@ -77,6 +87,9 @@ pub async fn execute(cmd: StatsCommand) -> Result<()> {
         StatsCommand::History { limit, json } => history_command(&analytics, limit, json).await,
         StatsCommand::Export { output, session_id } => {
             export_command(&analytics, output.as_deref(), session_id.as_deref()).await
+        }
+        StatsCommand::Compare { session_a, session_b, json } => {
+            compare_command(&analytics, &session_a, &session_b, json).await
         }
     }
 }
@@ -382,6 +395,58 @@ async fn export_command(
         } else {
             println!("{}", json);
         }
+    }
+
+    Ok(())
+}
+
+async fn compare_command(
+    analytics: &SessionAnalytics,
+    session_a: &str,
+    session_b: &str,
+    json: bool,
+) -> Result<()> {
+    let workspace = Workspace::discover()?;
+    let storage = SessionStorage::new(workspace.root())?;
+
+    // Try to load from storage first, otherwise generate
+    let report_a = if let Ok(stored) = storage.load_report(session_a) {
+        stored
+    } else {
+        let metrics = analytics.get_session_metrics(session_a)?;
+        SessionReport::new(metrics)
+    };
+
+    let report_b = if let Ok(stored) = storage.load_report(session_b) {
+        stored
+    } else {
+        let metrics = analytics.get_session_metrics(session_b)?;
+        SessionReport::new(metrics)
+    };
+
+    let comparison = SessionComparison::new(&report_a, &report_b);
+
+    if json {
+        // For JSON output, serialize the comparison
+        let json_value = serde_json::json!({
+            "session_a": comparison.session_a_id,
+            "session_b": comparison.session_b_id,
+            "token_delta": comparison.token_delta,
+            "token_percentage_change": comparison.token_percentage_change(),
+            "cost_delta": comparison.cost_delta,
+            "cost_percentage_change": comparison.cost_percentage_change(),
+            "wall_time_delta_secs": comparison.wall_time_delta.as_secs(),
+            "wall_time_percentage_change": comparison.wall_time_percentage_change(),
+            "agent_active_time_delta_secs": comparison.agent_active_time_delta.as_secs(),
+            "tool_calls_delta": comparison.tool_calls_delta,
+            "success_rate_delta": comparison.success_rate_delta,
+            "lines_added_delta": comparison.lines_added_delta,
+            "lines_removed_delta": comparison.lines_removed_delta,
+        });
+        println!("{}", serde_json::to_string_pretty(&json_value)?);
+    } else {
+        let formatter = ComparisonFormatter;
+        println!("{}", formatter.format(&comparison));
     }
 
     Ok(())
