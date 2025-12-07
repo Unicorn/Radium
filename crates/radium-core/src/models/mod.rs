@@ -13,7 +13,10 @@ pub mod task;
 pub mod workflow;
 
 pub use agent::{Agent, AgentConfig, AgentError, AgentState};
-pub use plan::{Iteration, Plan, PlanError, PlanManifest, PlanStatus, PlanTask};
+pub use plan::{
+    Iteration, Plan, PlanBuilder, PlanError, PlanManifest, PlanManifestBuilder, PlanStatus,
+    PlanTask, TaskStatus,
+};
 pub use selector::{
     ModelSelector, SelectedModel, SelectionError, SelectionOptions, SelectionResult,
 };

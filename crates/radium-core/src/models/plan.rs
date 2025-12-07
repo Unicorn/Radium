@@ -198,6 +198,73 @@ impl Plan {
     }
 }
 
+/// Builder for Plan struct.
+pub struct PlanBuilder {
+    requirement_id: Option<RequirementId>,
+    project_name: Option<String>,
+    folder_name: Option<String>,
+    stage: Option<String>,
+}
+
+impl PlanBuilder {
+    /// Create a new PlanBuilder.
+    pub fn new() -> Self {
+        Self {
+            requirement_id: None,
+            project_name: None,
+            folder_name: None,
+            stage: None,
+        }
+    }
+
+    /// Set the requirement ID.
+    pub fn with_requirement_id(mut self, id: RequirementId) -> Self {
+        self.requirement_id = Some(id);
+        self
+    }
+
+    /// Set the project name.
+    pub fn with_project_name(mut self, name: String) -> Self {
+        self.project_name = Some(name);
+        self
+    }
+
+    /// Set the folder name.
+    pub fn with_folder_name(mut self, name: String) -> Self {
+        self.folder_name = Some(name);
+        self
+    }
+
+    /// Set the stage.
+    pub fn with_stage(mut self, stage: String) -> Self {
+        self.stage = Some(stage);
+        self
+    }
+
+    /// Build the Plan.
+    pub fn build(self) -> Result<Plan> {
+        Ok(Plan::new(
+            self.requirement_id.ok_or_else(|| {
+                PlanError::InvalidStructure("requirement_id is required".to_string())
+            })?,
+            self.project_name.ok_or_else(|| {
+                PlanError::InvalidStructure("project_name is required".to_string())
+            })?,
+            self.folder_name.ok_or_else(|| {
+                PlanError::InvalidStructure("folder_name is required".to_string())
+            })?,
+            self.stage
+                .unwrap_or_else(|| "backlog".to_string()),
+        ))
+    }
+}
+
+impl Default for PlanBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Plan manifest stored in plan/plan_manifest.json.
 ///
 /// Contains the detailed structure of the plan with iterations and tasks.
@@ -241,6 +308,74 @@ impl PlanManifest {
     /// Get a mutable iteration by ID.
     pub fn get_iteration_mut(&mut self, id: &str) -> Option<&mut Iteration> {
         self.iterations.iter_mut().find(|i| i.id == id)
+    }
+
+    /// Get the next pending task across all iterations.
+    pub fn next_pending_task(&self) -> Option<&PlanTask> {
+        for iteration in &self.iterations {
+            for task in &iteration.tasks {
+                if !task.completed {
+                    return Some(task);
+                }
+            }
+        }
+        None
+    }
+}
+
+/// Builder for PlanManifest struct.
+pub struct PlanManifestBuilder {
+    requirement_id: Option<RequirementId>,
+    project_name: Option<String>,
+    iterations: Vec<Iteration>,
+}
+
+impl PlanManifestBuilder {
+    /// Create a new PlanManifestBuilder.
+    pub fn new() -> Self {
+        Self {
+            requirement_id: None,
+            project_name: None,
+            iterations: Vec::new(),
+        }
+    }
+
+    /// Set the requirement ID.
+    pub fn with_requirement_id(mut self, id: RequirementId) -> Self {
+        self.requirement_id = Some(id);
+        self
+    }
+
+    /// Set the project name.
+    pub fn with_project_name(mut self, name: String) -> Self {
+        self.project_name = Some(name);
+        self
+    }
+
+    /// Add an iteration.
+    pub fn add_iteration(mut self, iteration: Iteration) -> Self {
+        self.iterations.push(iteration);
+        self
+    }
+
+    /// Build the PlanManifest.
+    pub fn build(self) -> Result<PlanManifest> {
+        Ok(PlanManifest {
+            requirement_id: self.requirement_id.ok_or_else(|| {
+                PlanError::InvalidStructure("requirement_id is required".to_string())
+            })?,
+            project_name: self.project_name.ok_or_else(|| {
+                PlanError::InvalidStructure("project_name is required".to_string())
+            })?,
+            iterations: self.iterations,
+            metadata: HashMap::new(),
+        })
+    }
+}
+
+impl Default for PlanManifestBuilder {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -534,5 +669,88 @@ mod tests {
 
         assert_eq!(plan.requirement_id, deserialized.requirement_id);
         assert_eq!(plan.project_name, deserialized.project_name);
+    }
+
+    #[test]
+    fn test_plan_builder() {
+        let req_id = RequirementId::from_str("REQ-001").unwrap();
+        let plan = PlanBuilder::new()
+            .with_requirement_id(req_id)
+            .with_project_name("Test Project".to_string())
+            .with_folder_name("REQ-001-test".to_string())
+            .with_stage("backlog".to_string())
+            .build()
+            .unwrap();
+
+        assert_eq!(plan.requirement_id, req_id);
+        assert_eq!(plan.project_name, "Test Project");
+        assert_eq!(plan.folder_name, "REQ-001-test");
+        assert_eq!(plan.stage, "backlog");
+    }
+
+    #[test]
+    fn test_plan_manifest_builder() {
+        let req_id = RequirementId::from_str("REQ-001").unwrap();
+        let mut iter = Iteration::new(1, "Iteration 1".to_string());
+        iter.add_task(PlanTask::new("I1", 1, "Task 1".to_string()));
+
+        let manifest = PlanManifestBuilder::new()
+            .with_requirement_id(req_id)
+            .with_project_name("Test Project".to_string())
+            .add_iteration(iter)
+            .build()
+            .unwrap();
+
+        assert_eq!(manifest.requirement_id, req_id);
+        assert_eq!(manifest.project_name, "Test Project");
+        assert_eq!(manifest.iterations.len(), 1);
+    }
+
+    #[test]
+    fn test_next_pending_task() {
+        let req_id = RequirementId::from_str("REQ-001").unwrap();
+        let mut manifest = PlanManifest::new(req_id, "Test".to_string());
+
+        let mut iter = Iteration::new(1, "Iteration 1".to_string());
+        let mut task1 = PlanTask::new("I1", 1, "Task 1".to_string());
+        let task2 = PlanTask::new("I1", 2, "Task 2".to_string());
+        task1.mark_completed();
+        iter.add_task(task1);
+        iter.add_task(task2);
+        manifest.add_iteration(iter);
+
+        let next = manifest.next_pending_task();
+        assert!(next.is_some());
+        assert_eq!(next.unwrap().title, "Task 2");
+    }
+
+    #[test]
+    fn test_next_pending_task_all_complete() {
+        let req_id = RequirementId::from_str("REQ-001").unwrap();
+        let mut manifest = PlanManifest::new(req_id, "Test".to_string());
+
+        let mut iter = Iteration::new(1, "Iteration 1".to_string());
+        let mut task1 = PlanTask::new("I1", 1, "Task 1".to_string());
+        task1.mark_completed();
+        iter.add_task(task1);
+        manifest.add_iteration(iter);
+
+        let next = manifest.next_pending_task();
+        assert!(next.is_none());
+    }
+
+    #[test]
+    fn test_task_status_enum() {
+        let status = TaskStatus::Pending;
+        assert_eq!(status.to_string(), "Pending");
+
+        let status = TaskStatus::InProgress;
+        assert_eq!(status.to_string(), "In Progress");
+
+        let status = TaskStatus::Completed;
+        assert_eq!(status.to_string(), "Completed");
+
+        let status = TaskStatus::Failed;
+        assert_eq!(status.to_string(), "Failed");
     }
 }
