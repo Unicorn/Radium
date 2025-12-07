@@ -204,7 +204,7 @@ pub struct MessageBus {
 
 impl MessageBus {
     /// Creates a new message bus.
-    pub fn new(db: Arc<Mutex<Database>>) -> Self {
+    pub fn new(db: Arc<StdMutex<Database>>) -> Self {
         let repository: Arc<dyn MessageRepository> = Arc::new(DatabaseMessageRepository::new(db));
         Self {
             repository,
