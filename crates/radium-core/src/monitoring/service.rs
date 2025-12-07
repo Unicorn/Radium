@@ -249,6 +249,41 @@ impl MonitoringService {
         Ok(())
     }
 
+    /// Registers a new agent with telemetry hooks.
+    ///
+    /// This is an async version that executes telemetry hooks for agent lifecycle events.
+    ///
+    /// # Arguments
+    /// * `record` - Agent record to register
+    ///
+    /// # Errors
+    /// Returns error if insertion fails
+    pub async fn register_agent_with_hooks(&self, record: &AgentRecord) -> Result<()> {
+        // Execute telemetry hooks for agent start
+        if let Some(ref registry) = self.hook_registry {
+            use crate::hooks::integration::OrchestratorHooks;
+            let hooks = OrchestratorHooks::new(Arc::clone(registry));
+            let telemetry_data = serde_json::json!({
+                "event_type": "agent_start",
+                "agent_id": record.id,
+                "agent_type": record.agent_type,
+                "parent_id": record.parent_id,
+                "plan_id": record.plan_id,
+                "start_time": record.start_time,
+            });
+            if let Err(e) = hooks.telemetry_collection("agent_start", &telemetry_data).await {
+                tracing::warn!(
+                    agent_id = %record.id,
+                    error = %e,
+                    "Telemetry hook execution failed for agent start"
+                );
+            }
+        }
+
+        // Register agent (synchronous DB operation)
+        self.register_agent(record)
+    }
+
     /// Updates an agent's status.
     ///
     /// # Arguments
@@ -293,6 +328,45 @@ impl MonitoringService {
         Ok(())
     }
 
+    /// Marks an agent as completed with telemetry hooks.
+    ///
+    /// This is an async version that executes telemetry hooks for agent completion.
+    ///
+    /// # Arguments
+    /// * `agent_id` - Agent identifier
+    /// * `exit_code` - Exit code (0 for success)
+    ///
+    /// # Errors
+    /// Returns error if update fails
+    pub async fn complete_agent_with_hooks(&self, agent_id: &str, exit_code: i32) -> Result<()> {
+        // Get agent record for telemetry
+        let agent_record = self.get_agent(agent_id).ok();
+        let end_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+
+        // Execute telemetry hooks for agent completion
+        if let Some(ref registry) = self.hook_registry {
+            use crate::hooks::integration::OrchestratorHooks;
+            let hooks = OrchestratorHooks::new(Arc::clone(registry));
+            let telemetry_data = serde_json::json!({
+                "event_type": "agent_complete",
+                "agent_id": agent_id,
+                "exit_code": exit_code,
+                "end_time": end_time,
+                "success": exit_code == 0,
+            });
+            if let Err(e) = hooks.telemetry_collection("agent_complete", &telemetry_data).await {
+                tracing::warn!(
+                    agent_id = %agent_id,
+                    error = %e,
+                    "Telemetry hook execution failed for agent completion"
+                );
+            }
+        }
+
+        // Complete agent (synchronous DB operation)
+        self.complete_agent(agent_id, exit_code)
+    }
+
     /// Marks an agent as failed.
     ///
     /// # Arguments
@@ -314,6 +388,42 @@ impl MonitoringService {
         }
 
         Ok(())
+    }
+
+    /// Marks an agent as failed with telemetry hooks.
+    ///
+    /// This is an async version that executes telemetry hooks for agent failure.
+    ///
+    /// # Arguments
+    /// * `agent_id` - Agent identifier
+    /// * `error_message` - Error message
+    ///
+    /// # Errors
+    /// Returns error if update fails
+    pub async fn fail_agent_with_hooks(&self, agent_id: &str, error_message: &str) -> Result<()> {
+        let end_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+
+        // Execute telemetry hooks for agent failure
+        if let Some(ref registry) = self.hook_registry {
+            use crate::hooks::integration::OrchestratorHooks;
+            let hooks = OrchestratorHooks::new(Arc::clone(registry));
+            let telemetry_data = serde_json::json!({
+                "event_type": "agent_fail",
+                "agent_id": agent_id,
+                "error_message": error_message,
+                "end_time": end_time,
+            });
+            if let Err(e) = hooks.telemetry_collection("agent_fail", &telemetry_data).await {
+                tracing::warn!(
+                    agent_id = %agent_id,
+                    error = %e,
+                    "Telemetry hook execution failed for agent failure"
+                );
+            }
+        }
+
+        // Fail agent (synchronous DB operation)
+        self.fail_agent(agent_id, error_message)
     }
 
     /// Gets an agent record.

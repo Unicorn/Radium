@@ -4,6 +4,7 @@
 
 use super::ExtensionCommand;
 use colored::Colorize;
+use inquire::Confirm;
 use radium_core::extensions::{ExtensionDiscovery, ExtensionManager, InstallOptions};
 use serde_json::json;
 use std::path::Path;
