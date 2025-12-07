@@ -301,6 +301,7 @@ impl TelemetryTracking for MonitoringService {
                     estimated_cost: row.get(8)?,
                     model: row.get(9)?,
                     provider: row.get(10)?,
+                    approval_type: None, // Not stored in DB yet
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
