@@ -563,7 +563,7 @@ radium/
 - [Backend Architecture](../architecture/architecture-backend.md)
 - [CLI and TUI Architecture](../architecture/architecture-cli-tui.md)
 - [Web and Desktop Apps Architecture](../architecture/architecture-web-desktop.md)
-- [Milestones and Timeline](04-milestones-and-timeline.md)
+- [Milestones and Timeline](../archive/reference/04-milestones-and-timeline.md) (archived)
 
 ---
 

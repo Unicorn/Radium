@@ -9,10 +9,13 @@ use tracing::{debug, error, info};
 use radium_orchestrator::{AgentExecutor, Orchestrator};
 
 use crate::checkpoint::CheckpointManager;
+use crate::hooks::integration::OrchestratorHooks;
+use crate::hooks::registry::HookRegistry;
+use crate::hooks::types::{HookContext, HookPriority};
 use crate::models::{Workflow, WorkflowState};
 use crate::monitoring::{AgentRecord, AgentStatus, MonitoringService};
 use crate::storage::TaskRepository;
-use crate::workspace::Workspace;
+use crate::workspace::{Workspace, WorkspaceStructure};
 
 use super::control_flow::{StepCondition, should_execute_step};
 use super::engine::{ExecutionContext, StepResult, WorkflowEngine, WorkflowEngineError};
@@ -29,6 +32,8 @@ pub struct WorkflowExecutor {
     monitoring: Option<Arc<std::sync::Mutex<MonitoringService>>>,
     /// Checkpoint manager for creating snapshots (optional).
     checkpoint_manager: Option<Arc<std::sync::Mutex<CheckpointManager>>>,
+    /// Hook registry for workflow behavior hooks (optional).
+    hook_registry: Option<Arc<HookRegistry>>,
 }
 
 impl WorkflowExecutor {
@@ -51,7 +56,20 @@ impl WorkflowExecutor {
             CheckpointManager::new(ws.root()).ok().map(|cm| Arc::new(std::sync::Mutex::new(cm)))
         });
 
-        Self { engine: WorkflowEngine::new(orchestrator, executor), monitoring, checkpoint_manager }
+        // Initialize hook registry (optional - hooks can be registered later)
+        let hook_registry = Some(Arc::new(HookRegistry::new()));
+
+        Self {
+            engine: WorkflowEngine::new(orchestrator, executor),
+            monitoring,
+            checkpoint_manager,
+            hook_registry,
+        }
+    }
+
+    /// Get the hook registry for registering workflow behavior hooks.
+    pub fn hook_registry(&self) -> Option<&Arc<HookRegistry>> {
+        self.hook_registry.as_ref()
     }
 
     /// Executes a workflow sequentially.
@@ -435,6 +453,40 @@ impl WorkflowExecutor {
                 step_id = %step.id,
                 "Workflow step completed successfully"
             );
+
+            // Execute workflow step hooks for behavior evaluation
+            if let Some(ref registry) = self.hook_registry {
+                if let Some(workspace) = Workspace::discover().ok() {
+                    let ws_structure = WorkspaceStructure::new(workspace.root());
+                    let behavior_file = ws_structure.memory_dir().join("behavior.json");
+                    
+                    // Extract output text for behavior evaluation
+                    let output_text = match &step_result.output {
+                        serde_json::Value::String(s) => s.clone(),
+                        v => serde_json::to_string(v).unwrap_or_default(),
+                    };
+
+                    // Create hook context with behavior file and output
+                    let mut hook_context = HookContext::new();
+                    hook_context.set("behavior_file", behavior_file.to_string_lossy().to_string());
+                    hook_context.set("output", output_text);
+                    hook_context.set("step_id", step.id.clone());
+                    hook_context.set("workflow_id", workflow.id.clone());
+                    hook_context.set("step_result", serde_json::to_value(&step_result).unwrap_or_default());
+
+                    // Execute hooks for workflow step completion
+                    // Using telemetry hooks as a placeholder for workflow behavior hooks
+                    let hooks = OrchestratorHooks::new(Arc::clone(registry));
+                    if let Err(e) = hooks.execute_telemetry_hooks(&hook_context).await {
+                        debug!(
+                            workflow_id = %workflow.id,
+                            step_id = %step.id,
+                            error = %e,
+                            "Hook execution failed (non-fatal)"
+                        );
+                    }
+                }
+            }
         }
 
         // All steps completed successfully

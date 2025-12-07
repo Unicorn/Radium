@@ -1282,7 +1282,7 @@ Implement remaining legacy system features for complete parity.
 - **Now/Next/Later**: [02-now-next-later.md](./02-now-next-later.md)
 - **Feature Backlog**: [legacy-system-feature-backlog.md](./legacy-system-feature-backlog.md)
 - **Completed Work**: [01-completed.md](./01-completed.md)
-- **Feature Gaps**: [FEATURE_GAPS.md](./FEATURE_GAPS.md) - Track implemented but not integrated features
+- **Feature Gaps**: [FEATURE_GAPS.md](../archive/status-reports/FEATURE_GAPS.md) - Track implemented but not integrated features (archived - all gaps resolved)
 - **Vibe-Check Integration**: [VIBE_CHECK_INTEGRATION.md](./VIBE_CHECK_INTEGRATION.md)
 - **Gemini CLI Enhancements**: [gemini-cli-enhancements.md](../features/gemini-cli-enhancements.md)
 
