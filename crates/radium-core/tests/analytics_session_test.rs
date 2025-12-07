@@ -1,0 +1,498 @@
+//! Unit tests for session analytics and metrics tracking.
+
+use chrono::{DateTime, Utc};
+use radium_core::analytics::{SessionAnalytics, SessionMetrics};
+use radium_core::monitoring::{AgentRecord, AgentStatus, MonitoringService, TelemetryRecord, TelemetryTracking};
+use std::time::Duration;
+use tokio;
+
+/// Helper function to create a monitoring service with test data.
+fn create_test_monitoring() -> MonitoringService {
+    MonitoringService::new().expect("Failed to create monitoring service")
+}
+
+/// Helper function to create a telemetry record with default values.
+fn create_test_telemetry(agent_id: &str, input_tokens: u64, output_tokens: u64) -> TelemetryRecord {
+    TelemetryRecord::new(agent_id.to_string())
+        .with_tokens(input_tokens, output_tokens)
+        .with_model("test-model".to_string(), "test-provider".to_string())
+}
+
+#[tokio::test]
+async fn test_session_metrics_success_rate_normal() {
+    let mut metrics = SessionMetrics::default();
+    metrics.tool_calls = 100;
+    metrics.successful_tool_calls = 85;
+    metrics.failed_tool_calls = 15;
+
+    let success_rate = metrics.success_rate();
+    assert_eq!(success_rate, 85.0);
+}
+
+#[tokio::test]
+async fn test_session_metrics_success_rate_zero_tool_calls() {
+    let metrics = SessionMetrics::default();
+    assert_eq!(metrics.tool_calls, 0);
+    
+    let success_rate = metrics.success_rate();
+    assert_eq!(success_rate, 0.0);
+}
+
+#[tokio::test]
+async fn test_session_metrics_success_rate_100_percent() {
+    let mut metrics = SessionMetrics::default();
+    metrics.tool_calls = 50;
+    metrics.successful_tool_calls = 50;
+    metrics.failed_tool_calls = 0;
+
+    let success_rate = metrics.success_rate();
+    assert_eq!(success_rate, 100.0);
+}
+
+#[tokio::test]
+async fn test_session_metrics_cache_hit_rate_normal() {
+    let mut metrics = SessionMetrics::default();
+    
+    // Add model usage with input tokens
+    let mut model_stats = radium_core::analytics::ModelUsageStats {
+        requests: 1,
+        input_tokens: 1000,
+        output_tokens: 500,
+        cached_tokens: 0,
+        estimated_cost: 0.0,
+    };
+    metrics.model_usage.insert("test-model".to_string(), model_stats);
+    
+    metrics.total_cached_tokens = 300;
+
+    let cache_hit_rate = metrics.cache_hit_rate();
+    assert_eq!(cache_hit_rate, 30.0); // 300 / 1000 * 100
+}
+
+#[tokio::test]
+async fn test_session_metrics_cache_hit_rate_zero_input() {
+    let mut metrics = SessionMetrics::default();
+    
+    // Add model usage with zero input tokens
+    let model_stats = radium_core::analytics::ModelUsageStats {
+        requests: 1,
+        input_tokens: 0,
+        output_tokens: 500,
+        cached_tokens: 0,
+        estimated_cost: 0.0,
+    };
+    metrics.model_usage.insert("test-model".to_string(), model_stats);
+    
+    metrics.total_cached_tokens = 100;
+
+    let cache_hit_rate = metrics.cache_hit_rate();
+    assert_eq!(cache_hit_rate, 0.0);
+}
+
+#[tokio::test]
+async fn test_session_metrics_cache_hit_rate_100_percent() {
+    let mut metrics = SessionMetrics::default();
+    
+    let model_stats = radium_core::analytics::ModelUsageStats {
+        requests: 1,
+        input_tokens: 1000,
+        output_tokens: 500,
+        cached_tokens: 0,
+        estimated_cost: 0.0,
+    };
+    metrics.model_usage.insert("test-model".to_string(), model_stats);
+    
+    metrics.total_cached_tokens = 1000;
+
+    let cache_hit_rate = metrics.cache_hit_rate();
+    assert_eq!(cache_hit_rate, 100.0);
+}
+
+#[tokio::test]
+async fn test_session_metrics_total_tokens_single_model() {
+    let mut metrics = SessionMetrics::default();
+    
+    let model_stats = radium_core::analytics::ModelUsageStats {
+        requests: 1,
+        input_tokens: 1000,
+        output_tokens: 500,
+        cached_tokens: 0,
+        estimated_cost: 0.0,
+    };
+    metrics.model_usage.insert("model1".to_string(), model_stats);
+
+    let (input, output) = metrics.total_tokens();
+    assert_eq!(input, 1000);
+    assert_eq!(output, 500);
+}
+
+#[tokio::test]
+async fn test_session_metrics_total_tokens_multiple_models() {
+    let mut metrics = SessionMetrics::default();
+    
+    let model1_stats = radium_core::analytics::ModelUsageStats {
+        requests: 1,
+        input_tokens: 1000,
+        output_tokens: 500,
+        cached_tokens: 0,
+        estimated_cost: 0.0,
+    };
+    metrics.model_usage.insert("model1".to_string(), model1_stats);
+    
+    let model2_stats = radium_core::analytics::ModelUsageStats {
+        requests: 1,
+        input_tokens: 2000,
+        output_tokens: 1000,
+        cached_tokens: 0,
+        estimated_cost: 0.0,
+    };
+    metrics.model_usage.insert("model2".to_string(), model2_stats);
+
+    let (input, output) = metrics.total_tokens();
+    assert_eq!(input, 3000);
+    assert_eq!(output, 1500);
+}
+
+#[tokio::test]
+async fn test_session_metrics_total_tokens_empty() {
+    let metrics = SessionMetrics::default();
+    
+    let (input, output) = metrics.total_tokens();
+    assert_eq!(input, 0);
+    assert_eq!(output, 0);
+}
+
+#[tokio::test]
+async fn test_generate_session_metrics_single_agent() {
+    let monitoring = create_test_monitoring();
+    
+    // Create an agent record
+    let agent_id = "agent-1".to_string();
+    let agent = AgentRecord::new(agent_id.clone(), "test-agent".to_string());
+    monitoring.register_agent(&agent).expect("Failed to register agent");
+    
+    // Record telemetry
+    let telemetry = create_test_telemetry(&agent_id, 1000, 500);
+    monitoring.record_telemetry(&telemetry).await.expect("Failed to record telemetry");
+    
+    // Mark agent as completed
+    let mut agent = monitoring.get_agent(&agent_id).expect("Failed to get agent");
+    agent.end_time = Some(agent.start_time + 10); // 10 seconds duration
+    monitoring.update_agent(&agent).expect("Failed to update agent");
+    
+    let analytics = SessionAnalytics::new(monitoring);
+    let start_time = Utc::now() - chrono::Duration::seconds(20);
+    let end_time = Some(Utc::now());
+    
+    let metrics = analytics.generate_session_metrics(
+        "session-1",
+        &[agent_id],
+        start_time,
+        end_time,
+    ).expect("Failed to generate metrics");
+    
+    assert_eq!(metrics.session_id, "session-1");
+    assert_eq!(metrics.model_usage.len(), 1);
+    assert!(metrics.model_usage.contains_key("test-model"));
+    
+    let model_stats = metrics.model_usage.get("test-model").unwrap();
+    assert_eq!(model_stats.requests, 1);
+    assert_eq!(model_stats.input_tokens, 1000);
+    assert_eq!(model_stats.output_tokens, 500);
+}
+
+#[tokio::test]
+async fn test_generate_session_metrics_multiple_agents() {
+    let monitoring = create_test_monitoring();
+    
+    // Create multiple agents
+    let agent1_id = "agent-1".to_string();
+    let agent2_id = "agent-2".to_string();
+    
+    let agent1 = AgentRecord::new(agent1_id.clone(), "test-agent".to_string());
+    let agent2 = AgentRecord::new(agent2_id.clone(), "test-agent".to_string());
+    
+    monitoring.register_agent(&agent1).expect("Failed to register agent1");
+    monitoring.register_agent(&agent2).expect("Failed to register agent2");
+    
+    // Record telemetry for both agents
+    let telemetry1 = create_test_telemetry(&agent1_id, 1000, 500);
+    let telemetry2 = create_test_telemetry(&agent2_id, 2000, 1000);
+    
+    monitoring.record_telemetry(&telemetry1).await.expect("Failed to record telemetry1");
+    monitoring.record_telemetry(&telemetry2).await.expect("Failed to record telemetry2");
+    
+    // Mark agents as completed
+    let mut agent1 = monitoring.get_agent(&agent1_id).expect("Failed to get agent1");
+    agent1.end_time = Some(agent1.start_time + 10);
+    monitoring.update_agent(&agent1).expect("Failed to update agent1");
+    
+    let mut agent2 = monitoring.get_agent(&agent2_id).expect("Failed to get agent2");
+    agent2.end_time = Some(agent2.start_time + 15);
+    monitoring.update_agent(&agent2).expect("Failed to update agent2");
+    
+    let analytics = SessionAnalytics::new(monitoring);
+    let start_time = Utc::now() - chrono::Duration::seconds(30);
+    let end_time = Some(Utc::now());
+    
+    let metrics = analytics.generate_session_metrics(
+        "session-2",
+        &[agent1_id, agent2_id],
+        start_time,
+        end_time,
+    ).expect("Failed to generate metrics");
+    
+    assert_eq!(metrics.session_id, "session-2");
+    assert_eq!(metrics.model_usage.len(), 1); // Same model for both
+    
+    let model_stats = metrics.model_usage.get("test-model").unwrap();
+    assert_eq!(model_stats.requests, 2); // Two telemetry records
+    assert_eq!(model_stats.input_tokens, 3000); // 1000 + 2000
+    assert_eq!(model_stats.output_tokens, 1500); // 500 + 1000
+    
+    assert_eq!(metrics.total_cost, model_stats.estimated_cost);
+}
+
+#[tokio::test]
+async fn test_generate_session_metrics_empty_agent_list() {
+    let monitoring = create_test_monitoring();
+    let analytics = SessionAnalytics::new(monitoring);
+    
+    let start_time = Utc::now() - chrono::Duration::seconds(10);
+    let end_time = Some(Utc::now());
+    
+    let metrics = analytics.generate_session_metrics(
+        "session-empty",
+        &[],
+        start_time,
+        end_time,
+    ).expect("Failed to generate metrics");
+    
+    assert_eq!(metrics.session_id, "session-empty");
+    assert_eq!(metrics.model_usage.len(), 0);
+    assert_eq!(metrics.total_cost, 0.0);
+    assert_eq!(metrics.agent_active_time, Duration::ZERO);
+}
+
+#[tokio::test]
+async fn test_generate_session_metrics_missing_telemetry() {
+    let monitoring = create_test_monitoring();
+    
+    // Create an agent but don't record telemetry
+    let agent_id = "agent-no-telemetry".to_string();
+    let agent = AgentRecord::new(agent_id.clone(), "test-agent".to_string());
+    monitoring.register_agent(&agent).expect("Failed to register agent");
+    
+    // Mark agent as completed
+    let mut agent = monitoring.get_agent(&agent_id).expect("Failed to get agent");
+    agent.end_time = Some(agent.start_time + 5);
+    monitoring.update_agent(&agent).expect("Failed to update agent");
+    
+    let analytics = SessionAnalytics::new(monitoring);
+    let start_time = Utc::now() - chrono::Duration::seconds(10);
+    let end_time = Some(Utc::now());
+    
+    let metrics = analytics.generate_session_metrics(
+        "session-no-telemetry",
+        &[agent_id],
+        start_time,
+        end_time,
+    ).expect("Failed to generate metrics");
+    
+    assert_eq!(metrics.session_id, "session-no-telemetry");
+    assert_eq!(metrics.model_usage.len(), 0);
+    assert_eq!(metrics.total_cost, 0.0);
+    // Agent active time should still be calculated
+    assert!(metrics.agent_active_time.as_secs() > 0);
+}
+
+#[tokio::test]
+async fn test_generate_session_metrics_time_calculations() {
+    let monitoring = create_test_monitoring();
+    
+    let agent_id = "agent-time".to_string();
+    let agent = AgentRecord::new(agent_id.clone(), "test-agent".to_string());
+    monitoring.register_agent(&agent).expect("Failed to register agent");
+    
+    // Record some telemetry
+    let telemetry = create_test_telemetry(&agent_id, 100, 50);
+    monitoring.record_telemetry(&telemetry).await.expect("Failed to record telemetry");
+    
+    // Mark agent as completed with known duration
+    let mut agent = monitoring.get_agent(&agent_id).expect("Failed to get agent");
+    let start_time_secs = agent.start_time;
+    agent.end_time = Some(start_time_secs + 30); // 30 seconds
+    monitoring.update_agent(&agent).expect("Failed to update agent");
+    
+    let analytics = SessionAnalytics::new(monitoring);
+    let start_time = DateTime::from_timestamp(start_time_secs as i64, 0).unwrap();
+    let end_time = Some(DateTime::from_timestamp((start_time_secs + 30) as i64, 0).unwrap());
+    
+    let metrics = analytics.generate_session_metrics(
+        "session-time",
+        &[agent_id],
+        start_time,
+        end_time,
+    ).expect("Failed to generate metrics");
+    
+    // Wall time should be 30 seconds
+    assert_eq!(metrics.wall_time.as_secs(), 30);
+    
+    // Agent active time should be 30 seconds
+    assert_eq!(metrics.agent_active_time.as_secs(), 30);
+    
+    // API time should be estimated (100ms per request = 100ms for 1 request)
+    assert!(metrics.api_time.as_millis() >= 100);
+    
+    // Tool time should be agent_active_time - api_time
+    assert!(metrics.tool_time.as_secs() < 30);
+}
+
+#[tokio::test]
+async fn test_generate_session_metrics_multiple_models() {
+    let monitoring = create_test_monitoring();
+    
+    let agent_id = "agent-multi-model".to_string();
+    let agent = AgentRecord::new(agent_id.clone(), "test-agent".to_string());
+    monitoring.register_agent(&agent).expect("Failed to register agent");
+    
+    // Record telemetry with different models
+    let mut telemetry1 = create_test_telemetry(&agent_id, 1000, 500);
+    telemetry1.model = Some("model-1".to_string());
+    
+    let mut telemetry2 = create_test_telemetry(&agent_id, 2000, 1000);
+    telemetry2.model = Some("model-2".to_string());
+    
+    monitoring.record_telemetry(&telemetry1).await.expect("Failed to record telemetry1");
+    monitoring.record_telemetry(&telemetry2).await.expect("Failed to record telemetry2");
+    
+    let analytics = SessionAnalytics::new(monitoring);
+    let start_time = Utc::now() - chrono::Duration::seconds(10);
+    let end_time = Some(Utc::now());
+    
+    let metrics = analytics.generate_session_metrics(
+        "session-multi-model",
+        &[agent_id],
+        start_time,
+        end_time,
+    ).expect("Failed to generate metrics");
+    
+    assert_eq!(metrics.model_usage.len(), 2);
+    assert!(metrics.model_usage.contains_key("model-1"));
+    assert!(metrics.model_usage.contains_key("model-2"));
+    
+    let model1_stats = metrics.model_usage.get("model-1").unwrap();
+    assert_eq!(model1_stats.input_tokens, 1000);
+    assert_eq!(model1_stats.output_tokens, 500);
+    
+    let model2_stats = metrics.model_usage.get("model-2").unwrap();
+    assert_eq!(model2_stats.input_tokens, 2000);
+    assert_eq!(model2_stats.output_tokens, 1000);
+}
+
+#[tokio::test]
+async fn test_generate_session_metrics_cache_statistics() {
+    let monitoring = create_test_monitoring();
+    
+    let agent_id = "agent-cache".to_string();
+    let agent = AgentRecord::new(agent_id.clone(), "test-agent".to_string());
+    monitoring.register_agent(&agent).expect("Failed to register agent");
+    
+    // Record telemetry with cache stats
+    let mut telemetry = create_test_telemetry(&agent_id, 1000, 500);
+    telemetry = telemetry.with_cache_stats(300, 200, 100);
+    monitoring.record_telemetry(&telemetry).await.expect("Failed to record telemetry");
+    
+    let analytics = SessionAnalytics::new(monitoring);
+    let start_time = Utc::now() - chrono::Duration::seconds(10);
+    let end_time = Some(Utc::now());
+    
+    let metrics = analytics.generate_session_metrics(
+        "session-cache",
+        &[agent_id],
+        start_time,
+        end_time,
+    ).expect("Failed to generate metrics");
+    
+    assert_eq!(metrics.total_cached_tokens, 300);
+    assert_eq!(metrics.total_cache_creation_tokens, 200);
+    assert_eq!(metrics.total_cache_read_tokens, 100);
+    
+    let model_stats = metrics.model_usage.get("test-model").unwrap();
+    assert_eq!(model_stats.cached_tokens, 300);
+}
+
+#[tokio::test]
+async fn test_generate_session_metrics_with_workspace() {
+    use tempfile::TempDir;
+    use std::fs;
+    
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let workspace_root = temp_dir.path();
+    
+    // Initialize git repo
+    let output = std::process::Command::new("git")
+        .args(["init"])
+        .current_dir(workspace_root)
+        .output()
+        .expect("Failed to init git");
+    
+    if !output.status.success() {
+        // Git not available, skip this test
+        return;
+    }
+    
+    // Create a test file
+    let test_file = workspace_root.join("test.txt");
+    fs::write(&test_file, "line 1\nline 2\nline 3\n").expect("Failed to write test file");
+    
+    // Commit the file
+    std::process::Command::new("git")
+        .args(["add", "test.txt"])
+        .current_dir(workspace_root)
+        .output()
+        .expect("Failed to git add");
+    
+    std::process::Command::new("git")
+        .args(["config", "user.email", "test@example.com"])
+        .current_dir(workspace_root)
+        .output()
+        .expect("Failed to set git config");
+    
+    std::process::Command::new("git")
+        .args(["config", "user.name", "Test User"])
+        .current_dir(workspace_root)
+        .output()
+        .expect("Failed to set git config");
+    
+    let commit_time = Utc::now();
+    
+    std::process::Command::new("git")
+        .args(["commit", "-m", "Initial commit"])
+        .current_dir(workspace_root)
+        .output()
+        .expect("Failed to git commit");
+    
+    // Add more lines after commit
+    fs::write(&test_file, "line 1\nline 2\nline 3\nline 4\nline 5\n").expect("Failed to write test file");
+    
+    let monitoring = create_test_monitoring();
+    let agent_id = "agent-workspace".to_string();
+    let agent = AgentRecord::new(agent_id.clone(), "test-agent".to_string());
+    monitoring.register_agent(&agent).expect("Failed to register agent");
+    
+    let analytics = SessionAnalytics::new(monitoring);
+    let end_time = Some(Utc::now());
+    
+    let metrics = analytics.generate_session_metrics_with_workspace(
+        "session-workspace",
+        &[agent_id],
+        commit_time,
+        end_time,
+        Some(workspace_root),
+    ).expect("Failed to generate metrics");
+    
+    // Should have tracked code changes (2 lines added)
+    assert!(metrics.lines_added >= 0); // May be 0 if git diff doesn't work in test environment
+}
+

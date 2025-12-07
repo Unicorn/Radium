@@ -128,8 +128,25 @@ impl AgentConfigFile {
 
     /// Validate configuration.
     fn validate(&self) -> Result<()> {
+        // Validate required fields
         if self.agent.id.is_empty() {
             return Err(AgentConfigError::Invalid("agent ID cannot be empty".to_string()));
+        }
+
+        // Validate agent ID format (kebab-case: lowercase letters, numbers, hyphens)
+        if !self.agent.id.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-') {
+            return Err(AgentConfigError::Invalid(format!(
+                "agent ID must be in kebab-case (lowercase letters, numbers, hyphens): '{}'",
+                self.agent.id
+            )));
+        }
+
+        // Agent ID cannot start or end with hyphen
+        if self.agent.id.starts_with('-') || self.agent.id.ends_with('-') {
+            return Err(AgentConfigError::Invalid(format!(
+                "agent ID cannot start or end with hyphen: '{}'",
+                self.agent.id
+            )));
         }
 
         if self.agent.name.is_empty() {
@@ -138,6 +155,134 @@ impl AgentConfigFile {
 
         if self.agent.prompt_path.as_os_str().is_empty() {
             return Err(AgentConfigError::Invalid("prompt path cannot be empty".to_string()));
+        }
+
+        // Validate prompt file existence
+        self.validate_prompt_path()?;
+
+        // Validate engine if present
+        if let Some(engine) = &self.agent.engine {
+            self.validate_engine(engine)?;
+        }
+
+        // Validate loop behavior if present
+        if let Some(loop_behavior) = &self.agent.loop_behavior {
+            self.validate_loop_behavior(loop_behavior)?;
+        }
+
+        // Validate trigger behavior if present
+        if let Some(trigger_behavior) = &self.agent.trigger_behavior {
+            self.validate_trigger_behavior(trigger_behavior)?;
+        }
+
+        Ok(())
+    }
+
+    /// Validate prompt file path exists and is readable.
+    fn validate_prompt_path(&self) -> Result<()> {
+        let prompt_path = &self.agent.prompt_path;
+
+        // Check if path is absolute
+        if prompt_path.is_absolute() {
+            if !prompt_path.exists() {
+                return Err(AgentConfigError::Invalid(format!(
+                    "prompt file not found: {}",
+                    prompt_path.display()
+                )));
+            }
+            if !prompt_path.is_file() {
+                return Err(AgentConfigError::Invalid(format!(
+                    "prompt path is not a file: {}",
+                    prompt_path.display()
+                )));
+            }
+            return Ok(());
+        }
+
+        // For relative paths, try to resolve from config file directory
+        if let Some(config_dir) = self.agent.file_path.as_ref().and_then(|p| p.parent()) {
+            let full_path = config_dir.join(prompt_path);
+            if full_path.exists() && full_path.is_file() {
+                return Ok(());
+            }
+        }
+
+        // Try relative to current working directory (workspace root)
+        if let Ok(cwd) = std::env::current_dir() {
+            let full_path = cwd.join(prompt_path);
+            if full_path.exists() && full_path.is_file() {
+                return Ok(());
+            }
+        }
+
+        Err(AgentConfigError::Invalid(format!(
+            "prompt file not found: {} (checked relative to config file and workspace root)",
+            prompt_path.display()
+        )))
+    }
+
+    /// Validate engine value.
+    fn validate_engine(&self, engine: &str) -> Result<()> {
+        const SUPPORTED_ENGINES: &[&str] = &["gemini", "openai", "claude", "codex"];
+
+        let engine_lower = engine.to_lowercase();
+        if !SUPPORTED_ENGINES.contains(&engine_lower.as_str()) {
+            return Err(AgentConfigError::Invalid(format!(
+                "unsupported engine: '{}'. Supported engines: {}",
+                engine,
+                SUPPORTED_ENGINES.join(", ")
+            )));
+        }
+
+        Ok(())
+    }
+
+    /// Validate loop behavior configuration.
+    fn validate_loop_behavior(&self, loop_behavior: &AgentLoopBehavior) -> Result<()> {
+        if loop_behavior.steps == 0 {
+            return Err(AgentConfigError::Invalid(
+                "loop_behavior.steps must be greater than 0".to_string(),
+            ));
+        }
+
+        if let Some(max_iterations) = loop_behavior.max_iterations {
+            if max_iterations == 0 {
+                return Err(AgentConfigError::Invalid(
+                    "loop_behavior.max_iterations must be greater than 0 if specified".to_string(),
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate trigger behavior configuration.
+    fn validate_trigger_behavior(&self, trigger_behavior: &AgentTriggerBehavior) -> Result<()> {
+        if let Some(trigger_agent_id) = &trigger_behavior.trigger_agent_id {
+            if trigger_agent_id.is_empty() {
+                return Err(AgentConfigError::Invalid(
+                    "trigger_behavior.trigger_agent_id cannot be empty if specified".to_string(),
+                ));
+            }
+
+            // Validate agent ID format (kebab-case: lowercase letters, numbers, hyphens)
+            if !trigger_agent_id
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+            {
+                return Err(AgentConfigError::Invalid(format!(
+                    "trigger_behavior.trigger_agent_id must be a valid agent ID (kebab-case): '{}'",
+                    trigger_agent_id
+                )));
+            }
+
+            // Agent ID cannot start or end with hyphen
+            if trigger_agent_id.starts_with('-') || trigger_agent_id.ends_with('-') {
+                return Err(AgentConfigError::Invalid(format!(
+                    "trigger_behavior.trigger_agent_id cannot start or end with hyphen: '{}'",
+                    trigger_agent_id
+                )));
+            }
         }
 
         Ok(())
@@ -289,8 +434,6 @@ impl AgentConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
-    use tempfile::NamedTempFile;
 
     #[test]
     fn test_agent_config_new() {
@@ -319,6 +462,15 @@ mod tests {
 
     #[test]
     fn test_agent_config_load() {
+        use std::fs;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config_path = temp_dir.path().join("arch-agent.toml");
+        let prompts_dir = temp_dir.path().join("prompts");
+        fs::create_dir_all(&prompts_dir).unwrap();
+        let prompt_path = prompts_dir.join("arch-agent.md");
+        fs::write(&prompt_path, "# Architecture Agent").unwrap();
+
         let toml_content = r#"
 [agent]
 id = "arch-agent"
@@ -330,11 +482,9 @@ model = "gemini-2.0-flash-exp"
 reasoning_effort = "medium"
 "#;
 
-        let mut file = NamedTempFile::new().unwrap();
-        file.write_all(toml_content.as_bytes()).unwrap();
-        file.flush().unwrap();
+        fs::write(&config_path, toml_content).unwrap();
 
-        let config = AgentConfigFile::load(file.path()).unwrap();
+        let config = AgentConfigFile::load(&config_path).unwrap();
         assert_eq!(config.agent.id, "arch-agent");
         assert_eq!(config.agent.name, "Architecture Agent");
         assert_eq!(config.agent.engine, Some("gemini".to_string()));
@@ -343,16 +493,25 @@ reasoning_effort = "medium"
 
     #[test]
     fn test_agent_config_save() {
+        use std::fs;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config_path = temp_dir.path().join("test-agent.toml");
+        let prompts_dir = temp_dir.path().join("prompts");
+        fs::create_dir_all(&prompts_dir).unwrap();
+        let prompt_path = prompts_dir.join("test.md");
+        fs::write(&prompt_path, "# Test Agent").unwrap();
+
         let config = AgentConfigFile {
             agent: AgentConfig::new("test-agent", "Test Agent", PathBuf::from("prompts/test.md"))
                 .with_description("A test agent")
-                .with_engine("gemini"),
+                .with_engine("gemini")
+                .with_file_path(config_path.clone()),
         };
 
-        let temp = NamedTempFile::new().unwrap();
-        config.save(temp.path()).unwrap();
+        config.save(&config_path).unwrap();
 
-        let loaded = AgentConfigFile::load(temp.path()).unwrap();
+        let loaded = AgentConfigFile::load(&config_path).unwrap();
         assert_eq!(loaded.agent.id, config.agent.id);
         assert_eq!(loaded.agent.name, config.agent.name);
         assert_eq!(loaded.agent.engine, config.agent.engine);
@@ -360,6 +519,15 @@ reasoning_effort = "medium"
 
     #[test]
     fn test_agent_config_minimal() {
+        use std::fs;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config_path = temp_dir.path().join("minimal.toml");
+        let prompts_dir = temp_dir.path().join("prompts");
+        fs::create_dir_all(&prompts_dir).unwrap();
+        let prompt_path = prompts_dir.join("minimal.md");
+        fs::write(&prompt_path, "# Minimal Agent").unwrap();
+
         let toml_content = r#"
 [agent]
 id = "minimal"
@@ -368,11 +536,9 @@ description = "Minimal config"
 prompt_path = "prompts/minimal.md"
 "#;
 
-        let mut file = NamedTempFile::new().unwrap();
-        file.write_all(toml_content.as_bytes()).unwrap();
-        file.flush().unwrap();
+        fs::write(&config_path, toml_content).unwrap();
 
-        let config = AgentConfigFile::load(file.path()).unwrap();
+        let config = AgentConfigFile::load(&config_path).unwrap();
         assert_eq!(config.agent.id, "minimal");
         assert_eq!(config.agent.engine, None);
         assert_eq!(config.agent.model, None);
@@ -393,6 +559,15 @@ prompt_path = "prompts/minimal.md"
 
     #[test]
     fn test_agent_config_with_loop_behavior() {
+        use std::fs;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config_path = temp_dir.path().join("test-agent.toml");
+        let prompts_dir = temp_dir.path().join("prompts");
+        fs::create_dir_all(&prompts_dir).unwrap();
+        let prompt_path = prompts_dir.join("test.md");
+        fs::write(&prompt_path, "# Test Agent").unwrap();
+
         let toml_content = r#"
 [agent]
 id = "test-agent"
@@ -406,11 +581,9 @@ max_iterations = 5
 skip = ["step-1", "step-3"]
 "#;
 
-        let mut file = NamedTempFile::new().unwrap();
-        file.write_all(toml_content.as_bytes()).unwrap();
-        file.flush().unwrap();
+        fs::write(&config_path, toml_content).unwrap();
 
-        let config = AgentConfigFile::load(file.path()).unwrap();
+        let config = AgentConfigFile::load(&config_path).unwrap();
         assert_eq!(config.agent.id, "test-agent");
         assert!(config.agent.loop_behavior.is_some());
 
@@ -422,6 +595,15 @@ skip = ["step-1", "step-3"]
 
     #[test]
     fn test_agent_config_with_trigger_behavior() {
+        use std::fs;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config_path = temp_dir.path().join("test-agent.toml");
+        let prompts_dir = temp_dir.path().join("prompts");
+        fs::create_dir_all(&prompts_dir).unwrap();
+        let prompt_path = prompts_dir.join("test.md");
+        fs::write(&prompt_path, "# Test Agent").unwrap();
+
         let toml_content = r#"
 [agent]
 id = "test-agent"
@@ -433,11 +615,9 @@ prompt_path = "prompts/test.md"
 trigger_agent_id = "fallback-agent"
 "#;
 
-        let mut file = NamedTempFile::new().unwrap();
-        file.write_all(toml_content.as_bytes()).unwrap();
-        file.flush().unwrap();
+        fs::write(&config_path, toml_content).unwrap();
 
-        let config = AgentConfigFile::load(file.path()).unwrap();
+        let config = AgentConfigFile::load(&config_path).unwrap();
         assert_eq!(config.agent.id, "test-agent");
         assert!(config.agent.trigger_behavior.is_some());
 
@@ -447,6 +627,15 @@ trigger_agent_id = "fallback-agent"
 
     #[test]
     fn test_agent_config_with_both_behaviors() {
+        use std::fs;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config_path = temp_dir.path().join("test-agent.toml");
+        let prompts_dir = temp_dir.path().join("prompts");
+        fs::create_dir_all(&prompts_dir).unwrap();
+        let prompt_path = prompts_dir.join("test.md");
+        fs::write(&prompt_path, "# Test Agent").unwrap();
+
         let toml_content = r#"
 [agent]
 id = "test-agent"
@@ -462,12 +651,225 @@ max_iterations = 10
 trigger_agent_id = "helper-agent"
 "#;
 
-        let mut file = NamedTempFile::new().unwrap();
-        file.write_all(toml_content.as_bytes()).unwrap();
-        file.flush().unwrap();
+        fs::write(&config_path, toml_content).unwrap();
 
-        let config = AgentConfigFile::load(file.path()).unwrap();
+        let config = AgentConfigFile::load(&config_path).unwrap();
         assert!(config.agent.loop_behavior.is_some());
         assert!(config.agent.trigger_behavior.is_some());
+    }
+
+    #[test]
+    fn test_validate_agent_id_format() {
+        use std::fs;
+
+        // Valid IDs
+        let valid_ids = vec!["arch-agent", "test-agent-123", "my-agent"];
+        for id in valid_ids {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let prompt_path = temp_dir.path().join("test.md");
+            fs::write(&prompt_path, "# Test").unwrap();
+            let config_path = temp_dir.path().join("test.toml");
+
+            let config = AgentConfigFile {
+                agent: AgentConfig::new(id, "Test", prompt_path.clone())
+                    .with_file_path(config_path),
+            };
+            assert!(config.validate().is_ok(), "ID '{}' should be valid", id);
+        }
+
+        // Invalid IDs
+        let invalid_ids = vec![
+            ("agent with spaces", "spaces"),
+            ("AgentWithCaps", "uppercase"),
+            ("agent-with-", "trailing hyphen"),
+            ("-agent", "leading hyphen"),
+            ("agent_with_underscore", "underscore"),
+        ];
+        for (id, reason) in invalid_ids {
+            let config = AgentConfigFile {
+                agent: AgentConfig::new(id, "Test", PathBuf::from("prompts/test.md")),
+            };
+            assert!(
+                config.validate().is_err(),
+                "ID '{}' should be invalid ({})",
+                id,
+                reason
+            );
+        }
+    }
+
+    #[test]
+    fn test_validate_engine() {
+        use std::fs;
+
+        // Valid engines
+        let valid_engines = vec!["gemini", "openai", "claude", "codex"];
+        for engine in valid_engines {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let prompt_path = temp_dir.path().join("test.md");
+            fs::write(&prompt_path, "# Test").unwrap();
+            let config_path = temp_dir.path().join("test.toml");
+
+            let config = AgentConfigFile {
+                agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
+                    .with_engine(engine)
+                    .with_file_path(config_path),
+            };
+            assert!(
+                config.validate().is_ok(),
+                "Engine '{}' should be valid",
+                engine
+            );
+        }
+
+        // Invalid engines (note: case-insensitive, so "GEMINI" should be valid)
+        let invalid_engines = vec!["invalid", "unknown", "gpt-4"];
+        for engine in invalid_engines {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let prompt_path = temp_dir.path().join("test.md");
+            fs::write(&prompt_path, "# Test").unwrap();
+            let config_path = temp_dir.path().join("test.toml");
+
+            let config = AgentConfigFile {
+                agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
+                    .with_engine(engine)
+                    .with_file_path(config_path),
+            };
+            assert!(
+                config.validate().is_err(),
+                "Engine '{}' should be invalid",
+                engine
+            );
+        }
+    }
+
+    #[test]
+    fn test_validate_loop_behavior() {
+        use std::fs;
+
+        // Valid loop behavior
+        let temp_dir = tempfile::tempdir().unwrap();
+        let prompt_path = temp_dir.path().join("test.md");
+        fs::write(&prompt_path, "# Test").unwrap();
+        let config_path = temp_dir.path().join("test.toml");
+
+        let config = AgentConfigFile {
+            agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
+                .with_loop_behavior(AgentLoopBehavior {
+                    steps: 2,
+                    max_iterations: Some(5),
+                    skip: vec![],
+                })
+                .with_file_path(config_path.clone()),
+        };
+        assert!(config.validate().is_ok());
+
+        // Invalid: steps = 0
+        let config = AgentConfigFile {
+            agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
+                .with_loop_behavior(AgentLoopBehavior {
+                    steps: 0,
+                    max_iterations: None,
+                    skip: vec![],
+                })
+                .with_file_path(config_path.clone()),
+        };
+        assert!(config.validate().is_err());
+
+        // Invalid: max_iterations = 0
+        let config = AgentConfigFile {
+            agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
+                .with_loop_behavior(AgentLoopBehavior {
+                    steps: 2,
+                    max_iterations: Some(0),
+                    skip: vec![],
+                })
+                .with_file_path(config_path),
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_validate_trigger_behavior() {
+        use std::fs;
+
+        // Valid trigger behavior
+        let temp_dir = tempfile::tempdir().unwrap();
+        let prompt_path = temp_dir.path().join("test.md");
+        fs::write(&prompt_path, "# Test").unwrap();
+        let config_path = temp_dir.path().join("test.toml");
+
+        let config = AgentConfigFile {
+            agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
+                .with_trigger_behavior(AgentTriggerBehavior {
+                    trigger_agent_id: Some("fallback-agent".to_string()),
+                })
+                .with_file_path(config_path.clone()),
+        };
+        assert!(config.validate().is_ok());
+
+        // Invalid: empty trigger_agent_id
+        let config = AgentConfigFile {
+            agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
+                .with_trigger_behavior(AgentTriggerBehavior {
+                    trigger_agent_id: Some("".to_string()),
+                })
+                .with_file_path(config_path.clone()),
+        };
+        assert!(config.validate().is_err());
+
+        // Invalid: trigger_agent_id with invalid format
+        let invalid_ids = vec!["agent with spaces", "AgentWithCaps", "-agent", "agent-"];
+        for invalid_id in invalid_ids {
+            let test_config_path = config_path.clone();
+            let config = AgentConfigFile {
+                agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
+                    .with_trigger_behavior(AgentTriggerBehavior {
+                        trigger_agent_id: Some(invalid_id.to_string()),
+                    })
+                    .with_file_path(test_config_path),
+            };
+            assert!(
+                config.validate().is_err(),
+                "Trigger agent ID '{}' should be invalid",
+                invalid_id
+            );
+        }
+    }
+
+    #[test]
+    fn test_validate_prompt_path() {
+        use std::fs;
+
+        // Create a temporary directory structure
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config_dir = temp_dir.path().join("agents");
+        fs::create_dir_all(&config_dir).unwrap();
+
+        let prompt_dir = temp_dir.path().join("prompts");
+        fs::create_dir_all(&prompt_dir).unwrap();
+        let prompt_file = prompt_dir.join("test.md");
+        fs::write(&prompt_file, "# Test").unwrap();
+
+        // Valid: relative path from config directory
+        let config = AgentConfigFile {
+            agent: AgentConfig::new("test-agent", "Test", PathBuf::from("../prompts/test.md"))
+                .with_file_path(config_dir.join("test-agent.toml")),
+        };
+        assert!(config.validate().is_ok());
+
+        // Valid: absolute path
+        let config = AgentConfigFile {
+            agent: AgentConfig::new("test-agent", "Test", prompt_file.clone())
+                .with_file_path(config_dir.join("test-agent.toml")),
+        };
+        assert!(config.validate().is_ok());
+
+        // Invalid: non-existent file
+        let config = AgentConfigFile {
+            agent: AgentConfig::new("test-agent", "Test", PathBuf::from("nonexistent.md"))
+                .with_file_path(config_dir.join("test-agent.toml")),
+        };
+        assert!(config.validate().is_err());
     }
 }

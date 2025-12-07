@@ -207,34 +207,38 @@ async fn validate_agents(verbose: bool) -> anyhow::Result<()> {
     let mut errors = Vec::new();
 
     for (id, config) in &agents {
-        // Basic validation
         let mut agent_errors = Vec::new();
 
-        if config.name.is_empty() {
-            agent_errors.push("Name is empty");
-        }
-
-        if config.prompt_path.as_os_str().is_empty() {
-            agent_errors.push("Prompt path is empty");
-        }
-
-        // Check if prompt file exists (if path is set)
-        if !config.prompt_path.as_os_str().is_empty() {
-            if !config.prompt_path.exists() && !config.prompt_path.is_absolute() {
-                // Try relative to config directory
-                if let Some(config_dir) = config.file_path.as_ref().and_then(|p| p.parent()) {
-                    let full_path = config_dir.join(&config.prompt_path);
-                    if !full_path.exists() {
-                        agent_errors.push("Prompt file not found");
-                    }
+        // Reload and validate the config file to get comprehensive validation
+        if let Some(config_path) = &config.file_path {
+            match AgentConfigFile::load(config_path) {
+                Ok(_) => {
+                    // Validation passed
                 }
+                Err(e) => {
+                    // Extract error message
+                    let error_msg = e.to_string();
+                    // Remove "invalid configuration: " prefix if present
+                    let clean_msg = error_msg
+                        .strip_prefix("invalid configuration: ")
+                        .unwrap_or(&error_msg);
+                    agent_errors.push(clean_msg.to_string());
+                }
+            }
+        } else {
+            // If file_path is not set, we can't reload, so do basic validation
+            if config.name.is_empty() {
+                agent_errors.push("Name is empty".to_string());
+            }
+            if config.prompt_path.as_os_str().is_empty() {
+                agent_errors.push("Prompt path is empty".to_string());
             }
         }
 
         if agent_errors.is_empty() {
             valid_count += 1;
         } else {
-            errors.push((id.clone(), agent_errors));
+            errors.push((id.clone(), config.file_path.clone(), agent_errors));
         }
     }
 
@@ -254,11 +258,15 @@ async fn validate_agents(verbose: bool) -> anyhow::Result<()> {
         println!();
 
         if verbose {
-            for (id, agent_errors) in &errors {
+            for (id, file_path, agent_errors) in &errors {
                 println!("{}", format!("  {} {}:", "❌".red(), id.red()));
+                if let Some(path) = file_path {
+                    println!("     {}", format!("File: {}", path.display()).dimmed());
+                }
                 for error in agent_errors {
                     println!("     • {}", error);
                 }
+                println!();
             }
         } else {
             println!("Run with {} for details", "--verbose".cyan());
