@@ -1,0 +1,14 @@
+{
+  "name": "simple-prompts",
+  "version": "1.0.0",
+  "description": "A simple extension demonstrating custom agent prompts",
+  "author": "Radium Team",
+  "components": {
+    "prompts": ["prompts/*.md"],
+    "mcp_servers": [],
+    "commands": [],
+    "hooks": []
+  },
+  "dependencies": []
+}
+
