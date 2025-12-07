@@ -11,6 +11,7 @@ use crate::extensions::structure::{
     validate_package_structure,
 };
 use crate::extensions::validator::{ExtensionValidator, ExtensionValidationError};
+use crate::extensions::versioning::{UpdateChecker, VersionComparator};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
@@ -44,6 +45,10 @@ pub enum ExtensionInstallerError {
     /// Dependency error.
     #[error("dependency error: {0}")]
     Dependency(String),
+
+    /// Invalid format error.
+    #[error("invalid format: {0}")]
+    InvalidFormat(String),
 
     /// Installation conflict.
     #[error("installation conflict: {0}")]
@@ -379,7 +384,7 @@ impl ExtensionManager {
         Ok(())
     }
 
-    /// Updates an extension by reinstalling it.
+    /// Updates an extension by reinstalling it with rollback support.
     ///
     /// # Arguments
     /// * `name` - Extension name
@@ -390,8 +395,72 @@ impl ExtensionManager {
     /// Updated extension
     ///
     /// # Errors
-    /// Returns error if update fails
+    /// Returns error if update fails (extension will be rolled back if backup exists)
     pub fn update(
+        &self,
+        name: &str,
+        package_path: &Path,
+        options: InstallOptions,
+    ) -> Result<Extension> {
+        // Get existing extension if it exists
+        let existing_extension = self.discovery.get(name)?;
+        
+        // Load new manifest to check version
+        let new_manifest_path = if package_path.is_dir() {
+            package_path.join(MANIFEST_FILE)
+        } else {
+            // For archives, we'd need to extract first, but for now assume directory
+            return Err(ExtensionInstallerError::InvalidFormat(
+                "Update from archive not yet supported".to_string(),
+            ));
+        };
+        
+        let new_manifest = ExtensionManifest::load(&new_manifest_path)?;
+        
+        // Validate new version is newer if extension exists
+        if let Some(ref existing) = existing_extension {
+            if let Err(e) = UpdateChecker::check_for_update(existing, &new_manifest.version) {
+                return Err(ExtensionInstallerError::InvalidFormat(format!(
+                    "New version {} is not newer than current version {}: {}",
+                    new_manifest.version, existing.version, e
+                )));
+            }
+            
+            // Create backup before update
+            let backup_path = self.create_backup(name, &existing.install_path)?;
+            
+            // Attempt update
+            match self.perform_update(name, package_path, options.clone()) {
+                Ok(extension) => {
+                    // Update successful, remove backup
+                    if backup_path.exists() {
+                        let _ = std::fs::remove_dir_all(&backup_path);
+                    }
+                    Ok(extension)
+                }
+                Err(e) => {
+                    // Update failed, attempt rollback
+                    if backup_path.exists() {
+                        if let Err(rollback_err) = self.restore_backup(name, &backup_path, &existing.install_path) {
+                            return Err(ExtensionInstallerError::InvalidFormat(format!(
+                                "Update failed and rollback also failed: {} (original error: {})",
+                                rollback_err, e
+                            )));
+                        }
+                    }
+                    Err(e)
+                }
+            }
+        } else {
+            // Extension doesn't exist, just install it
+            let mut install_options = options;
+            install_options.overwrite = true;
+            self.install(package_path, install_options)
+        }
+    }
+    
+    /// Performs the actual update operation.
+    fn perform_update(
         &self,
         name: &str,
         package_path: &Path,
@@ -406,6 +475,69 @@ impl ExtensionManager {
         let mut install_options = options;
         install_options.overwrite = true;
         self.install(package_path, install_options)
+    }
+    
+    /// Creates a backup of an extension before update.
+    fn create_backup(&self, name: &str, install_path: &Path) -> Result<PathBuf> {
+        let backup_dir = self.extensions_dir.join(".backups");
+        std::fs::create_dir_all(&backup_dir)?;
+        
+        let backup_path = backup_dir.join(format!("{}-backup", name));
+        
+        // Remove existing backup if any
+        if backup_path.exists() {
+            std::fs::remove_dir_all(&backup_path)?;
+        }
+        
+        // Copy extension to backup
+        copy_dir_all(install_path, &backup_path)?;
+        
+        Ok(backup_path)
+    }
+    
+    /// Restores an extension from a backup.
+    fn restore_backup(
+        &self,
+        _name: &str,
+        backup_path: &Path,
+        install_path: &Path,
+    ) -> Result<()> {
+        // Remove current (failed) installation if it exists
+        if install_path.exists() {
+            std::fs::remove_dir_all(install_path)?;
+        }
+        
+        // Restore from backup
+        copy_dir_all(backup_path, install_path)?;
+        
+        Ok(())
+    }
+    
+    /// Rolls back an extension to its previous version.
+    ///
+    /// # Arguments
+    /// * `name` - Extension name
+    ///
+    /// # Errors
+    /// Returns error if rollback fails (e.g., no backup exists)
+    pub fn rollback(&self, name: &str) -> Result<()> {
+        let extension = self
+            .discovery
+            .get(name)?
+            .ok_or_else(|| ExtensionInstallerError::NotFound(name.to_string()))?;
+        
+        let backup_path = self.extensions_dir.join(".backups").join(format!("{}-backup", name));
+        
+        if !backup_path.exists() {
+            return Err(ExtensionInstallerError::NotFound(format!(
+                "No backup found for extension '{}'",
+                name
+            )));
+        }
+        
+        self.restore_backup(name, &backup_path, &extension.install_path)?;
+        
+        Ok(())
     }
 
     /// Lists all installed extensions.

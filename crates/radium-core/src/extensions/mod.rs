@@ -25,6 +25,7 @@ pub mod manifest;
 pub mod marketplace;
 pub mod structure;
 pub mod validator;
+pub mod versioning;
 
 pub use discovery::{DiscoveryOptions, ExtensionDiscovery, ExtensionDiscoveryError};
 pub use installer::{ExtensionInstallerError, ExtensionManager, InstallOptions};
@@ -37,6 +38,7 @@ pub use marketplace::{MarketplaceClient, MarketplaceError, MarketplaceExtension}
 pub use structure::{
     Extension, ExtensionStructureError, default_extensions_dir, workspace_extensions_dir,
 };
+pub use versioning::{UpdateChecker, VersionComparator, VersioningError};
 
 /// Unified error type for extension operations.
 #[derive(Debug, thiserror::Error)]

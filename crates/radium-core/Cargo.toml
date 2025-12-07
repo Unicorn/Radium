@@ -70,6 +70,9 @@ reqwest = { version = "0.12", features = ["json", "stream", "blocking", "multipa
 # URL encoding
 urlencoding = "2.1"
 
+# Semantic versioning
+semver = "1.0"
+
 # Temporary files
 tempfile = "3.8"
 
