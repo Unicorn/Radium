@@ -27,6 +27,7 @@ The Radium backend is a high-performance, concurrent system built in Rust. It is
     - `ListTasks` - List all tasks
     - `UpdateTask` - Update an existing task
     - `DeleteTask` - Delete a task by ID
+  - **Embedded Server Lifecycle:** ✅ Implemented - Automatic server lifecycle management with embedded server support. See [Embedded Server Documentation](../features/embedded-server-lifecycle.md) for details.
 - **Plugin System:** ✅ Implemented - Basic plugin system for custom agents. Supports static agent loading with validation.
 
 ### Planned (Future)

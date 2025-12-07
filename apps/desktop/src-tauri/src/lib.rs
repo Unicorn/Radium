@@ -5,6 +5,8 @@
 pub mod client;
 
 use client::ClientManager;
+use radium_core::config::Config;
+use radium_core::server::manager::EmbeddedServer;
 use radium_core::proto::{
     Agent, CreateAgentRequest, CreateTaskRequest, CreateWorkflowRequest, DeleteAgentRequest,
     DeleteWorkflowRequest, ExecuteAgentRequest, ExecuteWorkflowRequest, GetAgentRequest, GetTaskRequest,
@@ -17,7 +19,7 @@ use std::sync::Arc;
 use tauri::Manager;
 use tokio::sync::Mutex;
 use tonic::Request;
-use tracing::info;
+use tracing::{error, info};
 
 /// JSON-serializable agent representation
 #[derive(Debug, Serialize, Deserialize)]
@@ -147,6 +149,8 @@ impl From<RegisteredAgent> for RegisteredAgentJson {
 #[derive(Clone)]
 pub struct AppState {
     pub client_manager: Arc<Mutex<ClientManager>>,
+    /// Embedded server instance (if running)
+    pub embedded_server: Arc<Mutex<Option<EmbeddedServer>>>,
 }
 
 /// Ping the Radium server and return the response.
@@ -869,6 +873,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .manage(AppState {
             client_manager: Arc::new(Mutex::new(ClientManager::new())),
+            embedded_server: Arc::new(Mutex::new(None)),
         })
         .invoke_handler(tauri::generate_handler![
             ping_server,
@@ -894,6 +899,37 @@ pub fn run() {
         ])
         .setup(|app| {
             info!("Radium Desktop starting up");
+
+            // Start embedded server in background
+            let state = app.state::<AppState>();
+            let server_state = state.embedded_server.clone();
+            
+            tokio::spawn(async move {
+                let config = Config::default();
+                let mut server = EmbeddedServer::new(config);
+                
+                match server.start().await {
+                    Ok(()) => {
+                        info!("Embedded server started, waiting for readiness...");
+                        match server.wait_for_ready(std::time::Duration::from_secs(10)).await {
+                            Ok(()) => {
+                                info!("Embedded server is ready");
+                                
+                                // Store server in app state for later cleanup
+                                let mut server_guard = server_state.lock().await;
+                                *server_guard = Some(server);
+                            }
+                            Err(e) => {
+                                error!(error = %e, "Failed to wait for server readiness");
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        error!(error = %e, "Failed to start embedded server");
+                    }
+                }
+            });
+            
 
             #[cfg(debug_assertions)]
             {

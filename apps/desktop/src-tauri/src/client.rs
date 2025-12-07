@@ -34,6 +34,8 @@ impl ClientManager {
     /// Get or create a connected client
     ///
     /// This will reuse an existing connection if available, or create a new one.
+    /// If connection fails, it will retry with exponential backoff (useful when
+    /// waiting for embedded server to start).
     pub async fn get_client(&self) -> Result<RadiumClient<Channel>, String> {
         // Check if we have a cached client
         let mut client_guard = self.client.lock().await;
@@ -45,24 +47,49 @@ impl ClientManager {
             return Ok(client.clone());
         }
 
-        // Create new connection
+        // Create new connection with retry logic (for embedded server startup)
         info!(address = %self.server_address, "Connecting to Radium server");
         
         let endpoint = Endpoint::from_shared(self.server_address.clone())
             .map_err(|e| format!("Invalid server address: {}", e))?;
         
-        let channel = endpoint
-            .connect()
-            .await
-            .map_err(|e| format!("Failed to connect to server: {}", e))?;
+        // Retry connection with exponential backoff (for embedded server startup)
+        let mut retry_delay = std::time::Duration::from_millis(100);
+        let max_retries = 10;
         
-        let client = RadiumClient::new(channel);
-        info!("Connected to Radium server");
+        for attempt in 0..max_retries {
+            match endpoint.connect().await {
+                Ok(channel) => {
+                    let client = RadiumClient::new(channel);
+                    info!("Connected to Radium server");
+                    
+                    // Cache the client
+                    *client_guard = Some(client.clone());
+                    
+                    return Ok(client);
+                }
+                Err(e) => {
+                    if attempt < max_retries - 1 {
+                        debug!(
+                            attempt = attempt + 1,
+                            max_retries = max_retries,
+                            delay_ms = retry_delay.as_millis(),
+                            error = %e,
+                            "Connection failed, retrying..."
+                        );
+                        tokio::time::sleep(retry_delay).await;
+                        retry_delay = std::cmp::min(
+                            retry_delay * 2,
+                            std::time::Duration::from_secs(1),
+                        );
+                    } else {
+                        return Err(format!("Failed to connect to server after {} attempts: {}", max_retries, e));
+                    }
+                }
+            }
+        }
         
-        // Cache the client
-        *client_guard = Some(client.clone());
-        
-        Ok(client)
+        Err("Failed to connect to server: maximum retries exceeded".to_string())
     }
 
     /// Clear the cached client connection

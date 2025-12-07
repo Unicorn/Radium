@@ -3,12 +3,16 @@
 //! This module contains the gRPC server implementation and service handlers.
 
 pub mod logging;
+pub mod manager;
 mod radium_service;
 
+pub use manager::EmbeddedServer;
 pub use radium_service::RadiumService;
 
 use std::net::SocketAddr;
+use std::time::Duration;
 
+use tokio::sync::oneshot;
 use tonic::transport::Server;
 use tonic_web::GrpcWebLayer;
 use tower::ServiceBuilder;
@@ -101,6 +105,125 @@ pub async fn run(config: &Config) -> Result<()> {
         // Plain gRPC server only
         info!(%addr, "Starting plain gRPC server (gRPC-Web disabled)");
         Server::builder().add_service(RadiumServer::new(service)).serve(addr).await?;
+    }
+
+    Ok(())
+}
+
+/// Start the Radium gRPC server with graceful shutdown support.
+///
+/// This function is similar to `run()`, but accepts a shutdown signal
+/// that allows the server to be stopped gracefully. When the shutdown receiver
+/// receives a signal, the server will stop accepting new connections and shut down.
+///
+/// # Arguments
+/// * `config` - Server configuration
+/// * `shutdown_rx` - Shutdown signal receiver. When this receives a value,
+///   the server will begin graceful shutdown.
+///
+/// # Errors
+///
+/// Returns an error if the server fails to start or bind to the configured address.
+pub async fn run_with_shutdown(
+    config: &Config,
+    mut shutdown_rx: oneshot::Receiver<()>,
+) -> Result<()> {
+    let addr = config.server.address;
+
+    // Create a shared database instance for the service
+    let db = crate::storage::Database::open_in_memory()?;
+    let service = RadiumService::new(db);
+
+    if config.server.enable_grpc_web {
+        // Determine the gRPC-Web address
+        let web_addr = config.server.web_address.unwrap_or_else(|| {
+            // Default: use the main address with port + 1
+            SocketAddr::new(addr.ip(), addr.port() + GRPC_WEB_PORT_OFFSET)
+        });
+
+        info!(
+            grpc_addr = %addr,
+            grpc_web_addr = %web_addr,
+            "Starting gRPC server with gRPC-Web support"
+        );
+
+        // If both addresses are the same, serve both on one port
+        if addr == web_addr {
+            info!(%addr, "Serving gRPC and gRPC-Web on same address");
+            
+            let server_future = Server::builder()
+                .accept_http1(true)
+                .layer(ServiceBuilder::new().layer(RequestLoggerLayer).layer(GrpcWebLayer::new()))
+                .add_service(RadiumServer::new(service))
+                .serve(addr);
+
+            tokio::select! {
+                result = server_future => {
+                    result?;
+                }
+                _ = &mut shutdown_rx => {
+                    info!("Shutdown signal received, stopping server");
+                }
+            }
+        } else {
+            // Clone service for the second server
+            let db_web = crate::storage::Database::open_in_memory()?;
+            let service_web = RadiumService::new(db_web);
+
+            // Spawn gRPC-Web server in background
+            let grpc_web_handle = tokio::spawn(async move {
+                info!(%web_addr, "gRPC-Web server started");
+                Server::builder()
+                    .accept_http1(true)
+                    .layer(
+                        ServiceBuilder::new().layer(RequestLoggerLayer).layer(GrpcWebLayer::new()),
+                    )
+                    .add_service(RadiumServer::new(service_web))
+                    .serve(web_addr)
+                    .await
+            });
+
+            // Run main gRPC server
+            let grpc_handle = tokio::spawn(async move {
+                info!(%addr, "gRPC server started");
+                Server::builder().add_service(RadiumServer::new(service)).serve(addr).await
+            });
+
+            // Wait for either shutdown signal or server completion
+            tokio::select! {
+                _ = &mut shutdown_rx => {
+                    info!("Shutdown signal received, stopping servers");
+                    // Wait a moment for cleanup
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                }
+                result = grpc_handle => {
+                    result.map_err(|e| crate::error::RadiumError::Io(
+                        std::io::Error::other(e)
+                    ))??;
+                }
+                result = grpc_web_handle => {
+                    result.map_err(|e| crate::error::RadiumError::Io(
+                        std::io::Error::other(e)
+                    ))??;
+                }
+            }
+        }
+    } else {
+        // Plain gRPC server only
+        info!(%addr, "Starting plain gRPC server (gRPC-Web disabled)");
+        
+        let server_future = Server::builder()
+            .add_service(RadiumServer::new(service))
+            .serve(addr);
+
+        tokio::select! {
+            result = server_future => {
+                result?;
+            }
+            _ = &mut shutdown_rx => {
+                info!("Shutdown signal received, stopping server");
+            }
+        }
     }
 
     Ok(())

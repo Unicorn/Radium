@@ -21,6 +21,7 @@ pub mod agents;
 pub mod analytics;
 pub mod auth;
 pub mod checkpoint;
+pub mod client;
 pub mod commands;
 pub mod config;
 pub mod context;
@@ -53,6 +54,7 @@ pub use agents::registry::{AgentRegistry, RegistryError};
 pub use analytics::{ReportFormatter, SessionAnalytics, SessionMetrics, SessionReport};
 pub use auth::{AuthError, AuthResult, CredentialStore, ProviderType};
 pub use checkpoint::{Checkpoint, CheckpointError, CheckpointManager, Result as CheckpointResult};
+pub use client::ClientHelper;
 pub use commands::{CommandError, CommandRegistry, CustomCommand, Result as CommandResult};
 pub use config::Config;
 pub use context::{

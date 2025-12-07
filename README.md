@@ -1,96 +1,129 @@
 # Radium
 
-<a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
+> **Next-generation agentic orchestration tool for developers and power users**
 
-✨ Your new, shiny [Nx workspace](https://nx.dev) is ready ✨.
+Radium is a high-performance, Rust-based platform for creating, managing, and deploying autonomous agents. Built with safety and efficiency in mind, Radium provides a robust framework for orchestrating complex agent workflows.
 
-[Learn more about this workspace setup and its capabilities](https://nx.dev/getting-started/intro#learn-nx?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects) or run `npx nx graph` to visually explore what was created. Now, let's get you up to speed!
+## Features
 
-## Run tasks
+- **🚀 High-Performance Backend**: Rust-based core with concurrent agent orchestration
+- **🔌 Extensible Agent Framework**: Create custom agents and integrate them easily
+- **📱 Multiple Interfaces**: CLI, TUI, Desktop app, and Web application
+- **🤖 Flexible Model Support**: Works with major AI models (Gemini, OpenAI, etc.)
+- **⚙️ Powerful Workflow Engine**: Define complex task chains and decision trees
+- **📊 Comprehensive Monitoring**: Real-time tracking of agents and workflows
+- **🔧 Auto-Managed Server**: Embedded server lifecycle management for seamless deployment
 
-To run tasks with Nx use:
+## Quick Start
 
-```sh
-npx nx <target> <project-name>
+### Prerequisites
+
+- Rust (latest stable)
+- Node.js and npm/bun (for frontend apps)
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/your-org/radium.git
+cd radium
+
+# Build the project
+cargo build --release
+
+# Or use npm scripts
+npm run build
 ```
 
-For example:
+### Running the Server
 
-```sh
-npx nx build myproject
+The Radium server is automatically embedded in client applications (CLI, TUI, Desktop). You can also run it standalone:
+
+```bash
+# Run the standalone server
+npm run server
+
+# Or directly with Cargo
+cargo run --bin radium-core
 ```
 
-These targets are either [inferred automatically](https://nx.dev/concepts/inferred-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or defined in the `project.json` or `package.json` files.
+### Using the CLI
 
-[More about running tasks in the docs &raquo;](https://nx.dev/features/run-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+```bash
+# Initialize a workspace
+radium init
 
-## Add new projects
+# Create a plan
+radium plan --input "Build a web app"
 
-While you could add new projects to your workspace manually, you might want to leverage [Nx plugins](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) and their [code generation](https://nx.dev/features/generate-code?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) feature.
-
-To install a new plugin you can use the `nx add` command. Here's an example of adding the React plugin:
-```sh
-npx nx add @nx/react
+# Execute the plan
+radium craft <plan-id>
 ```
 
-Use the plugin's generator to create new projects. For example, to create a new React app or library:
+### Using the Desktop App
 
-```sh
-# Generate an app
-npx nx g @nx/react:app demo
-
-# Generate a library
-npx nx g @nx/react:lib some-lib
+```bash
+npm run desktop
 ```
 
-You can use `npx nx list` to get a list of installed plugins. Then, run `npx nx list <plugin-name>` to learn about more specific capabilities of a particular plugin. Alternatively, [install Nx Console](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) to browse plugins and generators in your IDE.
+The desktop app automatically starts an embedded server on launch.
 
-[Learn more about Nx plugins &raquo;](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) | [Browse the plugin registry &raquo;](https://nx.dev/plugin-registry?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+## Architecture
 
-## Set up CI!
+Radium uses a modular monorepo structure:
 
-### Step 1
+- **`crates/radium-core`**: Core backend with gRPC server and orchestration
+- **`apps/cli`**: Command-line interface
+- **`apps/tui`**: Terminal user interface
+- **`apps/desktop`**: Tauri-based desktop application
+- **`packages/`**: Shared TypeScript packages for web/desktop
 
-To connect to Nx Cloud, run the following command:
+## Embedded Server Lifecycle
 
-```sh
-npx nx connect
+Radium includes automatic server lifecycle management:
+
+- **Desktop App**: Server automatically starts when the app launches
+- **CLI/TUI**: Server starts on-demand when commands require it
+- **Standalone**: Still available as a separate binary for advanced use cases
+
+See [Embedded Server Documentation](docs/features/embedded-server-lifecycle.md) for details.
+
+## Documentation
+
+- [Project Overview](docs/project/00-project-overview.md)
+- [Architecture](docs/architecture/)
+- [Agent Enhancement Guide](docs/AGENT_ENHANCEMENT_GUIDE.md)
+- [Agent Creation Guide](docs/guides/agent-creation-guide.md)
+
+## Development
+
+```bash
+# Run tests
+cargo test
+
+# Run CLI
+npm run cli
+
+# Run TUI
+npm run tui
+
+# Run desktop app
+npm run desktop
 ```
 
-Connecting to Nx Cloud ensures a [fast and scalable CI](https://nx.dev/ci/intro/why-nx-cloud?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) pipeline. It includes features such as:
+## Contributing
 
-- [Remote caching](https://nx.dev/ci/features/remote-cache?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task distribution across multiple machines](https://nx.dev/ci/features/distribute-task-execution?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Automated e2e test splitting](https://nx.dev/ci/features/split-e2e-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task flakiness detection and rerunning](https://nx.dev/ci/features/flaky-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+We welcome contributions! Please see our contributing guidelines and development rules:
 
-### Step 2
+- [Agent Rules](docs/rules/AGENT_RULES.md)
+- [Development Guidelines](docs/rules/CLAUDE.md)
 
-Use the following command to configure a CI workflow for your workspace:
+## License
 
-```sh
-npx nx g ci-workflow
-```
+MIT License - see LICENSE file for details
 
-[Learn more about Nx on CI](https://nx.dev/ci/intro/ci-with-nx#ready-get-started-with-your-provider?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+## Links
 
-## Install Nx Console
-
-Nx Console is an editor extension that enriches your developer experience. It lets you run tasks, generate code, and improves code autocompletion in your IDE. It is available for VSCode and IntelliJ.
-
-[Install Nx Console &raquo;](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Useful links
-
-Learn more:
-
-- [Learn more about this workspace setup](https://nx.dev/getting-started/intro#learn-nx?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects)
-- [Learn about Nx on CI](https://nx.dev/ci/intro/ci-with-nx?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Releasing Packages with Nx release](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [What are Nx plugins?](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-And join the Nx community:
-- [Discord](https://go.nx.dev/community)
-- [Follow us on X](https://twitter.com/nxdevtools) or [LinkedIn](https://www.linkedin.com/company/nrwl)
-- [Our Youtube channel](https://www.youtube.com/@nxdevtools)
-- [Our blog](https://nx.dev/blog?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+- [Documentation](docs/)
+- [Architecture Overview](docs/architecture/architecture-backend.md)
+- [Project Roadmap](docs/project/02-now-next-later.md)
