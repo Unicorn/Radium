@@ -120,15 +120,24 @@ The system uses a modular monorepo structure with:
 
 ## Integration with Agents
 
-Context files are automatically loaded and injected into agent prompts. When you run an agent command like `rad step` or `rad run`, context files are:
+Context files are automatically loaded and injected into agent prompts. When you run any agent command (`rad step`, `rad run`, `rad chat`, or `rad craft`), context files are:
 
-1. Discovered based on the current working directory
+1. Discovered based on the current working directory (or plan directory for `rad craft`)
 2. Loaded hierarchically (global → project → subdirectory)
 3. Merged together with proper precedence
 4. Imported files are processed and merged
 5. Injected into the agent's prompt context
 
 The context appears in the prompt under a `# Context Files` section, allowing agents to access your persistent instructions.
+
+### Supported Commands
+
+All of the following commands automatically load and use context files:
+
+- **`rad step <agent-id> <prompt>`** - Single agent execution with context
+- **`rad run <script>`** - Script-based agent execution with context
+- **`rad chat <agent-id>`** - Interactive chat session with persistent context
+- **`rad craft <plan-id>`** - Plan execution with context from plan directory
 
 ## CLI Commands
 
