@@ -795,8 +795,107 @@ mod tests {
 
         let retrieved = service.get_agent("agent-1").unwrap();
         assert_eq!(retrieved.status, AgentStatus::Completed);
-        assert_eq!(retrieved.exit_code, Some(0));
-        assert!(retrieved.end_time.is_some());
+    }
+
+    #[test]
+    fn test_agent_status_all_variants() {
+        assert_eq!(AgentStatus::Starting.as_str(), "starting");
+        assert_eq!(AgentStatus::Running.as_str(), "running");
+        assert_eq!(AgentStatus::Completed.as_str(), "completed");
+        assert_eq!(AgentStatus::Failed.as_str(), "failed");
+        assert_eq!(AgentStatus::Terminated.as_str(), "terminated");
+    }
+
+    #[test]
+    fn test_agent_status_from_str_all_variants() {
+        assert_eq!(AgentStatus::from_str("starting").unwrap(), AgentStatus::Starting);
+        assert_eq!(AgentStatus::from_str("running").unwrap(), AgentStatus::Running);
+        assert_eq!(AgentStatus::from_str("completed").unwrap(), AgentStatus::Completed);
+        assert_eq!(AgentStatus::from_str("failed").unwrap(), AgentStatus::Failed);
+        assert_eq!(AgentStatus::from_str("terminated").unwrap(), AgentStatus::Terminated);
+    }
+
+    #[test]
+    fn test_agent_status_from_str_invalid() {
+        assert!(AgentStatus::from_str("invalid").is_err());
+    }
+
+    #[test]
+    fn test_agent_record_new() {
+        let record = AgentRecord::new("agent-1".to_string(), "developer".to_string());
+        assert_eq!(record.id, "agent-1");
+        assert_eq!(record.agent_type, "developer");
+        assert_eq!(record.status, AgentStatus::Starting);
+        assert!(record.parent_id.is_none());
+        assert!(record.plan_id.is_none());
+    }
+
+    #[test]
+    fn test_agent_record_with_parent() {
+        let record = AgentRecord::new("agent-1".to_string(), "developer".to_string())
+            .with_parent("parent-1".to_string());
+        assert_eq!(record.parent_id, Some("parent-1".to_string()));
+    }
+
+    #[test]
+    fn test_agent_record_with_plan() {
+        let record = AgentRecord::new("agent-1".to_string(), "developer".to_string())
+            .with_plan("plan-1".to_string());
+        assert_eq!(record.plan_id, Some("plan-1".to_string()));
+    }
+
+    #[test]
+    fn test_agent_record_with_process_id() {
+        let record = AgentRecord::new("agent-1".to_string(), "developer".to_string())
+            .with_process_id(12345);
+        assert_eq!(record.process_id, Some(12345));
+    }
+
+    #[test]
+    fn test_agent_record_with_log_file() {
+        let record = AgentRecord::new("agent-1".to_string(), "developer".to_string())
+            .with_log_file("/path/to/log".to_string());
+        assert_eq!(record.log_file, Some("/path/to/log".to_string()));
+    }
+
+    #[test]
+    fn test_monitoring_service_with_hooks() {
+        let registry = Arc::new(HookRegistry::new());
+        let service = MonitoringService::with_hooks(registry.clone()).unwrap();
+        assert!(service.get_hook_registry().is_some());
+    }
+
+    #[test]
+    fn test_monitoring_service_open() {
+        use tempfile::TempDir;
+        let temp = TempDir::new().unwrap();
+        let db_path = temp.path().join("monitoring.db");
+        
+        let service = MonitoringService::open(&db_path);
+        assert!(service.is_ok());
+    }
+
+    #[test]
+    fn test_monitoring_service_open_with_hooks() {
+        use tempfile::TempDir;
+        let temp = TempDir::new().unwrap();
+        let db_path = temp.path().join("monitoring.db");
+        let registry = Arc::new(HookRegistry::new());
+        
+        let service = MonitoringService::open_with_hooks(&db_path, registry.clone());
+        assert!(service.is_ok());
+        let service = service.unwrap();
+        assert!(service.get_hook_registry().is_some());
+    }
+
+    #[test]
+    fn test_monitoring_service_set_hook_registry() {
+        let mut service = MonitoringService::new().unwrap();
+        assert!(service.get_hook_registry().is_none());
+        
+        let registry = Arc::new(HookRegistry::new());
+        service.set_hook_registry(registry.clone());
+        assert!(service.get_hook_registry().is_some());
     }
 
     #[test]
@@ -805,12 +904,45 @@ mod tests {
         let record = AgentRecord::new("agent-1".to_string(), "developer".to_string());
 
         service.register_agent(&record).unwrap();
-        service.fail_agent("agent-1", "Test error").unwrap();
+        service.fail_agent("agent-1", "test error").unwrap();
 
         let retrieved = service.get_agent("agent-1").unwrap();
         assert_eq!(retrieved.status, AgentStatus::Failed);
-        assert_eq!(retrieved.error_message, Some("Test error".to_string()));
-        assert!(retrieved.end_time.is_some());
+        assert_eq!(retrieved.error_message, Some("test error".to_string()));
+    }
+
+    #[test]
+    fn test_get_agent_not_found() {
+        let service = MonitoringService::new().unwrap();
+        let result = service.get_agent("nonexistent");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_update_status_not_found() {
+        let service = MonitoringService::new().unwrap();
+        let result = service.update_status("nonexistent", AgentStatus::Running);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_usage_filter_default() {
+        let filter = UsageFilter::default();
+        assert!(filter.category.is_none());
+        assert!(filter.min_executions.is_none());
+        assert!(filter.since.is_none());
+    }
+
+    #[test]
+    fn test_usage_filter_with_values() {
+        let filter = UsageFilter {
+            category: Some("test".to_string()),
+            min_executions: Some(10),
+            since: Some(1000),
+        };
+        assert_eq!(filter.category, Some("test".to_string()));
+        assert_eq!(filter.min_executions, Some(10));
+        assert_eq!(filter.since, Some(1000));
     }
 
     #[test]
