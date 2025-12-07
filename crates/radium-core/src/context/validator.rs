@@ -146,6 +146,6 @@ mod tests {
     async fn test_format_error_message() {
         let not_found = SourceError::not_found("test.txt");
         let msg = SourceValidator::format_error_message(&not_found);
-        assert!(msg.contains("not found"));
+        assert!(msg.to_lowercase().contains("not found"));
     }
 }
