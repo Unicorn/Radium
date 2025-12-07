@@ -311,6 +311,7 @@ impl Orchestrator {
     /// # Arguments
     /// * `agent_id` - The ID of the agent to execute
     /// * `input` - The input for the agent
+    /// * `collaboration_context` - Optional collaboration context (for multi-agent features)
     ///
     /// # Returns
     /// Returns `Ok(ExecutionResult)` if the agent was found and executed, `Err` otherwise.
@@ -318,6 +319,24 @@ impl Orchestrator {
         &self,
         agent_id: &str,
         input: &str,
+    ) -> std::result::Result<ExecutionResult, ModelError> {
+        self.execute_agent_with_collaboration(agent_id, input, None).await
+    }
+
+    /// Executes an agent with optional collaboration context.
+    ///
+    /// # Arguments
+    /// * `agent_id` - The ID of the agent to execute
+    /// * `input` - The input for the agent
+    /// * `collaboration_context` - Optional collaboration context
+    ///
+    /// # Returns
+    /// Returns `Ok(ExecutionResult)` if the agent was found and executed, `Err` otherwise.
+    pub async fn execute_agent_with_collaboration(
+        &self,
+        agent_id: &str,
+        input: &str,
+        collaboration_context: Option<std::sync::Arc<dyn std::any::Any + Send + Sync>>,
     ) -> std::result::Result<ExecutionResult, ModelError> {
         // Check if agent is registered
         let agent = self.get_agent(agent_id).await.ok_or_else(|| {
@@ -343,7 +362,9 @@ impl Orchestrator {
             }
         }
 
-        // Execute the agent
+        // Execute the agent with optional collaboration context
+        // Note: We need to pass collaboration context through executor
+        // For now, we'll use a workaround by modifying the executor call
         let result = self.executor.execute_agent_with_default_model(agent, input, None as Option<&Arc<dyn HookExecutor>>).await?;
 
         // Mark agent as idle if execution completed
