@@ -42,11 +42,14 @@ mod files;
 mod history;
 mod injection;
 mod manager;
-mod sources;
+pub mod sources;
 
 pub use error::{ContextError, Result};
 pub use files::ContextFileLoader;
 pub use history::{HistoryError, HistoryManager, Interaction, Result as HistoryResult};
 pub use injection::{ContextInjector, InjectionDirective};
 pub use manager::ContextManager;
-pub use sources::{SourceError, SourceMetadata, SourceReader};
+pub use sources::{
+    BraingridReader, HttpReader, JiraReader, LocalFileReader, SourceError, SourceMetadata,
+    SourceReader,
+};
