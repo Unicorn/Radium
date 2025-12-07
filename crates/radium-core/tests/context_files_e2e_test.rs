@@ -44,7 +44,8 @@ fn test_e2e_hierarchical_context_real_workspace() {
     let subdir = temp_dir.path().join("src");
     fs::create_dir_all(&subdir).unwrap();
     let subdir_file = subdir.join("GEMINI.md");
-    fs::write(&subdir_file, "# Subdirectory Context\n\nSubdirectory-specific instructions.").unwrap();
+    fs::write(&subdir_file, "# Subdirectory Context\n\nSubdirectory-specific instructions.")
+        .unwrap();
 
     // Load context from subdirectory (simulating agent running in subdirectory)
     let loader = ContextFileLoader::new(temp_dir.path());
@@ -69,11 +70,8 @@ fn test_e2e_context_files_with_imports_workflow() {
 
     // Create imported rules file
     let rules_file = temp_dir.path().join("RULES.md");
-    fs::write(
-        &rules_file,
-        "# Coding Rules\n\n1. Use cargo fmt\n2. Write tests\n3. Document APIs",
-    )
-    .unwrap();
+    fs::write(&rules_file, "# Coding Rules\n\n1. Use cargo fmt\n2. Write tests\n3. Document APIs")
+        .unwrap();
 
     // Create main context file with import
     let main_file = temp_dir.path().join("GEMINI.md");
@@ -156,4 +154,3 @@ fn test_e2e_context_files_with_complex_imports() {
     assert!(content.contains("Top content"));
     assert!(content.contains("Main content"));
 }
-

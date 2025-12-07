@@ -61,11 +61,7 @@ pub struct ExtensionComponents {
 
 impl Default for ExtensionComponents {
     fn default() -> Self {
-        Self {
-            prompts: Vec::new(),
-            mcp_servers: Vec::new(),
-            commands: Vec::new(),
-        }
+        Self { prompts: Vec::new(), mcp_servers: Vec::new(), commands: Vec::new() }
     }
 }
 
@@ -110,9 +106,7 @@ impl ExtensionManifest {
     /// Returns error if file cannot be read, parsed, or validated
     pub fn load(path: &Path) -> Result<Self> {
         if !path.exists() {
-            return Err(ExtensionManifestError::NotFound(
-                path.to_string_lossy().to_string(),
-            ));
+            return Err(ExtensionManifestError::NotFound(path.to_string_lossy().to_string()));
         }
 
         let content = std::fs::read_to_string(path)?;
@@ -223,11 +217,8 @@ impl ExtensionManifest {
 
         // Validate each part is numeric (or has valid prerelease)
         for part in &parts {
-            let num_part = if part.contains('-') {
-                part.split('-').next().unwrap_or(part)
-            } else {
-                part
-            };
+            let num_part =
+                if part.contains('-') { part.split('-').next().unwrap_or(part) } else { part };
 
             if num_part.is_empty() || !num_part.chars().all(|c| c.is_ascii_digit()) {
                 return false;
@@ -295,10 +286,7 @@ mod tests {
         let path = Path::new("/nonexistent/radium-extension.json");
         let result = ExtensionManifest::load(path);
         assert!(result.is_err());
-        assert!(matches!(
-            result.unwrap_err(),
-            ExtensionManifestError::NotFound(_)
-        ));
+        assert!(matches!(result.unwrap_err(), ExtensionManifestError::NotFound(_)));
     }
 
     #[test]
@@ -416,10 +404,7 @@ mod tests {
 
         let result = manifest.validate();
         assert!(result.is_err());
-        assert!(matches!(
-            result.unwrap_err(),
-            ExtensionManifestError::InvalidVersion(_)
-        ));
+        assert!(matches!(result.unwrap_err(), ExtensionManifestError::InvalidVersion(_)));
     }
 
     #[test]
@@ -497,10 +482,7 @@ mod tests {
 
         let result = manifest.validate();
         assert!(result.is_err());
-        assert!(matches!(
-            result.unwrap_err(),
-            ExtensionManifestError::InvalidComponentPath(_)
-        ));
+        assert!(matches!(result.unwrap_err(), ExtensionManifestError::InvalidComponentPath(_)));
     }
 
     #[test]
@@ -561,4 +543,3 @@ mod tests {
         assert_eq!(manifest.components.prompts.len(), deserialized.components.prompts.len());
     }
 }
-

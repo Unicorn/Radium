@@ -150,7 +150,7 @@ pub async fn run_with_shutdown(
         // If both addresses are the same, serve both on one port
         if addr == web_addr {
             info!(%addr, "Serving gRPC and gRPC-Web on same address");
-            
+
             let server_future = Server::builder()
                 .accept_http1(true)
                 .layer(ServiceBuilder::new().layer(RequestLoggerLayer).layer(GrpcWebLayer::new()))
@@ -211,10 +211,8 @@ pub async fn run_with_shutdown(
     } else {
         // Plain gRPC server only
         info!(%addr, "Starting plain gRPC server (gRPC-Web disabled)");
-        
-        let server_future = Server::builder()
-            .add_service(RadiumServer::new(service))
-            .serve(addr);
+
+        let server_future = Server::builder().add_service(RadiumServer::new(service)).serve(addr);
 
         tokio::select! {
             result = server_future => {

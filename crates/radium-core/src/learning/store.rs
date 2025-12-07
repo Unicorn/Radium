@@ -3,8 +3,8 @@
 //! Tracks mistakes, solutions, and preferences in categories to build
 //! pattern recognition for future oversight improvements.
 
-use std::fmt::Write;
 use std::collections::HashMap;
+use std::fmt::Write;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -136,14 +136,8 @@ pub const STANDARD_CATEGORIES: &[&str] = &[
 ];
 
 /// Standard skill sections for organizing skills.
-pub const STANDARD_SECTIONS: &[&str] = &[
-    "task_guidance",
-    "tool_usage",
-    "error_handling",
-    "code_patterns",
-    "communication",
-    "general",
-];
+pub const STANDARD_SECTIONS: &[&str] =
+    &["task_guidance", "tool_usage", "error_handling", "code_patterns", "communication", "general"];
 
 /// Skill entry for skillbook (ACE learning).
 ///
@@ -356,7 +350,8 @@ impl LearningStore {
 
         // Check for similar entries to avoid duplicates
         let existing = self.get_entries_by_category(&category);
-        let is_duplicate = existing.iter().any(|e| Self::is_similar(&e.description, &entry.description));
+        let is_duplicate =
+            existing.iter().any(|e| Self::is_similar(&e.description, &entry.description));
 
         if is_duplicate {
             return Ok((entry, false));
@@ -383,11 +378,7 @@ impl LearningStore {
     /// # Returns
     /// Vector of learning entries for the category
     pub fn get_entries_by_category(&self, category: &str) -> Vec<LearningEntry> {
-        self.log
-            .categories
-            .get(category)
-            .map(|data| data.examples.clone())
-            .unwrap_or_default()
+        self.log.categories.get(category).map(|data| data.examples.clone()).unwrap_or_default()
     }
 
     /// Gets all learning entries grouped by category.
@@ -413,11 +404,7 @@ impl LearningStore {
             .iter()
             .map(|(category, data)| {
                 let recent_example = data.examples.last().cloned();
-                CategorySummary {
-                    category: category.clone(),
-                    count: data.count,
-                    recent_example,
-                }
+                CategorySummary { category: category.clone(), count: data.count, recent_example }
             })
             .collect();
 
@@ -438,12 +425,8 @@ impl LearningStore {
         for (category, data) in &self.log.categories {
             writeln!(context, "Category: {} (count: {})", category, data.count).unwrap();
 
-            let examples: Vec<&LearningEntry> = data
-                .examples
-                .iter()
-                .rev()
-                .take(max_per_category)
-                .collect();
+            let examples: Vec<&LearningEntry> =
+                data.examples.iter().rev().take(max_per_category).collect();
 
             for entry in examples {
                 let label = match entry.entry_type {
@@ -465,7 +448,8 @@ impl LearningStore {
                     label,
                     entry.description,
                     solution_text
-                ).unwrap();
+                )
+                .unwrap();
             }
 
             context.push('\n');
@@ -530,9 +514,10 @@ impl LearningStore {
     /// # Errors
     /// Returns error if skill not found or tag is invalid
     pub fn tag_skill(&mut self, skill_id: &str, tag: &str, increment: u32) -> Result<()> {
-        let skill = self.log.skills.get_mut(skill_id).ok_or_else(|| {
-            LearningError::InvalidEntry(format!("Skill not found: {}", skill_id))
-        })?;
+        let skill =
+            self.log.skills.get_mut(skill_id).ok_or_else(|| {
+                LearningError::InvalidEntry(format!("Skill not found: {}", skill_id))
+            })?;
 
         skill.tag(tag, increment)?;
         self.log.last_updated = Utc::now();
@@ -629,11 +614,7 @@ impl LearningStore {
                     String::new()
                 };
 
-                writeln!(
-                    context,
-                    "- [{}] {}{}",
-                    skill.id, skill.content, counts
-                ).unwrap();
+                writeln!(context, "- [{}] {}{}", skill.id, skill.content, counts).unwrap();
             }
 
             context.push('\n');
@@ -687,7 +668,9 @@ impl LearningStore {
             }
             UpdateOperationType::Update => {
                 let skill_id = operation.skill_id.as_ref().ok_or_else(|| {
-                    LearningError::InvalidEntry("Skill ID required for UPDATE operation".to_string())
+                    LearningError::InvalidEntry(
+                        "Skill ID required for UPDATE operation".to_string(),
+                    )
                 })?;
 
                 let skill = self.log.skills.get_mut(skill_id).ok_or_else(|| {
@@ -712,7 +695,9 @@ impl LearningStore {
             }
             UpdateOperationType::Remove => {
                 let skill_id = operation.skill_id.as_ref().ok_or_else(|| {
-                    LearningError::InvalidEntry("Skill ID required for REMOVE operation".to_string())
+                    LearningError::InvalidEntry(
+                        "Skill ID required for REMOVE operation".to_string(),
+                    )
                 })?;
 
                 // Soft delete: mark as invalid
@@ -977,12 +962,8 @@ mod tests {
 
     #[test]
     fn test_normalize_category() {
-        assert_eq!(
-            LearningStore::normalize_category("complex"),
-            "Complex Solution Bias"
-        );
+        assert_eq!(LearningStore::normalize_category("complex"), "Complex Solution Bias");
         assert_eq!(LearningStore::normalize_category("feature creep"), "Feature Creep");
         assert_eq!(LearningStore::normalize_category("unknown category"), "unknown category");
     }
 }
-

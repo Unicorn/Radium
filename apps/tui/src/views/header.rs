@@ -40,23 +40,16 @@ impl HeaderInfo {
 pub fn render_header(frame: &mut Frame, area: Rect, info: &HeaderInfo) {
     // Check auth status
     let (gemini_auth, openai_auth) = if let Ok(store) = CredentialStore::new() {
-        (
-            store.is_configured(ProviderType::Gemini),
-            store.is_configured(ProviderType::OpenAI),
-        )
+        (store.is_configured(ProviderType::Gemini), store.is_configured(ProviderType::OpenAI))
     } else {
         (false, false)
     };
 
     // Build header text
-    let mut header_parts = vec![
-        Span::styled(
-            format!("{} Radium", Icons::ROCKET),
-            Style::default()
-                .fg(THEME.primary)
-                .add_modifier(Modifier::BOLD),
-        ),
-    ];
+    let mut header_parts = vec![Span::styled(
+        format!("{} Radium", Icons::ROCKET),
+        Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD),
+    )];
 
     // Add session info if available
     if let Some(session_id) = &info.session_id {
@@ -78,46 +71,29 @@ pub fn render_header(frame: &mut Frame, area: Rect, info: &HeaderInfo) {
 
     // Add detailed auth status showing which providers are connected
     header_parts.push(Span::raw(" | "));
-    header_parts.push(Span::styled(
-        format!("{} ", Icons::AUTH),
-        Style::default().fg(THEME.text_muted),
-    ));
+    header_parts
+        .push(Span::styled(format!("{} ", Icons::AUTH), Style::default().fg(THEME.text_muted)));
 
     // Gemini status
     if gemini_auth {
-        header_parts.push(Span::styled(
-            "Gemini✓",
-            Style::default().fg(THEME.success),
-        ));
+        header_parts.push(Span::styled("Gemini✓", Style::default().fg(THEME.success)));
     } else {
-        header_parts.push(Span::styled(
-            "Gemini✗",
-            Style::default().fg(THEME.text_dim),
-        ));
+        header_parts.push(Span::styled("Gemini✗", Style::default().fg(THEME.text_dim)));
     }
 
     header_parts.push(Span::raw(" "));
 
     // OpenAI status
     if openai_auth {
-        header_parts.push(Span::styled(
-            "OpenAI✓",
-            Style::default().fg(THEME.success),
-        ));
+        header_parts.push(Span::styled("OpenAI✓", Style::default().fg(THEME.success)));
     } else {
-        header_parts.push(Span::styled(
-            "OpenAI✗",
-            Style::default().fg(THEME.text_dim),
-        ));
+        header_parts.push(Span::styled("OpenAI✗", Style::default().fg(THEME.text_dim)));
     }
 
     // Warning if no auth at all
     if !gemini_auth && !openai_auth {
         header_parts.push(Span::raw(" "));
-        header_parts.push(Span::styled(
-            "(Type /auth)",
-            Style::default().fg(THEME.warning),
-        ));
+        header_parts.push(Span::styled("(Type /auth)", Style::default().fg(THEME.warning)));
     }
 
     let header_line = Line::from(header_parts);
@@ -126,10 +102,9 @@ pub fn render_header(frame: &mut Frame, area: Rect, info: &HeaderInfo) {
         .block(
             Block::default()
                 .borders(Borders::BOTTOM)
-                .border_style(Style::default().fg(THEME.border))
+                .border_style(Style::default().fg(THEME.border)),
         )
         .style(Style::default().bg(THEME.bg_panel));
 
     frame.render_widget(header, area);
 }
-

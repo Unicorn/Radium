@@ -140,13 +140,8 @@ mod tests {
         let mut batch = UpdateBatch::new("Test reasoning".to_string());
         assert!(batch.is_empty());
 
-        batch.add_operation(UpdateOperation::add(
-            "general".to_string(),
-            "Test".to_string(),
-            None,
-        ));
+        batch.add_operation(UpdateOperation::add("general".to_string(), "Test".to_string(), None));
         assert!(!batch.is_empty());
         assert_eq!(batch.operations.len(), 1);
     }
 }
-

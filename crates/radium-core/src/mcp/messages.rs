@@ -94,9 +94,7 @@ impl McpMessage {
             return Ok(McpMessage::Response(response));
         }
 
-        Err(crate::mcp::McpError::Protocol(
-            "Invalid JSON-RPC message format".to_string(),
-        ))
+        Err(crate::mcp::McpError::Protocol("Invalid JSON-RPC message format".to_string()))
     }
 
     /// Serialize the message to JSON bytes.
@@ -218,11 +216,8 @@ mod tests {
 
     #[test]
     fn test_jsonrpc_error_serialization() {
-        let error = JsonRpcError {
-            code: -32600,
-            message: "Invalid Request".to_string(),
-            data: None,
-        };
+        let error =
+            JsonRpcError { code: -32600, message: "Invalid Request".to_string(), data: None };
 
         let json = serde_json::to_string(&error).unwrap();
         assert!(json.contains("-32600"));
@@ -308,9 +303,7 @@ mod tests {
     fn test_initialize_params() {
         let params = InitializeParams {
             protocol_version: "2024-11-05".to_string(),
-            capabilities: ClientCapabilities {
-                experimental: None,
-            },
+            capabilities: ClientCapabilities { experimental: None },
             client_info: Some(ClientInfo {
                 name: "radium".to_string(),
                 version: Some("0.1.0".to_string()),
@@ -326,9 +319,7 @@ mod tests {
     fn test_initialize_params_serialization() {
         let params = InitializeParams {
             protocol_version: "2024-11-05".to_string(),
-            capabilities: ClientCapabilities {
-                experimental: None,
-            },
+            capabilities: ClientCapabilities { experimental: None },
             client_info: Some(ClientInfo {
                 name: "radium".to_string(),
                 version: Some("0.1.0".to_string()),
@@ -345,9 +336,7 @@ mod tests {
     fn test_initialize_result() {
         let result = InitializeResult {
             protocol_version: "2024-11-05".to_string(),
-            capabilities: ServerCapabilities {
-                experimental: None,
-            },
+            capabilities: ServerCapabilities { experimental: None },
             server_info: Some(ServerInfo {
                 name: "test-server".to_string(),
                 version: Some("1.0.0".to_string()),
@@ -363,9 +352,7 @@ mod tests {
     fn test_initialize_result_serialization() {
         let result = InitializeResult {
             protocol_version: "2024-11-05".to_string(),
-            capabilities: ServerCapabilities {
-                experimental: None,
-            },
+            capabilities: ServerCapabilities { experimental: None },
             server_info: Some(ServerInfo {
                 name: "test-server".to_string(),
                 version: Some("1.0.0".to_string()),
@@ -451,7 +438,8 @@ mod tests {
 
     #[test]
     fn test_mcp_message_response_with_error() {
-        let json = r#"{"jsonrpc":"2.0","error":{"code":-32600,"message":"Invalid Request"},"id":1}"#;
+        let json =
+            r#"{"jsonrpc":"2.0","error":{"code":-32600,"message":"Invalid Request"},"id":1}"#;
         let message = McpMessage::from_bytes(json.as_bytes()).unwrap();
 
         match message {
@@ -492,9 +480,7 @@ mod tests {
     fn test_client_capabilities_serialization() {
         let mut experimental = HashMap::new();
         experimental.insert("feature1".to_string(), serde_json::json!(true));
-        let caps = ClientCapabilities {
-            experimental: Some(experimental),
-        };
+        let caps = ClientCapabilities { experimental: Some(experimental) };
 
         let json = serde_json::to_string(&caps).unwrap();
         assert!(json.contains("experimental"));
@@ -502,9 +488,7 @@ mod tests {
 
     #[test]
     fn test_server_capabilities_serialization() {
-        let caps = ServerCapabilities {
-            experimental: None,
-        };
+        let caps = ServerCapabilities { experimental: None };
 
         let json = serde_json::to_string(&caps).unwrap();
         let parsed: ServerCapabilities = serde_json::from_str(&json).unwrap();
@@ -513,10 +497,7 @@ mod tests {
 
     #[test]
     fn test_client_info_serialization() {
-        let info = ClientInfo {
-            name: "radium".to_string(),
-            version: Some("0.1.0".to_string()),
-        };
+        let info = ClientInfo { name: "radium".to_string(), version: Some("0.1.0".to_string()) };
 
         let json = serde_json::to_string(&info).unwrap();
         assert!(json.contains("radium"));
@@ -525,10 +506,7 @@ mod tests {
 
     #[test]
     fn test_client_info_without_version() {
-        let info = ClientInfo {
-            name: "radium".to_string(),
-            version: None,
-        };
+        let info = ClientInfo { name: "radium".to_string(), version: None };
 
         let json = serde_json::to_string(&info).unwrap();
         assert!(json.contains("radium"));
@@ -537,14 +515,11 @@ mod tests {
 
     #[test]
     fn test_server_info_serialization() {
-        let info = ServerInfo {
-            name: "test-server".to_string(),
-            version: Some("1.0.0".to_string()),
-        };
+        let info =
+            ServerInfo { name: "test-server".to_string(), version: Some("1.0.0".to_string()) };
 
         let json = serde_json::to_string(&info).unwrap();
         assert!(json.contains("test-server"));
         assert!(json.contains("1.0.0"));
     }
 }
-

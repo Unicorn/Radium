@@ -31,10 +31,7 @@ impl OrchestratorHooks {
         let context = ModelHookContext::before(input.to_string(), model_id.to_string());
         let hook_context = context.to_hook_context(crate::hooks::model::ModelHookType::Before);
 
-        let results = self
-            .registry
-            .execute_hooks(HookType::BeforeModel, &hook_context)
-            .await?;
+        let results = self.registry.execute_hooks(HookType::BeforeModel, &hook_context).await?;
 
         // Collect modifications from hooks
         let mut modified_input = input.to_string();
@@ -68,13 +65,11 @@ impl OrchestratorHooks {
         model_id: &str,
         response: &str,
     ) -> crate::hooks::error::Result<String> {
-        let context = ModelHookContext::after(input.to_string(), model_id.to_string(), response.to_string());
+        let context =
+            ModelHookContext::after(input.to_string(), model_id.to_string(), response.to_string());
         let hook_context = context.to_hook_context(crate::hooks::model::ModelHookType::After);
 
-        let results = self
-            .registry
-            .execute_hooks(HookType::AfterModel, &hook_context)
-            .await?;
+        let results = self.registry.execute_hooks(HookType::AfterModel, &hook_context).await?;
 
         // Collect modifications from hooks
         let mut modified_response = response.to_string();
@@ -99,10 +94,7 @@ impl OrchestratorHooks {
         let context = ToolHookContext::before(tool_name.to_string(), arguments.clone());
         let hook_context = context.to_hook_context(crate::hooks::tool::ToolHookType::Before);
 
-        let results = self
-            .registry
-            .execute_hooks(HookType::BeforeTool, &hook_context)
-            .await?;
+        let results = self.registry.execute_hooks(HookType::BeforeTool, &hook_context).await?;
 
         // Collect modifications from hooks
         let mut modified_arguments = arguments.clone();
@@ -130,13 +122,11 @@ impl OrchestratorHooks {
         arguments: &serde_json::Value,
         result: &serde_json::Value,
     ) -> crate::hooks::error::Result<serde_json::Value> {
-        let context = ToolHookContext::after(tool_name.to_string(), arguments.clone(), result.clone());
+        let context =
+            ToolHookContext::after(tool_name.to_string(), arguments.clone(), result.clone());
         let hook_context = context.to_hook_context(crate::hooks::tool::ToolHookType::After);
 
-        let hook_results = self
-            .registry
-            .execute_hooks(HookType::AfterTool, &hook_context)
-            .await?;
+        let hook_results = self.registry.execute_hooks(HookType::AfterTool, &hook_context).await?;
 
         // Collect modifications from hooks
         let mut modified_result = result.clone();
@@ -161,10 +151,7 @@ impl OrchestratorHooks {
         let context = ToolHookContext::selection(tool_name.to_string(), arguments.clone());
         let hook_context = context.to_hook_context(crate::hooks::tool::ToolHookType::Selection);
 
-        let results = self
-            .registry
-            .execute_hooks(HookType::ToolSelection, &hook_context)
-            .await?;
+        let results = self.registry.execute_hooks(HookType::ToolSelection, &hook_context).await?;
 
         // If any hook says to stop, don't execute the tool
         for result in results {
@@ -188,12 +175,11 @@ impl OrchestratorHooks {
             error_type.to_string(),
             error_source.map(|s| s.to_string()),
         );
-        let hook_context = context.to_hook_context(crate::hooks::error_hooks::ErrorHookType::Interception);
+        let hook_context =
+            context.to_hook_context(crate::hooks::error_hooks::ErrorHookType::Interception);
 
-        let results = self
-            .registry
-            .execute_hooks(HookType::ErrorInterception, &hook_context)
-            .await?;
+        let results =
+            self.registry.execute_hooks(HookType::ErrorInterception, &hook_context).await?;
 
         // Check if any hook handled the error
         for result in results {
@@ -215,13 +201,10 @@ impl OrchestratorHooks {
         let context = TelemetryHookContext::new(event_type, data.clone());
         let hook_context = context.to_hook_context("telemetry_collection");
 
-        let _results = self
-            .registry
-            .execute_hooks(HookType::TelemetryCollection, &hook_context)
-            .await?;
+        let _results =
+            self.registry.execute_hooks(HookType::TelemetryCollection, &hook_context).await?;
 
         // Telemetry hooks are fire-and-forget, we don't need to process results
         Ok(())
     }
 }
-

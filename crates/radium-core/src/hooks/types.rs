@@ -41,11 +41,7 @@ pub struct HookContext {
 impl HookContext {
     /// Create a new hook context.
     pub fn new(hook_type: impl Into<String>, data: serde_json::Value) -> Self {
-        Self {
-            hook_type: hook_type.into(),
-            data,
-            metadata: serde_json::json!({}),
-        }
+        Self { hook_type: hook_type.into(), data, metadata: serde_json::json!({}) }
     }
 
     /// Create a new hook context with metadata.
@@ -54,11 +50,7 @@ impl HookContext {
         data: serde_json::Value,
         metadata: serde_json::Value,
     ) -> Self {
-        Self {
-            hook_type: hook_type.into(),
-            data,
-            metadata,
-        }
+        Self { hook_type: hook_type.into(), data, metadata }
     }
 }
 
@@ -77,12 +69,7 @@ pub struct HookResult {
 
 impl Default for HookResult {
     fn default() -> Self {
-        Self {
-            success: true,
-            message: None,
-            modified_data: None,
-            should_continue: true,
-        }
+        Self { success: true, message: None, modified_data: None, should_continue: true }
     }
 }
 
@@ -94,12 +81,7 @@ impl HookResult {
 
     /// Create a successful hook result with modified data.
     pub fn with_data(data: serde_json::Value) -> Self {
-        Self {
-            success: true,
-            message: None,
-            modified_data: Some(data),
-            should_continue: true,
-        }
+        Self { success: true, message: None, modified_data: Some(data), should_continue: true }
     }
 
     /// Create a hook result that stops execution.
@@ -122,4 +104,3 @@ impl HookResult {
         }
     }
 }
-

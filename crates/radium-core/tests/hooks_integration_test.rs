@@ -66,18 +66,13 @@ async fn test_model_hooks_integration() {
     let hooks = OrchestratorHooks::new(Arc::clone(&registry));
 
     // Test before model call
-    let (modified_input, _) = hooks
-        .before_model_call("test input", "test-model")
-        .await
-        .unwrap();
+    let (modified_input, _) = hooks.before_model_call("test input", "test-model").await.unwrap();
     assert_eq!(modified_input, "test input");
     assert!(*before_called.lock().await);
 
     // Test after model call
-    let modified_response = hooks
-        .after_model_call("test input", "test-model", "test response")
-        .await
-        .unwrap();
+    let modified_response =
+        hooks.after_model_call("test input", "test-model", "test response").await.unwrap();
     assert_eq!(modified_response, "test response");
     assert!(*after_called.lock().await);
 }
@@ -210,4 +205,3 @@ type = "before_model"
     let config = HookConfig::from_str(missing_config).unwrap();
     assert!(config.validate().is_err());
 }
-

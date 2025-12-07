@@ -3,10 +3,10 @@
 //! Provides history continuity by tracking interactions per session ID
 //! and generating summaries to prevent context window bloat.
 
-use std::fmt::Write;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fmt::Write;
 use std::fs;
 use std::path::{Path, PathBuf};
 use thiserror::Error;

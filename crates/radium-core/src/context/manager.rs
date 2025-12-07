@@ -183,11 +183,7 @@ impl ContextManager {
         };
 
         let context = learning_store.generate_context(max_per_category);
-        if context.is_empty() {
-            None
-        } else {
-            Some(format!("# Learning Context\n\n{}\n", context))
-        }
+        if context.is_empty() { None } else { Some(format!("# Learning Context\n\n{}\n", context)) }
     }
 
     /// Gathers skillbook context from learned strategies.
@@ -203,11 +199,7 @@ impl ContextManager {
         };
 
         let context = learning_store.as_context(max_per_section);
-        if context.is_empty() {
-            None
-        } else {
-            Some(format!("{}\n", context))
-        }
+        if context.is_empty() { None } else { Some(format!("{}\n", context)) }
     }
 
     /// Processes injection directives and returns injected content.
@@ -712,7 +704,8 @@ mod tests {
 
         // Create context file
         let context_file = temp_dir.path().join("GEMINI.md");
-        fs::write(&context_file, "# Project Context\n\nUse Rust and follow best practices.").unwrap();
+        fs::write(&context_file, "# Project Context\n\nUse Rust and follow best practices.")
+            .unwrap();
 
         let mut manager = ContextManager::new(&workspace);
         // Load context files directly for the temp directory

@@ -15,11 +15,7 @@ pub struct HttpTransport {
 impl HttpTransport {
     /// Create a new HTTP transport.
     pub fn new(url: String) -> Self {
-        Self {
-            url,
-            client: reqwest::Client::new(),
-            connected: false,
-        }
+        Self { url, client: reqwest::Client::new(), connected: false }
     }
 }
 
@@ -31,14 +27,9 @@ impl McpTransport for HttpTransport {
         }
 
         // Test connection with a simple request
-        let response = self
-            .client
-            .get(&self.url)
-            .send()
-            .await
-            .map_err(|e| {
-                McpError::Transport(format!("Failed to connect to HTTP endpoint: {}", e))
-            })?;
+        let response = self.client.get(&self.url).send().await.map_err(|e| {
+            McpError::Transport(format!("Failed to connect to HTTP endpoint: {}", e))
+        })?;
 
         if !response.status().is_success() && response.status() != reqwest::StatusCode::NOT_FOUND {
             return Err(McpError::Transport(format!(
@@ -72,9 +63,7 @@ impl McpTransport for HttpTransport {
             .body(message.to_vec())
             .send()
             .await
-            .map_err(|e| {
-                McpError::Transport(format!("Failed to send message via HTTP: {}", e))
-            })?;
+            .map_err(|e| McpError::Transport(format!("Failed to send message via HTTP: {}", e)))?;
 
         if !response.status().is_success() {
             return Err(McpError::Transport(format!(
@@ -94,14 +83,9 @@ impl McpTransport for HttpTransport {
         // For HTTP transport, we typically send a request and get a response
         // This is a simplified implementation - in practice, you might use long polling
         // or WebSockets for bidirectional communication
-        let response = self
-            .client
-            .get(&self.url)
-            .send()
-            .await
-            .map_err(|e| {
-                McpError::Transport(format!("Failed to receive message via HTTP: {}", e))
-            })?;
+        let response = self.client.get(&self.url).send().await.map_err(|e| {
+            McpError::Transport(format!("Failed to receive message via HTTP: {}", e))
+        })?;
 
         if !response.status().is_success() {
             return Err(McpError::Transport(format!(
@@ -110,9 +94,10 @@ impl McpTransport for HttpTransport {
             )));
         }
 
-        let bytes = response.bytes().await.map_err(|e| {
-            McpError::Transport(format!("Failed to read response body: {}", e))
-        })?;
+        let bytes = response
+            .bytes()
+            .await
+            .map_err(|e| McpError::Transport(format!("Failed to read response body: {}", e)))?;
 
         Ok(bytes.to_vec())
     }
@@ -141,14 +126,14 @@ mod tests {
     #[tokio::test]
     async fn test_http_transport_connect_twice() {
         let mut transport = HttpTransport::new("http://localhost:8080".to_string());
-        
+
         // First connect might fail if server doesn't exist, but we can test the logic
         if transport.connect().await.is_ok() {
             // Try to connect again - should fail
             let result = transport.connect().await;
             assert!(result.is_err());
             assert!(result.unwrap_err().to_string().contains("Already connected"));
-            
+
             let _ = transport.disconnect().await;
         }
     }
@@ -194,4 +179,3 @@ mod tests {
         assert!(!transport.is_connected());
     }
 }
-

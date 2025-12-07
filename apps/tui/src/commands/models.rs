@@ -9,9 +9,8 @@ pub fn get_available_models() -> Result<Vec<crate::views::model_selector::ModelI
     let store = CredentialStore::new().ok();
 
     // Get Gemini models (if configured)
-    let gemini_configured = store.as_ref()
-        .map(|s| s.is_configured(ProviderType::Gemini))
-        .unwrap_or(false);
+    let gemini_configured =
+        store.as_ref().map(|s| s.is_configured(ProviderType::Gemini)).unwrap_or(false);
 
     if gemini_configured {
         models.push(crate::views::model_selector::ModelInfo {
@@ -38,9 +37,8 @@ pub fn get_available_models() -> Result<Vec<crate::views::model_selector::ModelI
     }
 
     // Get OpenAI models (if configured)
-    let openai_configured = store.as_ref()
-        .map(|s| s.is_configured(ProviderType::OpenAI))
-        .unwrap_or(false);
+    let openai_configured =
+        store.as_ref().map(|s| s.is_configured(ProviderType::OpenAI)).unwrap_or(false);
 
     if openai_configured {
         models.push(crate::views::model_selector::ModelInfo {
@@ -61,4 +59,3 @@ pub fn get_available_models() -> Result<Vec<crate::views::model_selector::ModelI
 
     Ok(models)
 }
-

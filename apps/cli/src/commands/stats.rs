@@ -63,9 +63,7 @@ pub async fn execute(cmd: StatsCommand) -> Result<()> {
         StatsCommand::Model { session_id, json } => {
             model_command(&analytics, session_id.as_deref(), json).await
         }
-        StatsCommand::History { limit, json } => {
-            history_command(&analytics, limit, json).await
-        }
+        StatsCommand::History { limit, json } => history_command(&analytics, limit, json).await,
         StatsCommand::Export { output, session_id } => {
             export_command(&analytics, output.as_deref(), session_id.as_deref()).await
         }
@@ -84,12 +82,12 @@ async fn session_command(
 
     let metrics = analytics.get_session_metrics(&session_id)?;
     let report = SessionReport::new(metrics);
-    
+
     // Save report to storage for future reference
     let workspace = Workspace::discover()?;
     let storage = SessionStorage::new(workspace.root())?;
     let _ = storage.save_report(&report); // Ignore errors
-    
+
     let formatter = ReportFormatter;
 
     if json {
@@ -110,7 +108,7 @@ async fn model_command(
     // In the future, this could aggregate across all sessions
     if let Some(sid) = session_id {
         let metrics = analytics.get_session_metrics(sid)?;
-        
+
         if json {
             let model_data: Vec<serde_json::Value> = metrics
                 .model_usage
@@ -129,8 +127,10 @@ async fn model_command(
             println!("{}", serde_json::to_string_pretty(&model_data)?);
         } else {
             println!("Model Usage Breakdown for Session: {}\n", sid);
-            println!("{:<30} {:<10} {:<15} {:<15} {:<15} {:<12}", 
-                "Model", "Requests", "Input Tokens", "Output Tokens", "Cached Tokens", "Cost");
+            println!(
+                "{:<30} {:<10} {:<15} {:<15} {:<15} {:<12}",
+                "Model", "Requests", "Input Tokens", "Output Tokens", "Cached Tokens", "Cost"
+            );
             println!("{}", "-".repeat(100));
             for (model, stats) in &metrics.model_usage {
                 println!(
@@ -153,16 +153,12 @@ async fn model_command(
     Ok(())
 }
 
-async fn history_command(
-    _analytics: &SessionAnalytics,
-    limit: usize,
-    json: bool,
-) -> Result<()> {
+async fn history_command(_analytics: &SessionAnalytics, limit: usize, json: bool) -> Result<()> {
     // Load session reports from storage
     let workspace = Workspace::discover()?;
     let storage = SessionStorage::new(workspace.root())?;
     let mut reports = storage.list_reports()?;
-    
+
     // Limit results
     reports.truncate(limit);
 
@@ -173,8 +169,10 @@ async fn history_command(
             println!("No session history found.");
         } else {
             println!("Recent Session Summaries\n");
-            println!("{:<30} {:<20} {:<15} {:<15} {:<12}", 
-                "Session ID", "Duration", "Tool Calls", "Success Rate", "Cost");
+            println!(
+                "{:<30} {:<20} {:<15} {:<15} {:<12}",
+                "Session ID", "Duration", "Tool Calls", "Success Rate", "Cost"
+            );
             println!("{}", "-".repeat(92));
             for report in &reports {
                 let duration = report.metrics.wall_time;
@@ -185,7 +183,7 @@ async fn history_command(
                 } else {
                     format!("{}s", duration.as_secs())
                 };
-                
+
                 println!(
                     "{:<30} {:<20} {:<15} {:<14.1}% ${:<11.4}",
                     report.metrics.session_id,
@@ -250,7 +248,6 @@ fn get_latest_session_id() -> Option<String> {
     let workspace = Workspace::discover().ok()?;
     let storage = SessionStorage::new(workspace.root()).ok()?;
     let reports = storage.list_reports().ok()?;
-    
+
     reports.first().map(|r| r.metrics.session_id.clone())
 }
-

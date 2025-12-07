@@ -1,8 +1,8 @@
 //! MCP client implementation.
 
+use crate::mcp::McpTransport;
 use crate::mcp::messages::{InitializeParams, InitializeResult, JsonRpcRequest, JsonRpcResponse};
 use crate::mcp::transport::{HttpTransport, SseTransport, StdioTransport};
-use crate::mcp::McpTransport;
 use crate::mcp::{McpError, McpServerConfig, McpServerInfo, Result, TransportType};
 use serde_json::json;
 use std::sync::Arc;
@@ -65,21 +65,14 @@ impl McpClient {
                 .as_ref()
                 .map(|info| info.name.clone())
                 .unwrap_or_else(|| server_config.name.clone()),
-            version: init_result
-                .server_info
-                .as_ref()
-                .and_then(|info| info.version.clone()),
+            version: init_result.server_info.as_ref().and_then(|info| info.version.clone()),
             capabilities: Some(crate::mcp::McpCapabilities {
-                tools: None, // Will be populated when tools are discovered
+                tools: None,   // Will be populated when tools are discovered
                 prompts: None, // Will be populated when prompts are discovered
             }),
         };
 
-        Ok(Self {
-            transport,
-            server_info,
-            request_id: Arc::new(Mutex::new(0)),
-        })
+        Ok(Self { transport, server_info, request_id: Arc::new(Mutex::new(0)) })
     }
 
     /// Initialize the MCP connection with the server.
@@ -88,9 +81,7 @@ impl McpClient {
     ) -> Result<InitializeResult> {
         let init_params = InitializeParams {
             protocol_version: "2024-11-05".to_string(),
-            capabilities: crate::mcp::messages::ClientCapabilities {
-                experimental: None,
-            },
+            capabilities: crate::mcp::messages::ClientCapabilities { experimental: None },
             client_info: Some(crate::mcp::messages::ClientInfo {
                 name: "radium".to_string(),
                 version: Some("0.1.0".to_string()),
@@ -120,9 +111,9 @@ impl McpClient {
             )));
         }
 
-        let result = response.result.ok_or_else(|| {
-            McpError::Protocol("Initialize response missing result".to_string())
-        })?;
+        let result = response
+            .result
+            .ok_or_else(|| McpError::Protocol("Initialize response missing result".to_string()))?;
 
         let init_result: InitializeResult = serde_json::from_value(result)?;
 
@@ -175,9 +166,7 @@ impl McpClient {
             )));
         }
 
-        response.result.ok_or_else(|| {
-            McpError::Protocol("Response missing result".to_string())
-        })
+        response.result.ok_or_else(|| McpError::Protocol("Response missing result".to_string()))
     }
 
     /// Get server information.
@@ -319,7 +308,7 @@ mod tests {
     async fn test_mock_transport_connect() {
         let mut transport = MockTransport::new();
         assert!(!transport.is_connected());
-        
+
         transport.connect().await.unwrap();
         assert!(transport.is_connected());
     }
@@ -331,7 +320,7 @@ mod tests {
 
         let message = b"test message";
         transport.send(message).await.unwrap();
-        
+
         assert_eq!(transport.get_sent_messages().len(), 1);
         assert_eq!(transport.get_sent_messages()[0], message);
     }
@@ -341,7 +330,7 @@ mod tests {
         let mut transport = MockTransport::new()
             .with_receive_response(b"response1".to_vec())
             .with_receive_response(b"response2".to_vec());
-        
+
         transport.connect().await.unwrap();
 
         let msg1 = transport.receive().await.unwrap();
@@ -387,9 +376,8 @@ mod tests {
     async fn test_mock_transport_receive_empty_queue() {
         let mut transport = MockTransport::new();
         transport.connect().await.unwrap();
-        
+
         let result = transport.receive().await;
         assert!(result.is_err());
     }
 }
-

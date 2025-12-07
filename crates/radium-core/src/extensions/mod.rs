@@ -17,26 +17,21 @@
 //! # }
 //! ```
 
-pub mod manifest;
-pub mod structure;
 pub mod discovery;
 pub mod installer;
 pub mod integration;
+pub mod manifest;
+pub mod structure;
 
-pub use manifest::{ExtensionManifest, ExtensionManifestError};
-pub use structure::{
-    Extension, ExtensionStructureError,
-    default_extensions_dir, workspace_extensions_dir,
-};
-pub use discovery::{
-    ExtensionDiscovery, ExtensionDiscoveryError, DiscoveryOptions,
-};
-pub use installer::{
-    ExtensionManager, ExtensionInstallerError, InstallOptions,
-};
+pub use discovery::{DiscoveryOptions, ExtensionDiscovery, ExtensionDiscoveryError};
+pub use installer::{ExtensionInstallerError, ExtensionManager, InstallOptions};
 pub use integration::{
     get_all_extensions, get_extension_command_dirs, get_extension_mcp_configs,
     get_extension_prompt_dirs,
+};
+pub use manifest::{ExtensionManifest, ExtensionManifestError};
+pub use structure::{
+    Extension, ExtensionStructureError, default_extensions_dir, workspace_extensions_dir,
 };
 
 /// Unified error type for extension operations.
@@ -61,4 +56,3 @@ pub enum ExtensionError {
 
 /// Result type for extension operations.
 pub type Result<T> = std::result::Result<T, ExtensionError>;
-

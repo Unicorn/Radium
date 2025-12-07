@@ -60,11 +60,7 @@ impl ClientHelper {
             .parse::<bool>()
             .unwrap_or(false);
 
-        Self {
-            config,
-            use_embedded,
-            embedded_server: None,
-        }
+        Self { config, use_embedded, embedded_server: None }
     }
 
     /// Ensure the server is running and return a connected client.
@@ -133,12 +129,7 @@ impl ClientHelper {
         let endpoint = Endpoint::from_shared(server_url.clone())
             .map_err(|e| RadiumError::Config(format!("Invalid server address: {}", e)))?;
 
-        let channel = endpoint
-            .connect()
-            .await
-            .map_err(|e| {
-                RadiumError::Server(e)
-            })?;
+        let channel = endpoint.connect().await.map_err(|e| RadiumError::Server(e))?;
 
         info!(address = %server_url, "Connected to Radium server");
 
@@ -226,9 +217,7 @@ mod tests {
         drop(listener);
 
         let mut config = Config::default();
-        config.server.address = format!("127.0.0.1:{}", port)
-            .parse()
-            .unwrap();
+        config.server.address = format!("127.0.0.1:{}", port).parse().unwrap();
         config.server.enable_grpc_web = false;
 
         // Ensure embedded is enabled
@@ -255,9 +244,7 @@ mod tests {
         drop(listener);
 
         let mut config = Config::default();
-        config.server.address = format!("127.0.0.1:{}", port)
-            .parse()
-            .unwrap();
+        config.server.address = format!("127.0.0.1:{}", port).parse().unwrap();
         config.server.enable_grpc_web = false;
 
         unsafe {
@@ -266,9 +253,8 @@ mod tests {
 
         let mut helper = ClientHelper::with_config(config);
         let _client = helper.connect().await.unwrap();
-        
+
         // Shutdown should work
         helper.shutdown().await.unwrap();
     }
 }
-

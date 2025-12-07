@@ -49,10 +49,7 @@ pub fn render_markdown(text: &str) -> Vec<Line<'_>> {
             // Render code block line
             lines.push(Line::from(Span::styled(
                 format!("  {}", line),
-                Style::default()
-                    .fg(THEME.text)
-                    .bg(THEME.bg_element)
-                    .add_modifier(Modifier::ITALIC),
+                Style::default().fg(THEME.text).bg(THEME.bg_element).add_modifier(Modifier::ITALIC),
             )));
         } else {
             // Parse markdown in regular line
@@ -118,10 +115,7 @@ fn parse_markdown_line(line: &str) -> Line<'_> {
                             current_text.clear();
                         }
                         chars.next(); // consume space
-                        spans.push(Span::styled(
-                            "• ",
-                            Style::default().fg(THEME.primary),
-                        ));
+                        spans.push(Span::styled("• ", Style::default().fg(THEME.primary)));
                     }
                     _ => {
                         current_text.push(ch);
@@ -134,9 +128,7 @@ fn parse_markdown_line(line: &str) -> Line<'_> {
                     if !current_text.is_empty() {
                         spans.push(Span::styled(
                             current_text.clone(),
-                            Style::default()
-                                .fg(THEME.text)
-                                .add_modifier(Modifier::BOLD),
+                            Style::default().fg(THEME.text).add_modifier(Modifier::BOLD),
                         ));
                         current_text.clear();
                     }
@@ -152,9 +144,7 @@ fn parse_markdown_line(line: &str) -> Line<'_> {
                     if !current_text.is_empty() {
                         spans.push(Span::styled(
                             current_text.clone(),
-                            Style::default()
-                                .fg(THEME.text)
-                                .add_modifier(Modifier::ITALIC),
+                            Style::default().fg(THEME.text).add_modifier(Modifier::ITALIC),
                         ));
                         current_text.clear();
                     }
@@ -187,12 +177,8 @@ fn parse_markdown_line(line: &str) -> Line<'_> {
     // Add remaining text
     if !current_text.is_empty() {
         let style = match state {
-            ParseState::Bold => Style::default()
-                .fg(THEME.text)
-                .add_modifier(Modifier::BOLD),
-            ParseState::Italic => Style::default()
-                .fg(THEME.text)
-                .add_modifier(Modifier::ITALIC),
+            ParseState::Bold => Style::default().fg(THEME.text).add_modifier(Modifier::BOLD),
+            ParseState::Italic => Style::default().fg(THEME.text).add_modifier(Modifier::ITALIC),
             ParseState::Code => Style::default()
                 .fg(THEME.secondary)
                 .bg(THEME.bg_element)
@@ -202,11 +188,7 @@ fn parse_markdown_line(line: &str) -> Line<'_> {
         spans.push(Span::styled(current_text, style));
     }
 
-    if spans.is_empty() {
-        Line::from(Span::raw(""))
-    } else {
-        Line::from(spans)
-    }
+    if spans.is_empty() { Line::from(Span::raw("")) } else { Line::from(spans) }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -247,4 +229,3 @@ mod tests {
         assert!(lines.len() >= 2);
     }
 }
-

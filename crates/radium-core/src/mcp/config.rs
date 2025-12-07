@@ -15,10 +15,7 @@ pub struct McpConfigManager {
 impl McpConfigManager {
     /// Create a new configuration manager.
     pub fn new(config_path: PathBuf) -> Self {
-        Self {
-            config_path,
-            servers: Vec::new(),
-        }
+        Self { config_path, servers: Vec::new() }
     }
 
     /// Get the default configuration file path.
@@ -45,9 +42,7 @@ impl McpConfigManager {
             ))
         })?;
 
-        let toml: toml::Table = toml::from_str(&content).map_err(|e| {
-            McpError::TomlParse(e)
-        })?;
+        let toml: toml::Table = toml::from_str(&content).map_err(|e| McpError::TomlParse(e))?;
 
         self.servers = Self::parse_servers(&toml)?;
 
@@ -80,10 +75,8 @@ impl McpConfigManager {
             })?
             .to_string();
 
-        let transport_str = server_table
-            .get("transport")
-            .and_then(|t| t.as_str())
-            .ok_or_else(|| {
+        let transport_str =
+            server_table.get("transport").and_then(|t| t.as_str()).ok_or_else(|| {
                 McpError::Config("Server configuration missing 'transport' field".to_string())
             })?;
 
@@ -92,31 +85,18 @@ impl McpConfigManager {
             "sse" => TransportType::Sse,
             "http" => TransportType::Http,
             _ => {
-                return Err(McpError::Config(format!(
-                    "Invalid transport type: {}",
-                    transport_str
-                )));
+                return Err(McpError::Config(format!("Invalid transport type: {}", transport_str)));
             }
         };
 
-        let command = server_table
-            .get("command")
-            .and_then(|c| c.as_str())
-            .map(|s| s.to_string());
+        let command = server_table.get("command").and_then(|c| c.as_str()).map(|s| s.to_string());
 
         let args = server_table
             .get("args")
             .and_then(|a| a.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                    .collect()
-            });
+            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect());
 
-        let url = server_table
-            .get("url")
-            .and_then(|u| u.as_str())
-            .map(|s| s.to_string());
+        let url = server_table.get("url").and_then(|u| u.as_str()).map(|s| s.to_string());
 
         // Validate transport-specific requirements
         match transport {
@@ -159,14 +139,7 @@ impl McpConfigManager {
             })
         });
 
-        Ok(McpServerConfig {
-            name,
-            transport,
-            command,
-            args,
-            url,
-            auth,
-        })
+        Ok(McpServerConfig { name, transport, command, args, url, auth })
     }
 
     /// Get all server configurations.
@@ -216,10 +189,8 @@ impl McpConfigManager {
 
             if let Some(ref auth) = server.auth {
                 let mut auth_table = toml::Table::new();
-                auth_table.insert(
-                    "auth_type".to_string(),
-                    TomlValue::String(auth.auth_type.clone()),
-                );
+                auth_table
+                    .insert("auth_type".to_string(), TomlValue::String(auth.auth_type.clone()));
                 for (key, value) in &auth.params {
                     auth_table.insert(key.clone(), TomlValue::String(value.clone()));
                 }
@@ -231,9 +202,8 @@ impl McpConfigManager {
 
         toml_table.insert("servers".to_string(), TomlValue::Array(servers_array));
 
-        let content = toml::to_string_pretty(&toml_table).map_err(|e| {
-            McpError::Config(format!("Failed to serialize config: {}", e))
-        })?;
+        let content = toml::to_string_pretty(&toml_table)
+            .map_err(|e| McpError::Config(format!("Failed to serialize config: {}", e)))?;
 
         // Create parent directory if it doesn't exist
         if let Some(parent) = self.config_path.parent() {
@@ -286,10 +256,7 @@ mod tests {
         let mut table = toml::Table::new();
         table.insert("name".to_string(), TomlValue::String("sse-server".to_string()));
         table.insert("transport".to_string(), TomlValue::String("sse".to_string()));
-        table.insert(
-            "url".to_string(),
-            TomlValue::String("http://localhost:8080/sse".to_string()),
-        );
+        table.insert("url".to_string(), TomlValue::String("http://localhost:8080/sse".to_string()));
 
         let config = McpConfigManager::parse_server_config(&table).unwrap();
         assert_eq!(config.name, "sse-server");
@@ -417,7 +384,8 @@ mod tests {
         let mut auth_table = toml::Table::new();
         auth_table.insert("auth_type".to_string(), TomlValue::String("oauth".to_string()));
         auth_table.insert("client_id".to_string(), TomlValue::String("test-id".to_string()));
-        auth_table.insert("client_secret".to_string(), TomlValue::String("test-secret".to_string()));
+        auth_table
+            .insert("client_secret".to_string(), TomlValue::String("test-secret".to_string()));
         table.insert("auth".to_string(), TomlValue::Table(auth_table));
 
         let config = McpConfigManager::parse_server_config(&table).unwrap();
@@ -543,4 +511,3 @@ mod tests {
         assert!(config_path.exists());
     }
 }
-

@@ -7,9 +7,9 @@ use std::time::Duration;
 
 use anyhow::Result;
 use crossterm::{
+    ExecutableCommand,
     event::{self, Event, KeyEventKind},
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
-    ExecutableCommand,
 };
 use ratatui::prelude::*;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -47,12 +47,12 @@ async fn main() -> Result<()> {
     // Show splash screen
     let start_time = std::time::Instant::now();
     let splash_duration = Duration::from_millis(800);
-    
+
     while start_time.elapsed() < splash_duration {
         terminal.draw(|frame| {
             render_splash(frame, frame.area(), "Loading workspace...");
         })?;
-        
+
         if event::poll(Duration::from_millis(50))? {
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {

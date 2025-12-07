@@ -20,7 +20,6 @@ pub enum SandboxType {
     Seatbelt,
 }
 
-
 impl std::fmt::Display for SandboxType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -46,7 +45,6 @@ pub enum NetworkMode {
     Proxied,
 }
 
-
 /// Sandbox profile type.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -60,7 +58,6 @@ pub enum SandboxProfile {
     /// Custom profile from file.
     Custom(String),
 }
-
 
 /// Sandbox configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]

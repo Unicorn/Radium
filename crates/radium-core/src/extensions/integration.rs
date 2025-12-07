@@ -67,7 +67,8 @@ pub fn get_extension_mcp_configs() -> crate::extensions::Result<Vec<PathBuf>> {
 /// # Returns
 /// Vector of all installed extensions
 pub fn get_all_extensions() -> crate::extensions::Result<Vec<Extension>> {
-    let manager = ExtensionManager::new().map_err(|e| crate::extensions::ExtensionError::Installer(e))?;
+    let manager =
+        ExtensionManager::new().map_err(|e| crate::extensions::ExtensionError::Installer(e))?;
     manager.list().map_err(|e| crate::extensions::ExtensionError::Installer(e))
 }
 
@@ -96,4 +97,3 @@ mod tests {
         assert!(configs.is_ok());
     }
 }
-

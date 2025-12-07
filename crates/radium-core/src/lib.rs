@@ -73,13 +73,14 @@ pub use extensions::{
     ExtensionManifestError, ExtensionStructureError, InstallOptions, Result as ExtensionResult,
 };
 pub use hooks::{
-    Hook, HookConfig, HookContext, HookError, HookPriority, HookRegistry, HookResult as HookExecutionResult, HookType,
-    HookResult, ModelHookContext, ModelHookType, OrchestratorHooks, TelemetryHookContext, ToolHookContext, ToolHookType,
+    Hook, HookConfig, HookContext, HookError, HookPriority, HookRegistry,
+    HookResult as HookExecutionResult, HookResult, HookType, ModelHookContext, ModelHookType,
+    OrchestratorHooks, TelemetryHookContext, ToolHookContext, ToolHookType,
 };
 pub use learning::{
-    CategorySummary, LearningEntry, LearningError, LearningStore, LearningType, Skill, SkillStatus,
-    UpdateBatch, UpdateOperation, UpdateOperationType, Result as LearningResult, STANDARD_CATEGORIES,
-    STANDARD_SECTIONS,
+    CategorySummary, LearningEntry, LearningError, LearningStore, LearningType,
+    Result as LearningResult, STANDARD_CATEGORIES, STANDARD_SECTIONS, Skill, SkillStatus,
+    UpdateBatch, UpdateOperation, UpdateOperationType,
 };
 pub use memory::{
     FileAdapter, MemoryAdapter, MemoryEntry, MemoryError, MemoryStore, Result as MemoryResult,

@@ -37,12 +37,9 @@ impl WorkspaceStatus {
                     },
                 }
             }
-            Err(e) => Self {
-                exists: false,
-                root: None,
-                is_valid: false,
-                error: Some(e.to_string()),
-            },
+            Err(e) => {
+                Self { exists: false, root: None, is_valid: false, error: Some(e.to_string()) }
+            }
         }
     }
 
@@ -119,4 +116,3 @@ pub fn initialize_workspace() -> Result<WorkspaceStatus> {
         Ok(status)
     }
 }
-

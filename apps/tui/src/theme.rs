@@ -49,23 +49,23 @@ impl RadiumTheme {
             secondary: Color::Rgb(167, 139, 250),
 
             // Status colors
-            success: Color::Rgb(16, 185, 129),   // Green
-            warning: Color::Rgb(245, 158, 11),   // Yellow
-            error: Color::Rgb(239, 68, 68),      // Red
-            info: Color::Rgb(6, 182, 212),       // Blue
+            success: Color::Rgb(16, 185, 129), // Green
+            warning: Color::Rgb(245, 158, 11), // Yellow
+            error: Color::Rgb(239, 68, 68),    // Red
+            info: Color::Rgb(6, 182, 212),     // Blue
 
             // Text colors
-            text: Color::Rgb(238, 238, 238),     // White
+            text: Color::Rgb(238, 238, 238),       // White
             text_muted: Color::Rgb(128, 128, 128), // Gray
-            text_dim: Color::Rgb(96, 96, 96),    // Dark Gray
+            text_dim: Color::Rgb(96, 96, 96),      // Dark Gray
 
             // Background colors
-            bg_primary: Color::Rgb(24, 29, 39),   // Dark blue-gray
-            bg_panel: Color::Rgb(20, 20, 20),     // Very dark
-            bg_element: Color::Rgb(30, 30, 30),   // Dark gray
+            bg_primary: Color::Rgb(24, 29, 39), // Dark blue-gray
+            bg_panel: Color::Rgb(20, 20, 20),   // Very dark
+            bg_element: Color::Rgb(30, 30, 30), // Dark gray
 
             // Border colors
-            border: Color::Rgb(72, 72, 72),       // Medium gray
+            border: Color::Rgb(72, 72, 72),        // Medium gray
             border_active: Color::Rgb(96, 96, 96), // Lighter gray
             border_subtle: Color::Rgb(60, 60, 60), // Subtle gray
         }

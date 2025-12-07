@@ -182,16 +182,11 @@ fn test_clean_verbose_shows_details() {
     create_test_artifacts(&temp_dir);
 
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    cmd.current_dir(temp_dir.path())
-        .arg("clean")
-        .arg("--verbose")
-        .assert()
-        .success()
-        .stdout(
-            predicate::str::contains("Cleaning")
-                .or(predicate::str::contains("Removing"))
-                .or(predicate::str::contains("Cleaned")),
-        );
+    cmd.current_dir(temp_dir.path()).arg("clean").arg("--verbose").assert().success().stdout(
+        predicate::str::contains("Cleaning")
+            .or(predicate::str::contains("Removing"))
+            .or(predicate::str::contains("Cleaned")),
+    );
 }
 
 #[test]
@@ -217,9 +212,5 @@ fn test_clean_with_invalid_directory() {
     let temp_dir = TempDir::new().unwrap();
 
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    cmd.arg("clean")
-        .arg("--dir")
-        .arg("/nonexistent/path")
-        .assert()
-        .failure(); // Should fail if directory doesn't exist
+    cmd.arg("clean").arg("--dir").arg("/nonexistent/path").assert().failure(); // Should fail if directory doesn't exist
 }

@@ -10,10 +10,9 @@ pub mod store;
 pub mod updates;
 
 pub use integration::{LearningConfig, LearningIntegration};
-pub use skill_manager::{SkillManager, SkillManagerError, Result as SkillManagerResult};
+pub use skill_manager::{Result as SkillManagerResult, SkillManager, SkillManagerError};
 pub use store::{
-    CategorySummary, LearningEntry, LearningError, LearningStore, LearningType, Result, Skill,
-    SkillStatus, STANDARD_CATEGORIES, STANDARD_SECTIONS,
+    CategorySummary, LearningEntry, LearningError, LearningStore, LearningType, Result,
+    STANDARD_CATEGORIES, STANDARD_SECTIONS, Skill, SkillStatus,
 };
 pub use updates::{UpdateBatch, UpdateOperation, UpdateOperationType};
-

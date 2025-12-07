@@ -94,14 +94,12 @@ impl WorkflowService {
         db: &Arc<std::sync::Mutex<Database>>,
     ) -> Self {
         // Try to initialize monitoring service from workspace
-        let monitoring = Workspace::discover()
-            .ok()
-            .and_then(|ws| {
-                let monitoring_path = ws.radium_dir().join("monitoring.db");
-                MonitoringService::open(monitoring_path)
-                    .ok()
-                    .map(|svc| Arc::new(std::sync::Mutex::new(svc)))
-            });
+        let monitoring = Workspace::discover().ok().and_then(|ws| {
+            let monitoring_path = ws.radium_dir().join("monitoring.db");
+            MonitoringService::open(monitoring_path)
+                .ok()
+                .map(|svc| Arc::new(std::sync::Mutex::new(svc)))
+        });
 
         Self {
             orchestrator: Arc::clone(orchestrator),

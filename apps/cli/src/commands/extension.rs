@@ -4,9 +4,7 @@
 
 use super::ExtensionCommand;
 use colored::Colorize;
-use radium_core::extensions::{
-    ExtensionDiscovery, ExtensionManager, InstallOptions,
-};
+use radium_core::extensions::{ExtensionDiscovery, ExtensionManager, InstallOptions};
 use serde_json::json;
 use std::path::Path;
 use tabled::{Table, Tabled, settings::Style};
@@ -14,11 +12,9 @@ use tabled::{Table, Tabled, settings::Style};
 /// Execute the extension command.
 pub async fn execute(command: ExtensionCommand) -> anyhow::Result<()> {
     match command {
-        ExtensionCommand::Install {
-            source,
-            overwrite,
-            install_deps,
-        } => install_extension(&source, overwrite, install_deps).await,
+        ExtensionCommand::Install { source, overwrite, install_deps } => {
+            install_extension(&source, overwrite, install_deps).await
+        }
         ExtensionCommand::Uninstall { name } => uninstall_extension(&name).await,
         ExtensionCommand::List { json, verbose } => list_extensions(json, verbose).await,
         ExtensionCommand::Info { name, json } => show_extension_info(&name, json).await,
@@ -63,11 +59,11 @@ async fn install_extension(
 
     match manager.install(package_path, options) {
         Ok(extension) => {
-            println!("{}", format!("✓ Extension '{}' installed successfully", extension.name).green());
             println!(
-                "  Version: {}",
-                extension.version.bright_black()
+                "{}",
+                format!("✓ Extension '{}' installed successfully", extension.name).green()
             );
+            println!("  Version: {}", extension.version.bright_black());
             if !extension.manifest.description.is_empty() {
                 println!("  Description: {}", extension.manifest.description.bright_black());
             }
@@ -240,7 +236,10 @@ async fn search_extensions(query: &str, json_output: bool) -> anyhow::Result<()>
         println!("{}", serde_json::to_string_pretty(&extension_list)?);
     } else {
         println!();
-        println!("{}", format!("Found {} extension(s) matching '{}'", matches.len(), query).bold().green());
+        println!(
+            "{}",
+            format!("Found {} extension(s) matching '{}'", matches.len(), query).bold().green()
+        );
         println!();
 
         for ext in &matches {
@@ -277,9 +276,7 @@ fn display_extensions_table(extensions: &[radium_core::extensions::Extension]) {
         })
         .collect();
 
-    let table = Table::new(rows)
-        .with(Style::modern())
-        .to_string();
+    let table = Table::new(rows).with(Style::modern()).to_string();
     println!("{}", table);
 }
 
@@ -293,7 +290,8 @@ fn display_extensions_detailed(extensions: &[radium_core::extensions::Extension]
         if !ext.manifest.author.is_empty() {
             println!("    Author:      {}", ext.manifest.author.bright_black());
         }
-        println!("    Components:  {} prompts, {} MCP servers, {} commands",
+        println!(
+            "    Components:  {} prompts, {} MCP servers, {} commands",
             ext.manifest.components.prompts.len(),
             ext.manifest.components.mcp_servers.len(),
             ext.manifest.components.commands.len(),
@@ -301,4 +299,3 @@ fn display_extensions_detailed(extensions: &[radium_core::extensions::Extension]
         println!();
     }
 }
-

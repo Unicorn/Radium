@@ -67,16 +67,14 @@ impl SkillManager {
         progress: &str,
     ) -> Result<UpdateBatch> {
         // Build prompt for skill curation
-        let prompt = Self::build_prompt(oversight_response, learning_store, question_context, progress);
+        let prompt =
+            Self::build_prompt(oversight_response, learning_store, question_context, progress);
 
         // Create messages for chat completion
-        let messages = vec![ChatMessage {
-            role: "system".to_string(),
-            content: Self::build_system_prompt(),
-        }, ChatMessage {
-            role: "user".to_string(),
-            content: prompt,
-        }];
+        let messages = vec![
+            ChatMessage { role: "system".to_string(), content: Self::build_system_prompt() },
+            ChatMessage { role: "user".to_string(), content: prompt },
+        ];
 
         // Call model with structured output request
         let parameters = ModelParameters {
@@ -151,11 +149,8 @@ For TAG operations, metadata should contain \"helpful\", \"harmful\", or \"neutr
         }
 
         if !oversight_response.uncertainties.is_empty() {
-            writeln!(
-                prompt,
-                "Uncertainties: {}",
-                oversight_response.uncertainties.join(", ")
-            ).unwrap();
+            writeln!(prompt, "Uncertainties: {}", oversight_response.uncertainties.join(", "))
+                .unwrap();
         }
 
         // Include current skillbook context (limited to avoid token bloat)
@@ -185,9 +180,7 @@ Focus on extracting actionable strategies that can help future tasks succeed.",
         let json_str = if let (Some(start), Some(end)) = (json_start, json_end) {
             &content[start..=end]
         } else {
-            return Err(SkillManagerError::ParseError(
-                "No JSON found in response".to_string(),
-            ));
+            return Err(SkillManagerError::ParseError("No JSON found in response".to_string()));
         };
 
         // Parse JSON
@@ -234,9 +227,12 @@ Focus on extracting actionable strategies that can help future tasks succeed.",
             }
         };
 
-        let section = op_json.get("section").and_then(|v| v.as_str()).map(std::string::ToString::to_string);
-        let content = op_json.get("content").and_then(|v| v.as_str()).map(std::string::ToString::to_string);
-        let skill_id = op_json.get("skill_id").and_then(|v| v.as_str()).map(std::string::ToString::to_string);
+        let section =
+            op_json.get("section").and_then(|v| v.as_str()).map(std::string::ToString::to_string);
+        let content =
+            op_json.get("content").and_then(|v| v.as_str()).map(std::string::ToString::to_string);
+        let skill_id =
+            op_json.get("skill_id").and_then(|v| v.as_str()).map(std::string::ToString::to_string);
 
         let mut metadata = std::collections::HashMap::new();
         if let Some(meta_obj) = op_json.get("metadata").and_then(|v| v.as_object()) {
@@ -247,13 +243,7 @@ Focus on extracting actionable strategies that can help future tasks succeed.",
             }
         }
 
-        Ok(UpdateOperation {
-            op_type,
-            section,
-            content,
-            skill_id,
-            metadata,
-        })
+        Ok(UpdateOperation { op_type, section, content, skill_id, metadata })
     }
 }
 
@@ -328,4 +318,3 @@ mod tests {
         assert!(prompt.contains("Complex Solution Bias"));
     }
 }
-

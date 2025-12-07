@@ -13,11 +13,8 @@ pub struct SessionStorage {
 impl SessionStorage {
     /// Create a new session storage manager.
     pub fn new(workspace_root: &Path) -> Result<Self> {
-        let sessions_dir = workspace_root
-            .join(".radium")
-            .join("_internals")
-            .join("sessions");
-        
+        let sessions_dir = workspace_root.join(".radium").join("_internals").join("sessions");
+
         fs::create_dir_all(&sessions_dir)?;
 
         Ok(Self { sessions_dir })
@@ -27,7 +24,7 @@ impl SessionStorage {
     pub fn save_report(&self, report: &SessionReport) -> Result<PathBuf> {
         let filename = format!("{}.json", report.metrics.session_id);
         let file_path = self.sessions_dir.join(&filename);
-        
+
         let json = serde_json::to_string_pretty(report)?;
         fs::write(&file_path, json)?;
 
@@ -38,7 +35,7 @@ impl SessionStorage {
     pub fn load_report(&self, session_id: &str) -> Result<SessionReport> {
         let filename = format!("{}.json", session_id);
         let file_path = self.sessions_dir.join(&filename);
-        
+
         let content = fs::read_to_string(&file_path)?;
         let report: SessionReport = serde_json::from_str(&content)?;
 
@@ -77,4 +74,3 @@ impl SessionStorage {
         &self.sessions_dir
     }
 }
-

@@ -160,7 +160,7 @@ mod tests {
         use std::error::Error;
         let io_err = io::Error::new(io::ErrorKind::NotFound, "file not found");
         let mcp_err: McpError = io_err.into();
-        
+
         // Test that source() returns the underlying error
         let source = mcp_err.source();
         assert!(source.is_some());
@@ -186,4 +186,3 @@ mod tests {
         }
     }
 }
-

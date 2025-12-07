@@ -186,11 +186,7 @@ fn test_init_without_use_defaults() {
     // Init without --use-defaults might prompt for input
     // We'll test that it at least doesn't panic
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    let result = cmd
-        .arg("init")
-        .arg(temp_path)
-        .timeout(std::time::Duration::from_secs(1))
-        .assert();
+    let result = cmd.arg("init").arg(temp_path).timeout(std::time::Duration::from_secs(1)).assert();
 
     // May timeout waiting for input or succeed - either is acceptable
     assert!(result.get_output().status.code().is_some());

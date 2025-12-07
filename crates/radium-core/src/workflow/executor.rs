@@ -47,17 +47,11 @@ impl WorkflowExecutor {
         monitoring: Option<Arc<std::sync::Mutex<MonitoringService>>>,
     ) -> Self {
         // Try to initialize checkpoint manager from workspace
-        let checkpoint_manager = Workspace::discover()
-            .ok()
-            .and_then(|ws| {
-                CheckpointManager::new(ws.root()).ok().map(|cm| Arc::new(std::sync::Mutex::new(cm)))
-            });
+        let checkpoint_manager = Workspace::discover().ok().and_then(|ws| {
+            CheckpointManager::new(ws.root()).ok().map(|cm| Arc::new(std::sync::Mutex::new(cm)))
+        });
 
-        Self {
-            engine: WorkflowEngine::new(orchestrator, executor),
-            monitoring,
-            checkpoint_manager,
-        }
+        Self { engine: WorkflowEngine::new(orchestrator, executor), monitoring, checkpoint_manager }
     }
 
     /// Executes a workflow sequentially.

@@ -207,9 +207,5 @@ fn test_run_empty_script() {
 
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
     // Empty script should fail
-    cmd.current_dir(temp_dir.path())
-        .arg("run")
-        .arg("")
-        .assert()
-        .failure();
+    cmd.current_dir(temp_dir.path()).arg("run").arg("").assert().failure();
 }

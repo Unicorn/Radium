@@ -3,12 +3,11 @@
 //! Provides comprehensive session reporting with metrics, token tracking,
 //! and cost transparency.
 
-pub mod session;
-pub mod report;
-pub mod storage;
 pub mod code_changes;
+pub mod report;
+pub mod session;
+pub mod storage;
 
-pub use session::{SessionAnalytics, SessionMetrics, ModelUsageStats};
-pub use report::{SessionReport, ReportFormatter};
+pub use report::{ReportFormatter, SessionReport};
+pub use session::{ModelUsageStats, SessionAnalytics, SessionMetrics};
 pub use storage::SessionStorage;
-

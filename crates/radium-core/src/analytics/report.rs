@@ -19,10 +19,7 @@ pub struct SessionReport {
 impl SessionReport {
     /// Create a new session report.
     pub fn new(metrics: SessionMetrics) -> Self {
-        Self {
-            metrics,
-            generated_at: Utc::now(),
-        }
+        Self { metrics, generated_at: Utc::now() }
     }
 }
 
@@ -42,27 +39,23 @@ impl ReportFormatter {
             output,
             "Tool Calls:                 {} ( ✓ {} x {} )",
             m.tool_calls, m.successful_tool_calls, m.failed_tool_calls
-        ).unwrap();
+        )
+        .unwrap();
         writeln!(output, "Success Rate:               {:.1}%", m.success_rate()).unwrap();
-        writeln!(
-            output,
-            "Code Changes:               +{} -{}",
-            m.lines_added, m.lines_removed
-        ).unwrap();
+        writeln!(output, "Code Changes:               +{} -{}", m.lines_added, m.lines_removed)
+            .unwrap();
         output.push('\n');
 
         // Performance
         output.push_str("Performance\n");
-        writeln!(
-            output,
-            "Wall Time:                  {}",
-            Self::format_duration(m.wall_time)
-        ).unwrap();
+        writeln!(output, "Wall Time:                  {}", Self::format_duration(m.wall_time))
+            .unwrap();
         writeln!(
             output,
             "Agent Active:               {}",
             Self::format_duration(m.agent_active_time)
-        ).unwrap();
+        )
+        .unwrap();
         writeln!(
             output,
             "  » API Time:               {} ({:.1}%)",
@@ -72,7 +65,8 @@ impl ReportFormatter {
             } else {
                 0.0
             }
-        ).unwrap();
+        )
+        .unwrap();
         writeln!(
             output,
             "  » Tool Time:              {} ({:.1}%)",
@@ -82,7 +76,8 @@ impl ReportFormatter {
             } else {
                 0.0
             }
-        ).unwrap();
+        )
+        .unwrap();
         output.push('\n');
 
         // Model Usage
@@ -93,7 +88,8 @@ impl ReportFormatter {
                 output,
                 "{:<28} {:>6} {:>14} {:>14}",
                 model, stats.requests, stats.input_tokens, stats.output_tokens
-            ).unwrap();
+            )
+            .unwrap();
         }
         output.push('\n');
 
@@ -110,7 +106,8 @@ impl ReportFormatter {
                 "Savings Highlight: {} ({:.1}%) of input tokens were served from",
                 Self::format_number(m.total_cached_tokens),
                 cache_percentage
-            ).unwrap();
+            )
+            .unwrap();
             output.push_str("cache, reducing costs.\n");
             output.push('\n');
         }
@@ -142,14 +139,14 @@ impl ReportFormatter {
         let s = n.to_string();
         let mut result = String::new();
         let chars: Vec<char> = s.chars().rev().collect();
-        
+
         for (i, ch) in chars.iter().enumerate() {
             if i > 0 && i % 3 == 0 {
                 result.push(',');
             }
             result.push(*ch);
         }
-        
+
         result.chars().rev().collect()
     }
 
@@ -158,4 +155,3 @@ impl ReportFormatter {
         Ok(serde_json::to_string_pretty(report)?)
     }
 }
-

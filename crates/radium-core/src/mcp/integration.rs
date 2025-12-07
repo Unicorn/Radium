@@ -74,11 +74,8 @@ impl McpIntegration {
         tool_registries
             .iter()
             .map(|(server_name, registry)| {
-                let tool_names: Vec<String> = registry
-                    .get_all_tools()
-                    .iter()
-                    .map(|t| t.name.clone())
-                    .collect();
+                let tool_names: Vec<String> =
+                    registry.get_all_tools().iter().map(|t| t.name.clone()).collect();
                 (server_name.clone(), tool_names)
             })
             .collect()
@@ -135,4 +132,3 @@ mod tests {
         assert!(true);
     }
 }
-

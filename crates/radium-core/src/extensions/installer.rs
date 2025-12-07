@@ -3,11 +3,11 @@
 //! Provides functionality for installing, uninstalling, and updating
 //! extension packages.
 
-use crate::extensions::discovery::{ExtensionDiscovery, ExtensionDiscoveryError, DiscoveryOptions};
+use crate::extensions::discovery::{DiscoveryOptions, ExtensionDiscovery, ExtensionDiscoveryError};
 use crate::extensions::manifest::ExtensionManifest;
 use crate::extensions::structure::{
-    Extension, ExtensionStructureError, default_extensions_dir, validate_package_structure,
-    MANIFEST_FILE,
+    Extension, ExtensionStructureError, MANIFEST_FILE, default_extensions_dir,
+    validate_package_structure,
 };
 use std::path::{Path, PathBuf};
 use thiserror::Error;
@@ -76,18 +76,15 @@ impl ExtensionManager {
     /// # Errors
     /// Returns error if HOME environment variable is not set
     pub fn new() -> Result<Self> {
-        let extensions_dir = default_extensions_dir()
-            .map_err(|e| ExtensionInstallerError::Structure(e))?;
+        let extensions_dir =
+            default_extensions_dir().map_err(|e| ExtensionInstallerError::Structure(e))?;
 
         let discovery = ExtensionDiscovery::with_options(DiscoveryOptions {
             search_paths: vec![extensions_dir.clone()],
             validate_structure: false,
         });
 
-        Ok(Self {
-            extensions_dir,
-            discovery,
-        })
+        Ok(Self { extensions_dir, discovery })
     }
 
     /// Creates a new extension manager with custom extensions directory.
@@ -100,10 +97,7 @@ impl ExtensionManager {
             validate_structure: false,
         });
 
-        Self {
-            extensions_dir,
-            discovery,
-        }
+        Self { extensions_dir, discovery }
     }
 
     /// Gets the extensions directory.
@@ -169,8 +163,7 @@ impl ExtensionManager {
 
         // Validate if requested
         if options.validate_after_install {
-            extension.validate_structure()
-                .map_err(|e| ExtensionInstallerError::Structure(e))?;
+            extension.validate_structure().map_err(|e| ExtensionInstallerError::Structure(e))?;
         }
 
         Ok(extension)
@@ -199,9 +192,7 @@ impl ExtensionManager {
         // 1. Downloading from URL
         // 2. Extracting archive
         // 3. Installing from extracted directory
-        Err(ExtensionInstallerError::Conflict(
-            "URL installation not yet implemented".to_string(),
-        ))
+        Err(ExtensionInstallerError::Conflict("URL installation not yet implemented".to_string()))
     }
 
     /// Uninstalls an extension by name.
@@ -212,7 +203,9 @@ impl ExtensionManager {
     /// # Errors
     /// Returns error if uninstallation fails
     pub fn uninstall(&self, name: &str) -> Result<()> {
-        let extension = self.discovery.get(name)?
+        let extension = self
+            .discovery
+            .get(name)?
             .ok_or_else(|| ExtensionInstallerError::NotFound(name.to_string()))?;
 
         // Check for dependent extensions
@@ -246,7 +239,12 @@ impl ExtensionManager {
     ///
     /// # Errors
     /// Returns error if update fails
-    pub fn update(&self, name: &str, package_path: &Path, options: InstallOptions) -> Result<Extension> {
+    pub fn update(
+        &self,
+        name: &str,
+        package_path: &Path,
+        options: InstallOptions,
+    ) -> Result<Extension> {
         // Uninstall existing
         if self.discovery.get(name)?.is_some() {
             self.uninstall(name)?;
@@ -418,10 +416,7 @@ mod tests {
         // Try to install again (should fail)
         let result = manager.install(&package_path, options);
         assert!(result.is_err());
-        assert!(matches!(
-            result.unwrap_err(),
-            ExtensionInstallerError::AlreadyInstalled(_)
-        ));
+        assert!(matches!(result.unwrap_err(), ExtensionInstallerError::AlreadyInstalled(_)));
     }
 
     #[test]
@@ -476,10 +471,7 @@ mod tests {
         let result = manager.uninstall("nonexistent");
 
         assert!(result.is_err());
-        assert!(matches!(
-            result.unwrap_err(),
-            ExtensionInstallerError::NotFound(_)
-        ));
+        assert!(matches!(result.unwrap_err(), ExtensionInstallerError::NotFound(_)));
     }
 
     #[test]
@@ -541,10 +533,7 @@ mod tests {
 
         let result = manager.install(&package_dir, options);
         assert!(result.is_err());
-        assert!(matches!(
-            result.unwrap_err(),
-            ExtensionInstallerError::Dependency(_)
-        ));
+        assert!(matches!(result.unwrap_err(), ExtensionInstallerError::Dependency(_)));
     }
 
     #[test]
@@ -583,4 +572,3 @@ mod tests {
         assert!(dest.join("subdir").join("subfile.txt").exists());
     }
 }
-

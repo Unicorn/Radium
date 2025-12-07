@@ -14,7 +14,8 @@ mod tests {
 
     #[test]
     fn test_markdown_code_block_integration() {
-        let text = "Here's some code:\n```rust\nfn main() {\n    println!(\"Hello\");\n}\n```\nThat's it!";
+        let text =
+            "Here's some code:\n```rust\nfn main() {\n    println!(\"Hello\");\n}\n```\nThat's it!";
         let lines = render_markdown(text);
         // Should have multiple lines including code block
         assert!(lines.len() > 3);
@@ -27,4 +28,3 @@ mod tests {
         assert!(!lines.is_empty());
     }
 }
-

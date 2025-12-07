@@ -30,10 +30,7 @@ impl ContextFileLoader {
     /// # Arguments
     /// * `workspace_root` - The workspace root directory
     pub fn new(workspace_root: impl AsRef<Path>) -> Self {
-        Self {
-            workspace_root: workspace_root.as_ref().to_path_buf(),
-            custom_file_name: None,
-        }
+        Self { workspace_root: workspace_root.as_ref().to_path_buf(), custom_file_name: None }
     }
 
     /// Creates a new context file loader with custom file name.
@@ -157,12 +154,7 @@ impl ContextFileLoader {
     }
 
     /// Recursively scans a directory for context files.
-    fn scan_directory(
-        &self,
-        dir: &Path,
-        file_name: &str,
-        files: &mut Vec<PathBuf>,
-    ) -> Result<()> {
+    fn scan_directory(&self, dir: &Path, file_name: &str, files: &mut Vec<PathBuf>) -> Result<()> {
         if !dir.is_dir() {
             return Ok(());
         }
@@ -700,4 +692,3 @@ mod tests {
         assert!(result.contains("```"));
     }
 }
-

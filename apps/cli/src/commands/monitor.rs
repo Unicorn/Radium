@@ -63,9 +63,7 @@ async fn status_command(
     json: bool,
 ) -> Result<()> {
     if let Some(id) = agent_id {
-        let record = monitoring
-            .get_agent(id)
-            .context(format!("Agent {} not found", id))?;
+        let record = monitoring.get_agent(id).context(format!("Agent {} not found", id))?;
 
         if json {
             // Convert to JSON manually since AgentRecord doesn't implement Serialize
@@ -114,21 +112,24 @@ async fn status_command(
         let agents = monitoring.list_agents()?;
         if json {
             // Convert to JSON manually
-            let json_agents: Vec<serde_json::Value> = agents.iter().map(|a| {
-                serde_json::json!({
-                    "id": a.id,
-                    "parent_id": a.parent_id,
-                    "plan_id": a.plan_id,
-                    "agent_type": a.agent_type,
-                    "status": format!("{:?}", a.status),
-                    "process_id": a.process_id,
-                    "start_time": a.start_time,
-                    "end_time": a.end_time,
-                    "exit_code": a.exit_code,
-                    "error_message": a.error_message,
-                    "log_file": a.log_file,
+            let json_agents: Vec<serde_json::Value> = agents
+                .iter()
+                .map(|a| {
+                    serde_json::json!({
+                        "id": a.id,
+                        "parent_id": a.parent_id,
+                        "plan_id": a.plan_id,
+                        "agent_type": a.agent_type,
+                        "status": format!("{:?}", a.status),
+                        "process_id": a.process_id,
+                        "start_time": a.start_time,
+                        "end_time": a.end_time,
+                        "exit_code": a.exit_code,
+                        "error_message": a.error_message,
+                        "log_file": a.log_file,
+                    })
                 })
-            }).collect();
+                .collect();
             println!("{}", serde_json::to_string_pretty(&json_agents)?);
         } else {
             if agents.is_empty() {
@@ -161,34 +162,42 @@ async fn list_command(
 
     // Filter by status if specified
     if let Some(status_str) = status_filter {
-        let status = AgentStatus::from_str(status_str)
-            .context(format!("Invalid status: {}. Valid values: starting, running, completed, failed, terminated", status_str))?;
+        let status = AgentStatus::from_str(status_str).context(format!(
+            "Invalid status: {}. Valid values: starting, running, completed, failed, terminated",
+            status_str
+        ))?;
         agents.retain(|a| a.status == status);
     }
 
     if json {
         // Convert to JSON manually
-        let json_agents: Vec<serde_json::Value> = agents.iter().map(|a| {
-            serde_json::json!({
-                "id": a.id,
-                "parent_id": a.parent_id,
-                "plan_id": a.plan_id,
-                "agent_type": a.agent_type,
-                "status": format!("{:?}", a.status),
-                "process_id": a.process_id,
-                "start_time": a.start_time,
-                "end_time": a.end_time,
-                "exit_code": a.exit_code,
-                "error_message": a.error_message,
-                "log_file": a.log_file,
+        let json_agents: Vec<serde_json::Value> = agents
+            .iter()
+            .map(|a| {
+                serde_json::json!({
+                    "id": a.id,
+                    "parent_id": a.parent_id,
+                    "plan_id": a.plan_id,
+                    "agent_type": a.agent_type,
+                    "status": format!("{:?}", a.status),
+                    "process_id": a.process_id,
+                    "start_time": a.start_time,
+                    "end_time": a.end_time,
+                    "exit_code": a.exit_code,
+                    "error_message": a.error_message,
+                    "log_file": a.log_file,
+                })
             })
-        }).collect();
+            .collect();
         println!("{}", serde_json::to_string_pretty(&json_agents)?);
     } else {
         if agents.is_empty() {
             println!("No agents found.");
         } else {
-            println!("{:<30} {:<15} {:<20} {:<10} {:<15}", "ID", "Type", "Status", "Plan", "Duration");
+            println!(
+                "{:<30} {:<15} {:<20} {:<10} {:<15}",
+                "ID", "Type", "Status", "Plan", "Duration"
+            );
             println!("{}", "-".repeat(90));
             for record in agents {
                 let plan = record.plan_id.as_deref().unwrap_or("-");
@@ -221,11 +230,14 @@ async fn telemetry_command(
         let total_cost = monitoring.get_total_cost(id)?;
 
         if json {
-            println!("{}", serde_json::to_string_pretty(&serde_json::json!({
-                "agent_id": id,
-                "telemetry": telemetry,
-                "total_cost": total_cost
-            }))?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "agent_id": id,
+                    "telemetry": telemetry,
+                    "total_cost": total_cost
+                }))?
+            );
         } else {
             println!("Telemetry for agent: {}", id);
             println!("Total Cost: ${:.4}", total_cost);
@@ -233,8 +245,10 @@ async fn telemetry_command(
             if telemetry.is_empty() {
                 println!("No telemetry data found.");
             } else {
-                println!("{:<20} {:<15} {:<15} {:<15} {:<15} {:<10}", 
-                    "Timestamp", "Input Tokens", "Output Tokens", "Total Tokens", "Cost", "Model");
+                println!(
+                    "{:<20} {:<15} {:<15} {:<15} {:<15} {:<10}",
+                    "Timestamp", "Input Tokens", "Output Tokens", "Total Tokens", "Cost", "Model"
+                );
                 println!("{}", "-".repeat(90));
                 for record in telemetry {
                     let timestamp = chrono::DateTime::from_timestamp(record.timestamp as i64, 0)
@@ -269,11 +283,14 @@ async fn telemetry_command(
         }
 
         if json {
-            println!("{}", serde_json::to_string_pretty(&serde_json::json!({
-                "total_agents": agents.len(),
-                "total_cost": total_cost,
-                "total_tokens": total_tokens
-            }))?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "total_agents": agents.len(),
+                    "total_cost": total_cost,
+                    "total_tokens": total_tokens
+                }))?
+            );
         } else {
             println!("Monitoring Summary");
             println!("Total Agents: {}", agents.len());
@@ -283,4 +300,3 @@ async fn telemetry_command(
     }
     Ok(())
 }
-

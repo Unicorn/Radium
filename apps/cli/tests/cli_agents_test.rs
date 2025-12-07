@@ -264,12 +264,7 @@ fn test_agents_search_empty_query() {
 
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
     // Empty query might match all or none - depends on implementation
-    cmd.current_dir(temp_dir.path())
-        .arg("agents")
-        .arg("search")
-        .arg("")
-        .assert()
-        .success();
+    cmd.current_dir(temp_dir.path()).arg("agents").arg("search").arg("").assert().success();
 }
 
 #[test]

@@ -34,13 +34,7 @@ pub struct ModelHookContext {
 impl ModelHookContext {
     /// Create a new model hook context for before model call.
     pub fn before(input: String, model_id: String) -> Self {
-        Self {
-            input,
-            model_id,
-            request_modifications: None,
-            response: None,
-            modified_input: None,
-        }
+        Self { input, model_id, request_modifications: None, response: None, modified_input: None }
     }
 
     /// Create a new model hook context for after model call.
@@ -78,16 +72,10 @@ pub trait ModelHook: Send + Sync {
     fn priority(&self) -> HookPriority;
 
     /// Execute before model call.
-    async fn before_model_call(
-        &self,
-        context: &ModelHookContext,
-    ) -> Result<HookExecutionResult>;
+    async fn before_model_call(&self, context: &ModelHookContext) -> Result<HookExecutionResult>;
 
     /// Execute after model call.
-    async fn after_model_call(
-        &self,
-        context: &ModelHookContext,
-    ) -> Result<HookExecutionResult>;
+    async fn after_model_call(&self, context: &ModelHookContext) -> Result<HookExecutionResult>;
 }
 
 /// Adapter to convert ModelHook to Hook trait.
@@ -99,18 +87,12 @@ pub struct ModelHookAdapter {
 impl ModelHookAdapter {
     /// Create a new adapter for before model call.
     pub fn before(hook: Arc<dyn ModelHook>) -> Arc<dyn crate::hooks::registry::Hook> {
-        Arc::new(Self {
-            hook,
-            hook_type: ModelHookType::Before,
-        })
+        Arc::new(Self { hook, hook_type: ModelHookType::Before })
     }
 
     /// Create a new adapter for after model call.
     pub fn after(hook: Arc<dyn ModelHook>) -> Arc<dyn crate::hooks::registry::Hook> {
-        Arc::new(Self {
-            hook,
-            hook_type: ModelHookType::After,
-        })
+        Arc::new(Self { hook, hook_type: ModelHookType::After })
     }
 }
 
@@ -141,4 +123,3 @@ impl crate::hooks::registry::Hook for ModelHookAdapter {
         }
     }
 }
-

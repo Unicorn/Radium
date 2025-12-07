@@ -25,14 +25,7 @@ pub struct StdioTransport {
 impl StdioTransport {
     /// Create a new stdio transport.
     pub fn new(command: String, args: Vec<String>) -> Self {
-        Self {
-            command,
-            args,
-            child: None,
-            stdin: None,
-            stdout: None,
-            connected: false,
-        }
+        Self { command, args, child: None, stdin: None, stdout: None, connected: false }
     }
 }
 
@@ -49,16 +42,18 @@ impl McpTransport for StdioTransport {
         cmd.stdout(std::process::Stdio::piped());
         cmd.stderr(std::process::Stdio::piped());
 
-        let mut child = cmd.spawn().map_err(|e| {
-            McpError::Transport(format!("Failed to spawn process: {}", e))
-        })?;
+        let mut child = cmd
+            .spawn()
+            .map_err(|e| McpError::Transport(format!("Failed to spawn process: {}", e)))?;
 
-        let stdin = child.stdin.take().ok_or_else(|| {
-            McpError::Transport("Failed to get stdin handle".to_string())
-        })?;
-        let stdout = child.stdout.take().ok_or_else(|| {
-            McpError::Transport("Failed to get stdout handle".to_string())
-        })?;
+        let stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| McpError::Transport("Failed to get stdin handle".to_string()))?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| McpError::Transport("Failed to get stdout handle".to_string()))?;
 
         self.stdin = Some(Arc::new(Mutex::new(stdin)));
         self.stdout = Some(Arc::new(Mutex::new(BufReader::new(stdout))));
@@ -92,20 +87,24 @@ impl McpTransport for StdioTransport {
             return Err(McpError::Connection("Not connected".to_string()));
         }
 
-        let stdin = self.stdin.as_ref().ok_or_else(|| {
-            McpError::Transport("Stdin not available".to_string())
-        })?;
+        let stdin = self
+            .stdin
+            .as_ref()
+            .ok_or_else(|| McpError::Transport("Stdin not available".to_string()))?;
 
         let mut stdin = stdin.lock().await;
-        stdin.write_all(message).await.map_err(|e| {
-            McpError::Transport(format!("Failed to write to stdin: {}", e))
-        })?;
-        stdin.write_all(b"\n").await.map_err(|e| {
-            McpError::Transport(format!("Failed to write newline: {}", e))
-        })?;
-        stdin.flush().await.map_err(|e| {
-            McpError::Transport(format!("Failed to flush stdin: {}", e))
-        })?;
+        stdin
+            .write_all(message)
+            .await
+            .map_err(|e| McpError::Transport(format!("Failed to write to stdin: {}", e)))?;
+        stdin
+            .write_all(b"\n")
+            .await
+            .map_err(|e| McpError::Transport(format!("Failed to write newline: {}", e)))?;
+        stdin
+            .flush()
+            .await
+            .map_err(|e| McpError::Transport(format!("Failed to flush stdin: {}", e)))?;
 
         Ok(())
     }
@@ -115,15 +114,17 @@ impl McpTransport for StdioTransport {
             return Err(McpError::Connection("Not connected".to_string()));
         }
 
-        let stdout = self.stdout.as_ref().ok_or_else(|| {
-            McpError::Transport("Stdout not available".to_string())
-        })?;
+        let stdout = self
+            .stdout
+            .as_ref()
+            .ok_or_else(|| McpError::Transport("Stdout not available".to_string()))?;
 
         let mut stdout = stdout.lock().await;
         let mut line = String::new();
-        stdout.read_line(&mut line).await.map_err(|e| {
-            McpError::Transport(format!("Failed to read from stdout: {}", e))
-        })?;
+        stdout
+            .read_line(&mut line)
+            .await
+            .map_err(|e| McpError::Transport(format!("Failed to read from stdout: {}", e)))?;
 
         if line.is_empty() {
             return Err(McpError::Connection("Connection closed".to_string()));
@@ -164,7 +165,7 @@ mod tests {
     async fn test_stdio_transport_connect_disconnect() {
         // Use a simple command that will exit quickly
         let mut transport = StdioTransport::new("echo".to_string(), vec!["test".to_string()]);
-        
+
         // Note: This test may fail if echo doesn't work as expected
         // In a real scenario, we'd use a mock MCP server
         let result = transport.connect().await;
@@ -186,13 +187,13 @@ mod tests {
     #[tokio::test]
     async fn test_stdio_transport_connect_twice() {
         let mut transport = StdioTransport::new("echo".to_string(), vec![]);
-        
+
         if transport.connect().await.is_ok() {
             // Try to connect again - should fail
             let result = transport.connect().await;
             assert!(result.is_err());
             assert!(result.unwrap_err().to_string().contains("Already connected"));
-            
+
             let _ = transport.disconnect().await;
         }
     }
@@ -239,4 +240,3 @@ mod tests {
         assert!(!transport.is_connected());
     }
 }
-

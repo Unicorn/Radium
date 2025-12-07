@@ -28,9 +28,9 @@ pub fn render_model_selector(
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),  // Title
-            Constraint::Min(10),    // Model list
-            Constraint::Length(2),  // Help
+            Constraint::Length(3), // Title
+            Constraint::Min(10),   // Model list
+            Constraint::Length(2), // Help
         ])
         .split(area);
 
@@ -39,9 +39,7 @@ pub fn render_model_selector(
         .style(Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD))
         .alignment(Alignment::Center)
         .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(THEME.border))
+            Block::default().borders(Borders::ALL).border_style(Style::default().fg(THEME.border)),
         );
     frame.render_widget(title, chunks[0]);
 
@@ -54,14 +52,9 @@ pub fn render_model_selector(
             let is_current = model.is_selected;
 
             let style = if is_selected {
-                Style::default()
-                    .fg(THEME.bg_primary)
-                    .bg(THEME.primary)
-                    .add_modifier(Modifier::BOLD)
+                Style::default().fg(THEME.bg_primary).bg(THEME.primary).add_modifier(Modifier::BOLD)
             } else if is_current {
-                Style::default()
-                    .fg(THEME.success)
-                    .add_modifier(Modifier::BOLD)
+                Style::default().fg(THEME.success).add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(THEME.text)
             };
@@ -86,9 +79,7 @@ pub fn render_model_selector(
 
     let list = List::new(items)
         .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(THEME.border))
+            Block::default().borders(Borders::ALL).border_style(Style::default().fg(THEME.border)),
         )
         .style(Style::default().fg(THEME.text));
 
@@ -101,4 +92,3 @@ pub fn render_model_selector(
         .alignment(Alignment::Center);
     frame.render_widget(help, chunks[2]);
 }
-

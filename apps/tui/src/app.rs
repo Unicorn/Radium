@@ -92,20 +92,27 @@ impl App {
         if has_agents {
             self.prompt_data.add_output("🤖 Quick Start:".to_string());
             self.prompt_data.add_output("  /agents - See available AI agents".to_string());
-            self.prompt_data.add_output("  /chat <agent> - Start chatting with an agent".to_string());
+            self.prompt_data
+                .add_output("  /chat <agent> - Start chatting with an agent".to_string());
         } else {
             self.prompt_data.add_output("⚠️  No agents configured yet.".to_string());
             self.prompt_data.add_output("".to_string());
-            self.prompt_data.add_output("To get started, create an agent configuration:".to_string());
+            self.prompt_data
+                .add_output("To get started, create an agent configuration:".to_string());
             self.prompt_data.add_output("  1. Create ~/.radium/agents/ directory".to_string());
-            self.prompt_data.add_output("  2. Add an agent JSON file (see example below)".to_string());
+            self.prompt_data
+                .add_output("  2. Add an agent JSON file (see example below)".to_string());
             self.prompt_data.add_output("".to_string());
-            self.prompt_data.add_output("Example agent config (~/.radium/agents/assistant.json):".to_string());
+            self.prompt_data
+                .add_output("Example agent config (~/.radium/agents/assistant.json):".to_string());
             self.prompt_data.add_output("  {".to_string());
             self.prompt_data.add_output("    \"id\": \"assistant\",".to_string());
             self.prompt_data.add_output("    \"name\": \"Assistant\",".to_string());
-            self.prompt_data.add_output("    \"description\": \"General purpose AI assistant\",".to_string());
-            self.prompt_data.add_output("    \"system_prompt\": \"You are a helpful AI assistant.\",".to_string());
+            self.prompt_data
+                .add_output("    \"description\": \"General purpose AI assistant\",".to_string());
+            self.prompt_data.add_output(
+                "    \"system_prompt\": \"You are a helpful AI assistant.\",".to_string(),
+            );
             self.prompt_data.add_output("    \"model\": \"gemini-1.5-flash\"".to_string());
             self.prompt_data.add_output("  }".to_string());
         }
@@ -177,10 +184,8 @@ impl App {
 
             // Scrollback navigation
             KeyCode::PageUp => {
-                self.prompt_data.scrollback_offset =
-                    (self.prompt_data.scrollback_offset + 10).min(
-                        self.prompt_data.conversation.len().saturating_sub(1)
-                    );
+                self.prompt_data.scrollback_offset = (self.prompt_data.scrollback_offset + 10)
+                    .min(self.prompt_data.conversation.len().saturating_sub(1));
             }
             KeyCode::PageDown => {
                 self.prompt_data.scrollback_offset =
@@ -209,7 +214,9 @@ impl App {
 
             // Enter in command palette
             KeyCode::Enter if self.prompt_data.command_palette_active => {
-                if let Some(suggestion) = self.prompt_data.command_suggestions
+                if let Some(suggestion) = self
+                    .prompt_data
+                    .command_suggestions
                     .get(self.prompt_data.selected_suggestion_index)
                 {
                     if let Some(cmd) = suggestion.split(" - ").next() {
@@ -304,20 +311,14 @@ impl App {
         self.prompt_data.add_output("".to_string());
         self.prompt_data
             .add_output("  /auth           - Authenticate with AI providers".to_string());
-        self.prompt_data
-            .add_output("  /chat <agent>   - Start chat with an agent".to_string());
-        self.prompt_data
-            .add_output("  /agents         - List all available agents".to_string());
-        self.prompt_data
-            .add_output("  /sessions       - Show your chat sessions".to_string());
-        self.prompt_data
-            .add_output("  /dashboard      - Show dashboard stats".to_string());
-        self.prompt_data
-            .add_output("  /models         - Select AI model".to_string());
+        self.prompt_data.add_output("  /chat <agent>   - Start chat with an agent".to_string());
+        self.prompt_data.add_output("  /agents         - List all available agents".to_string());
+        self.prompt_data.add_output("  /sessions       - Show your chat sessions".to_string());
+        self.prompt_data.add_output("  /dashboard      - Show dashboard stats".to_string());
+        self.prompt_data.add_output("  /models         - Select AI model".to_string());
         self.prompt_data.add_output("  /help           - Show this help".to_string());
         self.prompt_data.add_output("".to_string());
-        self.prompt_data
-            .add_output("When in a chat, type normally to send messages.".to_string());
+        self.prompt_data.add_output("When in a chat, type normally to send messages.".to_string());
     }
 
     fn start_auth_wizard(&mut self) {
@@ -339,8 +340,7 @@ impl App {
         self.prompt_data.context = DisplayContext::SessionList;
 
         // Load actual sessions from history
-        let workspace_root = self.workspace_status.as_ref()
-            .and_then(|s| s.root.clone());
+        let workspace_root = self.workspace_status.as_ref().and_then(|s| s.root.clone());
         let session_manager = crate::session_manager::SessionManager::new(workspace_root)?;
         let sessions_by_date = session_manager.load_sessions()?;
 
@@ -367,15 +367,11 @@ impl App {
         // Show basic stats
         self.prompt_data.add_output("Radium Dashboard".to_string());
         self.prompt_data.add_output("".to_string());
-        self.prompt_data
-            .add_output(format!("Agents: {}", self.prompt_data.agents.len()));
+        self.prompt_data.add_output(format!("Agents: {}", self.prompt_data.agents.len()));
 
         // Check auth status using CredentialStore
         let (gemini_auth, openai_auth) = if let Ok(store) = CredentialStore::new() {
-            (
-                store.is_configured(ProviderType::Gemini),
-                store.is_configured(ProviderType::OpenAI),
-            )
+            (store.is_configured(ProviderType::Gemini), store.is_configured(ProviderType::OpenAI))
         } else {
             (false, false)
         };
@@ -384,38 +380,42 @@ impl App {
         self.prompt_data.add_output("Authentication:".to_string());
         self.prompt_data.add_output(format!(
             "  Gemini: {}",
-            if gemini_auth { "✓ Configured" } else { "✗ Not configured (run: rad auth login gemini)" }
+            if gemini_auth {
+                "✓ Configured"
+            } else {
+                "✗ Not configured (run: rad auth login gemini)"
+            }
         ));
         self.prompt_data.add_output(format!(
             "  OpenAI: {}",
-            if openai_auth { "✓ Configured" } else { "✗ Not configured (run: rad auth login openai)" }
+            if openai_auth {
+                "✓ Configured"
+            } else {
+                "✗ Not configured (run: rad auth login openai)"
+            }
         ));
         self.prompt_data.add_output("".to_string());
-        self.prompt_data.add_output("Credentials stored in: ~/.radium/auth/credentials.json".to_string());
+        self.prompt_data
+            .add_output("Credentials stored in: ~/.radium/auth/credentials.json".to_string());
 
         Ok(())
     }
 
     async fn start_chat(&mut self, agent_id: &str) -> Result<()> {
         // Generate session ID
-        let session_id =
-            format!("session_{}", chrono::Utc::now().format("%Y%m%d_%H%M%S"));
+        let session_id = format!("session_{}", chrono::Utc::now().format("%Y%m%d_%H%M%S"));
 
         self.current_agent = Some(agent_id.to_string());
         self.current_session = Some(session_id.clone());
 
-        self.prompt_data.context = DisplayContext::Chat {
-            agent_id: agent_id.to_string(),
-            session_id: session_id.clone(),
-        };
+        self.prompt_data.context =
+            DisplayContext::Chat { agent_id: agent_id.to_string(), session_id: session_id.clone() };
 
         self.prompt_data.conversation.clear();
         self.prompt_data
             .conversation
             .push(format!("Started new chat with {} (session: {})", agent_id, session_id));
-        self.prompt_data
-            .conversation
-            .push("Type your message below.".to_string());
+        self.prompt_data.conversation.push("Type your message below.".to_string());
 
         Ok(())
     }
@@ -432,13 +432,10 @@ impl App {
         };
 
         // Add user message to conversation
-        self.prompt_data
-            .conversation
-            .push(format!("You: {}", message));
+        self.prompt_data.conversation.push(format!("You: {}", message));
 
         // Save session update
-        let workspace_root = self.workspace_status.as_ref()
-            .and_then(|s| s.root.clone());
+        let workspace_root = self.workspace_status.as_ref().and_then(|s| s.root.clone());
         if let Ok(session_manager) = crate::session_manager::SessionManager::new(workspace_root) {
             let _ = session_manager.update_session(&session_id, &agent_id, &message);
         }
@@ -448,23 +445,19 @@ impl App {
             Ok(result) => {
                 if result.success {
                     let response = result.response.clone();
-                    self.prompt_data
-                        .conversation
-                        .push(format!("Agent: {}", response));
+                    self.prompt_data.conversation.push(format!("Agent: {}", response));
 
                     // Save agent response to session
-                    let workspace_root_clone = self.workspace_status.as_ref()
-                        .and_then(|s| s.root.clone());
-                    if let Ok(session_manager) = crate::session_manager::SessionManager::new(workspace_root_clone) {
+                    let workspace_root_clone =
+                        self.workspace_status.as_ref().and_then(|s| s.root.clone());
+                    if let Ok(session_manager) =
+                        crate::session_manager::SessionManager::new(workspace_root_clone)
+                    {
                         let _ = session_manager.update_session(&session_id, &agent_id, &response);
                     }
                 } else {
-                    let error_msg = result
-                        .error
-                        .unwrap_or_else(|| "Unknown error".to_string());
-                    self.prompt_data
-                        .conversation
-                        .push(format!("Error: {}", error_msg));
+                    let error_msg = result.error.unwrap_or_else(|| "Unknown error".to_string());
+                    self.prompt_data.conversation.push(format!("Error: {}", error_msg));
                 }
             }
             Err(e) => {
@@ -504,8 +497,8 @@ impl App {
     }
 
     fn autocomplete_selected_command(&mut self) {
-        if let Some(suggestion) = self.prompt_data.command_suggestions
-            .get(self.prompt_data.selected_suggestion_index)
+        if let Some(suggestion) =
+            self.prompt_data.command_suggestions.get(self.prompt_data.selected_suggestion_index)
         {
             // Extract just the command part (before the ' - ')
             if let Some(cmd) = suggestion.split(" - ").next() {
@@ -519,14 +512,12 @@ impl App {
     fn update_command_palette(&mut self) {
         // Use fuzzy matching for command palette
         let query = &self.prompt_data.command_palette_query.to_lowercase();
-        
+
         self.prompt_data.command_suggestions = self
             .available_commands
             .iter()
             .filter(|(cmd, _desc)| {
-                cmd.contains(query) || 
-                cmd.starts_with(query) ||
-                fuzzy_match(cmd, query)
+                cmd.contains(query) || cmd.starts_with(query) || fuzzy_match(cmd, query)
             })
             .map(|(cmd, desc)| format!("/{} - {}", cmd, desc))
             .collect();
@@ -538,7 +529,7 @@ fn fuzzy_match(text: &str, query: &str) -> bool {
     let text_lower = text.to_lowercase();
     let mut query_chars = query.chars();
     let mut text_chars = text_lower.chars();
-    
+
     while let Some(qc) = query_chars.next() {
         loop {
             match text_chars.next() {

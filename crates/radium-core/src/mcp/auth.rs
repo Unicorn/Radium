@@ -34,10 +34,7 @@ pub struct OAuthTokenManager {
 impl OAuthTokenManager {
     /// Create a new OAuth token manager.
     pub fn new(storage_dir: PathBuf) -> Self {
-        Self {
-            storage_dir,
-            tokens: HashMap::new(),
-        }
+        Self { storage_dir, tokens: HashMap::new() }
     }
 
     /// Get the default storage directory.
@@ -112,9 +109,7 @@ impl OAuthTokenManager {
         }
 
         let token_file = self.storage_dir.join(format!("{}.json", server_name));
-        let content = serde_json::to_string_pretty(&token).map_err(|e| {
-            McpError::Json(e)
-        })?;
+        let content = serde_json::to_string_pretty(&token).map_err(|e| McpError::Json(e))?;
 
         std::fs::write(&token_file, content).map_err(|e| {
             McpError::Io(std::io::Error::new(
@@ -152,9 +147,7 @@ impl OAuthTokenManager {
     /// Returns an error if token refresh fails.
     pub async fn refresh_token(&mut self, _server_name: &str) -> Result<()> {
         // TODO: Implement actual OAuth refresh flow
-        Err(McpError::Authentication(
-            "Token refresh not yet implemented".to_string(),
-        ))
+        Err(McpError::Authentication("Token refresh not yet implemented".to_string()))
     }
 }
 
@@ -210,11 +203,9 @@ mod tests {
         let _manager = OAuthTokenManager::new(temp_dir.path().to_path_buf());
 
         // Token with future expiration
-        let future_time = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs()
-            + 3600; // 1 hour from now
+        let future_time =
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs()
+                + 3600; // 1 hour from now
 
         let mut manager = OAuthTokenManager::new(temp_dir.path().to_path_buf());
         let token = OAuthToken {
@@ -229,4 +220,3 @@ mod tests {
         assert!(!manager.is_token_expired("test-server"));
     }
 }
-

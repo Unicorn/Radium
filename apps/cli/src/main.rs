@@ -10,8 +10,8 @@ use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 use commands::{
-    agents, auth, chat, checkpoint, clean, craft, doctor, extension, init, mcp, monitor, plan, run, stats,
-    status, step, templates,
+    agents, auth, chat, checkpoint, clean, craft, doctor, extension, init, mcp, monitor, plan, run,
+    stats, status, step, templates,
 };
 
 /// Radium CLI - Next-generation agentic orchestration tool

@@ -140,10 +140,16 @@ pub trait ErrorHook: Send + Sync {
     ) -> HookErrorResult<HookExecutionResult>;
 
     /// Execute error recovery hook.
-    async fn error_recovery(&self, context: &ErrorHookContext) -> HookErrorResult<HookExecutionResult>;
+    async fn error_recovery(
+        &self,
+        context: &ErrorHookContext,
+    ) -> HookErrorResult<HookExecutionResult>;
 
     /// Execute error logging hook.
-    async fn error_logging(&self, context: &ErrorHookContext) -> HookErrorResult<HookExecutionResult>;
+    async fn error_logging(
+        &self,
+        context: &ErrorHookContext,
+    ) -> HookErrorResult<HookExecutionResult>;
 }
 
 /// Adapter to convert ErrorHook to Hook trait.
@@ -155,34 +161,22 @@ pub struct ErrorHookAdapter {
 impl ErrorHookAdapter {
     /// Create a new adapter for error interception.
     pub fn interception(hook: Arc<dyn ErrorHook>) -> Arc<dyn crate::hooks::registry::Hook> {
-        Arc::new(Self {
-            hook,
-            hook_type: ErrorHookType::Interception,
-        })
+        Arc::new(Self { hook, hook_type: ErrorHookType::Interception })
     }
 
     /// Create a new adapter for error transformation.
     pub fn transformation(hook: Arc<dyn ErrorHook>) -> Arc<dyn crate::hooks::registry::Hook> {
-        Arc::new(Self {
-            hook,
-            hook_type: ErrorHookType::Transformation,
-        })
+        Arc::new(Self { hook, hook_type: ErrorHookType::Transformation })
     }
 
     /// Create a new adapter for error recovery.
     pub fn recovery(hook: Arc<dyn ErrorHook>) -> Arc<dyn crate::hooks::registry::Hook> {
-        Arc::new(Self {
-            hook,
-            hook_type: ErrorHookType::Recovery,
-        })
+        Arc::new(Self { hook, hook_type: ErrorHookType::Recovery })
     }
 
     /// Create a new adapter for error logging.
     pub fn logging(hook: Arc<dyn ErrorHook>) -> Arc<dyn crate::hooks::registry::Hook> {
-        Arc::new(Self {
-            hook,
-            hook_type: ErrorHookType::Logging,
-        })
+        Arc::new(Self { hook, hook_type: ErrorHookType::Logging })
     }
 }
 
@@ -210,12 +204,8 @@ impl crate::hooks::registry::Hook for ErrorHookAdapter {
             .map_err(|e| crate::hooks::error::HookError::Serialization(e))?;
 
         match self.hook_type {
-            ErrorHookType::Interception => {
-                self.hook.error_interception(&error_context).await
-            }
-            ErrorHookType::Transformation => {
-                self.hook.error_transformation(&error_context).await
-            }
+            ErrorHookType::Interception => self.hook.error_interception(&error_context).await,
+            ErrorHookType::Transformation => self.hook.error_transformation(&error_context).await,
             ErrorHookType::Recovery => self.hook.error_recovery(&error_context).await,
             ErrorHookType::Logging => self.hook.error_logging(&error_context).await,
         }

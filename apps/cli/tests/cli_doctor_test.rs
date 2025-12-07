@@ -174,13 +174,7 @@ fn test_doctor_all_checks_passed() {
     init_workspace(&temp_dir);
 
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    cmd.current_dir(temp_dir.path())
-        .arg("doctor")
-        .assert()
-        .success()
-        .stdout(
-            predicate::str::contains("All checks passed")
-                .or(predicate::str::contains("checks passed")),
-        );
+    cmd.current_dir(temp_dir.path()).arg("doctor").assert().success().stdout(
+        predicate::str::contains("All checks passed").or(predicate::str::contains("checks passed")),
+    );
 }
-

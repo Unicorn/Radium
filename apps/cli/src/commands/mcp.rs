@@ -91,7 +91,7 @@ pub async fn execute_mcp_command(command: McpCommand) -> anyhow::Result<()> {
         }
         McpCommand::Test { server } => {
             let integration = McpIntegration::new();
-            
+
             if let Some(server_name) = server {
                 match integration.initialize(&workspace).await {
                     Ok(()) => {
@@ -125,4 +125,3 @@ pub async fn execute_mcp_command(command: McpCommand) -> anyhow::Result<()> {
 
     Ok(())
 }
-

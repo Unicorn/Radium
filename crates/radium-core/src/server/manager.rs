@@ -13,7 +13,7 @@ use tracing::{debug, info, warn};
 
 use crate::config::Config;
 use crate::error::{RadiumError, Result};
-use crate::proto::{radium_client::RadiumClient, PingRequest};
+use crate::proto::{PingRequest, radium_client::RadiumClient};
 use crate::server;
 
 /// Manages an embedded Radium server running in a background task.
@@ -42,12 +42,7 @@ impl EmbeddedServer {
     #[must_use]
     pub fn new(config: Config) -> Self {
         let address = config.server.address;
-        Self {
-            config,
-            shutdown_tx: None,
-            server_handle: None,
-            address,
-        }
+        Self { config, shutdown_tx: None, server_handle: None, address }
     }
 
     /// Start the server in a background task.
@@ -57,9 +52,7 @@ impl EmbeddedServer {
     /// Returns an error if the server fails to start or if it's already running.
     pub async fn start(&mut self) -> Result<()> {
         if self.is_running() {
-            return Err(RadiumError::Config(
-                "Server is already running".to_string(),
-            ));
+            return Err(RadiumError::Config("Server is already running".to_string()));
         }
 
         info!(
@@ -74,9 +67,8 @@ impl EmbeddedServer {
         let config = self.config.clone();
 
         // Spawn server in background task
-        let server_handle = tokio::spawn(async move {
-            server::run_with_shutdown(&config, shutdown_rx).await
-        });
+        let server_handle =
+            tokio::spawn(async move { server::run_with_shutdown(&config, shutdown_rx).await });
 
         self.shutdown_tx = Some(shutdown_tx);
         self.server_handle = Some(server_handle);
@@ -111,17 +103,13 @@ impl EmbeddedServer {
                 ));
             }
         } else {
-            return Err(RadiumError::Config(
-                "Server is not running".to_string(),
-            ));
+            return Err(RadiumError::Config("Server is not running".to_string()));
         }
 
         // Try to connect and ping the server
         let server_url = format!("http://{}", self.address);
         let endpoint = tonic::transport::Endpoint::from_shared(server_url.clone())
-            .map_err(|e| {
-                RadiumError::Config(format!("Invalid server address: {}", e))
-            })?;
+            .map_err(|e| RadiumError::Config(format!("Invalid server address: {}", e)))?;
 
         loop {
             // Check timeout
@@ -145,9 +133,8 @@ impl EmbeddedServer {
             match endpoint.connect().await {
                 Ok(channel) => {
                     let mut client = RadiumClient::new(channel);
-                    let request = tonic::Request::new(PingRequest {
-                        message: "health-check".to_string(),
-                    });
+                    let request =
+                        tonic::Request::new(PingRequest { message: "health-check".to_string() });
 
                     match client.ping(request).await {
                         Ok(_) => {
@@ -185,11 +172,7 @@ impl EmbeddedServer {
     /// `true` if the server task exists and is still running, `false` otherwise.
     #[must_use]
     pub fn is_running(&self) -> bool {
-        if let Some(ref handle) = self.server_handle {
-            !handle.is_finished()
-        } else {
-            false
-        }
+        if let Some(ref handle) = self.server_handle { !handle.is_finished() } else { false }
     }
 
     /// Get the server address.
@@ -231,16 +214,11 @@ impl EmbeddedServer {
                 }
                 Ok(Err(e)) => {
                     warn!(error = %e, "Server task returned error during shutdown");
-                    Err(RadiumError::Config(format!(
-                        "Server shutdown error: {}",
-                        e
-                    )))
+                    Err(RadiumError::Config(format!("Server shutdown error: {}", e)))
                 }
                 Err(_) => {
                     warn!("Server shutdown timed out, task may still be running");
-                    Err(RadiumError::Config(
-                        "Server shutdown timed out".to_string(),
-                    ))
+                    Err(RadiumError::Config("Server shutdown timed out".to_string()))
                 }
             }
         } else {
@@ -252,9 +230,7 @@ impl EmbeddedServer {
 impl Drop for EmbeddedServer {
     fn drop(&mut self) {
         if self.is_running() {
-            warn!(
-                "EmbeddedServer dropped while running - attempting graceful shutdown"
-            );
+            warn!("EmbeddedServer dropped while running - attempting graceful shutdown");
             // Try to shutdown, but we can't use async in drop
             // The shutdown signal will be sent when shutdown_tx is dropped
             if let Some(shutdown_tx) = self.shutdown_tx.take() {
@@ -285,9 +261,7 @@ mod tests {
         drop(listener);
 
         let mut config = Config::default();
-        config.server.address = format!("127.0.0.1:{}", port)
-            .parse()
-            .unwrap();
+        config.server.address = format!("127.0.0.1:{}", port).parse().unwrap();
         config.server.enable_grpc_web = false;
 
         let mut server = EmbeddedServer::new(config);
@@ -307,19 +281,14 @@ mod tests {
         drop(listener);
 
         let mut config = Config::default();
-        config.server.address = format!("127.0.0.1:{}", port)
-            .parse()
-            .unwrap();
+        config.server.address = format!("127.0.0.1:{}", port).parse().unwrap();
         config.server.enable_grpc_web = false;
 
         let mut server = EmbeddedServer::new(config);
         server.start().await.unwrap();
 
         // Wait for server to be ready
-        server
-            .wait_for_ready(Duration::from_secs(5))
-            .await
-            .unwrap();
+        server.wait_for_ready(Duration::from_secs(5)).await.unwrap();
 
         assert!(server.is_running());
 
@@ -336,9 +305,7 @@ mod tests {
         drop(listener);
 
         let mut config = Config::default();
-        config.server.address = format!("127.0.0.1:{}", port)
-            .parse()
-            .unwrap();
+        config.server.address = format!("127.0.0.1:{}", port).parse().unwrap();
         config.server.enable_grpc_web = false;
 
         let mut server = EmbeddedServer::new(config);
@@ -358,9 +325,7 @@ mod tests {
         drop(listener);
 
         let mut config = Config::default();
-        config.server.address = format!("127.0.0.1:{}", port)
-            .parse()
-            .unwrap();
+        config.server.address = format!("127.0.0.1:{}", port).parse().unwrap();
         config.server.enable_grpc_web = false;
 
         let mut server = EmbeddedServer::new(config);
@@ -369,13 +334,9 @@ mod tests {
         // Try to start again - should fail
         let result = server.start().await;
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("already running"));
+        assert!(result.unwrap_err().to_string().contains("already running"));
 
         // Cleanup
         server.shutdown().await.unwrap();
     }
 }
-

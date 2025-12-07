@@ -192,4 +192,3 @@ fn test_chat_help_shown_in_interactive_mode() {
     // Command should start (may timeout waiting for input)
     assert!(result.get_output().status.code().is_some());
 }
-

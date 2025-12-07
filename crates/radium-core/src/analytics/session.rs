@@ -6,8 +6,8 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::time::Duration;
 
-use crate::monitoring::{MonitoringService, TelemetryTracking};
 use crate::analytics::code_changes::CodeChanges;
+use crate::monitoring::{MonitoringService, TelemetryTracking};
 
 /// Session metrics aggregated from telemetry and agent activity.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -99,11 +99,7 @@ impl SessionMetrics {
 
     /// Calculate cache hit rate percentage.
     pub fn cache_hit_rate(&self) -> f64 {
-        let total_input = self
-            .model_usage
-            .values()
-            .map(|s| s.input_tokens)
-            .sum::<u64>();
+        let total_input = self.model_usage.values().map(|s| s.input_tokens).sum::<u64>();
         if total_input == 0 {
             0.0
         } else {
@@ -113,11 +109,9 @@ impl SessionMetrics {
 
     /// Get total tokens across all models.
     pub fn total_tokens(&self) -> (u64, u64) {
-        self.model_usage
-            .values()
-            .fold((0u64, 0u64), |(inp, out), stats| {
-                (inp + stats.input_tokens, out + stats.output_tokens)
-            })
+        self.model_usage.values().fold((0u64, 0u64), |(inp, out), stats| {
+            (inp + stats.input_tokens, out + stats.output_tokens)
+        })
     }
 }
 
@@ -147,7 +141,9 @@ impl SessionAnalytics {
         start_time: DateTime<Utc>,
         end_time: Option<DateTime<Utc>>,
     ) -> anyhow::Result<SessionMetrics> {
-        self.generate_session_metrics_with_workspace(session_id, agent_ids, start_time, end_time, None)
+        self.generate_session_metrics_with_workspace(
+            session_id, agent_ids, start_time, end_time, None,
+        )
     }
 
     /// Generate metrics for a session with workspace for code change tracking.
@@ -174,13 +170,11 @@ impl SessionAnalytics {
         // Aggregate telemetry from all agents
         for agent_id in agent_ids {
             let telemetry = self.monitoring.get_agent_telemetry(agent_id)?;
-            
+
             for record in telemetry {
                 // Aggregate model usage
-                let model_key = record
-                    .model.clone()
-                    .unwrap_or_else(|| "unknown".to_string());
-                
+                let model_key = record.model.clone().unwrap_or_else(|| "unknown".to_string());
+
                 let stats = metrics.model_usage.entry(model_key.clone()).or_insert_with(|| {
                     ModelUsageStats {
                         requests: 0,
@@ -223,10 +217,9 @@ impl SessionAnalytics {
 
         // Calculate code changes if workspace is available
         if let Some(workspace) = workspace_root {
-            if let Ok(code_changes) = CodeChanges::from_git_since(
-                workspace,
-                start_time.timestamp() as u64,
-            ) {
+            if let Ok(code_changes) =
+                CodeChanges::from_git_since(workspace, start_time.timestamp() as u64)
+            {
                 metrics.lines_added = code_changes.lines_added;
                 metrics.lines_removed = code_changes.lines_removed;
             }
@@ -238,9 +231,8 @@ impl SessionAnalytics {
     /// Get metrics for a specific session by ID.
     pub fn get_session_metrics(&self, session_id: &str) -> anyhow::Result<SessionMetrics> {
         // Try to discover workspace for code change tracking
-        let workspace_root = crate::workspace::Workspace::discover()
-            .ok()
-            .map(|w| w.root().to_path_buf());
+        let workspace_root =
+            crate::workspace::Workspace::discover().ok().map(|w| w.root().to_path_buf());
 
         // Find all agents associated with this session
         // For now, we'll use a simple approach: session_id might be in agent_id or plan_id
@@ -264,13 +256,14 @@ impl SessionAnalytics {
 
         for agent_id in &session_agents {
             if let Ok(agent) = self.monitoring.get_agent(agent_id) {
-                let agent_start = DateTime::from_timestamp(agent.start_time as i64, 0)
-                    .unwrap_or_else(Utc::now);
+                let agent_start =
+                    DateTime::from_timestamp(agent.start_time as i64, 0).unwrap_or_else(Utc::now);
                 if agent_start < start_time {
                     start_time = agent_start;
                 }
                 if let Some(end) = agent.end_time {
-                    let agent_end = DateTime::from_timestamp(end as i64, 0).unwrap_or_else(Utc::now);
+                    let agent_end =
+                        DateTime::from_timestamp(end as i64, 0).unwrap_or_else(Utc::now);
                     end_time = Some(end_time.map_or(agent_end, |e| e.max(agent_end)));
                 }
             }
@@ -285,4 +278,3 @@ impl SessionAnalytics {
         )
     }
 }
-

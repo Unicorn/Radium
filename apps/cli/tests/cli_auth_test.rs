@@ -71,17 +71,12 @@ fn test_auth_status_shows_providers() {
     init_workspace(&temp_dir);
 
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    cmd.current_dir(temp_dir.path())
-        .arg("auth")
-        .arg("status")
-        .assert()
-        .success()
-        .stdout(
-            predicate::str::contains("gemini")
-                .or(predicate::str::contains("Gemini"))
-                .or(predicate::str::contains("openai"))
-                .or(predicate::str::contains("OpenAI")),
-        );
+    cmd.current_dir(temp_dir.path()).arg("auth").arg("status").assert().success().stdout(
+        predicate::str::contains("gemini")
+            .or(predicate::str::contains("Gemini"))
+            .or(predicate::str::contains("openai"))
+            .or(predicate::str::contains("OpenAI")),
+    );
 }
 
 #[test]

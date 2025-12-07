@@ -317,10 +317,7 @@ mod tests {
             command: None,
             args: None,
             url: Some("https://api.example.com/mcp".to_string()),
-            auth: Some(McpAuthConfig {
-                auth_type: "oauth".to_string(),
-                params: auth_params,
-            }),
+            auth: Some(McpAuthConfig { auth_type: "oauth".to_string(), params: auth_params }),
         };
 
         assert!(config.auth.is_some());
@@ -401,9 +398,7 @@ mod tests {
     #[test]
     fn test_mcp_tool_result() {
         let result = McpToolResult {
-            content: vec![McpContent::Text {
-                text: "Success".to_string(),
-            }],
+            content: vec![McpContent::Text { text: "Success".to_string() }],
             is_error: false,
         };
 
@@ -414,9 +409,7 @@ mod tests {
     #[test]
     fn test_mcp_tool_result_serialization() {
         let result = McpToolResult {
-            content: vec![McpContent::Text {
-                text: "Success".to_string(),
-            }],
+            content: vec![McpContent::Text { text: "Success".to_string() }],
             is_error: false,
         };
 
@@ -426,9 +419,7 @@ mod tests {
 
     #[test]
     fn test_mcp_content_text() {
-        let content = McpContent::Text {
-            text: "Hello, world!".to_string(),
-        };
+        let content = McpContent::Text { text: "Hello, world!".to_string() };
 
         let json = serde_json::to_string(&content).unwrap();
         assert!(json.contains("text"));
@@ -584,4 +575,3 @@ mod tests {
         assert!(json.contains("tools"));
     }
 }
-

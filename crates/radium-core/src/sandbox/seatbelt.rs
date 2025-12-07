@@ -62,7 +62,6 @@ impl SeatbeltSandbox {
             }
         };
 
-        
         format!(
             r"(version 1)
 (debug deny)

@@ -132,11 +132,7 @@ fn test_plan_with_nonexistent_file() {
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
     // The plan command may treat nonexistent files as direct input
     // or fail - depends on implementation. Test that it doesn't panic.
-    let result = cmd
-        .current_dir(temp_dir.path())
-        .arg("plan")
-        .arg("nonexistent.md")
-        .assert();
+    let result = cmd.current_dir(temp_dir.path()).arg("plan").arg("nonexistent.md").assert();
 
     // Either success or failure is acceptable, just verify it doesn't panic
     assert!(result.get_output().status.code().is_some());
@@ -181,9 +177,5 @@ fn test_plan_with_very_long_specification() {
 
     let long_spec = "Test specification. ".repeat(100);
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    cmd.current_dir(temp_dir.path())
-        .arg("plan")
-        .arg(&long_spec)
-        .assert()
-        .success();
+    cmd.current_dir(temp_dir.path()).arg("plan").arg(&long_spec).assert().success();
 }

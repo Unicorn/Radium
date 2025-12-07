@@ -165,11 +165,7 @@ fn test_craft_with_folder_name() {
 
     // Craft can accept folder name instead of REQ-XXX
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    let result = cmd
-        .current_dir(temp_dir.path())
-        .arg("craft")
-        .arg("my-project-folder")
-        .assert();
+    let result = cmd.current_dir(temp_dir.path()).arg("craft").arg("my-project-folder").assert();
 
     // Command should run (may fail if folder not found, but shouldn't panic)
     assert!(result.get_output().status.code().is_some());
@@ -182,8 +178,5 @@ fn test_craft_without_plan_identifier() {
 
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
     // Craft without plan identifier should fail
-    cmd.current_dir(temp_dir.path())
-        .arg("craft")
-        .assert()
-        .failure();
+    cmd.current_dir(temp_dir.path()).arg("craft").assert().failure();
 }

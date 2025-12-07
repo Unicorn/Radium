@@ -41,15 +41,18 @@ async fn list_command(checkpoint_manager: &CheckpointManager, json: bool) -> Res
     let checkpoints = checkpoint_manager.list_checkpoints()?;
 
     if json {
-        let json_checkpoints: Vec<serde_json::Value> = checkpoints.iter().map(|c| {
-            serde_json::json!({
-                "id": c.id,
-                "commit_hash": c.commit_hash,
-                "agent_id": c.agent_id,
-                "timestamp": c.timestamp,
-                "description": c.description,
+        let json_checkpoints: Vec<serde_json::Value> = checkpoints
+            .iter()
+            .map(|c| {
+                serde_json::json!({
+                    "id": c.id,
+                    "commit_hash": c.commit_hash,
+                    "agent_id": c.agent_id,
+                    "timestamp": c.timestamp,
+                    "description": c.description,
+                })
             })
-        }).collect();
+            .collect();
         println!("{}", serde_json::to_string_pretty(&json_checkpoints)?);
     } else {
         if checkpoints.is_empty() {
@@ -62,13 +65,11 @@ async fn list_command(checkpoint_manager: &CheckpointManager, json: bool) -> Res
                     .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
                     .unwrap_or_else(|| checkpoint.timestamp.to_string());
                 let description = checkpoint.description.as_deref().unwrap_or("-");
-                let commit_short = &checkpoint.commit_hash[..std::cmp::min(12, checkpoint.commit_hash.len())];
+                let commit_short =
+                    &checkpoint.commit_hash[..std::cmp::min(12, checkpoint.commit_hash.len())];
                 println!(
                     "{:<40} {:<15} {:<30} {:<20}",
-                    checkpoint.id,
-                    commit_short,
-                    description,
-                    timestamp
+                    checkpoint.id, commit_short, description, timestamp
                 );
             }
         }
@@ -76,16 +77,21 @@ async fn list_command(checkpoint_manager: &CheckpointManager, json: bool) -> Res
     Ok(())
 }
 
-async fn restore_command(checkpoint_manager: &CheckpointManager, checkpoint_id: &str) -> Result<()> {
+async fn restore_command(
+    checkpoint_manager: &CheckpointManager,
+    checkpoint_id: &str,
+) -> Result<()> {
     println!("Restoring checkpoint: {}", checkpoint_id);
-    
-    checkpoint_manager.restore_checkpoint(checkpoint_id)
+
+    checkpoint_manager
+        .restore_checkpoint(checkpoint_id)
         .context(format!("Failed to restore checkpoint: {}", checkpoint_id))?;
-    
+
     println!("✓ Checkpoint restored successfully.");
     println!("  Your workspace has been restored to the state at this checkpoint.");
-    println!("  Note: You may need to re-propose tool calls if you were in the middle of agent execution.");
-    
+    println!(
+        "  Note: You may need to re-propose tool calls if you were in the middle of agent execution."
+    );
+
     Ok(())
 }
-

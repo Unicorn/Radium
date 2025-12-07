@@ -36,10 +36,7 @@ impl Command {
 #[derive(Debug, Clone, PartialEq)]
 pub enum DisplayContext {
     /// Chatting with an agent
-    Chat {
-        agent_id: String,
-        session_id: String,
-    },
+    Chat { agent_id: String, session_id: String },
     /// Viewing list of available agents
     AgentList,
     /// Viewing list of chat sessions

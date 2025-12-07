@@ -36,13 +36,7 @@ pub struct ToolHookContext {
 impl ToolHookContext {
     /// Create a new tool hook context for before tool execution.
     pub fn before(tool_name: String, arguments: serde_json::Value) -> Self {
-        Self {
-            tool_name,
-            arguments,
-            result: None,
-            modified_arguments: None,
-            modified_result: None,
-        }
+        Self { tool_name, arguments, result: None, modified_arguments: None, modified_result: None }
     }
 
     /// Create a new tool hook context for after tool execution.
@@ -62,13 +56,7 @@ impl ToolHookContext {
 
     /// Create a new tool hook context for tool selection.
     pub fn selection(tool_name: String, arguments: serde_json::Value) -> Self {
-        Self {
-            tool_name,
-            arguments,
-            result: None,
-            modified_arguments: None,
-            modified_result: None,
-        }
+        Self { tool_name, arguments, result: None, modified_arguments: None, modified_result: None }
     }
 
     /// Convert to hook context.
@@ -96,16 +84,11 @@ pub trait ToolHook: Send + Sync {
     fn priority(&self) -> HookPriority;
 
     /// Execute before tool execution.
-    async fn before_tool_execution(
-        &self,
-        context: &ToolHookContext,
-    ) -> Result<HookExecutionResult>;
+    async fn before_tool_execution(&self, context: &ToolHookContext)
+    -> Result<HookExecutionResult>;
 
     /// Execute after tool execution.
-    async fn after_tool_execution(
-        &self,
-        context: &ToolHookContext,
-    ) -> Result<HookExecutionResult>;
+    async fn after_tool_execution(&self, context: &ToolHookContext) -> Result<HookExecutionResult>;
 
     /// Execute for tool selection.
     async fn tool_selection(&self, context: &ToolHookContext) -> Result<HookExecutionResult>;
@@ -120,26 +103,17 @@ pub struct ToolHookAdapter {
 impl ToolHookAdapter {
     /// Create a new adapter for before tool execution.
     pub fn before(hook: Arc<dyn ToolHook>) -> Arc<dyn crate::hooks::registry::Hook> {
-        Arc::new(Self {
-            hook,
-            hook_type: ToolHookType::Before,
-        })
+        Arc::new(Self { hook, hook_type: ToolHookType::Before })
     }
 
     /// Create a new adapter for after tool execution.
     pub fn after(hook: Arc<dyn ToolHook>) -> Arc<dyn crate::hooks::registry::Hook> {
-        Arc::new(Self {
-            hook,
-            hook_type: ToolHookType::After,
-        })
+        Arc::new(Self { hook, hook_type: ToolHookType::After })
     }
 
     /// Create a new adapter for tool selection.
     pub fn selection(hook: Arc<dyn ToolHook>) -> Arc<dyn crate::hooks::registry::Hook> {
-        Arc::new(Self {
-            hook,
-            hook_type: ToolHookType::Selection,
-        })
+        Arc::new(Self { hook, hook_type: ToolHookType::Selection })
     }
 }
 
@@ -166,14 +140,9 @@ impl crate::hooks::registry::Hook for ToolHookAdapter {
             .map_err(|e| crate::hooks::error::HookError::Serialization(e))?;
 
         match self.hook_type {
-            ToolHookType::Before => {
-                self.hook.before_tool_execution(&tool_context).await
-            }
-            ToolHookType::After => {
-                self.hook.after_tool_execution(&tool_context).await
-            }
+            ToolHookType::Before => self.hook.before_tool_execution(&tool_context).await,
+            ToolHookType::After => self.hook.after_tool_execution(&tool_context).await,
             ToolHookType::Selection => self.hook.tool_selection(&tool_context).await,
         }
     }
 }
-

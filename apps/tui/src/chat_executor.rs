@@ -3,9 +3,9 @@
 //! Handles local agent execution and history management for chat functionality.
 
 use anyhow::{Context, Result};
-use radium_core::{AgentDiscovery, PromptContext, PromptTemplate, Workspace};
 use radium_core::auth::{CredentialStore, ProviderType};
 use radium_core::context::HistoryManager;
+use radium_core::{AgentDiscovery, PromptContext, PromptTemplate, Workspace};
 use radium_models::ModelFactory;
 use std::fs;
 use std::path::PathBuf;
@@ -28,9 +28,8 @@ pub async fn execute_chat_message(
     let discovery = AgentDiscovery::new();
     let agents = discovery.discover_all().context("Failed to discover agents")?;
 
-    let agent = agents
-        .get(agent_id)
-        .ok_or_else(|| anyhow::anyhow!("Agent '{}' not found", agent_id))?;
+    let agent =
+        agents.get(agent_id).ok_or_else(|| anyhow::anyhow!("Agent '{}' not found", agent_id))?;
 
     // Load prompt template
     let prompt_content = load_prompt(&agent.prompt_path)?;
@@ -64,31 +63,23 @@ pub async fn execute_chat_message(
     } else {
         ModelFactory::create_from_str(engine, model.to_string())
     } {
-        Ok(model_instance) => {
-            match model_instance.generate_text(&rendered, None).await {
-                Ok(response) => ChatExecutionResult {
-                    response: response.content,
-                    success: true,
-                    error: None,
-                },
-                Err(e) => {
-                    let error_msg = format_model_error(&e, engine);
-                    ChatExecutionResult {
-                        response: String::new(),
-                        success: false,
-                        error: Some(error_msg),
-                    }
-                },
+        Ok(model_instance) => match model_instance.generate_text(&rendered, None).await {
+            Ok(response) => {
+                ChatExecutionResult { response: response.content, success: true, error: None }
             }
-        }
-        Err(e) => {
-            let error_msg = format_creation_error(&e, engine);
-            ChatExecutionResult {
-                response: String::new(),
-                success: false,
-                error: Some(error_msg),
+            Err(e) => {
+                let error_msg = format_model_error(&e, engine);
+                ChatExecutionResult {
+                    response: String::new(),
+                    success: false,
+                    error: Some(error_msg),
+                }
             }
         },
+        Err(e) => {
+            let error_msg = format_creation_error(&e, engine);
+            ChatExecutionResult { response: String::new(), success: false, error: Some(error_msg) }
+        }
     };
 
     // Save to history if successful
@@ -147,10 +138,7 @@ pub fn get_available_agents() -> Result<Vec<(String, String)>> {
     let discovery = AgentDiscovery::new();
     let agents = discovery.discover_all()?;
 
-    Ok(agents
-        .into_iter()
-        .map(|(id, config)| (id, config.name))
-        .collect())
+    Ok(agents.into_iter().map(|(id, config)| (id, config.name)).collect())
 }
 
 /// Format model creation errors with helpful guidance.
@@ -215,7 +203,8 @@ fn format_model_error(error: &radium_abstraction::ModelError, engine: &str) -> S
     }
 
     // Check for invalid API key
-    if error_str.contains("401") || error_str.contains("403") || error_str.contains("unauthorized") {
+    if error_str.contains("401") || error_str.contains("403") || error_str.contains("unauthorized")
+    {
         return format!(
             "🔑 Authentication Failed\n\n\
             Your {} API key appears to be invalid.\n\n\
@@ -226,7 +215,10 @@ fn format_model_error(error: &radium_abstraction::ModelError, engine: &str) -> S
     }
 
     // Check for network errors
-    if error_str.contains("network") || error_str.contains("connection") || error_str.contains("timeout") {
+    if error_str.contains("network")
+        || error_str.contains("connection")
+        || error_str.contains("timeout")
+    {
         return format!(
             "🌐 Network Error\n\n\
             Failed to connect to {} API.\n\n\

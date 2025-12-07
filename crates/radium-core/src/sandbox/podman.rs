@@ -39,25 +39,23 @@ impl PodmanSandbox {
 impl Sandbox for PodmanSandbox {
     async fn initialize(&mut self) -> Result<()> {
         // Stub implementation
-        Err(SandboxError::NotAvailable(
-            "Podman sandboxing not yet implemented".to_string(),
-        ))
+        Err(SandboxError::NotAvailable("Podman sandboxing not yet implemented".to_string()))
     }
 
-    async fn execute(&self, _command: &str, _args: &[String], _cwd: Option<&Path>) -> Result<Output> {
-        Err(SandboxError::NotAvailable(
-            "Podman sandboxing not yet implemented".to_string(),
-        ))
+    async fn execute(
+        &self,
+        _command: &str,
+        _args: &[String],
+        _cwd: Option<&Path>,
+    ) -> Result<Output> {
+        Err(SandboxError::NotAvailable("Podman sandboxing not yet implemented".to_string()))
     }
 
     async fn cleanup(&mut self) -> Result<()> {
-        Err(SandboxError::NotAvailable(
-            "Podman sandboxing not yet implemented".to_string(),
-        ))
+        Err(SandboxError::NotAvailable("Podman sandboxing not yet implemented".to_string()))
     }
 
     fn sandbox_type(&self) -> SandboxType {
         SandboxType::Podman
     }
 }
-

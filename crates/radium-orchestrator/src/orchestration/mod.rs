@@ -5,6 +5,7 @@
 
 pub mod agent_tools;
 pub mod context;
+pub mod engine;
 pub mod providers;
 pub mod tool;
 

@@ -14,19 +14,11 @@ pub enum SetupState {
     /// Welcome screen
     Welcome,
     /// Provider selection
-    ProviderSelection {
-        selected_providers: Vec<ProviderType>,
-        cursor: usize,
-    },
+    ProviderSelection { selected_providers: Vec<ProviderType>, cursor: usize },
     /// API key input for a specific provider
-    ApiKeyInput {
-        provider: ProviderType,
-        input: String,
-    },
+    ApiKeyInput { provider: ProviderType, input: String },
     /// Validating API key
-    Validating {
-        provider: ProviderType,
-    },
+    Validating { provider: ProviderType },
     /// Setup complete
     Complete,
 }
@@ -40,10 +32,7 @@ pub struct SetupWizard {
 impl SetupWizard {
     /// Creates a new setup wizard.
     pub fn new() -> Self {
-        Self {
-            state: SetupState::Welcome,
-            error_message: None,
-        }
+        Self { state: SetupState::Welcome, error_message: None }
     }
 
     /// Creates a new setup wizard, skipping the welcome screen.
@@ -51,10 +40,7 @@ impl SetupWizard {
     /// Used when user explicitly triggers authentication via /auth command.
     pub fn new_skip_welcome() -> Self {
         Self {
-            state: SetupState::ProviderSelection {
-                selected_providers: vec![],
-                cursor: 0,
-            },
+            state: SetupState::ProviderSelection { selected_providers: vec![], cursor: 0 },
             error_message: None,
         }
     }
@@ -62,8 +48,7 @@ impl SetupWizard {
     /// Checks if setup is needed.
     pub fn is_needed() -> bool {
         if let Ok(store) = CredentialStore::new() {
-            !store.is_configured(ProviderType::Gemini)
-                && !store.is_configured(ProviderType::OpenAI)
+            !store.is_configured(ProviderType::Gemini) && !store.is_configured(ProviderType::OpenAI)
         } else {
             true
         }
@@ -75,10 +60,8 @@ impl SetupWizard {
             SetupState::Welcome => {
                 if matches!(key, KeyCode::Enter | KeyCode::Char(' ')) {
                     // Move to provider selection
-                    self.state = SetupState::ProviderSelection {
-                        selected_providers: vec![],
-                        cursor: 0,
-                    };
+                    self.state =
+                        SetupState::ProviderSelection { selected_providers: vec![], cursor: 0 };
                 }
             }
             SetupState::ProviderSelection { selected_providers, cursor } => {
@@ -108,12 +91,10 @@ impl SetupWizard {
                         if !selected_providers.is_empty() {
                             // Start with first selected provider
                             let provider = selected_providers[0];
-                            self.state = SetupState::ApiKeyInput {
-                                provider,
-                                input: String::new(),
-                            };
+                            self.state = SetupState::ApiKeyInput { provider, input: String::new() };
                         } else {
-                            self.error_message = Some("Please select at least one provider".to_string());
+                            self.error_message =
+                                Some("Please select at least one provider".to_string());
                         }
                     }
                     KeyCode::Esc => {
@@ -145,16 +126,15 @@ impl SetupWizard {
                                     self.error_message = None;
                                 }
                             } else {
-                                self.error_message = Some("Failed to access credential store".to_string());
+                                self.error_message =
+                                    Some("Failed to access credential store".to_string());
                             }
                         }
                     }
                     KeyCode::Esc => {
                         // Go back to provider selection
-                        self.state = SetupState::ProviderSelection {
-                            selected_providers: vec![],
-                            cursor: 0,
-                        };
+                        self.state =
+                            SetupState::ProviderSelection { selected_providers: vec![], cursor: 0 };
                     }
                     _ => {}
                 }
@@ -193,7 +173,8 @@ impl SetupWizard {
                 ];
 
                 // Check which providers are already configured
-                let (gemini_connected, openai_connected) = if let Ok(store) = CredentialStore::new() {
+                let (gemini_connected, openai_connected) = if let Ok(store) = CredentialStore::new()
+                {
                     (
                         store.is_configured(ProviderType::Gemini),
                         store.is_configured(ProviderType::OpenAI),
@@ -214,7 +195,10 @@ impl SetupWizard {
                     let cursor_mark = if is_cursor { ">" } else { " " };
                     let status = if is_connected { " ✓ Connected" } else { "" };
 
-                    lines.push(format!("{} {} {}{} - {}", cursor_mark, checkbox, name, status, desc));
+                    lines.push(format!(
+                        "{} {} {}{} - {}",
+                        cursor_mark, checkbox, name, status, desc
+                    ));
                 }
 
                 lines.push("".to_string());
@@ -280,10 +264,13 @@ impl SetupWizard {
             SetupState::Welcome => "Welcome".to_string(),
             SetupState::ProviderSelection { .. } => "Provider Selection".to_string(),
             SetupState::ApiKeyInput { provider, .. } => {
-                format!("Configure {}", match provider {
-                    ProviderType::Gemini => "Gemini",
-                    ProviderType::OpenAI => "OpenAI",
-                })
+                format!(
+                    "Configure {}",
+                    match provider {
+                        ProviderType::Gemini => "Gemini",
+                        ProviderType::OpenAI => "OpenAI",
+                    }
+                )
             }
             SetupState::Complete => "Setup Complete".to_string(),
             _ => "Setup".to_string(),

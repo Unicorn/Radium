@@ -11,7 +11,7 @@ use crate::commands::DisplayContext;
 use crate::icons::Icons;
 use crate::setup::SetupWizard;
 use crate::theme::THEME;
-use crate::views::header::{render_header, HeaderInfo};
+use crate::views::header::{HeaderInfo, render_header};
 
 /// Unified prompt data.
 pub struct PromptData {
@@ -99,10 +99,10 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(1),  // Header
-            Constraint::Min(10),    // Main display area
-            Constraint::Length(3),  // Input prompt
-            Constraint::Length(2),  // Help line
+            Constraint::Length(1), // Header
+            Constraint::Min(10),   // Main display area
+            Constraint::Length(3), // Input prompt
+            Constraint::Length(2), // Help line
         ])
         .split(area);
 
@@ -113,14 +113,14 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
                 DisplayContext::Chat { agent_id, .. } => Some(agent_id.clone()),
                 _ => None,
             }
-            .unwrap_or_default()
+            .unwrap_or_default(),
         )
         .with_session(
             match &data.context {
                 DisplayContext::Chat { session_id, .. } => Some(session_id.clone()),
                 _ => None,
             }
-            .unwrap_or_default()
+            .unwrap_or_default(),
         );
     render_header(frame, chunks[0], &header_info);
 
@@ -138,7 +138,8 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
         DisplayContext::AgentList => {
             // Show agent list
             if data.agents.is_empty() {
-                "No agents found.\n\nPlace agent configs in ./agents/ or ~/.radium/agents/".to_string()
+                "No agents found.\n\nPlace agent configs in ./agents/ or ~/.radium/agents/"
+                    .to_string()
             } else {
                 let mut output = String::from("Available Agents:\n\n");
                 for (id, name) in &data.agents {
@@ -167,7 +168,8 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
         DisplayContext::SessionList => {
             // Load and render sessions
             let workspace_root = None; // TODO: Get from app state
-            if let Ok(session_manager) = crate::session_manager::SessionManager::new(workspace_root) {
+            if let Ok(session_manager) = crate::session_manager::SessionManager::new(workspace_root)
+            {
                 if let Ok(sessions_by_date) = session_manager.load_sessions() {
                     crate::views::sessions::render_sessions(
                         frame,
@@ -192,7 +194,7 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
         DisplayContext::Chat { .. } => {
             // Render chat with markdown support
             let scroll_offset = data.scrollback_offset;
-            
+
             // Parse conversation lines as markdown
             let mut markdown_lines = Vec::new();
             for line in &data.conversation {
@@ -203,9 +205,11 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
 
             let main_widget = Paragraph::new(markdown_lines)
                 .wrap(Wrap { trim: true })
-                .block(Block::default()
-                    .borders(Borders::ALL)
-                    .border_style(Style::default().fg(THEME.border)))
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_style(Style::default().fg(THEME.border)),
+                )
                 .style(Style::default().fg(THEME.text))
                 .scroll((scroll_offset as u16, 0));
             frame.render_widget(main_widget, chunks[1]);
@@ -216,9 +220,11 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
 
             let main_widget = Paragraph::new(main_content)
                 .wrap(Wrap { trim: true })
-                .block(Block::default()
-                    .borders(Borders::ALL)
-                    .border_style(Style::default().fg(THEME.border)))
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_style(Style::default().fg(THEME.border)),
+                )
                 .style(Style::default().fg(THEME.text))
                 .scroll((scroll_offset as u16, 0));
             frame.render_widget(main_widget, chunks[1]);
@@ -232,12 +238,12 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
 
     // Input prompt
     let prompt_text = format!("> {}_", data.input);
-    let prompt = Paragraph::new(prompt_text)
-        .style(Style::default().fg(THEME.primary))
-        .block(Block::default()
+    let prompt = Paragraph::new(prompt_text).style(Style::default().fg(THEME.primary)).block(
+        Block::default()
             .borders(Borders::ALL)
             .border_style(Style::default().fg(THEME.border_active))
-            .title(" Input "));
+            .title(" Input "),
+    );
     frame.render_widget(prompt, chunks[2]);
 
     // Show command menu popup if there are suggestions
@@ -255,12 +261,10 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
 
         // Build styled menu items
         let mut menu_lines = vec![
-            ratatui::text::Line::from(
-                Span::styled(
-                    format!("{} Commands", Icons::INFO),
-                    Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD)
-                )
-            ),
+            ratatui::text::Line::from(Span::styled(
+                format!("{} Commands", Icons::INFO),
+                Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD),
+            )),
             ratatui::text::Line::from(""),
         ];
 
@@ -273,21 +277,25 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
             };
 
             let prefix = if is_selected { "▶ " } else { "  " };
-            menu_lines.push(ratatui::text::Line::from(
-                Span::styled(format!("{}{}", prefix, suggestion), style)
-            ));
+            menu_lines.push(ratatui::text::Line::from(Span::styled(
+                format!("{}{}", prefix, suggestion),
+                style,
+            )));
         }
 
         menu_lines.push(ratatui::text::Line::from(""));
-        menu_lines.push(ratatui::text::Line::from(
-            Span::styled("↑↓ Navigate | Tab/Enter Select | Esc Cancel", Style::default().fg(THEME.text_dim))
-        ));
+        menu_lines.push(ratatui::text::Line::from(Span::styled(
+            "↑↓ Navigate | Tab/Enter Select | Esc Cancel",
+            Style::default().fg(THEME.text_dim),
+        )));
 
         let menu_widget = Paragraph::new(menu_lines)
-            .block(Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(THEME.primary))
-                .style(Style::default().bg(THEME.bg_panel)))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(THEME.primary))
+                    .style(Style::default().bg(THEME.bg_panel)),
+            )
             .wrap(Wrap { trim: false });
 
         frame.render_widget(menu_widget, popup_area);
@@ -314,80 +322,63 @@ fn render_command_palette(frame: &mut Frame, area: Rect, data: &PromptData) {
     };
 
     let mut lines = vec![
-        Line::from(
-            Span::styled(
-                format!("{} Command Palette", Icons::SETTINGS),
-                Style::default()
-                    .fg(THEME.primary)
-                    .add_modifier(Modifier::BOLD),
-            )
-        ),
+        Line::from(Span::styled(
+            format!("{} Command Palette", Icons::SETTINGS),
+            Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD),
+        )),
         Line::from(""),
-        Line::from(
-            Span::styled(
-                format!("> {}", data.command_palette_query),
-                Style::default().fg(THEME.text),
-            )
-        ),
+        Line::from(Span::styled(
+            format!("> {}", data.command_palette_query),
+            Style::default().fg(THEME.text),
+        )),
         Line::from(""),
     ];
 
     if data.command_suggestions.is_empty() {
-        lines.push(Line::from(
-            Span::styled(
-                "No matching commands",
-                Style::default().fg(THEME.text_muted),
-            )
-        ));
+        lines.push(Line::from(Span::styled(
+            "No matching commands",
+            Style::default().fg(THEME.text_muted),
+        )));
     } else {
         for (i, suggestion) in data.command_suggestions.iter().enumerate() {
             let is_selected = i == data.selected_suggestion_index;
             let style = if is_selected {
-                Style::default()
-                    .fg(THEME.bg_primary)
-                    .bg(THEME.primary)
-                    .add_modifier(Modifier::BOLD)
+                Style::default().fg(THEME.bg_primary).bg(THEME.primary).add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(THEME.text)
             };
 
             let prefix = if is_selected { "▶ " } else { "  " };
-            lines.push(Line::from(Span::styled(
-                format!("{}{}", prefix, suggestion),
-                style,
-            )));
+            lines.push(Line::from(Span::styled(format!("{}{}", prefix, suggestion), style)));
         }
     }
 
     lines.push(Line::from(""));
-    lines.push(Line::from(
-        Span::styled(
-            "↑↓ Navigate | Enter Select | Esc Cancel",
-            Style::default().fg(THEME.text_dim),
-        )
-    ));
+    lines.push(Line::from(Span::styled(
+        "↑↓ Navigate | Enter Select | Esc Cancel",
+        Style::default().fg(THEME.text_dim),
+    )));
 
     let palette = Paragraph::new(lines)
         .block(
             Block::default()
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(THEME.primary))
-                .style(Style::default().bg(THEME.bg_panel))
+                .style(Style::default().bg(THEME.bg_panel)),
         )
         .wrap(Wrap { trim: false });
 
     frame.render_widget(palette, popup_area);
 }
 
-
 /// Render the setup wizard interface.
 pub fn render_setup_wizard(frame: &mut Frame, area: Rect, wizard: &SetupWizard) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),  // Title
-            Constraint::Min(10),    // Main wizard content
-            Constraint::Length(2),  // Help line
+            Constraint::Length(3), // Title
+            Constraint::Min(10),   // Main wizard content
+            Constraint::Length(2), // Help line
         ])
         .split(area);
 
@@ -395,9 +386,9 @@ pub fn render_setup_wizard(frame: &mut Frame, area: Rect, wizard: &SetupWizard) 
     let title = Paragraph::new(format!("{} Radium - {}", Icons::ROCKET, wizard.title()))
         .style(Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD))
         .alignment(Alignment::Center)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(THEME.border)));
+        .block(
+            Block::default().borders(Borders::ALL).border_style(Style::default().fg(THEME.border)),
+        );
     frame.render_widget(title, chunks[0]);
 
     // Main wizard content - with styled lines for connection status
@@ -427,10 +418,12 @@ pub fn render_setup_wizard(frame: &mut Frame, area: Rect, wizard: &SetupWizard) 
 
     let main_widget = Paragraph::new(styled_lines)
         .wrap(Wrap { trim: true })
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(THEME.border_active))
-            .title(" Setup Wizard "))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(THEME.border_active))
+                .title(" Setup Wizard "),
+        )
         .style(Style::default().fg(THEME.text))
         .alignment(Alignment::Left);
     frame.render_widget(main_widget, chunks[1]);

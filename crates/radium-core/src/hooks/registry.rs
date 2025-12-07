@@ -95,16 +95,12 @@ impl std::fmt::Debug for HookRegistry {
 impl HookRegistry {
     /// Create a new hook registry.
     pub fn new() -> Self {
-        Self {
-            hooks: Arc::new(RwLock::new(Vec::new())),
-        }
+        Self { hooks: Arc::new(RwLock::new(Vec::new())) }
     }
 
     /// Clone the registry (creates a new registry with shared hook storage).
     pub fn clone(&self) -> Self {
-        Self {
-            hooks: Arc::clone(&self.hooks),
-        }
+        Self { hooks: Arc::clone(&self.hooks) }
     }
 
     /// Register a hook.
@@ -126,11 +122,7 @@ impl HookRegistry {
     /// Get all hooks of a specific type.
     pub async fn get_hooks(&self, hook_type: HookType) -> Vec<Arc<dyn Hook>> {
         let hooks = self.hooks.read().await;
-        hooks
-            .iter()
-            .filter(|h| h.hook_type() == hook_type)
-            .cloned()
-            .collect()
+        hooks.iter().filter(|h| h.hook_type() == hook_type).cloned().collect()
     }
 
     /// Execute all hooks of a specific type.

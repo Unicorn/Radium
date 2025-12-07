@@ -1,7 +1,7 @@
 //! Rich content support for MCP (text, images, audio).
 
 use crate::mcp::{McpContent, McpError, Result};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Content type detection and handling utilities.
 pub struct ContentHandler;
@@ -91,27 +91,18 @@ impl ContentHandler {
         let content_type = value
             .get("type")
             .and_then(|t| t.as_str())
-            .ok_or_else(|| {
-                McpError::Protocol("Content missing 'type' field".to_string())
-            })?;
+            .ok_or_else(|| McpError::Protocol("Content missing 'type' field".to_string()))?;
 
         match content_type {
             "text" => {
-                let text = value
-                    .get("text")
-                    .and_then(|t| t.as_str())
-                    .ok_or_else(|| {
-                        McpError::Protocol("Text content missing 'text' field".to_string())
-                    })?;
-                Ok(McpContent::Text {
-                    text: text.to_string(),
-                })
+                let text = value.get("text").and_then(|t| t.as_str()).ok_or_else(|| {
+                    McpError::Protocol("Text content missing 'text' field".to_string())
+                })?;
+                Ok(McpContent::Text { text: text.to_string() })
             }
             "image" => {
-                let mime_type = value
-                    .get("mime_type")
-                    .and_then(|m| m.as_str())
-                    .unwrap_or("image/png");
+                let mime_type =
+                    value.get("mime_type").and_then(|m| m.as_str()).unwrap_or("image/png");
                 let data = value
                     .get("data")
                     .and_then(|d| {
@@ -124,16 +115,11 @@ impl ContentHandler {
                     .ok_or_else(|| {
                         McpError::Protocol("Image content missing 'data' field".to_string())
                     })?;
-                Ok(McpContent::Image {
-                    data,
-                    mime_type: mime_type.to_string(),
-                })
+                Ok(McpContent::Image { data, mime_type: mime_type.to_string() })
             }
             "audio" => {
-                let mime_type = value
-                    .get("mime_type")
-                    .and_then(|m| m.as_str())
-                    .unwrap_or("audio/mpeg");
+                let mime_type =
+                    value.get("mime_type").and_then(|m| m.as_str()).unwrap_or("audio/mpeg");
                 let data = value
                     .get("data")
                     .and_then(|d| {
@@ -146,15 +132,9 @@ impl ContentHandler {
                     .ok_or_else(|| {
                         McpError::Protocol("Audio content missing 'data' field".to_string())
                     })?;
-                Ok(McpContent::Audio {
-                    data,
-                    mime_type: mime_type.to_string(),
-                })
+                Ok(McpContent::Audio { data, mime_type: mime_type.to_string() })
             }
-            _ => Err(McpError::Protocol(format!(
-                "Unknown content type: {}",
-                content_type
-            ))),
+            _ => Err(McpError::Protocol(format!("Unknown content type: {}", content_type))),
         }
     }
 }
@@ -179,9 +159,7 @@ mod tests {
 
     #[test]
     fn test_serialize_text_content() {
-        let content = McpContent::Text {
-            text: "Hello, world!".to_string(),
-        };
+        let content = McpContent::Text { text: "Hello, world!".to_string() };
         let json = ContentHandler::serialize_content(&content).unwrap();
         assert_eq!(json["type"], "text");
         assert_eq!(json["text"], "Hello, world!");
@@ -230,4 +208,3 @@ mod tests {
         }
     }
 }
-

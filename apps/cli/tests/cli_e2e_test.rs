@@ -607,7 +607,7 @@ fn test_plan_command_with_file_input() {
     // Verify plan structure was created
     let backlog_dir = temp_path.join("radium/backlog");
     assert!(backlog_dir.exists());
-    
+
     // Find the created plan directory
     let entries: Vec<_> = fs::read_dir(&backlog_dir).unwrap().collect();
     assert!(!entries.is_empty(), "Plan directory should be created");
@@ -721,7 +721,8 @@ fn test_craft_command_with_plan() {
     fs::write(&spec_file, "# Test Project\n## Iteration 1\n- [ ] Task 1").unwrap();
 
     let mut plan_cmd = Command::cargo_bin("radium-cli").unwrap();
-    plan_cmd.current_dir(temp_path)
+    plan_cmd
+        .current_dir(temp_path)
         .arg("plan")
         .arg(spec_file.to_str().unwrap())
         .arg("--id")
@@ -749,10 +750,15 @@ fn test_craft_command_with_iteration_filter() {
 
     // Create a plan
     let spec_file = temp_path.join("spec.md");
-    fs::write(&spec_file, "# Test Project\n## Iteration 1\n- [ ] Task 1\n## Iteration 2\n- [ ] Task 2").unwrap();
+    fs::write(
+        &spec_file,
+        "# Test Project\n## Iteration 1\n- [ ] Task 1\n## Iteration 2\n- [ ] Task 2",
+    )
+    .unwrap();
 
     let mut plan_cmd = Command::cargo_bin("radium-cli").unwrap();
-    plan_cmd.current_dir(temp_path)
+    plan_cmd
+        .current_dir(temp_path)
         .arg("plan")
         .arg(spec_file.to_str().unwrap())
         .arg("--id")
@@ -783,7 +789,8 @@ fn test_craft_command_json_output() {
     fs::write(&spec_file, "# Test Project\n## Iteration 1\n- [ ] Task 1").unwrap();
 
     let mut plan_cmd = Command::cargo_bin("radium-cli").unwrap();
-    plan_cmd.current_dir(temp_path)
+    plan_cmd
+        .current_dir(temp_path)
         .arg("plan")
         .arg(spec_file.to_str().unwrap())
         .arg("--id")
@@ -810,7 +817,7 @@ fn test_craft_command_json_output() {
 fn create_test_agent(temp_dir: &TempDir, agent_id: &str) {
     let agents_dir = temp_dir.path().join("agents");
     fs::create_dir_all(&agents_dir).unwrap();
-    
+
     let prompts_dir = temp_dir.path().join("prompts/agents");
     fs::create_dir_all(&prompts_dir).unwrap();
 
@@ -1141,12 +1148,7 @@ fn test_agents_validate_verbose() {
 
     // Validate with verbose flag
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    cmd.current_dir(temp_path)
-        .arg("agents")
-        .arg("validate")
-        .arg("--verbose")
-        .assert()
-        .success();
+    cmd.current_dir(temp_path).arg("agents").arg("validate").arg("--verbose").assert().success();
 }
 
 // ============================================================================
@@ -1296,10 +1298,5 @@ fn test_templates_validate_verbose() {
 
     // Validate with verbose flag
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    cmd.current_dir(temp_path)
-        .arg("templates")
-        .arg("validate")
-        .arg("--verbose")
-        .assert()
-        .success();
+    cmd.current_dir(temp_path).arg("templates").arg("validate").arg("--verbose").assert().success();
 }

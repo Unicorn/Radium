@@ -50,9 +50,7 @@ pub struct ExtensionDiscovery {
 impl ExtensionDiscovery {
     /// Creates a new extension discovery with default options.
     pub fn new() -> Self {
-        Self {
-            options: DiscoveryOptions::default(),
-        }
+        Self { options: DiscoveryOptions::default() }
     }
 
     /// Creates a new extension discovery with custom options.
@@ -164,9 +162,7 @@ impl ExtensionDiscovery {
 
         // Validate structure if requested
         if self.options.validate_structure {
-            extension.validate_structure().map_err(|e| {
-                ExtensionDiscoveryError::Structure(e)
-            })?;
+            extension.validate_structure().map_err(|e| ExtensionDiscoveryError::Structure(e))?;
         }
 
         Ok(extension)
@@ -197,10 +193,7 @@ impl ExtensionDiscovery {
     /// Vector of extension names and versions
     pub fn list(&self) -> Result<Vec<(String, String)>> {
         let extensions = self.discover_all()?;
-        Ok(extensions
-            .into_iter()
-            .map(|ext| (ext.name, ext.version))
-            .collect())
+        Ok(extensions.into_iter().map(|ext| (ext.name, ext.version)).collect())
     }
 
     /// Searches for extensions by name or description.
@@ -227,7 +220,9 @@ impl ExtensionDiscovery {
     ///
     /// # Returns
     /// Vector of (extension name, validation result)
-    pub fn validate_all(&self) -> Result<Vec<(String, std::result::Result<(), ExtensionStructureError>)>> {
+    pub fn validate_all(
+        &self,
+    ) -> Result<Vec<(String, std::result::Result<(), ExtensionStructureError>)>> {
         let extensions = self.discover_all()?;
         Ok(extensions
             .into_iter()
@@ -381,7 +376,22 @@ mod tests {
     fn test_search_by_name() {
         let temp_dir = TempDir::new().unwrap();
         create_test_extension(&temp_dir, "test-extension");
-        create_test_extension(&temp_dir, "other-extension");
+
+        // Create extension with description that doesn't contain "test"
+        let other_dir = temp_dir.path().join("other-extension");
+        std::fs::create_dir_all(&other_dir).unwrap();
+        let manifest_path = other_dir.join(MANIFEST_FILE);
+        let manifest = ExtensionManifest {
+            name: "other-extension".to_string(),
+            version: "1.0.0".to_string(),
+            description: "Another extension".to_string(),
+            author: "Test Author".to_string(),
+            components: ExtensionComponents::default(),
+            dependencies: Vec::new(),
+            metadata: HashMap::new(),
+        };
+        let manifest_json = serde_json::to_string(&manifest).unwrap();
+        std::fs::write(&manifest_path, manifest_json).unwrap();
 
         let discovery = ExtensionDiscovery::with_options(DiscoveryOptions {
             search_paths: vec![temp_dir.path().to_path_buf()],
@@ -426,10 +436,10 @@ mod tests {
     #[test]
     fn test_discover_skips_non_directories() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         // Create a file (not a directory)
         std::fs::write(temp_dir.path().join("not-a-dir"), "content").unwrap();
-        
+
         // Create a valid extension
         create_test_extension(&temp_dir, "valid-ext");
 
@@ -446,10 +456,10 @@ mod tests {
     #[test]
     fn test_discover_skips_directories_without_manifest() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         // Create directory without manifest
         std::fs::create_dir(temp_dir.path().join("no-manifest")).unwrap();
-        
+
         // Create valid extension
         create_test_extension(&temp_dir, "valid-ext");
 
@@ -480,4 +490,3 @@ mod tests {
         assert!(validations[0].1.is_ok());
     }
 }
-

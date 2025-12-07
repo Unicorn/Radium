@@ -63,10 +63,7 @@ impl SessionManager {
                 if let Ok(content) = fs::read_to_string(&path) {
                     if let Ok(session) = serde_json::from_str::<ChatSession>(&content) {
                         let date_key = session.created_at.format("%Y-%m-%d").to_string();
-                        sessions_by_date
-                            .entry(date_key)
-                            .or_insert_with(Vec::new)
-                            .push(session);
+                        sessions_by_date.entry(date_key).or_insert_with(Vec::new).push(session);
                     }
                 }
             }
@@ -98,12 +95,7 @@ impl SessionManager {
     }
 
     /// Update session with new message.
-    pub fn update_session(
-        &self,
-        session_id: &str,
-        agent_id: &str,
-        message: &str,
-    ) -> Result<()> {
+    pub fn update_session(&self, session_id: &str, agent_id: &str, message: &str) -> Result<()> {
         let file_path = self.sessions_dir.join(format!("{}.json", session_id));
 
         let mut session = if file_path.exists() {
@@ -127,4 +119,3 @@ impl SessionManager {
         self.save_session(&session)
     }
 }
-

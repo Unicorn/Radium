@@ -2,7 +2,7 @@
 
 use crate::mcp::client::McpClient;
 use crate::mcp::{McpError, McpTool, McpToolResult, Result};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 
 /// Tool registry for managing discovered MCP tools.
@@ -18,11 +18,7 @@ pub struct McpToolRegistry {
 impl McpToolRegistry {
     /// Create a new tool registry.
     pub fn new(server_name: String) -> Self {
-        Self {
-            tools: HashMap::new(),
-            tool_name_map: HashMap::new(),
-            server_name,
-        }
+        Self { tools: HashMap::new(), tool_name_map: HashMap::new(), server_name }
     }
 
     /// Register a tool, handling name conflicts with automatic prefixing.
@@ -40,13 +36,10 @@ impl McpToolRegistry {
 
     /// Get a tool by name (supports both original and prefixed names).
     pub fn get_tool(&self, name: &str) -> Option<&McpTool> {
-        self.tools.get(name)
-            .or_else(|| {
-                // Try to find by original name
-                self.tool_name_map.get(name).and_then(|prefixed| {
-                    self.tools.get(prefixed)
-                })
-            })
+        self.tools.get(name).or_else(|| {
+            // Try to find by original name
+            self.tool_name_map.get(name).and_then(|prefixed| self.tools.get(prefixed))
+        })
     }
 
     /// Get all registered tools.
@@ -67,20 +60,14 @@ impl McpClient {
     ///
     /// Returns an error if tool discovery fails.
     pub async fn discover_tools(&self) -> Result<Vec<McpTool>> {
-        let result = self
-            .send_request("tools/list", None)
-            .await?;
+        let result = self.send_request("tools/list", None).await?;
 
-        let tools_value = result
-            .get("tools")
-            .ok_or_else(|| {
-                McpError::Protocol("tools/list response missing 'tools' field".to_string())
-            })?;
+        let tools_value = result.get("tools").ok_or_else(|| {
+            McpError::Protocol("tools/list response missing 'tools' field".to_string())
+        })?;
 
         let tools: Vec<McpTool> = serde_json::from_value(tools_value.clone())
-            .map_err(|e| {
-                McpError::Protocol(format!("Failed to parse tools: {}", e))
-            })?;
+            .map_err(|e| McpError::Protocol(format!("Failed to parse tools: {}", e)))?;
 
         Ok(tools)
     }
@@ -90,44 +77,27 @@ impl McpClient {
     /// # Errors
     ///
     /// Returns an error if tool execution fails.
-    pub async fn execute_tool(
-        &self,
-        tool_name: &str,
-        arguments: &Value,
-    ) -> Result<McpToolResult> {
+    pub async fn execute_tool(&self, tool_name: &str, arguments: &Value) -> Result<McpToolResult> {
         let params = json!({
             "name": tool_name,
             "arguments": arguments
         });
 
-        let result = self
-            .send_request("tools/call", Some(params))
-            .await?;
+        let result = self.send_request("tools/call", Some(params)).await?;
 
         // Parse the result
-        let content = result
-            .get("content")
-            .and_then(|c| c.as_array())
-            .ok_or_else(|| {
-                McpError::Protocol("tools/call response missing 'content' field".to_string())
-            })?;
-
-        let mcp_content: Vec<crate::mcp::McpContent> = serde_json::from_value(
-            serde_json::Value::Array(content.clone())
-        )
-        .map_err(|e| {
-            McpError::Protocol(format!("Failed to parse tool result content: {}", e))
+        let content = result.get("content").and_then(|c| c.as_array()).ok_or_else(|| {
+            McpError::Protocol("tools/call response missing 'content' field".to_string())
         })?;
 
-        let is_error = result
-            .get("isError")
-            .and_then(|e| e.as_bool())
-            .unwrap_or(false);
+        let mcp_content: Vec<crate::mcp::McpContent> =
+            serde_json::from_value(serde_json::Value::Array(content.clone())).map_err(|e| {
+                McpError::Protocol(format!("Failed to parse tool result content: {}", e))
+            })?;
 
-        Ok(McpToolResult {
-            content: mcp_content,
-            is_error,
-        })
+        let is_error = result.get("isError").and_then(|e| e.as_bool()).unwrap_or(false);
+
+        Ok(McpToolResult { content: mcp_content, is_error })
     }
 }
 
@@ -158,7 +128,7 @@ mod tests {
     #[test]
     fn test_tool_registry_conflict_resolution() {
         let mut registry = McpToolRegistry::new("server1".to_string());
-        
+
         let tool1 = McpTool {
             name: "query".to_string(),
             description: Some("Query tool".to_string()),
@@ -189,7 +159,7 @@ mod tests {
         };
 
         registry.register_tool(tool);
-        
+
         let retrieved = registry.get_tool("test_tool");
         assert!(retrieved.is_some());
         assert_eq!(retrieved.unwrap().name, "test_tool");
@@ -198,7 +168,7 @@ mod tests {
     #[test]
     fn test_tool_registry_get_tool_by_prefixed_name() {
         let mut registry = McpToolRegistry::new("server1".to_string());
-        
+
         let tool1 = McpTool {
             name: "query".to_string(),
             description: Some("Query tool".to_string()),
@@ -235,7 +205,7 @@ mod tests {
     #[test]
     fn test_tool_registry_multiple_tools() {
         let mut registry = McpToolRegistry::new("test-server".to_string());
-        
+
         let tool1 = McpTool {
             name: "tool1".to_string(),
             description: Some("First tool".to_string()),
@@ -278,7 +248,7 @@ mod tests {
         };
 
         registry.register_tool(tool);
-        
+
         let retrieved = registry.get_tool("schema_tool");
         assert!(retrieved.is_some());
         assert!(retrieved.unwrap().input_schema.is_some());
@@ -287,14 +257,11 @@ mod tests {
     #[test]
     fn test_tool_registry_tool_without_description() {
         let mut registry = McpToolRegistry::new("test-server".to_string());
-        let tool = McpTool {
-            name: "no_desc_tool".to_string(),
-            description: None,
-            input_schema: None,
-        };
+        let tool =
+            McpTool { name: "no_desc_tool".to_string(), description: None, input_schema: None };
 
         registry.register_tool(tool);
-        
+
         let retrieved = registry.get_tool("no_desc_tool");
         assert!(retrieved.is_some());
         assert!(retrieved.unwrap().description.is_none());
@@ -303,7 +270,7 @@ mod tests {
     #[test]
     fn test_tool_registry_conflict_resolution_multiple() {
         let mut registry = McpToolRegistry::new("server1".to_string());
-        
+
         // Register three tools with the same name
         for i in 0..3 {
             let tool = McpTool {
@@ -330,21 +297,17 @@ mod tests {
     #[test]
     fn test_tool_registry_get_all_tools_order() {
         let mut registry = McpToolRegistry::new("test-server".to_string());
-        
+
         // Register tools in a specific order
         let tool_names = vec!["tool_a", "tool_b", "tool_c"];
         for name in &tool_names {
-            let tool = McpTool {
-                name: name.to_string(),
-                description: None,
-                input_schema: None,
-            };
+            let tool = McpTool { name: name.to_string(), description: None, input_schema: None };
             registry.register_tool(tool);
         }
 
         let all_tools = registry.get_all_tools();
         assert_eq!(all_tools.len(), 3);
-        
+
         // Verify all tools are present (order may vary due to HashMap)
         let retrieved_names: Vec<String> = all_tools.iter().map(|t| t.name.clone()).collect();
         for name in &tool_names {
@@ -357,7 +320,7 @@ mod tests {
         // Simulate tools from different servers
         let mut registry1 = McpToolRegistry::new("server1".to_string());
         let mut registry2 = McpToolRegistry::new("server2".to_string());
-        
+
         let tool1 = McpTool {
             name: "common_tool".to_string(),
             description: Some("From server1".to_string()),
@@ -377,4 +340,3 @@ mod tests {
         assert!(registry2.has_tool("common_tool"));
     }
 }
-

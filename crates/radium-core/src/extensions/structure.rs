@@ -63,12 +63,7 @@ impl Extension {
         let name = manifest.name.clone();
         let version = manifest.version.clone();
 
-        Self {
-            manifest,
-            install_path,
-            name,
-            version,
-        }
+        Self { manifest, install_path, name, version }
     }
 
     /// Gets the prompts directory path.
@@ -418,10 +413,7 @@ mod tests {
 
         let result = validate_package_structure(package_path);
         assert!(result.is_err());
-        assert!(matches!(
-            result.unwrap_err(),
-            ExtensionStructureError::InvalidStructure(_)
-        ));
+        assert!(matches!(result.unwrap_err(), ExtensionStructureError::InvalidStructure(_)));
     }
 
     #[test]
@@ -444,10 +436,7 @@ mod tests {
 
         let result = validate_package_structure(package_path);
         assert!(result.is_err());
-        assert!(matches!(
-            result.unwrap_err(),
-            ExtensionStructureError::InvalidStructure(_)
-        ));
+        assert!(matches!(result.unwrap_err(), ExtensionStructureError::InvalidStructure(_)));
     }
 
     #[test]
@@ -502,4 +491,3 @@ mod tests {
         assert!(paths.is_empty());
     }
 }
-

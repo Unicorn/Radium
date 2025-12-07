@@ -247,7 +247,12 @@ fn test_performance_deep_import_chain() {
     for i in (1..=10).rev() {
         let file = temp_dir.path().join(format!("level{}.md", i));
         let content = if let Some(ref prev) = prev_file {
-            format!("# Level {}\n\n@{}\n\nContent level {}.", i, prev.file_name().unwrap().to_string_lossy(), i)
+            format!(
+                "# Level {}\n\n@{}\n\nContent level {}.",
+                i,
+                prev.file_name().unwrap().to_string_lossy(),
+                i
+            )
         } else {
             format!("# Level {}\n\nContent level {}.", i, i)
         };
@@ -271,4 +276,3 @@ fn test_performance_deep_import_chain() {
     // Should complete in reasonable time
     assert!(duration.as_secs() < 1, "Deep import processing took too long: {:?}", duration);
 }
-

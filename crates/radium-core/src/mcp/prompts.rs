@@ -2,7 +2,7 @@
 
 use crate::mcp::client::McpClient;
 use crate::mcp::{McpError, McpPrompt, Result};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 impl McpClient {
     /// List prompts from the MCP server.
@@ -11,20 +11,14 @@ impl McpClient {
     ///
     /// Returns an error if prompt listing fails.
     pub async fn list_prompts(&self) -> Result<Vec<McpPrompt>> {
-        let result = self
-            .send_request("prompts/list", None)
-            .await?;
+        let result = self.send_request("prompts/list", None).await?;
 
-        let prompts_value = result
-            .get("prompts")
-            .ok_or_else(|| {
-                McpError::Protocol("prompts/list response missing 'prompts' field".to_string())
-            })?;
+        let prompts_value = result.get("prompts").ok_or_else(|| {
+            McpError::Protocol("prompts/list response missing 'prompts' field".to_string())
+        })?;
 
         let prompts: Vec<McpPrompt> = serde_json::from_value(prompts_value.clone())
-            .map_err(|e| {
-                McpError::Protocol(format!("Failed to parse prompts: {}", e))
-            })?;
+            .map_err(|e| McpError::Protocol(format!("Failed to parse prompts: {}", e)))?;
 
         Ok(prompts)
     }
@@ -39,9 +33,7 @@ impl McpClient {
         prompts
             .into_iter()
             .find(|p| p.name == prompt_name)
-            .ok_or_else(|| {
-                McpError::Protocol(format!("Prompt not found: {}", prompt_name))
-            })
+            .ok_or_else(|| McpError::Protocol(format!("Prompt not found: {}", prompt_name)))
     }
 
     /// Execute a prompt with arguments.
@@ -59,9 +51,7 @@ impl McpClient {
             "arguments": arguments.unwrap_or_else(|| json!({}))
         });
 
-        let result = self
-            .send_request("prompts/get", Some(params))
-            .await?;
+        let result = self.send_request("prompts/get", Some(params)).await?;
 
         Ok(result)
     }
@@ -76,9 +66,7 @@ pub struct SlashCommandRegistry {
 impl SlashCommandRegistry {
     /// Create a new slash command registry.
     pub fn new() -> Self {
-        Self {
-            commands: std::collections::HashMap::new(),
-        }
+        Self { commands: std::collections::HashMap::new() }
     }
 
     /// Register a prompt as a slash command.
@@ -148,4 +136,3 @@ mod tests {
         assert_eq!(retrieved.unwrap().name, "test prompt");
     }
 }
-

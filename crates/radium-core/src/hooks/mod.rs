@@ -7,6 +7,7 @@
 //! - Error handling hooks (interception, transformation, recovery, logging)
 //! - Telemetry hooks (collection, logging, metrics, performance monitoring)
 
+pub mod adapters;
 pub mod config;
 pub mod error;
 pub mod error_hooks;
@@ -17,6 +18,7 @@ pub mod telemetry;
 pub mod tool;
 pub mod types;
 
+pub use adapters::{BehaviorEvaluatorAdapter, BehaviorHookRegistrar};
 pub use config::HookConfig;
 pub use error::{HookError, Result as HookResult};
 pub use error_hooks::{ErrorHook, ErrorHookContext, ErrorHookType};
@@ -26,4 +28,3 @@ pub use registry::{Hook, HookRegistry, HookType};
 pub use telemetry::TelemetryHookContext;
 pub use tool::{ToolHook, ToolHookContext, ToolHookType};
 pub use types::{HookContext, HookPriority, HookResult as HookExecutionResult};
-

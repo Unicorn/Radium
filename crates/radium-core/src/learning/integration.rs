@@ -22,21 +22,14 @@ pub struct LearningConfig {
 
 impl Default for LearningConfig {
     fn default() -> Self {
-        Self {
-            enabled: true,
-            max_skills_per_section: 5,
-            max_entries_per_category: 3,
-        }
+        Self { enabled: true, max_skills_per_section: 5, max_entries_per_category: 3 }
     }
 }
 
 impl LearningConfig {
     /// Creates a new learning configuration.
     pub fn new(enabled: bool) -> Self {
-        Self {
-            enabled,
-            ..Default::default()
-        }
+        Self { enabled, ..Default::default() }
     }
 
     /// Disables learning.
@@ -116,15 +109,17 @@ impl LearningIntegration {
         // 1. Generate oversight feedback
         // Gather learning context first
         let learning_context = {
-            let store = self.learning_store.lock().map_err(|e| {
-                format!("Failed to lock learning store: {}", e)
-            })?;
+            let store = self
+                .learning_store
+                .lock()
+                .map_err(|e| format!("Failed to lock learning store: {}", e))?;
             store.generate_context(self.config.max_entries_per_category)
         };
 
-        let mut oversight_request = OversightRequest::new(phase, goal.to_string(), plan.to_string())
-            .with_progress(progress)
-            .with_task_context(task_context);
+        let mut oversight_request =
+            OversightRequest::new(phase, goal.to_string(), plan.to_string())
+                .with_progress(progress)
+                .with_task_context(task_context);
 
         if !learning_context.is_empty() {
             oversight_request = oversight_request.with_learning_context(learning_context);
@@ -137,9 +132,10 @@ impl LearningIntegration {
             .map_err(|e| format!("Oversight generation failed: {}", e))?;
 
         // 2. Generate skillbook updates from oversight
-        let learning_store_guard = self.learning_store.lock().map_err(|e| {
-            format!("Failed to lock learning store: {}", e)
-        })?;
+        let learning_store_guard = self
+            .learning_store
+            .lock()
+            .map_err(|e| format!("Failed to lock learning store: {}", e))?;
 
         let update_batch = self
             .skill_manager
@@ -156,12 +152,13 @@ impl LearningIntegration {
 
         // 3. Apply updates to learning store
         if !update_batch.is_empty() {
-            let mut store = self.learning_store.lock().map_err(|e| {
-                format!("Failed to lock learning store: {}", e)
-            })?;
-            store.apply_update(&update_batch).map_err(|e| {
-                format!("Failed to apply learning updates: {}", e)
-            })?;
+            let mut store = self
+                .learning_store
+                .lock()
+                .map_err(|e| format!("Failed to lock learning store: {}", e))?;
+            store
+                .apply_update(&update_batch)
+                .map_err(|e| format!("Failed to apply learning updates: {}", e))?;
         }
 
         Ok(Some(oversight_response))
@@ -177,9 +174,9 @@ impl LearningIntegration {
 mod tests {
     use super::*;
     use crate::learning::LearningStore;
-    use crate::oversight::MetacognitiveService;
     use crate::learning::SkillManager;
-    use radium_abstraction::{Model, ModelResponse, ModelParameters};
+    use crate::oversight::MetacognitiveService;
+    use radium_abstraction::{Model, ModelParameters, ModelResponse};
     use std::sync::Arc;
     use tempfile::TempDir;
 
@@ -223,9 +220,8 @@ mod tests {
     #[tokio::test]
     async fn test_learning_integration_disabled() {
         let temp_dir = TempDir::new().unwrap();
-        let learning_store = Arc::new(std::sync::Mutex::new(
-            LearningStore::new(temp_dir.path()).unwrap(),
-        ));
+        let learning_store =
+            Arc::new(std::sync::Mutex::new(LearningStore::new(temp_dir.path()).unwrap()));
         let model = Arc::new(MockModel);
         let metacognitive = Arc::new(MetacognitiveService::new(model.clone()));
         let skill_manager = Arc::new(SkillManager::new(model));
@@ -252,4 +248,3 @@ mod tests {
         assert!(result.is_none());
     }
 }
-

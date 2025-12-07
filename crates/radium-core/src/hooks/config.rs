@@ -30,8 +30,7 @@ pub struct HookDefinition {
 impl HookConfig {
     /// Load hook configuration from a TOML file.
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let content = std::fs::read_to_string(path)
-            .map_err(|e| HookError::Io(e))?;
+        let content = std::fs::read_to_string(path).map_err(|e| HookError::Io(e))?;
         Self::from_str(&content)
     }
 
@@ -44,15 +43,11 @@ impl HookConfig {
     pub fn validate(&self) -> Result<()> {
         for hook in &self.hooks {
             if hook.name.is_empty() {
-                return Err(HookError::InvalidConfig(
-                    "Hook name cannot be empty".to_string(),
-                ));
+                return Err(HookError::InvalidConfig("Hook name cannot be empty".to_string()));
             }
 
             if hook.hook_type.is_empty() {
-                return Err(HookError::InvalidConfig(
-                    "Hook type cannot be empty".to_string(),
-                ));
+                return Err(HookError::InvalidConfig("Hook type cannot be empty".to_string()));
             }
 
             // Validate hook type
@@ -90,4 +85,3 @@ impl HookConfig {
         Ok(())
     }
 }
-

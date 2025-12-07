@@ -106,9 +106,7 @@ impl McpTransport for SseTransport {
             .body(message.to_vec())
             .send()
             .await
-            .map_err(|e| {
-                McpError::Transport(format!("Failed to send message via SSE: {}", e))
-            })?;
+            .map_err(|e| McpError::Transport(format!("Failed to send message via SSE: {}", e)))?;
 
         if !response.status().is_success() {
             return Err(McpError::Transport(format!(
@@ -157,14 +155,14 @@ mod tests {
     #[tokio::test]
     async fn test_sse_transport_connect_twice() {
         let mut transport = SseTransport::new("http://localhost:8080/sse".to_string());
-        
+
         // First connect might fail if server doesn't exist, but we can test the logic
         if transport.connect().await.is_ok() {
             // Try to connect again - should fail
             let result = transport.connect().await;
             assert!(result.is_err());
             assert!(result.unwrap_err().to_string().contains("Already connected"));
-            
+
             let _ = transport.disconnect().await;
         }
     }
@@ -188,7 +186,7 @@ mod tests {
     #[tokio::test]
     async fn test_sse_transport_receive_empty_buffer() {
         let mut transport = SseTransport::new("http://localhost:8080/sse".to_string());
-        
+
         // Connect (might fail, but we can test the receive logic)
         if transport.connect().await.is_ok() {
             // Try to receive when buffer is empty
@@ -196,7 +194,7 @@ mod tests {
             // This might succeed if the background task added a message, or fail if buffer is empty
             // We just verify the method doesn't panic
             let _ = result;
-            
+
             let _ = transport.disconnect().await;
         }
     }
@@ -217,4 +215,3 @@ mod tests {
         assert!(!transport.is_connected());
     }
 }
-

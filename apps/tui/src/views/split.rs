@@ -37,8 +37,8 @@ pub fn render_split_view(frame: &mut Frame, area: Rect, state: &SplitViewState) 
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Percentage(30),  // Left panel
-            Constraint::Percentage(70),  // Right panel
+            Constraint::Percentage(30), // Left panel
+            Constraint::Percentage(70), // Right panel
         ])
         .split(area);
 
@@ -56,18 +56,12 @@ pub fn render_split_view(frame: &mut Frame, area: Rect, state: &SplitViewState) 
         .map(|(i, item)| {
             let is_selected = i == state.selected_index && state.left_focused;
             let style = if is_selected {
-                Style::default()
-                    .fg(THEME.bg_primary)
-                    .bg(THEME.primary)
-                    .add_modifier(Modifier::BOLD)
+                Style::default().fg(THEME.bg_primary).bg(THEME.primary).add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(THEME.text)
             };
 
-            ListItem::new(Line::from(Span::styled(
-                format!("  {}", item),
-                style,
-            )))
+            ListItem::new(Line::from(Span::styled(format!("  {}", item), style)))
         })
         .collect();
 
@@ -80,18 +74,14 @@ pub fn render_split_view(frame: &mut Frame, area: Rect, state: &SplitViewState) 
                 } else {
                     Style::default().fg(THEME.border)
                 })
-                .title(left_title)
+                .title(left_title),
         )
         .style(Style::default().fg(THEME.text));
 
     frame.render_widget(left_list, chunks[0]);
 
     // Right panel - Chat
-    let right_title = if !state.left_focused {
-        "Chat [FOCUSED]"
-    } else {
-        "Chat"
-    };
+    let right_title = if !state.left_focused { "Chat [FOCUSED]" } else { "Chat" };
 
     let right_content = state.right_content.join("\n");
     let right_widget = Paragraph::new(right_content)
@@ -104,10 +94,9 @@ pub fn render_split_view(frame: &mut Frame, area: Rect, state: &SplitViewState) 
                 } else {
                     Style::default().fg(THEME.border)
                 })
-                .title(right_title)
+                .title(right_title),
         )
         .style(Style::default().fg(THEME.text));
 
     frame.render_widget(right_widget, chunks[1]);
 }
-

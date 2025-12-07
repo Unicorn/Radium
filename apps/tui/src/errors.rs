@@ -14,29 +14,15 @@ use ratatui::{
 #[derive(Debug, Clone)]
 pub enum TuiError {
     /// Authentication is required.
-    AuthRequired {
-        provider: String,
-        message: String,
-    },
+    AuthRequired { provider: String, message: String },
     /// Model error occurred.
-    ModelError {
-        message: String,
-        suggestion: Option<String>,
-    },
+    ModelError { message: String, suggestion: Option<String> },
     /// Agent not found.
-    AgentNotFound {
-        agent_id: String,
-    },
+    AgentNotFound { agent_id: String },
     /// Session error.
-    SessionError {
-        message: String,
-    },
+    SessionError { message: String },
     /// Generic error with custom message.
-    Generic {
-        title: String,
-        message: String,
-        suggestion: Option<String>,
-    },
+    Generic { title: String, message: String, suggestion: Option<String> },
 }
 
 impl TuiError {
@@ -60,25 +46,17 @@ impl TuiError {
 
     /// Creates an agent not found error.
     pub fn agent_not_found(agent_id: impl Into<String>) -> Self {
-        Self::AgentNotFound {
-            agent_id: agent_id.into(),
-        }
+        Self::AgentNotFound { agent_id: agent_id.into() }
     }
 
     /// Creates a session error.
     pub fn session_error(message: impl Into<String>) -> Self {
-        Self::SessionError {
-            message: message.into(),
-        }
+        Self::SessionError { message: message.into() }
     }
 
     /// Creates a generic error.
     pub fn generic(title: impl Into<String>, message: impl Into<String>) -> Self {
-        Self::Generic {
-            title: title.into(),
-            message: message.into(),
-            suggestion: None,
-        }
+        Self::Generic { title: title.into(), message: message.into(), suggestion: None }
     }
 
     /// Adds a suggestion to the error.
@@ -115,10 +93,7 @@ impl TuiError {
                 lines.push(format!("  rad auth login {}", provider.to_lowercase()));
                 lines.push("".to_string());
                 lines.push("Or set environment variable:".to_string());
-                lines.push(format!(
-                    "  export {}_API_KEY='your-key-here'",
-                    provider.to_uppercase()
-                ));
+                lines.push(format!("  export {}_API_KEY='your-key-here'", provider.to_uppercase()));
                 lines.push("".to_string());
                 lines.push("Press 'a' to authenticate now, or Esc to continue".to_string());
             }
@@ -159,14 +134,10 @@ impl TuiError {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_style(Style::default().fg(THEME.error))
-            .title(
-                ratatui::widgets::block::Title::from(
-                    Span::styled(
-                        self.title(),
-                        Style::default().fg(THEME.error).add_modifier(Modifier::BOLD)
-                    )
-                )
-            );
+            .title(ratatui::widgets::block::Title::from(Span::styled(
+                self.title(),
+                Style::default().fg(THEME.error).add_modifier(Modifier::BOLD),
+            )));
 
         let inner = block.inner(area);
         block.render(area, buf);
@@ -174,9 +145,8 @@ impl TuiError {
         let message_lines = self.message_lines();
         let text = message_lines.join("\n");
 
-        let paragraph = Paragraph::new(text)
-            .style(Style::default().fg(THEME.text))
-            .wrap(Wrap { trim: true });
+        let paragraph =
+            Paragraph::new(text).style(Style::default().fg(THEME.text)).wrap(Wrap { trim: true });
 
         paragraph.render(inner, buf);
     }

@@ -1,8 +1,8 @@
 //! Integration tests for MCP functionality.
 
 use radium_core::mcp::{
-    config::McpConfigManager, content::ContentHandler, McpContent, McpError, McpServerConfig,
-    McpTool, McpToolRegistry, TransportType,
+    McpContent, McpError, McpServerConfig, McpTool, McpToolRegistry, TransportType,
+    config::McpConfigManager, content::ContentHandler,
 };
 use serde_json::json;
 use std::collections::HashMap;
@@ -88,27 +88,21 @@ async fn test_mcp_config_manager_integration() {
 #[tokio::test]
 async fn test_mcp_content_handler_integration() {
     // Test text content serialization
-    let text_content = McpContent::Text {
-        text: "Hello, world!".to_string(),
-    };
+    let text_content = McpContent::Text { text: "Hello, world!".to_string() };
     let text_json = ContentHandler::serialize_content(&text_content).unwrap();
     assert_eq!(text_json["type"], "text");
     assert_eq!(text_json["text"], "Hello, world!");
 
     // Test image content serialization
-    let image_content = McpContent::Image {
-        data: "base64data".to_string(),
-        mime_type: "image/png".to_string(),
-    };
+    let image_content =
+        McpContent::Image { data: "base64data".to_string(), mime_type: "image/png".to_string() };
     let image_json = ContentHandler::serialize_content(&image_content).unwrap();
     assert_eq!(image_json["type"], "image");
     assert_eq!(image_json["mime_type"], "image/png");
 
     // Test audio content serialization
-    let audio_content = McpContent::Audio {
-        data: "audiodata".to_string(),
-        mime_type: "audio/wav".to_string(),
-    };
+    let audio_content =
+        McpContent::Audio { data: "audiodata".to_string(), mime_type: "audio/wav".to_string() };
     let audio_json = ContentHandler::serialize_content(&audio_content).unwrap();
     assert_eq!(audio_json["type"], "audio");
     assert_eq!(audio_json["mime_type"], "audio/wav");
@@ -166,10 +160,7 @@ async fn test_mcp_multi_server_configuration() {
     let remote_server = new_manager.get_server("remote-server").unwrap();
     assert_eq!(remote_server.transport, TransportType::Http);
     assert!(remote_server.auth.is_some());
-    assert_eq!(
-        remote_server.auth.as_ref().unwrap().auth_type,
-        "oauth"
-    );
+    assert_eq!(remote_server.auth.as_ref().unwrap().auth_type, "oauth");
 }
 
 #[tokio::test]
@@ -252,13 +243,6 @@ async fn test_mcp_config_round_trip() {
     assert_eq!(server.transport, TransportType::Http);
     assert_eq!(server.url, Some("https://example.com/mcp".to_string()));
     assert!(server.auth.is_some());
-    assert_eq!(
-        server.auth.as_ref().unwrap().auth_type,
-        "bearer"
-    );
-    assert_eq!(
-        server.auth.as_ref().unwrap().params.get("token"),
-        Some(&"test-token".to_string())
-    );
+    assert_eq!(server.auth.as_ref().unwrap().auth_type, "bearer");
+    assert_eq!(server.auth.as_ref().unwrap().params.get("token"), Some(&"test-token".to_string()));
 }
-
