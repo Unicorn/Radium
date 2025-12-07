@@ -219,6 +219,97 @@ Validating Context Files
     /project/src/GEMINI.md File is empty
 ```
 
+### Initialize Context File
+
+```bash
+rad context init [OPTIONS]
+```
+
+Creates a new context file from a template. This is the easiest way to get started with context files.
+
+**Options:**
+- `--template <TYPE>` - Template type to use (default: `basic`)
+  - Available templates: `basic`, `coding-standards`, `architecture`, `team-conventions`
+- `--global` - Create global context file (`~/.radium/GEMINI.md`) instead of project file
+- `--path <PATH>` - Custom path for the context file (defaults to project root)
+
+**Examples:**
+
+Create a basic project context file:
+```bash
+rad context init
+```
+
+Create a coding standards template:
+```bash
+rad context init --template coding-standards
+```
+
+Create a global context file:
+```bash
+rad context init --global
+```
+
+Create a context file at a custom path:
+```bash
+rad context init --path docs/CONTEXT.md
+```
+
+**Template Types:**
+
+1. **basic** - Simple project context with common sections (default)
+   - Project overview
+   - Guidelines
+   - Code style
+   - Testing
+   - Documentation
+
+2. **coding-standards** - Code style and conventions template
+   - Language-specific standards
+   - Code formatting
+   - Naming conventions
+   - Code organization
+   - Best practices
+   - Anti-patterns
+
+3. **architecture** - Architecture documentation template
+   - System overview
+   - Components
+   - Data flow
+   - Design decisions
+   - Dependencies
+   - Future considerations
+
+4. **team-conventions** - Team-specific guidelines template
+   - Communication standards
+   - Development workflow
+   - Code review standards
+   - Documentation standards
+   - Tooling preferences
+   - Onboarding information
+
+**Example output:**
+```
+Initialize Context File
+
+  ✓ Created context file: /project/GEMINI.md
+  • Template: basic
+  • Description: Simple project context with common sections
+
+  Next steps:
+    • Edit the file to customize it for your project
+    • Use `rad context validate` to check for issues
+    • See `docs/features/context-files.md` for more information
+```
+
+**Overwrite Protection:**
+
+If a context file already exists at the target location, the command will prompt before overwriting:
+```
+  ! File already exists: /project/GEMINI.md
+  Overwrite? (y/N):
+```
+
 ## Best Practices
 
 ### Organization

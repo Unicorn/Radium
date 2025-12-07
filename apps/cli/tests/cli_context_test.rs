@@ -308,3 +308,160 @@ fn test_context_validate_command_empty_file() {
         .stdout(predicate::str::contains("warning").or(predicate::str::contains("empty")));
 }
 
+#[test]
+fn test_context_init_command_basic() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("context")
+        .arg("init")
+        .arg("--template")
+        .arg("basic")
+        .write_stdin("n\n") // Don't overwrite if exists (shouldn't exist)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Created context file")
+            .and(predicate::str::contains("basic")));
+
+    // Verify file was created
+    let context_file = temp_dir.path().join("GEMINI.md");
+    assert!(context_file.exists());
+    let content = fs::read_to_string(&context_file).unwrap();
+    assert!(content.contains("Project Context"));
+    assert!(content.contains("Guidelines"));
+}
+
+#[test]
+fn test_context_init_command_coding_standards() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("context")
+        .arg("init")
+        .arg("--template")
+        .arg("coding-standards")
+        .write_stdin("n\n")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Created context file")
+            .and(predicate::str::contains("coding-standards")));
+
+    // Verify file was created with correct template
+    let context_file = temp_dir.path().join("GEMINI.md");
+    assert!(context_file.exists());
+    let content = fs::read_to_string(&context_file).unwrap();
+    assert!(content.contains("Coding Standards"));
+    assert!(content.contains("Code Formatting"));
+}
+
+#[test]
+fn test_context_init_command_architecture() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("context")
+        .arg("init")
+        .arg("--template")
+        .arg("architecture")
+        .write_stdin("n\n")
+        .assert()
+        .success();
+
+    // Verify file was created with correct template
+    let context_file = temp_dir.path().join("GEMINI.md");
+    assert!(context_file.exists());
+    let content = fs::read_to_string(&context_file).unwrap();
+    assert!(content.contains("Architecture"));
+    assert!(content.contains("Components"));
+}
+
+#[test]
+fn test_context_init_command_team_conventions() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("context")
+        .arg("init")
+        .arg("--template")
+        .arg("team-conventions")
+        .write_stdin("n\n")
+        .assert()
+        .success();
+
+    // Verify file was created with correct template
+    let context_file = temp_dir.path().join("GEMINI.md");
+    assert!(context_file.exists());
+    let content = fs::read_to_string(&context_file).unwrap();
+    assert!(content.contains("Team Conventions"));
+    assert!(content.contains("Communication"));
+}
+
+#[test]
+fn test_context_init_command_custom_path() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+
+    let custom_path = temp_dir.path().join("custom").join("CONTEXT.md");
+    fs::create_dir_all(custom_path.parent().unwrap()).unwrap();
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("context")
+        .arg("init")
+        .arg("--path")
+        .arg("custom/CONTEXT.md")
+        .write_stdin("n\n")
+        .assert()
+        .success();
+
+    // Verify file was created at custom path
+    assert!(custom_path.exists());
+    let content = fs::read_to_string(&custom_path).unwrap();
+    assert!(content.contains("Project Context"));
+}
+
+#[test]
+fn test_context_init_command_invalid_template() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("context")
+        .arg("init")
+        .arg("--template")
+        .arg("invalid-template")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Invalid template type"));
+}
+
+#[test]
+fn test_context_init_command_default_template() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+
+    // Test that default template (basic) is used when not specified
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("context")
+        .arg("init")
+        .write_stdin("n\n")
+        .assert()
+        .success();
+
+    // Verify file was created with basic template (default)
+    let context_file = temp_dir.path().join("GEMINI.md");
+    assert!(context_file.exists());
+    let content = fs::read_to_string(&context_file).unwrap();
+    assert!(content.contains("Project Context"));
+}
+

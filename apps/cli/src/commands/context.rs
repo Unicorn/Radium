@@ -4,9 +4,10 @@
 
 use anyhow::{Context, Result};
 use colored::Colorize;
-use radium_core::context::ContextFileLoader;
+use radium_core::context::{generate_template, ContextFileLoader, TemplateType};
 use radium_core::Workspace;
 use std::fs;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 /// Execute the context command.
@@ -15,6 +16,11 @@ pub async fn execute(command: ContextCommand) -> Result<()> {
         ContextCommand::List => list_context_files().await,
         ContextCommand::Show { path } => show_context_for_path(&path).await,
         ContextCommand::Validate => validate_context_files().await,
+        ContextCommand::Init {
+            template,
+            global,
+            path,
+        } => init_context_file(&template, global, path.as_deref()).await,
     }
 }
 
@@ -258,6 +264,80 @@ async fn validate_context_files() -> Result<()> {
     Ok(())
 }
 
+/// Initialize a context file from a template.
+async fn init_context_file(template_str: &str, global: bool, custom_path: Option<&str>) -> Result<()> {
+    println!("{}", "Initialize Context File".bold().cyan());
+    println!();
+
+    // Parse template type
+    let template_type = TemplateType::from_str(template_str)
+        .ok_or_else(|| anyhow::anyhow!("Invalid template type: {}. Available: basic, coding-standards, architecture, team-conventions", template_str))?;
+
+    // Determine target path
+    let target_path = if global {
+        // Global context file: ~/.radium/GEMINI.md
+        let home = std::env::var("HOME")
+            .map_err(|_| anyhow::anyhow!("HOME environment variable not set"))?;
+        let radium_dir = PathBuf::from(home).join(".radium");
+        fs::create_dir_all(&radium_dir).context("Failed to create ~/.radium directory")?;
+        radium_dir.join("GEMINI.md")
+    } else if let Some(path_str) = custom_path {
+        // Custom path provided
+        let path = Path::new(path_str);
+        if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            std::env::current_dir()
+                .unwrap_or_else(|_| PathBuf::from("."))
+                .join(path)
+        }
+    } else {
+        // Project root: discover workspace or use current directory
+        let workspace = Workspace::discover().ok();
+        let workspace_root = workspace
+            .as_ref()
+            .map(|w| w.root().to_path_buf())
+            .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+        workspace_root.join("GEMINI.md")
+    };
+
+    // Check if file already exists
+    if target_path.exists() {
+        print!(
+            "  {} File already exists: {}\n  Overwrite? (y/N): ",
+            "!".yellow(),
+            target_path.display().to_string().cyan()
+        );
+        io::stdout().flush()?;
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        if !input.trim().eq_ignore_ascii_case("y") && !input.trim().eq_ignore_ascii_case("yes") {
+            println!("  {} Cancelled.", "•".dimmed());
+            return Ok(());
+        }
+    }
+
+    // Generate template content
+    let content = generate_template(template_type);
+
+    // Write file
+    fs::write(&target_path, content).context("Failed to write context file")?;
+
+    // Success message
+    println!();
+    println!("  {} Created context file: {}", "✓".green(), target_path.display().to_string().cyan());
+    println!("  {} Template: {}", "•".dimmed(), template_type.as_str().cyan());
+    println!("  {} Description: {}", "•".dimmed(), template_type.description().dimmed());
+    println!();
+    println!("  {}", "Next steps:".dimmed());
+    println!("    • Edit the file to customize it for your project");
+    println!("    • Use `rad context validate` to check for issues");
+    println!("    • See `docs/features/context-files.md` for more information");
+    println!();
+
+    Ok(())
+}
+
 /// Context command subcommands.
 #[derive(clap::Subcommand, Debug, Clone)]
 pub enum ContextCommand {
@@ -267,5 +347,17 @@ pub enum ContextCommand {
     Show { path: String },
     /// Validate all context files.
     Validate,
+    /// Initialize a context file from a template.
+    Init {
+        /// Template type to use (basic, coding-standards, architecture, team-conventions)
+        #[arg(short, long, default_value = "basic")]
+        template: String,
+        /// Create global context file (~/.radium/GEMINI.md) instead of project file
+        #[arg(short, long)]
+        global: bool,
+        /// Custom path for the context file (defaults to project root)
+        #[arg(short, long)]
+        path: Option<String>,
+    },
 }
 

@@ -39,12 +39,60 @@ pub struct RadiumService {
     db: Arc<Mutex<Database>>,
     /// Agent orchestrator for managing agent execution.
     orchestrator: Arc<Orchestrator>,
+    /// Message bus for agent-to-agent communication.
+    message_bus: Arc<crate::collaboration::MessageBus>,
+    /// Resource lock manager for workspace coordination.
+    lock_manager: Arc<crate::collaboration::ResourceLockManager>,
+    /// Delegation manager for supervisor-worker patterns.
+    delegation_manager: Arc<crate::collaboration::DelegationManager>,
+    /// Progress tracker for agent progress reporting.
+    progress_tracker: Arc<crate::collaboration::ProgressTracker>,
 }
 
 impl RadiumService {
     /// Create a new Radium service instance.
     pub fn new(db: Database) -> Self {
-        Self { db: Arc::new(Mutex::new(db)), orchestrator: Arc::new(Orchestrator::new()) }
+        let db_arc = Arc::new(Mutex::new(db));
+        let orchestrator = Arc::new(Orchestrator::new());
+
+        // Initialize collaboration components
+        let message_bus = Arc::new(crate::collaboration::MessageBus::new(Arc::clone(&db_arc)));
+        let lock_manager = Arc::new(crate::collaboration::ResourceLockManager::new());
+        let progress_tracker = Arc::new(crate::collaboration::ProgressTracker::new(Arc::clone(&db_arc)));
+        let delegation_manager = Arc::new(crate::collaboration::DelegationManager::new(
+            Arc::clone(&db_arc),
+            Arc::clone(&message_bus),
+            Arc::clone(&orchestrator),
+        ));
+
+        Self {
+            db: db_arc,
+            orchestrator,
+            message_bus,
+            lock_manager,
+            delegation_manager,
+            progress_tracker,
+        }
+    }
+
+    /// Gets a reference to the message bus.
+    pub fn get_message_bus(&self) -> Arc<crate::collaboration::MessageBus> {
+        Arc::clone(&self.message_bus)
+    }
+
+    /// Gets a reference to the lock manager.
+    pub fn get_lock_manager(&self) -> Arc<crate::collaboration::ResourceLockManager> {
+        Arc::clone(&self.lock_manager)
+    }
+
+    /// Gets a reference to the delegation manager.
+    pub fn get_delegation_manager(&self) -> Arc<crate::collaboration::DelegationManager> {
+        Arc::clone(&self.delegation_manager)
+    }
+
+    /// Gets a reference to the progress tracker.
+    pub fn get_progress_tracker(&self) -> Arc<crate::collaboration::ProgressTracker> {
+        Arc::clone(&self.progress_tracker)
     }
 
     /// Acquires a lock on the database connection.
@@ -148,7 +196,10 @@ impl Radium for RadiumService {
             "echo-agent".to_string(),
             "A simple agent that echoes its input.".to_string(),
         );
-        let agent_context = AgentContext { model: &mock_model };
+        let agent_context = AgentContext {
+            model: &mock_model,
+            collaboration: None,
+        };
 
         match echo_agent.execute(&inner.message, agent_context).await {
             Ok(output) => {

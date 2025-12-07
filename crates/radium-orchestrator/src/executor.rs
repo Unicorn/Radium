@@ -281,6 +281,14 @@ impl AgentExecutor {
     ///
     /// # Returns
     /// Returns `ExecutionResult` with the agent's output or error information.
+    /// Executes an agent with optional collaboration context.
+    ///
+    /// # Arguments
+    /// * `agent` - The agent to execute
+    /// * `input` - The input for the agent
+    /// * `model` - The model to use for generation
+    /// * `hook_executor` - Optional hook executor for execution interception
+    /// * `collaboration_context` - Optional collaboration context (passed as raw pointer to avoid circular dependency)
     pub async fn execute_agent(
         &self,
         agent: Arc<dyn Agent + Send + Sync>,
@@ -334,7 +342,7 @@ impl AgentExecutor {
             // Create agent context with current model
             let context = AgentContext {
                 model: current_model.as_ref(),
-                collaboration: None, // Will be set by orchestrator if collaboration is enabled
+                collaboration: None, // Collaboration context is injected by RadiumService wrapper
             };
 
             // Execute the agent

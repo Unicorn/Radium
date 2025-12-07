@@ -50,6 +50,7 @@ mod history;
 mod injection;
 mod manager;
 pub mod sources;
+mod templates;
 mod validator;
 
 pub use error::{ContextError, Result};
@@ -61,4 +62,5 @@ pub use sources::{
     BraingridReader, HttpReader, JiraReader, LocalFileReader, SourceError, SourceMetadata,
     SourceReader, SourceRegistry,
 };
+pub use templates::{generate_template, TemplateType};
 pub use validator::{SourceValidator, SourceValidationResult};

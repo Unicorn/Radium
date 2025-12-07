@@ -18,6 +18,11 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing::{debug, error, warn};
 
+// Note: Collaboration features are in radium-core, but we can't import them here
+// due to circular dependency. Instead, we'll use a trait-based approach or
+// pass collaboration components from outside. For now, we'll make them optional
+// and pass them through execute_agent method.
+
 pub use agents::{ChatAgent, SimpleAgent};
 pub use executor::{
     AgentExecutor, ExecutionResult, ExecutionTelemetry, HookExecutor, HookResult, QueueProcessor, QueueProcessorConfig,
