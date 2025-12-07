@@ -3,6 +3,8 @@
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyModifiers};
 use radium_core::auth::{CredentialStore, ProviderType};
+use radium_orchestrator::{OrchestrationConfig, OrchestrationService};
+use std::sync::Arc;
 
 use crate::commands::{Command, DisplayContext};
 use crate::setup::SetupWizard;
@@ -27,6 +29,10 @@ pub struct App {
     pub setup_wizard: Option<SetupWizard>,
     /// Workspace status
     pub workspace_status: Option<WorkspaceStatus>,
+    /// Orchestration service for natural conversation
+    pub orchestration_service: Option<Arc<OrchestrationService>>,
+    /// Whether orchestration is enabled
+    pub orchestration_enabled: bool,
 }
 
 impl App {
@@ -46,10 +52,14 @@ impl App {
             ("sessions", "Show your chat sessions"),
             ("dashboard", "Show system dashboard"),
             ("models", "Select AI model"),
+            ("orchestrator", "Manage orchestration settings"),
         ];
 
         // Initialize workspace
         let workspace_status = crate::workspace::initialize_workspace().ok();
+
+        // Initialize orchestration service
+        let (orchestration_service, orchestration_enabled) = Self::init_orchestration();
 
         let mut app = Self {
             should_quit: false,
@@ -60,6 +70,8 @@ impl App {
             available_commands,
             setup_wizard: None,
             workspace_status,
+            orchestration_service,
+            orchestration_enabled,
         };
 
         // Show setup wizard if not configured, otherwise start chat
@@ -71,6 +83,37 @@ impl App {
         }
 
         app
+    }
+
+    /// Initialize orchestration service
+    fn init_orchestration() -> (Option<Arc<OrchestrationService>>, bool) {
+        // Create orchestration configuration
+        let config = OrchestrationConfig::default();
+        let enabled = config.enabled;
+
+        // Return None for now - will be initialized asynchronously on first use
+        (None, enabled)
+    }
+
+    /// Ensure orchestration service is initialized (lazy initialization)
+    async fn ensure_orchestration_service(&mut self) -> Result<()> {
+        if self.orchestration_service.is_none() && self.orchestration_enabled {
+            let config = OrchestrationConfig::default();
+            match OrchestrationService::initialize(config).await {
+                Ok(service) => {
+                    self.orchestration_service = Some(Arc::new(service));
+                }
+                Err(e) => {
+                    // Failed to initialize - log and disable orchestration
+                    self.prompt_data.add_output(format!(
+                        "⚠️  Orchestration initialization failed: {}",
+                        e
+                    ));
+                    self.orchestration_enabled = false;
+                }
+            }
+        }
+        Ok(())
     }
 
     fn start_default_chat(&mut self) {
@@ -269,12 +312,17 @@ impl App {
             return Ok(());
         }
 
-        // Try to parse as command
+        // Try to parse as command (starts with /)
         if let Some(cmd) = Command::parse(&input) {
             self.execute_command(cmd).await?;
         } else {
-            // Regular chat message
-            self.send_chat_message(input).await?;
+            // Non-command input - route through orchestration if enabled
+            if self.orchestration_enabled {
+                self.handle_orchestrated_input(input).await?;
+            } else {
+                // Fallback to regular chat
+                self.send_chat_message(input).await?;
+            }
         }
 
         self.prompt_data.clear_input();
@@ -296,6 +344,9 @@ impl App {
                     self.start_chat(&cmd.args[0]).await?;
                 }
             }
+            "orchestrator" => {
+                self.handle_orchestrator_command(&cmd.args).await?;
+            }
             _ => {
                 self.prompt_data
                     .add_output(format!("Unknown command: /{}. Type /help for help.", cmd.name));
@@ -316,7 +367,14 @@ impl App {
         self.prompt_data.add_output("  /sessions       - Show your chat sessions".to_string());
         self.prompt_data.add_output("  /dashboard      - Show dashboard stats".to_string());
         self.prompt_data.add_output("  /models         - Select AI model".to_string());
+        self.prompt_data.add_output("  /orchestrator   - Manage orchestration".to_string());
         self.prompt_data.add_output("  /help           - Show this help".to_string());
+        self.prompt_data.add_output("".to_string());
+        self.prompt_data.add_output("💡 Natural Conversation:".to_string());
+        self.prompt_data.add_output(format!(
+            "   Type naturally without / to use AI orchestration (currently: {})",
+            if self.orchestration_enabled { "enabled" } else { "disabled" }
+        ));
         self.prompt_data.add_output("".to_string());
         self.prompt_data.add_output("When in a chat, type normally to send messages.".to_string());
     }
@@ -521,6 +579,141 @@ impl App {
             })
             .map(|(cmd, desc)| format!("/{} - {}", cmd, desc))
             .collect();
+    }
+
+    /// Handle input through orchestration
+    async fn handle_orchestrated_input(&mut self, input: String) -> Result<()> {
+        // Ensure service is initialized
+        self.ensure_orchestration_service().await?;
+
+        // Get or create session ID
+        let session_id = self.current_session.clone().unwrap_or_else(|| {
+            let id = format!("session_{}", chrono::Utc::now().format("%Y%m%d_%H%M%S"));
+            self.current_session = Some(id.clone());
+            id
+        });
+
+        // Add user message to conversation
+        self.prompt_data.conversation.push(format!("You: {}", input));
+
+        // Show thinking indicator
+        self.prompt_data.conversation.push("🤔 Analyzing...".to_string());
+
+        // Execute orchestration
+        if let Some(ref service) = self.orchestration_service {
+            match service.handle_input(&session_id, &input).await {
+                Ok(result) => {
+                    // Remove thinking indicator
+                    self.prompt_data.conversation.pop();
+
+                    // Show tool calls if any
+                    if !result.tool_calls.is_empty() {
+                        for tool_call in &result.tool_calls {
+                            self.prompt_data.conversation.push(format!(
+                                "📋 Invoking: {}",
+                                tool_call.name
+                            ));
+                        }
+                    }
+
+                    // Add response
+                    if !result.response.is_empty() {
+                        self.prompt_data.conversation.push(format!("Assistant: {}", result.response));
+                    }
+
+                    // Show finish status
+                    if !result.is_success() {
+                        self.prompt_data.conversation.push(format!(
+                            "⚠️  Finished with: {}",
+                            result.finish_reason
+                        ));
+                    }
+                }
+                Err(e) => {
+                    // Remove thinking indicator
+                    self.prompt_data.conversation.pop();
+
+                    self.prompt_data.conversation.push(format!("❌ Orchestration error: {}", e));
+                }
+            }
+        } else {
+            // Remove thinking indicator
+            self.prompt_data.conversation.pop();
+
+            self.prompt_data
+                .conversation
+                .push("❌ Orchestration service not available".to_string());
+        }
+
+        Ok(())
+    }
+
+    /// Handle /orchestrator command
+    async fn handle_orchestrator_command(&mut self, args: &[String]) -> Result<()> {
+        if args.is_empty() {
+            // Show current configuration
+            self.show_orchestrator_status();
+            return Ok(());
+        }
+
+        match args[0].as_str() {
+            "status" => {
+                self.show_orchestrator_status();
+            }
+            "toggle" => {
+                self.orchestration_enabled = !self.orchestration_enabled;
+                self.prompt_data.add_output(format!(
+                    "Orchestration {}",
+                    if self.orchestration_enabled { "enabled" } else { "disabled" }
+                ));
+            }
+            "switch" => {
+                if args.len() < 2 {
+                    self.prompt_data.add_output("Usage: /orchestrator switch <provider>".to_string());
+                    self.prompt_data
+                        .add_output("Available providers: gemini, claude, openai, prompt_based".to_string());
+                } else {
+                    self.prompt_data.add_output(format!(
+                        "Provider switching not yet implemented. Requested: {}",
+                        args[1]
+                    ));
+                }
+            }
+            _ => {
+                self.prompt_data.add_output(format!("Unknown orchestrator command: {}", args[0]));
+                self.prompt_data.add_output("Available commands:".to_string());
+                self.prompt_data.add_output("  /orchestrator          - Show status".to_string());
+                self.prompt_data.add_output("  /orchestrator toggle   - Enable/disable".to_string());
+                self.prompt_data
+                    .add_output("  /orchestrator switch <provider>  - Switch provider".to_string());
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Show orchestrator status
+    fn show_orchestrator_status(&mut self) {
+        self.prompt_data.add_output("Orchestration Status:".to_string());
+        self.prompt_data.add_output("".to_string());
+        self.prompt_data.add_output(format!(
+            "  Enabled: {}",
+            if self.orchestration_enabled { "✓ Yes" } else { "✗ No" }
+        ));
+
+        if let Some(ref service) = self.orchestration_service {
+            self.prompt_data.add_output(format!("  Provider: {}", service.provider_name()));
+            let config = service.config();
+            self.prompt_data.add_output(format!("  Default: {}", config.default_provider));
+        } else {
+            self.prompt_data.add_output("  Service: Not initialized".to_string());
+        }
+
+        self.prompt_data.add_output("".to_string());
+        self.prompt_data.add_output("Commands:".to_string());
+        self.prompt_data.add_output("  /orchestrator toggle   - Enable/disable orchestration".to_string());
+        self.prompt_data
+            .add_output("  /orchestrator switch <provider>  - Switch AI provider".to_string());
     }
 }
 
