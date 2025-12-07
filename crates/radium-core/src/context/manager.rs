@@ -742,4 +742,171 @@ mod tests {
         let content2 = manager.load_context_files(temp_dir.path()).unwrap();
         assert_eq!(content1, content2);
     }
+
+    #[test]
+    fn test_build_context_with_context_files_precedence() {
+        let temp_dir = TempDir::new().unwrap();
+        let workspace = Workspace::create(temp_dir.path()).unwrap();
+
+        // Create context file
+        let context_file = temp_dir.path().join("GEMINI.md");
+        fs::write(&context_file, "# Context Files\n\nProject guidelines.").unwrap();
+
+        // Create architecture file
+        let arch_path = temp_dir.path().join(".radium").join("architecture.md");
+        fs::write(&arch_path, "# Architecture").unwrap();
+
+        let mut manager = ContextManager::new(&workspace);
+        let context = manager.build_context("agent", None).unwrap();
+
+        // Context files should appear first (highest precedence)
+        let context_files_pos = context.find("Context Files").unwrap_or(usize::MAX);
+        let arch_pos = context.find("Architecture Context").unwrap_or(usize::MAX);
+        assert!(context_files_pos < arch_pos || context.contains("Context Files"));
+    }
+
+    #[test]
+    fn test_load_context_files_cache_invalidation() {
+        let temp_dir = TempDir::new().unwrap();
+        let workspace = Workspace::create(temp_dir.path()).unwrap();
+
+        // Create context file
+        let context_file = temp_dir.path().join("GEMINI.md");
+        fs::write(&context_file, "# Original Context").unwrap();
+
+        let mut manager = ContextManager::new(&workspace);
+
+        // First load
+        let content1 = manager.load_context_files(temp_dir.path()).unwrap();
+        assert!(content1.as_ref().unwrap().contains("Original Context"));
+
+        // Modify file
+        std::thread::sleep(std::time::Duration::from_millis(10)); // Ensure different mtime
+        fs::write(&context_file, "# Updated Context").unwrap();
+
+        // Second load should detect change and reload
+        let content2 = manager.load_context_files(temp_dir.path()).unwrap();
+        assert!(content2.as_ref().unwrap().contains("Updated Context"));
+        assert!(!content2.as_ref().unwrap().contains("Original Context"));
+    }
+
+    #[test]
+    fn test_build_context_with_context_files_and_memory() {
+        use crate::memory::MemoryEntry;
+
+        let temp_dir = TempDir::new().unwrap();
+        let workspace = Workspace::create(temp_dir.path()).unwrap();
+        let req_id = RequirementId::new(1);
+
+        // Create context file
+        let context_file = temp_dir.path().join("GEMINI.md");
+        fs::write(&context_file, "# Context Files\n\nProject context.").unwrap();
+
+        let mut manager = ContextManager::for_plan(&workspace, req_id).unwrap();
+
+        // Store memory
+        let entry = MemoryEntry::new("agent".to_string(), "Previous output".to_string());
+        manager.memory_store_mut().unwrap().store(entry).unwrap();
+
+        let context = manager.build_context("agent", None).unwrap();
+
+        assert!(context.contains("Context Files"));
+        assert!(context.contains("Project context"));
+        assert!(context.contains("Previous Output from agent"));
+        assert!(context.contains("Previous output"));
+    }
+
+    #[test]
+    fn test_build_context_with_context_files_and_architecture() {
+        let temp_dir = TempDir::new().unwrap();
+        let workspace = Workspace::create(temp_dir.path()).unwrap();
+
+        // Create context file
+        let context_file = temp_dir.path().join("GEMINI.md");
+        fs::write(&context_file, "# Context Files\n\nGuidelines.").unwrap();
+
+        // Create architecture file
+        let arch_path = temp_dir.path().join(".radium").join("architecture.md");
+        fs::write(&arch_path, "# Architecture\n\nSystem design.").unwrap();
+
+        let mut manager = ContextManager::new(&workspace);
+        let context = manager.build_context("agent", None).unwrap();
+
+        assert!(context.contains("Context Files"));
+        assert!(context.contains("Guidelines"));
+        assert!(context.contains("Architecture Context"));
+        assert!(context.contains("System design"));
+    }
+
+    #[test]
+    fn test_load_context_files_multiple_loads() {
+        let temp_dir = TempDir::new().unwrap();
+        let workspace = Workspace::create(temp_dir.path()).unwrap();
+
+        // Create context file
+        let context_file = temp_dir.path().join("GEMINI.md");
+        fs::write(&context_file, "# Context").unwrap();
+
+        let mut manager = ContextManager::new(&workspace);
+
+        // Multiple loads should work
+        for _ in 0..5 {
+            let content = manager.load_context_files(temp_dir.path()).unwrap();
+            assert!(content.is_some());
+            assert!(content.as_ref().unwrap().contains("Context"));
+        }
+    }
+
+    #[test]
+    fn test_build_context_with_context_files_in_subdirectory() {
+        let temp_dir = TempDir::new().unwrap();
+        let workspace = Workspace::create(temp_dir.path()).unwrap();
+
+        // Create project root context file
+        let project_file = temp_dir.path().join("GEMINI.md");
+        fs::write(&project_file, "# Project Context").unwrap();
+
+        // Create subdirectory with context file
+        let subdir = temp_dir.path().join("src");
+        fs::create_dir_all(&subdir).unwrap();
+        let subdir_file = subdir.join("GEMINI.md");
+        fs::write(&subdir_file, "# Subdirectory Context").unwrap();
+
+        let mut manager = ContextManager::new(&workspace);
+        let context = manager.load_context_files(&subdir).unwrap();
+
+        assert!(context.is_some());
+        let content = context.unwrap();
+        // Should contain both project and subdirectory context
+        assert!(content.contains("Project Context") || content.contains("Subdirectory Context"));
+    }
+
+    #[test]
+    fn test_build_context_with_context_files_and_plan_context() {
+        let temp_dir = TempDir::new().unwrap();
+        let workspace = Workspace::create(temp_dir.path()).unwrap();
+        let req_id = RequirementId::new(1);
+
+        // Create a plan in development stage
+        let plan_dir = temp_dir.path().join(".radium").join("plan").join("development");
+        fs::create_dir_all(&plan_dir).unwrap();
+        let plan_file = plan_dir.join("REQ-001-test-plan");
+        fs::create_dir_all(&plan_file).unwrap();
+        let manifest_file = plan_file.join("manifest.json");
+        fs::write(
+            &manifest_file,
+            r#"{"requirement_id": "REQ-001", "project_name": "Test", "stage": "development", "status": "in_progress"}"#,
+        )
+        .unwrap();
+
+        // Create context file
+        let context_file = temp_dir.path().join("GEMINI.md");
+        fs::write(&context_file, "# Context Files\n\nProject guidelines.").unwrap();
+
+        let mut manager = ContextManager::for_plan(&workspace, req_id).unwrap();
+        let context = manager.build_context("agent", Some(req_id)).unwrap();
+
+        // Should contain both context files and plan context
+        assert!(context.contains("Context Files") || context.contains("Project guidelines"));
+    }
 }

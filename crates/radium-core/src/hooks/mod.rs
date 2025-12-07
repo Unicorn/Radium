@@ -9,6 +9,7 @@
 
 pub mod config;
 pub mod error;
+pub mod error_hooks;
 pub mod model;
 pub mod registry;
 pub mod telemetry;
@@ -17,9 +18,10 @@ pub mod types;
 
 pub use config::HookConfig;
 pub use error::{HookError, Result as HookResult};
-pub use model::{ModelHookContext, ModelHookType};
+pub use error_hooks::{ErrorHook, ErrorHookContext, ErrorHookType};
+pub use model::{ModelHook, ModelHookContext, ModelHookType};
 pub use registry::{Hook, HookRegistry, HookType};
 pub use telemetry::TelemetryHookContext;
-pub use tool::{ToolHookContext, ToolHookType};
+pub use tool::{ToolHook, ToolHookContext, ToolHookType};
 pub use types::{HookContext, HookPriority, HookResult as HookExecutionResult};
 

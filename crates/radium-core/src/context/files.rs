@@ -513,5 +513,191 @@ mod tests {
         let count = result.matches("Imported").count();
         assert!(count >= 1);
     }
+
+    #[test]
+    fn test_load_hierarchical_empty_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let loader = ContextFileLoader::new(temp_dir.path());
+
+        // Create empty context file
+        let project_file = temp_dir.path().join("GEMINI.md");
+        fs::write(&project_file, "").unwrap();
+
+        let content = loader.load_hierarchical(temp_dir.path()).unwrap();
+        // Empty file should result in empty content (after processing)
+        assert!(content.is_empty() || content.trim().is_empty());
+    }
+
+    #[test]
+    fn test_load_hierarchical_whitespace_only() {
+        let temp_dir = TempDir::new().unwrap();
+        let loader = ContextFileLoader::new(temp_dir.path());
+
+        // Create whitespace-only context file
+        let project_file = temp_dir.path().join("GEMINI.md");
+        fs::write(&project_file, "   \n\n\t\t\n  ").unwrap();
+
+        let content = loader.load_hierarchical(temp_dir.path()).unwrap();
+        // Whitespace-only should be processed but result in minimal content
+        assert!(content.trim().is_empty() || content.is_empty());
+    }
+
+    #[test]
+    fn test_process_imports_absolute_path() {
+        let temp_dir = TempDir::new().unwrap();
+        let loader = ContextFileLoader::new(temp_dir.path());
+
+        // Create imported file
+        let imported_file = temp_dir.path().join("imported.md");
+        fs::write(&imported_file, "# Absolute Import\n\nContent from absolute path.").unwrap();
+
+        // Use absolute path in import
+        let absolute_path = imported_file.canonicalize().unwrap();
+        let content = format!("# Main\n\n@{}\n\nMore content.", absolute_path.display());
+        let result = loader.process_imports(&content, temp_dir.path()).unwrap();
+
+        assert!(result.contains("Main"));
+        assert!(result.contains("Absolute Import"));
+        assert!(result.contains("Content from absolute path"));
+        assert!(result.contains("More content"));
+    }
+
+    #[test]
+    fn test_process_imports_path_with_spaces() {
+        let temp_dir = TempDir::new().unwrap();
+        let loader = ContextFileLoader::new(temp_dir.path());
+
+        // Create directory and file with spaces in name
+        let subdir = temp_dir.path().join("my docs");
+        fs::create_dir_all(&subdir).unwrap();
+        let imported_file = subdir.join("my file.md");
+        fs::write(&imported_file, "# File With Spaces\n\nContent.").unwrap();
+
+        // Import file with spaces in path
+        let content = "# Main\n\n@my docs/my file.md\n\nMore.";
+        let result = loader.process_imports(content, temp_dir.path()).unwrap();
+
+        assert!(result.contains("Main"));
+        assert!(result.contains("File With Spaces"));
+        assert!(result.contains("Content"));
+        assert!(result.contains("More"));
+    }
+
+    #[test]
+    fn test_process_imports_multiple_in_line() {
+        let temp_dir = TempDir::new().unwrap();
+        let loader = ContextFileLoader::new(temp_dir.path());
+
+        // Create multiple imported files
+        let file1 = temp_dir.path().join("file1.md");
+        let file2 = temp_dir.path().join("file2.md");
+        fs::write(&file1, "# File 1").unwrap();
+        fs::write(&file2, "# File 2").unwrap();
+
+        // Multiple imports on separate lines
+        let content = "# Main\n\n@file1.md\n\n@file2.md\n\nEnd";
+        let result = loader.process_imports(content, temp_dir.path()).unwrap();
+
+        assert!(result.contains("Main"));
+        assert!(result.contains("File 1"));
+        assert!(result.contains("File 2"));
+        assert!(result.contains("End"));
+    }
+
+    #[test]
+    fn test_process_imports_unicode_content() {
+        let temp_dir = TempDir::new().unwrap();
+        let loader = ContextFileLoader::new(temp_dir.path());
+
+        // Create file with unicode content
+        let imported_file = temp_dir.path().join("imported.md");
+        fs::write(&imported_file, "# Unicode Test\n\n中文 Español Français 🚀").unwrap();
+
+        let content = "# Main\n\n@imported.md";
+        let result = loader.process_imports(content, temp_dir.path()).unwrap();
+
+        assert!(result.contains("Main"));
+        assert!(result.contains("Unicode Test"));
+        assert!(result.contains("中文"));
+        assert!(result.contains("Español"));
+        assert!(result.contains("Français"));
+        assert!(result.contains("🚀"));
+    }
+
+    #[test]
+    fn test_process_imports_special_characters() {
+        let temp_dir = TempDir::new().unwrap();
+        let loader = ContextFileLoader::new(temp_dir.path());
+
+        // Create file with special characters
+        let imported_file = temp_dir.path().join("imported.md");
+        fs::write(&imported_file, "# Special Chars\n\n<>&\"'`{}\\[\\]").unwrap();
+
+        let content = "# Main\n\n@imported.md";
+        let result = loader.process_imports(content, temp_dir.path()).unwrap();
+
+        assert!(result.contains("Main"));
+        assert!(result.contains("Special Chars"));
+    }
+
+    #[test]
+    fn test_discover_context_files_ignores_hidden_dirs() {
+        let temp_dir = TempDir::new().unwrap();
+        let loader = ContextFileLoader::new(temp_dir.path());
+
+        // Create context file in project root
+        let project_file = temp_dir.path().join("GEMINI.md");
+        fs::write(&project_file, "Project context").unwrap();
+
+        // Create hidden directory with context file (should be ignored)
+        let hidden_dir = temp_dir.path().join(".hidden");
+        fs::create_dir_all(&hidden_dir).unwrap();
+        let hidden_file = hidden_dir.join("GEMINI.md");
+        fs::write(&hidden_file, "Hidden context").unwrap();
+
+        let files = loader.discover_context_files().unwrap();
+        // Should find project file but not hidden directory file
+        assert!(files.iter().any(|f| f == &project_file));
+        assert!(!files.iter().any(|f| f == &hidden_file));
+    }
+
+    #[test]
+    fn test_load_hierarchical_with_frontmatter() {
+        let temp_dir = TempDir::new().unwrap();
+        let loader = ContextFileLoader::new(temp_dir.path());
+
+        // Create context file with frontmatter
+        let project_file = temp_dir.path().join("GEMINI.md");
+        fs::write(
+            &project_file,
+            "---\nversion: 1.0\n---\n\n# Context\n\nContent after frontmatter.",
+        )
+        .unwrap();
+
+        let content = loader.load_hierarchical(temp_dir.path()).unwrap();
+        assert!(content.contains("Context"));
+        assert!(content.contains("Content after frontmatter"));
+    }
+
+    #[test]
+    fn test_process_imports_nested_code_blocks() {
+        let temp_dir = TempDir::new().unwrap();
+        let loader = ContextFileLoader::new(temp_dir.path());
+
+        // Create imported file
+        let imported_file = temp_dir.path().join("imported.md");
+        fs::write(&imported_file, "# Imported").unwrap();
+
+        // Import inside code block should be ignored, outside should work
+        let content = "# Main\n\n```\n@imported.md\n```\n\n@imported.md\n\nEnd";
+        let result = loader.process_imports(content, temp_dir.path()).unwrap();
+
+        // Should contain imported content (from outside code block)
+        assert!(result.contains("Main"));
+        assert!(result.contains("Imported"));
+        assert!(result.contains("End"));
+        // The import inside code block should remain as text
+        assert!(result.contains("```"));
+    }
 }
 

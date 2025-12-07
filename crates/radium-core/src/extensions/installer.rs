@@ -140,7 +140,7 @@ impl ExtensionManager {
         let manifest = ExtensionManifest::load(&manifest_path)?;
 
         // Check if already installed
-        if let Some(existing) = self.discovery.get(&manifest.name)? {
+        if self.discovery.get(&manifest.name)?.is_some() {
             if !options.overwrite {
                 return Err(ExtensionInstallerError::AlreadyInstalled(manifest.name.clone()));
             }

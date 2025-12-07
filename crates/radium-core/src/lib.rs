@@ -28,6 +28,7 @@ pub mod context;
 pub mod engines;
 pub mod error;
 pub mod extensions;
+pub mod hooks;
 pub mod learning;
 pub mod mcp;
 pub mod memory;
@@ -70,6 +71,10 @@ pub use error::{RadiumError, Result};
 pub use extensions::{
     Extension, ExtensionDiscovery, ExtensionError, ExtensionManager, ExtensionManifest,
     ExtensionManifestError, ExtensionStructureError, InstallOptions, Result as ExtensionResult,
+};
+pub use hooks::{
+    Hook, HookConfig, HookContext, HookError, HookPriority, HookRegistry, HookResult as HookExecutionResult, HookType,
+    HookResult, ModelHookContext, ModelHookType, TelemetryHookContext, ToolHookContext, ToolHookType,
 };
 pub use learning::{
     CategorySummary, LearningEntry, LearningError, LearningStore, LearningType, Skill, SkillStatus,
