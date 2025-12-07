@@ -2,6 +2,7 @@
 
 use crate::mcp::client::McpClient;
 use crate::mcp::{McpError, McpTool, McpToolResult, Result};
+use crate::mcp::content::ContentHandler;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
@@ -92,15 +93,24 @@ impl McpClient {
 
         let result = self.send_request("tools/call", Some(params)).await?;
 
-        // Parse the result
+        // Parse the result using ContentHandler for proper content type detection
         let content = result.get("content").and_then(|c| c.as_array()).ok_or_else(|| {
             McpError::Protocol("tools/call response missing 'content' field".to_string())
         })?;
 
-        let mcp_content: Vec<crate::mcp::McpContent> =
-            serde_json::from_value(serde_json::Value::Array(content.clone())).map_err(|e| {
-                McpError::Protocol(format!("Failed to parse tool result content: {}", e))
-            })?;
+        let mut mcp_content = Vec::new();
+        for content_item in content {
+            match ContentHandler::parse_content(content_item) {
+                Ok(parsed_content) => mcp_content.push(parsed_content),
+                Err(e) => {
+                    tracing::warn!("Failed to parse content item: {}. Skipping.", e);
+                    // Try to parse as text as fallback
+                    if let Some(text) = content_item.get("text").and_then(|t| t.as_str()) {
+                        mcp_content.push(crate::mcp::McpContent::Text { text: text.to_string() });
+                    }
+                }
+            }
+        }
 
         let is_error = result.get("isError").and_then(|e| e.as_bool()).unwrap_or(false);
 

@@ -10,9 +10,33 @@
 use async_trait::async_trait;
 use serde_json;
 use std::sync::Arc;
+use std::path::PathBuf;
+use base64::{Engine as _, engine::general_purpose};
 
 use super::tool::{Tool, ToolArguments, ToolHandler, ToolParameters, ToolResult};
 use crate::error::Result;
+
+/// Save content data to a temporary file.
+fn save_content_to_temp_file(data: &str, extension: &str) -> std::io::Result<PathBuf> {
+    use std::io::Write;
+    
+    // Try to decode as base64 first, otherwise use as-is
+    let bytes = if data.len() > 100 && data.chars().all(|c| c.is_alphanumeric() || c == '+' || c == '/' || c == '=') {
+        // Looks like base64, try to decode
+        general_purpose::STANDARD.decode(data).unwrap_or_else(|_| data.as_bytes().to_vec())
+    } else {
+        data.as_bytes().to_vec()
+    };
+
+    let mut temp_file = std::env::temp_dir();
+    temp_file.push(format!("radium_mcp_{}.{}", uuid::Uuid::new_v4(), extension));
+    
+    let mut file = std::fs::File::create(&temp_file)?;
+    file.write_all(&bytes)?;
+    file.sync_all()?;
+    
+    Ok(temp_file)
+}
 
 /// Trait for MCP integration to avoid direct dependency on radium-core
 #[async_trait]
@@ -70,24 +94,79 @@ impl ToolHandler for McpToolHandler {
         {
             Ok(mcp_result) => {
                 // Convert MCP result to ToolResult
-                // Extract text content from MCP result
+                // Extract text content from MCP result and handle rich content
                 let mut output_parts = Vec::new();
+                let mut temp_files = Vec::new();
+
                 for content in &mcp_result.content {
                     match content {
                         McpContent::Text { text } => {
                             output_parts.push(text.clone());
                         }
                         McpContent::Image { data, mime_type } => {
-                            output_parts.push(format!("[Image: {}]", mime_type));
-                            // For images, we could include the data, but for now just note it
-                            if data.len() < 100 {
-                                output_parts.push(format!("Data: {}", data));
+                            // Save image to temp file
+                            let extension = match mime_type.as_str() {
+                                "image/png" => "png",
+                                "image/jpeg" | "image/jpg" => "jpg",
+                                "image/gif" => "gif",
+                                "image/webp" => "webp",
+                                _ => "bin",
+                            };
+
+                            if data.starts_with("http://") || data.starts_with("https://") {
+                                // URL-based image
+                                output_parts.push(format!("[Image: {}] URL: {}", mime_type, data));
+                            } else {
+                                // Base64 or raw data - save to temp file
+                                match save_content_to_temp_file(data, extension) {
+                                    Ok(path) => {
+                                        output_parts.push(format!(
+                                            "[Image: {}] Saved to: {}",
+                                            mime_type,
+                                            path.display()
+                                        ));
+                                        temp_files.push(path);
+                                    }
+                                    Err(e) => {
+                                        output_parts.push(format!(
+                                            "[Image: {}] Failed to save: {}",
+                                            mime_type, e
+                                        ));
+                                    }
+                                }
                             }
                         }
                         McpContent::Audio { data, mime_type } => {
-                            output_parts.push(format!("[Audio: {}]", mime_type));
-                            if data.len() < 100 {
-                                output_parts.push(format!("Data: {}", data));
+                            // Save audio to temp file
+                            let extension = match mime_type.as_str() {
+                                "audio/mpeg" | "audio/mp3" => "mp3",
+                                "audio/wav" => "wav",
+                                "audio/ogg" => "ogg",
+                                "audio/flac" => "flac",
+                                _ => "bin",
+                            };
+
+                            if data.starts_with("http://") || data.starts_with("https://") {
+                                // URL-based audio
+                                output_parts.push(format!("[Audio: {}] URL: {}", mime_type, data));
+                            } else {
+                                // Base64 or raw data - save to temp file
+                                match save_content_to_temp_file(data, extension) {
+                                    Ok(path) => {
+                                        output_parts.push(format!(
+                                            "[Audio: {}] Saved to: {}",
+                                            mime_type,
+                                            path.display()
+                                        ));
+                                        temp_files.push(path);
+                                    }
+                                    Err(e) => {
+                                        output_parts.push(format!(
+                                            "[Audio: {}] Failed to save: {}",
+                                            mime_type, e
+                                        ));
+                                    }
+                                }
                             }
                         }
                     }
