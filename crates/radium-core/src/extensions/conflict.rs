@@ -218,10 +218,14 @@ impl ConflictDetector {
         let mut visited = HashSet::new();
         let mut rec_stack = HashSet::new();
 
+        // Create a combined map that includes the extension being installed
+        let mut combined_extensions = all_extensions.clone();
+        combined_extensions.insert(extension_name.to_string(), manifest.dependencies.clone());
+
         Self::dfs_cycle_detection(
             extension_name,
             &manifest.dependencies,
-            all_extensions,
+            &combined_extensions,
             &mut visited,
             &mut rec_stack,
         )?;
@@ -241,15 +245,18 @@ impl ConflictDetector {
         rec_stack.insert(current.to_string());
 
         for dep in dependencies {
-            if !visited.contains(dep) {
-                if let Some(dep_deps) = all_extensions.get(dep) {
-                    Self::dfs_cycle_detection(dep, dep_deps, all_extensions, visited, rec_stack)?;
-                }
-            } else if rec_stack.contains(dep) {
+            if rec_stack.contains(dep) {
+                // Found a back edge - cycle detected
                 return Err(ConflictError::DependencyCycle(format!(
                     "Circular dependency detected involving '{}' and '{}'",
                     current, dep
                 )));
+            }
+            
+            if !visited.contains(dep) {
+                if let Some(dep_deps) = all_extensions.get(dep) {
+                    Self::dfs_cycle_detection(dep, dep_deps, all_extensions, visited, rec_stack)?;
+                }
             }
         }
 
@@ -279,12 +286,13 @@ mod tests {
     #[test]
     fn test_detect_dependency_cycle() {
         let mut all_extensions = HashMap::new();
-        all_extensions.insert("A".to_string(), vec!["B".to_string()]);
-        all_extensions.insert("B".to_string(), vec!["A".to_string()]);
+        all_extensions.insert("B".to_string(), vec!["A".to_string()]); // B depends on A
 
-        let manifest = create_test_manifest("A");
+        let mut manifest = create_test_manifest("A");
+        manifest.dependencies.push("B".to_string()); // A depends on B -> cycle!
+
         let result = ConflictDetector::detect_dependency_cycles("A", &manifest, &all_extensions);
-        assert!(result.is_err());
+        assert!(result.is_err(), "Expected cycle detection but got: {:?}", result);
         assert!(matches!(result.unwrap_err(), ConflictError::DependencyCycle(_)));
     }
 

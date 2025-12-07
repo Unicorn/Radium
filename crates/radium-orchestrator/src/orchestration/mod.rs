@@ -8,6 +8,7 @@ pub mod config;
 pub mod context;
 pub mod engine;
 pub mod providers;
+pub mod service;
 pub mod tool;
 
 use async_trait::async_trait;

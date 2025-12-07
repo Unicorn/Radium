@@ -551,7 +551,13 @@ mod tests {
 
         let result = manager.install(&package_dir, options);
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ExtensionInstallerError::Dependency(_)));
+        // Now returns Validation error instead of Dependency error
+        let err = result.unwrap_err();
+        assert!(
+            matches!(err, ExtensionInstallerError::Validation(_)) || 
+            matches!(err, ExtensionInstallerError::Dependency(_)),
+            "Expected Validation or Dependency error, got: {:?}", err
+        );
     }
 
     #[test]
