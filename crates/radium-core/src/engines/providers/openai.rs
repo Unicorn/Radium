@@ -184,7 +184,7 @@ mod tests {
         assert_eq!(metadata.id, "openai");
         assert_eq!(metadata.name, "OpenAI");
         assert!(metadata.requires_auth);
-        assert_eq!(metadata.models.len(), 3);
+        assert_eq!(metadata.models.len(), 6);
     }
 
     #[tokio::test]

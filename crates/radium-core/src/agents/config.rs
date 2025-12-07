@@ -227,8 +227,13 @@ impl AgentConfigFile {
     ///
     /// Returns error if file cannot be read or parsed.
     pub fn load(path: impl AsRef<std::path::Path>) -> Result<Self> {
-        let content = std::fs::read_to_string(path.as_ref())?;
+        let path = path.as_ref();
+        let content = std::fs::read_to_string(path)?;
         let mut config: Self = toml::from_str(&content)?;
+        
+        // Set file_path before validation so validate_prompt_path can resolve relative paths
+        config.agent.file_path = Some(path.to_path_buf());
+        
         config.validate()?;
         
         // Convert persona TOML to PersonaConfig if present

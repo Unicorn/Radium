@@ -184,7 +184,7 @@ mod tests {
         assert_eq!(metadata.id, "gemini");
         assert_eq!(metadata.name, "Gemini");
         assert!(metadata.requires_auth);
-        assert_eq!(metadata.models.len(), 3);
+        assert_eq!(metadata.models.len(), 5);
     }
 
     #[tokio::test]

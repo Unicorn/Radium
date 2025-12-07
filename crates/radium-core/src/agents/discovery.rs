@@ -119,7 +119,14 @@ impl AgentDiscovery {
                 // Check if this is a TOML file
                 if let Some(ext) = path.extension() {
                     if ext == "toml" {
-                        self.load_agent_config(&path, root, agents)?;
+                        // Continue discovery even if a config file fails to load
+                        if let Err(e) = self.load_agent_config(&path, root, agents) {
+                            tracing::debug!(
+                                path = %path.display(),
+                                error = %e,
+                                "Skipping invalid agent config file"
+                            );
+                        }
                     }
                 }
             }
@@ -367,6 +374,19 @@ mod tests {
         let category_dir = dir.join(category);
         fs::create_dir_all(&category_dir).unwrap();
 
+        // Create prompts directory relative to where configs are (at root level)
+        // and also relative to each category directory for nested categories
+        let prompts_dir_root = dir.join("prompts");
+        fs::create_dir_all(&prompts_dir_root).unwrap();
+        let prompt_path_root = prompts_dir_root.join("test.md");
+        fs::write(&prompt_path_root, format!("# Test Agent: {}", id)).unwrap();
+
+        // Also create in category directory for nested paths
+        let prompts_dir_category = category_dir.join("prompts");
+        fs::create_dir_all(&prompts_dir_category).unwrap();
+        let prompt_path_category = prompts_dir_category.join("test.md");
+        fs::write(&prompt_path_category, format!("# Test Agent: {}", id)).unwrap();
+
         let config = AgentConfigFile {
             agent: AgentConfig::new(id, format!("{} Agent", id), PathBuf::from("prompts/test.md"))
                 .with_description(format!("Test agent {}", id))
@@ -471,10 +491,17 @@ mod tests {
         fs::create_dir_all(&agents_dir).unwrap();
 
         // Create agent with relative path that should resolve
-        let prompts_dir = temp.path().join("prompts");
+        // Create prompts relative to config directory (agents/prompts/)
+        let prompts_dir = agents_dir.join("prompts");
         fs::create_dir_all(&prompts_dir).unwrap();
         let prompt_file = prompts_dir.join("test.md");
         fs::write(&prompt_file, "# Test").unwrap();
+
+        // Also create at root level for workspace root resolution
+        let root_prompts_dir = temp.path().join("prompts");
+        fs::create_dir_all(&root_prompts_dir).unwrap();
+        let root_prompt_file = root_prompts_dir.join("test.md");
+        fs::write(&root_prompt_file, "# Test").unwrap();
 
         let config = AgentConfigFile {
             agent: AgentConfig::new("test-agent", "Test Agent", PathBuf::from("prompts/test.md"))

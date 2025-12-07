@@ -13,8 +13,10 @@ use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 use commands::{
-    agents, auth, autonomous, budget, chat, checkpoint, clean, complete, context, craft, custom, doctor, extension, hooks, init, learning, mcp, monitor, plan, run,
-    sandbox, stats, status, step, templates, validate, vibecheck,
+    agents, auth, budget, checkpoint, clean, context, craft, doctor, extension, hooks, init, learning, monitor, plan, run,
+    sandbox, stats, status, step, validate,
+    // Disabled commands (depend on disabled modules):
+    // autonomous, chat, complete, custom, mcp, templates, vibecheck
 };
 
 /// Radium CLI - Next-generation agentic orchestration tool
@@ -375,7 +377,8 @@ enum Command {
 }
 
 // Command types are now in commands::types module
-use commands::{AgentsCommand, AuthCommand, ExtensionCommand, TemplatesCommand};
+use commands::{AgentsCommand, AuthCommand, ExtensionCommand};
+// Disabled: TemplatesCommand
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
