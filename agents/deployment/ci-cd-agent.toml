@@ -1,0 +1,9 @@
+[agent]
+id = "ci-cd-agent"
+name = "CI/CD Pipeline Configuration Agent"
+description = "Creates CI/CD pipeline configurations for automated testing and deployment"
+prompt_path = "prompts/agents/deployment/ci-cd-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "high"
+

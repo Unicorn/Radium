@@ -1,0 +1,9 @@
+[agent]
+id = "api-design-agent"
+name = "API Design Agent"
+description = "Designs RESTful and GraphQL APIs with clear contracts and documentation"
+prompt_path = "prompts/agents/design/api-design-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "high"
+

@@ -1,0 +1,9 @@
+[agent]
+id = "ui-design-agent"
+name = "UI/UX Design Agent"
+description = "Creates UI/UX design patterns, components, and user experience guidelines"
+prompt_path = "prompts/agents/design/ui-design-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "high"
+

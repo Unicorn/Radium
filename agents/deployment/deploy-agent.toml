@@ -1,0 +1,9 @@
+[agent]
+id = "deploy-agent"
+name = "Deployment Strategy Agent"
+description = "Designs deployment strategies and configurations for applications"
+prompt_path = "prompts/agents/deployment/deploy-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "high"
+

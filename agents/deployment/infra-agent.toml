@@ -1,0 +1,9 @@
+[agent]
+id = "infra-agent"
+name = "Infrastructure as Code Agent"
+description = "Creates infrastructure as code configurations for cloud and on-premise deployments"
+prompt_path = "prompts/agents/deployment/infra-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "high"
+
