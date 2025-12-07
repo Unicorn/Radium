@@ -82,6 +82,22 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
 
 ### Completed Recently
 
+- [x] **REQ-011: Context Files System**: Hierarchical context file loading with GEMINI.md support
+  - **Completed:** 2025-01-XX
+  - **Commit:** feat(context): implement context files loader and integration [REQ-011]
+  - **Files:**
+    - `crates/radium-core/src/context/files.rs` - Context file loader implementation
+    - `crates/radium-core/tests/context_files_integration_test.rs` - Integration tests
+  - **Features:**
+    - Hierarchical loading (global → project root → subdirectory)
+    - Automatic context file discovery
+    - Context imports with `@file.md` syntax
+    - Circular import detection
+    - Custom context file name configuration
+    - Integration with ContextManager and prompt system
+    - Context file caching with modification time tracking
+  - **Tests:** 15+ tests covering hierarchical loading, imports, circular detection, and integration
+
 - [x] **Session Reports & Analytics System**: Comprehensive session reporting with metrics and cost transparency
   - **Completed:** 2025-01-XX
   - **Commit:** feat(analytics): implement session reports & analytics system
