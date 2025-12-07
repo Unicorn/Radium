@@ -416,6 +416,35 @@ impl Drop for BehaviorFileWatcher {
     }
 }
 
+/// Helper function to record behavior metrics to telemetry.
+///
+/// # Arguments
+/// * `monitoring_service` - Optional monitoring service
+/// * `agent_id` - Agent ID executing the behavior
+/// * `behavior_type` - Type of behavior (loop, trigger, checkpoint, vibecheck)
+/// * `invocation_count` - Number of times behavior was invoked
+/// * `duration_ms` - Evaluation duration in milliseconds
+/// * `outcome` - Outcome of the behavior evaluation (triggered, skipped, failed, etc.)
+pub async fn record_behavior_metrics(
+    monitoring_service: Option<&Arc<std::sync::Mutex<crate::monitoring::service::MonitoringService>>>,
+    agent_id: String,
+    behavior_type: String,
+    invocation_count: Option<u64>,
+    duration_ms: Option<u64>,
+    outcome: Option<String>,
+) {
+    if let Some(monitoring) = monitoring_service {
+        use crate::monitoring::telemetry::TelemetryRecord;
+        
+        let record = TelemetryRecord::new(agent_id)
+            .with_behavior_metrics(behavior_type, invocation_count, duration_ms, outcome);
+        
+        if let Ok(mut service) = monitoring.lock() {
+            let _ = service.record_telemetry(&record).await;
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

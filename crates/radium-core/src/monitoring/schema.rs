@@ -65,6 +65,7 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
     
     // Migrate existing tables to add behavior columns if they don't exist
     // This allows upgrading existing databases without recreating them
+    // SQLite doesn't support IF NOT EXISTS for ALTER TABLE, so we ignore errors
     let _ = conn.execute(
         "ALTER TABLE telemetry ADD COLUMN behavior_type TEXT",
         [],
