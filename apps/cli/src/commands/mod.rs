@@ -26,6 +26,7 @@ pub mod step;
 pub mod templates;
 pub mod types;
 pub mod validate;
+pub mod vibecheck;
 
 // Re-export types for convenience
 pub use types::{AgentsCommand, AuthCommand, CustomCommand, EnginesCommand, ExtensionCommand, HooksCommand, MigrateSubcommand, TemplatesCommand};

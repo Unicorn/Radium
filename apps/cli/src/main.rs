@@ -14,7 +14,7 @@ use tracing_subscriber::FmtSubscriber;
 
 use commands::{
     agents, auth, autonomous, chat, checkpoint, clean, complete, context, craft, custom, doctor, extension, hooks, init, mcp, monitor, plan, run,
-    sandbox, stats, status, step, templates, validate,
+    sandbox, stats, status, step, templates, validate, vibecheck,
 };
 
 /// Radium CLI - Next-generation agentic orchestration tool
@@ -192,6 +192,36 @@ enum Command {
     /// and authentication status.
     Status {
         /// Output status as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Request metacognitive oversight (vibe check)
+    ///
+    /// Triggers a manual vibe check to get metacognitive feedback
+    /// on your current approach, plan, or implementation.
+    Vibecheck {
+        /// Workflow phase (planning, implementation, review)
+        #[arg(long)]
+        phase: Option<String>,
+
+        /// Goal or objective being pursued
+        #[arg(long)]
+        goal: Option<String>,
+
+        /// Current plan or approach
+        #[arg(long)]
+        plan: Option<String>,
+
+        /// Progress made so far
+        #[arg(long)]
+        progress: Option<String>,
+
+        /// Task context or recent actions
+        #[arg(long)]
+        task_context: Option<String>,
+
+        /// Output as JSON
         #[arg(long)]
         json: bool,
     },
@@ -419,6 +449,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Status { json } => {
             status::execute(json).await?;
+        }
+        Command::Vibecheck { phase, goal, plan, progress, task_context, json } => {
+            vibecheck::execute(phase, goal, plan, progress, task_context, json).await?;
         }
         Command::Clean { verbose, dir } => {
             clean::execute(verbose, dir).await?;
