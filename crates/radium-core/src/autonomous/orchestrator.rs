@@ -10,17 +10,15 @@ use crate::learning::recovery_learning::RecoveryLearning;
 use crate::planning::autonomous::{AutonomousPlan, AutonomousPlanner, PlanningError};
 use crate::workflow::engine::ExecutionContext;
 use crate::workflow::executor::WorkflowExecutor;
-use crate::workflow::failure::{FailureClassifier, FailurePolicy};
-use crate::workflow::recovery::{RecoveryManager, RecoveryStrategy};
+use crate::workflow::failure::FailurePolicy;
+use crate::workflow::recovery::RecoveryManager;
 use crate::workflow::reassignment::{AgentReassignment, AgentSelector};
 use crate::workflow::service::WorkflowService;
 use crate::workflow::templates::WorkflowTemplate;
-use crate::workflow::WorkflowEngineError;
 use crate::workspace::Workspace;
 use radium_abstraction::Model;
 use radium_orchestrator::{AgentExecutor, Orchestrator};
-use std::sync::Arc;
-use std::time::Duration;
+use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
 /// Errors that can occur during autonomous execution.

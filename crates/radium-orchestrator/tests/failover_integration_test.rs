@@ -7,9 +7,6 @@
 //! - Non-credit errors don't trigger failover
 
 use radium_abstraction::{ChatMessage, Model, ModelError, ModelParameters, ModelResponse};
-use radium_orchestrator::{
-    agents::SimpleAgent, Agent, AgentContext, AgentExecutor, AgentOutput, ExecutionResult,
-};
 use std::sync::Arc;
 
 /// Mock model that returns configurable errors or success.
@@ -60,8 +57,8 @@ impl MockFailoverModel {
 impl Model for MockFailoverModel {
     async fn generate_text(
         &self,
-        prompt: &str,
-        parameters: Option<ModelParameters>,
+        _prompt: &str,
+        _parameters: Option<ModelParameters>,
     ) -> Result<ModelResponse, ModelError> {
         if self.should_fail {
             if let Some(ref err) = self.error_type {
@@ -81,7 +78,8 @@ impl Model for MockFailoverModel {
         messages: &[ChatMessage],
         parameters: Option<ModelParameters>,
     ) -> Result<ModelResponse, ModelError> {
-        self.generate_text(&messages[0].content, parameters).await
+        let content = messages.first().map(|m| m.content.as_str()).unwrap_or("");
+        self.generate_text(content, parameters).await
     }
 
     fn model_id(&self) -> &str {
