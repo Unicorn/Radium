@@ -83,6 +83,8 @@ pub struct HookRegistry {
     hooks: Arc<RwLock<Vec<Arc<dyn Hook>>>>,
     /// Set of enabled hook names.
     enabled_hooks: Arc<RwLock<std::collections::HashSet<String>>>,
+    /// Optional profiler for performance monitoring.
+    profiler: Option<Arc<HookProfiler>>,
 }
 
 impl Default for HookRegistry {
@@ -103,7 +105,27 @@ impl HookRegistry {
         Self {
             hooks: Arc::new(RwLock::new(Vec::new())),
             enabled_hooks: Arc::new(RwLock::new(HashSet::new())),
+            profiler: None,
         }
+    }
+
+    /// Create a new hook registry with profiling enabled.
+    pub fn with_profiler(profiler: Arc<HookProfiler>) -> Self {
+        Self {
+            hooks: Arc::new(RwLock::new(Vec::new())),
+            enabled_hooks: Arc::new(RwLock::new(HashSet::new())),
+            profiler: Some(profiler),
+        }
+    }
+
+    /// Set the profiler for this registry.
+    pub fn set_profiler(&mut self, profiler: Arc<HookProfiler>) {
+        self.profiler = Some(profiler);
+    }
+
+    /// Get the profiler if available.
+    pub fn profiler(&self) -> Option<&Arc<HookProfiler>> {
+        self.profiler.as_ref()
     }
 
     /// Clone the registry (creates a new registry with shared hook storage).
@@ -111,6 +133,7 @@ impl HookRegistry {
         Self {
             hooks: Arc::clone(&self.hooks),
             enabled_hooks: Arc::clone(&self.enabled_hooks),
+            profiler: self.profiler.clone(),
         }
     }
 
@@ -181,7 +204,19 @@ impl HookRegistry {
                 continue;
             }
             
-            match hook.execute(context).await {
+            // Record execution time if profiling is enabled
+            let start_time = Instant::now();
+            let hook_result = hook.execute(context).await;
+            let duration = start_time.elapsed();
+            
+            // Record profiling data if profiler is available
+            if let Some(profiler) = &self.profiler {
+                profiler
+                    .record_execution(hook.name(), hook_type, duration)
+                    .await;
+            }
+            
+            match hook_result {
                 Ok(result) => {
                     results.push(result.clone());
                     // If a hook says to stop, we stop executing remaining hooks
