@@ -2,9 +2,9 @@
 req_id: REQ-019
 title: Hooks System
 phase: LATER
-status: Not Started
+status: Review
 priority: Low
-estimated_effort: TBD
+estimated_effort: 8-10h
 dependencies: [REQ-004, REQ-005]
 related_docs:
   - docs/features/future-enhancements.md#hooks-system

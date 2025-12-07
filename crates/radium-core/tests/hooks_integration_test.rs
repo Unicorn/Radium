@@ -2,9 +2,9 @@
 
 use radium_core::hooks::config::HookConfig;
 use radium_core::hooks::integration::OrchestratorHooks;
-use radium_core::hooks::model::ModelHook;
-use radium_core::hooks::registry::{HookRegistry, HookType};
-use radium_core::hooks::tool::ToolHook;
+use radium_core::hooks::model::{ModelHook, ModelHookContext};
+use radium_core::hooks::registry::HookRegistry;
+use radium_core::hooks::tool::{ToolHook, ToolHookContext};
 use radium_core::hooks::types::{HookPriority, HookResult as HookExecutionResult};
 use std::sync::Arc;
 
