@@ -6,8 +6,8 @@ use super::ExtensionCommand;
 use colored::Colorize;
 use inquire::Confirm;
 use radium_core::extensions::{
-    ExtensionDiscovery, ExtensionManager, ExtensionSigner, InstallOptions, SignatureVerifier,
-    TrustedKeysManager,
+    ExtensionDiscovery, ExtensionManager, ExtensionSigner, InstallOptions, MarketplaceClient,
+    MarketplaceExtension, SignatureVerifier, TrustedKeysManager,
 };
 use serde_json::json;
 use std::fs;
@@ -23,7 +23,10 @@ pub async fn execute(command: ExtensionCommand) -> anyhow::Result<()> {
         ExtensionCommand::Uninstall { name } => uninstall_extension(&name).await,
         ExtensionCommand::List { json, verbose } => list_extensions(json, verbose).await,
         ExtensionCommand::Info { name, json } => show_extension_info(&name, json).await,
-        ExtensionCommand::Search { query, json } => search_extensions(&query, json).await,
+        ExtensionCommand::Search { query, json, marketplace_only, local_only } => {
+            search_extensions(&query, json, marketplace_only, local_only).await
+        }
+        ExtensionCommand::Browse { json } => browse_marketplace(json).await,
         ExtensionCommand::Create { name, author, description } => {
             create_extension(&name, author.as_deref(), description.as_deref()).await
         }
@@ -47,7 +50,31 @@ async fn install_extension(
 ) -> anyhow::Result<()> {
     let manager = ExtensionManager::new()?;
 
-    println!("{}", format!("Installing extension from: {}", source).yellow());
+    // Check if source is a marketplace name (not a path or URL)
+    let actual_source = if !source.starts_with("http://") 
+        && !source.starts_with("https://") 
+        && !Path::new(source).exists() 
+        && !source.contains('/') 
+        && !source.contains('\\')
+        && !source.ends_with(".tar.gz") 
+        && !source.ends_with(".zip") {
+        // Likely a marketplace name, try to fetch from marketplace
+        let mut marketplace_client = MarketplaceClient::new().unwrap_or_else(|_| {
+            MarketplaceClient::with_url("http://localhost:8080".to_string()).unwrap()
+        });
+        
+        if let Ok(Some(extension_info)) = marketplace_client.get_extension_info(source) {
+            println!("{}", format!("Found extension '{}' in marketplace", source).green());
+            println!("{}", format!("Downloading from: {}", extension_info.download_url).bright_black());
+            &extension_info.download_url
+        } else {
+            source
+        }
+    } else {
+        source
+    };
+
+    println!("{}", format!("Installing extension from: {}", actual_source).yellow());
     println!("{}", "Validating extension package...".bright_black());
 
     // Check if extension already exists and prompt for overwrite if needed
@@ -57,11 +84,11 @@ async fn install_extension(
         use radium_core::extensions::manifest::ExtensionManifest;
         use std::path::Path;
         
-        let source_path = if source.starts_with("http://") || source.starts_with("https://") {
+        let source_path = if actual_source.starts_with("http://") || actual_source.starts_with("https://") {
             // For URLs, we can't check ahead of time, so skip the check
             None
         } else {
-            Some(Path::new(source))
+            Some(Path::new(actual_source))
         };
         
         if let Some(path) = source_path {
@@ -108,7 +135,7 @@ async fn install_extension(
 
     println!("{}", "Installing extension files...".bright_black());
 
-    match manager.install_from_source(source, options) {
+    match manager.install_from_source(actual_source, options) {
         Ok(extension) => {
             println!(
                 "{}",
@@ -352,11 +379,36 @@ async fn show_extension_info(name: &str, json_output: bool) -> anyhow::Result<()
 }
 
 /// Search for extensions.
-async fn search_extensions(query: &str, json_output: bool) -> anyhow::Result<()> {
-    let discovery = ExtensionDiscovery::new();
-    let matches = discovery.search(query)?;
+async fn search_extensions(
+    query: &str,
+    json_output: bool,
+    marketplace_only: bool,
+    local_only: bool,
+) -> anyhow::Result<()> {
+    let mut local_matches = Vec::new();
+    let mut marketplace_matches = Vec::new();
 
-    if matches.is_empty() {
+    // Search local extensions
+    if !marketplace_only {
+        let discovery = ExtensionDiscovery::new();
+        local_matches = discovery.search(query)?;
+    }
+
+    // Search marketplace
+    if !local_only {
+        let mut marketplace_client = MarketplaceClient::new().unwrap_or_else(|_| {
+            // If marketplace client fails to initialize, continue without it
+            MarketplaceClient::with_url("http://localhost:8080".to_string()).unwrap()
+        });
+        
+        if let Ok(matches) = marketplace_client.search_extensions(query) {
+            marketplace_matches = matches;
+        }
+    }
+
+    let total_matches = local_matches.len() + marketplace_matches.len();
+
+    if total_matches == 0 {
         if !json_output {
             println!("{}", format!("No extensions found matching '{}'", query).yellow());
         }
@@ -364,31 +416,131 @@ async fn search_extensions(query: &str, json_output: bool) -> anyhow::Result<()>
     }
 
     if json_output {
-        let extension_list: Vec<_> = matches
-            .iter()
-            .map(|ext| {
-                json!({
-                    "name": ext.name,
-                    "version": ext.version,
-                    "description": ext.manifest.description,
-                    "author": ext.manifest.author,
-                })
-            })
-            .collect();
+        let mut extension_list = Vec::new();
+        
+        for ext in &local_matches {
+            extension_list.push(json!({
+                "name": ext.name,
+                "version": ext.version,
+                "description": ext.manifest.description,
+                "author": ext.manifest.author,
+                "source": "local",
+            }));
+        }
+        
+        for ext in &marketplace_matches {
+            extension_list.push(json!({
+                "name": ext.name,
+                "version": ext.version,
+                "description": ext.description,
+                "author": ext.author,
+                "source": "marketplace",
+                "download_url": ext.download_url,
+                "download_count": ext.download_count,
+                "rating": ext.rating,
+            }));
+        }
+        
         println!("{}", serde_json::to_string_pretty(&extension_list)?);
     } else {
         println!();
         println!(
             "{}",
-            format!("Found {} extension(s) matching '{}'", matches.len(), query).bold().green()
+            format!("Found {} extension(s) matching '{}'", total_matches, query).bold().green()
         );
         println!();
 
-        for ext in &matches {
-            println!("  {} ({})", ext.name.bold(), ext.version.bright_black());
-            if !ext.manifest.description.is_empty() {
-                println!("    {}", ext.manifest.description.bright_black());
+        if !local_matches.is_empty() {
+            println!("{}", "Local Extensions:".bold());
+            for ext in &local_matches {
+                println!("  {} ({})", ext.name.bold(), ext.version.bright_black());
+                if !ext.manifest.description.is_empty() {
+                    println!("    {}", ext.manifest.description.bright_black());
+                }
+                println!();
             }
+        }
+
+        if !marketplace_matches.is_empty() {
+            println!("{}", "Marketplace Extensions:".bold());
+            for ext in &marketplace_matches {
+                print!("  {} ({})", ext.name.bold(), ext.version.bright_black());
+                if let Some(downloads) = ext.download_count {
+                    print!(" - {} downloads", downloads);
+                }
+                if let Some(rating) = ext.rating {
+                    print!(" - ⭐ {:.1}", rating);
+                }
+                println!();
+                if !ext.description.is_empty() {
+                    println!("    {}", ext.description.bright_black());
+                }
+                println!();
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Browse popular extensions from the marketplace.
+async fn browse_marketplace(json_output: bool) -> anyhow::Result<()> {
+    let mut marketplace_client = MarketplaceClient::new().unwrap_or_else(|_| {
+        MarketplaceClient::with_url("http://localhost:8080".to_string()).unwrap()
+    });
+
+    // Search for popular extensions (empty query to get all)
+    let extensions = marketplace_client.search_extensions("")
+        .unwrap_or_else(|_| Vec::new());
+
+    if extensions.is_empty() {
+        if !json_output {
+            println!("{}", "No extensions available in marketplace.".yellow());
+        }
+        return Ok(());
+    }
+
+    // Sort by download count and rating
+    let mut sorted_extensions = extensions;
+    sorted_extensions.sort_by(|a, b| {
+        let a_score = a.download_count.unwrap_or(0) as f64 + (a.rating.unwrap_or(0.0) * 100.0);
+        let b_score = b.download_count.unwrap_or(0) as f64 + (b.rating.unwrap_or(0.0) * 100.0);
+        b_score.partial_cmp(&a_score).unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    if json_output {
+        let extension_list: Vec<_> = sorted_extensions
+            .iter()
+            .map(|ext| {
+                json!({
+                    "name": ext.name,
+                    "version": ext.version,
+                    "description": ext.description,
+                    "author": ext.author,
+                    "download_url": ext.download_url,
+                    "download_count": ext.download_count,
+                    "rating": ext.rating,
+                })
+            })
+            .collect();
+        println!("{}", serde_json::to_string_pretty(&extension_list)?);
+    } else {
+        println!("{}", format!("Popular Extensions ({})", sorted_extensions.len()).bold().green());
+        println!();
+
+        for ext in &sorted_extensions {
+            print!("  {} ({})", ext.name.bold(), ext.version.bright_black());
+            if let Some(downloads) = ext.download_count {
+                print!(" - {} downloads", downloads);
+            }
+            if let Some(rating) = ext.rating {
+                print!(" - ⭐ {:.1}", rating);
+            }
+            println!();
+            if !ext.description.is_empty() {
+                println!("    {}", ext.description.bright_black());
+            }
+            println!("    Install: rad extension install {}", ext.name);
             println!();
         }
     }

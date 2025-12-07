@@ -403,11 +403,42 @@ pub enum ExtensionCommand {
     /// Search and output as JSON:
     ///   $ rad extension search mcp --json
     ///
+    /// Search only marketplace:
+    ///   $ rad extension search github --marketplace-only
+    ///
+    /// Search only local extensions:
+    ///   $ rad extension search github --local-only
+    ///
     /// See `docs/extensions/README.md` for more information.
     Search {
         /// Search query (searches name and description)
         query: String,
 
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+
+        /// Search only marketplace extensions
+        #[arg(long)]
+        marketplace_only: bool,
+
+        /// Search only locally installed extensions
+        #[arg(long)]
+        local_only: bool,
+    },
+
+    /// Browse popular extensions from the marketplace
+    ///
+    /// # Examples
+    ///
+    /// Browse popular extensions:
+    ///   $ rad extension browse
+    ///
+    /// Browse and output as JSON:
+    ///   $ rad extension browse --json
+    ///
+    /// See `docs/extensions/README.md` for more information.
+    Browse {
         /// Output as JSON
         #[arg(long)]
         json: bool,
