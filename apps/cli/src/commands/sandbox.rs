@@ -5,7 +5,7 @@
 use clap::Subcommand;
 use colored::Colorize;
 use radium_core::sandbox::{
-    NetworkMode, Sandbox, SandboxConfig, SandboxFactory, SandboxProfile, SandboxType,
+    NetworkMode, SandboxConfig, SandboxFactory, SandboxProfile, SandboxType,
 };
 use serde_json::json;
 use std::collections::HashMap;

@@ -9,7 +9,7 @@ use radium_core::{
     analytics::{ReportFormatter, SessionAnalytics, SessionReport, SessionStorage},
     context::{ContextFileLoader, ContextManager}, AgentDiscovery, monitoring::MonitoringService, PromptContext,
     PromptTemplate, Workspace,
-    engines::{Engine, EngineRegistry, ExecutionRequest},
+    engines::{EngineRegistry, ExecutionRequest},
     engines::providers::{ClaudeEngine, GeminiEngine, MockEngine, OpenAIEngine},
 };
 use std::sync::Arc;

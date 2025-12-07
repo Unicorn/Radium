@@ -3,7 +3,7 @@
 use super::types::{EnginesCommand, EngineConfigCommand};
 use anyhow::{Context, Result, bail};
 use colored::Colorize;
-use radium_core::engines::{Engine, EngineRegistry, HealthStatus, PerEngineConfig};
+use radium_core::engines::{EngineRegistry, HealthStatus, PerEngineConfig};
 use radium_core::engines::providers::{ClaudeEngine, GeminiEngine, MockEngine, OpenAIEngine};
 use radium_core::workspace::Workspace;
 use serde_json::json;

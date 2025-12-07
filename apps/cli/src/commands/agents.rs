@@ -1722,7 +1722,7 @@ fn interactive_prompt_agent_details(
 /// Load template files.
 fn load_templates(template_name: &str) -> anyhow::Result<(Option<String>, Option<String>)> {
     // Try to find template in multiple locations
-    let template_paths = vec![
+    let _template_paths = vec![
         PathBuf::from("./templates"),
         PathBuf::from("~/.radium/templates"),
         PathBuf::from(format!("./templates/{}", template_name)),
