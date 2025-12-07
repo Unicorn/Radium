@@ -3,8 +3,10 @@
 //! The SkillManager analyzes oversight responses (from MetacognitiveService)
 //! and generates update operations to improve the skillbook over time.
 
-use radium_abstraction::{ChatMessage, Model, ModelError, ModelParameters};
+use std::fmt::Write;
 use std::sync::Arc;
+
+use radium_abstraction::{ChatMessage, Model, ModelError, ModelParameters};
 use thiserror::Error;
 
 use crate::learning::store::LearningStore;
@@ -139,20 +141,21 @@ For TAG operations, metadata should contain \"helpful\", \"harmful\", or \"neutr
     ) -> String {
         let mut prompt = String::new();
 
-        prompt.push_str(&format!("Question Context: {}\n", question_context));
-        prompt.push_str(&format!("Progress: {}\n", progress));
-        prompt.push_str(&format!("Oversight Advice: {}\n", oversight_response.advice));
-        prompt.push_str(&format!("Risk Score: {:.2}\n", oversight_response.risk_score));
+        writeln!(prompt, "Question Context: {}", question_context).unwrap();
+        writeln!(prompt, "Progress: {}", progress).unwrap();
+        writeln!(prompt, "Oversight Advice: {}", oversight_response.advice).unwrap();
+        writeln!(prompt, "Risk Score: {:.2}", oversight_response.risk_score).unwrap();
 
         if !oversight_response.traits.is_empty() {
-            prompt.push_str(&format!("Detected Traits: {}\n", oversight_response.traits.join(", ")));
+            writeln!(prompt, "Detected Traits: {}", oversight_response.traits.join(", ")).unwrap();
         }
 
         if !oversight_response.uncertainties.is_empty() {
-            prompt.push_str(&format!(
-                "Uncertainties: {}\n",
+            writeln!(
+                prompt,
+                "Uncertainties: {}",
                 oversight_response.uncertainties.join(", ")
-            ));
+            ).unwrap();
         }
 
         // Include current skillbook context (limited to avoid token bloat)

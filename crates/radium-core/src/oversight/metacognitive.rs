@@ -3,9 +3,11 @@
 //! Provides phase-aware oversight feedback using a second LLM to prevent
 //! reasoning lock-in and improve alignment.
 
+use std::fmt::Write;
+use std::sync::Arc;
+
 use radium_abstraction::{ChatMessage, Model, ModelError, ModelParameters};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use thiserror::Error;
 
 use crate::workflow::behaviors::vibe_check::WorkflowPhase;
@@ -275,18 +277,18 @@ impl MetacognitiveService {
         let mut context = String::new();
 
         if let Some(ref history) = request.history_summary {
-            context.push_str(&format!("History Context: {}\n", history));
+            writeln!(context, "History Context: {}", history).unwrap();
         }
 
         if let Some(ref learning) = request.learning_context {
-            context.push_str(&format!("Learning Context:\n{}\n", learning));
+            writeln!(context, "Learning Context:\n{}\n", learning).unwrap();
         }
 
-        context.push_str(&format!("Goal: {}\n", request.goal));
-        context.push_str(&format!("Plan: {}\n", request.plan));
+        writeln!(context, "Goal: {}", request.goal).unwrap();
+        writeln!(context, "Plan: {}", request.plan).unwrap();
 
         if let Some(ref progress) = request.progress {
-            context.push_str(&format!("Progress: {}\n", progress));
+            writeln!(context, "Progress: {}", progress).unwrap();
         } else {
             context.push_str("Progress: None\n");
         }
@@ -294,17 +296,17 @@ impl MetacognitiveService {
         if request.uncertainties.is_empty() {
             context.push_str("Uncertainties: None\n");
         } else {
-            context.push_str(&format!("Uncertainties: {}\n", request.uncertainties.join(", ")));
+            writeln!(context, "Uncertainties: {}", request.uncertainties.join(", ")).unwrap();
         }
 
         if let Some(ref task_context) = request.task_context {
-            context.push_str(&format!("Task Context: {}\n", task_context));
+            writeln!(context, "Task Context: {}", task_context).unwrap();
         } else {
             context.push_str("Task Context: None\n");
         }
 
         if let Some(ref user_prompt) = request.user_prompt {
-            context.push_str(&format!("User Prompt: {}\n", user_prompt));
+            writeln!(context, "User Prompt: {}", user_prompt).unwrap();
         } else {
             context.push_str("User Prompt: None\n");
         }
@@ -312,7 +314,7 @@ impl MetacognitiveService {
         if !request.constitution_rules.is_empty() {
             context.push_str("\nConstitution:\n");
             for rule in &request.constitution_rules {
-                context.push_str(&format!("- {}\n", rule));
+                writeln!(context, "- {}", rule).unwrap();
             }
         }
 

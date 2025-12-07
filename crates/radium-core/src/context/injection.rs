@@ -4,9 +4,11 @@
 //! - File injection: `agent[input:file1.md,file2.md]`
 //! - Tail context: `agent[tail:50]`
 
-use super::error::{ContextError, Result};
+use std::fmt::Write;
 use std::fs;
 use std::path::{Path, PathBuf};
+
+use super::error::{ContextError, Result};
 
 /// Parsed injection directive.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -144,7 +146,7 @@ impl ContextInjector {
             let file_content = fs::read_to_string(&path)?;
 
             // Add file header
-            content.push_str(&format!("\n=== {} ===\n", path.display()));
+            writeln!(content, "\n=== {} ===", path.display()).unwrap();
             content.push_str(&file_content);
             content.push_str("\n\n");
         }

@@ -1,11 +1,13 @@
 //! Context manager for gathering and injecting context into prompts.
 
+use std::fmt::Write;
+use std::path::Path;
+
 use super::error::Result;
 use super::injection::{ContextInjector, InjectionDirective};
 use crate::learning::LearningStore;
 use crate::memory::MemoryStore;
 use crate::workspace::{PlanDiscovery, RequirementId, Workspace};
-use std::path::Path;
 
 /// Context manager for agent execution.
 ///
@@ -98,11 +100,11 @@ impl ContextManager {
 
         let mut context = String::new();
         context.push_str("# Plan Context\n\n");
-        context.push_str(&format!("**Requirement ID**: {}\n", requirement_id));
-        context.push_str(&format!("**Project**: {}\n", plan.plan.project_name));
-        context.push_str(&format!("**Stage**: {}\n", plan.plan.stage));
-        context.push_str(&format!("**Status**: {:?}\n", plan.plan.status));
-        context.push_str(&format!("**Path**: {}\n\n", plan.path.display()));
+        writeln!(context, "**Requirement ID**: {}", requirement_id).unwrap();
+        writeln!(context, "**Project**: {}", plan.plan.project_name).unwrap();
+        writeln!(context, "**Stage**: {}", plan.plan.stage).unwrap();
+        writeln!(context, "**Status**: {:?}", plan.plan.status).unwrap();
+        writeln!(context, "**Path**: {}\n", plan.path.display()).unwrap();
 
         Ok(context)
     }
@@ -145,7 +147,7 @@ impl ContextManager {
         match memory_store.get(agent_id) {
             Ok(entry) => {
                 let mut context = String::new();
-                context.push_str(&format!("# Previous Output from {}\n\n", agent_id));
+                writeln!(context, "# Previous Output from {}\n", agent_id).unwrap();
                 context.push_str(&entry.output);
                 context.push('\n');
                 Ok(Some(context))
@@ -216,7 +218,7 @@ impl ContextManager {
                 InjectionDirective::TailContext { lines } => {
                     // For tail context, we'd typically need an agent ID to know
                     // which agent's output to tail. This is a simplified version.
-                    content.push_str(&format!("\n# Tail Context ({} lines requested)\n\n", lines));
+                    writeln!(content, "\n# Tail Context ({} lines requested)\n", lines).unwrap();
                 }
             }
         }

@@ -3,11 +3,13 @@
 //! Tracks mistakes, solutions, and preferences in categories to build
 //! pattern recognition for future oversight improvements.
 
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use std::fmt::Write;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 /// Type of learning entry.
@@ -434,7 +436,7 @@ impl LearningStore {
         let mut context = String::new();
 
         for (category, data) in &self.log.categories {
-            context.push_str(&format!("Category: {} (count: {})\n", category, data.count));
+            writeln!(context, "Category: {} (count: {})", category, data.count).unwrap();
 
             let examples: Vec<&LearningEntry> = data
                 .examples
@@ -456,13 +458,14 @@ impl LearningStore {
                     .map(|s| format!(" | Solution: {}", s))
                     .unwrap_or_default();
 
-                context.push_str(&format!(
-                    "- [{}] {}: {}{}\n",
+                writeln!(
+                    context,
+                    "- [{}] {}: {}{}",
                     entry.timestamp.format("%Y-%m-%d %H:%M:%S"),
                     label,
                     entry.description,
                     solution_text
-                ));
+                ).unwrap();
             }
 
             context.push('\n');
@@ -616,7 +619,7 @@ impl LearningStore {
                 continue;
             }
 
-            context.push_str(&format!("## {}\n\n", section));
+            writeln!(context, "## {}\n", section).unwrap();
 
             for skill in skills {
                 // Show helpful/harmful counts
@@ -626,10 +629,11 @@ impl LearningStore {
                     String::new()
                 };
 
-                context.push_str(&format!(
-                    "- [{}] {}{}\n",
+                writeln!(
+                    context,
+                    "- [{}] {}{}",
                     skill.id, skill.content, counts
-                ));
+                ).unwrap();
             }
 
             context.push('\n');
