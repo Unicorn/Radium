@@ -181,6 +181,55 @@ rad context validate
 - [Context Files Feature Guide](docs/features/context-files.md) - Complete guide for context files
 - [Examples](examples/context-files/) - Example context files and templates
 
+## Orchestration
+
+Radium's orchestration system provides intelligent, model-agnostic task routing that automatically selects and coordinates specialist agents without requiring manual agent selection.
+
+### Quick Start
+
+Orchestration is **enabled by default** in the TUI. Simply type naturally without command prefixes:
+
+```
+You: I need to refactor the authentication module
+
+🤔 Analyzing...
+📋 Invoking: senior-developer
+✅ Complete (2.3s)
+
+Assistant: I've refactored the authentication module...
+```
+
+### Key Features
+
+- **Natural Conversation**: Type requests naturally without `/chat` or `/agents` commands
+- **Intelligent Routing**: Automatically selects the best agent(s) for each task
+- **Multi-Agent Workflows**: Coordinates multiple agents for complex tasks
+- **Model-Agnostic**: Works with Gemini, Claude, OpenAI, and prompt-based fallback
+- **Persistent Configuration**: Settings saved to `~/.radium/orchestration.toml`
+
+### Configuration
+
+Control orchestration via TUI commands:
+
+```bash
+# Show current status
+/orchestrator
+
+# Enable/disable
+/orchestrator toggle
+
+# Switch provider
+/orchestrator switch gemini
+/orchestrator switch claude
+/orchestrator switch openai
+```
+
+### Documentation
+
+- [Orchestration User Guide](docs/user-guide/orchestration.md) - Complete user guide
+- [Orchestration Workflows](docs/examples/orchestration-workflows.md) - Example workflows
+- [Orchestration Testing Guide](docs/user-guide/orchestration-testing.md) - Manual testing procedures
+
 ## Documentation
 
 - [Project Overview](docs/project/00-project-overview.md)

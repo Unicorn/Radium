@@ -107,6 +107,68 @@ impl OrchestrationConfig {
         
         Ok(config)
     }
+
+    /// Save configuration to a TOML file
+    ///
+    /// # Arguments
+    /// * `path` - Path to the TOML configuration file
+    ///
+    /// # Errors
+    /// Returns error if file cannot be written
+    pub fn save_to_file(&self, path: impl AsRef<std::path::Path>) -> Result<(), String> {
+        use std::fs;
+        use std::os::unix::fs::PermissionsExt;
+
+        let path = path.as_ref();
+
+        // Create parent directories if they don't exist
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create config directory: {}", e))?;
+        }
+
+        // Create a wrapper struct for serialization with [orchestration] section
+        #[derive(Serialize)]
+        struct ConfigWrapper {
+            orchestration: OrchestrationConfig,
+        }
+
+        let wrapper = ConfigWrapper {
+            orchestration: self.clone(),
+        };
+
+        let toml_string = toml::to_string_pretty(&wrapper)
+            .map_err(|e| format!("Failed to serialize config: {}", e))?;
+
+        // Write to file
+        fs::write(path, toml_string)
+            .map_err(|e| format!("Failed to write config file: {}", e))?;
+
+        // Set secure permissions (0600)
+        #[cfg(unix)]
+        {
+            let mut perms = fs::metadata(path)
+                .map_err(|e| format!("Failed to get file metadata: {}", e))?
+                .permissions();
+            perms.set_mode(0o600);
+            fs::set_permissions(path, perms)
+                .map_err(|e| format!("Failed to set file permissions: {}", e))?;
+        }
+
+        Ok(())
+    }
+
+    /// Get the default configuration file path
+    ///
+    /// Returns `~/.radium/orchestration.toml`
+    pub fn default_config_path() -> std::path::PathBuf {
+        #[allow(clippy::disallowed_methods)]
+        let home = std::env::var("HOME").expect("HOME environment variable not set");
+        let mut path = std::path::PathBuf::from(home);
+        path.push(".radium");
+        path.push("orchestration.toml");
+        path
+    }
 }
 
 /// Provider type

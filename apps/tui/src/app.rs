@@ -110,8 +110,15 @@ impl App {
 
     /// Initialize orchestration service
     fn init_orchestration() -> (Option<Arc<OrchestrationService>>, bool) {
-        // Create orchestration configuration
-        let config = OrchestrationConfig::default();
+        // Try to load config from file, fall back to defaults
+        let config = match OrchestrationConfig::load_from_toml(OrchestrationConfig::default_config_path()) {
+            Ok(cfg) => cfg,
+            Err(e) => {
+                // Log warning but continue with defaults
+                tracing::warn!("Failed to load orchestration config: {}. Using defaults.", e);
+                OrchestrationConfig::default()
+            }
+        };
         let enabled = config.enabled;
 
         // Return None for now - will be initialized asynchronously on first use
@@ -121,7 +128,18 @@ impl App {
     /// Ensure orchestration service is initialized (lazy initialization)
     async fn ensure_orchestration_service(&mut self) -> Result<()> {
         if self.orchestration_service.is_none() && self.orchestration_enabled {
-            let config = OrchestrationConfig::default();
+            // Load config from file, fall back to defaults
+            let config = match OrchestrationConfig::load_from_toml(OrchestrationConfig::default_config_path()) {
+                Ok(cfg) => cfg,
+                Err(_) => {
+                    // Use defaults and create config file on first run
+                    let default_config = OrchestrationConfig::default();
+                    if let Err(e) = default_config.save_to_file(OrchestrationConfig::default_config_path()) {
+                        tracing::warn!("Failed to create default orchestration config: {}", e);
+                    }
+                    default_config
+                }
+            };
             
             // Discover MCP tools if MCP integration is available
             let mcp_tools = if let Some(ref mcp_integration) = self.mcp_integration {
@@ -832,6 +850,9 @@ impl App {
         // Show thinking indicator
         self.prompt_data.conversation.push("🤔 Analyzing...".to_string());
 
+        // Record start time for elapsed time calculation
+        let start_time = std::time::Instant::now();
+
         // Execute orchestration
         if let Some(ref service) = self.orchestration_service {
             match service.handle_input(&session_id, &input).await {
@@ -839,12 +860,34 @@ impl App {
                     // Remove thinking indicator
                     self.prompt_data.conversation.pop();
 
+                    // Calculate elapsed time
+                    let elapsed = start_time.elapsed();
+                    let elapsed_secs = elapsed.as_secs_f64();
+
                     // Show tool calls if any
                     if !result.tool_calls.is_empty() {
-                        for tool_call in &result.tool_calls {
+                        let tool_count = result.tool_calls.len();
+                        for (index, tool_call) in result.tool_calls.iter().enumerate() {
+                            if tool_count > 1 {
+                                // Multi-agent workflow - show numbered steps
+                                self.prompt_data.conversation.push(format!(
+                                    "{}. 📋 Invoking: {}",
+                                    index + 1,
+                                    tool_call.name
+                                ));
+                            } else {
+                                // Single agent - simple format
+                                self.prompt_data.conversation.push(format!(
+                                    "📋 Invoking: {}",
+                                    tool_call.name
+                                ));
+                            }
+                        }
+                        if tool_count > 1 {
                             self.prompt_data.conversation.push(format!(
-                                "📋 Invoking: {}",
-                                tool_call.name
+                                "Executing {} agent{}...",
+                                tool_count,
+                                if tool_count == 1 { "" } else { "s" }
                             ));
                         }
                     }
@@ -854,11 +897,17 @@ impl App {
                         self.prompt_data.conversation.push(format!("Assistant: {}", result.response));
                     }
 
-                    // Show finish status
-                    if !result.is_success() {
+                    // Show completion status
+                    if result.is_success() {
                         self.prompt_data.conversation.push(format!(
-                            "⚠️  Finished with: {}",
-                            result.finish_reason
+                            "✅ Complete ({}s)",
+                            format!("{:.2}", elapsed_secs)
+                        ));
+                    } else {
+                        self.prompt_data.conversation.push(format!(
+                            "⚠️  Finished with: {} ({}s)",
+                            result.finish_reason,
+                            format!("{:.2}", elapsed_secs)
                         ));
                     }
                 }
@@ -866,7 +915,17 @@ impl App {
                     // Remove thinking indicator
                     self.prompt_data.conversation.pop();
 
-                    self.prompt_data.conversation.push(format!("❌ Orchestration error: {}", e));
+                    let elapsed = start_time.elapsed();
+                    let elapsed_secs = elapsed.as_secs_f64();
+
+                    self.prompt_data.conversation.push(format!(
+                        "❌ Orchestration error: {} ({}s)",
+                        e,
+                        format!("{:.2}", elapsed_secs)
+                    ));
+                    self.prompt_data.conversation.push(
+                        "💡 Tip: Use '/orchestrator toggle' to disable orchestration or '/orchestrator switch <provider>' to try a different provider.".to_string()
+                    );
                 }
             }
         } else {
@@ -876,6 +935,9 @@ impl App {
             self.prompt_data
                 .conversation
                 .push("❌ Orchestration service not available".to_string());
+            self.prompt_data.conversation.push(
+                "💡 Tip: Use '/orchestrator toggle' to enable orchestration or check your API keys.".to_string()
+            );
         }
 
         Ok(())
@@ -895,6 +957,25 @@ impl App {
             }
             "toggle" => {
                 self.orchestration_enabled = !self.orchestration_enabled;
+                
+                // Save config state to file
+                let mut config = match OrchestrationConfig::load_from_toml(OrchestrationConfig::default_config_path()) {
+                    Ok(cfg) => cfg,
+                    Err(_) => OrchestrationConfig::default(),
+                };
+                config.enabled = self.orchestration_enabled;
+                if let Err(e) = config.save_to_file(OrchestrationConfig::default_config_path()) {
+                    self.prompt_data.add_output(format!(
+                        "⚠️  Failed to save config: {}",
+                        e
+                    ));
+                }
+                
+                // Clear service if disabling
+                if !self.orchestration_enabled {
+                    self.orchestration_service = None;
+                }
+                
                 self.prompt_data.add_output(format!(
                     "Orchestration {}",
                     if self.orchestration_enabled { "enabled" } else { "disabled" }
@@ -985,9 +1066,18 @@ impl App {
             None
         };
 
-        match OrchestrationService::initialize(config, mcp_tools).await {
+        match OrchestrationService::initialize(config.clone(), mcp_tools).await {
             Ok(service) => {
                 self.orchestration_service = Some(Arc::new(service));
+                
+                // Save config to file
+                if let Err(e) = config.save_to_file(OrchestrationConfig::default_config_path()) {
+                    self.prompt_data.add_output(format!(
+                        "⚠️  Switched provider but failed to save config: {}",
+                        e
+                    ));
+                }
+                
                 self.prompt_data.add_output(format!(
                     "✅ Switched to {} successfully",
                     self.orchestration_service.as_ref().unwrap().provider_name()

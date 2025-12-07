@@ -12,7 +12,7 @@ use tracing_subscriber::FmtSubscriber;
 
 use commands::{
     agents, auth, autonomous, chat, checkpoint, clean, complete, context, craft, custom, doctor, extension, hooks, init, mcp, monitor, plan, run,
-    sandbox, stats, status, step, templates,
+    sandbox, stats, status, step, templates, validate,
 };
 
 /// Radium CLI - Next-generation agentic orchestration tool
@@ -298,6 +298,19 @@ enum Command {
     #[command(subcommand)]
     Sandbox(sandbox::SandboxCommand),
 
+    /// Validate source accessibility
+    ///
+    /// Tests whether source URIs (file://, http://, jira://, braingrid://)
+    /// are accessible before using them in workflows or plans.
+    Validate {
+        /// Source URIs to validate (e.g., file://./spec.md, jira://PROJ-123)
+        sources: Vec<String>,
+
+        /// Output results as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
     /// Autonomous execution from high-level goals
     ///
     /// Decomposes a high-level goal into an executable workflow and executes it
@@ -419,6 +432,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Sandbox(cmd) => {
             sandbox::execute(cmd).await?;
+        }
+        Command::Validate { sources, json } => {
+            validate::execute(sources, json).await?;
         }
         Command::Autonomous { goal } => {
             autonomous::execute(goal).await?;

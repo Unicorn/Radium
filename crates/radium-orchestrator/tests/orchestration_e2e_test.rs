@@ -317,3 +317,187 @@ async fn test_empty_tools_orchestration() {
     assert!(!result.has_tool_calls());
 }
 
+#[tokio::test]
+async fn test_multi_turn_conversation_with_tools() {
+    // Test multi-turn conversation where tool results feed into next turn
+    let provider = Arc::new(MockE2EProvider::new(vec![
+        // First turn: request tool
+        OrchestrationResult::new(
+            "I'll calculate that".to_string(),
+            vec![ToolCall {
+                id: "call_1".to_string(),
+                name: "senior_developer".to_string(),
+                arguments: json!({"task": "calculate 5+3"}),
+            }],
+            FinishReason::Stop,
+        ),
+        // Second turn: process result and respond
+        OrchestrationResult::new(
+            "The result is 8".to_string(),
+            vec![],
+            FinishReason::Stop,
+        ),
+    ]));
+
+    let tools = create_mock_tools();
+    let engine = OrchestrationEngine::with_defaults(provider, tools);
+    let mut context = OrchestrationContext::new("test-session");
+    
+    // First turn
+    context.add_user_message("Calculate 5 plus 3");
+    let result1 = engine.execute("Calculate 5 plus 3", &mut context).await.unwrap();
+    assert_eq!(result1.finish_reason, FinishReason::Stop);
+    
+    // Second turn - context should include tool result
+    context.add_user_message("What was the answer?");
+    let result2 = engine.execute("What was the answer?", &mut context).await.unwrap();
+    assert_eq!(result2.finish_reason, FinishReason::Stop);
+    
+    // Verify context has full history including tool execution
+    assert!(context.conversation_history.len() >= 4);
+}
+
+#[tokio::test]
+async fn test_invalid_tool_arguments() {
+    // Test handling of invalid tool arguments
+    struct StrictToolHandler {
+        should_fail: bool,
+    }
+
+    #[async_trait]
+    impl ToolHandler for StrictToolHandler {
+        async fn execute(&self, args: &ToolArguments) -> radium_orchestrator::error::Result<ToolResult> {
+            if self.should_fail || args.get_string("task").is_none() {
+                Ok(ToolResult::error("Invalid arguments"))
+            } else {
+                Ok(ToolResult::success("Success".to_string()))
+            }
+        }
+    }
+
+    let provider = Arc::new(MockE2EProvider::new(vec![
+        OrchestrationResult::new(
+            "Calling tool".to_string(),
+            vec![ToolCall {
+                id: "call_1".to_string(),
+                name: "strict_tool".to_string(),
+                arguments: json!({}), // Missing required "task" argument
+            }],
+            FinishReason::Stop,
+        ),
+    ]));
+
+    let strict_tool = Tool::new(
+        "agent_strict",
+        "strict_tool",
+        "A tool that validates arguments",
+        ToolParameters::new().add_property("task", "string", "Task", true),
+        Arc::new(StrictToolHandler { should_fail: false }),
+    );
+
+    let engine = OrchestrationEngine::with_defaults(provider, vec![strict_tool]);
+    let mut context = OrchestrationContext::new("test-session");
+
+    let result = engine.execute("Test input", &mut context).await.unwrap();
+
+    // Should handle error gracefully
+    assert_eq!(result.finish_reason, FinishReason::ToolError);
+}
+
+#[tokio::test]
+async fn test_orchestration_performance() {
+    // Test that orchestration overhead is reasonable
+    // Target: < 500ms overhead (excluding actual API/execution time)
+    let provider = Arc::new(MockE2EProvider::new(vec![
+        OrchestrationResult::new(
+            "Quick response".to_string(),
+            vec![],
+            FinishReason::Stop,
+        ),
+    ]));
+
+    let engine = OrchestrationEngine::with_defaults(provider, vec![]);
+    let mut context = OrchestrationContext::new("test-session");
+
+    let start = std::time::Instant::now();
+    let result = engine.execute("Quick test", &mut context).await.unwrap();
+    let elapsed = start.elapsed();
+
+    assert!(result.is_success());
+    // Mock provider is instant, so this should be very fast (< 10ms)
+    // Real providers would have API latency, but orchestration overhead should be minimal
+    assert!(elapsed.as_millis() < 100, "Orchestration overhead too high: {}ms", elapsed.as_millis());
+}
+
+#[tokio::test]
+async fn test_sequential_tool_execution() {
+    // Test that tools execute in sequence when dependencies exist
+    let call_order = Arc::new(std::sync::Mutex::new(Vec::new()));
+
+    struct OrderedToolHandler {
+        name: String,
+        order: Arc<std::sync::Mutex<Vec<String>>>,
+    }
+
+    #[async_trait]
+    impl ToolHandler for OrderedToolHandler {
+        async fn execute(&self, _args: &ToolArguments) -> radium_orchestrator::error::Result<ToolResult> {
+            self.order.lock().unwrap().push(self.name.clone());
+            Ok(ToolResult::success(format!("{} executed", self.name)))
+        }
+    }
+
+    let provider = Arc::new(MockE2EProvider::new(vec![
+        OrchestrationResult::new(
+            "Calling tools sequentially".to_string(),
+            vec![
+                ToolCall {
+                    id: "call_1".to_string(),
+                    name: "tool_1".to_string(),
+                    arguments: json!({"task": "first"}),
+                },
+                ToolCall {
+                    id: "call_2".to_string(),
+                    name: "tool_2".to_string(),
+                    arguments: json!({"task": "second"}),
+                },
+            ],
+            FinishReason::Stop,
+        ),
+    ]));
+
+    let tools = vec![
+        Tool::new(
+            "agent_1",
+            "tool_1",
+            "First tool",
+            ToolParameters::new().add_property("task", "string", "Task", true),
+            Arc::new(OrderedToolHandler {
+                name: "tool_1".to_string(),
+                order: Arc::clone(&call_order),
+            }),
+        ),
+        Tool::new(
+            "agent_2",
+            "tool_2",
+            "Second tool",
+            ToolParameters::new().add_property("task", "string", "Task", true),
+            Arc::new(OrderedToolHandler {
+                name: "tool_2".to_string(),
+                order: Arc::clone(&call_order),
+            }),
+        ),
+    ];
+
+    let engine = OrchestrationEngine::with_defaults(provider, tools);
+    let mut context = OrchestrationContext::new("test-session");
+
+    let _result = engine.execute("Execute tools", &mut context).await.unwrap();
+
+    // Verify tools were called in order
+    let order = call_order.lock().unwrap();
+    assert_eq!(order.len(), 2);
+    assert_eq!(order[0], "tool_1");
+    assert_eq!(order[1], "tool_2");
+}
+

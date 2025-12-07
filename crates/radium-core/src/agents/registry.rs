@@ -451,6 +451,7 @@ mod tests {
             category: None,
             file_path: None,
             capabilities: crate::agents::config::AgentCapabilities::default(),
+            sandbox: None,
         }
     }
 

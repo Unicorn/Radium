@@ -420,4 +420,36 @@ mod tests {
         // Should not error, just return empty
         assert_eq!(agents.len(), 0);
     }
+
+    #[test]
+    fn test_handle_malformed_agent_definitions() {
+        let temp = TempDir::new().unwrap();
+        let category_dir = temp.path().join("test-agents");
+        fs::create_dir_all(&category_dir).unwrap();
+
+        // Create a valid agent config
+        create_test_agent_config(temp.path(), "test-agents", "valid-agent");
+
+        // Create a malformed TOML file
+        let malformed_path = category_dir.join("malformed-agent.toml");
+        fs::write(&malformed_path, "this is not valid TOML content!!!").unwrap();
+
+        // Create a file with missing required fields
+        let incomplete_path = category_dir.join("incomplete-agent.toml");
+        fs::write(&incomplete_path, "[agent]\nid = \"incomplete\"\n").unwrap();
+
+        let options = DiscoveryOptions {
+            search_paths: vec![temp.path().to_path_buf()],
+            sub_agent_filter: None,
+        };
+
+        let discovery = AgentDiscovery::with_options(options);
+        let agents = discovery.discover_all().unwrap();
+
+        // Should only discover the valid agent, skipping malformed ones gracefully
+        assert_eq!(agents.len(), 1);
+        assert!(agents.contains_key("valid-agent"));
+        assert!(!agents.contains_key("malformed-agent"));
+        assert!(!agents.contains_key("incomplete-agent"));
+    }
 }

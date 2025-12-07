@@ -202,3 +202,83 @@ fn test_tool_parameters_validation() {
     assert!(!params.required.contains(&"optional_param".to_string()));
 }
 
+#[tokio::test]
+async fn test_prompt_based_multi_turn_conversation() {
+    // Test multi-turn conversation with prompt-based provider
+    use radium_orchestrator::orchestration::providers::prompt_based::PromptBasedOrchestrator;
+    use radium_models::MockModel;
+    
+    let model = Box::new(MockModel::new("test-model".to_string()));
+    let orchestrator = PromptBasedOrchestrator::new(model);
+    let tools = create_test_tools();
+    
+    let mut context = OrchestrationContext::new("test-session");
+    context.add_user_message("First message");
+    
+    // First turn
+    let result1 = orchestrator.execute_with_tools("First message", &tools, &context).await;
+    assert!(result1.is_ok());
+    let result1 = result1.unwrap();
+    context.add_assistant_message(&result1.response);
+    
+    // Second turn - context should include previous conversation
+    context.add_user_message("Second message");
+    let result2 = orchestrator.execute_with_tools("Second message", &tools, &context).await;
+    assert!(result2.is_ok());
+    
+    // Verify context has history
+    assert!(context.conversation_history.len() >= 3);
+}
+
+#[tokio::test]
+async fn test_invalid_tool_arguments_handling() {
+    // Test that invalid tool arguments are handled gracefully
+    use radium_orchestrator::orchestration::providers::prompt_based::PromptBasedOrchestrator;
+    use radium_models::MockModel;
+    
+    let model = Box::new(MockModel::new("test-model".to_string()));
+    let orchestrator = PromptBasedOrchestrator::new(model);
+    let tools = create_test_tools();
+    let context = create_test_context();
+    
+    // Execute with tools - MockModel should handle this gracefully
+    let result = orchestrator.execute_with_tools("Test with invalid args", &tools, &context).await;
+    assert!(result.is_ok()); // MockModel always succeeds, but real providers would handle errors
+}
+
+#[tokio::test]
+async fn test_provider_timeout_simulation() {
+    // Test that providers handle timeout scenarios
+    // Note: Real timeout testing would require actual network calls or mocks
+    // This is a placeholder structure test
+    use radium_orchestrator::orchestration::providers::prompt_based::PromptBasedOrchestrator;
+    use radium_models::MockModel;
+    
+    let model = Box::new(MockModel::new("test-model".to_string()));
+    let orchestrator = PromptBasedOrchestrator::new(model);
+    let tools = create_test_tools();
+    let context = create_test_context();
+    
+    // Execute - should complete (MockModel doesn't timeout, but structure is tested)
+    let start = std::time::Instant::now();
+    let result = orchestrator.execute_with_tools("Test input", &tools, &context).await;
+    let elapsed = start.elapsed();
+    
+    assert!(result.is_ok());
+    // Verify it completed quickly (MockModel is instant)
+    assert!(elapsed.as_millis() < 100);
+}
+
+#[tokio::test]
+async fn test_provider_error_handling() {
+    // Test provider error handling structure
+    // Real providers would return errors on API failures
+    use radium_orchestrator::orchestration::providers::gemini::GeminiOrchestrator;
+    
+    // Creating with invalid API key structure should still create the provider
+    // (actual API errors happen during execution)
+    let orchestrator = GeminiOrchestrator::new("test-model", "invalid-key");
+    assert_eq!(orchestrator.provider_name(), "gemini");
+    // Actual API errors would occur during execute_with_tools
+}
+

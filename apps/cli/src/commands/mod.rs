@@ -25,6 +25,7 @@ pub mod status;
 pub mod step;
 pub mod templates;
 pub mod types;
+pub mod validate;
 
 // Re-export types for convenience
 pub use types::{AgentsCommand, AuthCommand, CustomCommand, EnginesCommand, ExtensionCommand, HooksCommand, TemplatesCommand};
