@@ -49,7 +49,10 @@ impl<E: BehaviorEvaluator> BehaviorEvaluatorAdapter<E> {
 }
 
 #[async_trait]
-impl<E: BehaviorEvaluator + Send + Sync> Hook for BehaviorEvaluatorAdapter<E> {
+impl<E: BehaviorEvaluator + Send + Sync + 'static> Hook for BehaviorEvaluatorAdapter<E>
+where
+    E::Decision: Send + 'static,
+{
     fn name(&self) -> &str {
         &self.name
     }
@@ -108,6 +111,14 @@ pub struct BehaviorHookRegistrar;
 impl BehaviorHookRegistrar {
     /// Register a behavior evaluator as a hook.
     pub async fn register_behavior_hook<E: BehaviorEvaluator + Send + Sync + 'static>(
+        registry: &HookRegistry,
+        evaluator: Arc<E>,
+        name: impl Into<String>,
+        priority: HookPriority,
+    ) -> Result<()>
+    where
+        E::Decision: Send + 'static,
+    {
         registry: &HookRegistry,
         evaluator: Arc<E>,
         name: impl Into<String>,
