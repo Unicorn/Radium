@@ -26,6 +26,14 @@ pub enum StatsCommand {
         #[arg(long)]
         json: bool,
     },
+    /// Show engine usage breakdown
+    Engine {
+        /// Session ID (optional, shows all sessions if not specified)
+        session_id: Option<String>,
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
     /// Show historical session summaries
     History {
         /// Number of sessions to show (default: 10)
@@ -62,6 +70,9 @@ pub async fn execute(cmd: StatsCommand) -> Result<()> {
         }
         StatsCommand::Model { session_id, json } => {
             model_command(&analytics, session_id.as_deref(), json).await
+        }
+        StatsCommand::Engine { session_id, json } => {
+            engine_command(&analytics, session_id.as_deref(), json).await
         }
         StatsCommand::History { limit, json } => history_command(&analytics, limit, json).await,
         StatsCommand::Export { output, session_id } => {
@@ -214,6 +225,73 @@ async fn model_command(
                 );
             }
         }
+    }
+
+    Ok(())
+}
+
+async fn engine_command(
+    analytics: &SessionAnalytics,
+    session_id: Option<&str>,
+    json: bool,
+) -> Result<()> {
+    // Show engine usage from the session
+    if let Some(sid) = session_id {
+        let metrics = analytics.get_session_metrics(sid)?;
+
+        if json {
+            let engine_data: Vec<serde_json::Value> = metrics
+                .engine_usage
+                .iter()
+                .map(|(engine, stats)| {
+                    serde_json::json!({
+                        "engine": engine,
+                        "requests": stats.requests,
+                        "input_tokens": stats.input_tokens,
+                        "output_tokens": stats.output_tokens,
+                        "cached_tokens": stats.cached_tokens,
+                        "estimated_cost": stats.estimated_cost,
+                    })
+                })
+                .collect();
+            println!("{}", serde_json::to_string_pretty(&engine_data)?);
+        } else {
+            println!("Engine Usage Breakdown for Session: {}\n", sid);
+            if metrics.engine_usage.is_empty() {
+                println!("No engine usage data available.");
+            } else {
+                println!(
+                    "{:<20} {:<10} {:<15} {:<15} {:<15} {:<12}",
+                    "Engine", "Requests", "Input Tokens", "Output Tokens", "Cached Tokens", "Cost"
+                );
+                println!("{}", "-".repeat(100));
+                
+                // Sort by total tokens (descending)
+                let mut sorted_engines: Vec<_> = metrics.engine_usage.iter().collect();
+                sorted_engines.sort_by(|a, b| {
+                    let total_a = a.1.input_tokens + a.1.output_tokens;
+                    let total_b = b.1.input_tokens + b.1.output_tokens;
+                    total_b.cmp(&total_a)
+                });
+                
+                for (engine, stats) in sorted_engines {
+                    println!(
+                        "{:<20} {:<10} {:<15} {:<15} {:<15} ${:<11.4}",
+                        engine,
+                        stats.requests,
+                        stats.input_tokens,
+                        stats.output_tokens,
+                        stats.cached_tokens,
+                        stats.estimated_cost
+                    );
+                }
+            }
+        }
+    } else {
+        // Show aggregated engine usage across all sessions
+        println!("Aggregated Engine Usage (All Sessions)\n");
+        println!("Note: Full aggregation across all sessions requires database query support.");
+        println!("For session-specific engine usage, use: rad stats engine <session-id>");
     }
 
     Ok(())

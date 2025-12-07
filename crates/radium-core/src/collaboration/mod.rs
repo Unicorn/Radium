@@ -8,6 +8,10 @@
 //! - Progress tracking and synchronization
 
 pub mod error;
+pub mod message_bus;
 
 pub use error::{CollaborationError, Result};
+pub use message_bus::{
+    AgentMessage, DatabaseMessageRepository, MessageBus, MessageRepository, MessageType,
+};
 
