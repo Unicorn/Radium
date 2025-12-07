@@ -145,7 +145,7 @@ impl SandboxManagerTrait for AgentSandboxManager {
         }
     }
 
-    fn get_active_sandbox(&self, agent_id: &str) -> Option<Box<dyn std::any::Any + Send + Sync>> {
+    fn get_active_sandbox(&self, _agent_id: &str) -> Option<Box<dyn std::any::Any + Send + Sync>> {
         // Note: This method returns the sandbox as Any, which can be downcast if needed
         // For now, we return None as sandboxes are managed internally
         // The sandbox is accessed through the active_sandboxes map during command execution

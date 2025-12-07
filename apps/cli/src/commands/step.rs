@@ -47,6 +47,12 @@ pub async fn execute(
     let current_dir = std::env::current_dir().unwrap_or_else(|_| workspace_root.clone());
     let context_files = loader.load_hierarchical(&current_dir).unwrap_or_default();
 
+    // Initialize ContextManager if workspace is available (for memory context gathering)
+    let mut context_manager = workspace.as_ref().map(|w| {
+        // Create a basic ContextManager (without requirement_id for step command)
+        ContextManager::new(w)
+    });
+
     // Discover all available agents
     println!("  {}", "Discovering agents...".dimmed());
     let discovery = AgentDiscovery::new();
