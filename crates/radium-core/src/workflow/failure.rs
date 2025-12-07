@@ -368,7 +368,7 @@ mod tests {
         };
         let failure_type = classifier.classify(&error);
 
-        match failure_type {
+        match &failure_type {
             FailureType::AgentFailure { agent_id, .. } => {
                 assert_eq!(agent_id, "code-agent");
             }
