@@ -383,21 +383,21 @@ impl MonitoringService {
         {
             use crate::hooks::integration::OrchestratorHooks;
             if let Some(ref registry) = self.hook_registry {
-            let hooks = OrchestratorHooks::new(Arc::clone(registry));
-            let telemetry_data = serde_json::json!({
-                "event_type": "agent_complete",
-                "agent_id": agent_id,
-                "exit_code": exit_code,
-                "end_time": end_time,
-                "success": exit_code == 0,
-            });
-            if let Err(e) = hooks.telemetry_collection("agent_complete", &telemetry_data).await {
-                tracing::warn!(
-                    agent_id = %agent_id,
-                    error = %e,
-                    "Telemetry hook execution failed for agent completion"
-                );
-            }
+                let hooks = OrchestratorHooks::new(Arc::clone(registry));
+                let telemetry_data = serde_json::json!({
+                    "event_type": "agent_complete",
+                    "agent_id": agent_id,
+                    "exit_code": exit_code,
+                    "end_time": end_time,
+                    "success": exit_code == 0,
+                });
+                if let Err(e) = hooks.telemetry_collection("agent_complete", &telemetry_data).await {
+                    tracing::warn!(
+                        agent_id = %agent_id,
+                        error = %e,
+                        "Telemetry hook execution failed for agent completion"
+                    );
+                }
             }
         }
 
@@ -446,20 +446,20 @@ impl MonitoringService {
         {
             use crate::hooks::integration::OrchestratorHooks;
             if let Some(ref registry) = self.hook_registry {
-            let hooks = OrchestratorHooks::new(Arc::clone(registry));
-            let telemetry_data = serde_json::json!({
-                "event_type": "agent_fail",
-                "agent_id": agent_id,
-                "error_message": error_message,
-                "end_time": end_time,
-            });
-            if let Err(e) = hooks.telemetry_collection("agent_fail", &telemetry_data).await {
-                tracing::warn!(
-                    agent_id = %agent_id,
-                    error = %e,
-                    "Telemetry hook execution failed for agent failure"
-                );
-            }
+                let hooks = OrchestratorHooks::new(Arc::clone(registry));
+                let telemetry_data = serde_json::json!({
+                    "event_type": "agent_fail",
+                    "agent_id": agent_id,
+                    "error_message": error_message,
+                    "end_time": end_time,
+                });
+                if let Err(e) = hooks.telemetry_collection("agent_fail", &telemetry_data).await {
+                    tracing::warn!(
+                        agent_id = %agent_id,
+                        error = %e,
+                        "Telemetry hook execution failed for agent failure"
+                    );
+                }
             }
         }
 
@@ -647,6 +647,20 @@ impl MonitoringService {
         }
     }
 
+    /// Helper function to map a database row to AgentUsage.
+    fn row_to_agent_usage(row: &rusqlite::Row) -> rusqlite::Result<AgentUsage> {
+        Ok(AgentUsage {
+            agent_id: row.get(0)?,
+            execution_count: row.get::<_, i64>(1)? as u64,
+            total_duration: row.get::<_, i64>(2)? as u64,
+            total_tokens: row.get::<_, i64>(3)? as u64,
+            success_count: row.get::<_, i64>(4)? as u64,
+            failure_count: row.get::<_, i64>(5)? as u64,
+            last_used_at: row.get(6)?,
+            category: row.get(7)?,
+        })
+    }
+
     /// Lists agent usage statistics with optional filtering.
     ///
     /// # Arguments
@@ -688,23 +702,35 @@ impl MonitoringService {
 
         let mut stmt = self.conn.prepare(&query)?;
 
-        let params: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
-        let records = stmt
-            .query_map(rusqlite::params_from_iter(params.iter()), |row| {
-                Ok(AgentUsage {
-                    agent_id: row.get(0)?,
-                    execution_count: row.get::<_, i64>(1)? as u64,
-                    total_duration: row.get::<_, i64>(2)? as u64,
-                    total_tokens: row.get::<_, i64>(3)? as u64,
-                    success_count: row.get::<_, i64>(4)? as u64,
-                    failure_count: row.get::<_, i64>(5)? as u64,
-                    last_used_at: row.get(6)?,
-                    category: row.get(7)?,
-                })
-            })?
-            .collect::<std::result::Result<Vec<_>, _>>()?;
+        // Use the helper function for row mapping
+        let records = match (filter.category.as_ref(), filter.min_executions, filter.since) {
+            (Some(cat), Some(min), Some(since)) => {
+                stmt.query_map(params![cat, min as i64, since as i64], Self::row_to_agent_usage)?
+            }
+            (Some(cat), Some(min), None) => {
+                stmt.query_map(params![cat, min as i64], Self::row_to_agent_usage)?
+            }
+            (Some(cat), None, Some(since)) => {
+                stmt.query_map(params![cat, since as i64], Self::row_to_agent_usage)?
+            }
+            (Some(cat), None, None) => {
+                stmt.query_map(params![cat], Self::row_to_agent_usage)?
+            }
+            (None, Some(min), Some(since)) => {
+                stmt.query_map(params![min as i64, since as i64], Self::row_to_agent_usage)?
+            }
+            (None, Some(min), None) => {
+                stmt.query_map(params![min as i64], Self::row_to_agent_usage)?
+            }
+            (None, None, Some(since)) => {
+                stmt.query_map(params![since as i64], Self::row_to_agent_usage)?
+            }
+            (None, None, None) => {
+                stmt.query_map([], Self::row_to_agent_usage)?
+            }
+        };
 
-        Ok(records)
+        Ok(records.collect::<std::result::Result<Vec<_>, _>>()?)
     }
 }
 
