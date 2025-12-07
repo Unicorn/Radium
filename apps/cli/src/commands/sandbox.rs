@@ -43,6 +43,28 @@ pub enum SandboxCommand {
         #[arg(long)]
         json: bool,
     },
+
+    /// Set default sandbox configuration for workspace
+    Set {
+        /// Sandbox type (docker, podman, seatbelt, none)
+        sandbox_type: String,
+
+        /// Network mode (open, closed, proxied)
+        #[arg(long)]
+        network: Option<String>,
+
+        /// Container image (for docker/podman)
+        #[arg(long)]
+        image: Option<String>,
+
+        /// Working directory inside sandbox
+        #[arg(long)]
+        working_dir: Option<String>,
+
+        /// Volume mounts (host:container format, can be specified multiple times)
+        #[arg(long)]
+        volumes: Vec<String>,
+    },
 }
 
 /// Execute the sandbox command.
