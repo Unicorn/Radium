@@ -6,6 +6,7 @@ pub mod client;
 
 use client::ClientManager;
 use radium_core::config::Config;
+use radium_core::extensions::{ExtensionDiscovery, ExtensionManager, InstallOptions};
 use radium_core::server::manager::EmbeddedServer;
 use radium_core::workflow::{CompletionEvent, CompletionOptions, CompletionService};
 use radium_core::Workspace;
@@ -153,6 +154,8 @@ pub struct AppState {
     pub client_manager: Arc<Mutex<ClientManager>>,
     /// Embedded server instance (if running)
     pub embedded_server: Arc<Mutex<Option<EmbeddedServer>>>,
+    /// Extension manager instance (lazy initialized)
+    pub extension_manager: Arc<Mutex<Option<ExtensionManager>>>,
 }
 
 /// Ping the Radium server and return the response.
@@ -673,6 +676,136 @@ async fn list_tasks(state: tauri::State<'_, AppState>) -> Result<String, String>
     Ok(serde_json::to_string(&tasks_json).map_err(|e| format!("JSON serialization failed: {}", e))?)
 }
 
+/// JSON-serializable extension representation
+#[derive(Debug, Serialize, Deserialize)]
+struct ExtensionJson {
+    name: String,
+    version: String,
+    description: String,
+    author: String,
+    install_path: String,
+    components: ExtensionComponentsJson,
+    dependencies: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ExtensionComponentsJson {
+    prompts: Vec<String>,
+    mcp_servers: Vec<String>,
+    commands: Vec<String>,
+    hooks: Vec<String>,
+}
+
+impl From<radium_core::extensions::Extension> for ExtensionJson {
+    fn from(ext: radium_core::extensions::Extension) -> Self {
+        ExtensionJson {
+            name: ext.name,
+            version: ext.version,
+            description: ext.manifest.description,
+            author: ext.manifest.author,
+            install_path: ext.install_path.to_string_lossy().to_string(),
+            components: ExtensionComponentsJson {
+                prompts: ext.manifest.components.prompts,
+                mcp_servers: ext.manifest.components.mcp_servers,
+                commands: ext.manifest.components.commands,
+                hooks: ext.manifest.components.hooks,
+            },
+            dependencies: ext.manifest.dependencies,
+        }
+    }
+}
+
+/// Get or create extension manager
+async fn get_extension_manager(state: &tauri::State<'_, AppState>) -> Result<ExtensionManager, String> {
+    let mut manager_opt = state.extension_manager.lock().await;
+    if manager_opt.is_none() {
+        *manager_opt = Some(ExtensionManager::new().map_err(|e| format!("Failed to create extension manager: {}", e))?);
+    }
+    Ok(manager_opt.as_ref().unwrap().clone())
+}
+
+/// List all installed extensions
+#[tauri::command]
+async fn list_extensions(state: tauri::State<'_, AppState>) -> Result<String, String> {
+    info!("List extensions command received");
+    
+    let manager = get_extension_manager(&state).await?;
+    let extensions = manager.list().map_err(|e| format!("Failed to list extensions: {}", e))?;
+    
+    let extensions_json: Vec<ExtensionJson> = extensions.into_iter().map(ExtensionJson::from).collect();
+    Ok(serde_json::to_string(&extensions_json).map_err(|e| format!("JSON serialization failed: {}", e))?)
+}
+
+/// Install an extension from a local path
+#[tauri::command]
+async fn install_extension(
+    path: String,
+    state: tauri::State<'_, AppState>,
+) -> Result<String, String> {
+    info!(path = %path, "Install extension command received");
+    
+    let manager = get_extension_manager(&state).await?;
+    let options = InstallOptions {
+        overwrite: false,
+        install_dependencies: true,
+        validate_after_install: true,
+    };
+    
+    let extension = manager.install_from_source(&path, options)
+        .map_err(|e| format!("Failed to install extension: {}", e))?;
+    
+    let extension_json = ExtensionJson::from(extension);
+    Ok(serde_json::to_string(&extension_json).map_err(|e| format!("JSON serialization failed: {}", e))?)
+}
+
+/// Uninstall an extension
+#[tauri::command]
+async fn uninstall_extension(
+    name: String,
+    state: tauri::State<'_, AppState>,
+) -> Result<String, String> {
+    info!(name = %name, "Uninstall extension command received");
+    
+    let manager = get_extension_manager(&state).await?;
+    manager.uninstall(&name)
+        .map_err(|e| format!("Failed to uninstall extension: {}", e))?;
+    
+    Ok(serde_json::json!({ "success": true, "name": name }).to_string())
+}
+
+/// Get extension information
+#[tauri::command]
+async fn get_extension_info(
+    name: String,
+    state: tauri::State<'_, AppState>,
+) -> Result<String, String> {
+    info!(name = %name, "Get extension info command received");
+    
+    let manager = get_extension_manager(&state).await?;
+    let extension = manager.get(&name)
+        .map_err(|e| format!("Failed to get extension: {}", e))?
+        .ok_or_else(|| format!("Extension not found: {}", name))?;
+    
+    let extension_json = ExtensionJson::from(extension);
+    Ok(serde_json::to_string(&extension_json).map_err(|e| format!("JSON serialization failed: {}", e))?)
+}
+
+/// Search extensions
+#[tauri::command]
+async fn search_extensions(
+    query: String,
+    state: tauri::State<'_, AppState>,
+) -> Result<String, String> {
+    info!(query = %query, "Search extensions command received");
+    
+    let discovery = ExtensionDiscovery::new();
+    let matches = discovery.search(&query)
+        .map_err(|e| format!("Failed to search extensions: {}", e))?;
+    
+    let extensions_json: Vec<ExtensionJson> = matches.into_iter().map(ExtensionJson::from).collect();
+    Ok(serde_json::to_string(&extensions_json).map_err(|e| format!("JSON serialization failed: {}", e))?)
+}
+
 /// Get task details
 #[tauri::command]
 async fn get_task(
@@ -923,6 +1056,136 @@ async fn get_registered_agents(state: tauri::State<'_, AppState>) -> Result<Stri
     Ok(serde_json::to_string(&agents_json).map_err(|e| format!("JSON serialization failed: {}", e))?)
 }
 
+/// JSON-serializable extension representation
+#[derive(Debug, Serialize, Deserialize)]
+struct ExtensionJson {
+    name: String,
+    version: String,
+    description: String,
+    author: String,
+    install_path: String,
+    components: ExtensionComponentsJson,
+    dependencies: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ExtensionComponentsJson {
+    prompts: Vec<String>,
+    mcp_servers: Vec<String>,
+    commands: Vec<String>,
+    hooks: Vec<String>,
+}
+
+impl From<radium_core::extensions::Extension> for ExtensionJson {
+    fn from(ext: radium_core::extensions::Extension) -> Self {
+        ExtensionJson {
+            name: ext.name,
+            version: ext.version,
+            description: ext.manifest.description,
+            author: ext.manifest.author,
+            install_path: ext.install_path.to_string_lossy().to_string(),
+            components: ExtensionComponentsJson {
+                prompts: ext.manifest.components.prompts,
+                mcp_servers: ext.manifest.components.mcp_servers,
+                commands: ext.manifest.components.commands,
+                hooks: ext.manifest.components.hooks,
+            },
+            dependencies: ext.manifest.dependencies,
+        }
+    }
+}
+
+/// Get or create extension manager
+async fn get_extension_manager(state: &tauri::State<'_, AppState>) -> Result<ExtensionManager, String> {
+    let mut manager_opt = state.extension_manager.lock().await;
+    if manager_opt.is_none() {
+        *manager_opt = Some(ExtensionManager::new().map_err(|e| format!("Failed to create extension manager: {}", e))?);
+    }
+    Ok(manager_opt.as_ref().unwrap().clone())
+}
+
+/// List all installed extensions
+#[tauri::command]
+async fn list_extensions(state: tauri::State<'_, AppState>) -> Result<String, String> {
+    info!("List extensions command received");
+    
+    let manager = get_extension_manager(&state).await?;
+    let extensions = manager.list().map_err(|e| format!("Failed to list extensions: {}", e))?;
+    
+    let extensions_json: Vec<ExtensionJson> = extensions.into_iter().map(ExtensionJson::from).collect();
+    Ok(serde_json::to_string(&extensions_json).map_err(|e| format!("JSON serialization failed: {}", e))?)
+}
+
+/// Install an extension from a local path
+#[tauri::command]
+async fn install_extension(
+    path: String,
+    state: tauri::State<'_, AppState>,
+) -> Result<String, String> {
+    info!(path = %path, "Install extension command received");
+    
+    let manager = get_extension_manager(&state).await?;
+    let options = InstallOptions {
+        overwrite: false,
+        install_dependencies: true,
+        validate_after_install: true,
+    };
+    
+    let extension = manager.install_from_source(&path, options)
+        .map_err(|e| format!("Failed to install extension: {}", e))?;
+    
+    let extension_json = ExtensionJson::from(extension);
+    Ok(serde_json::to_string(&extension_json).map_err(|e| format!("JSON serialization failed: {}", e))?)
+}
+
+/// Uninstall an extension
+#[tauri::command]
+async fn uninstall_extension(
+    name: String,
+    state: tauri::State<'_, AppState>,
+) -> Result<String, String> {
+    info!(name = %name, "Uninstall extension command received");
+    
+    let manager = get_extension_manager(&state).await?;
+    manager.uninstall(&name)
+        .map_err(|e| format!("Failed to uninstall extension: {}", e))?;
+    
+    Ok(serde_json::json!({ "success": true, "name": name }).to_string())
+}
+
+/// Get extension information
+#[tauri::command]
+async fn get_extension_info(
+    name: String,
+    state: tauri::State<'_, AppState>,
+) -> Result<String, String> {
+    info!(name = %name, "Get extension info command received");
+    
+    let manager = get_extension_manager(&state).await?;
+    let extension = manager.get(&name)
+        .map_err(|e| format!("Failed to get extension: {}", e))?
+        .ok_or_else(|| format!("Extension not found: {}", name))?;
+    
+    let extension_json = ExtensionJson::from(extension);
+    Ok(serde_json::to_string(&extension_json).map_err(|e| format!("JSON serialization failed: {}", e))?)
+}
+
+/// Search extensions
+#[tauri::command]
+async fn search_extensions(
+    query: String,
+    state: tauri::State<'_, AppState>,
+) -> Result<String, String> {
+    info!(query = %query, "Search extensions command received");
+    
+    let discovery = ExtensionDiscovery::new();
+    let matches = discovery.search(&query)
+        .map_err(|e| format!("Failed to search extensions: {}", e))?;
+    
+    let extensions_json: Vec<ExtensionJson> = matches.into_iter().map(ExtensionJson::from).collect();
+    Ok(serde_json::to_string(&extensions_json).map_err(|e| format!("JSON serialization failed: {}", e))?)
+}
+
 /// Run the Tauri application.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -931,6 +1194,7 @@ pub fn run() {
         .manage(AppState {
             client_manager: Arc::new(Mutex::new(ClientManager::new())),
             embedded_server: Arc::new(Mutex::new(None)),
+            extension_manager: Arc::new(Mutex::new(None)),
         })
         .invoke_handler(tauri::generate_handler![
             ping_server,
@@ -953,7 +1217,12 @@ pub fn run() {
             start_agent,
             stop_agent,
             get_registered_agents,
-            complete_task
+            complete_task,
+            list_extensions,
+            install_extension,
+            uninstall_extension,
+            get_extension_info,
+            search_extensions
         ])
         .setup(|app| {
             info!("Radium Desktop starting up");
