@@ -1,0 +1,17 @@
+# Trigger Behavior Agent
+#
+# This example shows an agent configured with trigger behavior.
+# Trigger behavior allows the agent to dynamically trigger other agents
+# during workflow execution.
+
+[agent]
+id = "trigger-behavior-agent"
+name = "Trigger Behavior Agent"
+description = "An agent that can trigger other agents"
+prompt_path = "prompts/agents/core/trigger-behavior-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+
+[agent.trigger_behavior]
+trigger_agent_id = "fallback-agent"  # Default agent ID to trigger
+

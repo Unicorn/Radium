@@ -1,0 +1,19 @@
+# Loop Behavior Agent
+#
+# This example shows an agent configured with loop behavior.
+# Loop behavior allows the agent to request looping back to previous steps
+# during workflow execution.
+
+[agent]
+id = "loop-behavior-agent"
+name = "Loop Behavior Agent"
+description = "An agent that can loop back to previous steps"
+prompt_path = "prompts/agents/core/loop-behavior-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+
+[agent.loop_behavior]
+steps = 2              # Number of steps to go back when looping
+max_iterations = 5    # Maximum number of iterations before stopping
+skip = ["step-1", "step-3"]  # Step IDs to skip during loop
+

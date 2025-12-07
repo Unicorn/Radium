@@ -1,0 +1,31 @@
+# Complex Prompt Agent
+#
+# This example shows an agent with a complex prompt template that uses
+# placeholders for dynamic content. The prompt file would contain
+# {{KEY}} placeholders that are replaced at runtime.
+
+[agent]
+id = "complex-prompt-agent"
+name = "Complex Prompt Agent"
+description = "An agent with a complex prompt template using placeholders"
+prompt_path = "prompts/agents/core/complex-prompt-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "medium"
+
+# Example prompt content (in prompts/agents/core/complex-prompt-agent.md):
+#
+# # Complex Prompt Agent
+#
+# Hello {{user_name}}!
+#
+# Your task is to {{task_description}}.
+#
+# Please complete this by {{deadline}}.
+#
+# Context:
+# {{context}}
+#
+# The placeholders {{user_name}}, {{task_description}}, {{deadline}}, and {{context}}
+# will be replaced with actual values when the prompt is rendered.
+

@@ -1,0 +1,11 @@
+# Simple Agent - Minimal Configuration
+#
+# This example shows the minimal required fields for an agent configuration.
+# All other fields are optional.
+
+[agent]
+id = "simple-agent"
+name = "Simple Agent"
+description = "A basic agent with minimal configuration"
+prompt_path = "prompts/agents/core/simple-agent.md"
+

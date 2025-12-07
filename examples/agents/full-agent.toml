@@ -1,0 +1,14 @@
+# Full Agent - All Optional Fields
+#
+# This example shows an agent configuration with all optional fields specified.
+# This demonstrates the complete configuration options available.
+
+[agent]
+id = "full-agent"
+name = "Full Agent"
+description = "An agent with all optional fields configured"
+prompt_path = "prompts/agents/core/full-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "high"
+

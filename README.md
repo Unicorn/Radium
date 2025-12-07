@@ -88,6 +88,62 @@ Radium includes automatic server lifecycle management:
 
 See [Embedded Server Documentation](docs/features/embedded-server-lifecycle.md) for details.
 
+## Agent Configuration
+
+Radium uses a declarative TOML-based configuration system for defining AI agents. Agents are automatically discovered from configured directories and can be managed through the CLI.
+
+### Quick Example
+
+Create an agent configuration file at `agents/core/my-agent.toml`:
+
+```toml
+[agent]
+id = "my-agent"
+name = "My Agent"
+description = "A custom agent for specific tasks"
+prompt_path = "prompts/agents/core/my-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "medium"
+```
+
+Create the corresponding prompt file at `prompts/agents/core/my-agent.md`:
+
+```markdown
+# My Agent
+
+## Role
+Define the agent's role and responsibilities here.
+
+## Instructions
+Provide step-by-step instructions for the agent.
+```
+
+### CLI Commands
+
+```bash
+# List all discovered agents
+rad agents list
+
+# Search for agents
+rad agents search "architecture"
+
+# Get agent information
+rad agents info my-agent
+
+# Validate agent configurations
+rad agents validate
+
+# Create a new agent template
+rad agents create my-agent "My Agent" --category core
+```
+
+### Documentation
+
+- [User Guide: Agent Configuration](docs/user-guide/agent-configuration.md) - Complete guide for configuring agents
+- [Developer Guide: Agent System Architecture](docs/developer-guide/agent-system-architecture.md) - Technical architecture details
+- [Examples](examples/agents/) - Example agent configurations
+
 ## Documentation
 
 - [Project Overview](docs/project/00-project-overview.md)
