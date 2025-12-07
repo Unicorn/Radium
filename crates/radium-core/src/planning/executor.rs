@@ -173,29 +173,29 @@ impl PlanExecutor {
         Self { config, agent_discovery: AgentDiscovery::new() }
     }
 
-    /// Retries a task execution with exponential backoff for recoverable errors.
+    /// Executes a task with retry logic for recoverable errors.
+    ///
+    /// This method wraps `execute_task` with automatic retry logic using exponential backoff.
     ///
     /// # Arguments
-    /// * `task_fn` - Async closure that executes the task and returns a Result
+    /// * `task` - The task to execute
+    /// * `model` - The model instance to use
     /// * `max_retries` - Maximum number of retry attempts (default: 3)
     /// * `base_delay_ms` - Base delay in milliseconds for exponential backoff (default: 1000)
     ///
     /// # Returns
     /// The result of the task execution, or an error if all retries are exhausted
-    pub async fn retry_with_backoff<F, Fut>(
+    pub async fn execute_task_with_retry(
         &self,
-        task_fn: F,
+        task: &PlanTask,
+        model: Arc<dyn Model>,
         max_retries: usize,
         base_delay_ms: u64,
-    ) -> Result<TaskResult>
-    where
-        F: Fn() -> Fut,
-        Fut: std::future::Future<Output = Result<TaskResult>>,
-    {
+    ) -> Result<TaskResult> {
         let mut last_error = None;
         
         for attempt in 0..=max_retries {
-            match task_fn().await {
+            match self.execute_task(task, model.clone()).await {
                 Ok(result) => {
                     // If task succeeded, return immediately
                     if result.success {

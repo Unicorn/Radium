@@ -400,22 +400,9 @@ async fn execute_plan(
             };
 
             // Execute task with retry logic for recoverable errors
-            // Clone task and model for the retry closure
-            let task_for_retry = task.clone();
-            let model_for_retry = model.clone();
-            
-            let task_result = executor.retry_with_backoff(
-                move || {
-                    let task = task_for_retry.clone();
-                    let model = model_for_retry.clone();
-                    async move {
-                        // Create executor instance for this retry attempt
-                        // Note: This creates a new executor, but it should work since execute_task
-                        // only uses the agent_discovery which is stateless
-                        let temp_executor = PlanExecutor::new();
-                        temp_executor.execute_task(&task, model).await
-                    }
-                },
+            let task_result = executor.execute_task_with_retry(
+                task,
+                model,
                 3, // max_retries
                 1000, // base_delay_ms
             ).await;

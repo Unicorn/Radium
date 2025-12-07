@@ -121,6 +121,68 @@ impl AgentExecutor {
         Self::new(ModelType::Mock, "mock-model".to_string())
     }
 
+    /// Finds the next available provider for failover.
+    ///
+    /// Returns the next provider in the failover order (openai → gemini → mock)
+    /// that is not in the exhausted set and has available credentials.
+    ///
+    /// # Arguments
+    /// * `exhausted_providers` - Set of provider names that have been exhausted
+    /// * `current_provider` - The current provider name (to determine failover order)
+    ///
+    /// # Returns
+    /// Returns `Some((provider_name, model_type, model_id))` if a backup provider is found,
+    /// or `None` if all providers are exhausted.
+    fn find_next_available_provider(
+        exhausted_providers: &HashSet<String>,
+        current_provider: &str,
+    ) -> Option<(String, ModelType, String)> {
+        // Failover order: openai → gemini → mock
+        let failover_order = vec![
+            ("openai", ModelType::OpenAI, "gpt-3.5-turbo".to_string()),
+            ("gemini", ModelType::Gemini, "gemini-pro".to_string()),
+            ("mock", ModelType::Mock, "mock-model".to_string()),
+        ];
+
+        // Find current provider index to start from next in order
+        let current_idx = failover_order
+            .iter()
+            .position(|(name, _, _)| *name == current_provider)
+            .unwrap_or(0);
+
+        // Try providers in failover order starting from next after current
+        let credential_store = CredentialStore::new().ok()?;
+        
+        for i in 0..failover_order.len() {
+            let idx = (current_idx + 1 + i) % failover_order.len();
+            let (provider_name, model_type, default_model_id) = &failover_order[idx];
+            
+            // Skip if already exhausted
+            if exhausted_providers.contains(*provider_name) {
+                continue;
+            }
+
+            // Check if provider is available
+            // Mock is always available (no credentials needed)
+            if *provider_name == "mock" {
+                return Some((provider_name.to_string(), model_type.clone(), default_model_id.clone()));
+            }
+
+            // For real providers, check credentials
+            let provider_type = match *provider_name {
+                "openai" => ProviderType::OpenAI,
+                "gemini" => ProviderType::Gemini,
+                _ => continue,
+            };
+
+            if credential_store.is_configured(provider_type) {
+                return Some((provider_name.to_string(), model_type.clone(), default_model_id.clone()));
+            }
+        }
+
+        None
+    }
+
     /// Executes an agent with the given input and model.
     ///
     /// # Arguments
@@ -174,74 +236,153 @@ impl AgentExecutor {
             }
         }
 
-        // Create agent context
-        let context = AgentContext { model: model.as_ref() };
+        // Track exhausted providers for failover
+        let mut exhausted_providers = HashSet::new();
+        let mut current_model = model;
+        let mut current_provider = Self::infer_provider_from_model(&current_model);
 
-        // Execute the agent
-        // Note: Telemetry capture requires modifying agents to return ModelResponse
-        // For now, telemetry is None - will be captured when agents are updated
-        let execution_result = match agent.execute(&effective_input, context).await {
-            Ok(output) => {
-                info!(agent_id = %agent_id, output_type = ?output, "Agent execution completed successfully");
-                ExecutionResult {
-                    output: output.clone(),
-                    success: true,
-                    error: None,
-                    telemetry: None, // Will be populated when agents capture ModelResponse
-                }
-            }
-            Err(e) => {
-                error!(agent_id = %agent_id, error = %e, "Agent execution failed");
-                
-                // Execute error hooks if available
-                let mut effective_error = e.to_string();
-                let mut error_handled = false;
-                
-                if let Some(executor) = hook_executor {
-                    // Try error interception first
-                    if let Ok(Some(handled_message)) = executor.execute_error_interception(
-                        agent_id,
-                        &effective_error,
-                        "agent_execution_error",
-                        Some("agent_executor"),
-                    ).await {
-                        effective_error = handled_message;
-                        error_handled = true;
+        // Retry loop with provider failover
+        loop {
+            // Create agent context with current model
+            let context = AgentContext { model: current_model.as_ref() };
+
+            // Execute the agent
+            // Note: Telemetry capture requires modifying agents to return ModelResponse
+            // For now, telemetry is None - will be captured when agents are updated
+            let execution_result = match agent.execute(&effective_input, context).await {
+                Ok(output) => {
+                    info!(agent_id = %agent_id, output_type = ?output, provider = %current_provider, "Agent execution completed successfully");
+                    ExecutionResult {
+                        output: output.clone(),
+                        success: true,
+                        error: None,
+                        telemetry: None, // Will be populated when agents capture ModelResponse
                     }
+                }
+                Err(e) => {
+                    // Check if this is a QuotaExceeded error that should trigger failover
+                    if let ModelError::QuotaExceeded { provider, .. } = &e {
+                        warn!(
+                            agent_id = %agent_id,
+                            provider = %provider,
+                            "Provider reported insufficient quota"
+                        );
+                        
+                        // Mark provider as exhausted
+                        exhausted_providers.insert(provider.clone());
+                        current_provider = provider.clone();
+
+                        // Find next available provider
+                        if let Some((next_provider, next_model_type, next_model_id)) =
+                            Self::find_next_available_provider(&exhausted_providers, &current_provider)
+                        {
+                            info!(
+                                agent_id = %agent_id,
+                                from_provider = %current_provider,
+                                to_provider = %next_provider,
+                                "Failing over to backup provider"
+                            );
+
+                            // Create new model for backup provider
+                            match ModelFactory::create_from_str(
+                                match next_model_type {
+                                    ModelType::Mock => "mock",
+                                    ModelType::Gemini => "gemini",
+                                    ModelType::OpenAI => "openai",
+                                },
+                                next_model_id,
+                            ) {
+                                Ok(new_model) => {
+                                    current_model = new_model;
+                                    current_provider = next_provider;
+                                    // Continue loop to retry with new provider
+                                    continue;
+                                }
+                                Err(create_err) => {
+                                    error!(
+                                        agent_id = %agent_id,
+                                        provider = %next_provider,
+                                        error = %create_err,
+                                        "Failed to create backup provider model"
+                                    );
+                                    // Fall through to error handling
+                                }
+                            }
+                        } else {
+                            // All providers exhausted
+                            error!(
+                                agent_id = %agent_id,
+                                "All configured providers are exhausted"
+                            );
+                            return ExecutionResult {
+                                output: AgentOutput::Text(
+                                    "All configured providers are exhausted. Execution paused.".to_string()
+                                ),
+                                success: false,
+                                error: Some("All configured providers are exhausted. Execution paused.".to_string()),
+                                telemetry: None,
+                            };
+                        }
+                    }
+
+                    // For non-quota errors or if failover failed, handle normally
+                    error!(agent_id = %agent_id, error = %e, "Agent execution failed");
                     
-                    // If not handled, try error transformation
-                    if !error_handled {
-                        if let Ok(Some(transformed_message)) = executor.execute_error_transformation(
+                    // Execute error hooks if available
+                    let mut effective_error = e.to_string();
+                    let mut error_handled = false;
+                    
+                    if let Some(executor) = hook_executor {
+                        // Try error interception first
+                        if let Ok(Some(handled_message)) = executor.execute_error_interception(
                             agent_id,
                             &effective_error,
                             "agent_execution_error",
                             Some("agent_executor"),
                         ).await {
-                            effective_error = transformed_message;
+                            effective_error = handled_message;
+                            error_handled = true;
+                        }
+                        
+                        // If not handled, try error transformation
+                        if !error_handled {
+                            if let Ok(Some(transformed_message)) = executor.execute_error_transformation(
+                                agent_id,
+                                &effective_error,
+                                "agent_execution_error",
+                                Some("agent_executor"),
+                            ).await {
+                                effective_error = transformed_message;
+                            }
+                        }
+                        
+                        // Try error recovery
+                        if let Ok(Some(recovered_message)) = executor.execute_error_recovery(
+                            agent_id,
+                            &effective_error,
+                            "agent_execution_error",
+                            Some("agent_executor"),
+                        ).await {
+                            // If recovery succeeded, we might want to retry or return a different result
+                            // For now, we'll use the recovered message as the error
+                            effective_error = recovered_message;
                         }
                     }
                     
-                    // Try error recovery
-                    if let Ok(Some(recovered_message)) = executor.execute_error_recovery(
-                        agent_id,
-                        &effective_error,
-                        "agent_execution_error",
-                        Some("agent_executor"),
-                    ).await {
-                        // If recovery succeeded, we might want to retry or return a different result
-                        // For now, we'll use the recovered message as the error
-                        effective_error = recovered_message;
+                    ExecutionResult {
+                        output: AgentOutput::Text(format!("Execution error: {}", effective_error)),
+                        success: false,
+                        error: Some(effective_error),
+                        telemetry: None,
                     }
                 }
-                
-                ExecutionResult {
-                    output: AgentOutput::Text(format!("Execution error: {}", effective_error)),
-                    success: false,
-                    error: Some(effective_error),
-                    telemetry: None,
-                }
-            }
-        };
+            };
+
+            // If we get here, execution succeeded or failed with non-quota error
+            break;
+        }
+
+        let execution_result;
 
         // Execute AfterModel hooks
         if let Some(executor) = hook_executor {
