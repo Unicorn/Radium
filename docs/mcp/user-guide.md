@@ -369,6 +369,14 @@ name = "github-api"
 - Monitor connection health
 - Cache tool discovery results
 
+## Extension MCP Integration
+
+Extensions can provide MCP server configurations that are automatically loaded. Extension configs have lower precedence than workspace configs.
+
+**Example**: An extension might provide a database MCP server that users can use immediately.
+
+For details on extension MCP integration, see [Extension MCP Integration](../developer-guide/extension-mcp-integration.md).
+
 ## Next Steps
 
 - [Configuration Reference](configuration.md) - Detailed configuration options
@@ -377,6 +385,7 @@ name = "github-api"
 - [Slash Commands](prompts.md) - Creating and using prompts
 - [Troubleshooting](troubleshooting.md) - Common issues and solutions
 - [Architecture](architecture.md) - How MCP integration works
+- [Extension MCP Integration](../developer-guide/extension-mcp-integration.md) - How extensions provide MCP servers
 
 ## Examples
 

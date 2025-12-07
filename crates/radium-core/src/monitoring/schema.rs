@@ -112,6 +112,12 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
          ON telemetry(timestamp)",
         [],
     )?;
+    
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_telemetry_behavior_type
+         ON telemetry(behavior_type)",
+        [],
+    )?;
 
     // Agent usage analytics table
     conn.execute(

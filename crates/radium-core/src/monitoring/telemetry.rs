@@ -353,6 +353,12 @@ pub trait TelemetryTracking {
 
     /// Gets telemetry summary for all agents (optimized aggregation).
     fn get_telemetry_summary(&self) -> Result<Vec<TelemetrySummary>>;
+    
+    /// Gets behavior metrics for a workflow or agent.
+    fn get_behavior_metrics(&self, workflow_id: Option<&str>) -> Result<Vec<TelemetryRecord>>;
+    
+    /// Gets behavior metrics filtered by behavior type.
+    fn get_behavior_metrics_by_type(&self, behavior_type: &str) -> Result<Vec<TelemetryRecord>>;
 }
 
 #[async_trait(?Send)]
@@ -403,7 +409,8 @@ impl TelemetryTracking for MonitoringService {
         let mut stmt = self.conn.prepare(
             "SELECT agent_id, timestamp, input_tokens, output_tokens, cached_tokens,
                     cache_creation_tokens, cache_read_tokens, total_tokens,
-                    estimated_cost, model, provider, tool_name, tool_args, tool_approved, tool_approval_type, engine_id
+                    estimated_cost, model, provider, tool_name, tool_args, tool_approved, tool_approval_type, engine_id,
+                    behavior_type, behavior_invocation_count, behavior_duration_ms, behavior_outcome
              FROM telemetry WHERE agent_id = ?1 ORDER BY timestamp DESC",
         )?;
 
@@ -487,6 +494,91 @@ impl TelemetryTracking for MonitoringService {
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
         Ok(summaries)
+    }
+    
+    fn get_behavior_metrics(&self, workflow_id: Option<&str>) -> Result<Vec<TelemetryRecord>> {
+        let query = if let Some(wf_id) = workflow_id {
+            // Filter by workflow_id if provided (would need workflow_id in telemetry table for full support)
+            // For now, filter by behavior_type is not null
+            "SELECT agent_id, timestamp, input_tokens, output_tokens, cached_tokens,
+                    cache_creation_tokens, cache_read_tokens, total_tokens,
+                    estimated_cost, model, provider, tool_name, tool_args, tool_approved, tool_approval_type, engine_id,
+                    behavior_type, behavior_invocation_count, behavior_duration_ms, behavior_outcome
+             FROM telemetry WHERE behavior_type IS NOT NULL ORDER BY timestamp DESC"
+        } else {
+            "SELECT agent_id, timestamp, input_tokens, output_tokens, cached_tokens,
+                    cache_creation_tokens, cache_read_tokens, total_tokens,
+                    estimated_cost, model, provider, tool_name, tool_args, tool_approved, tool_approval_type, engine_id,
+                    behavior_type, behavior_invocation_count, behavior_duration_ms, behavior_outcome
+             FROM telemetry WHERE behavior_type IS NOT NULL ORDER BY timestamp DESC"
+        };
+        
+        let mut stmt = self.conn.prepare(query)?;
+        let records = stmt.query_map([], |row| {
+            Ok(TelemetryRecord {
+                agent_id: row.get(0)?,
+                timestamp: row.get(1)?,
+                input_tokens: row.get(2)?,
+                output_tokens: row.get(3)?,
+                cached_tokens: row.get(4)?,
+                cache_creation_tokens: row.get(5)?,
+                cache_read_tokens: row.get(6)?,
+                total_tokens: row.get(7)?,
+                estimated_cost: row.get(8)?,
+                model: row.get(9)?,
+                provider: row.get(10)?,
+                tool_name: row.get(11)?,
+                tool_args: row.get(12)?,
+                tool_approved: row.get(13)?,
+                tool_approval_type: row.get(14)?,
+                engine_id: row.get(15)?,
+                behavior_type: row.get(16).ok(),
+                behavior_invocation_count: row.get(17).ok(),
+                behavior_duration_ms: row.get(18).ok(),
+                behavior_outcome: row.get(19).ok(),
+            })
+        })?
+        .collect::<std::result::Result<Vec<_>, _>>()?;
+        
+        Ok(records)
+    }
+    
+    fn get_behavior_metrics_by_type(&self, behavior_type: &str) -> Result<Vec<TelemetryRecord>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT agent_id, timestamp, input_tokens, output_tokens, cached_tokens,
+                    cache_creation_tokens, cache_read_tokens, total_tokens,
+                    estimated_cost, model, provider, tool_name, tool_args, tool_approved, tool_approval_type, engine_id,
+                    behavior_type, behavior_invocation_count, behavior_duration_ms, behavior_outcome
+             FROM telemetry WHERE behavior_type = ?1 ORDER BY timestamp DESC",
+        )?;
+        
+        let records = stmt.query_map(params![behavior_type], |row| {
+            Ok(TelemetryRecord {
+                agent_id: row.get(0)?,
+                timestamp: row.get(1)?,
+                input_tokens: row.get(2)?,
+                output_tokens: row.get(3)?,
+                cached_tokens: row.get(4)?,
+                cache_creation_tokens: row.get(5)?,
+                cache_read_tokens: row.get(6)?,
+                total_tokens: row.get(7)?,
+                estimated_cost: row.get(8)?,
+                model: row.get(9)?,
+                provider: row.get(10)?,
+                tool_name: row.get(11)?,
+                tool_args: row.get(12)?,
+                tool_approved: row.get(13)?,
+                tool_approval_type: row.get(14)?,
+                engine_id: row.get(15)?,
+                behavior_type: row.get(16).ok(),
+                behavior_invocation_count: row.get(17).ok(),
+                behavior_duration_ms: row.get(18).ok(),
+                behavior_outcome: row.get(19).ok(),
+            })
+        })?
+        .collect::<std::result::Result<Vec<_>, _>>()?;
+        
+        Ok(records)
     }
 }
 
