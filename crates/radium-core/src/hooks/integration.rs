@@ -194,6 +194,72 @@ impl OrchestratorHooks {
         Ok(None)
     }
 
+    /// Execute error transformation hooks.
+    pub async fn error_transformation(
+        &self,
+        error_message: &str,
+        error_type: &str,
+        error_source: Option<&str>,
+    ) -> crate::hooks::error::Result<Option<String>> {
+        let context = crate::hooks::error_hooks::ErrorHookContext::transformation(
+            error_message.to_string(),
+            error_type.to_string(),
+            error_source.map(|s| s.to_string()),
+        );
+        let hook_context =
+            context.to_hook_context(crate::hooks::error_hooks::ErrorHookType::Transformation);
+
+        let results =
+            self.registry.execute_hooks(HookType::ErrorTransformation, &hook_context).await?;
+
+        // Check if any hook transformed the error
+        for result in results {
+            if let Some(data) = result.modified_data {
+                if let Some(transformed) = data.get("transformed_error").and_then(|v| v.as_str()) {
+                    return Ok(Some(transformed.to_string()));
+                }
+                if let Some(message) = result.message {
+                    return Ok(Some(message));
+                }
+            }
+        }
+
+        Ok(None)
+    }
+
+    /// Execute error recovery hooks.
+    pub async fn error_recovery(
+        &self,
+        error_message: &str,
+        error_type: &str,
+        error_source: Option<&str>,
+    ) -> crate::hooks::error::Result<Option<String>> {
+        let context = crate::hooks::error_hooks::ErrorHookContext::recovery(
+            error_message.to_string(),
+            error_type.to_string(),
+            error_source.map(|s| s.to_string()),
+        );
+        let hook_context =
+            context.to_hook_context(crate::hooks::error_hooks::ErrorHookType::Recovery);
+
+        let results =
+            self.registry.execute_hooks(HookType::ErrorRecovery, &hook_context).await?;
+
+        // Check if any hook recovered from the error
+        for result in results {
+            if let Some(data) = result.modified_data {
+                if let Some(recovered) = data.get("recovered_error").and_then(|v| v.as_str()) {
+                    return Ok(Some(recovered.to_string()));
+                }
+                if let Some(message) = result.message {
+                    return Ok(Some(message));
+                }
+            }
+        }
+
+        Ok(None)
+    }
+
     /// Execute telemetry hooks.
     pub async fn telemetry_collection(
         &self,

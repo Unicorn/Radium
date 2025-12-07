@@ -10,7 +10,7 @@ use radium_orchestrator::{AgentExecutor, Orchestrator};
 
 use crate::checkpoint::CheckpointManager;
 use crate::hooks::integration::OrchestratorHooks;
-use crate::hooks::registry::HookRegistry;
+use crate::hooks::registry::{HookRegistry, HookType};
 use crate::hooks::types::{HookContext, HookPriority};
 use crate::models::{Workflow, WorkflowState};
 use crate::monitoring::{AgentRecord, AgentStatus, MonitoringService};
@@ -472,8 +472,64 @@ impl WorkflowExecutor {
 
             // Check if step failed
             if !step_result.success {
-                let error_msg =
+                let mut error_msg =
                     step_result.error.unwrap_or_else(|| "Step execution failed".to_string());
+                let error_type = "workflow_step_error";
+                let error_source = Some("workflow_executor");
+
+                // Execute error hooks if registry is available
+                if let Some(ref registry) = self.hook_registry {
+                    let hooks = OrchestratorHooks::new(Arc::clone(registry));
+                    
+                    // Try error interception first
+                    if let Ok(Some(handled_message)) = hooks.error_interception(
+                        &error_msg,
+                        error_type,
+                        error_source,
+                    ).await {
+                        error_msg = handled_message;
+                        // Error was handled by hook, but we still need to stop execution
+                        // as the step failed
+                    } else {
+                        // If not handled, try error transformation
+                        if let Ok(Some(transformed_message)) = hooks.error_transformation(
+                            &error_msg,
+                            error_type,
+                            error_source,
+                        ).await {
+                            error_msg = transformed_message;
+                        }
+                    }
+
+                    // Execute error logging hooks (always execute, even if error was handled)
+                    let error_context = crate::hooks::error_hooks::ErrorHookContext::logging(
+                        error_msg.clone(),
+                        error_type.to_string(),
+                        error_source.map(|s| s.to_string()),
+                    );
+                    let hook_context = error_context.to_hook_context(
+                        crate::hooks::error_hooks::ErrorHookType::Logging,
+                    );
+                    if let Err(e) = registry.execute_hooks(HookType::ErrorLogging, &hook_context).await {
+                        tracing::warn!(
+                            workflow_id = %workflow.id,
+                            step_id = %step.id,
+                            error = %e,
+                            "Error logging hook execution failed"
+                        );
+                    }
+
+                    // Try error recovery hooks
+                    if let Ok(Some(recovered_message)) = hooks.error_recovery(
+                        &error_msg,
+                        error_type,
+                        error_source,
+                    ).await {
+                        // If recovery succeeded, we might want to continue or retry
+                        // For now, we'll use the recovered message but still stop execution
+                        error_msg = recovered_message;
+                    }
+                }
 
                 // Classify the failure
                 let failure_type = self.failure_classifier.classify_from_string(&error_msg);
