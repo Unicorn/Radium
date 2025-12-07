@@ -203,9 +203,28 @@ pub enum HooksCommand {
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum ExtensionCommand {
-    /// Install an extension from a local path or URL
+    /// Install an extension from a local path, archive, or URL
+    ///
+    /// # Examples
+    ///
+    /// Install from a local directory:
+    ///   $ rad extension install ./my-extension
+    ///
+    /// Install from a local archive:
+    ///   $ rad extension install ./my-extension.tar.gz
+    ///
+    /// Install from a URL:
+    ///   $ rad extension install https://example.com/extensions/my-extension.tar.gz
+    ///
+    /// Install and overwrite existing extension:
+    ///   $ rad extension install ./my-extension --overwrite
+    ///
+    /// Install with automatic dependency resolution:
+    ///   $ rad extension install ./my-extension --install-deps
+    ///
+    /// See `docs/extensions/README.md` for more information.
     Install {
-        /// Path to extension package directory or URL
+        /// Path to extension package directory, archive file, or URL
         source: String,
 
         /// Overwrite existing installation
@@ -218,12 +237,32 @@ pub enum ExtensionCommand {
     },
 
     /// Uninstall an extension
+    ///
+    /// # Examples
+    ///
+    /// Uninstall an extension:
+    ///   $ rad extension uninstall my-extension
+    ///
+    /// See `docs/extensions/README.md` for more information.
     Uninstall {
         /// Extension name
         name: String,
     },
 
     /// List all installed extensions
+    ///
+    /// # Examples
+    ///
+    /// List all extensions in table format:
+    ///   $ rad extension list
+    ///
+    /// List with detailed information:
+    ///   $ rad extension list --verbose
+    ///
+    /// List in JSON format:
+    ///   $ rad extension list --json
+    ///
+    /// See `docs/extensions/README.md` for more information.
     List {
         /// Output as JSON
         #[arg(long)]
@@ -235,6 +274,16 @@ pub enum ExtensionCommand {
     },
 
     /// Show detailed information about a specific extension
+    ///
+    /// # Examples
+    ///
+    /// Show extension information:
+    ///   $ rad extension info my-extension
+    ///
+    /// Show extension information in JSON format:
+    ///   $ rad extension info my-extension --json
+    ///
+    /// See `docs/extensions/README.md` for more information.
     Info {
         /// Extension name
         name: String,
@@ -245,8 +294,18 @@ pub enum ExtensionCommand {
     },
 
     /// Search for extensions by name or description
+    ///
+    /// # Examples
+    ///
+    /// Search for extensions:
+    ///   $ rad extension search code-review
+    ///
+    /// Search and output as JSON:
+    ///   $ rad extension search mcp --json
+    ///
+    /// See `docs/extensions/README.md` for more information.
     Search {
-        /// Search query
+        /// Search query (searches name and description)
         query: String,
 
         /// Output as JSON

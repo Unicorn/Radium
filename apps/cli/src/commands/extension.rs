@@ -52,6 +52,7 @@ async fn install_extension(
         }
         Err(e) => {
             println!("{}", format!("✗ Failed to install extension: {}", e).red());
+            println!("{}", "Run 'rad extension install --help' for usage examples.".dimmed());
             Err(anyhow::anyhow!("Installation failed: {}", e))
         }
     }
@@ -70,6 +71,7 @@ async fn uninstall_extension(name: &str) -> anyhow::Result<()> {
         }
         Err(e) => {
             println!("{}", format!("✗ Failed to uninstall extension: {}", e).red());
+            println!("{}", "Run 'rad extension uninstall --help' for usage examples.".dimmed());
             Err(anyhow::anyhow!("Uninstallation failed: {}", e))
         }
     }
@@ -128,7 +130,9 @@ async fn show_extension_info(name: &str, json_output: bool) -> anyhow::Result<()
     let manager = ExtensionManager::new()?;
     let extension = manager.get(name)?;
 
-    let extension = extension.ok_or_else(|| anyhow::anyhow!("Extension not found: {}", name))?;
+    let extension = extension.ok_or_else(|| {
+        anyhow::anyhow!("Extension not found: {}. Use 'rad extension list' to see installed extensions.", name)
+    })?;
 
     if json_output {
         let info = json!({
