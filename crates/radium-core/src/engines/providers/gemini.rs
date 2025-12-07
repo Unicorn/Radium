@@ -30,6 +30,8 @@ impl GeminiEngine {
             "gemini-pro".to_string(),
             "gemini-pro-vision".to_string(),
             "gemini-2.0-flash-exp".to_string(),
+            "gemini-1.5-pro".to_string(),
+            "gemini-1.5-flash".to_string(),
         ])
         .with_auth_required(true);
 
