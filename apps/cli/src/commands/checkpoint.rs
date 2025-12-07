@@ -2,7 +2,7 @@
 
 use anyhow::{Context, Result};
 use clap::Subcommand;
-use radium_core::checkpoint::{Checkpoint, CheckpointManager};
+use radium_core::checkpoint::CheckpointManager;
 use radium_core::workspace::Workspace;
 
 /// Checkpoint subcommands
