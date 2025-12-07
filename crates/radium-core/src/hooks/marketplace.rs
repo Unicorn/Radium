@@ -203,7 +203,7 @@ impl MarketplaceClient {
             }
         }
 
-        Err(HookError::other("Marketplace download not available (backend not implemented)".to_string()))
+        Err(HookError::ExecutionFailed("Marketplace download not available (backend not implemented)".to_string()))
     }
 }
 

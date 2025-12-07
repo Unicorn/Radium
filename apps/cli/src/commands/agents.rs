@@ -1767,7 +1767,7 @@ async fn show_agent_stats(json_output: bool) -> anyhow::Result<()> {
     } else {
         // Use in-memory if no database exists
         let conn = Connection::open_in_memory()?;
-        radium_core::monitoring::schema::initialize_schema(&conn)?;
+        radium_core::monitoring::initialize_schema(&conn)?;
         conn
     };
 
@@ -1814,7 +1814,7 @@ async fn show_popular_agents(limit: usize, json_output: bool) -> anyhow::Result<
         Connection::open(&db_path)?
     } else {
         let conn = Connection::open_in_memory()?;
-        radium_core::monitoring::schema::initialize_schema(&conn)?;
+        radium_core::monitoring::initialize_schema(&conn)?;
         conn
     };
 
@@ -1894,7 +1894,7 @@ async fn show_performance_metrics(limit: usize, json_output: bool) -> anyhow::Re
         Connection::open(&db_path)?
     } else {
         let conn = Connection::open_in_memory()?;
-        radium_core::monitoring::schema::initialize_schema(&conn)?;
+        radium_core::monitoring::initialize_schema(&conn)?;
         conn
     };
 
