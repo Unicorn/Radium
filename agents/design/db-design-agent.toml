@@ -1,0 +1,9 @@
+[agent]
+id = "db-design-agent"
+name = "Database Schema Design Agent"
+description = "Designs database schemas, data models, and database architectures"
+prompt_path = "prompts/agents/design/db-design-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "high"
+
