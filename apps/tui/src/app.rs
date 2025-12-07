@@ -1045,6 +1045,12 @@ impl App {
                     self.switch_orchestrator_provider(&args[1]).await?;
                 }
             }
+            "config" => {
+                self.show_orchestrator_config();
+            }
+            "refresh" => {
+                self.refresh_orchestrator_tools().await?;
+            }
             _ => {
                 self.prompt_data.add_output(format!("Unknown orchestrator command: {}", args[0]));
                 self.prompt_data.add_output("Available commands:".to_string());
@@ -1052,6 +1058,10 @@ impl App {
                 self.prompt_data.add_output("  /orchestrator toggle   - Enable/disable".to_string());
                 self.prompt_data
                     .add_output("  /orchestrator switch <provider>  - Switch provider".to_string());
+                self.prompt_data
+                    .add_output("  /orchestrator config   - Show full configuration".to_string());
+                self.prompt_data
+                    .add_output("  /orchestrator refresh  - Reload agent tool registry".to_string());
             }
         }
 
