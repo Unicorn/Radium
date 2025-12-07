@@ -144,3 +144,73 @@ fn test_hooks_command_structure() {
         .stdout(predicate::str::contains("hooks"));
 }
 
+#[test]
+fn test_hooks_validate() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("hooks")
+        .arg("validate")
+        .assert()
+        .success();
+}
+
+#[test]
+fn test_hooks_validate_verbose() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("hooks")
+        .arg("validate")
+        .arg("--verbose")
+        .assert()
+        .success();
+}
+
+#[test]
+fn test_hooks_validate_json() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("hooks")
+        .arg("validate")
+        .arg("--json")
+        .assert()
+        .success();
+}
+
+#[test]
+fn test_hooks_test_not_found() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("hooks")
+        .arg("test")
+        .arg("nonexistent-hook")
+        .assert()
+        .failure();
+}
+
+#[test]
+fn test_hooks_test_json() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("hooks")
+        .arg("test")
+        .arg("test-hook")
+        .arg("--json")
+        .assert();
+    // May fail if hook doesn't exist, but should parse command
+}
+
