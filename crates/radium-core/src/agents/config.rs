@@ -150,6 +150,40 @@ impl Default for AgentCapabilities {
     }
 }
 
+/// Persona configuration for TOML deserialization.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PersonaConfigToml {
+    /// Model recommendations.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub models: Option<PersonaModelsToml>,
+    /// Performance configuration.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub performance: Option<PersonaPerformanceToml>,
+}
+
+/// Model recommendations for TOML.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PersonaModelsToml {
+    /// Primary model.
+    pub primary: String,
+    /// Fallback model (optional).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fallback: Option<String>,
+    /// Premium model (optional).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub premium: Option<String>,
+}
+
+/// Performance configuration for TOML.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PersonaPerformanceToml {
+    /// Performance profile.
+    pub profile: String,
+    /// Estimated tokens (optional).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub estimated_tokens: Option<u64>,
+}
+
 /// Agent configuration file (TOML format).
 ///
 /// This is the structure of an agent configuration file, typically stored at
@@ -166,11 +200,24 @@ impl Default for AgentCapabilities {
 /// engine = "gemini"
 /// model = "gemini-2.0-flash-exp"
 /// reasoning_effort = "medium"
+///
+/// [agent.persona]
+/// [agent.persona.models]
+/// primary = "gemini-2.0-flash-exp"
+/// fallback = "gemini-1.5-flash"
+/// premium = "gemini-1.5-pro"
+///
+/// [agent.persona.performance]
+/// profile = "thinking"
+/// estimated_tokens = 2000
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentConfigFile {
     /// Agent configuration.
     pub agent: AgentConfig,
+    /// Optional persona configuration.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub persona: Option<PersonaConfigToml>,
 }
 
 impl AgentConfigFile {
@@ -439,6 +486,12 @@ pub struct AgentConfig {
     /// If not set, commands execute directly without sandboxing.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sandbox: Option<SandboxConfig>,
+
+    /// Optional persona configuration (loaded from TOML if present).
+    ///
+    /// This is set when loading from a config file that includes persona settings.
+    #[serde(skip)]
+    pub persona_config: Option<crate::agents::persona::PersonaConfig>,
 }
 
 impl AgentConfig {
@@ -459,6 +512,7 @@ impl AgentConfig {
             file_path: None,
             capabilities: AgentCapabilities::default(),
             sandbox: None,
+            persona_config: None,
         }
     }
 

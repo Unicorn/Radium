@@ -37,4 +37,4 @@ mod registry;
 pub use detection::BinaryDetector;
 pub use engine_trait::{Engine, EngineMetadata, ExecutionRequest, ExecutionResponse, TokenUsage};
 pub use error::{EngineError, Result};
-pub use registry::EngineRegistry;
+pub use registry::{EngineHealth, EngineRegistry, HealthStatus};
