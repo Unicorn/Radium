@@ -56,7 +56,7 @@ The following files remain in `docs/project/` as active documentation:
 - `03-implementation-plan.md` - Implementation plan
 - `PROGRESS.md` - Active progress tracking
 - `TEST_COVERAGE_REPORT.md` - Current test coverage (kept as it's current)
-- Integration/plan documents (ACE_LEARNING_INTEGRATION.md, etc.)
+- Integration/plan documents (now tracked in BrainGrid - see BRAINGRID_WORKFLOW.md)
 
 ## Archive Structure
 

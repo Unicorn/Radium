@@ -37,14 +37,26 @@ Each plan follows this structure:
 
 ## Current Plans
 
+> **All implementation plans are now tracked in BrainGrid (PROJ-14).**  
+> Query for plans: `braingrid requirement list -p PROJ-14`  
+> See [BRAINGRID_WORKFLOW.md](../project/BRAINGRID_WORKFLOW.md) for details.
+
 ### Active Plans
-- [Model-Agnostic Orchestration](./model-agnostic-orchestration.md) - Intelligent agent routing and coordination
+All active plans are in BrainGrid. Query for current status:
+```bash
+braingrid requirement list -p PROJ-14 --status IN_PROGRESS
+```
 
 ### Completed Plans
-- None yet
+All completed plans are in BrainGrid. Query for completed work:
+```bash
+braingrid requirement list -p PROJ-14 --status COMPLETED
+```
 
-### Cancelled Plans
-- None yet
+**Example**: Model-Agnostic Orchestration is tracked as REQ-160 in BrainGrid:
+```bash
+braingrid requirement show REQ-160 -p PROJ-14
+```
 
 ## Workflow
 
@@ -133,11 +145,18 @@ Tasks use the following format:
 
 ## Integration with Braingrid
 
-Plans are designed to map directly to Braingrid:
-- Each **Phase** becomes a **Milestone**
-- Each **Task** becomes a **Card**
-- **Dependencies** define **Blockers**
-- **Success Criteria** define **Done Conditions**
+**All plans are now managed in BrainGrid (PROJ-14).** This directory serves as a reference for:
+- Historical plan documents (if needed for reference)
+- Plan templates and structure guidelines
+- Best practices for creating plans in BrainGrid
+
+When creating new plans:
+1. Create the requirement in BrainGrid using `braingrid specify -p PROJ-14 --prompt "Feature description"`
+2. BrainGrid will automatically break it down into tasks
+3. Review and refine the task breakdown in BrainGrid
+4. Reference the BrainGrid REQ in commit messages: `[REQ-XXX]`
+
+For details, see [BRAINGRID_WORKFLOW.md](../project/BRAINGRID_WORKFLOW.md).
 
 ## Questions?
 

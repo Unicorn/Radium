@@ -8,6 +8,10 @@
 - **Core Tests**: 118 tests across 18 files  
 - **Total**: 334+ integration/unit tests
 
+> **📋 For current test requirements and coverage tasks, query Braingrid:**  
+> `braingrid requirement list -p PROJ-14 | grep -i "test\|coverage"`  
+> See [BRAINGRID_WORKFLOW.md](./BRAINGRID_WORKFLOW.md) for details.
+
 ## 📊 Coverage Summary by Module
 
 ### ✅ Well-Covered Modules (>80%)
