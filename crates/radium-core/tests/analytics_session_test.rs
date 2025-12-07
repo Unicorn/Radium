@@ -495,3 +495,152 @@ async fn test_generate_session_metrics_with_workspace() {
     assert!(metrics.lines_added >= 0); // May be 0 if git diff doesn't work in test environment
 }
 
+#[tokio::test]
+async fn test_tool_approval_metrics_aggregation() {
+    let monitoring = create_test_monitoring();
+    let agent_id = "agent-approvals".to_string();
+    let agent = AgentRecord::new(agent_id.clone(), "test-agent".to_string());
+    monitoring.register_agent(&agent).expect("Failed to register agent");
+    
+    // Create telemetry records with tool approval information
+    let mut telemetry1 = create_test_telemetry(&agent_id, 100, 50);
+    telemetry1 = telemetry1.with_tool_approval(
+        "write_file".to_string(),
+        Some(vec!["file.txt".to_string(), "content".to_string()]),
+        true,
+        "auto".to_string(),
+    );
+    monitoring.record_telemetry(&telemetry1).await.expect("Failed to record telemetry");
+    
+    let mut telemetry2 = create_test_telemetry(&agent_id, 200, 100);
+    telemetry2 = telemetry2.with_tool_approval(
+        "read_file".to_string(),
+        Some(vec!["file.txt".to_string()]),
+        true,
+        "user".to_string(),
+    );
+    monitoring.record_telemetry(&telemetry2).await.expect("Failed to record telemetry");
+    
+    let mut telemetry3 = create_test_telemetry(&agent_id, 150, 75);
+    telemetry3 = telemetry3.with_tool_approval(
+        "delete_file".to_string(),
+        Some(vec!["file.txt".to_string()]),
+        false,
+        "user".to_string(),
+    );
+    monitoring.record_telemetry(&telemetry3).await.expect("Failed to record telemetry");
+    
+    let analytics = SessionAnalytics::new(monitoring);
+    let start_time = Utc::now() - chrono::Duration::seconds(10);
+    let end_time = Some(Utc::now());
+    
+    let metrics = analytics.generate_session_metrics(
+        "session-approvals",
+        &[agent_id],
+        start_time,
+        end_time,
+    ).expect("Failed to generate metrics");
+    
+    // Should have aggregated tool approval metrics
+    assert_eq!(metrics.tool_approvals_allowed, 2); // telemetry1 and telemetry2 were approved
+    assert_eq!(metrics.tool_approvals_denied, 1); // telemetry3 was denied
+    assert_eq!(metrics.tool_approvals_asked, 2); // telemetry2 and telemetry3 had "user" approval type
+}
+
+#[tokio::test]
+async fn test_get_aggregated_model_usage() {
+    use tempfile::TempDir;
+    use radium_core::analytics::{SessionReport, SessionStorage, ModelUsageStats};
+    
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let workspace_root = temp_dir.path();
+    
+    // Create storage and save multiple session reports with different model usage
+    let storage = SessionStorage::new(workspace_root).expect("Failed to create storage");
+    
+    // Session 1: model-1 and model-2
+    let mut metrics1 = SessionMetrics::default();
+    metrics1.session_id = "session-1".to_string();
+    metrics1.model_usage.insert("model-1".to_string(), ModelUsageStats {
+        requests: 5,
+        input_tokens: 1000,
+        output_tokens: 500,
+        cached_tokens: 200,
+        estimated_cost: 0.05,
+    });
+    metrics1.model_usage.insert("model-2".to_string(), ModelUsageStats {
+        requests: 3,
+        input_tokens: 600,
+        output_tokens: 300,
+        cached_tokens: 100,
+        estimated_cost: 0.03,
+    });
+    let report1 = SessionReport::new(metrics1);
+    storage.save_report(&report1).expect("Failed to save report1");
+    
+    // Session 2: model-1 and model-3 (overlapping with session 1)
+    let mut metrics2 = SessionMetrics::default();
+    metrics2.session_id = "session-2".to_string();
+    metrics2.model_usage.insert("model-1".to_string(), ModelUsageStats {
+        requests: 7,
+        input_tokens: 1400,
+        output_tokens: 700,
+        cached_tokens: 300,
+        estimated_cost: 0.07,
+    });
+    metrics2.model_usage.insert("model-3".to_string(), ModelUsageStats {
+        requests: 2,
+        input_tokens: 400,
+        output_tokens: 200,
+        cached_tokens: 50,
+        estimated_cost: 0.02,
+    });
+    let report2 = SessionReport::new(metrics2);
+    storage.save_report(&report2).expect("Failed to save report2");
+    
+    // Session 3: only model-2
+    let mut metrics3 = SessionMetrics::default();
+    metrics3.session_id = "session-3".to_string();
+    metrics3.model_usage.insert("model-2".to_string(), ModelUsageStats {
+        requests: 4,
+        input_tokens: 800,
+        output_tokens: 400,
+        cached_tokens: 150,
+        estimated_cost: 0.04,
+    });
+    let report3 = SessionReport::new(metrics3);
+    storage.save_report(&report3).expect("Failed to save report3");
+    
+    // Create analytics and get aggregated usage
+    let monitoring = create_test_monitoring();
+    let analytics = SessionAnalytics::new(monitoring);
+    let aggregated = analytics.get_aggregated_model_usage(Some(workspace_root)).expect("Failed to get aggregated usage");
+    
+    // Verify aggregation
+    assert_eq!(aggregated.len(), 3, "Should have 3 models");
+    
+    // model-1: aggregated from session-1 and session-2
+    let model1 = aggregated.get("model-1").unwrap();
+    assert_eq!(model1.requests, 12); // 5 + 7
+    assert_eq!(model1.input_tokens, 2400); // 1000 + 1400
+    assert_eq!(model1.output_tokens, 1200); // 500 + 700
+    assert_eq!(model1.cached_tokens, 500); // 200 + 300
+    assert!((model1.estimated_cost - 0.12).abs() < 0.001); // 0.05 + 0.07
+    
+    // model-2: aggregated from session-1 and session-3
+    let model2 = aggregated.get("model-2").unwrap();
+    assert_eq!(model2.requests, 7); // 3 + 4
+    assert_eq!(model2.input_tokens, 1400); // 600 + 800
+    assert_eq!(model2.output_tokens, 700); // 300 + 400
+    assert_eq!(model2.cached_tokens, 250); // 100 + 150
+    assert!((model2.estimated_cost - 0.07).abs() < 0.001); // 0.03 + 0.04
+    
+    // model-3: only from session-2
+    let model3 = aggregated.get("model-3").unwrap();
+    assert_eq!(model3.requests, 2);
+    assert_eq!(model3.input_tokens, 400);
+    assert_eq!(model3.output_tokens, 200);
+    assert_eq!(model3.cached_tokens, 50);
+    assert!((model3.estimated_cost - 0.02).abs() < 0.001);
+}
+

@@ -46,8 +46,17 @@ pub struct TelemetryRecord {
     /// Provider name.
     pub provider: Option<String>,
     
-    /// Approval type for tool calls ("user" or "auto").
-    pub approval_type: Option<String>,
+    /// Tool name (if this telemetry is associated with a tool call).
+    pub tool_name: Option<String>,
+    
+    /// Tool arguments (JSON string representation).
+    pub tool_args: Option<String>,
+    
+    /// Whether the tool was approved (true) or denied (false).
+    pub tool_approved: Option<bool>,
+    
+    /// Tool approval type ("user", "auto", "policy").
+    pub tool_approval_type: Option<String>,
 }
 
 impl TelemetryRecord {
@@ -67,7 +76,10 @@ impl TelemetryRecord {
             estimated_cost: 0.0,
             model: None,
             provider: None,
-            approval_type: None,
+            tool_name: None,
+            tool_args: None,
+            tool_approved: None,
+            tool_approval_type: None,
         }
     }
 
@@ -94,6 +106,22 @@ impl TelemetryRecord {
     pub fn with_model(mut self, model: String, provider: String) -> Self {
         self.model = Some(model);
         self.provider = Some(provider);
+        self
+    }
+
+    /// Sets tool approval information.
+    #[must_use]
+    pub fn with_tool_approval(
+        mut self,
+        tool_name: String,
+        tool_args: Option<Vec<String>>,
+        approved: bool,
+        approval_type: String,
+    ) -> Self {
+        self.tool_name = Some(tool_name);
+        self.tool_args = tool_args.map(|args| serde_json::to_string(&args).unwrap_or_default());
+        self.tool_approved = Some(approved);
+        self.tool_approval_type = Some(approval_type);
         self
     }
 
@@ -283,7 +311,7 @@ impl TelemetryTracking for MonitoringService {
         let mut stmt = self.conn.prepare(
             "SELECT agent_id, timestamp, input_tokens, output_tokens, cached_tokens,
                     cache_creation_tokens, cache_read_tokens, total_tokens,
-                    estimated_cost, model, provider
+                    estimated_cost, model, provider, tool_name, tool_args, tool_approved, tool_approval_type
              FROM telemetry WHERE agent_id = ?1 ORDER BY timestamp DESC",
         )?;
 
@@ -301,7 +329,10 @@ impl TelemetryTracking for MonitoringService {
                     estimated_cost: row.get(8)?,
                     model: row.get(9)?,
                     provider: row.get(10)?,
-                    approval_type: None, // Not stored in DB yet
+                    tool_name: row.get(11)?,
+                    tool_args: row.get(12)?,
+                    tool_approved: row.get(13)?,
+                    tool_approval_type: row.get(14)?,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;

@@ -1950,6 +1950,7 @@ dependencies = [
  "radium-abstraction",
  "radium-core",
  "radium-models",
+ "regex",
  "serde_json",
  "tabled",
  "tempfile",

@@ -49,7 +49,10 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
             estimated_cost REAL NOT NULL DEFAULT 0.0,
             model TEXT,
             provider TEXT,
-            approval_type TEXT,
+            tool_name TEXT,
+            tool_args TEXT,
+            tool_approved BOOLEAN,
+            tool_approval_type TEXT,
             FOREIGN KEY (agent_id) REFERENCES agents(id)
         )",
         [],

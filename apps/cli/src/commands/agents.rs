@@ -548,7 +548,7 @@ async fn create_agent(
     } else {
         // Use default generation
         let config_file = AgentConfigFile { agent: agent.clone() };
-        serde_json::to_string_pretty(&config_file)
+        toml::to_string_pretty(&config_file)
             .map_err(|e| anyhow::anyhow!("Failed to serialize config: {}", e))?
     };
 

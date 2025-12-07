@@ -32,6 +32,12 @@ pub struct SessionMetrics {
     pub successful_tool_calls: u64,
     /// Failed tool calls
     pub failed_tool_calls: u64,
+    /// Tool approvals allowed
+    pub tool_approvals_allowed: u64,
+    /// Tool approvals denied
+    pub tool_approvals_denied: u64,
+    /// Tool approvals asked (user interaction required)
+    pub tool_approvals_asked: u64,
     /// Code changes (lines added)
     pub lines_added: i64,
     /// Code changes (lines removed)
@@ -76,6 +82,9 @@ impl Default for SessionMetrics {
             tool_calls: 0,
             successful_tool_calls: 0,
             failed_tool_calls: 0,
+            tool_approvals_allowed: 0,
+            tool_approvals_denied: 0,
+            tool_approvals_asked: 0,
             lines_added: 0,
             lines_removed: 0,
             model_usage: HashMap::new(),
@@ -197,6 +206,20 @@ impl SessionAnalytics {
                 metrics.total_cache_read_tokens += record.cache_read_tokens;
                 metrics.total_cost += record.estimated_cost;
 
+                // Aggregate tool approval metrics
+                if let Some(approved) = record.tool_approved {
+                    if approved {
+                        metrics.tool_approvals_allowed += 1;
+                    } else {
+                        metrics.tool_approvals_denied += 1;
+                    }
+                }
+                if let Some(approval_type) = &record.tool_approval_type {
+                    if approval_type == "user" {
+                        metrics.tool_approvals_asked += 1;
+                    }
+                }
+
                 // Estimate API time (rough: assume 100ms per request)
                 metrics.api_time += Duration::from_millis(100);
             }
@@ -276,5 +299,50 @@ impl SessionAnalytics {
             end_time,
             workspace_root.as_deref(),
         )
+    }
+
+    /// Get aggregated model usage statistics across all sessions.
+    ///
+    /// Loads all session reports from storage and aggregates model usage statistics.
+    pub fn get_aggregated_model_usage(
+        &self,
+        workspace_root: Option<&Path>,
+    ) -> anyhow::Result<HashMap<String, ModelUsageStats>> {
+        use super::storage::SessionStorage;
+
+        // Try to discover workspace if not provided
+        let workspace = workspace_root
+            .map(|p| p.to_path_buf())
+            .or_else(|| crate::workspace::Workspace::discover().ok().map(|w| w.root().to_path_buf()));
+
+        let workspace_path = workspace.ok_or_else(|| anyhow::anyhow!("Workspace not found"))?;
+
+        let storage = SessionStorage::new(&workspace_path)?;
+        let reports = storage.list_reports()?;
+
+        // Aggregate model usage from all reports
+        let mut aggregated: HashMap<String, ModelUsageStats> = HashMap::new();
+
+        for report in reports {
+            for (model, stats) in &report.metrics.model_usage {
+                let entry = aggregated.entry(model.clone()).or_insert_with(|| {
+                    ModelUsageStats {
+                        requests: 0,
+                        input_tokens: 0,
+                        output_tokens: 0,
+                        cached_tokens: 0,
+                        estimated_cost: 0.0,
+                    }
+                });
+
+                entry.requests += stats.requests;
+                entry.input_tokens += stats.input_tokens;
+                entry.output_tokens += stats.output_tokens;
+                entry.cached_tokens += stats.cached_tokens;
+                entry.estimated_cost += stats.estimated_cost;
+            }
+        }
+
+        Ok(aggregated)
     }
 }

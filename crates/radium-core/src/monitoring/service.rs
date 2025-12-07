@@ -200,8 +200,8 @@ impl MonitoringService {
         self.conn.execute(
             "INSERT INTO telemetry (agent_id, timestamp, input_tokens, output_tokens, cached_tokens,
                                     cache_creation_tokens, cache_read_tokens, total_tokens,
-                                    estimated_cost, model, provider, approval_type)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                                    estimated_cost, model, provider, tool_name, tool_args, tool_approved, tool_approval_type)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
             rusqlite::params![
                 record.agent_id,
                 record.timestamp,
@@ -214,7 +214,10 @@ impl MonitoringService {
                 record.estimated_cost,
                 record.model,
                 record.provider,
-                record.approval_type,
+                record.tool_name,
+                record.tool_args,
+                record.tool_approved,
+                record.tool_approval_type,
             ],
         )?;
         Ok(())

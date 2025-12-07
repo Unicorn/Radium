@@ -146,8 +146,74 @@ async fn model_command(
         }
     } else {
         // Show aggregated model usage across all sessions
-        // TODO: Implement aggregation across all sessions
-        println!("Aggregated model usage (all sessions) - Coming soon");
+        let workspace = Workspace::discover()?;
+        let aggregated = analytics.get_aggregated_model_usage(Some(workspace.root()))?;
+
+        if json {
+            let model_data: Vec<serde_json::Value> = aggregated
+                .iter()
+                .map(|(model, stats)| {
+                    serde_json::json!({
+                        "model": model,
+                        "requests": stats.requests,
+                        "input_tokens": stats.input_tokens,
+                        "output_tokens": stats.output_tokens,
+                        "cached_tokens": stats.cached_tokens,
+                        "estimated_cost": stats.estimated_cost,
+                    })
+                })
+                .collect();
+            println!("{}", serde_json::to_string_pretty(&model_data)?);
+        } else {
+            println!("Aggregated Model Usage (All Sessions)\n");
+            if aggregated.is_empty() {
+                println!("No session data available.");
+            } else {
+                println!(
+                    "{:<30} {:<10} {:<15} {:<15} {:<15} {:<12}",
+                    "Model", "Requests", "Input Tokens", "Output Tokens", "Cached Tokens", "Cost"
+                );
+                println!("{}", "-".repeat(100));
+                
+                // Sort by total tokens (descending) for better readability
+                let mut sorted_models: Vec<_> = aggregated.iter().collect();
+                sorted_models.sort_by(|a, b| {
+                    let total_a = a.1.input_tokens + a.1.output_tokens;
+                    let total_b = b.1.input_tokens + b.1.output_tokens;
+                    total_b.cmp(&total_a)
+                });
+                
+                for (model, stats) in sorted_models {
+                    println!(
+                        "{:<30} {:<10} {:<15} {:<15} {:<15} ${:<11.4}",
+                        model,
+                        stats.requests,
+                        stats.input_tokens,
+                        stats.output_tokens,
+                        stats.cached_tokens,
+                        stats.estimated_cost
+                    );
+                }
+                
+                // Print totals
+                let total_requests: u64 = aggregated.values().map(|s| s.requests).sum();
+                let total_input: u64 = aggregated.values().map(|s| s.input_tokens).sum();
+                let total_output: u64 = aggregated.values().map(|s| s.output_tokens).sum();
+                let total_cached: u64 = aggregated.values().map(|s| s.cached_tokens).sum();
+                let total_cost: f64 = aggregated.values().map(|s| s.estimated_cost).sum();
+                
+                println!("{}", "-".repeat(100));
+                println!(
+                    "{:<30} {:<10} {:<15} {:<15} {:<15} ${:<11.4}",
+                    "TOTAL",
+                    total_requests,
+                    total_input,
+                    total_output,
+                    total_cached,
+                    total_cost
+                );
+            }
+        }
     }
 
     Ok(())
