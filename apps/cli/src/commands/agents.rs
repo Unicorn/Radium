@@ -515,6 +515,11 @@ async fn validate_agents(verbose: bool, json_output: bool, strict: bool) -> anyh
                             validation_result.valid = false;
                         }
                     }
+                    Err(e) => {
+                        validation_result.valid = false;
+                        validation_result.errors.push(format!("Failed to load config file: {}", e));
+                    }
+                }
                 }
                 Err(e) => {
                     validation_result.valid = false;

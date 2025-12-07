@@ -323,7 +323,7 @@ mod tests {
 
     fn create_test_db() -> Connection {
         let conn = Connection::open_in_memory().unwrap();
-        crate::monitoring::schema::initialize_schema(&conn).unwrap();
+        crate::monitoring::initialize_schema(&conn).unwrap();
         conn
     }
 

@@ -328,6 +328,7 @@ mod tests {
     use super::*;
     use std::fmt;
 
+    #[derive(Debug)]
     struct TestError {
         msg: String,
     }

@@ -148,7 +148,7 @@ mod tests {
     fn test_telemetry_collector_disabled() {
         use rusqlite::Connection;
         let conn = Connection::open_in_memory().unwrap();
-        crate::monitoring::schema::initialize_schema(&conn).unwrap();
+        crate::monitoring::initialize_schema(&conn).unwrap();
         let analytics = AgentAnalyticsService::new(conn);
         let config = TelemetryConfig {
             enabled: false,

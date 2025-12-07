@@ -784,6 +784,7 @@ reasoning_effort = "medium"
                 .with_description("A test agent")
                 .with_engine("gemini")
                 .with_file_path(config_path.clone()),
+            persona: None,
         };
 
         config.save(&config_path).unwrap();
@@ -1034,6 +1035,7 @@ trigger_agent_id = "helper-agent"
             let config = AgentConfigFile {
                 agent: AgentConfig::new(id, "Test", prompt_path.clone())
                     .with_file_path(config_path),
+            persona: None,
             };
             assert!(config.validate().is_ok(), "ID '{}' should be valid", id);
         }
@@ -1049,6 +1051,7 @@ trigger_agent_id = "helper-agent"
         for (id, reason) in invalid_ids {
             let config = AgentConfigFile {
                 agent: AgentConfig::new(id, "Test", PathBuf::from("prompts/test.md")),
+            persona: None,
             };
             assert!(
                 config.validate().is_err(),
@@ -1075,6 +1078,7 @@ trigger_agent_id = "helper-agent"
                 agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                     .with_engine(engine)
                     .with_file_path(config_path),
+            persona: None,
             };
             assert!(
                 config.validate().is_ok(),
@@ -1095,6 +1099,7 @@ trigger_agent_id = "helper-agent"
                 agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                     .with_engine(engine)
                     .with_file_path(config_path),
+            persona: None,
             };
             assert!(
                 config.validate().is_err(),
@@ -1120,6 +1125,7 @@ trigger_agent_id = "helper-agent"
                     steps: 2,
                     max_iterations: Some(5),
                     skip: vec![],
+                persona: None,
                 })
                 .with_file_path(config_path.clone()),
         };
@@ -1132,6 +1138,7 @@ trigger_agent_id = "helper-agent"
                     steps: 0,
                     max_iterations: None,
                     skip: vec![],
+                persona: None,
                 })
                 .with_file_path(config_path.clone()),
         };
@@ -1144,6 +1151,7 @@ trigger_agent_id = "helper-agent"
                     steps: 2,
                     max_iterations: Some(0),
                     skip: vec![],
+                persona: None,
                 })
                 .with_file_path(config_path),
         };
@@ -1164,6 +1172,7 @@ trigger_agent_id = "helper-agent"
             agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                 .with_trigger_behavior(AgentTriggerBehavior {
                     trigger_agent_id: Some("fallback-agent".to_string()),
+                persona: None,
                 })
                 .with_file_path(config_path.clone()),
         };
@@ -1174,6 +1183,7 @@ trigger_agent_id = "helper-agent"
             agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                 .with_trigger_behavior(AgentTriggerBehavior {
                     trigger_agent_id: Some("".to_string()),
+                persona: None,
                 })
                 .with_file_path(config_path.clone()),
         };
@@ -1187,6 +1197,7 @@ trigger_agent_id = "helper-agent"
                 agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                     .with_trigger_behavior(AgentTriggerBehavior {
                         trigger_agent_id: Some(invalid_id.to_string()),
+                    persona: None,
                     })
                     .with_file_path(test_config_path),
             };
@@ -1216,6 +1227,7 @@ trigger_agent_id = "helper-agent"
         let config = AgentConfigFile {
             agent: AgentConfig::new("test-agent", "Test", PathBuf::from("../prompts/test.md"))
                 .with_file_path(config_dir.join("test-agent.toml")),
+        persona: None,
         };
         assert!(config.validate().is_ok());
 
@@ -1223,6 +1235,7 @@ trigger_agent_id = "helper-agent"
         let config = AgentConfigFile {
             agent: AgentConfig::new("test-agent", "Test", prompt_file.clone())
                 .with_file_path(config_dir.join("test-agent.toml")),
+        persona: None,
         };
         assert!(config.validate().is_ok());
 
@@ -1230,6 +1243,7 @@ trigger_agent_id = "helper-agent"
         let config = AgentConfigFile {
             agent: AgentConfig::new("test-agent", "Test", PathBuf::from("nonexistent.md"))
                 .with_file_path(config_dir.join("test-agent.toml")),
+        persona: None,
         };
         assert!(config.validate().is_err());
     }
@@ -1259,6 +1273,7 @@ trigger_agent_id = "helper-agent"
                 file_path: None,
                 capabilities: AgentCapabilities::default(),
                 sandbox: None,
+            persona: None,
             }
             .with_file_path(config_dir.join("empty-id.toml")),
         };
@@ -1281,6 +1296,7 @@ trigger_agent_id = "helper-agent"
                 file_path: None,
                 capabilities: AgentCapabilities::default(),
                 sandbox: None,
+            persona: None,
             }
             .with_file_path(config_dir.join("empty-name.toml")),
         };
@@ -1303,6 +1319,7 @@ trigger_agent_id = "helper-agent"
                 file_path: None,
                 capabilities: AgentCapabilities::default(),
                 sandbox: None,
+            persona: None,
             }
             .with_file_path(config_dir.join("empty-prompt.toml")),
         };
@@ -1403,6 +1420,7 @@ cost_tier = "invalid"
         let config = AgentConfigFile {
             agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                 .with_file_path(config_path.clone()),
+        persona: None,
         };
         // Default capabilities should be valid
         assert!(config.validate().is_ok());
@@ -1416,6 +1434,7 @@ cost_tier = "invalid"
         };
         let config = AgentConfigFile {
             agent: agent.with_file_path(config_path),
+        persona: None,
         };
         assert!(config.validate().is_ok());
     }
@@ -1448,6 +1467,7 @@ cost_tier = "invalid"
             let config = AgentConfigFile {
                 agent: AgentConfig::new(invalid_id, "Test", prompt_path.clone())
                     .with_file_path(config_path.clone()),
+            persona: None,
             };
             assert!(
                 config.validate().is_err(),
@@ -1472,6 +1492,7 @@ cost_tier = "invalid"
                     steps: 2,
                     max_iterations: Some(5),
                     skip: vec![], // Empty skip list should be valid
+                persona: None,
                 })
                 .with_file_path(config_path),
         };
