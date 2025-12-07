@@ -365,6 +365,81 @@ impl CheckpointManager {
 
         Ok(String::from_utf8(output.stdout)?)
     }
+
+    /// Cleans up old checkpoints, keeping only the most recent N checkpoints.
+    ///
+    /// # Arguments
+    /// * `keep_count` - Number of most recent checkpoints to keep
+    ///
+    /// # Returns
+    /// Number of checkpoints deleted
+    ///
+    /// # Errors
+    /// Returns error if cleanup fails
+    pub fn cleanup_old_checkpoints(&self, keep_count: usize) -> Result<usize> {
+        let all_checkpoints = self.list_checkpoints()?;
+
+        if all_checkpoints.len() <= keep_count {
+            return Ok(0);
+        }
+
+        // Sort by timestamp (newest first), then take the ones to delete (oldest)
+        let mut sorted = all_checkpoints;
+        sorted.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+
+        let to_delete = sorted.split_off(keep_count);
+        let deleted_count = to_delete.len();
+
+        // Delete old checkpoints
+        for checkpoint in &to_delete {
+            if let Err(e) = self.delete_checkpoint(&checkpoint.id) {
+                // Log error but continue with other deletions
+                eprintln!("Warning: Failed to delete checkpoint {}: {}", checkpoint.id, e);
+            }
+        }
+
+        // Run Git garbage collection to reclaim disk space
+        if deleted_count > 0 {
+            let _ = Command::new("git")
+                .args(["gc", "--prune=now"])
+                .current_dir(&self.workspace_root)
+                .output();
+        }
+
+        Ok(deleted_count)
+    }
+
+    /// Gets the size of the shadow repository in bytes.
+    ///
+    /// # Returns
+    /// Size in bytes, or 0 if size cannot be determined
+    pub fn get_shadow_repo_size(&self) -> u64 {
+        if !self.shadow_repo.exists() {
+            return 0;
+        }
+
+        // Calculate directory size recursively
+        Self::calculate_directory_size(&self.shadow_repo).unwrap_or(0)
+    }
+
+    /// Calculates the total size of a directory recursively.
+    fn calculate_directory_size(path: &Path) -> std::io::Result<u64> {
+        let mut total_size = 0u64;
+
+        if path.is_file() {
+            return Ok(path.metadata()?.len());
+        }
+
+        if path.is_dir() {
+            for entry in fs::read_dir(path)? {
+                let entry = entry?;
+                let entry_path = entry.path();
+                total_size += Self::calculate_directory_size(&entry_path)?;
+            }
+        }
+
+        Ok(total_size)
+    }
 }
 
 #[cfg(test)]
@@ -644,5 +719,83 @@ mod tests {
 
         let checkpoints = manager.list_checkpoints().unwrap();
         assert_eq!(checkpoints.len(), 0);
+    }
+
+    #[test]
+    fn test_cleanup_old_checkpoints() {
+        let temp_dir = setup_git_repo();
+        let manager = CheckpointManager::new(temp_dir.path()).unwrap();
+
+        // Create 10 checkpoints
+        for i in 0..10 {
+            manager
+                .create_checkpoint(Some(format!("Checkpoint {}", i)))
+                .unwrap();
+        }
+
+        // Verify all exist
+        let checkpoints = manager.list_checkpoints().unwrap();
+        assert_eq!(checkpoints.len(), 10);
+
+        // Cleanup, keeping only 3 most recent
+        let deleted = manager.cleanup_old_checkpoints(3).unwrap();
+        assert_eq!(deleted, 7);
+
+        // Verify only 3 remain
+        let remaining = manager.list_checkpoints().unwrap();
+        assert_eq!(remaining.len(), 3);
+    }
+
+    #[test]
+    fn test_cleanup_no_checkpoints() {
+        let temp_dir = setup_git_repo();
+        let manager = CheckpointManager::new(temp_dir.path()).unwrap();
+
+        // Cleanup when no checkpoints exist
+        let deleted = manager.cleanup_old_checkpoints(5).unwrap();
+        assert_eq!(deleted, 0);
+    }
+
+    #[test]
+    fn test_cleanup_keep_all() {
+        let temp_dir = setup_git_repo();
+        let manager = CheckpointManager::new(temp_dir.path()).unwrap();
+
+        // Create 5 checkpoints
+        for i in 0..5 {
+            manager
+                .create_checkpoint(Some(format!("Checkpoint {}", i)))
+                .unwrap();
+        }
+
+        // Cleanup keeping all (keep_count >= total)
+        let deleted = manager.cleanup_old_checkpoints(10).unwrap();
+        assert_eq!(deleted, 0);
+
+        // Verify all still exist
+        let checkpoints = manager.list_checkpoints().unwrap();
+        assert_eq!(checkpoints.len(), 5);
+    }
+
+    #[test]
+    fn test_get_shadow_repo_size() {
+        let temp_dir = setup_git_repo();
+        let manager = CheckpointManager::new(temp_dir.path()).unwrap();
+
+        // Size should be 0 before initialization
+        let size_before = manager.get_shadow_repo_size();
+        assert_eq!(size_before, 0);
+
+        // Initialize shadow repo
+        manager.initialize_shadow_repo().unwrap();
+
+        // Size should be > 0 after initialization
+        let size_after = manager.get_shadow_repo_size();
+        assert!(size_after > 0);
+
+        // Create checkpoints and verify size increases
+        manager.create_checkpoint(Some("Test checkpoint".to_string())).unwrap();
+        let size_with_checkpoint = manager.get_shadow_repo_size();
+        assert!(size_with_checkpoint >= size_after);
     }
 }
