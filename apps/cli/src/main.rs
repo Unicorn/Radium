@@ -13,7 +13,7 @@ use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 use commands::{
-    agents, auth, budget, checkpoint, clean, context, craft, doctor, extension, hooks, init, learning, monitor, plan, policy, run,
+    agents, auth, budget, checkpoint, clean, context, craft, doctor, engines, extension, hooks, init, learning, monitor, plan, policy, run,
     sandbox, stats, status, step, validate,
     // Disabled commands (depend on disabled modules):
     // autonomous, chat, complete, custom, mcp, templates, vibecheck

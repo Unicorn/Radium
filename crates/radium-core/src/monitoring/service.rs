@@ -51,6 +51,38 @@ impl AgentStatus {
     }
 }
 
+/// Agent usage statistics from agent_usage table.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentUsage {
+    /// Agent ID.
+    pub agent_id: String,
+    /// Total number of executions.
+    pub execution_count: u64,
+    /// Total duration across all executions (milliseconds).
+    pub total_duration: u64,
+    /// Total tokens used.
+    pub total_tokens: u64,
+    /// Number of successful executions.
+    pub success_count: u64,
+    /// Number of failed executions.
+    pub failure_count: u64,
+    /// Last used timestamp (Unix epoch seconds).
+    pub last_used_at: Option<u64>,
+    /// Agent category.
+    pub category: Option<String>,
+}
+
+/// Filter for agent usage queries.
+#[derive(Debug, Clone, Default)]
+pub struct UsageFilter {
+    /// Filter by category.
+    pub category: Option<String>,
+    /// Minimum execution count.
+    pub min_executions: Option<u64>,
+    /// Filter by last used since timestamp (Unix epoch seconds).
+    pub since: Option<u64>,
+}
+
 /// Agent record in monitoring database.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentRecord {
@@ -571,6 +603,103 @@ impl MonitoringService {
                     exit_code: row.get(8)?,
                     error_message: row.get(9)?,
                     log_file: row.get(10)?,
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        Ok(records)
+    }
+
+    /// Gets agent usage statistics for a specific agent.
+    ///
+    /// # Arguments
+    /// * `agent_id` - Agent identifier
+    ///
+    /// # Returns
+    /// Agent usage statistics if found
+    ///
+    /// # Errors
+    /// Returns error if query fails
+    pub fn get_agent_usage(&self, agent_id: &str) -> Result<Option<AgentUsage>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT agent_id, execution_count, total_duration, total_tokens,
+                    success_count, failure_count, last_used_at, category
+             FROM agent_usage WHERE agent_id = ?1",
+        )?;
+
+        let result = stmt.query_row(params![agent_id], |row| {
+            Ok(AgentUsage {
+                agent_id: row.get(0)?,
+                execution_count: row.get::<_, i64>(1)? as u64,
+                total_duration: row.get::<_, i64>(2)? as u64,
+                total_tokens: row.get::<_, i64>(3)? as u64,
+                success_count: row.get::<_, i64>(4)? as u64,
+                failure_count: row.get::<_, i64>(5)? as u64,
+                last_used_at: row.get(6)?,
+                category: row.get(7)?,
+            })
+        });
+
+        match result {
+            Ok(usage) => Ok(Some(usage)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(MonitoringError::Database(e)),
+        }
+    }
+
+    /// Lists agent usage statistics with optional filtering.
+    ///
+    /// # Arguments
+    /// * `filter` - Optional filter for category, min_executions, or since timestamp
+    ///
+    /// # Returns
+    /// List of agent usage statistics
+    ///
+    /// # Errors
+    /// Returns error if query fails
+    pub fn list_agent_usage(&self, filter: UsageFilter) -> Result<Vec<AgentUsage>> {
+        let mut query = "SELECT agent_id, execution_count, total_duration, total_tokens,
+                                success_count, failure_count, last_used_at, category
+                         FROM agent_usage".to_string();
+        let mut conditions = Vec::new();
+        let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+
+        if let Some(ref category) = filter.category {
+            conditions.push("category = ?");
+            params_vec.push(Box::new(category.clone()));
+        }
+
+        if let Some(min_executions) = filter.min_executions {
+            conditions.push("execution_count >= ?");
+            params_vec.push(Box::new(min_executions as i64));
+        }
+
+        if let Some(since) = filter.since {
+            conditions.push("last_used_at >= ?");
+            params_vec.push(Box::new(since as i64));
+        }
+
+        if !conditions.is_empty() {
+            query.push_str(" WHERE ");
+            query.push_str(&conditions.join(" AND "));
+        }
+
+        query.push_str(" ORDER BY last_used_at DESC NULLS LAST");
+
+        let mut stmt = self.conn.prepare(&query)?;
+
+        let params: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
+        let records = stmt
+            .query_map(rusqlite::params_from_iter(params.iter()), |row| {
+                Ok(AgentUsage {
+                    agent_id: row.get(0)?,
+                    execution_count: row.get::<_, i64>(1)? as u64,
+                    total_duration: row.get::<_, i64>(2)? as u64,
+                    total_tokens: row.get::<_, i64>(3)? as u64,
+                    success_count: row.get::<_, i64>(4)? as u64,
+                    failure_count: row.get::<_, i64>(5)? as u64,
+                    last_used_at: row.get(6)?,
+                    category: row.get(7)?,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;

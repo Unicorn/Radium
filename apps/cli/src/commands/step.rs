@@ -15,7 +15,6 @@ use radium_core::{
 };
 use std::sync::{Arc, Mutex};
 use std::fs;
-use std::sync::Arc;
 use uuid::Uuid;
 
 /// Execute the step command.

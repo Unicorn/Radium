@@ -2134,6 +2134,8 @@ dependencies = [
  "radium-core",
  "radium-models",
  "regex",
+ "rusqlite",
+ "serde",
  "serde_json",
  "tabled",
  "tempfile",

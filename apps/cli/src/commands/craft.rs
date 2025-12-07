@@ -6,7 +6,6 @@ use anyhow::{Context, bail};
 use chrono::Utc;
 use colored::Colorize;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 use std::time::Instant;
 use tokio::signal;
 use radium_core::{
