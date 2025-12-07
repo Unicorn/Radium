@@ -91,6 +91,20 @@ pub enum AgentsCommand {
         json: bool,
     },
 
+    /// Migrate agent configurations from legacy formats
+    Migrate {
+        /// Migration subcommand
+        #[command(subcommand)]
+        subcommand: MigrateSubcommand,
+    },
+
+    /// Migrate agent configurations from legacy formats
+    Migrate {
+        /// Migration subcommand
+        #[command(subcommand)]
+        subcommand: MigrateSubcommand,
+    },
+
     /// Create a new agent template
     Create {
         /// Agent ID (e.g., "my-agent")

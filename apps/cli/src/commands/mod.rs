@@ -28,5 +28,5 @@ pub mod types;
 pub mod validate;
 
 // Re-export types for convenience
-pub use types::{AgentsCommand, AuthCommand, CustomCommand, EnginesCommand, ExtensionCommand, HooksCommand, TemplatesCommand};
+pub use types::{AgentsCommand, AuthCommand, CustomCommand, EnginesCommand, ExtensionCommand, HooksCommand, MigrateSubcommand, TemplatesCommand};
 pub use context::ContextCommand;
