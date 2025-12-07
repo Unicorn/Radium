@@ -4,6 +4,7 @@ use std::fmt::Write;
 use std::path::Path;
 
 use super::error::Result;
+use super::files::ContextFileLoader;
 use super::injection::{ContextInjector, InjectionDirective};
 use crate::learning::LearningStore;
 use crate::memory::MemoryStore;
@@ -17,6 +18,7 @@ use crate::workspace::{PlanDiscovery, RequirementId, Workspace};
 /// - File contents via injection syntax
 /// - Architecture documentation
 /// - Learning context from past mistakes and successes
+/// - Context files (GEMINI.md) with hierarchical loading
 pub struct ContextManager {
     /// Workspace root path.
     workspace_root: std::path::PathBuf,
@@ -24,11 +26,17 @@ pub struct ContextManager {
     /// Context injector for file operations.
     injector: ContextInjector,
 
+    /// Context file loader for GEMINI.md files.
+    context_file_loader: ContextFileLoader,
+
     /// Memory store for agent outputs.
     memory_store: Option<MemoryStore>,
 
     /// Learning store for past mistakes and strategies.
     learning_store: Option<LearningStore>,
+
+    /// Cached context file content with modification time.
+    context_file_cache: Option<(std::path::PathBuf, std::time::SystemTime, String)>,
 }
 
 impl ContextManager {
@@ -39,12 +47,15 @@ impl ContextManager {
     pub fn new(workspace: &Workspace) -> Self {
         let workspace_root = workspace.root().to_path_buf();
         let injector = ContextInjector::new(&workspace_root);
+        let context_file_loader = ContextFileLoader::new(&workspace_root);
 
         Self {
             workspace_root,
             injector,
+            context_file_loader,
             memory_store: None,
             learning_store: None,
+            context_file_cache: None,
         }
     }
 
@@ -62,6 +73,7 @@ impl ContextManager {
     pub fn for_plan(workspace: &Workspace, requirement_id: RequirementId) -> Result<Self> {
         let workspace_root = workspace.root().to_path_buf();
         let injector = ContextInjector::new(&workspace_root);
+        let context_file_loader = ContextFileLoader::new(&workspace_root);
 
         // Initialize memory store for this plan
         let memory_store = MemoryStore::new(&workspace_root, requirement_id)?;
@@ -72,8 +84,10 @@ impl ContextManager {
         Ok(Self {
             workspace_root,
             injector,
+            context_file_loader,
             memory_store: Some(memory_store),
             learning_store,
+            context_file_cache: None,
         })
     }
 
@@ -226,6 +240,49 @@ impl ContextManager {
         Ok(content)
     }
 
+    /// Loads context files for a given path.
+    ///
+    /// Uses caching to avoid re-reading files that haven't changed.
+    ///
+    /// # Arguments
+    /// * `path` - The path to load context for (can be file or directory)
+    ///
+    /// # Returns
+    /// Context file content if available
+    ///
+    /// # Errors
+    /// Returns error if context file loading fails
+    pub fn load_context_files(&mut self, path: &Path) -> Result<Option<String>> {
+        // Check cache first
+        if let Some((cached_path, cached_mtime, cached_content)) = &self.context_file_cache {
+            if cached_path == path {
+                // Check if file has been modified
+                if let Ok(metadata) = std::fs::metadata(path) {
+                    if let Ok(mtime) = metadata.modified() {
+                        if mtime == *cached_mtime {
+                            return Ok(Some(cached_content.clone()));
+                        }
+                    }
+                }
+            }
+        }
+
+        // Load context files
+        let content = self.context_file_loader.load_hierarchical(path)?;
+
+        if content.is_empty() {
+            return Ok(None);
+        }
+
+        // Update cache
+        let mtime = std::fs::metadata(path)
+            .and_then(|m| m.modified())
+            .unwrap_or_else(|_| std::time::SystemTime::now());
+        self.context_file_cache = Some((path.to_path_buf(), mtime, content.clone()));
+
+        Ok(Some(content))
+    }
+
     /// Builds complete context for an agent invocation.
     ///
     /// # Arguments
@@ -238,13 +295,21 @@ impl ContextManager {
     /// # Errors
     /// Returns error if context gathering fails
     pub fn build_context(
-        &self,
+        &mut self,
         invocation: &str,
         requirement_id: Option<RequirementId>,
     ) -> Result<String> {
         let (agent_name, directives) = InjectionDirective::extract_directives(invocation)?;
 
         let mut context = String::new();
+
+        // Add context files first (highest precedence in context building)
+        let current_path = std::env::current_dir().unwrap_or_else(|_| self.workspace_root.clone());
+        if let Ok(Some(context_files)) = self.load_context_files(&current_path) {
+            context.push_str("# Context Files\n\n");
+            context.push_str(&context_files);
+            context.push_str("\n---\n\n");
+        }
 
         // Add plan context if requirement ID provided
         if let Some(req_id) = requirement_id {
@@ -390,7 +455,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let workspace = Workspace::create(temp_dir.path()).unwrap();
 
-        let manager = ContextManager::new(&workspace);
+        let mut manager = ContextManager::new(&workspace);
         let context = manager.build_context("architect", None).unwrap();
         assert!(!context.is_empty() || context.is_empty()); // May be empty without context sources
     }
@@ -404,7 +469,7 @@ mod tests {
         let file_path = temp_dir.path().join("spec.md");
         fs::write(&file_path, "# Specification\n\nBuild a feature.").unwrap();
 
-        let manager = ContextManager::new(&workspace);
+        let mut manager = ContextManager::new(&workspace);
         let context = manager.build_context("architect[input:spec.md]", None).unwrap();
         assert!(context.contains("Specification"));
         assert!(context.contains("Build a feature"));
@@ -558,7 +623,7 @@ mod tests {
         let arch_path = temp_dir.path().join(".radium").join("architecture.md");
         fs::write(&arch_path, "# Architecture\n\nMicroservices design").unwrap();
 
-        let manager = ContextManager::new(&workspace);
+        let mut manager = ContextManager::new(&workspace);
         let context = manager.build_context("agent", None).unwrap();
         assert!(context.contains("Architecture Context"));
         assert!(context.contains("Microservices design"));
@@ -618,7 +683,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let workspace = Workspace::create(temp_dir.path()).unwrap();
 
-        let manager = ContextManager::new(&workspace);
+        let mut manager = ContextManager::new(&workspace);
         let context = manager.build_context("simple-agent", None).unwrap();
         // Should not error even with no context sources
         assert!(context.is_empty() || !context.is_empty());
@@ -638,5 +703,43 @@ mod tests {
         assert!(context.is_some());
         let content = context.unwrap();
         assert!(content.contains("Architecture Context"));
+    }
+
+    #[test]
+    fn test_build_context_with_context_files() {
+        let temp_dir = TempDir::new().unwrap();
+        let workspace = Workspace::create(temp_dir.path()).unwrap();
+
+        // Create context file
+        let context_file = temp_dir.path().join("GEMINI.md");
+        fs::write(&context_file, "# Project Context\n\nUse Rust and follow best practices.").unwrap();
+
+        let mut manager = ContextManager::new(&workspace);
+        // Load context files directly for the temp directory
+        let context_files = manager.load_context_files(temp_dir.path()).unwrap();
+        assert!(context_files.is_some());
+        assert!(context_files.as_ref().unwrap().contains("Project Context"));
+        assert!(context_files.as_ref().unwrap().contains("Use Rust"));
+    }
+
+    #[test]
+    fn test_load_context_files_caching() {
+        let temp_dir = TempDir::new().unwrap();
+        let workspace = Workspace::create(temp_dir.path()).unwrap();
+
+        // Create context file
+        let context_file = temp_dir.path().join("GEMINI.md");
+        fs::write(&context_file, "# Context").unwrap();
+
+        let mut manager = ContextManager::new(&workspace);
+
+        // First load
+        let content1 = manager.load_context_files(temp_dir.path()).unwrap();
+        assert!(content1.is_some());
+        assert!(content1.as_ref().unwrap().contains("Context"));
+
+        // Second load should use cache
+        let content2 = manager.load_context_files(temp_dir.path()).unwrap();
+        assert_eq!(content1, content2);
     }
 }

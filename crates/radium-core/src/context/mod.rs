@@ -7,6 +7,7 @@
 //! - File injection via syntax like `agent[input:file1.md,file2.md]`
 //! - Tail context support like `agent[tail:50]`
 //! - Architecture documentation injection
+//! - Context files (GEMINI.md) with hierarchical loading and imports
 //!
 //! # Example
 //!
@@ -37,11 +38,13 @@
 //! ```
 
 mod error;
+mod files;
 mod history;
 mod injection;
 mod manager;
 
 pub use error::{ContextError, Result};
+pub use files::ContextFileLoader;
 pub use history::{HistoryError, HistoryManager, Interaction, Result as HistoryResult};
 pub use injection::{ContextInjector, InjectionDirective};
 pub use manager::ContextManager;
