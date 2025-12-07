@@ -1,20 +1,19 @@
 //! Podman container-based sandboxing.
-//!
-//! This is a stub implementation. Podman sandboxing will be implemented in the future.
 
-use super::config::{SandboxConfig, SandboxType};
+use super::config::{NetworkMode, SandboxConfig, SandboxType};
 use super::error::{Result, SandboxError};
 use super::sandbox::Sandbox;
 use async_trait::async_trait;
 use std::path::Path;
 use std::process::Output;
+use tokio::process::Command;
 
 /// Podman-based sandbox.
-///
-/// This is a stub implementation. Podman sandboxing functionality will be added in the future.
 pub struct PodmanSandbox {
     /// Sandbox configuration.
-    _config: SandboxConfig,
+    config: SandboxConfig,
+    /// Container ID (if created).
+    container_id: Option<String>,
 }
 
 impl PodmanSandbox {
@@ -31,31 +30,282 @@ impl PodmanSandbox {
             SandboxError::ContainerRuntimeNotFound(format!("Podman not found: {}", e))
         })?;
 
-        Ok(Self { _config: config })
+        Ok(Self { config, container_id: None })
+    }
+
+    /// Gets the container image to use.
+    fn get_image(&self) -> String {
+        self.config.image.clone().unwrap_or_else(|| "rust:latest".to_string())
+    }
+
+    /// Builds the podman run command arguments.
+    fn build_run_args(&self) -> Vec<String> {
+        let mut args = vec!["run".to_string(), "--rm".to_string()];
+
+        // Network mode
+        match self.config.network {
+            NetworkMode::Open => {}
+            NetworkMode::Closed => {
+                args.push("--network=none".to_string());
+            }
+            NetworkMode::Proxied => {
+                args.push("--network=host".to_string());
+            }
+        }
+
+        // Volumes
+        for volume in &self.config.volumes {
+            args.push("-v".to_string());
+            args.push(volume.clone());
+        }
+
+        // Working directory
+        if let Some(ref working_dir) = self.config.working_dir {
+            args.push("-w".to_string());
+            args.push(working_dir.clone());
+        }
+
+        // Environment variables
+        for (key, value) in &self.config.env {
+            args.push("-e".to_string());
+            args.push(format!("{}={}", key, value));
+        }
+
+        // Custom flags
+        args.extend(self.config.custom_flags.clone());
+
+        args
     }
 }
 
 #[async_trait]
 impl Sandbox for PodmanSandbox {
     async fn initialize(&mut self) -> Result<()> {
-        // Stub implementation
-        Err(SandboxError::NotAvailable("Podman sandboxing not yet implemented".to_string()))
+        // Pull image if not exists
+        let image = self.get_image();
+
+        let output = Command::new("podman").args(["pull", &image]).output().await?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(SandboxError::InitFailed(format!(
+                "Failed to pull Podman image: {}",
+                stderr
+            )));
+        }
+
+        Ok(())
     }
 
-    async fn execute(
-        &self,
-        _command: &str,
-        _args: &[String],
-        _cwd: Option<&Path>,
-    ) -> Result<Output> {
-        Err(SandboxError::NotAvailable("Podman sandboxing not yet implemented".to_string()))
+    async fn execute(&self, command: &str, args: &[String], _cwd: Option<&Path>) -> Result<Output> {
+        let mut podman_args = self.build_run_args();
+        podman_args.push(self.get_image());
+        podman_args.push(command.to_string());
+        podman_args.extend(args.iter().cloned());
+
+        let output = Command::new("podman").args(&podman_args).output().await?;
+
+        Ok(output)
     }
 
     async fn cleanup(&mut self) -> Result<()> {
-        Err(SandboxError::NotAvailable("Podman sandboxing not yet implemented".to_string()))
+        // Container is automatically removed with --rm flag
+        Ok(())
     }
 
     fn sandbox_type(&self) -> SandboxType {
         SandboxType::Podman
+    }
+}
+
+impl Drop for PodmanSandbox {
+    fn drop(&mut self) {
+        // Cleanup container if still running
+        if let Some(ref container_id) = self.container_id {
+            let _ = std::process::Command::new("podman").args(["rm", "-f", container_id]).output();
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_podman_sandbox_new() {
+        let config = SandboxConfig::new(SandboxType::Podman);
+
+        // Test might fail if Podman not installed
+        match PodmanSandbox::new(config) {
+            Ok(sandbox) => {
+                assert_eq!(sandbox.sandbox_type(), SandboxType::Podman);
+            }
+            Err(SandboxError::ContainerRuntimeNotFound(_)) => {
+                // Podman not available, skip test
+                println!("Podman not available, skipping test");
+            }
+            Err(e) => panic!("Unexpected error: {}", e),
+        }
+    }
+
+    #[test]
+    fn test_podman_sandbox_build_args() {
+        let mut env = HashMap::new();
+        env.insert("TEST_VAR".to_string(), "test_value".to_string());
+
+        let config = SandboxConfig::new(SandboxType::Podman)
+            .with_network(NetworkMode::Closed)
+            .with_working_dir("/app".to_string())
+            .with_env(env)
+            .with_volumes(vec!["/host:/container".to_string()]);
+
+        if let Ok(sandbox) = PodmanSandbox::new(config) {
+            let args = sandbox.build_run_args();
+
+            assert!(args.contains(&"--network=none".to_string()));
+            assert!(args.contains(&"-w".to_string()));
+            assert!(args.contains(&"/app".to_string()));
+            assert!(args.contains(&"-v".to_string()));
+            assert!(args.contains(&"/host:/container".to_string()));
+            assert!(args.contains(&"-e".to_string()));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_podman_sandbox_execute() {
+        let config =
+            SandboxConfig::new(SandboxType::Podman).with_image("alpine:latest".to_string());
+
+        if let Ok(sandbox) = PodmanSandbox::new(config) {
+            let result = sandbox.execute("echo", &["hello".to_string()], None).await;
+
+            // This test will only pass if Podman is available
+            match result {
+                Ok(output) => {
+                    assert!(output.status.success());
+                    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "hello");
+                }
+                Err(_) => {
+                    println!("Podman not available or image pull failed, skipping test");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_podman_sandbox_get_image_default() {
+        let config = SandboxConfig::new(SandboxType::Podman);
+
+        if let Ok(sandbox) = PodmanSandbox::new(config) {
+            let image = sandbox.get_image();
+            assert_eq!(image, "rust:latest");
+        }
+    }
+
+    #[test]
+    fn test_podman_sandbox_get_image_custom() {
+        let config =
+            SandboxConfig::new(SandboxType::Podman).with_image("alpine:latest".to_string());
+
+        if let Ok(sandbox) = PodmanSandbox::new(config) {
+            let image = sandbox.get_image();
+            assert_eq!(image, "alpine:latest");
+        }
+    }
+
+    #[test]
+    fn test_podman_sandbox_build_args_network_open() {
+        let config = SandboxConfig::new(SandboxType::Podman).with_network(NetworkMode::Open);
+
+        if let Ok(sandbox) = PodmanSandbox::new(config) {
+            let args = sandbox.build_run_args();
+            // Open network should not add network flags
+            assert!(!args.contains(&"--network=none".to_string()));
+            assert!(!args.contains(&"--network=host".to_string()));
+        }
+    }
+
+    #[test]
+    fn test_podman_sandbox_build_args_network_proxied() {
+        let config = SandboxConfig::new(SandboxType::Podman).with_network(NetworkMode::Proxied);
+
+        if let Ok(sandbox) = PodmanSandbox::new(config) {
+            let args = sandbox.build_run_args();
+            assert!(args.contains(&"--network=host".to_string()));
+        }
+    }
+
+    #[test]
+    fn test_podman_sandbox_build_args_custom_flags() {
+        let flags = vec!["--privileged".to_string(), "--cap-add=SYS_ADMIN".to_string()];
+        let config = SandboxConfig::new(SandboxType::Podman).with_flags(flags.clone());
+
+        if let Ok(sandbox) = PodmanSandbox::new(config) {
+            let args = sandbox.build_run_args();
+            assert!(args.contains(&"--privileged".to_string()));
+            assert!(args.contains(&"--cap-add=SYS_ADMIN".to_string()));
+        }
+    }
+
+    #[test]
+    fn test_podman_sandbox_type() {
+        let config = SandboxConfig::new(SandboxType::Podman);
+
+        if let Ok(sandbox) = PodmanSandbox::new(config) {
+            assert_eq!(sandbox.sandbox_type(), SandboxType::Podman);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_podman_sandbox_cleanup() {
+        let config = SandboxConfig::new(SandboxType::Podman);
+
+        if let Ok(mut sandbox) = PodmanSandbox::new(config) {
+            let result = sandbox.cleanup().await;
+            // Cleanup should always succeed (no-op with --rm)
+            assert!(result.is_ok());
+        }
+    }
+
+    #[test]
+    fn test_podman_sandbox_build_args_network_closed() {
+        let config = SandboxConfig::new(SandboxType::Podman).with_network(NetworkMode::Closed);
+
+        if let Ok(sandbox) = PodmanSandbox::new(config) {
+            let args = sandbox.build_run_args();
+            assert!(args.contains(&"--network=none".to_string()));
+        }
+    }
+
+    #[test]
+    fn test_podman_sandbox_build_args_multiple_volumes() {
+        let volumes = vec![
+            "/host1:/container1".to_string(),
+            "/host2:/container2".to_string(),
+        ];
+        let config = SandboxConfig::new(SandboxType::Podman).with_volumes(volumes.clone());
+
+        if let Ok(sandbox) = PodmanSandbox::new(config) {
+            let args = sandbox.build_run_args();
+            assert!(args.contains(&"-v".to_string()));
+            assert!(args.contains(&"/host1:/container1".to_string()));
+            assert!(args.contains(&"/host2:/container2".to_string()));
+        }
+    }
+
+    #[test]
+    fn test_podman_sandbox_build_args_multiple_env_vars() {
+        let mut env = HashMap::new();
+        env.insert("VAR1".to_string(), "value1".to_string());
+        env.insert("VAR2".to_string(), "value2".to_string());
+        let config = SandboxConfig::new(SandboxType::Podman).with_env(env);
+
+        if let Ok(sandbox) = PodmanSandbox::new(config) {
+            let args = sandbox.build_run_args();
+            // Should have multiple -e flags
+            let e_count = args.iter().filter(|&a| a == "-e").count();
+            assert!(e_count >= 2);
+        }
     }
 }

@@ -39,5 +39,8 @@ pub use sandbox::{NoSandbox, Sandbox, SandboxFactory};
 #[cfg(feature = "docker-sandbox")]
 pub use docker::DockerSandbox;
 
+#[cfg(feature = "podman-sandbox")]
+pub use podman::PodmanSandbox;
+
 #[cfg(all(target_os = "macos", feature = "seatbelt-sandbox"))]
 pub use seatbelt::SeatbeltSandbox;
