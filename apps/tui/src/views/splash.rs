@@ -24,11 +24,11 @@ pub fn render_splash(frame: &mut Frame, area: Rect, message: &str) {
         Line::from(""),
         Line::from(Span::styled(
             "Radium",
-            Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD),
+            Style::default().fg(THEME.primary()).add_modifier(Modifier::BOLD),
         )),
-        Line::from(Span::styled("━━━━━━━━━━━━", Style::default().fg(THEME.primary))),
+        Line::from(Span::styled("━━━━━━━━━━━━", Style::default().fg(THEME.primary()))),
         Line::from(""),
-        Line::from(Span::styled(message, Style::default().fg(THEME.text_muted))),
+        Line::from(Span::styled(message, Style::default().fg(THEME.text_muted()))),
     ];
 
     let logo = Paragraph::new(logo_text)

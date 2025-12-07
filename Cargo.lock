@@ -341,6 +341,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "clap_complete"
+version = "4.5.61"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "39615915e2ece2550c0149addac32fb5bd312c657f43845bb9088cb9c8a7c992"
+dependencies = [
+ "clap",
+]
+
+[[package]]
 name = "clap_derive"
 version = "4.5.49"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1959,6 +1968,7 @@ dependencies = [
  "assert_cmd",
  "chrono",
  "clap",
+ "clap_complete",
  "colored",
  "dirs",
  "inquire",
@@ -2006,6 +2016,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
+ "strsim",
  "tar",
  "tempfile",
  "thiserror",
@@ -2076,8 +2087,10 @@ dependencies = [
  "ratatui",
  "serde",
  "serde_json",
+ "tempfile",
  "textwrap",
  "tokio",
+ "toml",
  "tonic",
  "tracing",
  "tracing-subscriber",

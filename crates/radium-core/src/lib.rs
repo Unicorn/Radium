@@ -102,7 +102,8 @@ pub use oversight::{
 };
 pub use planning::{
     generate_plan_files, ExecutionConfig, ExecutionError, ParsedIteration, ParsedPlan, ParsedTask,
-    PlanExecutor, PlanGenerator, PlanGeneratorConfig, PlanParser, TaskResult as PlanTaskResult,
+    PlanExecutor, PlanGenerator, PlanGeneratorConfig, PlanParser, RunMode,
+    TaskResult as PlanTaskResult,
 };
 pub use policy::{
     ApprovalMode, ConstitutionManager, PolicyAction, PolicyDecision, PolicyEngine, PolicyError,

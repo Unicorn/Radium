@@ -309,6 +309,7 @@ impl TryFrom<proto::Agent> for Agent {
             description: proto_agent.description,
             config,
             state,
+            capabilities: None,
             created_at,
             updated_at,
         })

@@ -2,6 +2,8 @@
 //!
 //! Provides configuration structure and loading for CLI settings.
 
+#![allow(unsafe_code)]
+
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
@@ -195,25 +197,29 @@ impl CliConfig {
     ///
     /// This function modifies environment variables. It should only be called
     /// from single-threaded code before spawning threads.
-    pub unsafe fn apply_to_env(&self) {
+    pub fn apply_to_env(&self) {
         if let Some(ref engine) = self.engine {
             if std::env::var("RADIUM_ENGINE").is_err() {
-                std::env::set_var("RADIUM_ENGINE", engine);
+                // SAFETY: This should only be called from single-threaded code before spawning threads
+                unsafe { std::env::set_var("RADIUM_ENGINE", engine) };
             }
         }
         if let Some(ref model) = self.model {
             if std::env::var("RADIUM_MODEL").is_err() {
-                std::env::set_var("RADIUM_MODEL", model);
+                // SAFETY: This should only be called from single-threaded code before spawning threads
+                unsafe { std::env::set_var("RADIUM_MODEL", model) };
             }
         }
         if let Some(ref workspace) = self.workspace {
             if std::env::var("RADIUM_WORKSPACE").is_err() {
-                std::env::set_var("RADIUM_WORKSPACE", workspace);
+                // SAFETY: This should only be called from single-threaded code before spawning threads
+                unsafe { std::env::set_var("RADIUM_WORKSPACE", workspace) };
             }
         }
         if let Some(ref log_level) = self.log_level {
             if std::env::var("RUST_LOG").is_err() {
-                std::env::set_var("RUST_LOG", log_level);
+                // SAFETY: This should only be called from single-threaded code before spawning threads
+                unsafe { std::env::set_var("RUST_LOG", log_level) };
             }
         }
     }

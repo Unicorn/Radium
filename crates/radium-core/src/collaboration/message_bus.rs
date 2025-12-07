@@ -224,7 +224,7 @@ impl MessageBus {
         agent_id: String,
     ) -> mpsc::UnboundedReceiver<AgentMessage> {
         let (tx, rx) = mpsc::unbounded_channel();
-        let mut channels = self.channels.lock().await;
+        let mut channels = self.channels.lock().unwrap();
         channels.insert(agent_id.clone(), tx);
         debug!(agent_id = %agent_id, "Registered agent with message bus");
         rx
@@ -235,7 +235,7 @@ impl MessageBus {
     /// # Arguments
     /// * `agent_id` - ID of the agent to unregister
     pub async fn unregister_agent(&self, agent_id: &str) {
-        let mut channels = self.channels.lock().await;
+        let mut channels = self.channels.lock().unwrap();
         channels.remove(agent_id);
         debug!(agent_id = %agent_id, "Unregistered agent from message bus");
     }
@@ -281,7 +281,7 @@ impl MessageBus {
         self.repository.store_message(&message)?;
 
         // Try to deliver via channel
-        let channels = self.channels.lock().await;
+        let channels = self.channels.lock().unwrap();
         if let Some(sender) = channels.get(recipient_id) {
             if sender.send(message.clone()).is_err() {
                 warn!(recipient_id = %recipient_id, "Failed to send message via channel (agent may have disconnected)");
@@ -344,7 +344,7 @@ impl MessageBus {
         self.repository.store_message(&message)?;
 
         // Broadcast to all registered agents
-        let channels = self.channels.lock().await;
+        let channels = self.channels.lock().unwrap();
         let mut delivered_count = 0;
         for (agent_id, sender) in channels.iter() {
             if *agent_id != sender_id {

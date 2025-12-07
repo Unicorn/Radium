@@ -11,7 +11,7 @@ use std::time::Instant;
 use tokio::signal;
 use radium_core::{
     analytics::{ReportFormatter, SessionAnalytics, SessionReport, SessionStorage},
-    context::ContextFileLoader, ExecutionConfig, monitoring::MonitoringService, PlanDiscovery,
+    context::ContextFileLoader, AgentDiscovery, ExecutionConfig, monitoring::MonitoringService, PlanDiscovery,
     PlanExecutor, PlanManifest, PlanStatus, RequirementId, RunMode, Workspace,
 };
 use radium_models::ModelFactory;
@@ -112,6 +112,10 @@ pub async fn execute(
     let monitoring_path = workspace.radium_dir().join("monitoring.db");
     let monitoring = MonitoringService::open(&monitoring_path).ok();
 
+    // Discover agents for engine/model resolution
+    let discovery = AgentDiscovery::new();
+    let agents = discovery.discover_all().context("Failed to discover agents")?;
+
     // Execute the plan
     println!();
     println!("{}", "Executing plan...".bold());
@@ -129,10 +133,12 @@ pub async fn execute(
         resume,
         json,
         yolo,
+        engine.as_deref(),
         if context_files.is_empty() { None } else { Some(context_files) },
         &mut Some(&mut executed_agent_ids),
         &session_id,
         monitoring.as_ref(),
+        &agents,
     )
     .await?;
 
@@ -246,6 +252,7 @@ async fn execute_plan(
     executed_agent_ids: &mut Option<&mut Vec<String>>,
     session_id: &str,
     monitoring: Option<&MonitoringService>,
+    agents: &std::collections::HashMap<String, radium_core::agents::config::AgentConfig>,
 ) -> anyhow::Result<()> {
     // Determine run mode based on yolo flag
     let run_mode = if yolo {
@@ -391,6 +398,11 @@ async fn execute_plan(
                 continue;
             };
 
+            // Get agent config
+            let agent = agents.get(agent_id).ok_or_else(|| {
+                anyhow::anyhow!("Agent not found: {}", agent_id)
+            })?;
+
             println!("      {} Agent: {}", "•".dimmed(), agent_id.cyan());
             println!("      {} Executing...", "•".cyan());
 
@@ -478,7 +490,11 @@ async fn execute_plan(
                             if let Some(monitoring) = monitoring {
                                 use radium_core::monitoring::{TelemetryRecord, TelemetryTracking};
                                 let mut telemetry = TelemetryRecord::new(tracked_agent_id.clone())
-                                    .with_tokens(prompt as u64, completion as u64);
+                                    .with_tokens(prompt as u64, completion as u64)
+                                    .with_engine_id(selected_engine.to_string());
+                                if let Some(model) = agent.model.as_deref() {
+                                    telemetry = telemetry.with_model(model.to_string(), selected_engine.to_string());
+                                }
                                 telemetry.calculate_cost();
                                 if let Err(e) = monitoring.record_telemetry(&telemetry).await {
                                     eprintln!("      {} Warning: Failed to record telemetry: {}", "⚠".yellow(), e);
@@ -521,6 +537,7 @@ async fn execute_plan(
             }
 
             println!();
+        }
         }
 
         println!();

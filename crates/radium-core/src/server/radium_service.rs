@@ -232,7 +232,6 @@ impl Radium for RadiumService {
         );
         let agent_context = AgentContext {
             model: &mock_model,
-            collaboration: None,
         };
 
         match echo_agent.execute(&inner.message, agent_context).await {

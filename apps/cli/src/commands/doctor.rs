@@ -3,10 +3,11 @@
 //! Validates environment, configuration, and workspace setup.
 
 use colored::Colorize;
-use radium_core::Workspace;
+use radium_core::{Workspace, engines::{EngineRegistry, HealthStatus}, engines::providers::{ClaudeEngine, GeminiEngine, MockEngine, OpenAIEngine}};
 use serde_json::json;
 use std::net::TcpListener;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 /// Execute the doctor command.
 ///
@@ -104,6 +105,47 @@ async fn execute_human() -> anyhow::Result<()> {
             println!();
             all_ok = false;
         }
+    }
+    println!();
+
+    // Check engine health
+    println!("{}", "Engine Health:".bold());
+    let config_path = Workspace::discover()
+        .ok()
+        .map(|w| w.radium_dir().join("config.toml"));
+    let registry = if let Some(ref path) = config_path {
+        EngineRegistry::with_config_path(path)
+    } else {
+        EngineRegistry::new()
+    };
+    
+    // Register all available engines
+    let _ = registry.register(Arc::new(MockEngine::new()));
+    let _ = registry.register(Arc::new(ClaudeEngine::new()));
+    let _ = registry.register(Arc::new(OpenAIEngine::new()));
+    let _ = registry.register(Arc::new(GeminiEngine::new()));
+    
+    let health_results = registry.check_health(5).await;
+    let mut engine_issues = false;
+    
+    for health in &health_results {
+        match &health.status {
+            HealthStatus::Healthy => {
+                println!("  {} {}: {}", "✓".green(), health.engine_id.cyan(), "Healthy".green());
+            }
+            HealthStatus::Warning(msg) => {
+                println!("  {} {}: {}", "⚠".yellow(), health.engine_id.cyan(), format!("Warning - {}", msg).yellow());
+                engine_issues = true;
+            }
+            HealthStatus::Failed(msg) => {
+                println!("  {} {}: {}", "✗".red(), health.engine_id.cyan(), format!("Failed - {}", msg).red());
+                engine_issues = true;
+            }
+        }
+    }
+    
+    if engine_issues {
+        all_ok = false;
     }
     println!();
 

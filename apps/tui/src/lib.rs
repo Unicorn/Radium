@@ -2,6 +2,7 @@ pub mod app;
 pub mod chat_executor;
 pub mod commands;
 pub mod components;
+pub mod config;
 pub mod errors;
 pub mod icons;
 pub mod navigation;

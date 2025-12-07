@@ -2,8 +2,52 @@
 
 use super::engine_trait::{Engine, EngineMetadata};
 use super::error::{EngineError, Result};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
+use std::time::{Duration, Instant};
+use tokio::time::timeout;
+
+/// Engine configuration structure for TOML serialization.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EngineConfig {
+    /// Default engine ID.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default: Option<String>,
+}
+
+impl Default for EngineConfig {
+    fn default() -> Self {
+        Self { default: None }
+    }
+}
+
+/// Health status for an engine.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HealthStatus {
+    /// Engine is healthy and ready to use.
+    Healthy,
+    /// Engine has warnings but may still work.
+    Warning(String),
+    /// Engine is not available or has failed.
+    Failed(String),
+}
+
+/// Health check result for an engine.
+#[derive(Debug, Clone)]
+pub struct EngineHealth {
+    /// Engine ID.
+    pub engine_id: String,
+    /// Engine name.
+    pub engine_name: String,
+    /// Health status.
+    pub status: HealthStatus,
+    /// Whether engine is available.
+    pub available: bool,
+    /// Whether engine is authenticated.
+    pub authenticated: bool,
+}
 
 /// Engine registry for managing available engines.
 pub struct EngineRegistry {
@@ -12,6 +56,9 @@ pub struct EngineRegistry {
 
     /// Default engine ID.
     default_engine: Arc<RwLock<Option<String>>>,
+
+    /// Configuration file path (optional).
+    config_path: Option<PathBuf>,
 }
 
 impl EngineRegistry {
@@ -20,7 +67,116 @@ impl EngineRegistry {
         Self {
             engines: Arc::new(RwLock::new(HashMap::new())),
             default_engine: Arc::new(RwLock::new(None)),
+            config_path: None,
         }
+    }
+
+    /// Creates a new engine registry with configuration path.
+    ///
+    /// # Arguments
+    /// * `config_path` - Path to the configuration file (e.g., `.radium/config.toml`)
+    pub fn with_config_path(config_path: impl AsRef<Path>) -> Self {
+        let mut registry = Self::new();
+        registry.config_path = Some(config_path.as_ref().to_path_buf());
+        registry.load_config().ok(); // Ignore errors on load (file might not exist)
+        registry
+    }
+
+    /// Load engine configuration from the config file.
+    ///
+    /// # Errors
+    /// Returns error if config file exists but cannot be read or parsed.
+    pub fn load_config(&self) -> Result<()> {
+        let config_path = match &self.config_path {
+            Some(path) => path.clone(),
+            None => return Ok(()), // No config path set, skip loading
+        };
+
+        if !config_path.exists() {
+            return Ok(()); // Config file doesn't exist, that's fine
+        }
+
+        let content = std::fs::read_to_string(&config_path)
+            .map_err(|e| EngineError::RegistryError(format!("Failed to read config: {}", e)))?;
+
+        let toml: toml::Table = toml::from_str(&content)
+            .map_err(|e| EngineError::InvalidConfig(format!("Failed to parse config: {}", e)))?;
+
+        // Extract [engines] section
+        if let Some(engines_value) = toml.get("engines") {
+            let engine_config: EngineConfig = engines_value
+                .clone()
+                .try_into()
+                .map_err(|e: toml::de::Error| {
+                    EngineError::InvalidConfig(format!("Invalid engines config: {}", e))
+                })?;
+
+            // Set default engine if specified and it exists
+            if let Some(ref default_id) = engine_config.default {
+                // Only set if engine is already registered (we might load config before engines are registered)
+                if self.has(default_id) {
+                    let mut default = self
+                        .default_engine
+                        .write()
+                        .map_err(|e| EngineError::RegistryError(format!("Lock poisoned: {}", e)))?;
+                    *default = Some(default_id.clone());
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Save engine configuration to the config file.
+    ///
+    /// # Errors
+    /// Returns error if config file cannot be written.
+    pub fn save_config(&self) -> Result<()> {
+        let config_path = match &self.config_path {
+            Some(path) => path.clone(),
+            None => return Ok(()), // No config path set, skip saving
+        };
+
+        // Get current default engine
+        let default_id = self
+            .default_engine
+            .read()
+            .map_err(|e| EngineError::RegistryError(format!("Lock poisoned: {}", e)))?
+            .clone();
+
+        let engine_config = EngineConfig { default: default_id };
+
+        // Read existing config or create new
+        let mut toml: toml::Table = if config_path.exists() {
+            let content = std::fs::read_to_string(&config_path)
+                .map_err(|e| EngineError::RegistryError(format!("Failed to read config: {}", e)))?;
+            toml::from_str(&content).unwrap_or_default()
+        } else {
+            toml::Table::new()
+        };
+
+        // Update [engines] section
+        // Serialize engine_config to TOML string, then parse as Value
+        let engines_str = toml::to_string(&engine_config)
+            .map_err(|e| EngineError::InvalidConfig(format!("Failed to serialize: {}", e)))?;
+        let engines_toml: toml::Value = toml::from_str(&engines_str)
+            .map_err(|e| EngineError::InvalidConfig(format!("Failed to parse: {}", e)))?;
+        toml.insert("engines".to_string(), engines_toml);
+
+        // Write back to file
+        let content = toml::to_string_pretty(&toml)
+            .map_err(|e| EngineError::InvalidConfig(format!("Failed to serialize: {}", e)))?;
+
+        // Create parent directory if needed
+        if let Some(parent) = config_path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| EngineError::Io(e))?;
+        }
+
+        std::fs::write(&config_path, content)
+            .map_err(|e| EngineError::Io(e))?;
+
+        Ok(())
     }
 
     /// Registers an engine.
@@ -77,6 +233,10 @@ impl EngineRegistry {
             .map_err(|e| EngineError::RegistryError(format!("Lock poisoned: {}", e)))?;
 
         *default = Some(id.to_string());
+        
+        // Persist to config file
+        self.save_config()?;
+        
         Ok(())
     }
 
@@ -159,6 +319,119 @@ impl EngineRegistry {
     /// Gets the number of registered engines.
     pub fn count(&self) -> usize {
         self.engines.read().map(|e| e.len()).unwrap_or(0)
+    }
+
+    /// Checks health of all registered engines.
+    ///
+    /// # Arguments
+    /// * `timeout_secs` - Timeout in seconds for each health check (default: 5)
+    ///
+    /// # Returns
+    /// Vector of health check results for each engine
+    pub async fn check_health(&self, timeout_secs: u64) -> Vec<EngineHealth> {
+        let engines = match self.engines.read() {
+            Ok(engines) => engines,
+            Err(_) => return Vec::new(),
+        };
+
+        let mut results = Vec::new();
+
+        for (id, engine) in engines.iter() {
+            let metadata = engine.metadata();
+            let engine_id = id.clone();
+            let engine_name = metadata.name.clone();
+            let requires_auth = metadata.requires_auth;
+            let engine_clone = engine.clone();
+
+            // Perform health check with timeout
+            let health_check = async {
+                let available = engine_clone.is_available().await;
+                let authenticated = engine_clone.is_authenticated().await.unwrap_or(false);
+
+                let status = if !available {
+                    HealthStatus::Failed("Engine binary not available".to_string())
+                } else if requires_auth && !authenticated {
+                    HealthStatus::Failed("Engine not authenticated".to_string())
+                } else if !authenticated && requires_auth {
+                    HealthStatus::Warning("Authentication status unknown".to_string())
+                } else {
+                    HealthStatus::Healthy
+                };
+
+                EngineHealth {
+                    engine_id: engine_id.clone(),
+                    engine_name: engine_name.clone(),
+                    status,
+                    available,
+                    authenticated,
+                }
+            };
+
+            let result = match timeout(Duration::from_secs(timeout_secs), health_check).await {
+                Ok(health) => health,
+                Err(_) => EngineHealth {
+                    engine_id: engine_id.clone(),
+                    engine_name: engine_name.clone(),
+                    status: HealthStatus::Failed("Health check timed out".to_string()),
+                    available: false,
+                    authenticated: false,
+                },
+            };
+
+            results.push(result);
+        }
+
+        results
+    }
+
+    /// Checks health of a specific engine.
+    ///
+    /// # Arguments
+    /// * `engine_id` - Engine identifier
+    /// * `timeout_secs` - Timeout in seconds for health check (default: 5)
+    ///
+    /// # Returns
+    /// Health check result
+    ///
+    /// # Errors
+    /// Returns error if engine not found
+    pub async fn check_engine_health(&self, engine_id: &str, timeout_secs: u64) -> Result<EngineHealth> {
+        let engine = self.get(engine_id)?;
+        let metadata = engine.metadata();
+
+        let health_check = async {
+            let available = engine.is_available().await;
+            let authenticated = engine.is_authenticated().await.unwrap_or(false);
+
+            let status = if !available {
+                HealthStatus::Failed("Engine binary not available".to_string())
+            } else if metadata.requires_auth && !authenticated {
+                HealthStatus::Failed("Engine not authenticated".to_string())
+            } else if !authenticated && metadata.requires_auth {
+                HealthStatus::Warning("Authentication status unknown".to_string())
+            } else {
+                HealthStatus::Healthy
+            };
+
+            EngineHealth {
+                engine_id: engine_id.to_string(),
+                engine_name: metadata.name.clone(),
+                status,
+                available,
+                authenticated,
+            }
+        };
+
+        match timeout(Duration::from_secs(timeout_secs), health_check).await {
+            Ok(health) => Ok(health),
+            Err(_) => Ok(EngineHealth {
+                engine_id: engine_id.to_string(),
+                engine_name: metadata.name.clone(),
+                status: HealthStatus::Failed("Health check timed out".to_string()),
+                available: false,
+                authenticated: false,
+            }),
+        }
     }
 }
 

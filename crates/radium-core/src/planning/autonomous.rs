@@ -236,11 +236,6 @@ impl WorkflowGenerator {
                 };
 
                 let step = WorkflowStep {
-                    id: task_id.clone(),
-                    name: task.title.clone(),
-                    description: task.description.clone(),
-                    order: step_order,
-                    condition: None,
                     config: step_config,
                 };
 

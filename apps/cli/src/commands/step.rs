@@ -9,9 +9,11 @@ use radium_core::{
     analytics::{ReportFormatter, SessionAnalytics, SessionReport, SessionStorage},
     context::ContextFileLoader, AgentDiscovery, monitoring::MonitoringService, PromptContext,
     PromptTemplate, Workspace,
+    engines::{Engine, EngineRegistry, ExecutionRequest},
+    engines::providers::{ClaudeEngine, GeminiEngine, MockEngine, OpenAIEngine},
 };
-use radium_models::ModelFactory;
 use std::fs;
+use std::sync::Arc;
 use uuid::Uuid;
 
 /// Execute the step command.
@@ -65,8 +67,33 @@ pub async fn execute(
     println!("  Description: {}", agent.description.dimmed());
     println!("  Prompt: {}", agent.prompt_path.display().to_string().dimmed());
 
-    // Display model/engine info (with overrides if provided)
-    let selected_engine = engine.as_deref().unwrap_or(agent.engine.as_deref().unwrap_or("none"));
+    // Initialize engine registry
+    let config_path = workspace
+        .as_ref()
+        .map(|w| w.radium_dir().join("config.toml"));
+    let registry = if let Some(ref path) = config_path {
+        EngineRegistry::with_config_path(path)
+    } else {
+        EngineRegistry::new()
+    };
+    
+    // Register all available engines
+    let _ = registry.register(Arc::new(MockEngine::new()));
+    let _ = registry.register(Arc::new(ClaudeEngine::new()));
+    let _ = registry.register(Arc::new(OpenAIEngine::new()));
+    let _ = registry.register(Arc::new(GeminiEngine::new()));
+    
+    // Load config after engines are registered
+    let _ = registry.load_config();
+    
+    // Resolve engine: CLI flag → Agent config → Default engine → "mock"
+    let selected_engine = engine
+        .as_deref()
+        .or_else(|| agent.engine.as_deref())
+        .or_else(|| {
+            registry.get_default().ok().map(|e| e.metadata().id.as_str())
+        })
+        .unwrap_or("mock");
     let selected_model = model.as_deref().unwrap_or(agent.model.as_deref().unwrap_or("default"));
     let selected_reasoning =
         reasoning.as_deref().unwrap_or_else(|| match agent.reasoning_effort.unwrap_or_default() {
@@ -154,7 +181,34 @@ pub async fn execute(
     println!("{}", "Executing agent...".bold());
     println!();
 
-    let execution_result = execute_agent_stub(&agent.id, &rendered, selected_engine, selected_model).await;
+    let execution_result = execute_agent_with_engine(&registry, &agent.id, &rendered, selected_engine, selected_model).await;
+    
+    // Extract token usage from response for telemetry
+    let token_usage = execution_result.as_ref().ok().and_then(|r| r.usage.as_ref());
+
+    // Record telemetry if execution was successful
+    if let Ok(ref response) = execution_result {
+        if let Some(monitoring) = monitoring.as_ref() {
+            use radium_core::monitoring::{TelemetryRecord, TelemetryTracking};
+            let mut telemetry = TelemetryRecord::new(tracked_agent_id.clone())
+                .with_engine_id(selected_engine.to_string());
+            
+            // Set model info
+            if let Some(model) = agent.model.as_deref() {
+                telemetry = telemetry.with_model(model.to_string(), selected_engine.to_string());
+            } else if let Some(ref model) = response.model {
+                telemetry = telemetry.with_model(model.clone(), selected_engine.to_string());
+            }
+            
+            // Set token usage from response
+            if let Some(ref usage) = response.usage {
+                telemetry = telemetry.with_tokens(usage.input_tokens, usage.output_tokens);
+            }
+            
+            telemetry.calculate_cost();
+            let _ = monitoring.record_telemetry(&telemetry).await;
+        }
+    }
 
     // Complete agent in monitoring
     if let Some(monitoring) = monitoring.as_ref() {
@@ -169,7 +223,7 @@ pub async fn execute(
         }
     }
 
-    execution_result?;
+    // Execution already succeeded (we got here), response was used for telemetry above
 
     // Generate and display session report
     let session_end_time = Some(Utc::now());
@@ -276,87 +330,77 @@ fn load_prompt(prompt_path: &std::path::Path) -> anyhow::Result<String> {
     bail!("Prompt file not found: {}", prompt_path.display())
 }
 
-/// Execute the agent with the actual model.
-async fn execute_agent_stub(
+/// Execute the agent with the engine registry.
+/// Returns the execution response for telemetry tracking.
+async fn execute_agent_with_engine(
+    registry: &EngineRegistry,
     agent_id: &str,
     rendered_prompt: &str,
-    engine: &str,
+    engine_id: &str,
     model: &str,
-) -> anyhow::Result<()> {
-    println!("  {} Executing agent with {}...", "•".cyan(), engine);
+) -> anyhow::Result<radium_core::engines::ExecutionResponse> {
+    println!("  {} Executing agent with {}...", "•".cyan(), engine_id);
     println!("  {} Agent: {}", "•".dimmed(), agent_id.cyan());
-    println!("  {} Engine: {}", "•".dimmed(), engine.cyan());
+    println!("  {} Engine: {}", "•".dimmed(), engine_id.cyan());
     println!("  {} Model: {}", "•".dimmed(), model.cyan());
     println!();
 
-    // Try to create model instance
-    match ModelFactory::create_from_str(engine, model.to_string()) {
-        Ok(model_instance) => {
-            println!("  {} Model initialized successfully", "✓".green());
-            println!("  {} Sending prompt to model...", "•".cyan());
+    // Get engine from registry
+    let engine = match registry.get(engine_id) {
+        Ok(e) => {
+            println!("  {} Engine initialized successfully", "✓".green());
+            println!("  {} Sending prompt to engine...", "•".cyan());
             println!();
-
-            // Execute the model
-            match model_instance.generate_text(rendered_prompt, None).await {
-                Ok(response) => {
-                    println!("{}", "Response:".bold().green());
-                    println!("{}", "─".repeat(60).dimmed());
-                    println!("{}", response.content);
-                    println!("{}", "─".repeat(60).dimmed());
-
-                    if let Some(usage) = response.usage {
-                        println!();
-                        println!("{}", "Token Usage:".bold().dimmed());
-                        println!("  Prompt: {} tokens", usage.prompt_tokens.to_string().dimmed());
-                        println!(
-                            "  Completion: {} tokens",
-                            usage.completion_tokens.to_string().dimmed()
-                        );
-                        println!("  Total: {} tokens", usage.total_tokens.to_string().cyan());
-                    }
-
-                    Ok(())
-                }
-                Err(e) => {
-                    println!();
-                    println!("  {} {}", "✗".red(), format!("Model execution failed: {}", e).red());
-                    println!();
-                    println!("  {} Check your API key and model configuration", "i".yellow());
-                    Err(anyhow::anyhow!("Model execution failed: {}", e))
-                }
-            }
+            e
         }
         Err(e) => {
             println!(
                 "  {} {}",
                 "!".yellow(),
-                format!("Could not initialize model: {}", e).yellow()
+                format!("Could not find engine: {}", e).yellow()
             );
             println!();
-            println!("  {} Possible reasons:", "i".cyan());
-            println!(
-                "    • API key not set ({}_API_KEY environment variable)",
-                engine.to_uppercase()
-            );
-            println!("    • Invalid model configuration");
-            println!("    • Network connectivity issues");
+            println!("  {} Falling back to mock engine...", "→".dimmed());
             println!();
-            println!("  {} Set up API key:", "i".cyan());
-            println!("    export {}_API_KEY=your-api-key-here", engine.to_uppercase());
-            println!();
-            println!("  {} Falling back to mock execution...", "→".dimmed());
-            println!();
+            
+            // Fall back to mock engine
+            registry.get("mock")
+                .with_context(|| "Mock engine not available")?
+        }
+    };
 
-            // Fall back to mock model
-            let mock_model = ModelFactory::create_from_str("mock", model.to_string())?;
-            let response = mock_model.generate_text(rendered_prompt, None).await?;
+    // Create execution request
+    let request = ExecutionRequest::new(model.to_string(), rendered_prompt.to_string());
 
-            println!("{}", "Mock Response:".bold().yellow());
+    // Execute the engine
+    match engine.execute(request).await {
+        Ok(response) => {
+            println!("{}", "Response:".bold().green());
             println!("{}", "─".repeat(60).dimmed());
-            println!("{}", response.content.dimmed());
+            println!("{}", response.content);
             println!("{}", "─".repeat(60).dimmed());
 
-            Ok(())
+            if let Some(usage) = &response.usage {
+                println!();
+                println!("{}", "Token Usage:".bold().dimmed());
+                println!("  Input: {} tokens", usage.input_tokens.to_string().dimmed());
+                println!(
+                    "  Output: {} tokens",
+                    usage.output_tokens.to_string().dimmed()
+                );
+                if let Some(total) = usage.total_tokens {
+                    println!("  Total: {} tokens", total.to_string().cyan());
+                }
+            }
+
+            Ok(response)
+        }
+        Err(e) => {
+            println!();
+            println!("  {} {}", "✗".red(), format!("Engine execution failed: {}", e).red());
+            println!();
+            println!("  {} Check your API key and engine configuration", "i".yellow());
+            Err(anyhow::anyhow!("Engine execution failed: {}", e))
         }
     }
 }

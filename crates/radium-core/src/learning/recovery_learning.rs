@@ -7,6 +7,7 @@ use crate::learning::store::{LearningStore, LearningType, Skill, SkillStatus};
 use crate::workflow::failure::FailureType;
 use crate::workflow::recovery::{RecoveryContext, RecoveryStrategy};
 use crate::workflow::reassignment::ReassignmentReason;
+use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
@@ -274,6 +275,8 @@ impl RecoveryLearning {
                             total
                         );
 
+                        let now = Utc::now();
+
                         let skill = Skill {
                             id: uuid::Uuid::new_v4().to_string(),
                             section: "Recovery Strategies".to_string(),
@@ -282,6 +285,8 @@ impl RecoveryLearning {
                             harmful: failure_count,
                             neutral: 0,
                             status: SkillStatus::Active,
+                            created_at: now,
+                            updated_at: now,
                         };
 
                         skills.push(skill);

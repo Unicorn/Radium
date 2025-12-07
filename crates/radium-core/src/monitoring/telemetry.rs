@@ -129,17 +129,57 @@ impl TelemetryRecord {
         self
     }
 
+    /// Sets engine ID.
+    #[must_use]
+    pub fn with_engine_id(mut self, engine_id: String) -> Self {
+        self.engine_id = Some(engine_id);
+        self
+    }
+
     /// Calculates estimated cost based on model pricing.
+    /// Uses engine-specific pricing when engine_id is set, otherwise falls back to model-based pricing.
     pub fn calculate_cost(&mut self) -> &mut Self {
-        // Pricing per 1M tokens (approximate, as of 2024)
-        let (input_price, output_price) = match self.model.as_deref() {
-            Some("gpt-4") => (30.0, 60.0),
-            Some("gpt-3.5-turbo") => (0.5, 1.5),
-            Some("claude-3-opus") => (15.0, 75.0),
-            Some("claude-3-sonnet") => (3.0, 15.0),
-            Some("claude-3-haiku") => (0.25, 1.25),
-            Some("gemini-pro") => (0.5, 1.5),
-            _ => (1.0, 2.0), // Default fallback
+        // Try engine-specific pricing first
+        let (input_price, output_price) = if let Some(ref engine_id) = self.engine_id {
+            match engine_id.as_str() {
+                "openai" => {
+                    // OpenAI pricing varies by model
+                    match self.model.as_deref() {
+                        Some("gpt-4") | Some("gpt-4-turbo") => (30.0, 60.0),
+                        Some("gpt-3.5-turbo") => (0.5, 1.5),
+                        _ => (10.0, 30.0), // Default for OpenAI
+                    }
+                }
+                "claude" => {
+                    // Claude pricing varies by model
+                    match self.model.as_deref() {
+                        Some("claude-3-opus") | Some("claude-3-opus-20240229") => (15.0, 75.0),
+                        Some("claude-3-sonnet") | Some("claude-3-sonnet-20240229") => (3.0, 15.0),
+                        Some("claude-3-haiku") | Some("claude-3-haiku-20240307") => (0.25, 1.25),
+                        _ => (3.0, 15.0), // Default for Claude
+                    }
+                }
+                "gemini" => {
+                    // Gemini pricing
+                    match self.model.as_deref() {
+                        Some("gemini-pro") | Some("gemini-2.0-flash-exp") => (0.5, 1.5),
+                        _ => (0.5, 1.5), // Default for Gemini
+                    }
+                }
+                "mock" => (0.0, 0.0), // Mock engine is free
+                _ => (1.0, 2.0), // Default fallback for unknown engines
+            }
+        } else {
+            // Fall back to model-based pricing (legacy)
+            match self.model.as_deref() {
+                Some("gpt-4") => (30.0, 60.0),
+                Some("gpt-3.5-turbo") => (0.5, 1.5),
+                Some("claude-3-opus") => (15.0, 75.0),
+                Some("claude-3-sonnet") => (3.0, 15.0),
+                Some("claude-3-haiku") => (0.25, 1.25),
+                Some("gemini-pro") => (0.5, 1.5),
+                _ => (1.0, 2.0), // Default fallback
+            }
         };
 
         #[allow(clippy::cast_precision_loss)]

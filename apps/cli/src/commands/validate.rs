@@ -44,6 +44,8 @@ pub async fn execute(sources: Vec<String>, json: bool) -> anyhow::Result<()> {
 
 /// Output validation results in JSON format.
 fn output_json(results: &[radium_core::context::SourceValidationResult]) -> anyhow::Result<()> {
+    use serde::Serialize;
+
     #[derive(Serialize)]
     struct JsonOutput {
         total: usize,

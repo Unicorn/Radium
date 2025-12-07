@@ -40,7 +40,7 @@ pub fn render_loading(frame: &mut Frame, area: Rect, state: &LoadingState) {
         Line::from(""),
         Line::from(Span::styled(
             format!("{} {}", Icons::LOADING, state.message),
-            Style::default().fg(THEME.info),
+            Style::default().fg(THEME.info()),
         )),
     ];
 
@@ -58,7 +58,7 @@ pub fn render_loading(frame: &mut Frame, area: Rect, state: &LoadingState) {
                     .borders(Borders::ALL)
                     .border_style(Style::default().fg(THEME.border)),
             )
-            .gauge_style(Style::default().fg(THEME.primary).bg(THEME.bg_element))
+            .gauge_style(Style::default().fg(THEME.primary()).bg(THEME.bg_element()))
             .percent(progress as u16)
             .label(format!("{}%", progress));
 

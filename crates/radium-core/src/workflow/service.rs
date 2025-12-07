@@ -75,7 +75,7 @@ pub struct WorkflowService {
     /// Execution history (in-memory for now).
     execution_history: Arc<tokio::sync::Mutex<HashMap<String, WorkflowExecution>>>,
     /// Monitoring service for agent lifecycle tracking.
-    monitoring: Option<Arc<std::sync::Mutex<MonitoringService>>>,
+    pub monitoring: Option<Arc<std::sync::Mutex<MonitoringService>>>,
 }
 
 impl WorkflowService {

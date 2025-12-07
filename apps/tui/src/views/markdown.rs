@@ -38,7 +38,7 @@ pub fn render_markdown(text: &str) -> Vec<Line<'_>> {
                 if !code_block_lang.is_empty() {
                     lines.push(Line::from(Span::styled(
                         format!("Code ({})", code_block_lang),
-                        Style::default().fg(THEME.info),
+                        Style::default().fg(THEME.info()),
                     )));
                 }
             }
@@ -49,7 +49,7 @@ pub fn render_markdown(text: &str) -> Vec<Line<'_>> {
             // Render code block line
             lines.push(Line::from(Span::styled(
                 format!("  {}", line),
-                Style::default().fg(THEME.text).bg(THEME.bg_element).add_modifier(Modifier::ITALIC),
+                Style::default().fg(THEME.text).bg(THEME.bg_element()).add_modifier(Modifier::ITALIC),
             )));
         } else {
             // Parse markdown in regular line
@@ -115,7 +115,7 @@ fn parse_markdown_line(line: &str) -> Line<'_> {
                             current_text.clear();
                         }
                         chars.next(); // consume space
-                        spans.push(Span::styled("• ", Style::default().fg(THEME.primary)));
+                        spans.push(Span::styled("• ", Style::default().fg(THEME.primary())));
                     }
                     _ => {
                         current_text.push(ch);
@@ -160,8 +160,8 @@ fn parse_markdown_line(line: &str) -> Line<'_> {
                         spans.push(Span::styled(
                             current_text.clone(),
                             Style::default()
-                                .fg(THEME.secondary)
-                                .bg(THEME.bg_element)
+                                .fg(THEME.secondary())
+                                .bg(THEME.bg_element())
                                 .add_modifier(Modifier::ITALIC),
                         ));
                         current_text.clear();
@@ -180,8 +180,8 @@ fn parse_markdown_line(line: &str) -> Line<'_> {
             ParseState::Bold => Style::default().fg(THEME.text).add_modifier(Modifier::BOLD),
             ParseState::Italic => Style::default().fg(THEME.text).add_modifier(Modifier::ITALIC),
             ParseState::Code => Style::default()
-                .fg(THEME.secondary)
-                .bg(THEME.bg_element)
+                .fg(THEME.secondary())
+                .bg(THEME.bg_element())
                 .add_modifier(Modifier::ITALIC),
             ParseState::Normal => Style::default().fg(THEME.text),
         };

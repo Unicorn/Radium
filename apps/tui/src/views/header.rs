@@ -48,7 +48,7 @@ pub fn render_header(frame: &mut Frame, area: Rect, info: &HeaderInfo) {
     // Build header text
     let mut header_parts = vec![Span::styled(
         format!("{} Radium", Icons::ROCKET),
-        Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD),
+        Style::default().fg(THEME.primary()).add_modifier(Modifier::BOLD),
     )];
 
     // Add session info if available
@@ -56,7 +56,7 @@ pub fn render_header(frame: &mut Frame, area: Rect, info: &HeaderInfo) {
         header_parts.push(Span::raw(" | "));
         header_parts.push(Span::styled(
             format!("{} {}", Icons::SESSION, session_id),
-            Style::default().fg(THEME.text_muted),
+            Style::default().fg(THEME.text_muted()),
         ));
     }
 
@@ -65,35 +65,35 @@ pub fn render_header(frame: &mut Frame, area: Rect, info: &HeaderInfo) {
         header_parts.push(Span::raw(" | "));
         header_parts.push(Span::styled(
             format!("{} {}", Icons::AGENT, agent_id),
-            Style::default().fg(THEME.info),
+            Style::default().fg(THEME.info()),
         ));
     }
 
     // Add detailed auth status showing which providers are connected
     header_parts.push(Span::raw(" | "));
     header_parts
-        .push(Span::styled(format!("{} ", Icons::AUTH), Style::default().fg(THEME.text_muted)));
+        .push(Span::styled(format!("{} ", Icons::AUTH), Style::default().fg(THEME.text_muted())));
 
     // Gemini status
     if gemini_auth {
-        header_parts.push(Span::styled("Gemini✓", Style::default().fg(THEME.success)));
+        header_parts.push(Span::styled("Gemini✓", Style::default().fg(THEME.success())));
     } else {
-        header_parts.push(Span::styled("Gemini✗", Style::default().fg(THEME.text_dim)));
+        header_parts.push(Span::styled("Gemini✗", Style::default().fg(THEME.text_dim())));
     }
 
     header_parts.push(Span::raw(" "));
 
     // OpenAI status
     if openai_auth {
-        header_parts.push(Span::styled("OpenAI✓", Style::default().fg(THEME.success)));
+        header_parts.push(Span::styled("OpenAI✓", Style::default().fg(THEME.success())));
     } else {
-        header_parts.push(Span::styled("OpenAI✗", Style::default().fg(THEME.text_dim)));
+        header_parts.push(Span::styled("OpenAI✗", Style::default().fg(THEME.text_dim())));
     }
 
     // Warning if no auth at all
     if !gemini_auth && !openai_auth {
         header_parts.push(Span::raw(" "));
-        header_parts.push(Span::styled("(Type /auth)", Style::default().fg(THEME.warning)));
+        header_parts.push(Span::styled("(Type /auth)", Style::default().fg(THEME.warning())));
     }
 
     let header_line = Line::from(header_parts);
@@ -104,7 +104,7 @@ pub fn render_header(frame: &mut Frame, area: Rect, info: &HeaderInfo) {
                 .borders(Borders::BOTTOM)
                 .border_style(Style::default().fg(THEME.border)),
         )
-        .style(Style::default().bg(THEME.bg_panel));
+        .style(Style::default().bg(THEME.bg_panel()));
 
     frame.render_widget(header, area);
 }

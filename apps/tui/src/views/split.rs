@@ -56,9 +56,9 @@ pub fn render_split_view(frame: &mut Frame, area: Rect, state: &SplitViewState) 
         .map(|(i, item)| {
             let is_selected = i == state.selected_index && state.left_focused;
             let style = if is_selected {
-                Style::default().fg(THEME.bg_primary).bg(THEME.primary).add_modifier(Modifier::BOLD)
+                Style::default().fg(THEME.bg_primary()()).bg(THEME.primary()()).add_modifier(Modifier::BOLD)
             } else {
-                Style::default().fg(THEME.text)
+                Style::default().fg(THEME.text())
             };
 
             ListItem::new(Line::from(Span::styled(format!("  {}", item), style)))
@@ -70,7 +70,7 @@ pub fn render_split_view(frame: &mut Frame, area: Rect, state: &SplitViewState) 
             Block::default()
                 .borders(Borders::ALL)
                 .border_style(if state.left_focused {
-                    Style::default().fg(THEME.primary)
+                    Style::default().fg(THEME.primary())
                 } else {
                     Style::default().fg(THEME.border)
                 })
@@ -90,7 +90,7 @@ pub fn render_split_view(frame: &mut Frame, area: Rect, state: &SplitViewState) 
             Block::default()
                 .borders(Borders::ALL)
                 .border_style(if !state.left_focused {
-                    Style::default().fg(THEME.primary)
+                    Style::default().fg(THEME.primary())
                 } else {
                     Style::default().fg(THEME.border)
                 })

@@ -326,6 +326,7 @@ impl DelegationManager {
         let message_bus = Arc::clone(&self.message_bus);
         let supervisor_id = supervisor_id.to_string();
         let worker_id = worker_agent_id.to_string();
+        let task_input = task_input.to_string();
         let repository = Arc::clone(&self.repository);
 
         tokio::spawn(async move {
@@ -336,7 +337,7 @@ impl DelegationManager {
             );
 
             // Execute worker agent
-            match worker_executor.execute_worker(&worker_id, task_input).await {
+            match worker_executor.execute_worker(&worker_id, &task_input).await {
                 Ok(result) => {
                     let completed_at = SystemTime::now()
                         .duration_since(UNIX_EPOCH)

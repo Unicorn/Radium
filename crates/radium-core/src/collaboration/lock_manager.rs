@@ -59,6 +59,7 @@ impl Drop for LockHandle {
 }
 
 /// Resource lock manager for coordinating workspace access.
+#[derive(Debug)]
 pub struct ResourceLockManager {
     /// Map of resource paths to lock information.
     locks: Arc<RwLock<HashMap<String, LockInfo>>>,

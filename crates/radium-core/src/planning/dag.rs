@@ -37,7 +37,7 @@ pub type Result<T> = std::result::Result<T, DagError>;
 ///
 /// Builds a directed graph from plan manifest task dependencies and provides
 /// algorithms for cycle detection, topological sorting, and execution level calculation.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DependencyGraph {
     /// The underlying graph structure.
     graph: DiGraph<String, ()>,

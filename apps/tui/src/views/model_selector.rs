@@ -36,7 +36,7 @@ pub fn render_model_selector(
 
     // Title
     let title = Paragraph::new(format!("{} Available Models", Icons::SETTINGS))
-        .style(Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD))
+        .style(Style::default().fg(THEME.primary()).add_modifier(Modifier::BOLD))
         .alignment(Alignment::Center)
         .block(
             Block::default().borders(Borders::ALL).border_style(Style::default().fg(THEME.border)),
@@ -52,9 +52,9 @@ pub fn render_model_selector(
             let is_current = model.is_selected;
 
             let style = if is_selected {
-                Style::default().fg(THEME.bg_primary).bg(THEME.primary).add_modifier(Modifier::BOLD)
+                Style::default().fg(THEME.bg_primary()).bg(THEME.primary()).add_modifier(Modifier::BOLD)
             } else if is_current {
-                Style::default().fg(THEME.success).add_modifier(Modifier::BOLD)
+                Style::default().fg(THEME.success()).add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(THEME.text)
             };
@@ -88,7 +88,7 @@ pub fn render_model_selector(
     // Help line
     let help_text = "Press number to select | Enter to confirm | Esc to cancel";
     let help = Paragraph::new(help_text)
-        .style(Style::default().fg(THEME.text_muted))
+        .style(Style::default().fg(THEME.text_muted()))
         .alignment(Alignment::Center);
     frame.render_widget(help, chunks[2]);
 }

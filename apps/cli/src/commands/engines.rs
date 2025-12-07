@@ -3,7 +3,7 @@
 use super::EnginesCommand;
 use anyhow::{Context, Result};
 use colored::Colorize;
-use radium_core::engines::{Engine, EngineRegistry};
+use radium_core::engines::{Engine, EngineRegistry, HealthStatus};
 use radium_core::engines::providers::{ClaudeEngine, GeminiEngine, MockEngine, OpenAIEngine};
 use radium_core::workspace::Workspace;
 use serde_json::json;
@@ -16,18 +16,31 @@ pub async fn execute(command: EnginesCommand) -> Result<()> {
         EnginesCommand::Show { engine_id, json } => show_engine(&engine_id, json).await,
         EnginesCommand::Status { json } => status_engines(json).await,
         EnginesCommand::SetDefault { engine_id } => set_default_engine(&engine_id).await,
+        EnginesCommand::Health { json, timeout } => health_engines(json, timeout).await,
     }
 }
 
 /// Initialize engine registry with all available engines.
 fn init_registry() -> EngineRegistry {
-    let registry = EngineRegistry::new();
+    // Try to get workspace config path
+    let config_path = Workspace::discover()
+        .ok()
+        .map(|w| w.radium_dir().join("config.toml"));
+
+    let registry = if let Some(ref path) = config_path {
+        EngineRegistry::with_config_path(path)
+    } else {
+        EngineRegistry::new()
+    };
 
     // Register all available engines
     let _ = registry.register(Arc::new(MockEngine::new()));
     let _ = registry.register(Arc::new(ClaudeEngine::new()));
     let _ = registry.register(Arc::new(OpenAIEngine::new()));
     let _ = registry.register(Arc::new(GeminiEngine::new()));
+
+    // Load config after engines are registered
+    let _ = registry.load_config();
 
     registry
 }
@@ -208,23 +221,17 @@ async fn set_default_engine(engine_id: &str) -> Result<()> {
     let engine = registry.get(engine_id)
         .with_context(|| format!("Engine not found: {}", engine_id))?;
 
-    // Set as default
+    // Set as default (this will also persist to config)
     registry.set_default(engine_id)
         .with_context(|| format!("Failed to set default engine: {}", engine_id))?;
 
-    // Try to save to workspace config (optional, may not have workspace)
+    println!();
+    println!("{}", format!("✓ Set default engine to: {}", engine_id).green());
     if let Ok(workspace) = Workspace::discover() {
         let config_path = workspace.radium_dir().join("config.toml");
-        // For now, just print a message - full config persistence can be added later
-        println!();
-        println!("{}", format!("✓ Set default engine to: {}", engine_id).green());
-        println!("  Note: Default engine preference will be saved to workspace config in a future update.");
-        println!();
-    } else {
-        println!();
-        println!("{}", format!("✓ Set default engine to: {}", engine_id).green());
-        println!();
+        println!("  Saved to: {}", config_path.display().to_string().dimmed());
     }
+    println!();
 
     Ok(())
 }

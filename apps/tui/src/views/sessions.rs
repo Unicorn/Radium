@@ -28,7 +28,7 @@ pub fn render_sessions(
 
     // Title
     let title = Paragraph::new(format!("{} Recent Sessions", Icons::SESSION))
-        .style(Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD))
+        .style(Style::default().fg(THEME.primary()).add_modifier(Modifier::BOLD))
         .alignment(Alignment::Center)
         .block(
             Block::default().borders(Borders::ALL).border_style(Style::default().fg(THEME.border)),
@@ -48,14 +48,14 @@ pub fn render_sessions(
         let date_label = format_date_label(date);
         items.push(ListItem::new(Line::from(Span::styled(
             date_label,
-            Style::default().fg(THEME.text_muted).add_modifier(Modifier::BOLD),
+            Style::default().fg(THEME.text_muted()).add_modifier(Modifier::BOLD),
         ))));
 
         // Add sessions for this date
         for session in &sessions_by_date[date] {
             let is_selected = current_index == selected_index;
             let style = if is_selected {
-                Style::default().fg(THEME.bg_primary).bg(THEME.primary).add_modifier(Modifier::BOLD)
+                Style::default().fg(THEME.bg_primary()).bg(THEME.primary()).add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(THEME.text)
             };
@@ -76,7 +76,7 @@ pub fn render_sessions(
     if items.is_empty() {
         items.push(ListItem::new(Line::from(Span::styled(
             "No sessions found. Use /chat <agent> to start a new session.",
-            Style::default().fg(THEME.text_muted),
+            Style::default().fg(THEME.text_muted()),
         ))));
     }
 
@@ -91,7 +91,7 @@ pub fn render_sessions(
     // Help line
     let help_text = "Press number to resume | 'd' to delete | '/' for commands";
     let help = Paragraph::new(help_text)
-        .style(Style::default().fg(THEME.text_muted))
+        .style(Style::default().fg(THEME.text_muted()))
         .alignment(Alignment::Center);
     frame.render_widget(help, chunks[2]);
 }

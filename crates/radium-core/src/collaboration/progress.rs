@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex as StdMutex};
 use tracing::debug;
 
 /// Status of an agent's progress.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ProgressStatus {
     /// Agent is idle.
     Idle,
