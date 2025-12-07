@@ -163,6 +163,13 @@ impl AgentDiscovery {
     }
 
     /// Get default search paths.
+    ///
+    /// Search order (precedence from highest to lowest):
+    /// 1. Project-local agents
+    /// 2. User agents
+    /// 3. Workspace agents
+    /// 4. Project-level extension agents
+    /// 5. User-level extension agents
     fn default_search_paths() -> Vec<PathBuf> {
         let mut paths = Vec::new();
 
@@ -185,6 +192,43 @@ impl AgentDiscovery {
             let workspace_path = PathBuf::from(workspace);
             paths.push(workspace_path.join("agents"));
             paths.push(workspace_path.join(".radium/agents"));
+        }
+
+        // 4. Project-level extension agents (higher precedence than user extensions)
+        if let Ok(cwd) = std::env::current_dir() {
+            let project_extensions_dir = cwd.join(".radium").join("extensions");
+            if project_extensions_dir.exists() {
+                if let Ok(entries) = std::fs::read_dir(&project_extensions_dir) {
+                    for entry in entries.flatten() {
+                        let ext_path = entry.path();
+                        if ext_path.is_dir() {
+                            let agents_dir = ext_path.join("agents");
+                            if agents_dir.exists() {
+                                paths.push(agents_dir);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 5. User-level extension agents (lowest precedence)
+        #[allow(clippy::disallowed_methods)]
+        if let Ok(home) = std::env::var("HOME") {
+            let user_extensions_dir = PathBuf::from(home).join(".radium").join("extensions");
+            if user_extensions_dir.exists() {
+                if let Ok(entries) = std::fs::read_dir(&user_extensions_dir) {
+                    for entry in entries.flatten() {
+                        let ext_path = entry.path();
+                        if ext_path.is_dir() {
+                            let agents_dir = ext_path.join("agents");
+                            if agents_dir.exists() {
+                                paths.push(agents_dir);
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         paths

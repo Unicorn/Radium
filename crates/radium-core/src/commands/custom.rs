@@ -181,7 +181,11 @@ impl CommandRegistry {
 
     /// Discovers all custom commands.
     ///
-    /// Project commands take precedence over user commands.
+    /// Search order (precedence from highest to lowest):
+    /// 1. Project commands
+    /// 2. User commands
+    /// 3. Extension commands (user-level)
+    /// 4. Extension commands (project-level)
     ///
     /// # Errors
     /// Returns error if discovery fails
@@ -190,17 +194,59 @@ impl CommandRegistry {
         let user_dir = self.user_dir.clone();
         let project_dir = self.project_dir.clone();
 
-        // Load user commands first (lower precedence)
+        // Load extension commands first (lowest precedence)
+        // User-level extensions
+        if let Ok(extension_dirs) = crate::extensions::integration::get_extension_command_dirs() {
+            for ext_dir in extension_dirs {
+                // Extract extension name from path for namespace
+                if let Some(ext_name) = ext_dir.parent()
+                    .and_then(|p| p.file_name())
+                    .and_then(|n| n.to_str()) {
+                    if ext_dir.exists() {
+                        // Use extension name as namespace
+                        if let Err(e) = self.discover_in_directory(&ext_dir, Some(&ext_name.to_string())) {
+                            // Log error but continue with other extensions
+                            eprintln!("Warning: Failed to discover commands from extension '{}': {}", ext_name, e);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Load user commands (higher precedence)
         if let Some(user_dir) = user_dir {
             if user_dir.exists() {
                 self.discover_in_directory(&user_dir, None)?;
             }
         }
 
-        // Load project commands (higher precedence, will overwrite user commands)
+        // Load project commands (highest precedence, will overwrite user and extension commands)
         if let Some(project_dir) = project_dir {
             if project_dir.exists() {
                 self.discover_in_directory(&project_dir, None)?;
+            }
+        }
+
+        // Load project-level extension commands (after project commands for consistency)
+        if let Ok(cwd) = std::env::current_dir() {
+            let project_extensions_dir = cwd.join(".radium").join("extensions");
+            if project_extensions_dir.exists() {
+                if let Ok(entries) = fs::read_dir(&project_extensions_dir) {
+                    for entry in entries.flatten() {
+                        let ext_path = entry.path();
+                        if ext_path.is_dir() {
+                            let commands_dir = ext_path.join("commands");
+                            if let Some(ext_name) = ext_path.file_name().and_then(|n| n.to_str()) {
+                                if commands_dir.exists() {
+                                    // Use extension name as namespace
+                                    if let Err(e) = self.discover_in_directory(&commands_dir, Some(&ext_name.to_string())) {
+                                        eprintln!("Warning: Failed to discover commands from project extension '{}': {}", ext_name, e);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 

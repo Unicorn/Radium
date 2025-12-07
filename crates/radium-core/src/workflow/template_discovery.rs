@@ -30,6 +30,13 @@ impl TemplateDiscovery {
     }
 
     /// Returns the default search paths for templates.
+    ///
+    /// Search order (precedence from highest to lowest):
+    /// 1. Project-local templates
+    /// 2. User templates
+    /// 3. Workspace templates
+    /// 4. Project-level extension templates
+    /// 5. User-level extension templates
     fn default_search_paths() -> Vec<PathBuf> {
         let mut paths = Vec::new();
 
@@ -52,6 +59,43 @@ impl TemplateDiscovery {
             let workspace_path = PathBuf::from(workspace);
             paths.push(workspace_path.join("templates"));
             paths.push(workspace_path.join(".radium/templates"));
+        }
+
+        // 4. Project-level extension templates (higher precedence than user extensions)
+        if let Ok(cwd) = std::env::current_dir() {
+            let project_extensions_dir = cwd.join(".radium").join("extensions");
+            if project_extensions_dir.exists() {
+                if let Ok(entries) = fs::read_dir(&project_extensions_dir) {
+                    for entry in entries.flatten() {
+                        let ext_path = entry.path();
+                        if ext_path.is_dir() {
+                            let templates_dir = ext_path.join("templates");
+                            if templates_dir.exists() {
+                                paths.push(templates_dir);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 5. User-level extension templates (lowest precedence)
+        #[allow(clippy::disallowed_methods)]
+        if let Ok(home) = std::env::var("HOME") {
+            let user_extensions_dir = PathBuf::from(home).join(".radium").join("extensions");
+            if user_extensions_dir.exists() {
+                if let Ok(entries) = fs::read_dir(&user_extensions_dir) {
+                    for entry in entries.flatten() {
+                        let ext_path = entry.path();
+                        if ext_path.is_dir() {
+                            let templates_dir = ext_path.join("templates");
+                            if templates_dir.exists() {
+                                paths.push(templates_dir);
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         paths
