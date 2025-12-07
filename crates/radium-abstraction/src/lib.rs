@@ -25,9 +25,31 @@ pub enum ModelError {
     #[error("Unsupported Model Provider: {0}")]
     UnsupportedModelProvider(String),
 
+    /// Provider quota exceeded or rate limit hit (hard stop error).
+    #[error("Provider '{provider}' quota exceeded{}", message.as_ref().map(|m| format!(": {}", m)).unwrap_or_default())]
+    QuotaExceeded {
+        /// The provider name (e.g., "openai", "gemini").
+        provider: String,
+        /// Optional error message from the provider.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        message: Option<String>,
+    },
+
     /// Other unexpected errors.
     #[error("Other Model Error: {0}")]
     Other(String),
+}
+
+impl ModelError {
+    /// Formats the message part for QuotaExceeded error display.
+    fn message_formatted(&self) -> String {
+        match self {
+            Self::QuotaExceeded { message, .. } => {
+                message.as_ref().map(|m| format!(": {}", m)).unwrap_or_default()
+            }
+            _ => String::new(),
+        }
+    }
 }
 
 /// Represents a message in a conversation with a chat model.

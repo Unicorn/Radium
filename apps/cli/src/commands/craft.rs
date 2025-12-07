@@ -8,7 +8,7 @@ use colored::Colorize;
 use radium_core::{
     analytics::{ReportFormatter, SessionAnalytics, SessionReport, SessionStorage},
     context::ContextFileLoader, ExecutionConfig, monitoring::MonitoringService, PlanDiscovery,
-    PlanExecutor, PlanManifest, PlanStatus, RequirementId, Workspace,
+    PlanExecutor, PlanManifest, PlanStatus, RequirementId, RunMode, Workspace,
 };
 use radium_models::ModelFactory;
 use uuid::Uuid;
@@ -241,6 +241,13 @@ async fn execute_plan(
     session_id: &str,
     monitoring: Option<&MonitoringService>,
 ) -> anyhow::Result<()> {
+    // Determine run mode based on yolo flag
+    let run_mode = if yolo {
+        RunMode::Continuous
+    } else {
+        RunMode::Bounded(5) // Default bounded limit
+    };
+
     // Create executor with configuration
     let config = ExecutionConfig {
         resume,
@@ -248,6 +255,7 @@ async fn execute_plan(
         check_dependencies: true,
         state_path: manifest_path.to_path_buf(),
         context_files,
+        run_mode,
     };
     let executor = PlanExecutor::with_config(config);
 
@@ -262,8 +270,45 @@ async fn execute_plan(
         bail!("No iterations found to execute");
     }
 
-    // Execute each iteration
-    for iter_id in iteration_ids {
+    // Execution loop with iteration tracking
+    let mut execution_iteration = 0;
+    const CONTINUOUS_SANITY_LIMIT: usize = 1000;
+    let mut abort_requested = false; // Will be used in Task 5 for SIGINT handling
+
+    loop {
+        execution_iteration += 1;
+
+        // Check if we should continue based on run mode
+        let should_continue = match run_mode {
+            RunMode::Bounded(max) => {
+                if execution_iteration > max {
+                    println!("  {} Reached maximum iterations ({}). Stopping execution.", "→".yellow(), max);
+                    break;
+                }
+                execution_iteration <= max
+            }
+            RunMode::Continuous => {
+                if execution_iteration > CONTINUOUS_SANITY_LIMIT {
+                    println!("  {} Reached sanity limit ({}). Stopping execution.", "→".yellow(), CONTINUOUS_SANITY_LIMIT);
+                    break;
+                }
+                true
+            }
+        };
+
+        // Check if all tasks are complete
+        if !executor.has_incomplete_tasks(manifest) {
+            println!("  {} All tasks completed. Execution finished.", "✓".green());
+            break;
+        }
+
+        // Check abort flag (for SIGINT handling in Task 5)
+        if abort_requested {
+            break;
+        }
+
+        // Execute each iteration
+        for iter_id in &iteration_ids {
         let iteration = manifest
             .get_iteration(&iter_id)
             .ok_or_else(|| anyhow::anyhow!("Iteration not found: {}", iter_id))?;
@@ -438,6 +483,13 @@ async fn execute_plan(
         }
 
         println!();
+
+        // Re-evaluate manifest state after each execution cycle
+        // Save manifest to persist progress
+        executor.save_manifest(manifest, manifest_path)?;
+
+        // Check again if we should continue (tasks might have been completed in this cycle)
+        // The loop will check conditions at the start of the next iteration
     }
 
     Ok(())

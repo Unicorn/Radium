@@ -37,6 +37,15 @@ pub enum ExecutionError {
 /// Result type for plan execution operations.
 pub type Result<T> = std::result::Result<T, ExecutionError>;
 
+/// Execution mode for plan execution.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RunMode {
+    /// Bounded execution with a maximum iteration limit.
+    Bounded(usize),
+    /// Continuous execution until all tasks are complete (with sanity limit).
+    Continuous,
+}
+
 /// Configuration for plan execution.
 #[derive(Debug, Clone)]
 pub struct ExecutionConfig {
@@ -54,6 +63,9 @@ pub struct ExecutionConfig {
 
     /// Optional context files content to inject into prompts.
     pub context_files: Option<String>,
+
+    /// Execution mode (bounded or continuous).
+    pub run_mode: RunMode,
 }
 
 impl Default for ExecutionConfig {
@@ -64,6 +76,7 @@ impl Default for ExecutionConfig {
             check_dependencies: true,
             state_path: std::path::PathBuf::from("plan/plan_manifest.json"),
             context_files: None,
+            run_mode: RunMode::Bounded(5),
         }
     }
 }
@@ -310,6 +323,19 @@ impl PlanExecutor {
         #[allow(clippy::cast_precision_loss)]
         let percentage = (completed_tasks as f64 / total_tasks as f64) * 100.0;
         percentage as u32
+    }
+
+    /// Checks if there are any incomplete tasks in the manifest.
+    ///
+    /// # Arguments
+    /// * `manifest` - The plan manifest to check
+    ///
+    /// # Returns
+    /// `true` if there are any pending or in-progress tasks, `false` otherwise
+    pub fn has_incomplete_tasks(&self, manifest: &PlanManifest) -> bool {
+        manifest.iterations.iter().any(|iteration| {
+            iteration.tasks.iter().any(|task| !task.completed)
+        })
     }
 }
 

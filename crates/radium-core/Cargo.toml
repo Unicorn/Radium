@@ -67,6 +67,9 @@ reqwest = { version = "0.12", features = ["json", "stream", "blocking"] }
 # Temporary files
 tempfile = "3.8"
 
+# Graph algorithms
+petgraph = "0.6"
+
 # Internal crates
 radium-abstraction.workspace = true
 radium-models.workspace = true
