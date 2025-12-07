@@ -15,4 +15,4 @@ premium = "gemini-1.5-pro"
 
 [agent.persona.performance]
 profile = "thinking"
-estimated_tokens = 2000
+estimated_tokens = 8000

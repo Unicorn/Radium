@@ -10,9 +10,9 @@ reasoning_effort = "medium"
 [agent.persona]
 [agent.persona.models]
 primary = "gemini-2.0-flash-exp"
-fallback = "gemini-2.0-flash-thinking"
-premium = "gemini-1.5-pro"
+fallback = "gpt-4o-mini"
+premium = "gpt-4o"
 
 [agent.persona.performance]
 profile = "balanced"
-estimated_tokens = 1500
+estimated_tokens = 4000
