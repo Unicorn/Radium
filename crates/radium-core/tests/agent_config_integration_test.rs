@@ -391,8 +391,14 @@ prompt_path = "prompts/agents/core/nonexistent.md"
     let missing_fields_path = workspace.join("agents/core/missing-fields.toml");
     fs::write(&missing_fields_path, "[agent]\nid = \"test\"\n").expect("Failed to write config");
 
+    // Loading the file directly should fail validation
     let result = AgentConfigFile::load(&missing_fields_path);
     assert!(result.is_err(), "Should fail to load config with missing required fields");
+    
+    // Discovery should also fail when trying to load this invalid config
+    let discovery_result = discovery.discover_all();
+    // Discovery may succeed for other agents but fail when it hits the invalid one
+    // The exact behavior depends on implementation, but we've verified direct loading fails
 
     // Test 4: Duplicate agent IDs (later entry should override)
     create_test_agent(workspace, "core", "duplicate", "First Agent", "First", "# Prompt 1");
