@@ -67,27 +67,27 @@ async fn install_extension(
     let manager = ExtensionManager::new()?;
 
     // Check if source is a marketplace name (not a path or URL)
-    let actual_source = if !source.starts_with("http://") 
-        && !source.starts_with("https://") 
-        && !Path::new(source).exists() 
-        && !source.contains('/') 
+    let actual_source: String = if !source.starts_with("http://")
+        && !source.starts_with("https://")
+        && !Path::new(source).exists()
+        && !source.contains('/')
         && !source.contains('\\')
-        && !source.ends_with(".tar.gz") 
+        && !source.ends_with(".tar.gz")
         && !source.ends_with(".zip") {
         // Likely a marketplace name, try to fetch from marketplace
         let mut marketplace_client = MarketplaceClient::new().unwrap_or_else(|_| {
             MarketplaceClient::with_url("http://localhost:8080".to_string()).unwrap()
         });
-        
+
         if let Ok(Some(extension_info)) = marketplace_client.get_extension_info(source) {
             println!("{}", format!("Found extension '{}' in marketplace", source).green());
             println!("{}", format!("Downloading from: {}", extension_info.download_url).bright_black());
-            &extension_info.download_url
+            extension_info.download_url
         } else {
-            source
+            source.to_string()
         }
     } else {
-        source
+        source.to_string()
     };
 
     println!("{}", format!("Installing extension from: {}", actual_source).yellow());
@@ -892,8 +892,9 @@ async fn publish_extension(
     }
 
     // Get API key
+    let env_api_key = std::env::var("RADIUM_MARKETPLACE_API_KEY").ok();
     let api_key = api_key
-        .or_else(|| std::env::var("RADIUM_MARKETPLACE_API_KEY").ok().as_deref())
+        .or_else(|| env_api_key.as_deref())
         .ok_or_else(|| {
             anyhow::anyhow!(
                 "API key required. Provide --api-key or set RADIUM_MARKETPLACE_API_KEY environment variable"

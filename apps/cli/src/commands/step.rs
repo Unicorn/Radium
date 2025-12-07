@@ -92,14 +92,16 @@ pub async fn execute(
     
     // Load config after engines are registered
     let _ = registry.load_config();
-    
+
+    // Get default engine ID if available
+    let default_engine = registry.get_default().ok();
+    let default_engine_id = default_engine.as_ref().map(|e| e.metadata().id.as_str());
+
     // Resolve engine: CLI flag → Agent config → Default engine → "mock"
     let selected_engine = engine
         .as_deref()
         .or_else(|| agent.engine.as_deref())
-        .or_else(|| {
-            registry.get_default().ok().map(|e| e.metadata().id.as_str())
-        })
+        .or_else(|| default_engine_id)
         .unwrap_or("mock");
     let selected_model = model.as_deref().unwrap_or(agent.model.as_deref().unwrap_or("default"));
     let selected_reasoning =

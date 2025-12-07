@@ -26,7 +26,6 @@ pub async fn execute(command: ContextCommand) -> Result<()> {
         ContextCommand::ValidateSources { sources } => validate_sources(sources).await,
         ContextCommand::Memory { agent_id, req } => show_memory(agent_id.as_deref(), req.as_deref()).await,
         ContextCommand::Commands => list_custom_commands().await,
-        ContextCommand::Metrics { json } => show_metrics(json).await,
         ContextCommand::Init {
             template,
             global,

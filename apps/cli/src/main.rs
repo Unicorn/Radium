@@ -398,18 +398,17 @@ async fn main() -> anyhow::Result<()> {
     // Handle completion generation
     if let Ok(shell) = std::env::var("RADIUM_GENERATE_COMPLETIONS") {
         let mut cmd = Args::command();
-        let shell_type = match shell.as_str() {
-            "bash" => shells::Bash,
-            "zsh" => shells::Zsh,
-            "fish" => shells::Fish,
-            "powershell" => shells::PowerShell,
-            "elvish" => shells::Elvish,
+        match shell.as_str() {
+            "bash" => generate(shells::Bash, &mut cmd, "rad", &mut std::io::stdout()),
+            "zsh" => generate(shells::Zsh, &mut cmd, "rad", &mut std::io::stdout()),
+            "fish" => generate(shells::Fish, &mut cmd, "rad", &mut std::io::stdout()),
+            "powershell" => generate(shells::PowerShell, &mut cmd, "rad", &mut std::io::stdout()),
+            "elvish" => generate(shells::Elvish, &mut cmd, "rad", &mut std::io::stdout()),
             _ => {
                 eprintln!("Unknown shell: {}. Supported: bash, zsh, fish, powershell, elvish", shell);
                 std::process::exit(1);
             }
         };
-        generate(shell_type, &mut cmd, "rad", &mut std::io::stdout());
         return Ok(());
     }
 

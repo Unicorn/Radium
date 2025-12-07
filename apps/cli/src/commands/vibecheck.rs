@@ -6,10 +6,10 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use radium_core::{
     context::ContextManager,
-    oversight::{MetacognitiveService, OversightRequest},
+    oversight::{MetacognitiveService, OversightRequest, WorkflowPhase as OversightWorkflowPhase},
     policy::ConstitutionManager,
     workspace::Workspace,
-    workflow::behaviors::vibe_check::{VibeCheckContext, WorkflowPhase},
+    workflow::behaviors::vibe_check::{VibeCheckContext, WorkflowPhase as VibeCheckWorkflowPhase},
 };
 use radium_abstraction::Model;
 use radium_models::ModelFactory;
@@ -38,11 +38,18 @@ pub async fn execute(
     let context_manager = ContextManager::new(&workspace);
 
     // Determine workflow phase
-    let workflow_phase = match phase.as_deref() {
-        Some("planning") => WorkflowPhase::Planning,
-        Some("implementation") => WorkflowPhase::Implementation,
-        Some("review") => WorkflowPhase::Review,
-        _ => WorkflowPhase::Implementation, // Default
+    let vibe_check_phase = match phase.as_deref() {
+        Some("planning") => VibeCheckWorkflowPhase::Planning,
+        Some("implementation") => VibeCheckWorkflowPhase::Implementation,
+        Some("review") => VibeCheckWorkflowPhase::Review,
+        _ => VibeCheckWorkflowPhase::Implementation, // Default
+    };
+
+    let oversight_phase = match phase.as_deref() {
+        Some("planning") => OversightWorkflowPhase::Planning,
+        Some("implementation") => OversightWorkflowPhase::Implementation,
+        Some("review") => OversightWorkflowPhase::Review,
+        _ => OversightWorkflowPhase::Implementation, // Default
     };
 
     // Get goal and plan from args or workspace
@@ -58,7 +65,7 @@ pub async fn execute(
     });
 
     // Build vibe check context
-    let mut vibe_context = VibeCheckContext::new(workflow_phase)
+    let mut vibe_context = VibeCheckContext::new(vibe_check_phase)
         .with_goal(goal.clone())
         .with_plan(plan.clone());
 
@@ -81,7 +88,7 @@ pub async fn execute(
     let constitution_manager = ConstitutionManager::new();
 
     // Build oversight request
-    let mut oversight_request = OversightRequest::new(workflow_phase, goal, plan);
+    let mut oversight_request = OversightRequest::new(oversight_phase, goal, plan);
 
     if let Some(progress) = vibe_context.progress.clone() {
         oversight_request = oversight_request.with_progress(progress);

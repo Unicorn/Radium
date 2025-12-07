@@ -38,9 +38,10 @@ pub async fn execute(goal: String) -> Result<()> {
 
     // Initialize model selector and get model
     let mut model_selector = ModelSelector::new();
+    let default_metadata = radium_core::agents::AgentMetadata::default();
     let model = model_selector
         .select_model(&radium_core::models::selector::SelectionOptions {
-            agent_metadata: None,
+            agent_metadata: &default_metadata,
             estimated_prompt_tokens: None,
             estimated_completion_tokens: None,
             allow_premium_without_approval: false,

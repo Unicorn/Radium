@@ -277,5 +277,245 @@ mod tests {
         let result = selector.select_with_fallback(&persona).unwrap();
         assert_eq!(result.model.model, "primary");
     }
+
+    #[test]
+    fn test_model_selector_balanced_profile() {
+        let selector = DefaultModelSelector::new();
+        let persona = PersonaConfig::new("gemini", "gemini-2.0-flash-exp")
+            .with_performance_profile(PerformanceProfile::Balanced);
+
+        let result = selector.select_model(&persona, false).unwrap();
+        assert_eq!(result.model.engine, "gemini");
+        assert_eq!(result.model.model, "gemini-2.0-flash-exp");
+    }
+
+    #[test]
+    fn test_model_selector_balanced_profile_with_premium() {
+        let selector = DefaultModelSelector::new();
+        let persona = PersonaConfig::with_models(
+            SimpleModelRecommendation {
+                engine: "gemini".to_string(),
+                model: "gemini-2.0-flash-exp".to_string(),
+            },
+            None,
+            Some(SimpleModelRecommendation {
+                engine: "openai".to_string(),
+                model: "gpt-4".to_string(),
+            }),
+        ).with_performance_profile(PerformanceProfile::Balanced);
+
+        let result = selector.select_model(&persona, true).unwrap();
+        assert_eq!(result.model.engine, "openai");
+        assert_eq!(result.model.model, "gpt-4");
+    }
+
+    #[test]
+    fn test_model_selector_balanced_profile_no_premium() {
+        let selector = DefaultModelSelector::new();
+        let persona = PersonaConfig::new("gemini", "gemini-2.0-flash-exp")
+            .with_performance_profile(PerformanceProfile::Balanced);
+
+        let result = selector.select_model(&persona, true);
+        // When use_premium is true but no premium model, should return error
+        assert!(matches!(result, Err(SelectionError::NoModelAvailable)));
+    }
+
+    #[test]
+    fn test_model_selector_thinking_profile() {
+        let selector = DefaultModelSelector::new();
+        let persona = PersonaConfig::with_models(
+            SimpleModelRecommendation {
+                engine: "gemini".to_string(),
+                model: "gemini-2.0-flash-exp".to_string(),
+            },
+            None,
+            Some(SimpleModelRecommendation {
+                engine: "openai".to_string(),
+                model: "o1-preview".to_string(),
+            }),
+        ).with_performance_profile(PerformanceProfile::Thinking);
+
+        let result = selector.select_model(&persona, false).unwrap();
+        assert_eq!(result.model.engine, "openai");
+        assert_eq!(result.model.model, "o1-preview");
+    }
+
+    #[test]
+    fn test_model_selector_thinking_profile_no_premium() {
+        let selector = DefaultModelSelector::new();
+        let persona = PersonaConfig::new("gemini", "gemini-2.0-flash-exp")
+            .with_performance_profile(PerformanceProfile::Thinking);
+
+        let result = selector.select_model(&persona, false).unwrap();
+        // Should use primary when premium not available
+        assert_eq!(result.model.engine, "gemini");
+    }
+
+    #[test]
+    fn test_model_selector_expert_profile() {
+        let selector = DefaultModelSelector::new();
+        let persona = PersonaConfig::with_models(
+            SimpleModelRecommendation {
+                engine: "gemini".to_string(),
+                model: "gemini-2.0-flash-exp".to_string(),
+            },
+            None,
+            Some(SimpleModelRecommendation {
+                engine: "openai".to_string(),
+                model: "gpt-4-turbo".to_string(),
+            }),
+        ).with_performance_profile(PerformanceProfile::Expert);
+
+        let result = selector.select_model(&persona, false).unwrap();
+        assert_eq!(result.model.engine, "openai");
+        assert_eq!(result.model.model, "gpt-4-turbo");
+    }
+
+    #[test]
+    fn test_model_selector_expert_profile_no_premium() {
+        let selector = DefaultModelSelector::new();
+        let persona = PersonaConfig::new("gemini", "gemini-2.0-flash-exp")
+            .with_performance_profile(PerformanceProfile::Expert);
+
+        let result = selector.select_model(&persona, false);
+        assert!(matches!(result, Err(SelectionError::NoModelAvailable)));
+    }
+
+    #[test]
+    fn test_model_selector_estimate_cost() {
+        let selector = DefaultModelSelector::new();
+        let model = SimpleModelRecommendation {
+            engine: "gemini".to_string(),
+            model: "gemini-2.0-flash-exp".to_string(),
+        };
+        
+        let cost = selector.estimate_cost(&model, Some(1000));
+        assert!(cost >= 0.0);
+    }
+
+    #[test]
+    fn test_model_selector_estimate_cost_default_tokens() {
+        let selector = DefaultModelSelector::new();
+        let model = SimpleModelRecommendation {
+            engine: "gemini".to_string(),
+            model: "gemini-2.0-flash-exp".to_string(),
+        };
+        
+        let cost = selector.estimate_cost(&model, None);
+        assert!(cost >= 0.0);
+    }
+
+    #[test]
+    fn test_model_selector_result_reason() {
+        let selector = DefaultModelSelector::new();
+        let persona = PersonaConfig::new("gemini", "gemini-2.0-flash-exp")
+            .with_performance_profile(PerformanceProfile::Speed);
+
+        let result = selector.select_model(&persona, false).unwrap();
+        // Reason format is "Selected based on {profile} profile"
+        assert!(result.reason.contains("profile") || result.reason.contains("Speed") || result.reason.contains("speed"));
+        assert!(result.estimated_cost >= 0.0);
+    }
+
+    #[test]
+    fn test_fallback_chain_selector_with_fallback() {
+        let selector = FallbackChainSelector::new();
+        let persona = PersonaConfig::with_models(
+            SimpleModelRecommendation {
+                engine: "gemini".to_string(),
+                model: "primary".to_string(),
+            },
+            Some(SimpleModelRecommendation {
+                engine: "openai".to_string(),
+                model: "fallback".to_string(),
+            }),
+            None,
+        );
+
+        let result = selector.select_with_fallback(&persona).unwrap();
+        assert_eq!(result.model.model, "primary");
+        assert!(result.reason.contains("primary"));
+    }
+
+    #[test]
+    fn test_fallback_chain_selector_no_models() {
+        let selector = FallbackChainSelector::new();
+        let persona = PersonaConfig::with_models(
+            SimpleModelRecommendation {
+                engine: "gemini".to_string(),
+                model: "primary".to_string(),
+            },
+            None,
+            None,
+        );
+
+        let result = selector.select_with_fallback(&persona).unwrap();
+        assert_eq!(result.model.model, "primary");
+    }
+
+    #[test]
+    fn test_fallback_chain_selector_with_premium() {
+        let selector = FallbackChainSelector::new();
+        let persona = PersonaConfig::with_models(
+            SimpleModelRecommendation {
+                engine: "gemini".to_string(),
+                model: "primary".to_string(),
+            },
+            Some(SimpleModelRecommendation {
+                engine: "openai".to_string(),
+                model: "fallback".to_string(),
+            }),
+            Some(SimpleModelRecommendation {
+                engine: "claude".to_string(),
+                model: "premium".to_string(),
+            }),
+        );
+
+        let result = selector.select_with_fallback(&persona).unwrap();
+        assert_eq!(result.model.model, "primary");
+    }
+
+    #[test]
+    fn test_selection_error_display() {
+        let error = SelectionError::NoModelAvailable;
+        let msg = format!("{}", error);
+        assert!(msg.contains("no model available"));
+
+        let error = SelectionError::ModelNotFound("test-model".to_string());
+        let msg = format!("{}", error);
+        assert!(msg.contains("test-model"));
+
+        let error = SelectionError::InvalidConfiguration("test".to_string());
+        let msg = format!("{}", error);
+        assert!(msg.contains("invalid configuration"));
+    }
+
+    #[test]
+    fn test_default_model_selector_new() {
+        let selector = DefaultModelSelector::new();
+        // Just verify it doesn't panic
+        assert!(true);
+    }
+
+    #[test]
+    fn test_default_model_selector_default() {
+        let selector = DefaultModelSelector::default();
+        // Just verify it doesn't panic
+        assert!(true);
+    }
+
+    #[test]
+    fn test_fallback_chain_selector_new() {
+        let selector = FallbackChainSelector::new();
+        // Just verify it doesn't panic
+        assert!(true);
+    }
+
+    #[test]
+    fn test_fallback_chain_selector_default() {
+        let selector = FallbackChainSelector::default();
+        // Just verify it doesn't panic
+        assert!(true);
+    }
 }
 

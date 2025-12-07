@@ -191,7 +191,8 @@ async fn list_policies(json: bool, verbose: bool) -> anyhow::Result<()> {
         .get("approval_mode")
         .and_then(|v| v.as_str())
         .unwrap_or("ask");
-    let rules = config.get("rules").and_then(|v| v.as_array()).unwrap_or(&vec![]);
+    let empty_rules = vec![];
+    let rules = config.get("rules").and_then(|v| v.as_array()).unwrap_or(&empty_rules);
 
     if json {
         let rules_json: Vec<serde_json::Value> = rules

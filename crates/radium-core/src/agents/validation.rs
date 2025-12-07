@@ -229,5 +229,288 @@ mod tests {
             Err(ValidationError::InvalidValue { .. })
         ));
     }
+
+    #[test]
+    fn test_config_validator_id_starts_with_hyphen() {
+        let validator = ConfigValidator;
+        let mut config = create_test_config();
+        config.id = "-invalid-id".to_string();
+        let result = validator.validate(&config);
+        assert!(matches!(result, Err(ValidationError::InvalidValue { .. })));
+        if let Err(ValidationError::InvalidValue { field, reason }) = result {
+            assert_eq!(field, "id");
+            assert!(reason.contains("hyphen"));
+        }
+    }
+
+    #[test]
+    fn test_config_validator_id_ends_with_hyphen() {
+        let validator = ConfigValidator;
+        let mut config = create_test_config();
+        config.id = "invalid-id-".to_string();
+        let result = validator.validate(&config);
+        assert!(matches!(result, Err(ValidationError::InvalidValue { .. })));
+    }
+
+    #[test]
+    fn test_config_validator_id_with_uppercase() {
+        let validator = ConfigValidator;
+        let mut config = create_test_config();
+        config.id = "Invalid-Id".to_string();
+        assert!(matches!(
+            validator.validate(&config),
+            Err(ValidationError::InvalidValue { .. })
+        ));
+    }
+
+    #[test]
+    fn test_config_validator_id_with_special_chars() {
+        let validator = ConfigValidator;
+        let mut config = create_test_config();
+        config.id = "invalid_id".to_string(); // underscore not allowed
+        assert!(matches!(
+            validator.validate(&config),
+            Err(ValidationError::InvalidValue { .. })
+        ));
+    }
+
+    #[test]
+    fn test_config_validator_id_with_spaces() {
+        let validator = ConfigValidator;
+        let mut config = create_test_config();
+        config.id = "invalid id".to_string();
+        assert!(matches!(
+            validator.validate(&config),
+            Err(ValidationError::InvalidValue { .. })
+        ));
+    }
+
+    #[test]
+    fn test_config_validator_valid_id_with_numbers() {
+        let validator = ConfigValidator;
+        let mut config = create_test_config();
+        config.id = "agent-123".to_string();
+        assert!(validator.validate(&config).is_ok());
+    }
+
+    #[test]
+    fn test_config_validator_valid_id_multiple_hyphens() {
+        let validator = ConfigValidator;
+        let mut config = create_test_config();
+        config.id = "my-test-agent-123".to_string();
+        assert!(validator.validate(&config).is_ok());
+    }
+
+    #[test]
+    fn test_config_validator_empty_name() {
+        let validator = ConfigValidator;
+        let mut config = create_test_config();
+        config.name = String::new();
+        assert!(matches!(
+            validator.validate(&config),
+            Err(ValidationError::MissingField(_))
+        ));
+    }
+
+    #[test]
+    fn test_config_validator_empty_prompt_path() {
+        let validator = ConfigValidator;
+        let mut config = create_test_config();
+        config.prompt_path = PathBuf::new();
+        assert!(matches!(
+            validator.validate(&config),
+            Err(ValidationError::MissingField(_))
+        ));
+    }
+
+    #[test]
+    fn test_prompt_validator_new() {
+        let validator = PromptValidator::new();
+        assert!(validator.base_dir.is_none());
+    }
+
+    #[test]
+    fn test_prompt_validator_with_base_dir() {
+        let base = PathBuf::from("/test/base");
+        let validator = PromptValidator::with_base_dir(&base);
+        assert_eq!(validator.base_dir, Some(base));
+    }
+
+    #[test]
+    fn test_prompt_validator_nonexistent_file() {
+        let validator = PromptValidator::new();
+        let path = PathBuf::from("/nonexistent/file.md");
+        let result = validator.validate_prompt_path(&path, None);
+        assert!(matches!(result, Err(ValidationError::PromptFile(_))));
+    }
+
+    #[test]
+    fn test_prompt_validator_absolute_path() {
+        use tempfile::TempDir;
+        use std::fs;
+        
+        let temp = TempDir::new().unwrap();
+        let prompt_file = temp.path().join("prompt.md");
+        fs::write(&prompt_file, "# Test Prompt").unwrap();
+
+        let validator = PromptValidator::new();
+        let result = validator.validate_prompt_path(&prompt_file, None);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_prompt_validator_relative_path_with_config_dir() {
+        use tempfile::TempDir;
+        use std::fs;
+        
+        let temp = TempDir::new().unwrap();
+        let config_dir = temp.path().join("agents");
+        fs::create_dir_all(&config_dir).unwrap();
+        let prompt_file = config_dir.join("prompt.md");
+        fs::write(&prompt_file, "# Test Prompt").unwrap();
+
+        let validator = PromptValidator::new();
+        let config_path = config_dir.join("agent.toml");
+        let result = validator.validate_prompt_path(Path::new("prompt.md"), Some(&config_path));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_prompt_validator_relative_path_with_base_dir() {
+        use tempfile::TempDir;
+        use std::fs;
+        
+        let temp = TempDir::new().unwrap();
+        let base_dir = temp.path();
+        let prompt_file = base_dir.join("prompt.md");
+        fs::write(&prompt_file, "# Test Prompt").unwrap();
+
+        let validator = PromptValidator::with_base_dir(base_dir);
+        let result = validator.validate_prompt_path(Path::new("prompt.md"), None);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_prompt_validator_path_is_directory() {
+        use tempfile::TempDir;
+        
+        let temp = TempDir::new().unwrap();
+        let dir_path = temp.path();
+
+        let validator = PromptValidator::new();
+        let result = validator.validate_prompt_path(dir_path, None);
+        assert!(matches!(result, Err(ValidationError::PromptFile(_))));
+        if let Err(ValidationError::PromptFile(msg)) = result {
+            assert!(msg.contains("not a file"));
+        }
+    }
+
+    #[test]
+    fn test_prompt_validator_unreadable_file() {
+        use tempfile::TempDir;
+        use std::fs;
+        #[cfg(unix)]
+        use std::os::unix::fs::PermissionsExt;
+        
+        let temp = TempDir::new().unwrap();
+        let prompt_file = temp.path().join("prompt.md");
+        fs::write(&prompt_file, "# Test").unwrap();
+        
+        #[cfg(unix)]
+        {
+            let mut perms = fs::metadata(&prompt_file).unwrap().permissions();
+            perms.set_mode(0o000);
+            fs::set_permissions(&prompt_file, perms).unwrap();
+        }
+
+        let validator = PromptValidator::new();
+        let result = validator.validate_prompt_path(&prompt_file, None);
+        // On Unix, this should fail with I/O error; on Windows, it might succeed
+        #[cfg(unix)]
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_agent_validator_impl_new() {
+        let validator = AgentValidatorImpl::new();
+        assert!(validator.prompt_validator.base_dir.is_none());
+    }
+
+    #[test]
+    fn test_agent_validator_impl_with_base_dir() {
+        let base = PathBuf::from("/test/base");
+        let validator = AgentValidatorImpl::with_base_dir(&base);
+        assert_eq!(validator.prompt_validator.base_dir, Some(base));
+    }
+
+    #[test]
+    fn test_agent_validator_impl_validate_config_only() {
+        use tempfile::TempDir;
+        use std::fs;
+        
+        let temp = TempDir::new().unwrap();
+        let prompt_file = temp.path().join("prompt.md");
+        fs::write(&prompt_file, "# Test").unwrap();
+
+        let mut config = create_test_config();
+        config.prompt_path = prompt_file.clone();
+
+        let validator = AgentValidatorImpl::new();
+        let config_path = temp.path().join("agent.toml");
+        let result = validator.validate(&config, Some(&config_path));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_agent_validator_impl_validate_invalid_config() {
+        let mut config = create_test_config();
+        config.id = String::new();
+
+        let validator = AgentValidatorImpl::new();
+        let result = validator.validate(&config, None);
+        assert!(matches!(result, Err(ValidationError::MissingField(_))));
+    }
+
+    #[test]
+    fn test_agent_validator_impl_validate_missing_prompt() {
+        let config = create_test_config();
+        let validator = AgentValidatorImpl::new();
+        let result = validator.validate(&config, None);
+        assert!(matches!(result, Err(ValidationError::PromptFile(_))));
+    }
+
+    #[test]
+    fn test_validation_error_display() {
+        let error = ValidationError::MissingField("test".to_string());
+        let msg = format!("{}", error);
+        assert!(msg.contains("missing required field"));
+        assert!(msg.contains("test"));
+    }
+
+    #[test]
+    fn test_validation_error_invalid_value() {
+        let error = ValidationError::InvalidValue {
+            field: "id".to_string(),
+            reason: "test reason".to_string(),
+        };
+        let msg = format!("{}", error);
+        assert!(msg.contains("invalid field value"));
+        assert!(msg.contains("id"));
+        assert!(msg.contains("test reason"));
+    }
+
+    #[test]
+    fn test_validation_error_from_config_error() {
+        let config_error = AgentConfigError::Invalid("test".to_string());
+        let validation_error: ValidationError = config_error.into();
+        assert!(matches!(validation_error, ValidationError::Config(_)));
+    }
+
+    #[test]
+    fn test_validation_error_from_io_error() {
+        let io_error = std::io::Error::new(std::io::ErrorKind::NotFound, "test");
+        let validation_error: ValidationError = io_error.into();
+        assert!(matches!(validation_error, ValidationError::Io(_)));
+    }
 }
 
