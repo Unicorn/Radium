@@ -33,6 +33,7 @@ pub struct ClientHelper {
     /// Whether to use embedded server (can be disabled via env var)
     use_embedded: bool,
     /// Embedded server instance (if using embedded mode)
+    #[cfg(feature = "orchestrator-integration")]
     embedded_server: Option<EmbeddedServer>,
 }
 
