@@ -26,7 +26,9 @@ pub use lifecycle::{AgentLifecycle, AgentState};
 pub use orchestration::{
     FinishReason, OrchestrationProvider, OrchestrationResult,
     agent_tools::{AgentMetadata as OrchestrationAgentMetadata, AgentToolRegistry},
+    config::{OrchestrationConfig, ProviderType, GeminiConfig, ClaudeConfig, OpenAIConfig, PromptBasedConfig, FallbackConfig},
     context::{Message, OrchestrationContext, UserPreferences},
+    service::{OrchestrationService, SessionState},
     tool::{Tool, ToolArguments, ToolCall, ToolHandler, ToolParameters, ToolResult},
 };
 pub use plugin::{InMemoryPlugin, Plugin, PluginLoader, PluginMetadata};
