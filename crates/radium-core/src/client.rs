@@ -204,6 +204,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(unsafe_code)] // Test-only: setting env vars for isolated test
     fn test_client_helper_embedded_disabled() {
         unsafe {
             std::env::set_var("RADIUM_DISABLE_EMBEDDED_SERVER", "true");
@@ -216,6 +217,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(unsafe_code)] // Test-only: setting env vars for isolated test
     async fn test_client_helper_connect_with_embedded() {
         // Find an available port
         use std::net::TcpListener;
@@ -244,6 +246,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(unsafe_code)] // Test-only: setting env vars for isolated test
     async fn test_client_helper_shutdown() {
         // Find an available port
         use std::net::TcpListener;

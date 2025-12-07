@@ -240,13 +240,13 @@ impl ExtensionManifest {
     /// Checks if an extension name is valid.
     fn is_valid_name(name: &str) -> bool {
         // Allow alphanumeric, dash, underscore
-        // Must start with alphanumeric
+        // Must start with a letter (not a digit)
         if name.is_empty() {
             return false;
         }
 
         let first_char = name.chars().next().unwrap();
-        if !first_char.is_ascii_alphanumeric() {
+        if !first_char.is_ascii_alphabetic() {
             return false;
         }
 
