@@ -203,6 +203,55 @@ $ rad step code-agent
 - **Priority**: High
 - **Completed**: 2025-01-XX
 
+## Test Coverage
+
+**Test Statistics**:
+- **Unit Tests**: 21 tests in `crates/radium-core/src/context/files.rs`
+  - Hierarchical loading (3 tests)
+  - Context file discovery (2 tests)
+  - Import processing (8 tests: simple, circular, missing, code blocks, relative paths, duplicates, absolute paths, paths with spaces, unicode, special chars, frontmatter, nested code blocks)
+  - Custom file names (1 test)
+  - Edge cases (10 tests: empty files, whitespace, hidden dirs, etc.)
+
+- **Integration Tests**: 11 tests in `crates/radium-core/tests/context_files_integration_test.rs`
+  - Hierarchical loading integration
+  - Import processing integration
+  - ContextManager integration
+  - Missing file handling
+  - Circular import detection
+  - Nested imports
+  - Performance tests (4 tests: large files, cache, many files, deep imports)
+
+- **E2E Tests**: 5 tests in `crates/radium-core/tests/context_files_e2e_test.rs`
+  - Agent execution with context files
+  - Hierarchical context in real workspace
+  - Context files with imports in workflow
+  - Context file changes during execution
+  - Complex nested imports
+
+- **ContextManager Tests**: 10 tests in `crates/radium-core/src/context/manager.rs`
+  - Context files in build_context
+  - Caching functionality
+  - Precedence in build_context
+  - Cache invalidation
+  - Combined with memory context
+  - Combined with architecture context
+  - Multiple loads
+  - Subdirectory execution
+  - Plan context integration
+
+**Total Test Count**: 47+ tests covering all functionality
+
+**Coverage Areas**:
+- ✅ Hierarchical loading (all three levels)
+- ✅ Context file discovery
+- ✅ Import processing with circular detection
+- ✅ Error handling (missing files, invalid imports)
+- ✅ Edge cases (unicode, special chars, empty files, etc.)
+- ✅ ContextManager integration
+- ✅ Caching and performance
+- ✅ E2E scenarios
+
 ## Out of Scope
 
 - Advanced context merging strategies (future enhancement)

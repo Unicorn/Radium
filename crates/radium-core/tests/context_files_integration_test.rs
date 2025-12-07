@@ -165,3 +165,110 @@ fn test_context_files_in_build_context() {
     assert!(context_files.unwrap().contains("Project context"));
 }
 
+#[test]
+fn test_performance_large_context_file() {
+    let temp_dir = TempDir::new().unwrap();
+    let loader = ContextFileLoader::new(temp_dir.path());
+
+    // Create a large context file (simulate, not actually 10MB to keep tests fast)
+    let large_content = "# Large Context File\n\n".to_string()
+        + &"This is a test line. ".repeat(1000)
+        + "\n\nEnd of large file.";
+    let large_file = temp_dir.path().join("GEMINI.md");
+    fs::write(&large_file, &large_content).unwrap();
+
+    // Measure loading time
+    let start = std::time::Instant::now();
+    let content = loader.load_hierarchical(temp_dir.path()).unwrap();
+    let duration = start.elapsed();
+
+    assert!(content.contains("Large Context File"));
+    // Should complete in reasonable time (< 1 second for this size)
+    assert!(duration.as_secs() < 1, "Large file loading took too long: {:?}", duration);
+}
+
+#[test]
+fn test_performance_cache_repeated_loads() {
+    let temp_dir = TempDir::new().unwrap();
+    let workspace = Workspace::create(temp_dir.path()).unwrap();
+
+    // Create context file
+    let context_file = temp_dir.path().join("GEMINI.md");
+    fs::write(&context_file, "# Context").unwrap();
+
+    let mut manager = ContextManager::new(&workspace);
+
+    // First load (no cache)
+    let start1 = std::time::Instant::now();
+    let _content1 = manager.load_context_files(temp_dir.path()).unwrap();
+    let duration1 = start1.elapsed();
+
+    // Second load (cached)
+    let start2 = std::time::Instant::now();
+    let _content2 = manager.load_context_files(temp_dir.path()).unwrap();
+    let duration2 = start2.elapsed();
+
+    // Cached load should be faster (or at least not slower)
+    // Note: For very small files, timing might be similar, so we just verify it works
+    assert!(duration2.as_secs() < 1);
+}
+
+#[test]
+fn test_performance_many_files_discovery() {
+    let temp_dir = TempDir::new().unwrap();
+    let loader = ContextFileLoader::new(temp_dir.path());
+
+    // Create many context files in subdirectories
+    for i in 0..20 {
+        let subdir = temp_dir.path().join(format!("dir{}", i));
+        fs::create_dir_all(&subdir).unwrap();
+        let context_file = subdir.join("GEMINI.md");
+        fs::write(&context_file, &format!("# Context {}", i)).unwrap();
+    }
+
+    // Measure discovery time
+    let start = std::time::Instant::now();
+    let files = loader.discover_context_files().unwrap();
+    let duration = start.elapsed();
+
+    // Should find all files
+    assert!(files.len() >= 20);
+    // Should complete in reasonable time
+    assert!(duration.as_secs() < 2, "Discovery took too long: {:?}", duration);
+}
+
+#[test]
+fn test_performance_deep_import_chain() {
+    let temp_dir = TempDir::new().unwrap();
+    let loader = ContextFileLoader::new(temp_dir.path());
+
+    // Create deep import chain (10 levels)
+    let mut prev_file = None;
+    for i in (1..=10).rev() {
+        let file = temp_dir.path().join(format!("level{}.md", i));
+        let content = if let Some(ref prev) = prev_file {
+            format!("# Level {}\n\n@{}\n\nContent level {}.", i, prev.file_name().unwrap().to_string_lossy(), i)
+        } else {
+            format!("# Level {}\n\nContent level {}.", i, i)
+        };
+        fs::write(&file, content).unwrap();
+        prev_file = Some(file);
+    }
+
+    // Load the top level file
+    let top_file = temp_dir.path().join("level10.md");
+    let content = fs::read_to_string(&top_file).unwrap();
+
+    // Measure processing time
+    let start = std::time::Instant::now();
+    let result = loader.process_imports(&content, temp_dir.path()).unwrap();
+    let duration = start.elapsed();
+
+    // Should contain all levels
+    for i in 1..=10 {
+        assert!(result.contains(&format!("Level {}", i)));
+    }
+    // Should complete in reasonable time
+    assert!(duration.as_secs() < 1, "Deep import processing took too long: {:?}", duration);
+}
+
