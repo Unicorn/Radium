@@ -357,3 +357,54 @@ fn test_session_storage_sessions_dir() {
     assert_eq!(sessions_dir, storage.sessions_dir(), "Should return same path on multiple calls");
 }
 
+#[test]
+fn test_session_storage_list_reports_paginated() {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let workspace_root = temp_dir.path();
+    
+    let storage = SessionStorage::new(workspace_root).expect("Failed to create storage");
+    
+    // Create 5 reports
+    for i in 1..=5 {
+        let report = create_test_report(&format!("session-{}", i));
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        storage.save_report(&report).expect(&format!("Failed to save report {}", i));
+    }
+    
+    // Test pagination: limit 2, offset 0
+    let reports = storage.list_reports_paginated(Some(2), Some(0)).expect("Failed to list reports");
+    assert_eq!(reports.len(), 2, "Should return 2 reports");
+    
+    // Test pagination: limit 2, offset 2
+    let reports = storage.list_reports_paginated(Some(2), Some(2)).expect("Failed to list reports");
+    assert_eq!(reports.len(), 2, "Should return 2 reports");
+    
+    // Test pagination: limit 2, offset 4
+    let reports = storage.list_reports_paginated(Some(2), Some(4)).expect("Failed to list reports");
+    assert_eq!(reports.len(), 1, "Should return 1 report");
+    
+    // Test no limit
+    let reports = storage.list_reports_paginated(None, None).expect("Failed to list reports");
+    assert_eq!(reports.len(), 5, "Should return all 5 reports");
+}
+
+#[test]
+fn test_session_storage_list_report_metadata() {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let workspace_root = temp_dir.path();
+    
+    let storage = SessionStorage::new(workspace_root).expect("Failed to create storage");
+    
+    // Create a report
+    let report = create_test_report("metadata-test-session");
+    storage.save_report(&report).expect("Failed to save report");
+    
+    // Get metadata
+    use radium_core::analytics::SessionMetadata;
+    let metadata = storage.list_report_metadata().expect("Failed to list metadata");
+    
+    assert_eq!(metadata.len(), 1, "Should return one metadata entry");
+    assert_eq!(metadata[0].session_id, "metadata-test-session");
+    assert_eq!(metadata[0].tool_calls, 10);
+}
+

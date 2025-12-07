@@ -584,6 +584,52 @@
         </div>
       </div>
       
+      <!-- Extensions page -->
+      <div id="extensions-page" class="page">
+        <h1 class="page-title">
+          Extensions
+          <button class="btn" id="install-extension-btn" onclick="installExtension()">Install Extension</button>
+        </h1>
+        
+        <!-- Search -->
+        <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; align-items: center;">
+          <div style="flex: 1;">
+            <input 
+              type="text" 
+              id="extension-search" 
+              placeholder="Search extensions..." 
+              style="width: 100%; padding: 0.75rem; background: rgba(0, 0, 0, 0.5); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: #fff; font-size: 1rem;"
+              onkeyup="if(event.key === 'Enter') searchExtensions()"
+            />
+          </div>
+          <button class="btn btn-small" onclick="searchExtensions()">Search</button>
+          <button class="btn btn-small" onclick="loadExtensions()">Refresh</button>
+        </div>
+        
+        <!-- Extensions list -->
+        <div id="extensions-loading" class="loading">Loading extensions...</div>
+        <div id="extensions-error" class="error"></div>
+        <div id="extensions-empty" class="empty" style="display: none;">
+          <p>No extensions installed.</p>
+          <p style="margin-top: 1rem; color: #888;">Install extensions from a local directory using the "Install Extension" button above.</p>
+        </div>
+        <div id="extensions-table" class="table-container" style="display: none;">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Version</th>
+                <th>Description</th>
+                <th>Author</th>
+                <th>Components</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+      
       <!-- Orchestrator page -->
       <div id="orchestrator-page" class="page">
         <h1 class="page-title">
@@ -707,5 +753,6 @@
     <script type="module" src="js/orchestrator.js"></script>
     <script type="module" src="js/navigation.js"></script>
     <script type="module" src="js/dashboard.js"></script>
+    <script type="module" src="js/extensions.js"></script>
   </body>
 </html>

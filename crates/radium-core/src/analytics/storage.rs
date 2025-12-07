@@ -169,12 +169,14 @@ impl SessionStorage {
                                     .unwrap_or(0);
                                 
                                 // Calculate duration from wall_time if available
-                                let duration = if let Some(wall_secs) = metrics
-                                    .get("wall_time")
-                                    .and_then(|v| v.get("secs"))
-                                    .and_then(|v| v.as_u64())
-                                {
-                                    Duration::from_secs(wall_secs)
+                                // Duration serializes as { "secs": u64, "nanos": u32 }
+                                let duration = if let Some(wall_time_obj) = metrics.get("wall_time") {
+                                    if let Some(secs) = wall_time_obj.get("secs").and_then(|v| v.as_u64()) {
+                                        let nanos = wall_time_obj.get("nanos").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+                                        Duration::new(secs, nanos)
+                                    } else {
+                                        Duration::ZERO
+                                    }
                                 } else {
                                     Duration::ZERO
                                 };
