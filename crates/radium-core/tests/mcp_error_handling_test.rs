@@ -1,14 +1,13 @@
 //! Comprehensive error handling tests for MCP integration.
 
 use radium_core::mcp::{
-    McpError, McpServerConfig, McpTool, TransportType,
+    McpError, McpServerConfig, TransportType,
     client::McpClient,
     config::McpConfigManager,
     integration::McpIntegration,
 };
 use radium_core::workspace::Workspace;
-use serde_json::json;
-use std::collections::HashMap;
+use std::sync::Arc;
 use tempfile::TempDir;
 
 #[tokio::test]
@@ -70,9 +69,10 @@ async fn test_config_error_missing_url_for_remote_transport() {
 
     let result = McpClient::connect(&config).await;
     assert!(result.is_err());
-    let err = result.unwrap_err();
-    assert!(matches!(err, McpError::Config(_)));
-    assert!(err.to_string().contains("url") || err.to_string().contains("required"));
+    if let Err(err) = result {
+        assert!(matches!(err, McpError::Config(_)));
+        assert!(err.to_string().contains("url") || err.to_string().contains("required"));
+    }
 }
 
 #[tokio::test]
@@ -203,7 +203,7 @@ async fn test_error_message_clarity() {
         (
             McpError::Config("Stdio transport requires 'command' field".to_string()),
             "command",
-            "required",
+            "requires",
         ),
         (
             McpError::Connection("Failed to connect to server 'test' after 30s".to_string()),

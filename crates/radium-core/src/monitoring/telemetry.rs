@@ -426,6 +426,10 @@ impl TelemetryTracking for MonitoringService {
                     tool_approved: row.get(13)?,
                     tool_approval_type: row.get(14)?,
                     engine_id: row.get(15)?,
+                    behavior_type: row.get(16).ok(),
+                    behavior_invocation_count: row.get(17).ok(),
+                    behavior_duration_ms: row.get(18).ok(),
+                    behavior_outcome: row.get(19).ok(),
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
