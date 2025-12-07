@@ -1,0 +1,72 @@
+# Testing Policy Configuration
+# Balanced configuration for test environments
+
+approval_mode = "yolo"
+
+# Allow test file operations
+[[rules]]
+name = "Allow test file reads"
+priority = "user"
+action = "allow"
+tool_pattern = "read_*"
+reason = "Testing: allow file reads"
+
+[[rules]]
+name = "Allow test file writes"
+priority = "user"
+action = "allow"
+tool_pattern = "write_*"
+reason = "Testing: allow file writes for test artifacts"
+
+# Allow test commands
+[[rules]]
+name = "Allow test commands"
+priority = "user"
+action = "allow"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "cargo test *"
+reason = "Testing: allow test execution"
+
+[[rules]]
+name = "Allow test commands (npm)"
+priority = "user"
+action = "allow"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "npm test *"
+reason = "Testing: allow npm test"
+
+# Allow mock network operations
+[[rules]]
+name = "Allow mock network"
+priority = "user"
+action = "allow"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "* mock *"
+reason = "Testing: allow mock network calls"
+
+# Deny production database access
+[[rules]]
+name = "Deny production database"
+priority = "admin"
+action = "deny"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "* production *"
+reason = "Testing: prevent production database access"
+
+[[rules]]
+name = "Deny production database (prod)"
+priority = "admin"
+action = "deny"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "* prod *"
+reason = "Testing: prevent prod database access"
+
+# Still deny dangerous operations
+[[rules]]
+name = "Deny dangerous commands"
+priority = "admin"
+action = "deny"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "rm -rf *"
+reason = "Safety: prevent accidental deletion"
+

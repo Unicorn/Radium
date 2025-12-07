@@ -116,8 +116,14 @@ impl LearningIntegration {
             store.generate_context(self.config.max_entries_per_category)
         };
 
+        // Convert workflow::behaviors::WorkflowPhase to oversight::WorkflowPhase
+        let oversight_phase = match phase {
+            crate::workflow::behaviors::vibe_check::WorkflowPhase::Planning => crate::oversight::WorkflowPhase::Planning,
+            crate::workflow::behaviors::vibe_check::WorkflowPhase::Implementation => crate::oversight::WorkflowPhase::Implementation,
+            crate::workflow::behaviors::vibe_check::WorkflowPhase::Review => crate::oversight::WorkflowPhase::Review,
+        };
         let mut oversight_request =
-            OversightRequest::new(phase, goal.to_string(), plan.to_string())
+            OversightRequest::new(oversight_phase, goal.to_string(), plan.to_string())
                 .with_progress(progress)
                 .with_task_context(task_context);
 

@@ -26,15 +26,16 @@ pub mod sandbox;
 pub mod stats;
 pub mod status;
 pub mod step;
-// pub mod templates;  // DISABLED: depends on radium_core::workflow (circular dependency)
+pub mod templates;
 pub mod learning;
 pub mod types;
 pub mod validate;
 // pub mod vibecheck;  // DISABLED: depends on radium_core::oversight and policy (disabled)
 
 // Re-export types for convenience
-pub use types::{AgentsCommand, AuthCommand, EnginesCommand, ExtensionCommand, HooksCommand, MigrateSubcommand};
-// pub use types::{CustomCommand, TemplatesCommand};  // DISABLED: commands disabled
+pub use types::{AgentsCommand, AuthCommand, EnginesCommand, ExtensionCommand, HooksCommand};
+// pub use types::CustomCommand;  // DISABLED: commands disabled
+pub use types::TemplatesCommand;
 pub use context::ContextCommand;
 pub use budget::BudgetCommand;
 pub use policy::{execute_policy_command, PolicyCommand};

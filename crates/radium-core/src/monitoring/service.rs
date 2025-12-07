@@ -383,21 +383,21 @@ impl MonitoringService {
         {
             use crate::hooks::integration::OrchestratorHooks;
             if let Some(ref registry) = self.hook_registry {
-                let hooks = OrchestratorHooks::new(Arc::clone(registry));
-                let telemetry_data = serde_json::json!({
-                    "event_type": "agent_complete",
-                    "agent_id": agent_id,
-                    "exit_code": exit_code,
-                    "end_time": end_time,
-                    "success": exit_code == 0,
-                });
-                if let Err(e) = hooks.telemetry_collection("agent_complete", &telemetry_data).await {
-                    tracing::warn!(
-                        agent_id = %agent_id,
-                        error = %e,
-                        "Telemetry hook execution failed for agent completion"
-                    );
-                }
+            let hooks = OrchestratorHooks::new(Arc::clone(registry));
+            let telemetry_data = serde_json::json!({
+                "event_type": "agent_complete",
+                "agent_id": agent_id,
+                "exit_code": exit_code,
+                "end_time": end_time,
+                "success": exit_code == 0,
+            });
+            if let Err(e) = hooks.telemetry_collection("agent_complete", &telemetry_data).await {
+                tracing::warn!(
+                    agent_id = %agent_id,
+                    error = %e,
+                    "Telemetry hook execution failed for agent completion"
+                );
+            }
             }
         }
 
@@ -446,20 +446,20 @@ impl MonitoringService {
         {
             use crate::hooks::integration::OrchestratorHooks;
             if let Some(ref registry) = self.hook_registry {
-                let hooks = OrchestratorHooks::new(Arc::clone(registry));
-                let telemetry_data = serde_json::json!({
-                    "event_type": "agent_fail",
-                    "agent_id": agent_id,
-                    "error_message": error_message,
-                    "end_time": end_time,
-                });
-                if let Err(e) = hooks.telemetry_collection("agent_fail", &telemetry_data).await {
-                    tracing::warn!(
-                        agent_id = %agent_id,
-                        error = %e,
-                        "Telemetry hook execution failed for agent failure"
-                    );
-                }
+            let hooks = OrchestratorHooks::new(Arc::clone(registry));
+            let telemetry_data = serde_json::json!({
+                "event_type": "agent_fail",
+                "agent_id": agent_id,
+                "error_message": error_message,
+                "end_time": end_time,
+            });
+            if let Err(e) = hooks.telemetry_collection("agent_fail", &telemetry_data).await {
+                tracing::warn!(
+                    agent_id = %agent_id,
+                    error = %e,
+                    "Telemetry hook execution failed for agent failure"
+                );
+            }
             }
         }
 
@@ -727,11 +727,11 @@ impl MonitoringService {
             }
             (None, None, None) => {
                 stmt.query_map([], Self::row_to_agent_usage)?.collect::<std::result::Result<Vec<_>, _>>()?
-            }
+    }
         };
 
         Ok(records)
-    }
+}
 }
 
 impl Default for MonitoringService {

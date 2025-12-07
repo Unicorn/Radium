@@ -70,7 +70,8 @@ use crate::models::PlanManifest;
 use crate::planning::dag::{DagError, DependencyGraph};
 use crate::planning::generator::PlanGenerator;
 use crate::planning::parser::{ParsedIteration, ParsedPlan, ParsedTask};
-// use crate::workflow::templates::{WorkflowStep, WorkflowStepConfig, WorkflowStepType, WorkflowTemplate};  // DISABLED: workflow module
+#[cfg(feature = "workflow")]
+use crate::workflow::templates::{WorkflowStep, WorkflowStepConfig, WorkflowStepType, WorkflowTemplate};
 use radium_abstraction::Model;
 use std::sync::Arc;
 use thiserror::Error;
@@ -341,56 +342,49 @@ impl WorkflowGenerator {
     ///
     /// # Errors
     /// Returns error if workflow generation fails
-    /// DISABLED: workflow module is disabled
-    #[allow(dead_code)]
+    #[cfg(feature = "workflow")]
     pub fn generate_workflow(
         &self,
-        _plan: &ParsedPlan,
-        _dag: &DependencyGraph,
-    ) -> Result<()> {
-        // DISABLED: workflow module
+        plan: &ParsedPlan,
+        dag: &DependencyGraph,
+    ) -> Result<WorkflowTemplate> {
         // Get topological sort for execution order
-        // let sorted_tasks = dag.topological_sort()?;
+        let sorted_tasks = dag.topological_sort()?;
 
         // Create workflow template
-        // let mut template = WorkflowTemplate::new(&plan.project_name);
-        // if let Some(desc) = &plan.description {
-        //     template = template.with_description(desc.clone());
-        // }
+        let mut template = WorkflowTemplate::new(&plan.project_name);
+        if let Some(desc) = &plan.description {
+            template = template.with_description(desc.clone());
+        }
 
         // Create steps in dependency order
-        // let mut step_order = 0u32;
-        // for task_id in sorted_tasks {
-        //     // Find the task in the plan
-        //     if let Some((iteration, task)) = self.find_task_in_plan(plan, &task_id) {
-        //         let agent_id = task.agent_id.as_deref().unwrap_or("auto");
+        for task_id in sorted_tasks {
+            // Find the task in the plan
+            if let Some((iteration, task)) = self.find_task_in_plan(plan, &task_id) {
+                let agent_id = task.agent_id.as_deref().unwrap_or("auto");
 
-        //         let step_config = WorkflowStepConfig {
-        //             agent_id: agent_id.to_string(),
-        //             agent_name: Some(task.title.clone()),
-        //             step_type: WorkflowStepType::Step,
-        //             execute_once: false,
-        //             engine: None,
-        //             model: None,
-        //             model_reasoning_effort: None,
-        //             not_completed_fallback: None,
-        //             module: None,
-        //             label: None,
-        //         };
+                let step_config = WorkflowStepConfig {
+                    agent_id: agent_id.to_string(),
+                    agent_name: Some(task.title.clone()),
+                    step_type: WorkflowStepType::Step,
+                    execute_once: false,
+                    engine: None,
+                    model: None,
+                    model_reasoning_effort: None,
+                    not_completed_fallback: None,
+                    module: None,
+                    label: None,
+                };
 
-        //         let step = WorkflowStep {
-        //             config: step_config,
-        //         };
+                let step = WorkflowStep {
+                    config: step_config,
+                };
 
-        //         template = template.add_step(step);
-        //         step_order += 1;
-        //     }
-        // }
+                template = template.add_step(step);
+            }
+        }
 
-        // Ok(template)
-        Err(PlanningError::WorkflowGenerationFailed(
-            "Workflow module is disabled".to_string()
-        ))
+        Ok(template)
     }
 
     /// Finds a task in the plan by task ID.
@@ -589,13 +583,12 @@ impl AutonomousPlanner {
 /// # }
 /// ```
 #[derive(Debug, Clone)]
-/// DISABLED: workflow module is disabled, so this struct cannot be used
-#[allow(dead_code)]
 pub struct AutonomousPlan {
     /// The parsed plan with iterations and tasks.
     pub plan: ParsedPlan,
     /// The generated workflow template ready for execution.
-    // pub workflow: WorkflowTemplate,  // DISABLED: workflow module
+    #[cfg(feature = "workflow")]
+    pub workflow: crate::workflow::templates::WorkflowTemplate,
     /// The dependency graph for cycle detection and ordering.
     pub dag: DependencyGraph,
     /// The plan manifest for execution tracking.

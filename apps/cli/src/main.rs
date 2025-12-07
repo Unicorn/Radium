@@ -16,7 +16,8 @@ use commands::{
     agents, auth, budget, checkpoint, clean, context, craft, doctor, engines, extension, hooks, init, learning, monitor, plan, policy, run,
     sandbox, stats, status, step, validate,
     // Disabled commands (depend on disabled modules):
-    // autonomous, chat, complete, custom, mcp, templates, vibecheck
+    // autonomous, chat, complete, custom, mcp, vibecheck
+    templates,
 };
 
 /// Radium CLI - Next-generation agentic orchestration tool
@@ -252,10 +253,9 @@ enum Command {
 
     /// Manage workflow templates
     ///
-    // DISABLED: Templates command (depends on radium_core::workflow)
-    // /// List, select, and configure workflow templates for plan execution.
-    // #[command(subcommand)]
-    // Templates(TemplatesCommand),
+    /// List, select, and configure workflow templates for plan execution.
+    #[command(subcommand)]
+    Templates(TemplatesCommand),
 
     /// Authentication management
     #[command(subcommand)]
@@ -394,8 +394,7 @@ enum Command {
 }
 
 // Command types are now in commands::types module
-use commands::{AgentsCommand, AuthCommand, ExtensionCommand};
-// Disabled: TemplatesCommand
+use commands::{AgentsCommand, AuthCommand, ExtensionCommand, TemplatesCommand};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -500,10 +499,9 @@ async fn main() -> anyhow::Result<()> {
         Command::Clean { verbose, dir } => {
             clean::execute(verbose, dir).await?;
         }
-        // DISABLED: Templates command
-        // Command::Templates(cmd) => {
-        //     templates::execute(cmd).await?;
-        // }
+        Command::Templates(cmd) => {
+            templates::execute(cmd).await?;
+        }
         Command::Auth(cmd) => {
             auth::execute(cmd).await?;
         }

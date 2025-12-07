@@ -235,8 +235,14 @@ impl VibeCheckEvaluator {
         let goal = vibe_context.goal.clone().unwrap_or_else(|| "Unknown goal".to_string());
         let plan = vibe_context.plan.clone().unwrap_or_else(|| "No plan specified".to_string());
 
+        // Convert workflow::behaviors::WorkflowPhase to oversight::WorkflowPhase
+        let oversight_phase = match vibe_context.phase {
+            WorkflowPhase::Planning => crate::oversight::WorkflowPhase::Planning,
+            WorkflowPhase::Implementation => crate::oversight::WorkflowPhase::Implementation,
+            WorkflowPhase::Review => crate::oversight::WorkflowPhase::Review,
+        };
         // Build oversight request
-        let mut oversight_request = OversightRequest::new(vibe_context.phase, goal, plan)
+        let mut oversight_request = OversightRequest::new(oversight_phase, goal, plan)
             .with_progress(vibe_context.progress.clone().unwrap_or_default())
             .with_task_context(vibe_context.task_context.clone().unwrap_or_default());
         

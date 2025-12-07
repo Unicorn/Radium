@@ -150,13 +150,6 @@ pub enum AgentsCommand {
         strict: bool,
     },
 
-    /// Migrate agent configurations from legacy formats
-    Migrate {
-        /// Migration subcommand
-        #[command(subcommand)]
-        subcommand: MigrateSubcommand,
-    },
-
     /// Show agent usage statistics
     Stats {
         /// Output as JSON

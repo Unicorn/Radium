@@ -30,10 +30,12 @@
 
 pub mod constitution;
 mod rules;
+pub mod templates;
 mod types;
 
 pub use constitution::ConstitutionManager;
 pub use rules::{PolicyEngine, PolicyRule};
+pub use templates::{merge_template, PolicyTemplate, TemplateDiscovery};
 pub use types::{
     ApprovalMode, PolicyAction, PolicyDecision, PolicyError, PolicyPriority, PolicyResult,
 };

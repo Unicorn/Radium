@@ -118,6 +118,27 @@ impl OAuthTokenManager {
             ))
         })?;
 
+        // Set restrictive file permissions (owner read/write only) on Unix systems
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = std::fs::metadata(&token_file)
+                .map_err(|e| {
+                    McpError::Io(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        format!("Failed to get file metadata: {}", e),
+                    ))
+                })?
+                .permissions();
+            perms.set_mode(0o600); // rw------- (owner read/write only)
+            std::fs::set_permissions(&token_file, perms).map_err(|e| {
+                McpError::Io(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("Failed to set file permissions: {}", e),
+                ))
+            })?;
+        }
+
         Ok(())
     }
 

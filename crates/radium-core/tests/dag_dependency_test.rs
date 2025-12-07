@@ -4,7 +4,7 @@
 //! and execution level calculation.
 
 use radium_core::models::{Iteration, PlanManifest, PlanTask};
-use radium_core::planning::dag::{DagError, DependencyGraph};
+use radium_core::planning::{DagError, DependencyGraph};
 use radium_core::workspace::RequirementId;
 use std::str::FromStr;
 

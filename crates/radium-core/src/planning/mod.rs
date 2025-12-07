@@ -17,7 +17,7 @@ pub use autonomous::{
     ValidationReport, WorkflowGenerator,
 };
 pub use dag::{DagError, DependencyGraph, Result as DagResult};
-pub use executor::{ExecutionConfig, ExecutionError, PlanExecutor, RunMode, TaskResult};
+pub use executor::{ErrorCategory, ExecutionConfig, ExecutionError, PlanExecutor, RunMode, TaskResult};
 pub use generator::{PlanGenerator, PlanGeneratorConfig};
 pub use markdown::generate_plan_files;
 pub use parser::{ParsedIteration, ParsedPlan, ParsedTask, PlanParser};

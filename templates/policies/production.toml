@@ -1,0 +1,62 @@
+# Production Policy Configuration
+# Strict security configuration for production environments
+
+approval_mode = "ask"
+
+# Only allow read operations
+[[rules]]
+name = "Allow read operations only"
+priority = "admin"
+action = "allow"
+tool_pattern = "read_*"
+reason = "Read operations are safe"
+
+# Deny all file writes in production
+[[rules]]
+name = "Deny all file writes"
+priority = "admin"
+action = "deny"
+tool_pattern = "write_*"
+reason = "Production: file writes are disabled"
+
+# Deny all shell commands
+[[rules]]
+name = "Deny all shell commands"
+priority = "admin"
+action = "deny"
+tool_pattern = "run_terminal_cmd"
+reason = "Production: shell commands are disabled"
+
+# Deny all MCP tools
+[[rules]]
+name = "Deny all MCP tools"
+priority = "admin"
+action = "deny"
+tool_pattern = "mcp_*"
+reason = "Production: MCP tools are disabled"
+
+# Deny network operations to internal IPs
+[[rules]]
+name = "Deny internal network access"
+priority = "admin"
+action = "deny"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "* 127.0.0.1 *"
+reason = "Production: block internal network access"
+
+[[rules]]
+name = "Deny internal network access (localhost)"
+priority = "admin"
+action = "deny"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "* localhost *"
+reason = "Production: block localhost access"
+
+# Require approval for everything else
+[[rules]]
+name = "Require approval for all other tools"
+priority = "default"
+action = "ask_user"
+tool_pattern = "*"
+reason = "Default: require approval for all tools"
+

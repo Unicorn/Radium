@@ -1,6 +1,6 @@
 //! Engine management command implementation.
 
-use super::{EnginesCommand, EngineConfigCommand};
+use super::types::{EnginesCommand, EngineConfigCommand};
 use anyhow::{Context, Result, bail};
 use colored::Colorize;
 use radium_core::engines::{Engine, EngineRegistry, HealthStatus, PerEngineConfig};

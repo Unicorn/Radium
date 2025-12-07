@@ -22,9 +22,11 @@ pub mod analytics;
 pub mod autonomous;
 pub mod auth;
 pub mod checkpoint;
+#[cfg(feature = "server")]
 pub mod client;
-// pub mod collaboration;  // TEMPORARILY DISABLED: depends on radium-orchestrator (circular dependency)
-// pub mod commands;  // TEMPORARILY DISABLED: depends on hooks/sandbox
+#[cfg(feature = "orchestrator-integration")]
+pub mod collaboration;
+pub mod commands;
 pub mod config;
 pub mod context;
 pub mod engines;
@@ -41,7 +43,8 @@ pub mod planning;
 pub mod policy;
 pub mod prompts;
 pub mod sandbox;
-// pub mod server;  // TEMPORARILY DISABLED: depends on radium-orchestrator (circular dependency)
+#[cfg(feature = "orchestrator-integration")]
+pub mod server;
 pub mod storage;
 #[cfg(feature = "workflow")]
 pub mod workflow;
@@ -61,6 +64,7 @@ pub use agents::registry::{AgentRegistry, RegistryError};
 pub use analytics::{ReportFormatter, SessionAnalytics, SessionMetrics, SessionReport};
 pub use auth::{AuthError, AuthResult, CredentialStore, ProviderType};
 pub use checkpoint::{Checkpoint, CheckpointError, CheckpointManager, Result as CheckpointResult};
+#[cfg(feature = "server")]
 pub use client::ClientHelper;
 // pub use commands::{CommandError, CommandRegistry, CustomCommand, Result as CommandResult};  // DISABLED: commands module
 pub use config::{Config, cli_config::{CliConfig, CliConfigError, CliConfigResult}};

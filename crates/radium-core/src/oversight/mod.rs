@@ -9,4 +9,5 @@ pub mod metacognitive;
 #[cfg(feature = "workflow")]
 pub use metacognitive::{
     MetacognitiveError, MetacognitiveService, OversightRequest, OversightResponse, Result,
+    WorkflowPhase,
 };

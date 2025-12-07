@@ -813,29 +813,28 @@ async fn validate_agents(verbose: bool, json_output: bool, strict: bool) -> anyh
 
                         // Validate loop behavior if present
                         if let Some(loop_behavior) = &agent.loop_behavior {
-                                if loop_behavior.steps == 0 {
-                                    validation_result.errors.push(
-                                        "Loop behavior: steps must be greater than 0".to_string(),
-                                    );
-                                    validation_result.valid = false;
-                                }
-                                if let Some(max_iter) = loop_behavior.max_iterations {
-                                    if max_iter == 0 {
-                                        validation_result.errors.push(
-                                            "Loop behavior: max_iterations must be greater than 0".to_string(),
-                                        );
-                                        validation_result.valid = false;
-                                    }
-                                }
-                            }
-
-                            // Validate capabilities if present
-                            if agent.capabilities.max_concurrent_tasks == 0 {
+                            if loop_behavior.steps == 0 {
                                 validation_result.errors.push(
-                                    "Capabilities: max_concurrent_tasks must be greater than 0".to_string(),
+                                    "Loop behavior: steps must be greater than 0".to_string(),
                                 );
                                 validation_result.valid = false;
                             }
+                            if let Some(max_iter) = loop_behavior.max_iterations {
+                                if max_iter == 0 {
+                                    validation_result.errors.push(
+                                        "Loop behavior: max_iterations must be greater than 0".to_string(),
+                                    );
+                                    validation_result.valid = false;
+                                }
+                            }
+                        }
+
+                        // Validate capabilities if present
+                        if agent.capabilities.max_concurrent_tasks == 0 {
+                            validation_result.errors.push(
+                                "Capabilities: max_concurrent_tasks must be greater than 0".to_string(),
+                            );
+                            validation_result.valid = false;
                         }
                     Err(e) => {
                         validation_result.valid = false;

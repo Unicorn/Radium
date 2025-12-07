@@ -31,7 +31,7 @@ pub enum BehaviorActionType {
 }
 
 /// Full behavior action with metadata.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct BehaviorAction {
     /// The action type to perform.

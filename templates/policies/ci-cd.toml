@@ -1,0 +1,87 @@
+# CI/CD Policy Configuration
+# Automated configuration for continuous integration/deployment
+
+approval_mode = "yolo"
+
+# Allow automated operations
+[[rules]]
+name = "Allow all file operations"
+priority = "user"
+action = "allow"
+tool_pattern = "read_*"
+reason = "CI/CD: allow file reads"
+
+[[rules]]
+name = "Allow file writes"
+priority = "user"
+action = "allow"
+tool_pattern = "write_*"
+reason = "CI/CD: allow file writes for artifacts"
+
+# Allow build and deploy operations
+[[rules]]
+name = "Allow build commands"
+priority = "user"
+action = "allow"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "cargo build *"
+reason = "CI/CD: allow build commands"
+
+[[rules]]
+name = "Allow deploy commands"
+priority = "user"
+action = "allow"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "cargo deploy *"
+reason = "CI/CD: allow deploy commands"
+
+[[rules]]
+name = "Allow npm build"
+priority = "user"
+action = "allow"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "npm run build *"
+reason = "CI/CD: allow npm build"
+
+[[rules]]
+name = "Allow docker commands"
+priority = "user"
+action = "allow"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "docker *"
+reason = "CI/CD: allow docker commands"
+
+# Deny interactive prompts
+[[rules]]
+name = "Deny interactive commands"
+priority = "admin"
+action = "deny"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "* --interactive *"
+reason = "CI/CD: no interactive prompts"
+
+# Still deny dangerous operations
+[[rules]]
+name = "Deny dangerous commands"
+priority = "admin"
+action = "deny"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "rm -rf *"
+reason = "Safety: prevent accidental deletion"
+
+[[rules]]
+name = "Deny system modifications"
+priority = "admin"
+action = "deny"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "sudo *"
+reason = "CI/CD: prevent system modifications"
+
+# Allow MCP tools for automation
+[[rules]]
+name = "Allow MCP tools"
+priority = "user"
+action = "allow"
+tool_pattern = "mcp_*"
+reason = "CI/CD: allow MCP tools for automation"
+

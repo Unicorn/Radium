@@ -1,0 +1,78 @@
+# Development Policy Configuration
+# Permissive configuration for local development with safety guards
+
+approval_mode = "autoEdit"
+
+# Allow all file operations in development
+[[rules]]
+name = "Allow all file operations"
+priority = "user"
+action = "allow"
+tool_pattern = "read_*"
+reason = "Development mode: allow file reads"
+
+[[rules]]
+name = "Allow file writes"
+priority = "user"
+action = "allow"
+tool_pattern = "write_*"
+reason = "Development mode: allow file writes"
+
+# Allow safe shell commands
+[[rules]]
+name = "Allow git commands"
+priority = "user"
+action = "allow"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "git *"
+reason = "Development mode: allow git commands"
+
+[[rules]]
+name = "Allow build commands"
+priority = "user"
+action = "allow"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "cargo *"
+reason = "Development mode: allow cargo commands"
+
+[[rules]]
+name = "Allow npm/yarn commands"
+priority = "user"
+action = "allow"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "npm *"
+reason = "Development mode: allow npm commands"
+
+[[rules]]
+name = "Allow npm/yarn commands (yarn)"
+priority = "user"
+action = "allow"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "yarn *"
+reason = "Development mode: allow yarn commands"
+
+# Still deny dangerous operations
+[[rules]]
+name = "Deny dangerous commands"
+priority = "admin"
+action = "deny"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "rm -rf *"
+reason = "Safety: prevent accidental deletion"
+
+[[rules]]
+name = "Deny system modification commands"
+priority = "admin"
+action = "deny"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "sudo *"
+reason = "Safety: prevent system modifications"
+
+# Allow MCP tools (development mode)
+[[rules]]
+name = "Allow MCP tools"
+priority = "user"
+action = "allow"
+tool_pattern = "mcp_*"
+reason = "Development mode: allow MCP tools"
+
