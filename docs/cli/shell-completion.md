@@ -25,6 +25,18 @@ You can also generate completions manually using the CLI:
 RADIUM_GENERATE_COMPLETIONS=bash cargo run --release -p radium-cli > completions/rad.bash
 RADIUM_GENERATE_COMPLETIONS=zsh cargo run --release -p radium-cli > completions/rad.zsh
 RADIUM_GENERATE_COMPLETIONS=fish cargo run --release -p radium-cli > completions/rad.fish
+RADIUM_GENERATE_COMPLETIONS=powershell cargo run --release -p radium-cli > completions/rad.ps1
+RADIUM_GENERATE_COMPLETIONS=elvish cargo run --release -p radium-cli > completions/rad.elv
+```
+
+Or if you have the `rad` binary installed:
+
+```bash
+RADIUM_GENERATE_COMPLETIONS=bash rad > completions/rad.bash
+RADIUM_GENERATE_COMPLETIONS=zsh rad > completions/rad.zsh
+RADIUM_GENERATE_COMPLETIONS=fish rad > completions/rad.fish
+RADIUM_GENERATE_COMPLETIONS=powershell rad > completions/rad.ps1
+RADIUM_GENERATE_COMPLETIONS=elvish rad > completions/rad.elv
 ```
 
 ## Installation
@@ -101,11 +113,15 @@ rad craft --<TAB>
 
 ## Supported Shells
 
+The CLI supports completion generation for all major shells:
+
 - **Bash** - Full support for commands, subcommands, and options
 - **Zsh** - Full support with enhanced completion features
 - **Fish** - Full support with fish-specific enhancements
-- **PowerShell** - Basic support (Windows)
-- **Elvish** - Basic support
+- **PowerShell** - Full support (Windows)
+- **Elvish** - Full support
+
+All 30+ commands and their subcommands are included in the completions. The completion system uses `clap_complete` to automatically generate completions from the command structure defined in `main.rs`.
 
 ## Troubleshooting
 
