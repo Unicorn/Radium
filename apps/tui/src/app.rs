@@ -4,6 +4,8 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyModifiers};
 use radium_core::auth::{CredentialStore, ProviderType};
 use radium_core::mcp::{McpIntegration, SlashCommandRegistry};
+use radium_core::workflow::{CompletionEvent, CompletionOptions, CompletionService};
+use radium_core::Workspace;
 use radium_orchestrator::{OrchestrationConfig, OrchestrationService};
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -59,6 +61,7 @@ impl App {
             ("dashboard", "Show system dashboard"),
             ("models", "Select AI model"),
             ("orchestrator", "Manage orchestration settings"),
+            ("complete", "Complete a requirement from source (file, Jira, or REQ)"),
         ];
 
         // Initialize workspace
@@ -392,6 +395,17 @@ impl App {
             "orchestrator" => {
                 self.handle_orchestrator_command(&cmd.args).await?;
             }
+            "complete" => {
+                if cmd.args.is_empty() {
+                    self.prompt_data.add_output("Usage: /complete <source>".to_string());
+                    self.prompt_data.add_output("  Source can be:".to_string());
+                    self.prompt_data.add_output("    - File path: ./specs/feature.md".to_string());
+                    self.prompt_data.add_output("    - Jira ticket: RAD-42".to_string());
+                    self.prompt_data.add_output("    - Braingrid REQ: REQ-2025-001".to_string());
+                } else {
+                    self.handle_complete(&cmd.args[0]).await?;
+                }
+            }
             "mcp-commands" | "mcp-help" => {
                 self.show_mcp_commands().await?;
             }
@@ -431,6 +445,7 @@ impl App {
         self.prompt_data.add_output("  /dashboard      - Show dashboard stats".to_string());
         self.prompt_data.add_output("  /models         - Select AI model".to_string());
         self.prompt_data.add_output("  /orchestrator   - Manage orchestration".to_string());
+        self.prompt_data.add_output("  /complete       - Complete requirement from source".to_string());
         self.prompt_data.add_output("  /help           - Show this help".to_string());
         
         let mcp_count = self.mcp_slash_registry.get_all_commands().len();
@@ -1025,6 +1040,101 @@ impl App {
                     .add_output("  • Claude:  ANTHROPIC_API_KEY environment variable".to_string());
                 self.prompt_data
                     .add_output("  • OpenAI:  OPENAI_API_KEY environment variable".to_string());
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Handle /complete command
+    async fn handle_complete(&mut self, source: &str) -> Result<()> {
+        self.prompt_data.clear_output();
+        self.prompt_data.add_output(format!("🚀 Starting completion workflow for: {}", source));
+        self.prompt_data.add_output("".to_string());
+
+        // Discover workspace
+        let workspace = match Workspace::discover() {
+            Ok(ws) => {
+                ws.ensure_structure()
+                    .map_err(|e| anyhow::anyhow!("Failed to ensure workspace structure: {}", e))?;
+                ws
+            }
+            Err(e) => {
+                self.prompt_data.add_output(format!("❌ Failed to discover workspace: {}", e));
+                return Ok(());
+            }
+        };
+
+        // Create completion service
+        let service = CompletionService::new();
+
+        // Create options
+        let options = CompletionOptions {
+            workspace_path: workspace.root().to_path_buf(),
+            engine: std::env::var("RADIUM_ENGINE").unwrap_or_else(|_| "mock".to_string()),
+            model_id: std::env::var("RADIUM_MODEL").ok(),
+            requirement_id: None,
+        };
+
+        // Execute workflow in background
+        let source_clone = source.to_string();
+        let mut event_rx = match service.execute(source_clone, options).await {
+            Ok(rx) => rx,
+            Err(e) => {
+                self.prompt_data.add_output(format!("❌ Failed to start completion workflow: {}", e));
+                return Ok(());
+            }
+        };
+
+        // Process events
+        while let Some(event) = event_rx.recv().await {
+            match event {
+                CompletionEvent::Detected { source_type } => {
+                    self.prompt_data.add_output(format!("ℹ️  Detected source: {}", source_type));
+                }
+                CompletionEvent::Fetching => {
+                    self.prompt_data.add_output("⬇️  Fetching requirements...".to_string());
+                }
+                CompletionEvent::Planning => {
+                    self.prompt_data.add_output("🧠 Generating plan...".to_string());
+                }
+                CompletionEvent::PlanGenerated { iterations, tasks } => {
+                    self.prompt_data.add_output(format!(
+                        "✓ Generated plan with {} iterations, {} tasks",
+                        iterations, tasks
+                    ));
+                }
+                CompletionEvent::PlanPersisted { path } => {
+                    self.prompt_data.add_output(format!("✓ Plan saved to: {}", path.display()));
+                }
+                CompletionEvent::ExecutionStarted { total_tasks } => {
+                    self.prompt_data.add_output("".to_string());
+                    self.prompt_data.add_output(format!("🚀 Executing {} tasks...", total_tasks));
+                    self.prompt_data.add_output("".to_string());
+                }
+                CompletionEvent::TaskProgress {
+                    current,
+                    total,
+                    task_name,
+                } => {
+                    self.prompt_data.add_output(format!(
+                        "  → Task {}/{}: {}",
+                        current, total, task_name
+                    ));
+                }
+                CompletionEvent::TaskCompleted { task_name } => {
+                    self.prompt_data.add_output(format!("    ✓ Completed: {}", task_name));
+                }
+                CompletionEvent::Completed => {
+                    self.prompt_data.add_output("".to_string());
+                    self.prompt_data.add_output("✅ Completion workflow finished successfully!".to_string());
+                    break;
+                }
+                CompletionEvent::Error { message } => {
+                    self.prompt_data.add_output("".to_string());
+                    self.prompt_data.add_output(format!("❌ Error: {}", message));
+                    break;
+                }
             }
         }
 

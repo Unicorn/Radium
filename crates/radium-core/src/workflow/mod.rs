@@ -27,8 +27,7 @@ pub use service::{WorkflowExecution, WorkflowService};
 pub use step_tracking::{StepRecord, StepStatus, StepTracker, StepTrackingError};
 pub use template_discovery::TemplateDiscovery;
 pub use complete::{
-    detect_source, fetch_source_content, CompletionError, CompletionEvent, CompletionOptions,
-    CompletionResult, CompletionService, SourceDetectionError, SourceDetectionResult,
+    detect_source, fetch_source_content, SourceDetectionError, SourceDetectionResult,
     SourceFetchError, SourceFetchResult, SourceType,
 };
 pub use templates::{

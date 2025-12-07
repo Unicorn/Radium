@@ -1,17 +1,21 @@
 //! Source validation orchestration.
 
+use std::sync::Arc;
+
 use super::sources::{SourceRegistry, SourceError};
 
 /// Validates multiple sources concurrently and returns structured results.
 pub struct SourceValidator {
     /// Registry containing all source readers.
-    registry: SourceRegistry,
+    registry: Arc<SourceRegistry>,
 }
 
 impl SourceValidator {
     /// Creates a new source validator with the given registry.
     pub fn new(registry: SourceRegistry) -> Self {
-        Self { registry }
+        Self {
+            registry: Arc::new(registry),
+        }
     }
 
     /// Validates multiple sources concurrently.
@@ -31,24 +35,27 @@ impl SourceValidator {
         let handles: Vec<_> = sources
             .into_iter()
             .map(|source| {
-                let registry = &self.registry;
+                let registry = Arc::clone(&self.registry);
                 tokio::spawn(async move {
-                    Self::validate_single_source(registry, &source).await
+                    Self::validate_single_source(&registry, &source).await
                 })
             })
             .collect();
 
         // Collect all results
-        futures::future::join_all(handles)
-            .await
-            .into_iter()
-            .map(|handle| handle.unwrap_or_else(|_| SourceValidationResult {
-                source: "unknown".to_string(),
-                accessible: false,
-                error_message: "Task panicked".to_string(),
-                size_bytes: 0,
-            }))
-            .collect()
+        let mut results = Vec::new();
+        for handle in handles {
+            match handle.await {
+                Ok(result) => results.push(result),
+                Err(_) => results.push(SourceValidationResult {
+                    source: "unknown".to_string(),
+                    accessible: false,
+                    error_message: "Task panicked".to_string(),
+                    size_bytes: 0,
+                }),
+            }
+        }
+        results
     }
 
     /// Validates a single source.
@@ -80,13 +87,13 @@ impl SourceValidator {
                     "Source verification returned inaccessible".to_string()
                 },
                 size_bytes: metadata.size_bytes.unwrap_or(0) as i64,
-            }
+            },
             Err(e) => SourceValidationResult {
                 source: source.to_string(),
                 accessible: false,
                 error_message: Self::format_error_message(&e),
                 size_bytes: 0,
-            }
+            },
         }
     }
 

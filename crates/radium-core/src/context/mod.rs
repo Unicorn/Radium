@@ -43,6 +43,7 @@ mod history;
 mod injection;
 mod manager;
 pub mod sources;
+mod validator;
 
 pub use error::{ContextError, Result};
 pub use files::ContextFileLoader;
@@ -51,5 +52,6 @@ pub use injection::{ContextInjector, InjectionDirective};
 pub use manager::ContextManager;
 pub use sources::{
     BraingridReader, HttpReader, JiraReader, LocalFileReader, SourceError, SourceMetadata,
-    SourceReader,
+    SourceReader, SourceRegistry,
 };
+pub use validator::{SourceValidator, SourceValidationResult};

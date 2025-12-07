@@ -38,16 +38,20 @@ pub async fn execute(command: AgentsCommand) -> anyhow::Result<()> {
             model,
             reasoning,
             output,
+            template,
+            interactive,
         } => {
             create_agent(
-                &id,
-                &name,
+                id.as_deref(),
+                name.as_deref(),
                 description.as_deref(),
                 category.as_deref(),
                 engine.as_deref(),
                 model.as_deref(),
                 reasoning.as_deref(),
                 output.as_deref(),
+                template.as_deref(),
+                interactive,
             )
             .await
         }
@@ -431,15 +435,29 @@ fn display_agents_detailed(agents: &HashMap<String, AgentConfig>) {
 /// Create a new agent template.
 #[allow(clippy::too_many_arguments)]
 async fn create_agent(
-    id: &str,
-    name: &str,
+    id: Option<&str>,
+    name: Option<&str>,
     description: Option<&str>,
     category: Option<&str>,
     engine: Option<&str>,
     model: Option<&str>,
     reasoning: Option<&str>,
     output_dir: Option<&str>,
+    template: Option<&str>,
+    interactive: bool,
 ) -> anyhow::Result<()> {
+    // Interactive mode: prompt for all fields
+    let (id, name, description, category, engine, model, reasoning) = if interactive {
+        let (id_val, name_val, desc, cat, eng, mdl, reas) = interactive_prompt_agent_details(id, name, description, category, engine, model, reasoning)?;
+        // Store in a way we can use
+        (id_val.as_str(), name_val.as_str(), desc.as_deref(), cat.as_deref(), eng.as_deref(), mdl.as_deref(), reas.as_deref())
+    } else {
+        // Validate required fields for non-interactive mode
+        let id = id.ok_or_else(|| anyhow::anyhow!("Agent ID is required (use --interactive to prompt)"))?;
+        let name = name.ok_or_else(|| anyhow::anyhow!("Agent name is required (use --interactive to prompt)"))?;
+        (id, name, description, category, engine, model, reasoning)
+    };
+
     // Validate agent ID
     if id.is_empty() {
         anyhow::bail!("Agent ID cannot be empty");
@@ -468,6 +486,13 @@ async fn create_agent(
         anyhow::bail!("Agent '{}' already exists at {}", id, config_path.display());
     }
 
+    // Load templates if specified
+    let (config_template, prompt_template_content) = if let Some(template_name) = template {
+        load_templates(template_name)?
+    } else {
+        (None, None)
+    };
+
     // Parse reasoning effort
     let reasoning_effort = reasoning.and_then(|r| match r.to_lowercase().as_str() {
         "low" => Some(ReasoningEffort::Low),
@@ -476,7 +501,7 @@ async fn create_agent(
         _ => None,
     });
 
-    // Build agent config
+    // Build agent config - use template if available
     let prompt_path_relative = PathBuf::from(format!("prompts/agents/{}/{}.md", category, id));
 
     let mut agent = AgentConfig::new(id, name, prompt_path_relative);
@@ -494,15 +519,35 @@ async fn create_agent(
         agent = agent.with_reasoning_effort(effort);
     }
 
-    // Wrap in AgentConfigFile
-    let config_file = AgentConfigFile { agent };
+    // Generate config content from template or default
+    let config_content = if let Some(template) = config_template {
+        substitute_template_variables(
+            &template,
+            id,
+            name,
+            description,
+            &category,
+            engine,
+            model,
+            reasoning,
+        )?
+    } else {
+        // Use default generation
+        let config_file = AgentConfigFile { agent: agent.clone() };
+        toml::to_string_pretty(&config_file)
+            .map_err(|e| anyhow::anyhow!("Failed to serialize config: {}", e))?
+    };
 
     // Save TOML configuration
-    config_file.save(&config_path)?;
+    fs::write(&config_path, config_content)?;
 
-    // Generate prompt template
-    let prompt_template = generate_prompt_template(name, description);
-    fs::write(&prompt_path, prompt_template)?;
+    // Generate prompt template - use template if available
+    let prompt_content = if let Some(template) = prompt_template_content {
+        substitute_prompt_template_variables(&template, name, description)?
+    } else {
+        generate_prompt_template(name, description)
+    };
+    fs::write(&prompt_path, prompt_content)?;
 
     // Success output
     println!();
@@ -519,6 +564,385 @@ async fn create_agent(
     println!();
 
     Ok(())
+}
+
+/// Interactive prompt for agent details.
+fn interactive_prompt_agent_details(
+    id: Option<&str>,
+    name: Option<&str>,
+    description: Option<&str>,
+    category: Option<&str>,
+    engine: Option<&str>,
+    model: Option<&str>,
+    reasoning: Option<&str>,
+) -> anyhow::Result<(String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>)> {
+    use std::io::{self, Write};
+
+    println!();
+    println!("{}", "Create New Agent (Interactive Mode)".bold().cyan());
+    println!();
+
+    // Prompt for ID
+    let id = if let Some(default_id) = id {
+        print!("Agent ID [{}]: ", default_id);
+        io::stdout().flush()?;
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        let input = input.trim();
+        if input.is_empty() {
+            default_id.to_string()
+        } else {
+            input.to_string()
+        }
+    } else {
+        print!("Agent ID: ");
+        io::stdout().flush()?;
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        let id = input.trim().to_string();
+        if id.is_empty() {
+            anyhow::bail!("Agent ID cannot be empty");
+        }
+        id
+    };
+
+    // Prompt for name
+    let name = if let Some(default_name) = name {
+        print!("Agent Name [{}]: ", default_name);
+        io::stdout().flush()?;
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        let input = input.trim();
+        if input.is_empty() {
+            default_name.to_string()
+        } else {
+            input.to_string()
+        }
+    } else {
+        print!("Agent Name: ");
+        io::stdout().flush()?;
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        input.trim().to_string()
+    };
+
+    // Prompt for description
+    let description = if let Some(default_desc) = description {
+        print!("Description [{}]: ", default_desc);
+        io::stdout().flush()?;
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        let input = input.trim();
+        if input.is_empty() {
+            Some(default_desc.to_string())
+        } else if input.is_empty() {
+            None
+        } else {
+            Some(input.to_string())
+        }
+    } else {
+        print!("Description (optional): ");
+        io::stdout().flush()?;
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        let input = input.trim();
+        if input.is_empty() {
+            None
+        } else {
+            Some(input.to_string())
+        }
+    };
+
+    // Prompt for category
+    let category = if let Some(default_cat) = category {
+        print!("Category [{}]: ", default_cat);
+        io::stdout().flush()?;
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        let input = input.trim();
+        if input.is_empty() {
+            Some(default_cat.to_string())
+        } else if input.is_empty() {
+            None
+        } else {
+            Some(input.to_string())
+        }
+    } else {
+        print!("Category [custom]: ");
+        io::stdout().flush()?;
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        let input = input.trim();
+        if input.is_empty() {
+            None
+        } else {
+            Some(input.to_string())
+        }
+    };
+
+    // Prompt for engine
+    let engine = if let Some(default_eng) = engine {
+        print!("Engine [{}]: ", default_eng);
+        io::stdout().flush()?;
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        let input = input.trim();
+        if input.is_empty() {
+            Some(default_eng.to_string())
+        } else if input.is_empty() {
+            None
+        } else {
+            Some(input.to_string())
+        }
+    } else {
+        print!("Engine (optional, e.g., gemini, openai): ");
+        io::stdout().flush()?;
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        let input = input.trim();
+        if input.is_empty() {
+            None
+        } else {
+            Some(input.to_string())
+        }
+    };
+
+    // Prompt for model
+    let model = if let Some(default_model) = model {
+        print!("Model [{}]: ", default_model);
+        io::stdout().flush()?;
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        let input = input.trim();
+        if input.is_empty() {
+            Some(default_model.to_string())
+        } else if input.is_empty() {
+            None
+        } else {
+            Some(input.to_string())
+        }
+    } else {
+        print!("Model (optional): ");
+        io::stdout().flush()?;
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        let input = input.trim();
+        if input.is_empty() {
+            None
+        } else {
+            Some(input.to_string())
+        }
+    };
+
+    // Prompt for reasoning
+    let reasoning = if let Some(default_reasoning) = reasoning {
+        print!("Reasoning Effort [{}]: ", default_reasoning);
+        io::stdout().flush()?;
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        let input = input.trim();
+        if input.is_empty() {
+            Some(default_reasoning.to_string())
+        } else if input.is_empty() {
+            None
+        } else {
+            Some(input.to_string())
+        }
+    } else {
+        print!("Reasoning Effort [medium] (low, medium, high): ");
+        io::stdout().flush()?;
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        let input = input.trim();
+        if input.is_empty() {
+            None
+        } else {
+            Some(input.to_string())
+        }
+    };
+
+    Ok((id, name, description, category, engine, model, reasoning))
+}
+
+/// Load template files.
+fn load_templates(template_name: &str) -> anyhow::Result<(Option<String>, Option<String>)> {
+    // Try to find template in multiple locations
+    let template_paths = vec![
+        PathBuf::from("./templates"),
+        PathBuf::from("~/.radium/templates"),
+        PathBuf::from(format!("./templates/{}", template_name)),
+    ];
+
+    // For preset templates, use default templates
+    let (config_template, prompt_template) = match template_name {
+        "basic" | "advanced" | "workflow" => {
+            // Use default templates from templates/ directory
+            let config_path = PathBuf::from("./templates/agent-config.toml.template");
+            let prompt_path = PathBuf::from("./templates/agent-prompt.md.template");
+            
+            let config_template = if config_path.exists() {
+                Some(fs::read_to_string(&config_path)?)
+            } else {
+                None
+            };
+            
+            let prompt_template = if prompt_path.exists() {
+                Some(fs::read_to_string(&prompt_path)?)
+            } else {
+                None
+            };
+            
+            (config_template, prompt_template)
+        }
+        _ => {
+            // Custom template path
+            let config_path = PathBuf::from(template_name).join("agent-config.toml.template");
+            let prompt_path = PathBuf::from(template_name).join("agent-prompt.md.template");
+            
+            let config_template = if config_path.exists() {
+                Some(fs::read_to_string(&config_path)?)
+            } else {
+                None
+            };
+            
+            let prompt_template = if prompt_path.exists() {
+                Some(fs::read_to_string(&prompt_path)?)
+            } else {
+                None
+            };
+            
+            (config_template, prompt_template)
+        }
+    };
+
+    Ok((config_template, prompt_template))
+}
+
+/// Substitute variables in config template.
+fn substitute_template_variables(
+    template: &str,
+    id: &str,
+    name: &str,
+    description: Option<&str>,
+    category: &str,
+    engine: Option<&str>,
+    model: Option<&str>,
+    reasoning: Option<&str>,
+) -> anyhow::Result<String> {
+    let mut result = template.to_string();
+    
+    // Simple variable substitution ({{variable}})
+    result = result.replace("{{id}}", id);
+    result = result.replace("{{name}}", name);
+    result = result.replace("{{description}}", description.unwrap_or(""));
+    result = result.replace("{{category}}", category);
+    
+    // Optional fields with conditional blocks - simple removal for now
+    // Remove conditional blocks for optional fields that are not set
+    if let Some(eng) = engine {
+        result = result.replace("{{#engine}}", "");
+        result = result.replace("{{/engine}}", "");
+        result = result.replace("{{engine}}", eng);
+    } else {
+        // Simple removal of conditional block (between {{#engine}} and {{/engine}})
+        let start = result.find("{{#engine}}");
+        let end = result.find("{{/engine}}");
+        if let (Some(start_idx), Some(end_idx)) = (start, end) {
+            let end_idx = end_idx + "{{/engine}}".len();
+            result.replace_range(start_idx..end_idx, "");
+        }
+    }
+    
+    if let Some(mdl) = model {
+        result = result.replace("{{#model}}", "");
+        result = result.replace("{{/model}}", "");
+        result = result.replace("{{model}}", mdl);
+    } else {
+        let start = result.find("{{#model}}");
+        let end = result.find("{{/model}}");
+        if let (Some(start_idx), Some(end_idx)) = (start, end) {
+            let end_idx = end_idx + "{{/model}}".len();
+            result.replace_range(start_idx..end_idx, "");
+        }
+    }
+    
+    if let Some(reasoning_val) = reasoning {
+        result = result.replace("{{#reasoning}}", "");
+        result = result.replace("{{/reasoning}}", "");
+        result = result.replace("{{reasoning}}", reasoning_val);
+    } else {
+        let start = result.find("{{#reasoning}}");
+        let end = result.find("{{/reasoning}}");
+        if let (Some(start_idx), Some(end_idx)) = (start, end) {
+            let end_idx = end_idx + "{{/reasoning}}".len();
+            result.replace_range(start_idx..end_idx, "");
+        }
+    }
+    
+    // Remove any remaining conditional blocks (simple approach)
+    while let Some(start) = result.find("{{#") {
+        if let Some(end) = result[start..].find("{{/") {
+            let end_marker = result[start + end..].find("}}");
+            if let Some(end_marker) = end_marker {
+                let end_idx = start + end + end_marker + 2;
+                result.replace_range(start..end_idx, "");
+            } else {
+                break;
+            }
+        } else {
+            break;
+        }
+    }
+    
+    Ok(result)
+}
+
+/// Substitute variables in prompt template.
+fn substitute_prompt_template_variables(
+    template: &str,
+    name: &str,
+    description: Option<&str>,
+) -> anyhow::Result<String> {
+    let mut result = template.to_string();
+    
+    result = result.replace("{{name}}", name);
+    result = result.replace("{{description}}", description.unwrap_or("Add agent description here"));
+    
+    // Replace placeholder variables with defaults
+    let placeholders = vec![
+        ("{{domain}}", "your domain"),
+        ("{{primary_responsibility}}", "performing specific tasks"),
+        ("{{capability_1}}", "Capability 1"),
+        ("{{capability_2}}", "Capability 2"),
+        ("{{capability_3}}", "Capability 3"),
+        ("{{input_1}}", "Input 1"),
+        ("{{input_2}}", "Input 2"),
+        ("{{input_3}}", "Input 3"),
+        ("{{output_1}}", "Output 1"),
+        ("{{output_2}}", "Output 2"),
+        ("{{output_3}}", "Output 3"),
+        ("{{step_1_title}}", "First step"),
+        ("{{step_1_detail_1}}", "Detail 1"),
+        ("{{step_1_detail_2}}", "Detail 2"),
+        ("{{step_2_title}}", "Second step"),
+        ("{{step_2_detail_1}}", "Detail 1"),
+        ("{{step_2_detail_2}}", "Detail 2"),
+        ("{{step_3_title}}", "Third step"),
+        ("{{step_3_detail_1}}", "Detail 1"),
+        ("{{step_3_detail_2}}", "Detail 2"),
+        ("{{example_1_title}}", "Example Scenario"),
+        ("{{example_1_input}}", "Sample input"),
+        ("{{example_1_output}}", "Expected output"),
+        ("{{note_1}}", "Important note 1"),
+        ("{{note_2}}", "Important note 2"),
+        ("{{note_3}}", "Important note 3"),
+    ];
+    
+    for (placeholder, default) in placeholders {
+        result = result.replace(placeholder, default);
+    }
+    
+    Ok(result)
 }
 
 /// Generate a prompt template for a new agent.

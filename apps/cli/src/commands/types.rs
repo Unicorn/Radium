@@ -91,10 +91,10 @@ pub enum AgentsCommand {
     /// Create a new agent template
     Create {
         /// Agent ID (e.g., "my-agent")
-        id: String,
+        id: Option<String>,
 
         /// Agent name (e.g., "My Agent")
-        name: String,
+        name: Option<String>,
 
         /// Agent description
         #[arg(short, long)]
@@ -119,6 +119,14 @@ pub enum AgentsCommand {
         /// Output directory (default: ./agents/)
         #[arg(short, long)]
         output: Option<String>,
+
+        /// Template to use (basic, advanced, workflow, or path to custom template)
+        #[arg(short, long)]
+        template: Option<String>,
+
+        /// Interactive mode - prompt for all fields
+        #[arg(short, long)]
+        interactive: bool,
     },
 }
 
