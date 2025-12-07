@@ -23,6 +23,7 @@ pub mod installer;
 pub mod integration;
 pub mod manifest;
 pub mod marketplace;
+pub mod signing;
 pub mod structure;
 pub mod validator;
 pub mod versioning;
@@ -35,6 +36,9 @@ pub use integration::{
 };
 pub use manifest::{ExtensionManifest, ExtensionManifestError};
 pub use marketplace::{MarketplaceClient, MarketplaceError, MarketplaceExtension};
+pub use signing::{
+    ExtensionSigner, SignatureVerifier, SigningError, TrustedKeysManager,
+};
 pub use structure::{
     Extension, ExtensionStructureError, default_extensions_dir, workspace_extensions_dir,
 };

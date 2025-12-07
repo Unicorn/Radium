@@ -10,6 +10,7 @@ use crate::extensions::structure::{
     Extension, ExtensionStructureError, MANIFEST_FILE, default_extensions_dir,
     validate_package_structure,
 };
+use crate::extensions::signing::{SignatureVerifier, TrustedKeysManager};
 use crate::extensions::validator::{ExtensionValidator, ExtensionValidationError};
 use crate::extensions::versioning::{UpdateChecker, VersionComparator};
 use std::path::{Path, PathBuf};
@@ -193,6 +194,28 @@ impl ExtensionManager {
 
         // Check for conflicts
         ConflictDetector::check_conflicts(&manifest, package_path)?;
+
+        // Verify signature if present (warning mode - non-blocking)
+        if SignatureVerifier::has_signature(package_path) {
+            if let Ok(keys_manager) = TrustedKeysManager::new() {
+                // Try to verify with any trusted key
+                let mut verified = false;
+                if let Ok(trusted_keys) = keys_manager.list_trusted_keys() {
+                    for key_name in trusted_keys {
+                        if let Ok(public_key) = keys_manager.get_trusted_key(&key_name) {
+                            if SignatureVerifier::verify(package_path, &public_key).is_ok() {
+                                verified = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if !verified {
+                    // Log warning but don't block installation
+                    eprintln!("Warning: Extension signature could not be verified. Proceeding with installation anyway.");
+                }
+            }
+        }
 
         // Check if already installed
         if self.discovery.get(&manifest.name)?.is_some() {

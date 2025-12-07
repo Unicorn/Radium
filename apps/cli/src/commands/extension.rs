@@ -5,8 +5,12 @@
 use super::ExtensionCommand;
 use colored::Colorize;
 use inquire::Confirm;
-use radium_core::extensions::{ExtensionDiscovery, ExtensionManager, InstallOptions};
+use radium_core::extensions::{
+    ExtensionDiscovery, ExtensionManager, ExtensionSigner, InstallOptions, SignatureVerifier,
+    TrustedKeysManager,
+};
 use serde_json::json;
+use std::fs;
 use std::path::Path;
 use tabled::{Table, Tabled, settings::Style};
 
@@ -22,6 +26,15 @@ pub async fn execute(command: ExtensionCommand) -> anyhow::Result<()> {
         ExtensionCommand::Search { query, json } => search_extensions(&query, json).await,
         ExtensionCommand::Create { name, author, description } => {
             create_extension(&name, author.as_deref(), description.as_deref()).await
+        }
+        ExtensionCommand::Sign { path, key_file, generate_key } => {
+            sign_extension(&path, key_file.as_deref(), generate_key).await
+        }
+        ExtensionCommand::Verify { name_or_path, key_file } => {
+            verify_extension(&name_or_path, key_file.as_deref()).await
+        }
+        ExtensionCommand::TrustKey { action, name, key_file } => {
+            manage_trusted_keys(&action, name.as_deref(), key_file.as_deref()).await
         }
     }
 }
@@ -550,6 +563,151 @@ See [Creating Extensions](../../docs/extensions/creating-extensions.md) for deta
     println!("  1. Add your components to the extension directories");
     println!("  2. Test installation: rad extension install ./{}", name);
     println!("  3. See docs/extensions/creating-extensions.md for details");
+
+    Ok(())
+}
+
+/// Sign an extension.
+async fn sign_extension(path: &str, key_file: Option<&str>, generate_key: bool) -> anyhow::Result<()> {
+    let extension_path = Path::new(path);
+    if !extension_path.exists() {
+        return Err(anyhow::anyhow!("Extension path does not exist: {}", path));
+    }
+
+    let signer = if generate_key {
+        println!("{}", "Generating new keypair...".bright_black());
+        let (signer, public_key) = ExtensionSigner::generate();
+        
+        // Save keys
+        let private_key_path = extension_path.join("private.key");
+        let public_key_path = extension_path.join("public.key");
+        
+        fs::write(&private_key_path, signer.public_key())?;
+        fs::write(&public_key_path, &public_key)?;
+        
+        println!("{}", format!("✓ Keypair generated and saved").green());
+        println!("  Private key: {}", private_key_path.display());
+        println!("  Public key: {}", public_key_path.display());
+        println!();
+        println!("{}", "⚠ Keep your private key secure!".yellow());
+        
+        signer
+    } else if let Some(key_file) = key_file {
+        let key_bytes = fs::read(key_file)?;
+        ExtensionSigner::from_private_key(&key_bytes)
+            .map_err(|e| anyhow::anyhow!("Failed to load private key: {}", e))?
+    } else {
+        return Err(anyhow::anyhow!("Either --key-file or --generate-key must be provided"));
+    };
+
+    println!("{}", format!("Signing extension: {}", path).yellow());
+    
+    let sig_path = signer.sign_extension(extension_path)
+        .map_err(|e| anyhow::anyhow!("Failed to sign extension: {}", e))?;
+    
+    println!("{}", format!("✓ Extension signed successfully").green());
+    println!("  Signature: {}", sig_path.display());
+    
+    Ok(())
+}
+
+/// Verify an extension signature.
+async fn verify_extension(name_or_path: &str, key_file: Option<&str>) -> anyhow::Result<()> {
+    let extension_path = if Path::new(name_or_path).exists() {
+        Path::new(name_or_path).to_path_buf()
+    } else {
+        // Try as installed extension name
+        let manager = ExtensionManager::new()?;
+        let extension = manager.get(name_or_path)?
+            .ok_or_else(|| anyhow::anyhow!("Extension not found: {}", name_or_path))?;
+        extension.install_path
+    };
+
+    if !SignatureVerifier::has_signature(&extension_path) {
+        println!("{}", format!("⚠ Extension has no signature file").yellow());
+        return Ok(());
+    }
+
+    println!("{}", format!("Verifying extension signature: {}", name_or_path).yellow());
+
+    if let Some(key_file) = key_file {
+        // Verify with specific key
+        let public_key = fs::read(key_file)?;
+        SignatureVerifier::verify(&extension_path, &public_key)
+            .map_err(|e| anyhow::anyhow!("Signature verification failed: {}", e))?;
+        println!("{}", format!("✓ Signature verified successfully").green());
+    } else {
+        // Try with trusted keys
+        let keys_manager = TrustedKeysManager::new()
+            .map_err(|e| anyhow::anyhow!("Failed to initialize trusted keys manager: {}", e))?;
+        
+        let trusted_keys = keys_manager.list_trusted_keys()
+            .map_err(|e| anyhow::anyhow!("Failed to list trusted keys: {}", e))?;
+        
+        if trusted_keys.is_empty() {
+            return Err(anyhow::anyhow!("No trusted keys found. Use --key-file or add a trusted key with 'rad extension trust-key add'"));
+        }
+
+        let mut verified = false;
+        for key_name in trusted_keys {
+            if let Ok(public_key) = keys_manager.get_trusted_key(&key_name) {
+                if SignatureVerifier::verify(&extension_path, &public_key).is_ok() {
+                    println!("{}", format!("✓ Signature verified with trusted key: {}", key_name).green());
+                    verified = true;
+                    break;
+                }
+            }
+        }
+
+        if !verified {
+            return Err(anyhow::anyhow!("Signature verification failed with all trusted keys"));
+        }
+    }
+
+    Ok(())
+}
+
+/// Manage trusted public keys.
+async fn manage_trusted_keys(action: &str, name: Option<&str>, key_file: Option<&str>) -> anyhow::Result<()> {
+    let keys_manager = TrustedKeysManager::new()
+        .map_err(|e| anyhow::anyhow!("Failed to initialize trusted keys manager: {}", e))?;
+
+    match action {
+        "add" => {
+            let name = name.ok_or_else(|| anyhow::anyhow!("Key name required for 'add' action"))?;
+            let key_file = key_file.ok_or_else(|| anyhow::anyhow!("--key-file required for 'add' action"))?;
+            
+            let public_key = fs::read(key_file)?;
+            keys_manager.add_trusted_key(name, &public_key)
+                .map_err(|e| anyhow::anyhow!("Failed to add trusted key: {}", e))?;
+            
+            println!("{}", format!("✓ Trusted key '{}' added successfully", name).green());
+        }
+        "list" => {
+            let keys = keys_manager.list_trusted_keys()
+                .map_err(|e| anyhow::anyhow!("Failed to list trusted keys: {}", e))?;
+            
+            if keys.is_empty() {
+                println!("{}", "No trusted keys found.".yellow());
+            } else {
+                println!("{}", format!("Trusted Keys ({})", keys.len()).bold().green());
+                for key in keys {
+                    println!("  • {}", key);
+                }
+            }
+        }
+        "remove" => {
+            let name = name.ok_or_else(|| anyhow::anyhow!("Key name required for 'remove' action"))?;
+            
+            keys_manager.remove_trusted_key(name)
+                .map_err(|e| anyhow::anyhow!("Failed to remove trusted key: {}", e))?;
+            
+            println!("{}", format!("✓ Trusted key '{}' removed successfully", name).green());
+        }
+        _ => {
+            return Err(anyhow::anyhow!("Invalid action: {}. Use 'add', 'list', or 'remove'", action));
+        }
+    }
 
     Ok(())
 }
