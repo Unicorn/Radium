@@ -380,14 +380,17 @@ prompt_path = "prompts/agents/core/nonexistent.md"
     let agents = discovery.discover_all().expect("Failed to discover agents");
     assert!(agents.contains_key("missing-prompt"), "Should discover agent even with missing prompt");
 
-    // Test 2: Invalid TOML syntax
+    // Test 2: Invalid TOML syntax (test direct loading, not discovery)
     let invalid_config_path = workspace.join("agents/core/invalid.toml");
     fs::write(&invalid_config_path, "[agent]\nid = invalid syntax\n").expect("Failed to write invalid config");
 
     let result = AgentConfigFile::load(&invalid_config_path);
     assert!(result.is_err(), "Should fail to load invalid TOML");
+    
+    // Remove invalid file so discovery can continue
+    fs::remove_file(&invalid_config_path).expect("Failed to remove invalid config");
 
-    // Test 3: Missing required fields
+    // Test 3: Missing required fields (test direct loading, not discovery)
     let missing_fields_path = workspace.join("agents/core/missing-fields.toml");
     fs::write(&missing_fields_path, "[agent]\nid = \"test\"\n").expect("Failed to write config");
 
@@ -395,20 +398,20 @@ prompt_path = "prompts/agents/core/nonexistent.md"
     let result = AgentConfigFile::load(&missing_fields_path);
     assert!(result.is_err(), "Should fail to load config with missing required fields");
     
-    // Discovery should also fail when trying to load this invalid config
-    let discovery_result = discovery.discover_all();
-    // Discovery may succeed for other agents but fail when it hits the invalid one
-    // The exact behavior depends on implementation, but we've verified direct loading fails
+    // Remove invalid file so discovery can continue
+    fs::remove_file(&missing_fields_path).expect("Failed to remove invalid config");
 
     // Test 4: Duplicate agent IDs (later entry should override)
     create_test_agent(workspace, "core", "duplicate", "First Agent", "First", "# Prompt 1");
     create_test_agent(workspace, "custom", "duplicate", "Second Agent", "Second", "# Prompt 2");
 
     let agents = discovery.discover_all().expect("Failed to discover agents");
-    // Should only have one entry (later one overrides)
-    let duplicate_agent = agents.get("duplicate").expect("duplicate agent not found");
-    // The order depends on discovery order, but we should have exactly one
-    assert_eq!(agents.len(), 2); // missing-prompt + duplicate
+    // Should only have one entry for "duplicate" (later one overrides)
+    // The "missing-prompt" agent should also be present
+    assert!(agents.contains_key("duplicate"), "Should contain duplicate agent");
+    assert!(agents.contains_key("missing-prompt"), "Should contain missing-prompt agent");
+    // Should have exactly 2 agents
+    assert_eq!(agents.len(), 2, "Should have exactly 2 agents");
 
     // Restore original directory
     std::env::set_current_dir(original_dir).expect("Failed to restore directory");
