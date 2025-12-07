@@ -162,7 +162,7 @@ Each REQ is designed to be:
 **Last Synced**: 2025-12-07  
 **Status**: ✅ All 20 REQs synced to Braingrid (PROJ-14)
 
-All local REQ documents have been synced to Braingrid for initial parity. The sync script (`scripts/sync-reqs-to-braingrid.py`) can be used to keep local and Braingrid REQs in sync.
+All local REQ documents have been synced to Braingrid for initial parity. The sync script (`scripts/sync-reqs-to-braingrid.sh`) can be used to keep local and Braingrid REQs in sync.
 
 **Sync Summary**: See [SYNC_SUMMARY.md](SYNC_SUMMARY.md) for detailed sync results.
 

@@ -57,15 +57,17 @@ All REQs were updated with correct status mapping:
 
 ### Script Used
 
-The sync was performed using `scripts/sync-reqs-to-braingrid.py`, which:
+The sync was performed using `scripts/sync-reqs-to-braingrid.sh` (CLI-based), which:
 
 1. Parses YAML front matter from each REQ document
 2. Extracts metadata (req_id, title, status, priority, dependencies)
 3. Reads full markdown content (including YAML front matter)
 4. Maps local status to Braingrid status
-5. Checks for existing REQs in Braingrid by name/short_id
-6. Creates new REQs or updates existing ones
-7. Updates status in Braingrid
+5. Checks for existing REQs in Braingrid by name/short_id using `braingrid` CLI
+6. Creates new REQs or updates existing ones via CLI commands
+7. Updates status and name in Braingrid
+
+**Note**: The script uses the Braingrid CLI directly for faster, more reliable syncing. Content updates require manual intervention as the CLI `update` command doesn't support content updates.
 
 ### Content Format
 
@@ -120,14 +122,16 @@ To sync REQs in the future:
 
 ```bash
 cd /Users/clay/Development/RAD
-python3 scripts/sync-reqs-to-braingrid.py
+./scripts/sync-reqs-to-braingrid.sh to-braingrid
 ```
 
 The script will:
-- Check for existing REQs
+- Check for existing REQs using Braingrid CLI
 - Create new ones if missing
-- Update existing ones with current content and status
+- Update existing ones with current status and name
 - Report any errors
+
+**Note**: Content updates are not supported via CLI `update` command, so content must be updated manually or re-created if needed.
 
 ## Issues Encountered
 

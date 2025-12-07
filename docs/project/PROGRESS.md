@@ -71,7 +71,7 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
   - **Completed:** 2025-12-07
   - **Commit:** scripts: add REQ sync script for Braingrid [REQ-1]
   - **Files:**
-    - `scripts/sync-reqs-to-braingrid.py` - Python script for syncing REQs to Braingrid
+    - `scripts/sync-reqs-to-braingrid.sh` - Shell script for syncing REQs to Braingrid (CLI-based)
     - `docs/plan/SYNC_SUMMARY.md` - Detailed sync results and verification
   - **Results:**
     - 20 REQs synced successfully (100% success rate)
