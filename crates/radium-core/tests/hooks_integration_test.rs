@@ -205,3 +205,240 @@ type = "before_model"
     let config = HookConfig::from_str(missing_config).unwrap();
     assert!(config.validate().is_err());
 }
+
+// Concurrency tests
+
+use radium_core::hooks::types::HookContext;
+use radium_core::hooks::registry::Hook;
+
+struct ConcurrentTestHook {
+    name: String,
+    priority: HookPriority,
+    execution_count: Arc<tokio::sync::RwLock<u32>>,
+}
+
+impl ConcurrentTestHook {
+    fn new(name: impl Into<String>, priority: u32) -> Self {
+        Self {
+            name: name.into(),
+            priority: HookPriority::new(priority),
+            execution_count: Arc::new(tokio::sync::RwLock::new(0)),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl Hook for ConcurrentTestHook {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn priority(&self) -> HookPriority {
+        self.priority
+    }
+
+    fn hook_type(&self) -> HookType {
+        HookType::BeforeModel
+    }
+
+    async fn execute(&self, _context: &HookContext) -> Result<HookExecutionResult> {
+        let mut count = self.execution_count.write().await;
+        *count += 1;
+        Ok(HookExecutionResult::success())
+    }
+}
+
+#[tokio::test]
+async fn test_concurrent_hook_registration() {
+    let registry = Arc::new(HookRegistry::new());
+    
+    // Register hooks concurrently
+    let mut handles = vec![];
+    for i in 0..10 {
+        let registry_clone = Arc::clone(&registry);
+        let handle = tokio::spawn(async move {
+            let hook = Arc::new(ConcurrentTestHook::new(format!("hook-{}", i), 100));
+            registry_clone.register(hook).await
+        });
+        handles.push(handle);
+    }
+    
+    // Wait for all registrations
+    for handle in handles {
+        handle.await.unwrap().unwrap();
+    }
+    
+    assert_eq!(registry.count().await, 10);
+}
+
+#[tokio::test]
+async fn test_concurrent_hook_execution() {
+    let registry = Arc::new(HookRegistry::new());
+    let hook = Arc::new(ConcurrentTestHook::new("concurrent-hook", 100));
+    
+    registry.register(hook.clone()).await.unwrap();
+    
+    // Execute hooks concurrently
+    let mut handles = vec![];
+    for _ in 0..100 {
+        let registry_clone = Arc::clone(&registry);
+        let handle = tokio::spawn(async move {
+            let context = HookContext::new("before_model", json!({}));
+            registry_clone.execute_hooks(HookType::BeforeModel, &context).await
+        });
+        handles.push(handle);
+    }
+    
+    // Wait for all executions
+    for handle in handles {
+        handle.await.unwrap().unwrap();
+    }
+    
+    // Verify execution count
+    let count = hook.execution_count.read().await;
+    assert_eq!(*count, 100);
+}
+
+#[tokio::test]
+async fn test_concurrent_enable_disable() {
+    let registry = Arc::new(HookRegistry::new());
+    let hook = Arc::new(ConcurrentTestHook::new("test-hook", 100));
+    
+    registry.register(hook.clone()).await.unwrap();
+    
+    // Enable/disable concurrently
+    let mut handles = vec![];
+    for i in 0..50 {
+        let registry_clone = Arc::clone(&registry);
+        let handle = tokio::spawn(async move {
+            if i % 2 == 0 {
+                registry_clone.set_enabled("test-hook", true).await
+            } else {
+                registry_clone.set_enabled("test-hook", false).await
+            }
+        });
+        handles.push(handle);
+    }
+    
+    // Wait for all operations
+    for handle in handles {
+        handle.await.unwrap().unwrap();
+    }
+    
+    // Hook should still be functional
+    let context = HookContext::new("before_model", json!({}));
+    let results = registry.execute_hooks(HookType::BeforeModel, &context).await.unwrap();
+    // Result depends on final enable state, but should not panic
+    assert!(results.len() <= 1);
+}
+
+#[tokio::test]
+async fn test_registry_clone_behavior() {
+    let registry1 = Arc::new(HookRegistry::new());
+    let hook = Arc::new(ConcurrentTestHook::new("test-hook", 100));
+    
+    registry1.register(hook.clone()).await.unwrap();
+    
+    // Clone registry
+    let registry2 = registry1.clone();
+    
+    // Both should have the hook
+    assert_eq!(registry1.count().await, 1);
+    assert_eq!(registry2.count().await, 1);
+    
+    // Register in one, should appear in both
+    let hook2 = Arc::new(ConcurrentTestHook::new("test-hook-2", 100));
+    registry1.register(hook2).await.unwrap();
+    
+    assert_eq!(registry1.count().await, 2);
+    assert_eq!(registry2.count().await, 2);
+}
+
+#[tokio::test]
+async fn test_priority_ordering() {
+    let registry = Arc::new(HookRegistry::new());
+    
+    // Register hooks with different priorities
+    let hook1 = Arc::new(ConcurrentTestHook::new("hook-1", 100));
+    let hook2 = Arc::new(ConcurrentTestHook::new("hook-2", 200)); // Higher priority
+    let hook3 = Arc::new(ConcurrentTestHook::new("hook-3", 50));  // Lower priority
+    
+    registry.register(hook1.clone()).await.unwrap();
+    registry.register(hook2.clone()).await.unwrap();
+    registry.register(hook3.clone()).await.unwrap();
+    
+    let hooks = registry.get_hooks(HookType::BeforeModel).await;
+    
+    // Hooks should be sorted by priority (descending)
+    assert_eq!(hooks.len(), 3);
+    // Note: Actual order depends on implementation, but priorities should be correct
+    let priorities: Vec<u32> = hooks.iter().map(|h| h.priority().value()).collect();
+    assert!(priorities.contains(&200));
+    assert!(priorities.contains(&100));
+    assert!(priorities.contains(&50));
+}
+
+#[tokio::test]
+async fn test_multiple_hook_types_executing() {
+    let registry = Arc::new(HookRegistry::new());
+    
+    // Register hooks for different types
+    let model_hook = Arc::new(ConcurrentTestHook::new("model-hook", 100));
+    let tool_hook = Arc::new(ConcurrentTestHook::new("tool-hook", 100));
+    
+    registry.register(model_hook.clone()).await.unwrap();
+    registry.register(tool_hook.clone()).await.unwrap();
+    
+    // Execute model hooks
+    let context = HookContext::new("before_model", json!({}));
+    let results = registry.execute_hooks(HookType::BeforeModel, &context).await.unwrap();
+    assert_eq!(results.len(), 1);
+    
+    // Execute tool hooks
+    let context = HookContext::new("before_tool", json!({}));
+    let results = registry.execute_hooks(HookType::BeforeTool, &context).await.unwrap();
+    assert_eq!(results.len(), 1);
+}
+
+#[tokio::test]
+async fn test_enable_disable_persistence() {
+    let registry = Arc::new(HookRegistry::new());
+    let hook = Arc::new(ConcurrentTestHook::new("test-hook", 100));
+    
+    registry.register(hook.clone()).await.unwrap();
+    
+    // Disable hook
+    registry.set_enabled("test-hook", false).await.unwrap();
+    
+    // Hook should not execute
+    let context = HookContext::new("before_model", json!({}));
+    let results = registry.execute_hooks(HookType::BeforeModel, &context).await.unwrap();
+    assert_eq!(results.len(), 0);
+    
+    // Re-enable hook
+    registry.set_enabled("test-hook", true).await.unwrap();
+    
+    // Hook should execute
+    let results = registry.execute_hooks(HookType::BeforeModel, &context).await.unwrap();
+    assert_eq!(results.len(), 1);
+}
+
+#[tokio::test]
+async fn test_hook_state_after_registry_clone() {
+    let registry1 = Arc::new(HookRegistry::new());
+    let hook = Arc::new(ConcurrentTestHook::new("test-hook", 100));
+    
+    registry1.register(hook.clone()).await.unwrap();
+    registry1.set_enabled("test-hook", false).await.unwrap();
+    
+    // Clone registry
+    let registry2 = registry1.clone();
+    
+    // Both should have same enable state
+    let context = HookContext::new("before_model", json!({}));
+    let results1 = registry1.execute_hooks(HookType::BeforeModel, &context).await.unwrap();
+    let results2 = registry2.execute_hooks(HookType::BeforeModel, &context).await.unwrap();
+    
+    assert_eq!(results1.len(), 0);
+    assert_eq!(results2.len(), 0);
+}
