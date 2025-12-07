@@ -45,7 +45,7 @@ pub fn render_loading(frame: &mut Frame, area: Rect, state: &LoadingState) {
     ];
 
     let message = Paragraph::new(message_text).alignment(Alignment::Center).block(
-        Block::default().borders(Borders::ALL).border_style(Style::default().fg(THEME.border)),
+        Block::default().borders(Borders::ALL).border_style(Style::default().fg(THEME.border())),
     );
 
     frame.render_widget(message, chunks[0]);
@@ -56,7 +56,7 @@ pub fn render_loading(frame: &mut Frame, area: Rect, state: &LoadingState) {
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .border_style(Style::default().fg(THEME.border)),
+                    .border_style(Style::default().fg(THEME.border())),
             )
             .gauge_style(Style::default().fg(THEME.primary()).bg(THEME.bg_element()))
             .percent(progress as u16)

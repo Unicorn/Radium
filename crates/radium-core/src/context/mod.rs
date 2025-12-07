@@ -44,6 +44,7 @@
 //! # }
 //! ```
 
+pub mod braingrid_client;
 mod error;
 mod files;
 mod history;

@@ -13,6 +13,7 @@ pub mod failure;
 pub mod parallel;
 pub mod recovery;
 pub mod reassignment;
+pub mod requirement_executor;
 pub mod service;
 pub mod step_tracking;
 pub mod template_discovery;
@@ -46,4 +47,8 @@ pub use complete::{
 pub use templates::{
     ModuleBehavior, ModuleBehaviorAction, ModuleBehaviorType, WorkflowStep, WorkflowStepConfig,
     WorkflowStepType, WorkflowTemplate, WorkflowTemplateError,
+};
+pub use requirement_executor::{
+    RequirementExecutionError, RequirementExecutionResult, RequirementExecutor,
+    RequirementProgress,
 };

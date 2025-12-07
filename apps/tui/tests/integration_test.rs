@@ -148,6 +148,9 @@ mod tests {
     fn test_prompt_data_output_handling() {
         let mut prompt_data = PromptData::new();
         
+        // Clear initial welcome message
+        prompt_data.clear_output();
+        
         // Test adding output
         prompt_data.add_output("Line 1".to_string());
         prompt_data.add_output("Line 2".to_string());

@@ -102,7 +102,7 @@ pub fn render_header(frame: &mut Frame, area: Rect, info: &HeaderInfo) {
         .block(
             Block::default()
                 .borders(Borders::BOTTOM)
-                .border_style(Style::default().fg(THEME.border)),
+                .border_style(Style::default().fg(THEME.border())),
         )
         .style(Style::default().bg(THEME.bg_panel()));
 

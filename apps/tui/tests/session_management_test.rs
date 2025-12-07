@@ -8,7 +8,8 @@ use tempfile::TempDir;
 fn test_session_manager_creation() {
     let temp_dir = TempDir::new().unwrap();
     let manager = SessionManager::new(Some(temp_dir.path().to_path_buf())).unwrap();
-    assert!(manager.sessions_dir.exists());
+    // Verify manager was created successfully by checking it can load sessions
+    let _sessions = manager.load_sessions().unwrap();
 }
 
 #[test]
@@ -27,9 +28,21 @@ fn test_session_creation() {
     
     manager.save_session(&session).unwrap();
     
-    // Verify session file exists
-    let session_file = manager.sessions_dir.join("test-session-1.json");
-    assert!(session_file.exists());
+    // Verify session file exists by loading sessions
+    let sessions = manager.load_sessions().unwrap();
+    let mut found = false;
+    for sessions_list in sessions.values() {
+        for s in sessions_list {
+            if s.session_id == "test-session-1" {
+                found = true;
+                break;
+            }
+        }
+        if found {
+            break;
+        }
+    }
+    assert!(found);
 }
 
 #[test]

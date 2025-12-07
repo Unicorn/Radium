@@ -66,7 +66,7 @@ fn test_command_palette_fuzzy_matching() {
         .collect();
     
     // "chat" should match "cht" (fuzzy)
-    assert!(matches.contains(&"chat"));
+    assert!(matches.iter().any(|&&cmd| cmd == "chat"));
 }
 
 #[test]

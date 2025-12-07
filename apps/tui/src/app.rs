@@ -4,21 +4,26 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyModifiers};
 use radium_core::auth::{CredentialStore, ProviderType};
 use radium_core::mcp::{McpIntegration, SlashCommandRegistry};
-// TODO: CompletionService, CompletionEvent, CompletionOptions need to be implemented or imported from correct location
-// use radium_core::workflow::{CompletionEvent, CompletionOptions, CompletionService};
-use radium_orchestrator::{OrchestrationConfig, OrchestrationService};
+use radium_core::workflow::RequirementExecutor;
+use radium_core::agents::registry::AgentRegistry;
+use radium_core::storage::Database;
+use radium_models::{ModelFactory, ModelConfig, ModelType};
+use radium_orchestrator::{OrchestrationConfig, OrchestrationService, AgentExecutor, Orchestrator};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::commands::{Command, DisplayContext};
+use crate::components::{DialogManager, ToastManager};
 use crate::config::TuiConfig;
+use crate::requirement_progress::ActiveRequirement;
 use crate::setup::SetupWizard;
+use crate::state::WorkflowUIState;
 use crate::theme::RadiumTheme;
 use crate::views::PromptData;
 use crate::workspace::WorkspaceStatus;
 
 /// Default maximum conversation history if config is unavailable
-const DEFAULT_MAX_CONVERSATION_HISTORY: usize = 500;
+const _DEFAULT_MAX_CONVERSATION_HISTORY: usize = 500;
 
 /// Main application with unified prompt interface.
 pub struct App {
@@ -34,6 +39,8 @@ pub struct App {
     pub setup_complete: bool,
     /// Available commands for autocomplete
     pub available_commands: Vec<(&'static str, &'static str)>,
+    /// Available subcommands for hierarchical autocomplete
+    pub available_subcommands: std::collections::HashMap<&'static str, Vec<(&'static str, &'static str)>>,
     /// Setup wizard (if running)
     pub setup_wizard: Option<SetupWizard>,
     /// Workspace status
@@ -54,6 +61,16 @@ pub struct App {
     pub config: TuiConfig,
     /// Whether orchestration is currently running (for cancellation support)
     pub orchestration_running: bool,
+    /// Toast notification manager
+    pub toast_manager: ToastManager,
+    /// Dialog manager for interactive selections
+    pub dialog_manager: DialogManager,
+    /// Workflow UI state (when in workflow mode)
+    pub workflow_state: Option<WorkflowUIState>,
+    /// Selected agent ID in workflow mode
+    pub selected_agent_id: Option<String>,
+    /// Active requirement execution (for async progress tracking)
+    pub active_requirement: Option<ActiveRequirement>,
 }
 
 impl App {
@@ -74,8 +91,26 @@ impl App {
             ("dashboard", "Show system dashboard"),
             ("models", "Select AI model"),
             ("orchestrator", "Manage orchestration settings"),
+            ("requirement", "Execute a Braingrid requirement autonomously"),
             ("complete", "Complete a requirement from source (file, Jira, or REQ)"),
         ];
+
+        // Define subcommands for hierarchical completion
+        let available_subcommands: std::collections::HashMap<&str, Vec<(&str, &str)>> = [
+            ("orchestrator", vec![
+                ("status", "Show orchestration status"),
+                ("toggle", "Enable/disable orchestration"),
+                ("switch", "Switch orchestration provider"),
+                ("config", "Show full configuration"),
+                ("refresh", "Reload agent tool registry"),
+            ]),
+            ("requirement", vec![
+                ("list", "List all requirements"),
+            ]),
+        ]
+        .iter()
+        .cloned()
+        .collect();
 
         // Initialize workspace
         let workspace_status = crate::workspace::initialize_workspace().ok();
@@ -106,6 +141,7 @@ impl App {
             current_session: None,
             setup_complete,
             available_commands,
+            available_subcommands,
             setup_wizard: None,
             workspace_status,
             orchestration_service,
@@ -116,6 +152,11 @@ impl App {
             show_shortcuts: false,
             config,
             orchestration_running: false,
+            toast_manager: ToastManager::new(),
+            dialog_manager: DialogManager::new(),
+            workflow_state: None,
+            selected_agent_id: None,
+            active_requirement: None,
         };
 
         // Show setup wizard if not configured, otherwise start chat
@@ -256,6 +297,19 @@ impl App {
     }
 
     pub async fn handle_key(&mut self, key: KeyCode, modifiers: KeyModifiers) -> Result<()> {
+        // If dialog is open, handle dialog input first
+        if self.dialog_manager.is_open() {
+            if let Some(_value) = self.dialog_manager.handle_key(key) {
+                // Dialog was closed with a selection - handle it
+                // This will be handled by the command that opened the dialog
+                return Ok(());
+            }
+            // Dialog handled the key (or it was Esc to close)
+            if !self.dialog_manager.is_open() {
+                return Ok(());
+            }
+        }
+
         // If shortcuts overlay is active, handle dismissal
         if self.show_shortcuts {
             match key {
@@ -340,9 +394,16 @@ impl App {
                 self.prompt_data.selected_suggestion_index = 0;
             }
 
-            // Enter - process command or send message (unless in command palette)
+            // Enter - autocomplete+execute if suggestions showing, otherwise process command
             KeyCode::Enter if !self.prompt_data.command_palette_active => {
-                self.handle_enter().await?;
+                if !self.prompt_data.command_suggestions.is_empty() {
+                    // Autocomplete selected suggestion
+                    self.autocomplete_selected_command();
+                    // Then execute it
+                    self.handle_enter().await?;
+                } else {
+                    self.handle_enter().await?;
+                }
             }
 
             // Backspace (unless in command palette)
@@ -473,6 +534,33 @@ impl App {
             "orchestrator" => {
                 self.handle_orchestrator_command(&cmd.args).await?;
             }
+            "requirement" => {
+                if cmd.args.is_empty() {
+                    self.prompt_data.add_output("Usage: /requirement <REQ-ID> [project <PROJECT-ID>]".to_string());
+                    self.prompt_data.add_output("       /requirement list [project <PROJECT-ID>]".to_string());
+                    self.prompt_data.add_output("".to_string());
+                    self.prompt_data.add_output("Examples:".to_string());
+                    self.prompt_data.add_output("  /requirement REQ-173 project PROJ-14".to_string());
+                    self.prompt_data.add_output("  /requirement REQ-173".to_string());
+                    self.prompt_data.add_output("  /requirement list project PROJ-14".to_string());
+                } else if cmd.args[0] == "list" {
+                    // List requirements
+                    let project_id = if cmd.args.len() >= 3 && cmd.args[1] == "project" {
+                        Some(cmd.args[2].clone())
+                    } else {
+                        None
+                    };
+                    self.handle_requirement_list(project_id).await?;
+                } else {
+                    let req_id = cmd.args[0].clone();
+                    let project_id = if cmd.args.len() >= 3 && cmd.args[1] == "project" {
+                        Some(cmd.args[2].clone())
+                    } else {
+                        None
+                    };
+                    self.handle_requirement(&req_id, project_id).await?;
+                }
+            }
             "complete" => {
                 if cmd.args.is_empty() {
                     self.prompt_data.add_output("Usage: /complete <source>".to_string());
@@ -525,7 +613,8 @@ impl App {
         self.prompt_data.add_output("  /sessions       - Show your chat sessions".to_string());
         self.prompt_data.add_output("  /dashboard      - Show dashboard stats".to_string());
         self.prompt_data.add_output("  /models         - Select AI model".to_string());
-        self.prompt_data.add_output("  /orchestrator   - Manage orchestration".to_string());
+        self.prompt_data.add_output("  /orchestrator   - Manage orchestration (status, toggle, switch, config, refresh)".to_string());
+        self.prompt_data.add_output("  /requirement    - Execute Braingrid requirement (use 'list' to list requirements)".to_string());
         self.prompt_data.add_output("  /complete       - Complete requirement from source".to_string());
         self.prompt_data.add_output("  /reload-config  - Reload configuration file".to_string());
         self.prompt_data.add_output("  /help           - Show this help".to_string());
@@ -851,24 +940,48 @@ impl App {
 
         let partial = &input[1..]; // Remove the '/'
 
-        // Filter built-in commands that match the partial input
-        let mut suggestions: Vec<String> = self
-            .available_commands
-            .iter()
-            .filter(|(cmd, _desc)| cmd.starts_with(partial))
-            .map(|(cmd, desc)| format!("/{} - {}", cmd, desc))
-            .collect();
+        // Parse input to detect main command vs subcommand
+        let parts: Vec<&str> = partial.split_whitespace().collect();
 
-        // Add MCP commands that match
-        for (cmd_name, prompt) in self.mcp_slash_registry.get_all_commands() {
-            let cmd_without_slash = &cmd_name[1..]; // Remove leading '/'
-            if cmd_without_slash.starts_with(partial) {
-                let desc = prompt
-                    .description
-                    .as_ref()
-                    .map(|d| d.as_str())
-                    .unwrap_or("MCP command");
-                suggestions.push(format!("{} - {}", cmd_name, desc));
+        let mut suggestions: Vec<String> = Vec::new();
+
+        if parts.is_empty() || (parts.len() == 1 && !partial.ends_with(' ')) {
+            // Typing main command - show matching main commands
+            let query = parts.first().unwrap_or(&"");
+
+            // Filter built-in commands that match the partial input
+            suggestions.extend(
+                self.available_commands
+                    .iter()
+                    .filter(|(cmd, _desc)| cmd.starts_with(query))
+                    .map(|(cmd, desc)| format!("/{} - {}", cmd, desc))
+            );
+
+            // Add MCP commands that match
+            for (cmd_name, prompt) in self.mcp_slash_registry.get_all_commands() {
+                let cmd_without_slash = &cmd_name[1..]; // Remove leading '/'
+                if cmd_without_slash.starts_with(query) {
+                    let desc = prompt
+                        .description
+                        .as_ref()
+                        .map(|d| d.as_str())
+                        .unwrap_or("MCP command");
+                    suggestions.push(format!("{} - {}", cmd_name, desc));
+                }
+            }
+        } else if parts.len() >= 1 {
+            // Main command is complete - show subcommands if available
+            let main_cmd = parts[0];
+
+            if let Some(subcommands) = self.available_subcommands.get(main_cmd) {
+                let subquery = if parts.len() > 1 { parts[1] } else { "" };
+
+                suggestions.extend(
+                    subcommands
+                        .iter()
+                        .filter(|(subcmd, _desc)| subcmd.starts_with(subquery))
+                        .map(|(subcmd, desc)| format!("/{} {} - {}", main_cmd, subcmd, desc))
+                );
             }
         }
 
@@ -884,9 +997,33 @@ impl App {
         {
             // Extract just the command part (before the ' - ')
             if let Some(cmd) = suggestion.split(" - ").next() {
-                self.prompt_data.input = cmd.to_string();
+                // Check if this is a main command with subcommands
+                let cmd_without_slash = cmd.trim_start_matches('/');
+                let parts: Vec<&str> = cmd_without_slash.split_whitespace().collect();
+
+                let has_subcommands = if parts.len() == 1 {
+                    self.available_subcommands.contains_key(parts[0])
+                } else {
+                    false
+                };
+
+                // Set the input
+                self.prompt_data.input = if has_subcommands {
+                    // Add a space to trigger subcommand suggestions
+                    format!("{} ", cmd)
+                } else {
+                    // Use the command as-is
+                    cmd.to_string()
+                };
+
+                // Clear suggestions - they'll be regenerated if needed
                 self.prompt_data.command_suggestions.clear();
                 self.prompt_data.selected_suggestion_index = 0;
+
+                // If has subcommands, trigger update to show them
+                if has_subcommands {
+                    self.update_command_suggestions();
+                }
             }
         }
     }
@@ -1411,15 +1548,305 @@ impl App {
         Ok(())
     }
 
+    /// Handle /requirement command
+    async fn handle_requirement(&mut self, req_id: &str, project_id: Option<String>) -> Result<()> {
+        self.prompt_data.clear_output();
+        self.prompt_data.add_output("🚀 Radium Autonomous Requirement Execution".to_string());
+        self.prompt_data.add_output("".to_string());
+
+        // Validate requirement ID format
+        if !req_id.starts_with("REQ-") {
+            self.prompt_data.add_output("❌ Invalid requirement ID format".to_string());
+            self.prompt_data.add_output("   Expected format: REQ-XXX (e.g., REQ-173)".to_string());
+            return Ok(());
+        }
+
+        // Get project ID from parameter or environment
+        let project_id = project_id
+            .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok())
+            .unwrap_or_else(|| {
+                self.prompt_data.add_output("⚠️  No project ID specified, using default PROJ-14".to_string());
+                "PROJ-14".to_string()
+            });
+
+        self.prompt_data.add_output(format!("📋 Configuration:"));
+        self.prompt_data.add_output(format!("   Requirement ID: {}", req_id));
+        self.prompt_data.add_output(format!("   Project ID: {}", project_id));
+        self.prompt_data.add_output("".to_string());
+
+        // Initialize workspace
+        self.prompt_data.add_output("🔧 Initializing workspace...".to_string());
+        let workspace = match radium_core::Workspace::discover() {
+            Ok(ws) => {
+                ws.ensure_structure()?;
+                self.prompt_data.add_output("   ✓ Workspace initialized".to_string());
+                ws
+            }
+            Err(e) => {
+                self.prompt_data.add_output(format!("   ❌ Failed to discover workspace: {}", e));
+                return Ok(());
+            }
+        };
+
+        // Initialize database
+        self.prompt_data.add_output("💾 Initializing database...".to_string());
+        let db_path = workspace.radium_dir().join("database.db");
+        let db = match Database::open(db_path.to_str().unwrap()) {
+            Ok(database) => {
+                self.prompt_data.add_output("   ✓ Database initialized".to_string());
+                Arc::new(std::sync::Mutex::new(database))
+            }
+            Err(e) => {
+                self.prompt_data.add_output(format!("   ❌ Failed to open database: {}", e));
+                return Ok(());
+            }
+        };
+
+        // Initialize orchestrator
+        self.prompt_data.add_output("🎯 Initializing orchestrator...".to_string());
+        let orchestrator = Arc::new(Orchestrator::new());
+
+        // Initialize agent executor
+        let executor = Arc::new(AgentExecutor::new(
+            ModelType::Gemini,
+            "gemini-2.0-flash-exp".to_string(),
+        ));
+        self.prompt_data.add_output("   ✓ Orchestrator initialized".to_string());
+
+        // Initialize agent registry
+        let agent_registry = Arc::new(AgentRegistry::new());
+
+        // Initialize AI model
+        self.prompt_data.add_output("🤖 Initializing AI model...".to_string());
+        let config = ModelConfig {
+            model_type: ModelType::Gemini,
+            model_id: "gemini-2.0-flash-exp".to_string(),
+            api_key: std::env::var("GEMINI_API_KEY").ok(),
+        };
+        let model = match ModelFactory::create(config) {
+            Ok(m) => {
+                self.prompt_data.add_output("   ✓ Model initialized (Gemini)".to_string());
+                m
+            }
+            Err(e) => {
+                self.prompt_data.add_output(format!("   ❌ Failed to create model: {}", e));
+                self.prompt_data.add_output("   💡 Set GEMINI_API_KEY environment variable".to_string());
+                return Ok(());
+            }
+        };
+
+        // Create requirement executor
+        self.prompt_data.add_output("⚙️  Creating requirement executor...".to_string());
+        let executor_instance = match RequirementExecutor::new(
+            project_id.clone(),
+            &orchestrator,
+            &executor,
+            &db,
+            agent_registry,
+            model,
+        ) {
+            Ok(exec) => {
+                self.prompt_data.add_output("   ✓ Executor created".to_string());
+                exec
+            }
+            Err(e) => {
+                self.prompt_data.add_output(format!("   ❌ Failed to create executor: {}", e));
+                return Ok(());
+            }
+        };
+
+        self.prompt_data.add_output("".to_string());
+        self.prompt_data.add_output(format!("🚀 Starting async execution for {}...", req_id));
+        self.prompt_data.add_output("   UI will remain responsive during execution".to_string());
+        self.prompt_data.add_output("─".repeat(60));
+        self.prompt_data.add_output("".to_string());
+
+        // Create progress channel
+        let (progress_tx, progress_rx) = tokio::sync::mpsc::channel(100);
+
+        // Spawn async execution
+        let req_id_clone = req_id.to_string();
+        tokio::spawn(async move {
+            let _ = executor_instance.execute_requirement_with_progress(&req_id_clone, progress_tx).await;
+        });
+
+        // Store active requirement for progress tracking
+        self.active_requirement = Some(ActiveRequirement::new(req_id.to_string(), progress_rx));
+
+        self.prompt_data.add_output("⏳ Execution started in background...".to_string());
+        self.prompt_data.add_output("   Progress updates will appear below".to_string());
+
+        Ok(())
+    }
+
+    /// Handle /requirement list command (list requirements)
+    async fn handle_requirement_list(&mut self, project_id: Option<String>) -> Result<()> {
+        use std::process::Command;
+        use serde::{Deserialize};
+
+        #[derive(Debug, Deserialize)]
+        struct RequirementListResponse {
+            requirements: Vec<RequirementSummary>,
+            pagination: Pagination,
+        }
+
+        #[derive(Debug, Deserialize)]
+        struct RequirementSummary {
+            short_id: String,
+            name: String,
+            status: String,
+            task_progress: TaskProgress,
+        }
+
+        #[derive(Debug, Deserialize)]
+        struct TaskProgress {
+            total: usize,
+            completed: usize,
+            progress_percentage: u8,
+        }
+
+        #[derive(Debug, Deserialize)]
+        struct Pagination {
+            page: usize,
+            total: usize,
+            total_pages: usize,
+        }
+
+        self.prompt_data.clear_output();
+        self.prompt_data.add_output("📋 Braingrid Requirements List".to_string());
+        self.prompt_data.add_output("".to_string());
+
+        // Get project ID from parameter or environment
+        let project_id = project_id
+            .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok())
+            .unwrap_or_else(|| {
+                self.prompt_data.add_output("⚠️  No project ID specified, using default PROJ-14".to_string());
+                "PROJ-14".to_string()
+            });
+
+        self.prompt_data.add_output(format!("Project ID: {}", project_id));
+        self.prompt_data.add_output("".to_string());
+
+        // Call braingrid CLI
+        self.prompt_data.add_output("Fetching requirements...".to_string());
+        let output = match Command::new("braingrid")
+            .args(&[
+                "requirement",
+                "list",
+                "-p",
+                &project_id,
+                "--format",
+                "json",
+            ])
+            .output()
+        {
+            Ok(out) => out,
+            Err(e) => {
+                self.prompt_data.add_output(format!("❌ Failed to execute braingrid command: {}", e));
+                return Ok(());
+            }
+        };
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            self.prompt_data.add_output(format!("❌ Failed to list requirements: {}", stderr));
+            return Ok(());
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        // Strip spinner animation and extract JSON (starts with '{')
+        let json_start = stdout.find('{').unwrap_or(0);
+        let json_str = &stdout[json_start..];
+
+        let response: RequirementListResponse = match serde_json::from_str(json_str) {
+            Ok(resp) => resp,
+            Err(e) => {
+                self.prompt_data.add_output(format!("❌ Failed to parse JSON: {}", e));
+                return Ok(());
+            }
+        };
+
+        self.prompt_data.add_output(format!("✓ Fetched {} requirements", response.requirements.len()));
+        self.prompt_data.add_output("".to_string());
+
+        // Display requirements table
+        self.prompt_data.add_output("─".repeat(100));
+        self.prompt_data.add_output(format!(
+            "{:<12} {:<45} {:<15} {:<10} {:<10}",
+            "ID", "Name", "Status", "Progress", "Tasks"
+        ));
+        self.prompt_data.add_output("─".repeat(100));
+
+        for req in &response.requirements {
+            let status_display = match req.status.as_str() {
+                "COMPLETED" => format!("✓ {}", req.status),
+                "IN_PROGRESS" => format!("⚙ {}", req.status),
+                "REVIEW" => format!("👁 {}", req.status),
+                "PLANNED" => format!("📝 {}", req.status),
+                "IDEA" => format!("💡 {}", req.status),
+                "CANCELLED" => format!("✗ {}", req.status),
+                _ => req.status.clone(),
+            };
+
+            let progress_display = format!("{}%", req.task_progress.progress_percentage);
+            let tasks_display = format!("{}/{}", req.task_progress.completed, req.task_progress.total);
+
+            // Truncate name if too long
+            let name = if req.name.len() > 43 {
+                format!("{}...", &req.name[..40])
+            } else {
+                req.name.clone()
+            };
+
+            self.prompt_data.add_output(format!(
+                "{:<12} {:<45} {:<15} {:<10} {:<10}",
+                req.short_id, name, status_display, progress_display, tasks_display
+            ));
+        }
+
+        self.prompt_data.add_output("─".repeat(100));
+        self.prompt_data.add_output("".to_string());
+
+        // Display pagination info
+        self.prompt_data.add_output(format!(
+            "Showing page {} of {} ({} total requirements)",
+            response.pagination.page,
+            response.pagination.total_pages,
+            response.pagination.total
+        ));
+        self.prompt_data.add_output("".to_string());
+
+        Ok(())
+    }
+
     /// Handle /complete command
     async fn handle_complete(&mut self, source: &str) -> Result<()> {
-        // TODO: CompletionService, CompletionEvent, CompletionOptions need to be implemented
-        // This functionality is temporarily disabled until these types are available
         self.prompt_data.clear_output();
         self.prompt_data.add_output(format!("🚀 Starting completion workflow for: {}", source));
         self.prompt_data.add_output("".to_string());
-        self.prompt_data.add_output("⚠️  Completion service is not yet implemented".to_string());
-        self.prompt_data.add_output("This feature requires CompletionService, CompletionEvent, and CompletionOptions types".to_string());
+
+        // Check if it's a Braingrid REQ
+        if source.starts_with("REQ-") {
+            self.prompt_data.add_output("📋 Detected Braingrid requirement".to_string());
+            self.prompt_data.add_output(format!("   Redirecting to /requirement {}...", source));
+            self.prompt_data.add_output("".to_string());
+            self.prompt_data.add_output("💡 Tip: Use /requirement directly for Braingrid requirements".to_string());
+            self.prompt_data.add_output("".to_string());
+
+            // Delegate to handle_requirement
+            return self.handle_requirement(source, None).await;
+        }
+
+        // For other sources (files, Jira, etc.), show not implemented message
+        self.prompt_data.add_output("⚠️  Completion service for files and Jira is not yet implemented".to_string());
+        self.prompt_data.add_output("".to_string());
+        self.prompt_data.add_output("Currently supported:".to_string());
+        self.prompt_data.add_output("  ✓ Braingrid requirements (REQ-XXX) - use /requirement command".to_string());
+        self.prompt_data.add_output("".to_string());
+        self.prompt_data.add_output("Coming soon:".to_string());
+        self.prompt_data.add_output("  • File-based requirements (./specs/feature.md)".to_string());
+        self.prompt_data.add_output("  • Jira ticket integration (RAD-42)".to_string());
+
         Ok(())
     }
 

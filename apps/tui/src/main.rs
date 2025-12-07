@@ -15,7 +15,8 @@ use ratatui::prelude::*;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use radium_tui::app::App;
-use radium_tui::views::{render_prompt, render_setup_wizard, render_shortcuts, render_splash};
+use radium_tui::components::{render_dialog, render_toasts};
+use radium_tui::views::{render_prompt, render_setup_wizard, render_shortcuts, render_splash, render_workflow};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -68,6 +69,77 @@ async fn main() -> Result<()> {
 
     // Main loop
     loop {
+        // Update toast manager (remove expired toasts)
+        app.toast_manager.update();
+
+        // Poll for requirement progress updates (non-blocking)
+        if let Some(active_req) = &mut app.active_requirement {
+            match active_req.progress_rx.try_recv() {
+                Ok(progress) => {
+                    // Update active requirement state
+                    active_req.update(progress.clone());
+
+                    // Use toast notifications for key events
+                    match &progress {
+                        radium_core::workflow::RequirementProgress::Started { total_tasks, .. } => {
+                            app.toast_manager.info(format!("Starting execution ({} tasks)", total_tasks));
+                        }
+                        radium_core::workflow::RequirementProgress::TaskCompleted { task_title, .. } => {
+                            app.toast_manager.success(format!("Completed: {}", task_title));
+                        }
+                        radium_core::workflow::RequirementProgress::TaskFailed { task_title, error, .. } => {
+                            app.toast_manager.error(format!("Failed: {} - {}", task_title, error));
+                        }
+                        radium_core::workflow::RequirementProgress::Completed { result } => {
+                            if result.success {
+                                app.toast_manager.success(format!(
+                                    "Requirement {} completed! ({} tasks)",
+                                    result.requirement_id, result.tasks_completed
+                                ));
+                            } else {
+                                app.toast_manager.warning(format!(
+                                    "Requirement {} completed with {} failures",
+                                    result.requirement_id, result.tasks_failed
+                                ));
+                            }
+
+                            // Show final summary in output
+                            app.prompt_data.add_output("".to_string());
+                            app.prompt_data.add_output("─".repeat(60));
+                            app.prompt_data.add_output("📊 Execution Summary".to_string());
+                            app.prompt_data.add_output("─".repeat(60));
+                            app.prompt_data.add_output("".to_string());
+                            app.prompt_data.add_output(format!("  Requirement: {}", result.requirement_id));
+                            app.prompt_data.add_output(format!("  Tasks Completed: {}", result.tasks_completed));
+                            app.prompt_data.add_output(format!("  Tasks Failed: {}", result.tasks_failed));
+                            app.prompt_data.add_output(format!("  Execution Time: {}s", result.execution_time_secs));
+                            app.prompt_data.add_output(format!("  Final Status: {:?}", result.final_status));
+                            app.prompt_data.add_output("".to_string());
+                            app.prompt_data.add_output("─".repeat(60));
+
+                            // Remove active requirement when done
+                            app.active_requirement = None;
+                        }
+                        radium_core::workflow::RequirementProgress::Failed { error } => {
+                            app.toast_manager.error(format!("Execution failed: {}", error));
+                            app.prompt_data.add_output(format!("❌ Execution failed: {}", error));
+                            app.active_requirement = None;
+                        }
+                        _ => {
+                            // For TaskStarted, just update the UI silently
+                        }
+                    }
+                }
+                Err(tokio::sync::mpsc::error::TryRecvError::Empty) => {
+                    // No updates available, continue
+                }
+                Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
+                    app.toast_manager.warning("Requirement execution channel closed unexpectedly".to_string());
+                    app.active_requirement = None;
+                }
+            }
+        }
+
         // Draw UI
         terminal.draw(|frame| {
             let area = frame.area();
@@ -77,9 +149,23 @@ async fn main() -> Result<()> {
                 render_shortcuts(frame, area);
             } else if let Some(wizard) = &app.setup_wizard {
                 render_setup_wizard(frame, area, wizard);
+            } else if let Some(ref workflow_state) = app.workflow_state {
+                // Workflow mode: split-panel layout
+                render_workflow(frame, area, workflow_state, app.selected_agent_id.as_deref());
             } else {
+                // Prompt mode: unified prompt interface
                 render_prompt(frame, area, &app.prompt_data);
             }
+
+            // Render dialogs (on top of everything except shortcuts)
+            if !app.show_shortcuts {
+                if let Some(dialog) = app.dialog_manager.current() {
+                    render_dialog(frame, area, dialog);
+                }
+            }
+
+            // Render toasts (on top of everything)
+            render_toasts(frame, area, &app.toast_manager);
         })?;
 
         // Handle events with timeout

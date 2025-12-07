@@ -1,96 +1,176 @@
 //! Agent timeline component for displaying agent execution progress.
 
-use crate::state::{AgentState, AgentStatus};
+use crate::state::{AgentState, AgentStatus, SubAgentState};
 use ratatui::{
     prelude::*,
     widgets::{Block, Borders, List, ListItem, Paragraph},
 };
+use std::collections::HashSet;
 
 /// Agent timeline component
 pub struct AgentTimeline;
 
 impl AgentTimeline {
-    /// Renders the agent timeline.
+    /// Renders the agent timeline with hierarchical display and expandable sub-agents.
     pub fn render(
         frame: &mut Frame,
         area: Rect,
         agents: &[AgentState],
         selected_index: Option<usize>,
     ) {
+        Self::render_with_expansion(frame, area, agents, selected_index, &HashSet::new())
+    }
+
+    /// Renders the agent timeline with expansion support.
+    pub fn render_with_expansion(
+        frame: &mut Frame,
+        area: Rect,
+        agents: &[AgentState],
+        selected_index: Option<usize>,
+        expanded_agents: &HashSet<String>,
+    ) {
+        let theme = crate::theme::get_theme();
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3), // Title
+                Constraint::Length(2), // Title
                 Constraint::Min(5),    // Agent list
             ])
             .split(area);
 
         // Title
-        let title = Paragraph::new("Agent Timeline")
-            .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        let title = Paragraph::new("Workflow Pipeline")
+            .style(Style::default().fg(theme.primary).add_modifier(Modifier::BOLD))
             .alignment(Alignment::Center)
-            .block(Block::default().borders(Borders::ALL));
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(theme.border))
+                    .style(Style::default().bg(theme.bg_panel)),
+            );
         frame.render_widget(title, chunks[0]);
 
-        // Agent list
-        let items: Vec<ListItem> = agents
-            .iter()
-            .enumerate()
-            .map(|(idx, agent)| {
-                let status_color = Self::status_color(agent.status);
-                let elapsed = agent
-                    .elapsed_time()
-                    .map(|d| format!("{:.1}s", d.as_secs_f64()))
-                    .unwrap_or_else(|| "-".to_string());
+        // Build hierarchical list items
+        let mut items: Vec<ListItem> = Vec::new();
+        let mut _item_index = 0;
 
-                let tool_info = if let Some(ref tool) = agent.current_tool {
-                    format!(" [{}]", tool)
-                } else {
-                    String::new()
-                };
+        for (agent_idx, agent) in agents.iter().enumerate() {
+            let is_selected = Some(agent_idx) == selected_index;
+            let is_expanded = expanded_agents.contains(&agent.agent_id);
+            let has_sub_agents = !agent.sub_agents.is_empty();
 
-                let content = format!(
-                    "{} {} - {} ({}){} {} tokens",
-                    agent.status.icon(),
-                    agent.agent_name,
-                    agent.status.as_str(),
-                    elapsed,
-                    tool_info,
-                    format_tokens(agent.tokens_used)
-                );
+            // Main agent node
+            let status_color = Self::status_color(agent.status, &theme);
+            let elapsed = agent
+                .elapsed_time()
+                .map(|d| format!("{:.1}s", d.as_secs_f64()))
+                .unwrap_or_else(|| "-".to_string());
 
-                let style = if Some(idx) == selected_index {
-                    Style::default()
-                        .fg(status_color)
-                        .add_modifier(Modifier::BOLD | Modifier::REVERSED)
-                } else {
-                    Style::default().fg(status_color)
-                };
+            let tool_info = if let Some(ref tool) = agent.current_tool {
+                format!(" [{}]", tool)
+            } else {
+                String::new()
+            };
 
-                ListItem::new(content).style(style)
-            })
-            .collect();
+            let expand_indicator = if has_sub_agents {
+                if is_expanded { "▼ " } else { "▶ " }
+            } else {
+                "  "
+            };
 
-        let list = List::new(items).block(Block::default().borders(Borders::ALL).title(" Agents "));
+            let content = format!(
+                "{} {} {} - {} ({}){}",
+                expand_indicator,
+                agent.status.icon(),
+                agent.agent_name,
+                agent.status.as_str(),
+                elapsed,
+                tool_info
+            );
+
+            let style = if is_selected {
+                Style::default()
+                    .fg(theme.bg_primary)
+                    .bg(theme.primary)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(status_color)
+            };
+
+            items.push(ListItem::new(content).style(style));
+            _item_index += 1;
+
+            // Sub-agents (if expanded)
+            if is_expanded && has_sub_agents {
+                let sub_agents: Vec<&SubAgentState> = agent.sub_agents.values().collect();
+                for sub_agent in sub_agents {
+                    let sub_status_color = Self::status_color(sub_agent.status, &theme);
+                    let sub_elapsed = sub_agent
+                        .elapsed_time()
+                        .map(|d| format!("{:.1}s", d.as_secs_f64()))
+                        .unwrap_or_else(|| "-".to_string());
+
+                    let sub_content = format!(
+                        "    {} {} - {} ({})",
+                        sub_agent.status.icon(),
+                        sub_agent.agent_name,
+                        sub_agent.status.as_str(),
+                        sub_elapsed
+                    );
+
+                    items.push(ListItem::new(sub_content).style(Style::default().fg(sub_status_color)));
+                    _item_index += 1;
+                }
+
+                // Sub-agent summary if collapsed
+                if !is_expanded && has_sub_agents {
+                    let sub_count = agent.sub_agents.len();
+                    let completed = agent
+                        .sub_agents
+                        .values()
+                        .filter(|s| s.status == AgentStatus::Completed)
+                        .count();
+                    let summary = format!(
+                        "    {} sub-agent{} ({}/{} completed)",
+                        sub_count,
+                        if sub_count == 1 { "" } else { "s" },
+                        completed,
+                        sub_count
+                    );
+                    items.push(ListItem::new(summary).style(Style::default().fg(theme.text_muted)));
+                    _item_index += 1;
+                }
+            }
+        }
+
+        let list = List::new(items)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(theme.border))
+                    .style(Style::default().bg(theme.bg_panel))
+                    .title(" Agents "),
+            );
         frame.render_widget(list, chunks[1]);
     }
 
     /// Returns the color for an agent status.
-    fn status_color(status: AgentStatus) -> Color {
+    fn status_color(status: AgentStatus, theme: &crate::theme::RadiumTheme) -> Color {
         match status {
-            AgentStatus::Idle => Color::Gray,
-            AgentStatus::Starting => Color::Yellow,
-            AgentStatus::Running => Color::Blue,
-            AgentStatus::Thinking => Color::Cyan,
-            AgentStatus::ExecutingTool => Color::Magenta,
-            AgentStatus::Completed => Color::Green,
-            AgentStatus::Failed => Color::Red,
-            AgentStatus::Cancelled => Color::DarkGray,
+            AgentStatus::Idle => theme.text_muted,
+            AgentStatus::Starting => theme.warning,
+            AgentStatus::Running => theme.info,
+            AgentStatus::Thinking => theme.primary,
+            AgentStatus::ExecutingTool => theme.secondary,
+            AgentStatus::Completed => theme.success,
+            AgentStatus::Failed => theme.error,
+            AgentStatus::Cancelled => theme.text_dim,
         }
     }
 
     /// Renders agent details (expanded view).
     pub fn render_details(frame: &mut Frame, area: Rect, agent: &AgentState) {
+        let theme = crate::theme::get_theme();
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -109,7 +189,7 @@ impl AgentTimeline {
         frame.render_widget(title_widget, chunks[0]);
 
         // Info
-        let status_color = Self::status_color(agent.status);
+        let status_color = Self::status_color(agent.status, &theme);
         let elapsed = agent
             .elapsed_time()
             .map(|d| format!("{:.1}s", d.as_secs_f64()))
@@ -134,7 +214,7 @@ impl AgentTimeline {
                 .sub_agents
                 .values()
                 .map(|sub_agent| {
-                    let status_color = Self::status_color(sub_agent.status);
+                    let status_color = Self::status_color(sub_agent.status, &theme);
                     let content = format!(
                         "  {} {} - {}",
                         sub_agent.status.icon(),
@@ -192,8 +272,9 @@ mod tests {
 
     #[test]
     fn test_status_color() {
-        assert_eq!(AgentTimeline::status_color(AgentStatus::Running), Color::Blue);
-        assert_eq!(AgentTimeline::status_color(AgentStatus::Completed), Color::Green);
-        assert_eq!(AgentTimeline::status_color(AgentStatus::Failed), Color::Red);
+        let theme = crate::theme::RadiumTheme::dark();
+        assert_eq!(AgentTimeline::status_color(AgentStatus::Running, &theme), theme.info);
+        assert_eq!(AgentTimeline::status_color(AgentStatus::Completed, &theme), theme.success);
+        assert_eq!(AgentTimeline::status_color(AgentStatus::Failed, &theme), theme.error);
     }
 }

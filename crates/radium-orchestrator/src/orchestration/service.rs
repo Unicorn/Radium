@@ -119,6 +119,53 @@ impl OrchestrationService {
     }
 
     /// Create provider based on configuration
+    /// Create a model instance from configuration
+    fn create_model_from_config(config: &OrchestrationConfig) -> Result<Box<dyn radium_abstraction::Model>> {
+        let api_key = config
+            .get_api_key(config.default_provider)
+            .ok_or_else(|| crate::error::OrchestrationError::Other(
+                format!("API key not found for provider: {}. Set {} environment variable.",
+                    config.default_provider,
+                    Self::api_key_env_var(config.default_provider))
+            ))?;
+
+        let model: Box<dyn radium_abstraction::Model> = match config.default_provider {
+            ProviderType::Gemini => {
+                Box::new(radium_models::GeminiModel::with_api_key(
+                    config.gemini.model.clone(),
+                    api_key
+                ))
+            }
+            ProviderType::Claude => {
+                Box::new(radium_models::ClaudeModel::with_api_key(
+                    config.claude.model.clone(),
+                    api_key
+                ))
+            }
+            ProviderType::OpenAI => {
+                Box::new(radium_models::OpenAIModel::with_api_key(
+                    config.openai.model.clone(),
+                    api_key
+                ))
+            }
+            ProviderType::PromptBased => {
+                // For PromptBased, default to Gemini if API key is available
+                if let Some(api_key) = config.get_api_key(ProviderType::Gemini) {
+                    Box::new(radium_models::GeminiModel::with_api_key(
+                        config.gemini.model.clone(),
+                        api_key
+                    ))
+                } else {
+                    return Err(crate::error::OrchestrationError::Other(
+                        "PromptBased provider requires at least one AI provider configured (Gemini, Claude, or OpenAI)".to_string()
+                    ));
+                }
+            }
+        };
+
+        Ok(model)
+    }
+
     fn create_provider(config: &OrchestrationConfig) -> Result<Arc<dyn OrchestrationProvider>> {
         let api_key = config
             .get_api_key(config.default_provider)
@@ -144,9 +191,8 @@ impl OrchestrationService {
                     .with_temperature(config.openai.temperature),
             ),
             ProviderType::PromptBased => {
-                // For prompt-based, we need a model instance
-                // Use mock model for now - in production this would be configurable
-                let model = Box::new(radium_models::MockModel::new("mock-model".to_string()));
+                // For prompt-based, create a real model based on configuration
+                let model = Self::create_model_from_config(config)?;
                 Arc::new(PromptBasedOrchestrator::new(model))
             }
         };
@@ -242,8 +288,8 @@ impl OrchestrationService {
         input: &str,
         context: &mut OrchestrationContext,
     ) -> Result<OrchestrationResult> {
-        // Create prompt-based provider
-        let model = Box::new(radium_models::MockModel::new("fallback-model".to_string()));
+        // Create prompt-based provider with real model based on configuration
+        let model = Self::create_model_from_config(&self.config)?;
         let fallback_provider: Arc<dyn OrchestrationProvider> =
             Arc::new(super::providers::prompt_based::PromptBasedOrchestrator::new(model));
 

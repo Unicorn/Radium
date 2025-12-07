@@ -2,6 +2,7 @@
 //!
 //! This crate provides concrete implementations of the `Model` trait.
 
+pub mod claude;
 pub mod factory;
 pub mod gemini;
 pub mod openai;
@@ -12,6 +13,7 @@ use radium_abstraction::{
 };
 use tracing::debug;
 
+pub use claude::ClaudeModel;
 pub use factory::{ModelConfig, ModelFactory, ModelType};
 pub use gemini::GeminiModel;
 pub use openai::OpenAIModel;

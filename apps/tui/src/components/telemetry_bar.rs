@@ -1,6 +1,6 @@
 //! Telemetry bar component for displaying token usage and costs.
 
-use crate::state::TelemetryState;
+use crate::state::{TelemetryState, WorkflowStatus};
 use ratatui::{
     prelude::*,
     widgets::{Block, Borders, Gauge, Paragraph},
@@ -10,46 +10,125 @@ use ratatui::{
 pub struct TelemetryBar;
 
 impl TelemetryBar {
-    /// Renders the telemetry bar.
+    /// Renders the telemetry bar with runtime and status.
     pub fn render(frame: &mut Frame, area: Rect, telemetry: &TelemetryState) {
+        Self::render_with_status(frame, area, telemetry, None, None, None)
+    }
+
+    /// Renders the telemetry bar with runtime, status, and loop iteration.
+    pub fn render_with_status(
+        frame: &mut Frame,
+        area: Rect,
+        telemetry: &TelemetryState,
+        runtime: Option<&str>,
+        status: Option<WorkflowStatus>,
+        loop_iteration: Option<usize>,
+    ) {
+        let theme = crate::theme::get_theme();
         let chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Percentage(40), // Token info
-                Constraint::Percentage(30), // Cost info
-                Constraint::Percentage(30), // Model info
+                Constraint::Length(12), // Runtime
+                Constraint::Length(15), // Status
+                Constraint::Percentage(25), // Token info
+                Constraint::Percentage(20), // Cost info
+                Constraint::Percentage(25), // Model info
             ])
             .split(area);
 
-        // Token info
-        let token_text = format!(
-            "Tokens\n{}in / {}out = {}",
-            format_number(telemetry.overall_tokens.input_tokens),
-            format_number(telemetry.overall_tokens.output_tokens),
-            format_number(telemetry.overall_tokens.total())
-        );
+        // Runtime
+        let runtime_text = runtime.unwrap_or("00:00:00");
+        let runtime_widget = Paragraph::new(runtime_text)
+            .style(Style::default().fg(theme.text))
+            .alignment(Alignment::Center)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(theme.border))
+                    .style(Style::default().bg(theme.bg_panel))
+                    .title(" Runtime "),
+            );
+        frame.render_widget(runtime_widget, chunks[0]);
+
+        // Status with animated indicator
+        let status_text = if let Some(status) = status {
+            match status {
+                WorkflowStatus::Running => "Running...".to_string(),
+                WorkflowStatus::Completed => "● Completed".to_string(),
+                WorkflowStatus::Failed => "⏹ Failed".to_string(),
+                WorkflowStatus::Paused => "⏸ Paused".to_string(),
+                WorkflowStatus::Cancelled => "⏹ Cancelled".to_string(),
+                WorkflowStatus::Idle => "Idle".to_string(),
+            }
+        } else {
+            "Idle".to_string()
+        };
+
+        let status_color = status
+            .map(|s| Self::status_color(s, &theme))
+            .unwrap_or(theme.text_muted);
+
+        let status_widget = Paragraph::new(status_text)
+            .style(Style::default().fg(status_color))
+            .alignment(Alignment::Center)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(theme.border))
+                    .style(Style::default().bg(theme.bg_panel))
+                    .title(" Status "),
+            );
+        frame.render_widget(status_widget, chunks[1]);
+
+        // Token info with cached tokens
+        let token_text = if telemetry.overall_tokens.cached_tokens > 0 {
+            format!(
+                "{}in / {}out\n({} cached)",
+                format_number(telemetry.overall_tokens.input_tokens),
+                format_number(telemetry.overall_tokens.output_tokens),
+                format_number(telemetry.overall_tokens.cached_tokens)
+            )
+        } else {
+            format!(
+                "{}in / {}out",
+                format_number(telemetry.overall_tokens.input_tokens),
+                format_number(telemetry.overall_tokens.output_tokens)
+            )
+        };
 
         let tokens = Paragraph::new(token_text)
-            .style(Style::default().fg(Color::Blue))
+            .style(Style::default().fg(theme.info))
             .alignment(Alignment::Center)
-            .block(Block::default().borders(Borders::ALL));
-        frame.render_widget(tokens, chunks[0]);
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(theme.border))
+                    .style(Style::default().bg(theme.bg_panel))
+                    .title(" Tokens "),
+            );
+        frame.render_widget(tokens, chunks[2]);
 
         // Cost info
-        let cost_text = format!("Cost\n${:.4}", telemetry.overall_cost);
+        let cost_text = format!("${:.4}", telemetry.overall_cost);
         let cost_color = if telemetry.overall_cost > 1.0 {
-            Color::Red
+            theme.error
         } else if telemetry.overall_cost > 0.1 {
-            Color::Yellow
+            theme.warning
         } else {
-            Color::Green
+            theme.success
         };
 
         let cost = Paragraph::new(cost_text)
             .style(Style::default().fg(cost_color))
             .alignment(Alignment::Center)
-            .block(Block::default().borders(Borders::ALL));
-        frame.render_widget(cost, chunks[1]);
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(theme.border))
+                    .style(Style::default().bg(theme.bg_panel))
+                    .title(" Cost "),
+            );
+        frame.render_widget(cost, chunks[3]);
 
         // Model info
         let model_info = if let Some(ref model) = telemetry.model {
@@ -62,11 +141,36 @@ impl TelemetryBar {
             "No model\nselected".to_string()
         };
 
-        let model = Paragraph::new(model_info)
-            .style(Style::default().fg(Color::Cyan))
+        // Add loop iteration if provided
+        let model_text = if let Some(iter) = loop_iteration {
+            format!("{}\nLoop: {}", model_info, iter)
+        } else {
+            model_info
+        };
+
+        let model = Paragraph::new(model_text)
+            .style(Style::default().fg(theme.primary))
             .alignment(Alignment::Center)
-            .block(Block::default().borders(Borders::ALL).title(" Model "));
-        frame.render_widget(model, chunks[2]);
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(theme.border))
+                    .style(Style::default().bg(theme.bg_panel))
+                    .title(" Model "),
+            );
+        frame.render_widget(model, chunks[4]);
+    }
+
+    /// Returns the color for a workflow status.
+    fn status_color(status: WorkflowStatus, theme: &crate::theme::RadiumTheme) -> Color {
+        match status {
+            WorkflowStatus::Running => theme.info,
+            WorkflowStatus::Completed => theme.success,
+            WorkflowStatus::Failed => theme.error,
+            WorkflowStatus::Paused => theme.warning,
+            WorkflowStatus::Cancelled => theme.text_muted,
+            WorkflowStatus::Idle => theme.text_muted,
+        }
     }
 
     /// Renders an extended telemetry view with progress bar.

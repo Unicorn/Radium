@@ -31,8 +31,10 @@ impl OutputBuffer {
     }
 
     /// Appends a line to the buffer, removing oldest if at capacity.
+    /// Trailing whitespace is trimmed to prevent weird spacing in display.
     pub fn append_line(&mut self, line: String) {
-        self.lines.push(line);
+        let trimmed = line.trim_end().to_string();
+        self.lines.push(trimmed);
         if self.lines.len() > self.max_lines {
             self.lines.remove(0);
         }

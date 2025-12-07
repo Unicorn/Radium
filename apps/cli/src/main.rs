@@ -13,7 +13,7 @@ use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 use commands::{
-    agents, auth, budget, checkpoint, clean, context, craft, doctor, engines, extension, hooks, init, learning, monitor, plan, policy, run,
+    agents, auth, budget, checkpoint, clean, context, craft, doctor, engines, extension, hooks, init, learning, monitor, plan, policy, requirement, run,
     sandbox, stats, status, step, validate,
     // All commands enabled!
     templates, complete, autonomous, vibecheck, chat, mcp, custom,
@@ -132,6 +132,24 @@ enum Command {
     Complete {
         /// Source (file path, Jira ticket ID, or Braingrid REQ ID)
         source: String,
+    },
+
+    /// Execute a Braingrid requirement autonomously
+    ///
+    /// Fetches requirement tree, triggers task breakdown if needed,
+    /// executes each task autonomously with real-time status updates,
+    /// and sets requirement to REVIEW when complete.
+    Requirement {
+        /// Braingrid requirement ID (e.g., "REQ-173")
+        req_id: Option<String>,
+
+        /// Braingrid project ID (defaults to BRAINGRID_PROJECT_ID env var or PROJ-14)
+        #[arg(long)]
+        project: Option<String>,
+
+        /// List all requirements for the project
+        #[arg(long)]
+        ls: bool,
     },
 
     /// Run agent(s) with enhanced syntax
@@ -472,6 +490,15 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Complete { source } => {
             complete::execute(source).await?;
+        }
+        Command::Requirement { req_id, project, ls } => {
+            if ls {
+                requirement::list(project).await?;
+            } else if let Some(id) = req_id {
+                requirement::execute(id, project).await?;
+            } else {
+                anyhow::bail!("Requirement ID is required when not using --ls");
+            }
         }
         Command::Run { script, model, dir } => {
             run::execute(script, model, dir).await?;

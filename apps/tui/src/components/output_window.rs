@@ -31,7 +31,7 @@ impl OutputWindow {
         let output = Paragraph::new(output_text)
             .style(Style::default())
             .block(Block::default().borders(Borders::ALL).title(format!(" {} ", title)))
-            .wrap(Wrap { trim: false });
+            .wrap(Wrap { trim: true });
         frame.render_widget(output, chunks[0]);
 
         // Status line
@@ -89,7 +89,7 @@ impl OutputWindow {
         let output = Paragraph::new(output_text)
             .style(Style::default())
             .block(Block::default().borders(Borders::LEFT | Borders::RIGHT))
-            .wrap(Wrap { trim: false });
+            .wrap(Wrap { trim: true });
         frame.render_widget(output, chunks[1]);
 
         // Help text

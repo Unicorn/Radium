@@ -31,7 +31,7 @@ pub fn render_sessions(
         .style(Style::default().fg(THEME.primary()).add_modifier(Modifier::BOLD))
         .alignment(Alignment::Center)
         .block(
-            Block::default().borders(Borders::ALL).border_style(Style::default().fg(THEME.border)),
+            Block::default().borders(Borders::ALL).border_style(Style::default().fg(THEME.border())),
         );
     frame.render_widget(title, chunks[0]);
 
@@ -57,7 +57,7 @@ pub fn render_sessions(
             let style = if is_selected {
                 Style::default().fg(THEME.bg_primary()).bg(THEME.primary()).add_modifier(Modifier::BOLD)
             } else {
-                Style::default().fg(THEME.text)
+                Style::default().fg(THEME.text())
             };
 
             let session_text = format!(
@@ -82,9 +82,9 @@ pub fn render_sessions(
 
     let list = List::new(items)
         .block(
-            Block::default().borders(Borders::ALL).border_style(Style::default().fg(THEME.border)),
+            Block::default().borders(Borders::ALL).border_style(Style::default().fg(THEME.border())),
         )
-        .style(Style::default().fg(THEME.text));
+        .style(Style::default().fg(THEME.text()));
 
     frame.render_widget(list, chunks[1]);
 

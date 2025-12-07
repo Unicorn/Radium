@@ -133,10 +133,10 @@ impl TuiError {
     pub fn render(&self, area: Rect, buf: &mut Buffer) {
         let block = Block::default()
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(THEME.error))
+            .border_style(Style::default().fg(THEME.error()))
             .title(ratatui::widgets::block::Title::from(Span::styled(
                 self.title(),
-                Style::default().fg(THEME.error).add_modifier(Modifier::BOLD),
+                Style::default().fg(THEME.error()).add_modifier(Modifier::BOLD),
             )));
 
         let inner = block.inner(area);
@@ -146,7 +146,7 @@ impl TuiError {
         let text = message_lines.join("\n");
 
         let paragraph =
-            Paragraph::new(text).style(Style::default().fg(THEME.text)).wrap(Wrap { trim: true });
+            Paragraph::new(text).style(Style::default().fg(THEME.text())).wrap(Wrap { trim: true });
 
         paragraph.render(inner, buf);
     }

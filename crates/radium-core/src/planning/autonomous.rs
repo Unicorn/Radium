@@ -535,20 +535,21 @@ impl AutonomousPlanner {
         let dag = DependencyGraph::from_manifest(&manifest)?;
 
         // Step 4: Generate workflow
-        // DISABLED: workflow module is disabled
-        // let workflow = self.workflow_generator.generate_workflow(&parsed_plan, &dag)?;
+        #[cfg(feature = "workflow")]
+        let workflow = self.workflow_generator.generate_workflow(&parsed_plan, &dag)?;
 
-        // For now, return error since workflow is required
+        #[cfg(not(feature = "workflow"))]
         return Err(PlanningError::WorkflowGenerationFailed(
-            "Workflow module is disabled. Cannot generate workflow.".to_string()
+            "Workflow feature not enabled. Please rebuild with --features workflow".to_string()
         ));
 
-        // Ok(AutonomousPlan {
-        //     plan: parsed_plan,
-        //     workflow,
-        //     dag,
-        //     manifest,
-        // })
+        #[cfg(feature = "workflow")]
+        Ok(AutonomousPlan {
+            plan: parsed_plan,
+            workflow,
+            dag,
+            manifest,
+        })
     }
 }
 

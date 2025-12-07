@@ -1,16 +1,126 @@
 //! Status footer component for displaying overall status and help text.
 
+use crate::commands::DisplayContext;
 use crate::state::WorkflowStatus;
 use ratatui::{
     prelude::*,
     widgets::{Block, Borders, Paragraph},
 };
 
+/// Application mode for context-aware footer
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AppMode {
+    Prompt,
+    Workflow,
+    Chat,
+    History,
+    Setup,
+    Requirement,
+}
+
+impl AppMode {
+    /// Returns display name for the mode.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Prompt => "Prompt",
+            Self::Workflow => "Workflow",
+            Self::Chat => "Chat",
+            Self::History => "History",
+            Self::Setup => "Setup",
+            Self::Requirement => "Requirement",
+        }
+    }
+
+    /// Returns keyboard shortcuts for the mode.
+    pub fn shortcuts(&self) -> &'static str {
+        match self {
+            Self::Prompt => "[Ctrl+P] Command Palette | [Ctrl+C] Quit | [?] Help",
+            Self::Workflow => "[↑↓] Navigate | [Enter] Select | [Esc] Close | [Ctrl+C] Cancel",
+            Self::Chat => "[Enter] Send | [↑↓] Scroll | [Esc] Back | [Ctrl+C] Quit",
+            Self::History => "[↑↓] Navigate | [Enter] View | [Esc] Back | [Ctrl+C] Quit",
+            Self::Setup => "[Enter] Continue | [Esc] Skip | [Ctrl+C] Quit",
+            Self::Requirement => "[↑↓] Scroll | [Esc] Cancel | [Ctrl+C] Force Quit",
+        }
+    }
+}
+
 /// Status footer component
 pub struct StatusFooter;
 
 impl StatusFooter {
-    /// Renders the status footer.
+    /// Renders a context-aware status footer.
+    pub fn render_context_aware(
+        frame: &mut Frame,
+        area: Rect,
+        mode: AppMode,
+        context: Option<&DisplayContext>,
+        selection_info: Option<&str>,
+    ) {
+        let theme = crate::theme::get_theme();
+        let chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Length(12), // Mode
+                Constraint::Min(10),    // Selection info
+                Constraint::Percentage(50), // Shortcuts
+            ])
+            .split(area);
+
+        // Mode indicator
+        let mode_text = format!("Mode: {}", mode.as_str());
+        let mode_widget = Paragraph::new(mode_text)
+            .style(Style::default().fg(theme.primary).add_modifier(Modifier::BOLD))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(theme.border))
+                    .style(Style::default().bg(theme.bg_panel)),
+            );
+        frame.render_widget(mode_widget, chunks[0]);
+
+        // Selection/Context info
+        let info_text = if let Some(info) = selection_info {
+            info.to_string()
+        } else if let Some(ctx) = context {
+            match ctx {
+                DisplayContext::Chat { agent_id, session_id } => {
+                    format!("Agent: {} | Session: {}", agent_id, session_id)
+                }
+                DisplayContext::AgentList => "Select an agent".to_string(),
+                DisplayContext::SessionList => "Select a session".to_string(),
+                DisplayContext::ModelSelector => "Select a model".to_string(),
+                DisplayContext::Dashboard => "Dashboard".to_string(),
+                DisplayContext::Help => "Help".to_string(),
+            }
+        } else {
+            String::new()
+        };
+
+        let info_widget = Paragraph::new(info_text)
+            .style(Style::default().fg(theme.text_muted))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(theme.border))
+                    .style(Style::default().bg(theme.bg_panel)),
+            );
+        frame.render_widget(info_widget, chunks[1]);
+
+        // Keyboard shortcuts
+        let shortcuts_text = mode.shortcuts();
+        let shortcuts_widget = Paragraph::new(shortcuts_text)
+            .style(Style::default().fg(theme.text_dim))
+            .alignment(Alignment::Right)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(theme.border))
+                    .style(Style::default().bg(theme.bg_panel)),
+            );
+        frame.render_widget(shortcuts_widget, chunks[2]);
+    }
+
+    /// Renders the status footer (legacy method for backward compatibility).
     pub fn render(frame: &mut Frame, area: Rect, status: WorkflowStatus, status_message: &str) {
         let chunks = Layout::default()
             .direction(Direction::Horizontal)

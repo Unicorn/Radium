@@ -3,7 +3,7 @@
 //! This module provides functionality to create model instances based on configuration,
 //! handling API key loading from environment variables.
 
-use crate::{GeminiModel, MockModel, OpenAIModel};
+use crate::{ClaudeModel, GeminiModel, MockModel, OpenAIModel};
 use radium_abstraction::{Model, ModelError};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -14,6 +14,8 @@ use tracing::{debug, error};
 pub enum ModelType {
     /// Mock model for testing.
     Mock,
+    /// Anthropic Claude model.
+    Claude,
     /// Google Gemini model.
     Gemini,
     /// OpenAI model.
@@ -26,6 +28,7 @@ impl FromStr for ModelType {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "mock" => Ok(Self::Mock),
+            "claude" | "anthropic" => Ok(Self::Claude),
             "gemini" => Ok(Self::Gemini),
             "openai" => Ok(Self::OpenAI),
             _ => Err(()),
@@ -87,6 +90,14 @@ impl ModelFactory {
         match config.model_type {
             ModelType::Mock => {
                 let model = MockModel::new(config.model_id);
+                Ok(Arc::new(model))
+            }
+            ModelType::Claude => {
+                let model = if let Some(api_key) = config.api_key {
+                    ClaudeModel::with_api_key(config.model_id, api_key)
+                } else {
+                    ClaudeModel::new(config.model_id)?
+                };
                 Ok(Arc::new(model))
             }
             ModelType::Gemini => {

@@ -39,7 +39,7 @@ pub fn render_model_selector(
         .style(Style::default().fg(THEME.primary()).add_modifier(Modifier::BOLD))
         .alignment(Alignment::Center)
         .block(
-            Block::default().borders(Borders::ALL).border_style(Style::default().fg(THEME.border)),
+            Block::default().borders(Borders::ALL).border_style(Style::default().fg(THEME.border())),
         );
     frame.render_widget(title, chunks[0]);
 
@@ -56,7 +56,7 @@ pub fn render_model_selector(
             } else if is_current {
                 Style::default().fg(THEME.success()).add_modifier(Modifier::BOLD)
             } else {
-                Style::default().fg(THEME.text)
+                Style::default().fg(THEME.text())
             };
 
             let prefix = if is_current {
@@ -79,9 +79,9 @@ pub fn render_model_selector(
 
     let list = List::new(items)
         .block(
-            Block::default().borders(Borders::ALL).border_style(Style::default().fg(THEME.border)),
+            Block::default().borders(Borders::ALL).border_style(Style::default().fg(THEME.border())),
         )
-        .style(Style::default().fg(THEME.text));
+        .style(Style::default().fg(THEME.text()));
 
     frame.render_widget(list, chunks[1]);
 

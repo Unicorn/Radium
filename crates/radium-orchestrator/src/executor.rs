@@ -449,6 +449,7 @@ impl AgentExecutor {
                             match ModelFactory::create_from_str(
                                 match next_model_type {
                                     ModelType::Mock => "mock",
+                                    ModelType::Claude => "claude",
                                     ModelType::Gemini => "gemini",
                                     ModelType::OpenAI => "openai",
                                 },
@@ -637,6 +638,7 @@ impl AgentExecutor {
         let model = ModelFactory::create_from_str(
             match &self.default_model_type {
                 ModelType::Mock => "mock",
+                ModelType::Claude => "claude",
                 ModelType::Gemini => "gemini",
                 ModelType::OpenAI => "openai",
             },
@@ -671,6 +673,7 @@ impl AgentExecutor {
         let model = ModelFactory::create_from_str(
             match &model_type {
                 ModelType::Mock => "mock",
+                ModelType::Claude => "claude",
                 ModelType::Gemini => "gemini",
                 ModelType::OpenAI => "openai",
             },
