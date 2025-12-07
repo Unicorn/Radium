@@ -60,6 +60,18 @@ pub struct TelemetryRecord {
     
     /// Engine ID used for this execution (e.g., "claude", "openai", "gemini").
     pub engine_id: Option<String>,
+    
+    /// Behavior type if this telemetry is for a behavior (e.g., "loop", "trigger", "checkpoint", "vibecheck").
+    pub behavior_type: Option<String>,
+    
+    /// Behavior invocation count (for loop behavior).
+    pub behavior_invocation_count: Option<u64>,
+    
+    /// Behavior evaluation duration in milliseconds.
+    pub behavior_duration_ms: Option<u64>,
+    
+    /// Behavior outcome (e.g., "triggered", "skipped", "failed").
+    pub behavior_outcome: Option<String>,
 }
 
 impl TelemetryRecord {
@@ -84,6 +96,10 @@ impl TelemetryRecord {
             tool_approved: None,
             tool_approval_type: None,
             engine_id: None,
+            behavior_type: None,
+            behavior_invocation_count: None,
+            behavior_duration_ms: None,
+            behavior_outcome: None,
         }
     }
 
@@ -133,6 +149,22 @@ impl TelemetryRecord {
     #[must_use]
     pub fn with_engine_id(mut self, engine_id: String) -> Self {
         self.engine_id = Some(engine_id);
+        self
+    }
+
+    /// Sets behavior metrics.
+    #[must_use]
+    pub fn with_behavior_metrics(
+        mut self,
+        behavior_type: String,
+        invocation_count: Option<u64>,
+        duration_ms: Option<u64>,
+        outcome: Option<String>,
+    ) -> Self {
+        self.behavior_type = Some(behavior_type);
+        self.behavior_invocation_count = invocation_count;
+        self.behavior_duration_ms = duration_ms;
+        self.behavior_outcome = outcome;
         self
     }
 

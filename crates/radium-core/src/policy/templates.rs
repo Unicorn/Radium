@@ -44,7 +44,7 @@ impl PolicyTemplate {
     /// `Ok(())` if template is valid, or error if validation fails.
     pub fn validate(&mut self) -> PolicyResult<()> {
         let content = self.load_content().map_err(|e| {
-            PolicyError::InvalidConfiguration(format!("Failed to read template: {}", e))
+            PolicyError::InvalidConfig(format!("Failed to read template: {}", e))
         })?;
         
         // Try to parse as policy
@@ -243,7 +243,7 @@ impl PolicyEngine {
         })?;
         let temp_file = temp_dir.path().join("policy.toml");
         fs::write(&temp_file, content).map_err(|e| {
-            PolicyError::InvalidConfiguration(format!("Failed to write temp file: {}", e))
+            PolicyError::InvalidConfig(format!("Failed to write temp file: {}", e))
         })?;
 
         Self::from_file(&temp_file)

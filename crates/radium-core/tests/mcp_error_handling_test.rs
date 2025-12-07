@@ -25,15 +25,15 @@ async fn test_connection_error_propagation() {
 
     let result = McpClient::connect(&config).await;
     assert!(result.is_err());
-    let err = result.unwrap_err();
-    
-    // Should be a transport or connection error
-    assert!(
-        matches!(err, McpError::Transport(_)) || matches!(err, McpError::Connection(_)),
-        "Expected Transport or Connection error, got: {:?}",
-        err
-    );
-    assert!(err.to_string().contains("Failed to spawn") || err.to_string().contains("connection"));
+    if let Err(err) = result {
+        // Should be a transport or connection error
+        assert!(
+            matches!(err, McpError::Transport(_)) || matches!(err, McpError::Connection(_)),
+            "Expected Transport or Connection error, got: {}",
+            err
+        );
+        assert!(err.to_string().contains("Failed to spawn") || err.to_string().contains("connection"));
+    }
 }
 
 #[tokio::test]
@@ -50,9 +50,10 @@ async fn test_config_error_missing_required_fields() {
 
     let result = McpClient::connect(&config).await;
     assert!(result.is_err());
-    let err = result.unwrap_err();
-    assert!(matches!(err, McpError::Config(_)));
-    assert!(err.to_string().contains("command") || err.to_string().contains("required"));
+    if let Err(err) = result {
+        assert!(matches!(err, McpError::Config(_)));
+        assert!(err.to_string().contains("command") || err.to_string().contains("required"));
+    }
 }
 
 #[tokio::test]
@@ -135,7 +136,7 @@ command = "nonexistent_command_xyz_12345"
     let config_path = workspace_root.join(".radium/mcp-servers.toml");
     std::fs::write(&config_path, config_content).unwrap();
     
-    let workspace = Workspace::new(workspace_root.to_path_buf()).unwrap();
+    let workspace = Workspace::create(workspace_root).unwrap();
     let integration = McpIntegration::new();
     
     // Initialize should handle partial failures gracefully
@@ -316,7 +317,7 @@ async fn test_concurrent_error_handling() {
     
     // Try to initialize multiple times concurrently
     let temp_dir = TempDir::new().unwrap();
-    let workspace = Workspace::new(temp_dir.path().to_path_buf()).unwrap();
+    let workspace = Workspace::create(temp_dir.path()).unwrap();
     
     let handles: Vec<_> = (0..5)
         .map(|_| {
@@ -352,7 +353,7 @@ command = "nonexistent_command_xyz_12345"
     let config_path = workspace_root.join(".radium/mcp-servers.toml");
     std::fs::write(&config_path, config_content).unwrap();
     
-    let workspace = Workspace::new(workspace_root.to_path_buf()).unwrap();
+    let workspace = Workspace::create(workspace_root).unwrap();
     let integration = McpIntegration::new();
     
     // First initialization should fail or skip invalid server
