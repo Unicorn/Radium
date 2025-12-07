@@ -780,7 +780,7 @@ mod tests {
         use crate::workspace::RequirementId;
         use std::str::FromStr;
 
-        let req_id = RequirementId::from_str("TEST").unwrap();
+        let req_id = RequirementId::from_str("REQ-001").unwrap();
         let mut manifest = PlanManifest::new(req_id, plan.project_name.clone());
 
         for parsed_iter in &plan.iterations {
