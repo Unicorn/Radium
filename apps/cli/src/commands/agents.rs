@@ -58,6 +58,16 @@ pub async fn execute(command: AgentsCommand) -> anyhow::Result<()> {
         AgentsCommand::Stats { json } => show_agent_stats(json).await,
         AgentsCommand::Popular { limit, json } => show_popular_agents(limit, json).await,
         AgentsCommand::Performance { limit, json } => show_performance_metrics(limit, json).await,
+        AgentsCommand::Analytics {
+            agent_id,
+            all,
+            category,
+            from,
+            to,
+            json,
+        } => {
+            execute_analytics(agent_id.as_deref(), all, category.as_deref(), from.as_deref(), to.as_deref(), json).await
+        }
         AgentsCommand::Create {
             id,
             name,
@@ -108,7 +118,7 @@ async fn list_agents(json_output: bool, verbose: bool, profile_filter: Option<&s
             }
         };
         
-        agents.retain(|(_, config)| {
+        agents.retain(|_, config| {
             config.persona_config.as_ref()
                 .map(|p| p.performance.profile == profile_enum)
                 .unwrap_or(false)
@@ -951,7 +961,7 @@ async fn lint_agents(agent_id: Option<&str>, json_output: bool, strict: bool) ->
             .ok_or_else(|| anyhow::anyhow!("Agent '{}' not found", id))?;
         vec![(id.to_string(), agent)]
     } else {
-        discovery.discover_all()?
+        discovery.discover_all()?.into_iter().collect()
     };
 
     for (id, config) in &agents {
@@ -1964,6 +1974,195 @@ async fn show_performance_metrics(limit: usize, json_output: bool) -> anyhow::Re
 
         let table = Table::new(rows).with(Style::rounded()).to_string();
         println!("{}", table);
+        println!();
+    }
+
+    Ok(())
+}
+
+/// Execute analytics command with filtering.
+async fn execute_analytics(
+    agent_id: Option<&str>,
+    all: bool,
+    category: Option<&str>,
+    from_date: Option<&str>,
+    to_date: Option<&str>,
+    json_output: bool,
+) -> anyhow::Result<()> {
+    use chrono::{NaiveDate, Utc};
+    use rusqlite::Connection;
+    use std::path::PathBuf;
+    use radium_core::agents::persona::ModelPricingDB;
+
+    // Get monitoring database
+    let db_path = PathBuf::from(".radium/monitoring.db");
+    let conn = if db_path.exists() {
+        Connection::open(&db_path)?
+    } else {
+        let conn = Connection::open_in_memory()?;
+        radium_core::monitoring::initialize_schema(&conn)?;
+        conn
+    };
+
+    let analytics_service = AgentAnalyticsService::new(conn);
+    let discovery = AgentDiscovery::new();
+    let pricing_db = ModelPricingDB::new();
+
+    // Parse date filters
+    let from_timestamp = from_date.and_then(|d| {
+        NaiveDate::parse_from_str(d, "%Y-%m-%d")
+            .ok()
+            .map(|date| date.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp())
+    });
+    let to_timestamp = to_date.and_then(|d| {
+        NaiveDate::parse_from_str(d, "%Y-%m-%d")
+            .ok()
+            .map(|date| date.and_hms_opt(23, 59, 59).unwrap().and_utc().timestamp())
+    });
+
+    // Get analytics data based on filters
+    let mut analytics_data = if let Some(id) = agent_id {
+        // Single agent
+        analytics_service
+            .get_agent_analytics(id)?
+            .map(|a| vec![a])
+            .unwrap_or_default()
+    } else if let Some(cat) = category {
+        // By category
+        analytics_service.get_analytics_by_category(cat)?
+    } else if all {
+        // All agents
+        analytics_service.get_all_analytics()?
+    } else {
+        // Default: show all if no specific filter
+        analytics_service.get_all_analytics()?
+    };
+
+    // Filter by date range if specified
+    if from_timestamp.is_some() || to_timestamp.is_some() {
+        analytics_data.retain(|a| {
+            if let Some(last_used) = a.last_used_at {
+                let timestamp = last_used.timestamp();
+                let from_ok = from_timestamp.map_or(true, |from| timestamp >= from);
+                let to_ok = to_timestamp.map_or(true, |to| timestamp <= to);
+                from_ok && to_ok
+            } else {
+                false // Exclude agents without usage timestamps
+            }
+        });
+    }
+
+    if analytics_data.is_empty() {
+        if !json_output {
+            println!("{}", "No analytics data available for the specified filters.".yellow());
+        }
+        return Ok(());
+    }
+
+    // Calculate costs for each agent
+    let mut rows_with_costs = Vec::new();
+    for analytics in &analytics_data {
+        let mut estimated_cost = 0.0;
+        
+        // Try to get agent config to estimate cost
+        if let Ok(Some(agent)) = discovery.find_by_id(&analytics.agent_id) {
+            if let Some(persona) = &agent.persona_config {
+                // Estimate cost using primary model
+                let estimated_tokens = persona.performance.estimated_tokens.unwrap_or(2000);
+                let input_tokens = (estimated_tokens as f64 * 0.7) as u64;
+                let output_tokens = (estimated_tokens as f64 * 0.3) as u64;
+                
+                // Calculate cost per execution, then multiply by execution count
+                let cost_per_exec = pricing_db
+                    .get_pricing(&persona.models.primary.model)
+                    .estimate_cost(input_tokens, output_tokens);
+                estimated_cost = cost_per_exec * analytics.execution_count as f64;
+            }
+        }
+
+        rows_with_costs.push((analytics.clone(), estimated_cost));
+    }
+
+    if json_output {
+        let output: Vec<_> = rows_with_costs
+            .iter()
+            .map(|(a, cost)| {
+                json!({
+                    "agent_id": a.agent_id,
+                    "execution_count": a.execution_count,
+                    "avg_duration_ms": a.avg_duration_ms,
+                    "total_duration_ms": a.total_duration_ms,
+                    "total_tokens": a.total_tokens,
+                    "estimated_cost": cost,
+                    "success_rate": a.success_rate,
+                    "category": a.category,
+                    "last_used_at": a.last_used_at.map(|d| d.to_rfc3339()),
+                })
+            })
+            .collect();
+        println!("{}", serde_json::to_string_pretty(&output)?);
+    } else {
+        println!();
+        let title = if let Some(id) = agent_id {
+            format!("📊 Analytics: {}", id)
+        } else if let Some(cat) = category {
+            format!("📊 Analytics: {} category", cat)
+        } else {
+            "📊 Agent Analytics".to_string()
+        };
+        println!("{}", title.bold().cyan());
+        println!();
+
+        #[derive(Tabled)]
+        struct AnalyticsRow {
+            #[tabled(rename = "Agent ID")]
+            agent_id: String,
+            #[tabled(rename = "Executions")]
+            executions: String,
+            #[tabled(rename = "Avg Duration (ms)")]
+            avg_duration: String,
+            #[tabled(rename = "Total Tokens")]
+            total_tokens: String,
+            #[tabled(rename = "Est. Cost ($)")]
+            cost: String,
+            #[tabled(rename = "Success Rate (%)")]
+            success_rate: String,
+        }
+
+        let rows: Vec<AnalyticsRow> = rows_with_costs
+            .iter()
+            .map(|(a, cost)| AnalyticsRow {
+                agent_id: a.agent_id.clone(),
+                executions: a.execution_count.to_string(),
+                avg_duration: format!("{:.0}", a.avg_duration_ms),
+                total_tokens: a.total_tokens.to_string(),
+                cost: format!("{:.4}", cost),
+                success_rate: format!("{:.1}", a.success_rate * 100.0),
+            })
+            .collect();
+
+        let table = Table::new(rows).with(Style::rounded()).to_string();
+        println!("{}", table);
+
+        // Add summary row if showing all agents
+        if all || (agent_id.is_none() && category.is_none()) {
+            let total_executions: u64 = analytics_data.iter().map(|a| a.execution_count).sum();
+            let total_tokens: u64 = analytics_data.iter().map(|a| a.total_tokens).sum();
+            let total_cost: f64 = rows_with_costs.iter().map(|(_, c)| c).sum();
+            let avg_success_rate = if !analytics_data.is_empty() {
+                analytics_data.iter().map(|a| a.success_rate).sum::<f64>() / analytics_data.len() as f64
+            } else {
+                0.0
+            };
+
+            println!();
+            println!("{}", "Summary:".bold());
+            println!("  Total Executions:    {}", total_executions.to_string().green());
+            println!("  Total Tokens:        {}", total_tokens.to_string().yellow());
+            println!("  Estimated Cost:      ${:.4}", total_cost);
+            println!("  Avg Success Rate:    {:.1}%", avg_success_rate * 100.0);
+        }
+
         println!();
     }
 

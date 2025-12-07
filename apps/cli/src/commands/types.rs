@@ -177,6 +177,27 @@ pub enum AgentsCommand {
         json: bool,
     },
 
+    /// Show agent analytics with filtering options
+    Analytics {
+        /// Agent ID (optional, shows all if not specified)
+        agent_id: Option<String>,
+        /// Show all agents
+        #[arg(long)]
+        all: bool,
+        /// Filter by category
+        #[arg(long)]
+        category: Option<String>,
+        /// Filter from date (YYYY-MM-DD)
+        #[arg(long)]
+        from: Option<String>,
+        /// Filter to date (YYYY-MM-DD)
+        #[arg(long)]
+        to: Option<String>,
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
     /// Create a new agent template
     Create {
         /// Agent ID (e.g., "my-agent")
