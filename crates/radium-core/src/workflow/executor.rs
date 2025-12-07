@@ -468,12 +468,14 @@ impl WorkflowExecutor {
                     };
 
                     // Create hook context with behavior file and output
-                    let mut hook_context = HookContext::new(serde_json::json!({}));
-                    hook_context.data.insert("behavior_file".to_string(), serde_json::Value::String(behavior_file.to_string_lossy().to_string()));
-                    hook_context.data.insert("output".to_string(), serde_json::Value::String(output_text));
-                    hook_context.data.insert("step_id".to_string(), serde_json::Value::String(step.id.clone()));
-                    hook_context.data.insert("workflow_id".to_string(), serde_json::Value::String(workflow.id.clone()));
-                    hook_context.data.insert("step_result".to_string(), serde_json::to_value(&step_result).unwrap_or_default());
+                    let hook_data = serde_json::json!({
+                        "behavior_file": behavior_file.to_string_lossy().to_string(),
+                        "output": output_text,
+                        "step_id": step.id.clone(),
+                        "workflow_id": workflow.id.clone(),
+                        "step_result": serde_json::to_value(&step_result).unwrap_or_default(),
+                    });
+                    let hook_context = HookContext::new("workflow_step", hook_data);
 
                     // Execute hooks for workflow step completion
                     // Note: Behavior hooks can be registered via BehaviorEvaluatorAdapter
