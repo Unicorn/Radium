@@ -36,7 +36,7 @@ pub enum StatsCommand {
     },
     /// Show historical session summaries
     History {
-        /// Number of sessions to show (default: 10)
+        /// Number of sessions to show (default: 10, max: 100)
         #[arg(short = 'n', long, default_value = "10")]
         limit: usize,
         /// Output as JSON
@@ -298,13 +298,13 @@ async fn engine_command(
 }
 
 async fn history_command(_analytics: &SessionAnalytics, limit: usize, json: bool) -> Result<()> {
-    // Load session reports from storage
+    // Enforce maximum limit
+    let limit = limit.min(100);
+    
+    // Load session reports from storage with pagination
     let workspace = Workspace::discover()?;
     let storage = SessionStorage::new(workspace.root())?;
-    let mut reports = storage.list_reports()?;
-
-    // Limit results
-    reports.truncate(limit);
+    let reports = storage.list_reports_paginated(Some(limit), None)?;
 
     if json {
         println!("{}", serde_json::to_string_pretty(&reports)?);

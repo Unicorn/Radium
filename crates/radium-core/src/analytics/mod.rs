@@ -10,4 +10,4 @@ pub mod storage;
 
 pub use report::{ReportFormatter, SessionReport};
 pub use session::{ModelUsageStats, SessionAnalytics, SessionMetrics};
-pub use storage::SessionStorage;
+pub use storage::{SessionMetadata, SessionStorage};

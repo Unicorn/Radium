@@ -33,6 +33,8 @@ prompt_path = "prompts/agents/my-category/my-agent.md"
 - **`model`** (string): Default model to use (e.g., "gemini-2.0-flash-exp", "gpt-4")
 - **`reasoning_effort`** (string): Default reasoning effort level - `"low"`, `"medium"`, or `"high"` (default: `"medium"`)
 - **`mirror_path`** (PathBuf): Optional mirror path for RAD-agents
+- **`capabilities`** (object): Agent capabilities for dynamic model selection (see [Capabilities](#capabilities) section)
+- **`sandbox`** (object): Sandbox configuration for safe command execution (see [Sandbox Configuration](#sandbox-configuration) section)
 
 ### Example: Minimal Configuration
 
@@ -100,6 +102,67 @@ trigger_agent_id = "fallback-agent"  # Default agent to trigger (optional)
 
 **Fields:**
 - **`trigger_agent_id`** (string, optional): Default agent ID to trigger (can be overridden in behavior.json)
+
+## Capabilities
+
+Agent capabilities define the agent's model class, cost tier, and concurrency limits for dynamic model selection.
+
+```toml
+[agent]
+id = "fast-agent"
+name = "Fast Agent"
+description = "Optimized for speed"
+prompt_path = "prompts/agents/core/fast-agent.md"
+
+[agent.capabilities]
+model_class = "fast"        # Options: "fast", "balanced", "reasoning"
+cost_tier = "low"           # Options: "low", "medium", "high"
+max_concurrent_tasks = 10   # Maximum concurrent tasks (default: 5)
+```
+
+**Fields:**
+- **`model_class`** (string, required): Model category - `"fast"` (speed-optimized), `"balanced"` (balanced speed/quality), or `"reasoning"` (deep reasoning)
+- **`cost_tier`** (string, required): Cost tier - `"low"`, `"medium"`, or `"high"`
+- **`max_concurrent_tasks`** (integer, optional): Maximum number of concurrent tasks (default: 5)
+
+**Model Class Examples:**
+- `"fast"`: Use with Flash, Mini, or other speed-optimized models
+- `"balanced"`: Use with Pro, 4o, or other balanced models
+- `"reasoning"`: Use with o1, Thinking, or other reasoning-focused models
+
+If `capabilities` is not specified, defaults to `balanced/medium/5`.
+
+## Sandbox Configuration
+
+Sandbox configuration enables safe command execution in isolated environments. This is useful for agents that need to run potentially unsafe commands.
+
+```toml
+[agent]
+id = "code-exec-agent"
+name = "Code Execution Agent"
+description = "Executes code in a sandbox"
+prompt_path = "prompts/agents/core/code-exec-agent.md"
+
+[agent.sandbox]
+type = "docker"                    # Options: "docker", "podman", "seatbelt", "none"
+image = "rust:latest"              # Docker/Podman image (required for docker/podman)
+profile = "restricted"              # Sandbox profile (optional)
+network_mode = "isolated"           # Network mode (optional)
+```
+
+**Fields:**
+- **`type`** (string, required): Sandbox type - `"docker"`, `"podman"`, `"seatbelt"` (macOS only), or `"none"`
+- **`image`** (string, optional): Container image for Docker/Podman sandboxes
+- **`profile`** (string, optional): Sandbox profile (e.g., "restricted", "permissive")
+- **`network_mode`** (string, optional): Network isolation mode - `"isolated"`, `"bridged"`, or `"host"`
+
+**Sandbox Types:**
+- **`docker`**: Uses Docker containers for isolation (requires Docker)
+- **`podman`**: Uses Podman containers for isolation (requires Podman)
+- **`seatbelt`**: Uses macOS Seatbelt sandboxing (macOS only)
+- **`none`**: No sandboxing (commands execute directly)
+
+If `sandbox` is not specified, commands execute directly without sandboxing.
 
 ## Prompt Templates
 
@@ -322,6 +385,36 @@ prompt_path = "prompts/agents/core/coordinator.md"
 trigger_agent_id = "worker-agent"
 ```
 
+### Pattern 5: Agent with Capabilities
+
+```toml
+[agent]
+id = "fast-code-gen"
+name = "Fast Code Generator"
+description = "Generates code quickly"
+prompt_path = "prompts/agents/core/fast-code-gen.md"
+
+[agent.capabilities]
+model_class = "fast"
+cost_tier = "low"
+max_concurrent_tasks = 20
+```
+
+### Pattern 6: Agent with Sandbox
+
+```toml
+[agent]
+id = "safe-exec"
+name = "Safe Execution Agent"
+description = "Executes commands in sandbox"
+prompt_path = "prompts/agents/core/safe-exec.md"
+
+[agent.sandbox]
+type = "docker"
+image = "ubuntu:latest"
+profile = "restricted"
+```
+
 ## Best Practices
 
 1. **Use descriptive IDs**: Choose IDs that clearly indicate the agent's purpose (e.g., `arch-agent` not `agent1`)
@@ -389,6 +482,27 @@ trigger_agent_id = "worker-agent"
 - Check that the context provides values for all placeholders
 - Use non-strict mode if placeholders are optional
 - Verify placeholder names match exactly (case-sensitive)
+
+### Invalid Capabilities Configuration
+
+**Problem**: Validation error with capabilities section
+
+**Solutions**:
+- Verify `model_class` is one of: "fast", "balanced", "reasoning"
+- Verify `cost_tier` is one of: "low", "medium", "high"
+- Ensure `max_concurrent_tasks` is a positive integer
+- Check TOML syntax for the `[agent.capabilities]` section
+
+### Sandbox Configuration Issues
+
+**Problem**: Sandbox not working or validation errors
+
+**Solutions**:
+- Verify sandbox type is supported on your platform (seatbelt is macOS-only)
+- For Docker/Podman: Ensure the container runtime is installed and running
+- Check that the specified image exists and is accessible
+- Verify network_mode is valid: "isolated", "bridged", or "host"
+- Test sandbox configuration with a simple command first
 
 ## Examples
 

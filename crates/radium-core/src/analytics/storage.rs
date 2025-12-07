@@ -59,11 +59,91 @@ impl SessionStorage {
     }
 
     /// List all stored session reports.
+    ///
+    /// For backward compatibility, this method loads all reports.
+    /// For better performance with large numbers of sessions, use `list_reports_paginated()`.
     pub fn list_reports(&self) -> Result<Vec<SessionReport>> {
+        self.list_reports_paginated(None, None)
+    }
+
+    /// List stored session reports with pagination.
+    ///
+    /// # Arguments
+    /// * `limit` - Maximum number of reports to return (None = all)
+    /// * `offset` - Number of reports to skip (None = 0)
+    ///
+    /// # Returns
+    /// Vector of session reports sorted by generation time (most recent first)
+    pub fn list_reports_paginated(
+        &self,
+        limit: Option<usize>,
+        offset: Option<usize>,
+    ) -> Result<Vec<SessionReport>> {
         let mut reports = Vec::new();
 
         if !self.sessions_dir.exists() {
             return Ok(reports);
+        }
+
+        // First, collect all metadata to sort efficiently
+        let mut metadata_list: Vec<(PathBuf, DateTime<Utc>)> = Vec::new();
+
+        for entry in fs::read_dir(&self.sessions_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+
+            if path.extension().and_then(|s| s.to_str()) == Some("json") {
+                // Try to read just enough to get generated_at timestamp
+                if let Ok(content) = fs::read_to_string(&path) {
+                    // Use a lightweight JSON parser to extract just generated_at
+                    if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&content) {
+                        if let Some(gen_at_str) = json_value.get("generated_at").and_then(|v| v.as_str()) {
+                            if let Ok(generated_at) = gen_at_str.parse::<DateTime<Utc>>() {
+                                metadata_list.push((path, generated_at));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Sort by generation time (most recent first)
+        metadata_list.sort_by(|a, b| b.1.cmp(&a.1));
+
+        // Apply pagination
+        let offset = offset.unwrap_or(0);
+        let limit = limit.map(|l| l + offset).unwrap_or(metadata_list.len());
+        let paginated_paths: Vec<_> = metadata_list
+            .into_iter()
+            .skip(offset)
+            .take(limit - offset)
+            .map(|(path, _)| path)
+            .collect();
+
+        // Now load only the paginated reports
+        for path in paginated_paths {
+            if let Ok(content) = fs::read_to_string(&path) {
+                if let Ok(report) = serde_json::from_str::<SessionReport>(&content) {
+                    reports.push(report);
+                }
+            }
+        }
+
+        // Ensure final sort (in case of any issues)
+        reports.sort_by(|a, b| b.generated_at.cmp(&a.generated_at));
+
+        Ok(reports)
+    }
+
+    /// List session metadata only (without loading full reports).
+    ///
+    /// This is more efficient for large numbers of sessions as it only
+    /// reads minimal data from each JSON file.
+    pub fn list_report_metadata(&self) -> Result<Vec<SessionMetadata>> {
+        let mut metadata = Vec::new();
+
+        if !self.sessions_dir.exists() {
+            return Ok(metadata);
         }
 
         for entry in fs::read_dir(&self.sessions_dir)? {
@@ -72,17 +152,50 @@ impl SessionStorage {
 
             if path.extension().and_then(|s| s.to_str()) == Some("json") {
                 if let Ok(content) = fs::read_to_string(&path) {
-                    if let Ok(report) = serde_json::from_str::<SessionReport>(&content) {
-                        reports.push(report);
+                    if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&content) {
+                        if let (Some(metrics), Some(gen_at_str)) = (
+                            json_value.get("metrics"),
+                            json_value.get("generated_at").and_then(|v| v.as_str()),
+                        ) {
+                            if let Ok(generated_at) = gen_at_str.parse::<DateTime<Utc>>() {
+                                let session_id = metrics
+                                    .get("session_id")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("")
+                                    .to_string();
+                                let tool_calls = metrics
+                                    .get("tool_calls")
+                                    .and_then(|v| v.as_u64())
+                                    .unwrap_or(0);
+                                
+                                // Calculate duration from wall_time if available
+                                let duration = if let Some(wall_secs) = metrics
+                                    .get("wall_time")
+                                    .and_then(|v| v.get("secs"))
+                                    .and_then(|v| v.as_u64())
+                                {
+                                    Duration::from_secs(wall_secs)
+                                } else {
+                                    Duration::ZERO
+                                };
+
+                                metadata.push(SessionMetadata {
+                                    session_id,
+                                    generated_at,
+                                    duration,
+                                    tool_calls,
+                                });
+                            }
+                        }
                     }
                 }
             }
         }
 
         // Sort by generation time (most recent first)
-        reports.sort_by(|a, b| b.generated_at.cmp(&a.generated_at));
+        metadata.sort_by(|a, b| b.generated_at.cmp(&a.generated_at));
 
-        Ok(reports)
+        Ok(metadata)
     }
 
     /// Get the sessions directory path.
