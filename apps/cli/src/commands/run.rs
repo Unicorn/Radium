@@ -131,7 +131,11 @@ fn parse_simple_script(script: &str) -> anyhow::Result<(String, String)> {
     let parts: Vec<&str> = script.splitn(2, ' ').collect();
 
     if parts.len() < 2 {
-        bail!("Invalid script format. Expected: \"agent-id prompt-text\"\nGot: {}", script);
+        bail!(
+            "Invalid script format. Expected: \"agent-id prompt-text\"
+Got: {}",
+            script
+        );
     }
 
     let agent_id = parts[0].trim().to_string();
@@ -179,4 +183,74 @@ fn load_prompt(prompt_path: &std::path::Path) -> anyhow::Result<String> {
     }
 
     bail!("Prompt file not found: {}", prompt_path.display())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::File;
+    use std::io::Write;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_parse_simple_script_valid() {
+        let script = "test-agent Hello world";
+        let (id, prompt) = parse_simple_script(script).unwrap();
+        assert_eq!(id, "test-agent");
+        assert_eq!(prompt, "Hello world");
+
+        let script = "agent2   Multiple spaces    here";
+        let (id, prompt) = parse_simple_script(script).unwrap();
+        assert_eq!(id, "agent2");
+        assert_eq!(prompt, "Multiple spaces    here");
+    }
+
+    #[test]
+    fn test_parse_simple_script_invalid() {
+        // Empty script
+        assert!(parse_simple_script("").is_err());
+        assert!(parse_simple_script("   ").is_err());
+
+        // Missing prompt (single word)
+        assert!(parse_simple_script("agent-only").is_err());
+        assert!(parse_simple_script("singleword").is_err());
+    }
+
+    #[test]
+    fn test_load_prompt_absolute_path() {
+        let dir = TempDir::new().unwrap();
+        let file_path = dir.path().join("prompt.md");
+        let mut file = File::create(&file_path).unwrap();
+        writeln!(file, "Absolute prompt").unwrap();
+
+        let content = load_prompt(&file_path).unwrap();
+        assert_eq!(content.trim(), "Absolute prompt");
+    }
+
+    #[test]
+    fn test_load_prompt_relative_path() {
+        let dir = TempDir::new().unwrap();
+        let file_name = "relative_prompt.md";
+        let file_path = dir.path().join(file_name);
+        let mut file = File::create(&file_path).unwrap();
+        writeln!(file, "Relative prompt").unwrap();
+
+        // Change current dir to temp dir for relative path test
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+
+        let result = load_prompt(std::path::Path::new(file_name));
+
+        // Restore dir
+        std::env::set_current_dir(original_dir).unwrap();
+
+        let content = result.unwrap();
+        assert_eq!(content.trim(), "Relative prompt");
+    }
+
+    #[test]
+    fn test_load_prompt_not_found() {
+        let result = load_prompt(std::path::Path::new("non_existent_file.md"));
+        assert!(result.is_err());
+    }
 }

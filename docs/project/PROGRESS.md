@@ -224,6 +224,13 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
   - **Files:** `crates/radium-core/tests/logging_test.rs`, `crates/radium-core/src/server/logging.rs` (verified)
   - **Notes:** Verified coverage for auth, config, agents, storage, and server modules. Added tests for request logger.
 
+- [x] **RAD-TEST-018**: Fill CLI Test Coverage Gaps
+  - **Completed:** 2025-12-06
+  - **Assignee:** Gemini
+  - **Commit:** test(cli): add unit tests for run and plan commands [RAD-TEST-018]
+  - **Files:** `apps/cli/src/commands/{run.rs,plan.rs}`
+  - **Notes:** Added comprehensive unit tests for command helper logic (parsing, slugification, file loading).
+
 - [ ] **RAD-041**: Write E2E tests for TUI and Desktop apps
   - **Status:** Blocked
   - **Blocked By:** BLOCKER-004
@@ -336,6 +343,8 @@ radium/
 | Date | Changes |
 |------|---------|
 | 2025-12-05 | Claude | ✅ Test Coverage - Sandbox Module: Added 22 comprehensive tests to sandbox module (config +10, sandbox +5, docker +7). Total: 819 tests (712 radium-core, 59 CLI, 36 TUI, 12 client). Sandbox module reached "Excellent" (52 tests). Now 9 modules at Excellent tier! Added tests for volumes, custom profiles, deserialization, network modes, image selection, custom flags, stderr handling, exit codes, and multiple initializations/cleanups. |
+| 2025-12-06 | Gemini | Completed RAD-TEST-018 |
+| 2025-12-06 | Gemini | Started RAD-TEST-018 |
 | 2025-12-05 | Claude | ✅ Test Coverage - Storage Module: Added 35 comprehensive tests to storage module (database +10, repositories +25). Total: 798 tests (691 radium-core, 59 CLI, 36 TUI, 12 client). Storage module reached "Excellent" (56 tests). Now 8 modules at Excellent tier! Added tests for transactions, cascade deletes, foreign keys, unicode handling, complex JSON, duplicate IDs, and edge cases. |
 | 2025-12-05 | Claude | ✅ Test Coverage - Prompts Module: Added 41 comprehensive tests to prompts module (templates +24, processing +17). Total: 771 tests (664 radium-core, 59 CLI, 36 TUI, 12 client). Prompts module reached "Excellent" (58 tests). Now 7 modules at Excellent tier! |
 | 2025-12-05 | Claude | ✅ Test Coverage - Context Module: Added 32 comprehensive tests to context module covering injection and manager. Total: 733 tests (626 radium-core, 59 CLI, 36 TUI, 12 client). Context module reached "Excellent" (51 tests). |

@@ -58,12 +58,12 @@ pub async fn execute(
 
     // Determine folder name
     let folder_name = if let Some(custom_name) = name {
-        format!("{}-{}", requirement_id, custom_name)
+        format!("{}-வைக் {}", requirement_id, custom_name)
     } else {
         // Extract project name from spec file
         let project_name =
             extract_project_name(&spec_content).unwrap_or_else(|| "project".to_string());
-        format!("{}-{}", requirement_id, slugify(&project_name))
+        format!("{}-வைக் {}", requirement_id, slugify(&project_name))
     };
 
     println!("  Folder name: {}", folder_name.green());
@@ -238,17 +238,69 @@ fn parse_spec_structure(content: &str) -> (usize, usize) {
 fn slugify(s: &str) -> String {
     s.to_lowercase()
         .chars()
-        .map(|c| {
-            if c.is_alphanumeric() {
-                c
-            } else if c.is_whitespace() || c == '-' || c == '_' {
-                '-'
-            } else {
-                ' '
-            }
-        })
+        .map(|c| if c.is_alphanumeric() { c } else { ' ' })
         .collect::<String>()
         .split_whitespace()
         .collect::<Vec<_>>()
         .join("-")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_extract_project_name() {
+        assert_eq!(extract_project_name("# My Project"), Some("My Project".to_string()));
+        assert_eq!(extract_project_name("   #    Project X   "), Some("Project X".to_string()));
+        assert_eq!(extract_project_name("Intro\n# Header\nText"), Some("Header".to_string()));
+        assert_eq!(extract_project_name("No header"), None);
+        assert_eq!(extract_project_name("## Subheader"), None);
+    }
+
+    #[test]
+    fn test_parse_spec_structure() {
+        let spec = r#"# Project
+## Iteration 1
+- [ ] Task 1
+- [ ] Task 2
+## Iteration 2
+* [ ] Task 3
+        "#;
+        let (iters, tasks) = parse_spec_structure(spec);
+        assert_eq!(iters, 2);
+        assert_eq!(tasks, 3);
+    }
+
+    #[test]
+    fn test_parse_spec_structure_minimal() {
+        let spec = "# Just header";
+        let (iters, tasks) = parse_spec_structure(spec);
+        assert_eq!(iters, 1); // Default to 1
+        assert_eq!(tasks, 1); // Default to 1
+    }
+
+    #[test]
+    fn test_slugify() {
+        assert_eq!(slugify("Hello World"), "hello-world");
+        assert_eq!(slugify("Project X: Backend"), "project-x-backend"); // Simplified slugify
+        assert_eq!(slugify("  Spaces  "), "spaces");
+        assert_eq!(slugify("Mixed_Case-Input"), "mixed-case-input");
+    }
+
+    #[test]
+    fn test_create_plan_structure() {
+        let temp = TempDir::new().unwrap();
+        let plan_dir = temp.path().join("plan-test");
+
+        create_plan_structure(&plan_dir).unwrap();
+
+        assert!(plan_dir.exists());
+        assert!(plan_dir.join("plan").exists());
+        assert!(plan_dir.join("artifacts/architecture").exists());
+        assert!(plan_dir.join("artifacts/tasks").exists());
+        assert!(plan_dir.join("memory").exists());
+        assert!(plan_dir.join("prompts").exists());
+    }
 }

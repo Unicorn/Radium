@@ -10,6 +10,12 @@ rust-version.workspace = true
 [lints]
 workspace = true
 
+[features]
+default = ["docker-sandbox", "seatbelt-sandbox"]
+docker-sandbox = []
+podman-sandbox = []
+seatbelt-sandbox = []
+
 [dependencies]
 # gRPC
 tonic.workspace = true
