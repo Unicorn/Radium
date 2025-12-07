@@ -23,6 +23,7 @@ pub mod autonomous;
 pub mod auth;
 pub mod checkpoint;
 pub mod client;
+pub mod collaboration;
 pub mod commands;
 pub mod config;
 pub mod context;
