@@ -1,6 +1,7 @@
 //! Git snapshot management for checkpointing agent work.
 
 use super::error::{CheckpointError, Result};
+use serde_json;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -122,6 +123,44 @@ pub struct CheckpointManager {
 }
 
 impl CheckpointManager {
+    /// Serializes checkpoint metadata to JSON for storage in Git tag annotation.
+    fn serialize_metadata(checkpoint: &Checkpoint) -> String {
+        serde_json::json!({
+            "description": checkpoint.description,
+            "agent_id": checkpoint.agent_id,
+            "task_id": checkpoint.task_id,
+            "workflow_id": checkpoint.workflow_id,
+            "timestamp": checkpoint.timestamp,
+        })
+        .to_string()
+    }
+
+    /// Deserializes checkpoint metadata from Git tag annotation.
+    fn deserialize_metadata(tag_id: &str, commit_hash: String, tag_message: &str) -> Checkpoint {
+        let mut checkpoint = Checkpoint::new(tag_id.to_string(), commit_hash);
+        
+        // Try to parse JSON metadata from tag message
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(tag_message) {
+            if let Some(desc) = json.get("description").and_then(|v| v.as_str()) {
+                checkpoint = checkpoint.with_description(desc.to_string());
+            }
+            if let Some(agent_id) = json.get("agent_id").and_then(|v| v.as_str()) {
+                checkpoint = checkpoint.with_agent(agent_id.to_string());
+            }
+            if let Some(task_id) = json.get("task_id").and_then(|v| v.as_str()) {
+                checkpoint = checkpoint.with_task_id(task_id.to_string());
+            }
+            if let Some(workflow_id) = json.get("workflow_id").and_then(|v| v.as_str()) {
+                checkpoint = checkpoint.with_workflow_id(workflow_id.to_string());
+            }
+            if let Some(timestamp) = json.get("timestamp").and_then(|v| v.as_u64()) {
+                checkpoint.timestamp = timestamp;
+            }
+        }
+        
+        checkpoint
+    }
+
     /// Creates a new checkpoint manager.
     ///
     /// # Arguments
@@ -197,21 +236,24 @@ impl CheckpointManager {
         let uuid = Uuid::new_v4();
         let checkpoint_id = format!("checkpoint-{}", uuid.simple());
 
-        // Create tag in shadow repo pointing to this commit
-        let _tag_name = format!("refs/tags/{}", checkpoint_id);
+        // Create checkpoint struct with metadata
+        let mut checkpoint = Checkpoint::new(checkpoint_id.clone(), commit_hash.clone());
+        if let Some(desc) = description {
+            checkpoint = checkpoint.with_description(desc);
+        }
+
+        // Serialize metadata to JSON for tag annotation
+        let metadata_json = Self::serialize_metadata(&checkpoint);
+
+        // Create annotated tag with metadata in message
         let output = Command::new("git")
-            .args(["tag", &checkpoint_id, &commit_hash])
+            .args(["tag", "-a", &checkpoint_id, &commit_hash, "-m", &metadata_json])
             .current_dir(&self.workspace_root)
             .output()?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             return Err(CheckpointError::GitCommandFailed(stderr.to_string()));
-        }
-
-        let mut checkpoint = Checkpoint::new(checkpoint_id, commit_hash);
-        if let Some(desc) = description {
-            checkpoint = checkpoint.with_description(desc);
         }
 
         Ok(checkpoint)
@@ -302,7 +344,24 @@ impl CheckpointManager {
 
             if output.status.success() {
                 let commit_hash = String::from_utf8(output.stdout)?.trim().to_string();
-                checkpoints.push(Checkpoint::new(tag.to_string(), commit_hash));
+                
+                // Get tag message (annotation) if it exists
+                let tag_message = Command::new("git")
+                    .args(["tag", "-l", "--format=%(contents)", tag])
+                    .current_dir(&self.workspace_root)
+                    .output()
+                    .ok()
+                    .and_then(|o| {
+                        if o.status.success() {
+                            String::from_utf8(o.stdout).ok()
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or_else(|| "{}".to_string());
+                
+                let checkpoint = Self::deserialize_metadata(tag, commit_hash, &tag_message);
+                checkpoints.push(checkpoint);
             }
         }
 
@@ -333,7 +392,23 @@ impl CheckpointManager {
         }
 
         let commit_hash = String::from_utf8(output.stdout)?.trim().to_string();
-        Ok(Checkpoint::new(checkpoint_id.to_string(), commit_hash))
+        
+        // Get tag message (annotation) if it exists
+        let tag_message = Command::new("git")
+            .args(["tag", "-l", "--format=%(contents)", checkpoint_id])
+            .current_dir(&self.workspace_root)
+            .output()
+            .ok()
+            .and_then(|o| {
+                if o.status.success() {
+                    String::from_utf8(o.stdout).ok()
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_else(|| "{}".to_string());
+        
+        Ok(Self::deserialize_metadata(checkpoint_id, commit_hash, &tag_message))
     }
 
     /// Restores a checkpoint.
@@ -1009,7 +1084,7 @@ mod tests {
         let diff = manager.diff_checkpoints(&cp1.id, &cp2.id).unwrap();
         // Note: If checkpoints point to the same commit, there may be no changes
         // This test verifies the method doesn't panic
-        assert!(diff.files_changed() >= 0);
+        let _ = diff.files_changed(); // Just verify it doesn't panic
     }
 
     #[test]
