@@ -176,9 +176,11 @@ Project-level extensions take precedence over user-level extensions.
 
 ## Documentation
 
+- [User Guide](user-guide.md) - Complete guide to using extensions
 - [Quickstart Guide](quickstart.md) - Get started in 10 minutes
 - [Creating Extensions](creating-extensions.md) - Guide for extension authors
 - [Publishing Guide](publishing-guide.md) - How to publish to the marketplace
+- [Marketplace Guide](marketplace.md) - Discover and use marketplace features
 - [Architecture](architecture.md) - Technical architecture documentation
 
 ## Examples
