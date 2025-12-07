@@ -40,42 +40,23 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
 
 ## 🚀 Active Work
 
-### Documentation Organization ✅ COMPLETE
+> **All active work, requirements, and tasks are tracked in BrainGrid (PROJ-14).**  
+> Query for current status: `braingrid requirement list -p PROJ-14`  
+> See [BRAINGRID_WORKFLOW.md](./BRAINGRID_WORKFLOW.md) for details.
 
-- **Completed:** 2025-12-06
-- **Summary:** Created structured `/docs/plan` folder system with 20 REQ documents organized by priority phases (NOW/NEXT/LATER). All roadmap features extracted into self-contained, Braingrid-compatible REQ documents.
-- **Key Files:**
-  - `docs/plan/README.md` - Navigation guide and feature matrix
-  - `docs/plan/templates/req-template.md` - Standard REQ template
-- **Status:** See Braingrid for current REQ status and tasks
+### Current Focus Areas
 
-### Braingrid Sync ✅ COMPLETE
+- **Hooks System** (REQ-155): Hook system for behavior customization - See BrainGrid for task status
+- **Plan Generation & Execution** (REQ-161): AI-powered plan generation and execution - See BrainGrid for task status
+- **Core CLI Commands** (REQ-158): Enhanced CLI command implementation - See BrainGrid for task status
+- **Agent Configuration System** (REQ-157): Agent configuration and discovery - See BrainGrid for task status
 
-- **Completed:** 2025-12-07
-- **Summary:** Successfully synced all 20 local REQ documents to Braingrid (PROJ-14), establishing Braingrid as the single source of truth for requirements.
-- **Key Files:**
-  - `scripts/sync-reqs-to-braingrid.sh` - Shell script for syncing REQs to Braingrid
-- **Status:** See Braingrid for all REQ details
-
-### MCP Integration ✅ COMPLETE
-
-- **Completed:** 2025-01-XX
-- **Summary:** Complete MCP (Model Context Protocol) integration with stdio, SSE, and HTTP transport support, tool discovery, OAuth authentication, and rich content support.
-- **Key Files:**
-  - `crates/radium-core/src/mcp/` - Complete MCP module implementation
-  - `apps/cli/src/commands/mcp.rs` - CLI commands for MCP management
-  - `docs/features/mcp-integration.md` - MCP integration documentation
-- **Features:** MCP client, tool discovery/execution, OAuth auth, rich content, CLI commands
-- **Status:** See Braingrid for current REQ status and tasks
-
-### Hooks System 🚧 IN_PROGRESS
-
-- **Summary:** Hook system for behavior customization with model call hooks, tool execution hooks, error handling hooks, and telemetry hooks.
-- **Key Files:**
-  - `crates/radium-core/src/hooks/` - Complete hooks module implementation
-  - `crates/radium-core/tests/hooks_integration_test.rs` - Integration tests
-- **Features:** Hook trait/registry, priority-based execution, TOML configuration
-- **Status:** See Braingrid for current task status: `braingrid requirement list -p PROJ-14 | grep "Hooks"`
+For detailed requirements, tasks, and status, query BrainGrid:
+```bash
+braingrid requirement list -p PROJ-14
+braingrid requirement show REQ-XXX -p PROJ-14
+braingrid task list -r REQ-XXX -p PROJ-14
+```
 
 ### Completed Recently
 

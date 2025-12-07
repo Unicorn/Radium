@@ -62,6 +62,24 @@ pub fn get_extension_mcp_configs() -> crate::extensions::Result<Vec<PathBuf>> {
     Ok(configs)
 }
 
+/// Gets all extension hook file paths.
+///
+/// # Returns
+/// Vector of paths to extension hook files
+pub fn get_extension_hook_paths() -> crate::extensions::Result<Vec<PathBuf>> {
+    let discovery = ExtensionDiscovery::new();
+    let extensions = discovery.discover_all()?;
+
+    let mut paths = Vec::new();
+    for ext in extensions {
+        if let Ok(hook_paths) = ext.get_hook_paths() {
+            paths.extend(hook_paths);
+        }
+    }
+
+    Ok(paths)
+}
+
 /// Gets all installed extensions.
 ///
 /// # Returns

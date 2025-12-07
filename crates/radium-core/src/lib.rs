@@ -87,6 +87,7 @@ pub use memory::{
 };
 pub use models::agent::{Agent, AgentConfig, AgentError, AgentState};
 pub use models::plan::{Iteration, Plan, PlanError, PlanManifest, PlanStatus, PlanTask};
+pub use planning::{generate_plan_files, PlanGenerator, PlanParser};
 pub use models::task::{Task, TaskError, TaskQueue, TaskResult, TaskState};
 pub use models::workflow::{Workflow, WorkflowError, WorkflowState, WorkflowStep};
 pub use monitoring::{

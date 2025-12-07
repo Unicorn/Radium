@@ -36,6 +36,10 @@ pub enum HookError {
     /// Configuration parsing error.
     #[error("Configuration parsing error: {0}")]
     ConfigParse(#[from] toml::de::Error),
+
+    /// Hook discovery error.
+    #[error("Hook discovery error: {0}")]
+    Discovery(String),
 }
 
 /// Result type for hook operations.
