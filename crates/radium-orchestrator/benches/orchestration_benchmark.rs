@@ -2,6 +2,20 @@
 //!
 //! Measures orchestration overhead to ensure <500ms overhead for orchestration layer
 //! (excluding actual model API calls).
+//!
+//! ## Performance Targets
+//!
+//! The orchestration system must maintain low overhead to ensure responsive user experience:
+//! - Engine creation: < 10µs
+//! - Provider selection: < 1µs
+//! - Tool registry build (100 tools): < 10ms
+//! - Single tool call overhead: < 5ms
+//! - Multi-tool iteration (5 iterations): < 50ms
+//! - **Full orchestration flow overhead: < 500ms** (excluding API calls)
+//!
+//! These benchmarks use mock providers with 0ms response time to isolate orchestration
+//! overhead from API latency. Real-world performance will include API call times which
+//! are outside the scope of orchestration layer optimization.
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use radium_orchestrator::orchestration::{
@@ -272,6 +286,96 @@ fn benchmark_tool_execution_overhead(c: &mut Criterion) {
     });
 }
 
+/// Benchmark full orchestration flow overhead
+/// 
+/// This benchmark measures the total orchestration layer overhead (excluding API calls)
+/// to validate it meets the <500ms requirement. The mock provider has 0ms response time
+/// to isolate orchestration overhead from API latency.
+fn benchmark_full_orchestration_overhead(c: &mut Criterion) {
+    let rt = Runtime::new().unwrap();
+    
+    // Create a provider with 0ms response time to measure pure orchestration overhead
+    let provider: Arc<dyn OrchestrationProvider> = Arc::new(MockBenchmarkProvider::new(0));
+    let tools = create_test_tools(10); // Realistic number of tools
+    
+    c.bench_function("orchestration_full_flow_overhead", |b| {
+        b.iter(|| {
+            rt.block_on(async {
+                let engine = OrchestrationEngine::with_defaults(
+                    Arc::clone(&provider),
+                    tools.clone(),
+                );
+                let mut ctx = OrchestrationContext::new("bench-session");
+                
+                // Measure full orchestration execution (no API calls, just orchestration logic)
+                let result = engine.execute("Test orchestration input", &mut ctx).await.unwrap();
+                black_box(result);
+            });
+        });
+    });
+    
+    // Add a benchmark with tool execution to measure overhead with tool calls
+    let tool = create_test_tools(1);
+    let provider_with_tools: Arc<dyn OrchestrationProvider> = Arc::new(MockBenchmarkProvider::new(0));
+    
+    c.bench_function("orchestration_full_flow_with_tool_call", |b| {
+        b.iter(|| {
+            rt.block_on(async {
+                // Provider that requests one tool call then finishes
+                struct SingleToolProvider {
+                    called: Arc<std::sync::atomic::AtomicBool>,
+                }
+                
+                #[async_trait]
+                impl OrchestrationProvider for SingleToolProvider {
+                    async fn execute_with_tools(
+                        &self,
+                        _input: &str,
+                        tools: &[Tool],
+                        _context: &OrchestrationContext,
+                    ) -> radium_orchestrator::error::Result<OrchestrationResult> {
+                        let was_called = self.called.swap(true, std::sync::atomic::Ordering::SeqCst);
+                        if !was_called && !tools.is_empty() {
+                            Ok(OrchestrationResult::new(
+                                "Calling tool".to_string(),
+                                vec![ToolCall {
+                                    id: "call_1".to_string(),
+                                    name: tools[0].name.clone(),
+                                    arguments: json!({"task": "test"}),
+                                }],
+                                FinishReason::Stop,
+                            ))
+                        } else {
+                            Ok(OrchestrationResult::new(
+                                "Done".to_string(),
+                                vec![],
+                                FinishReason::Stop,
+                            ))
+                        }
+                    }
+                    
+                    fn supports_function_calling(&self) -> bool {
+                        true
+                    }
+                    
+                    fn provider_name(&self) -> &'static str {
+                        "single_tool"
+                    }
+                }
+                
+                let provider = Arc::new(SingleToolProvider {
+                    called: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+                });
+                let engine = OrchestrationEngine::with_defaults(provider, tool.clone());
+                let mut ctx = OrchestrationContext::new("bench-session");
+                
+                let result = engine.execute("Test with tool", &mut ctx).await.unwrap();
+                black_box(result);
+            });
+        });
+    });
+}
+
 criterion_group!(
     benches,
     benchmark_engine_creation,
@@ -280,7 +384,8 @@ criterion_group!(
     benchmark_single_tool_call,
     benchmark_multi_tool_iteration,
     benchmark_context_operations,
-    benchmark_tool_execution_overhead
+    benchmark_tool_execution_overhead,
+    benchmark_full_orchestration_overhead
 );
 criterion_main!(benches);
 

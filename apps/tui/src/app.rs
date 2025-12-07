@@ -119,7 +119,33 @@ impl App {
     async fn ensure_orchestration_service(&mut self) -> Result<()> {
         if self.orchestration_service.is_none() && self.orchestration_enabled {
             let config = OrchestrationConfig::default();
-            match OrchestrationService::initialize(config, None).await {
+            
+            // Discover MCP tools if MCP integration is available
+            let mcp_tools = if let Some(ref mcp_integration) = self.mcp_integration {
+                // Ensure MCP is initialized
+                if let Some(workspace) = &self.workspace_status {
+                    if let Some(root) = &workspace.root {
+                        let workspace = radium_core::Workspace::create(root.clone())?;
+                        let integration = mcp_integration.lock().await;
+                        if integration.connected_server_count().await == 0 {
+                            // Initialize if not already initialized
+                            drop(integration);
+                            mcp_integration.lock().await.initialize(&workspace).await.ok();
+                        }
+                    }
+                }
+                
+                // Discover MCP tools for orchestration
+                use radium_core::mcp::orchestration_bridge::discover_mcp_tools_for_orchestration;
+                discover_mcp_tools_for_orchestration(Arc::clone(mcp_integration))
+                    .await
+                    .ok()
+                    .flatten()
+            } else {
+                None
+            };
+            
+            match OrchestrationService::initialize(config, mcp_tools).await {
                 Ok(service) => {
                     self.orchestration_service = Some(Arc::new(service));
                 }
@@ -935,7 +961,18 @@ impl App {
         // Reinitialize service with new provider
         self.prompt_data.add_output(format!("🔄 Switching to {}...", provider_type));
 
-        match OrchestrationService::initialize(config, None).await {
+        // Discover MCP tools if available
+        let mcp_tools = if let Some(ref mcp_integration) = self.mcp_integration {
+            use radium_core::mcp::orchestration_bridge::discover_mcp_tools_for_orchestration;
+            discover_mcp_tools_for_orchestration(Arc::clone(mcp_integration))
+                .await
+                .ok()
+                .flatten()
+        } else {
+            None
+        };
+
+        match OrchestrationService::initialize(config, mcp_tools).await {
             Ok(service) => {
                 self.orchestration_service = Some(Arc::new(service));
                 self.prompt_data.add_output(format!(

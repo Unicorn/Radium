@@ -68,7 +68,7 @@ impl McpIntegrationTrait for McpIntegrationWrapper {
 /// Vector of Tool objects representing MCP tools
 pub async fn discover_mcp_tools_for_orchestration(
     integration: Arc<Mutex<McpIntegration>>,
-) -> Result<Vec<Tool>, crate::mcp::Result<()>> {
+) -> anyhow::Result<Vec<Tool>> {
     let tool_defs = {
         let int = integration.lock().await;
         int.get_all_tool_definitions().await

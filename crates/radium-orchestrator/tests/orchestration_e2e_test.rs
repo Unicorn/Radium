@@ -275,14 +275,13 @@ async fn test_agent_tool_registry_conversion() {
     let mut registry = AgentToolRegistry::new();
     
     // Try to load agents (may fail if no agents exist, that's OK)
+    // load_agents() automatically calls build_tools() internally
     let _ = registry.load_agents();
     
-    // Build tools
-    registry.build_tools();
     let tools = registry.get_tools();
     
     // Tools should be available (even if empty)
-    assert!(tools.len() >= 0);
+    assert!(tools.len() >= 0); // This is always true, but documents intent
 }
 
 #[tokio::test]

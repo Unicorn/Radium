@@ -1,12 +1,10 @@
 //! Unit tests for core orchestration types and abstractions
 
-use radium_orchestrator::orchestration::{
+use radium_orchestrator::{
     FinishReason, OrchestrationResult, OrchestrationContext, Message,
-    tool::{Tool, ToolCall, ToolParameters, ToolArguments, ToolResult},
+    ToolCall, ToolParameters, ToolArguments, ToolResult,
 };
 use serde_json::json;
-use std::sync::Arc;
-use async_trait::async_trait;
 
 #[test]
 fn test_orchestration_result_creation() {
