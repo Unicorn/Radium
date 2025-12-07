@@ -461,18 +461,19 @@ impl WorkflowExecutor {
                     let behavior_file = ws_structure.memory_dir().join("behavior.json");
                     
                     // Extract output text for behavior evaluation
-                    let output_text = match &step_result.output {
-                        serde_json::Value::String(s) => s.clone(),
-                        v => serde_json::to_string(v).unwrap_or_default(),
+                    let output_text = match step_result.output.as_ref() {
+                        Some(serde_json::Value::String(s)) => s.clone(),
+                        Some(v) => serde_json::to_string(v).unwrap_or_default(),
+                        None => String::new(),
                     };
 
                     // Create hook context with behavior file and output
-                    let mut hook_context = HookContext::new();
-                    hook_context.set("behavior_file", behavior_file.to_string_lossy().to_string());
-                    hook_context.set("output", output_text);
-                    hook_context.set("step_id", step.id.clone());
-                    hook_context.set("workflow_id", workflow.id.clone());
-                    hook_context.set("step_result", serde_json::to_value(&step_result).unwrap_or_default());
+                    let mut hook_context = HookContext::new(serde_json::json!({}));
+                    hook_context.data.insert("behavior_file".to_string(), serde_json::Value::String(behavior_file.to_string_lossy().to_string()));
+                    hook_context.data.insert("output".to_string(), serde_json::Value::String(output_text));
+                    hook_context.data.insert("step_id".to_string(), serde_json::Value::String(step.id.clone()));
+                    hook_context.data.insert("workflow_id".to_string(), serde_json::Value::String(workflow.id.clone()));
+                    hook_context.data.insert("step_result".to_string(), serde_json::to_value(&step_result).unwrap_or_default());
 
                     // Execute hooks for workflow step completion
                     // Note: Behavior hooks can be registered via BehaviorEvaluatorAdapter
