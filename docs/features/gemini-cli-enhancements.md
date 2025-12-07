@@ -214,6 +214,8 @@ Gemini CLI is an open-source AI agent that brings the power of Gemini directly i
 - Reproducible environments
 - Reduced risk of accidental damage
 
+**Requirements**: [REQ-008: Sandboxing](../plan/02-next/REQ-008-sandboxing.md)
+
 **Reference**: [Gemini CLI Sandboxing Documentation](https://geminicli.com/docs/cli/sandbox)
 
 ---
