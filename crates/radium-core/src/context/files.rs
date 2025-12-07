@@ -128,6 +128,50 @@ impl ContextFileLoader {
         Ok(result)
     }
 
+    /// Gets the list of context files that would be loaded for a given path.
+    ///
+    /// Returns paths in precedence order: global → project → subdirectory
+    ///
+    /// # Arguments
+    /// * `path` - The path to get context files for
+    ///
+    /// # Returns
+    /// Vector of paths to context files that exist (may be empty)
+    pub fn get_context_file_paths(&self, path: &Path) -> Vec<PathBuf> {
+        let file_name = self.file_name();
+        let mut paths = Vec::new();
+
+        // 1. Global context file
+        if let Ok(home) = std::env::var("HOME") {
+            let global_path = PathBuf::from(home).join(".radium").join(file_name);
+            if global_path.exists() {
+                paths.push(global_path);
+            }
+        }
+
+        // 2. Project root context file
+        let project_path = self.workspace_root.join(file_name);
+        let project_path_clone = project_path.clone();
+        if project_path.exists() {
+            paths.push(project_path);
+        }
+
+        // 3. Subdirectory context file
+        let subdir_path = if path.is_dir() {
+            path.join(file_name)
+        } else if let Some(parent) = path.parent() {
+            parent.join(file_name)
+        } else {
+            PathBuf::new()
+        };
+
+        if subdir_path.exists() && subdir_path != project_path_clone {
+            paths.push(subdir_path);
+        }
+
+        paths
+    }
+
     /// Discovers all context files in the workspace.
     ///
     /// # Returns

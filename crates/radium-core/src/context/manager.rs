@@ -35,8 +35,9 @@ pub struct ContextManager {
     /// Learning store for past mistakes and strategies.
     learning_store: Option<LearningStore>,
 
-    /// Cached context file content with modification time.
-    context_file_cache: Option<(std::path::PathBuf, std::time::SystemTime, String)>,
+    /// Cached context file content with modification times of all loaded files.
+    /// Stores: (request_path, Vec<(file_path, mtime)>, content)
+    context_file_cache: Option<(std::path::PathBuf, Vec<(std::path::PathBuf, std::time::SystemTime)>, String)>,
 }
 
 impl ContextManager {
@@ -245,15 +246,42 @@ impl ContextManager {
     /// # Errors
     /// Returns error if context file loading fails
     pub fn load_context_files(&mut self, path: &Path) -> Result<Option<String>> {
+        // Get list of context files that would be loaded
+        let context_file_paths = self.context_file_loader.get_context_file_paths(path);
+
         // Check cache first
-        if let Some((cached_path, cached_mtime, cached_content)) = &self.context_file_cache {
+        if let Some((cached_path, cached_files, cached_content)) = &self.context_file_cache {
             if cached_path == path {
-                // Check if file has been modified
-                if let Ok(metadata) = std::fs::metadata(path) {
-                    if let Ok(mtime) = metadata.modified() {
-                        if mtime == *cached_mtime {
-                            return Ok(Some(cached_content.clone()));
+                // Check if all context files are unchanged
+                let mut all_unchanged = true;
+                for (file_path, cached_mtime) in cached_files {
+                    if let Ok(metadata) = std::fs::metadata(file_path) {
+                        if let Ok(mtime) = metadata.modified() {
+                            if mtime != *cached_mtime {
+                                all_unchanged = false;
+                                break;
+                            }
+                        } else {
+                            all_unchanged = false;
+                            break;
                         }
+                    } else {
+                        // File no longer exists
+                        all_unchanged = false;
+                        break;
+                    }
+                }
+                // Also check if any new files were added
+                if all_unchanged && context_file_paths.len() == cached_files.len() {
+                    // Verify all current files are in cache
+                    for file_path in &context_file_paths {
+                        if !cached_files.iter().any(|(cached_path, _)| cached_path == file_path) {
+                            all_unchanged = false;
+                            break;
+                        }
+                    }
+                    if all_unchanged {
+                        return Ok(Some(cached_content.clone()));
                     }
                 }
             }
@@ -266,11 +294,16 @@ impl ContextManager {
             return Ok(None);
         }
 
-        // Update cache
-        let mtime = std::fs::metadata(path)
-            .and_then(|m| m.modified())
-            .unwrap_or_else(|_| std::time::SystemTime::now());
-        self.context_file_cache = Some((path.to_path_buf(), mtime, content.clone()));
+        // Update cache with all loaded files and their modification times
+        let mut cached_files = Vec::new();
+        for file_path in &context_file_paths {
+            if let Ok(metadata) = std::fs::metadata(file_path) {
+                if let Ok(mtime) = metadata.modified() {
+                    cached_files.push((file_path.clone(), mtime));
+                }
+            }
+        }
+        self.context_file_cache = Some((path.to_path_buf(), cached_files, content.clone()));
 
         Ok(Some(content))
     }
