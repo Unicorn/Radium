@@ -69,6 +69,14 @@ pub struct CheckpointState {
     pub auto_checkpoint_frequency: Option<usize>,
     /// Loop iteration tracking
     pub loop_iterations: Vec<LoopIteration>,
+    /// Filter/search text for checkpoint list
+    pub filter_text: String,
+    /// Whether diff preview is visible
+    pub show_diff: bool,
+    /// Current page for pagination (0-indexed)
+    pub current_page: usize,
+    /// Items per page for pagination
+    pub items_per_page: usize,
 }
 
 /// Loop iteration tracking
@@ -119,6 +127,10 @@ impl CheckpointState {
             enabled: true,
             auto_checkpoint_frequency: Some(5),
             loop_iterations: Vec::new(),
+            filter_text: String::new(),
+            show_diff: false,
+            current_page: 0,
+            items_per_page: 15,
         }
     }
 
@@ -218,6 +230,71 @@ impl CheckpointState {
             format!("Checkpoints: {} | Loop iterations: {}", checkpoint_count, loop_count)
         } else {
             format!("Checkpoints: {}", checkpoint_count)
+        }
+    }
+
+    /// Filters checkpoints based on filter text.
+    pub fn filtered_checkpoints(&self) -> Vec<&CheckpointInfo> {
+        if self.filter_text.is_empty() {
+            return self.checkpoints.iter().collect();
+        }
+
+        let filter_lower = self.filter_text.to_lowercase();
+        self.checkpoints
+            .iter()
+            .filter(|cp| {
+                cp.id.to_lowercase().contains(&filter_lower)
+                    || cp.name.to_lowercase().contains(&filter_lower)
+            })
+            .collect()
+    }
+
+    /// Gets the total number of pages for pagination.
+    pub fn total_pages(&self) -> usize {
+        let filtered_count = self.filtered_checkpoints().len();
+        if filtered_count == 0 {
+            return 1;
+        }
+        (filtered_count + self.items_per_page - 1) / self.items_per_page
+    }
+
+    /// Gets checkpoints for the current page.
+    pub fn paginated_checkpoints(&self) -> Vec<&CheckpointInfo> {
+        let filtered = self.filtered_checkpoints();
+        let start = self.current_page * self.items_per_page;
+        let end = std::cmp::min(start + self.items_per_page, filtered.len());
+        filtered[start..end].to_vec()
+    }
+
+    /// Sets the filter text.
+    pub fn set_filter(&mut self, filter: String) {
+        self.filter_text = filter;
+        self.current_page = 0; // Reset to first page when filtering
+    }
+
+    /// Clears the filter.
+    pub fn clear_filter(&mut self) {
+        self.filter_text.clear();
+        self.current_page = 0;
+    }
+
+    /// Toggles diff preview.
+    pub fn toggle_diff(&mut self) {
+        self.show_diff = !self.show_diff;
+    }
+
+    /// Goes to the next page.
+    pub fn next_page(&mut self) {
+        let total = self.total_pages();
+        if self.current_page < total.saturating_sub(1) {
+            self.current_page += 1;
+        }
+    }
+
+    /// Goes to the previous page.
+    pub fn prev_page(&mut self) {
+        if self.current_page > 0 {
+            self.current_page -= 1;
         }
     }
 }
