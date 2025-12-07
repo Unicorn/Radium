@@ -159,15 +159,15 @@ impl Default for ConstitutionManager {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_constitution_manager_new() {
+    #[tokio::test]
+    async fn test_constitution_manager_new() {
         let manager = ConstitutionManager::new();
         let rules = manager.get_constitution("test-session");
         assert!(rules.is_empty());
     }
 
-    #[test]
-    fn test_update_constitution() {
+    #[tokio::test]
+    async fn test_update_constitution() {
         let manager = ConstitutionManager::new();
         manager.update_constitution("session-1", "no external network calls".to_string());
         manager.update_constitution("session-1", "prefer unit tests".to_string());
@@ -178,24 +178,24 @@ mod tests {
         assert!(rules.contains(&"prefer unit tests".to_string()));
     }
 
-    #[test]
-    fn test_update_constitution_empty_session() {
+    #[tokio::test]
+    async fn test_update_constitution_empty_session() {
         let manager = ConstitutionManager::new();
         manager.update_constitution("", "rule".to_string());
         let rules = manager.get_constitution("");
         assert!(rules.is_empty());
     }
 
-    #[test]
-    fn test_update_constitution_empty_rule() {
+    #[tokio::test]
+    async fn test_update_constitution_empty_rule() {
         let manager = ConstitutionManager::new();
         manager.update_constitution("session-1", "".to_string());
         let rules = manager.get_constitution("session-1");
         assert!(rules.is_empty());
     }
 
-    #[test]
-    fn test_reset_constitution() {
+    #[tokio::test]
+    async fn test_reset_constitution() {
         let manager = ConstitutionManager::new();
         manager.update_constitution("session-1", "old rule".to_string());
         manager.reset_constitution(
@@ -210,8 +210,8 @@ mod tests {
         assert!(rules.contains(&"new rule 2".to_string()));
     }
 
-    #[test]
-    fn test_reset_constitution_max_rules() {
+    #[tokio::test]
+    async fn test_reset_constitution_max_rules() {
         let manager = ConstitutionManager::new();
         let many_rules: Vec<String> =
             (0..=MAX_RULES_PER_SESSION).map(|i| format!("rule-{}", i)).collect();
@@ -221,8 +221,8 @@ mod tests {
         assert_eq!(rules.len(), MAX_RULES_PER_SESSION);
     }
 
-    #[test]
-    fn test_get_constitution_nonexistent() {
+    #[tokio::test]
+    async fn test_get_constitution_nonexistent() {
         let manager = ConstitutionManager::new();
         let rules = manager.get_constitution("nonexistent");
         assert!(rules.is_empty());
@@ -238,8 +238,8 @@ mod tests {
         assert!(entry.is_stale());
     }
 
-    #[test]
-    fn test_update_constitution_max_rules() {
+    #[tokio::test]
+    async fn test_update_constitution_max_rules() {
         let manager = ConstitutionManager::new();
         for i in 0..=MAX_RULES_PER_SESSION {
             manager.update_constitution("session-1", format!("rule-{}", i));

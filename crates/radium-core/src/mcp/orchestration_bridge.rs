@@ -74,7 +74,7 @@ pub async fn discover_mcp_tools_for_orchestration(
         int.get_all_tool_definitions().await
     };
 
-    let wrapper = Arc::new(McpIntegrationWrapper::new(integration));
+    let wrapper: Arc<dyn McpIntegrationTrait> = Arc::new(McpIntegrationWrapper::new(integration));
 
     let mut tools = Vec::new();
 
