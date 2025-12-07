@@ -8,6 +8,8 @@ use crate::hooks::model::ModelHookContext;
 use crate::hooks::registry::{HookRegistry, HookType};
 use crate::hooks::telemetry::TelemetryHookContext;
 use crate::hooks::tool::ToolHookContext;
+use crate::hooks::types::HookContext;
+use radium_orchestrator::{AgentOutput, HookExecutor, HookResult};
 use std::sync::Arc;
 
 /// Helper for executing hooks around orchestrator operations.
@@ -206,5 +208,81 @@ impl OrchestratorHooks {
 
         // Telemetry hooks are fire-and-forget, we don't need to process results
         Ok(())
+    }
+}
+
+/// Adapter that implements HookExecutor trait for HookRegistry.
+/// This allows HookRegistry to be used with AgentExecutor without creating
+/// a circular dependency between radium-core and radium-orchestrator.
+pub struct HookRegistryAdapter {
+    registry: Arc<HookRegistry>,
+}
+
+impl HookRegistryAdapter {
+    /// Create a new adapter from a HookRegistry.
+    pub fn new(registry: Arc<HookRegistry>) -> Self {
+        Self { registry }
+    }
+}
+
+#[async_trait::async_trait]
+impl HookExecutor for HookRegistryAdapter {
+    async fn execute_before_model(&self, agent_id: &str, input: &str) -> Result<Vec<HookResult>, String> {
+        let hook_context = HookContext::new(
+            "before_model",
+            serde_json::json!({
+                "agent_id": agent_id,
+                "input": input,
+            }),
+        );
+
+        match self.registry.execute_hooks(HookType::BeforeModel, &hook_context).await {
+            Ok(results) => Ok(results
+                .into_iter()
+                .map(|r| HookResult {
+                    should_continue: r.should_continue,
+                    message: r.message,
+                    modified_data: r.modified_data,
+                })
+                .collect()),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+
+    async fn execute_after_model(
+        &self,
+        agent_id: &str,
+        output: &AgentOutput,
+        success: bool,
+    ) -> Result<Vec<HookResult>, String> {
+        let output_json = match output {
+            AgentOutput::Text(t) => serde_json::json!({ "text": t }),
+            AgentOutput::StructuredData(s) => s.clone(),
+            AgentOutput::ToolCall { name, args } => {
+                serde_json::json!({ "tool_call": { "name": name, "args": args } })
+            }
+            AgentOutput::Terminate => serde_json::json!({ "terminate": true }),
+        };
+
+        let hook_context = HookContext::new(
+            "after_model",
+            serde_json::json!({
+                "agent_id": agent_id,
+                "output": output_json,
+                "success": success,
+            }),
+        );
+
+        match self.registry.execute_hooks(HookType::AfterModel, &hook_context).await {
+            Ok(results) => Ok(results
+                .into_iter()
+                .map(|r| HookResult {
+                    should_continue: r.should_continue,
+                    message: r.message,
+                    modified_data: r.modified_data,
+                })
+                .collect()),
+            Err(e) => Err(e.to_string()),
+        }
     }
 }

@@ -5,6 +5,12 @@
 **Main Branch**: `main`
 **Development Branch**: `main`
 
+> **📋 For current REQ status and tasks, query Braingrid:**  
+> `braingrid requirement list -p PROJ-14`  
+> `braingrid requirement show REQ-XXX -p PROJ-14`  
+> `braingrid task list -r REQ-XXX -p PROJ-14`  
+> See [BRAINGRID_WORKFLOW.md](./BRAINGRID_WORKFLOW.md) for details.
+
 ## Executive Summary
 
 Radium is a high-performance agent orchestration platform built with Rust. The project has successfully completed major refactoring to follow Rust community conventions, with a clean modular structure in `crates/`, streamlined naming, and a fully functional CLI for workspace and plan management.
@@ -34,119 +40,55 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
 
 ## 🚀 Active Work
 
-### REQ-1: Documentation Organization ✅ COMPLETE
+### Documentation Organization ✅ COMPLETE
 
-- [x] **Task 1: Create /docs/plan folder structure and template system** - Completed
-- [x] **Task 2: Extract NOW phase requirements (Steps 0-3) into REQ documents** - Completed
-- [x] **Task 3: Extract NEXT phase core features (Steps 4-6) into REQ documents** - Completed
-- [x] **Task 4: Extract NEXT phase sub-features into separate REQ documents** - Completed
-- [x] **Task 5: Extract LATER phase requirements (Steps 7-11) into REQ documents** - Completed
-- [x] **Task 6: Validate REQ documents for Braingrid compatibility and completeness** - Completed
-- [x] **Task 7: Refine and fix issues identified in validation** - Completed (no fixes needed)
-- [x] **Task 8: Add cross-references from original documentation to new REQ structure** - Completed
+- **Completed:** 2025-12-06
+- **Summary:** Created structured `/docs/plan` folder system with 20 REQ documents organized by priority phases (NOW/NEXT/LATER). All roadmap features extracted into self-contained, Braingrid-compatible REQ documents.
+- **Key Files:**
+  - `docs/plan/README.md` - Navigation guide and feature matrix
+  - `docs/plan/templates/req-template.md` - Standard REQ template
+- **Status:** See Braingrid for current REQ status and tasks
 
-**Summary**: Created structured `/docs/plan` folder system with 20 REQ documents organized by priority phases (NOW/NEXT/LATER). All roadmap features (Steps 0-11) extracted into self-contained, Braingrid-compatible REQ documents. Cross-references added to original documentation for bidirectional traceability. REQ-1 status updated to "Review" in Braingrid.
-  - **Completed:** 2025-12-06
-  - **Commit:** docs(plan): create folder structure and REQ template system [REQ-1] [TASK-1]
-  - **Files:**
-    - `docs/plan/README.md` - Navigation guide and feature matrix
-    - `docs/plan/templates/req-template.md` - Standard REQ template
-    - Directory structure: `01-now/`, `02-next/`, `03-later/`, `templates/`
-  - **Features:**
-    - Phase-based organization (NOW/NEXT/LATER)
-    - Comprehensive REQ template with all required sections
-    - Feature matrix table for tracking all REQs
-    - Clear numbering scheme documentation
+### Braingrid Sync ✅ COMPLETE
 
-### REQ Sync to Braingrid ✅ COMPLETE
+- **Completed:** 2025-12-07
+- **Summary:** Successfully synced all 20 local REQ documents to Braingrid (PROJ-14), establishing Braingrid as the single source of truth for requirements.
+- **Key Files:**
+  - `scripts/sync-reqs-to-braingrid.sh` - Shell script for syncing REQs to Braingrid
+- **Status:** See Braingrid for all REQ details
 
-- [x] **Task 1: Create REQ sync script/utility** - Completed
-- [x] **Task 2: Sync NOW phase REQs (REQ-001 to REQ-004)** - Completed
-- [x] **Task 3: Sync NEXT phase core REQs (REQ-005 to REQ-007)** - Completed
-- [x] **Task 4: Sync NEXT phase sub-feature REQs (REQ-008 to REQ-014)** - Completed
-- [x] **Task 5: Sync LATER phase REQs (REQ-015 to REQ-020)** - Completed
-- [x] **Task 6: Verify sync completeness and create summary** - Completed
+### MCP Integration ✅ COMPLETE
 
-**Summary**: Successfully synced all 20 local REQ documents to Braingrid (PROJ-14), establishing initial parity between local documentation and Braingrid requirements. Created sync script for future use.
-  - **Completed:** 2025-12-07
-  - **Commit:** scripts: add REQ sync script for Braingrid [REQ-1]
-  - **Files:**
-    - `scripts/sync-reqs-to-braingrid.sh` - Shell script for syncing REQs to Braingrid (CLI-based)
-    - `docs/plan/SYNC_SUMMARY.md` - Detailed sync results and verification
-  - **Results:**
-    - 20 REQs synced successfully (100% success rate)
-    - Status mapping: Completed → COMPLETED (16 REQs), Not Started → PLANNED (4 REQs)
-    - All REQs verified in Braingrid with correct content and status
-    - Sync script handles both creation and updates automatically
-  - **See:** [SYNC_SUMMARY.md](../plan/SYNC_SUMMARY.md) for detailed results
+- **Completed:** 2025-01-XX
+- **Summary:** Complete MCP (Model Context Protocol) integration with stdio, SSE, and HTTP transport support, tool discovery, OAuth authentication, and rich content support.
+- **Key Files:**
+  - `crates/radium-core/src/mcp/` - Complete MCP module implementation
+  - `apps/cli/src/commands/mcp.rs` - CLI commands for MCP management
+  - `docs/features/mcp-integration.md` - MCP integration documentation
+- **Features:** MCP client, tool discovery/execution, OAuth auth, rich content, CLI commands
+- **Status:** See Braingrid for current REQ status and tasks
 
-### REQ-009: MCP Integration ✅ COMPLETE
+### Hooks System 🚧 IN_PROGRESS
 
-- [x] **Task 1-17: Complete MCP Integration Implementation** - Completed
-  - **Completed:** 2025-01-XX
-  - **Commit:** feat(mcp): implement complete MCP integration [REQ-009]
-  - **Note:** Should be ported to Braingrid for task breakdown and tracking
-  - **Files:**
-    - `crates/radium-core/src/mcp/` - Complete MCP module implementation
-    - `apps/cli/src/commands/mcp.rs` - CLI commands for MCP management
-    - `docs/features/mcp-integration.md` - MCP integration documentation
-    - `docs/examples/mcp-server-setup.md` - Setup examples
-  - **Features:**
-    - MCP client with stdio, SSE, and HTTP transport support
-    - Tool discovery and execution with conflict resolution
-    - OAuth authentication with secure token storage
-    - Rich content support (text, images, audio)
-    - MCP prompts as slash commands
-    - Configuration management via TOML
-    - Integration with agent system
-    - CLI commands: `rad mcp list`, `rad mcp tools`, `rad mcp test`
-  - **Tests:** Comprehensive unit tests for all MCP components
-  - **Status:** Ready for review
-
-### REQ-155: Hooks System ([Braingrid](https://app.braingrid.ai/requirements/overview?id=c44f69fb-4ba8-43dc-99db-e4256cb8c8a6)) 🚧 IN_PROGRESS
-
-- [ ] **Tasks in Braingrid**: 14 tasks defined, 0 completed
-  - **Status:** IN_PROGRESS in Braingrid
-  - **Commit:** feat(hooks): implement complete hooks system [REQ-155]
-  - **Files:**
-    - `crates/radium-core/src/hooks/` - Complete hooks module implementation
-    - `crates/radium-core/tests/hooks_integration_test.rs` - Integration tests
-  - **Features:**
-    - Hook trait and registry with priority-based execution
-    - Model call hooks (before/after) with request/response modification
-    - Tool execution hooks (before/after/selection) with result modification
-    - Error handling hooks (interception, transformation, recovery, logging)
-    - Telemetry hooks for monitoring and metrics
-    - TOML-based hook configuration with validation
-    - OrchestratorHooks helper for integration with orchestrator providers
-  - **Tests:** Comprehensive unit and integration tests (4+ tests)
-  - **Status:** 🚧 IN_PROGRESS in Braingrid (REQ-155) - See Braingrid for current task status
+- **Summary:** Hook system for behavior customization with model call hooks, tool execution hooks, error handling hooks, and telemetry hooks.
+- **Key Files:**
+  - `crates/radium-core/src/hooks/` - Complete hooks module implementation
+  - `crates/radium-core/tests/hooks_integration_test.rs` - Integration tests
+- **Features:** Hook trait/registry, priority-based execution, TOML configuration
+- **Status:** See Braingrid for current task status: `braingrid requirement list -p PROJ-14 | grep "Hooks"`
 
 ### Completed Recently
 
-- [x] **REQ-163: Context Files System** ([Braingrid](https://app.braingrid.ai/requirements/overview?id=958cb2e0-8d3d-4253-8083-64f0c799905f)): Hierarchical context file loading with GEMINI.md support
+- [x] **Context Files System** ✅ COMPLETE
   - **Completed:** 2025-01-XX
-  - **Commit:** feat(context): implement context files loader and integration [REQ-163]
-  - **Files:**
-    - `crates/radium-core/src/context/files.rs` - Context file loader implementation (518 lines, 21 unit tests)
-    - `crates/radium-core/src/context/manager.rs` - ContextManager integration (10 tests)
-    - `crates/radium-core/tests/context_files_integration_test.rs` - Integration tests (11 tests)
-    - `crates/radium-core/tests/context_files_e2e_test.rs` - E2E tests (5 tests)
-  - **Features:**
-    - Hierarchical loading (global → project root → subdirectory)
-    - Automatic context file discovery
-    - Context imports with `@file.md` syntax
-    - Circular import detection
-    - Custom context file name configuration
-    - Integration with ContextManager and prompt system
-    - Context file caching with modification time tracking
-  - **Tests:** 47+ comprehensive tests covering:
-    - Unit tests: 21 tests (hierarchical loading, discovery, imports, edge cases)
-    - Integration tests: 11 tests (including performance tests)
-    - E2E tests: 5 tests (real workflow scenarios)
-    - ContextManager tests: 10 tests (integration, caching, precedence)
-  - **Test Coverage:** >85% for context files module
-  - **Status:** ✅ COMPLETED in Braingrid (REQ-163) - All 17 tasks completed
+  - **Summary:** Hierarchical context file loading with GEMINI.md support, automatic discovery, import processing, and caching.
+  - **Key Files:**
+    - `crates/radium-core/src/context/files.rs` - Context file loader implementation
+    - `crates/radium-core/src/context/manager.rs` - ContextManager integration
+    - `crates/radium-core/tests/context_files_integration_test.rs` - Integration tests
+  - **Features:** Hierarchical loading, automatic discovery, `@file.md` imports, circular import detection, caching
+  - **Test Coverage:** >85% for context files module (47+ tests)
+  - **Status:** See Braingrid for details: `braingrid requirement list -p PROJ-14 | grep "Context Files"`
 
 - [x] **Session Reports & Analytics System**: Comprehensive session reporting with metrics and cost transparency
   - **Completed:** 2025-01-XX
@@ -493,9 +435,10 @@ See [01-completed.md](01-completed.md) for detailed test coverage information.
 
 ### Conventions
 
-- **Task IDs:** `RAD-XXX` format (3-digit number)
+- **Task IDs:** `RAD-XXX` format (3-digit number) - Note: Braingrid uses REQ-XXX/TASK-XXX format
 - **Branch Names:** `feat/RAD-XXX-short-description` or `fix/RAD-XXX-short-description`
-- **Commit Format:** `type(scope): description [RAD-XXX]`
+- **Commit Format:** `type(scope): description [RAD-XXX]` or `[REQ-XXX]` for Braingrid REQs
+- **REQ Tracking:** All requirements tracked in Braingrid (PROJ-14) - query via CLI
 
 ### Directory Structure (Current)
 

@@ -273,7 +273,7 @@ impl WorkflowEngine {
 
         // Execute the agent
         let execution_result =
-            self.executor.execute_agent_with_default_model(agent, &input_str).await.map_err(
+            self.executor.execute_agent_with_default_model(agent, &input_str, None).await.map_err(
                 |e| {
                     error!(
                         workflow_id = %context.workflow_id,

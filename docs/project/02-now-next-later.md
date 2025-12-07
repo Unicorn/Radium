@@ -3,6 +3,10 @@
 > **Prioritized feature roadmap for Radium**  
 > **Goal**: Achieve legacy system feature parity while leveraging Radium's Rust architecture  
 > **Last Updated**: 2025-01-XX (includes vibe-check integration and gap analysis)
+> 
+> **📋 For current REQ status and tasks, query Braingrid:**  
+> `braingrid requirement list -p PROJ-14`  
+> See [BRAINGRID_WORKFLOW.md](./BRAINGRID_WORKFLOW.md) for details.
 
 ## 🎯 NOW: Immediate Priorities (Steps 0-3)
 
@@ -21,7 +25,7 @@
 
 **Completed**: All workspace features fully implemented with 22+ passing tests. RequirementId auto-incrementing, Plan/Iteration/Task structures, and PlanDiscovery all working.
 
-**Requirements**: [REQ-001: Workspace System](../plan/01-now/REQ-001-workspace-system.md)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "workspace"`
 
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-0-workspace-system) for detailed tasks.
 
@@ -40,10 +44,7 @@
 
 **Completed**: Core agent configuration system fully implemented with ~1,070 lines of code across agents/config.rs (337 lines), agents/discovery.rs (377 lines), and prompts/templates.rs (356 lines). TOML-based configuration, agent discovery, and template system all working. MCP and Context Files deferred to future enhancement.
 
-**Requirements**: 
-- [REQ-002: Agent Configuration System](../plan/01-now/REQ-002-agent-configuration.md)
-- [REQ-009: MCP Integration](../plan/02-next/REQ-009-mcp-integration.md) (Future)
-- [REQ-011: Context Files](../plan/02-next/REQ-011-context-files.md) (Future)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "agent\|mcp\|context"`
 
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-1-agent-configuration-system) for detailed tasks.
 
@@ -79,7 +80,7 @@
 
 **Test Coverage**: ✅ 216 tests across 15 test files provide comprehensive coverage of CLI functionality.
 
-**Requirements**: [REQ-003: Core CLI Commands](../plan/01-now/REQ-003-core-cli-commands.md)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "cli\|command"`
 
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-2-core-cli-commands) for detailed tasks.  
 **Test Requirements**: See [TEST_COVERAGE_REPORT.md](./TEST_COVERAGE_REPORT.md#step-2-core-cli-commands) for test details.
@@ -102,9 +103,7 @@
 
 **Completed**: Full workflow behavior system with 50+ passing tests. Includes workflow behaviors (~1,400 lines) with types.rs, loop_behavior.rs, trigger.rs, checkpoint.rs, vibe_check.rs (NEW), template discovery, Policy Engine (~450 lines) with TOML-based rules, priority-based matching (Admin/User/Default), approval modes (yolo/autoEdit/ask), glob pattern matching, and ConstitutionManager for session-scoped rules.
 
-**Requirements**: 
-- [REQ-004: Workflow Behaviors](../plan/01-now/REQ-004-workflow-behaviors.md)
-- [REQ-010: Policy Engine](../plan/02-next/REQ-010-policy-engine.md)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "workflow\|policy"`
 
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-3-workflow-behaviors) for detailed tasks.
 
@@ -153,7 +152,7 @@
 
 **Summary**: Full plan generation and execution system with AI-powered planning, state persistence, dependency management, and progress tracking. Users can generate plans from specifications and execute them with automatic checkpointing and resume support.
 
-**Requirements**: [REQ-005: Plan Generation & Execution](../plan/02-next/REQ-005-plan-generation.md)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "plan\|generation"`
 
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-4-plan-generation--execution) for detailed tasks.
 
@@ -190,9 +189,7 @@
 
 **Summary**: Complete memory and context system with ~2,000+ lines of code and 50+ passing tests. Agents can now store and retrieve context from previous runs, inject file contents, execute shell commands, use custom TOML-based commands, and maintain conversation history across sessions.
 
-**Requirements**: 
-- [REQ-006: Memory & Context System](../plan/02-next/REQ-006-memory-context.md)
-- [REQ-012: Custom Commands](../plan/02-next/REQ-012-custom-commands.md)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "memory\|context\|command"`
 
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-5-memory--context-system) for detailed tasks.
 
@@ -218,9 +215,7 @@
 
 **Why Next**: Needed for debugging, cost tracking, and agent coordination.
 
-**Requirements**: 
-- [REQ-007: Monitoring & Telemetry](../plan/02-next/REQ-007-monitoring-telemetry.md)
-- [REQ-013: Checkpointing](../plan/02-next/REQ-013-checkpointing.md)
+**Requirements**: See Braingrid for current REQ status: `braingrid requirement list -p PROJ-14 | grep -i "monitoring\|telemetry\|checkpoint"`
 
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-6-monitoring--telemetry) for detailed tasks.
 

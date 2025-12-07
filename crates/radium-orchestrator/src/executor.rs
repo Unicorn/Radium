@@ -8,14 +8,35 @@ use crate::{
     Agent, AgentContext, AgentLifecycle, AgentOutput, AgentRegistry, AgentState, ExecutionQueue,
 };
 use radium_abstraction::ModelError;
-use radium_core::hooks::{HookContext, HookRegistry, HookType};
 use radium_models::{ModelFactory, ModelType};
+use serde_json::Value;
 use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{Semaphore, mpsc};
 use tokio::time;
 use tracing::{debug, error, info, warn};
+
+/// Result of hook execution.
+#[derive(Debug, Clone)]
+pub struct HookResult {
+    /// Whether execution should continue.
+    pub should_continue: bool,
+    /// Optional message from the hook.
+    pub message: Option<String>,
+    /// Optional modified data from the hook.
+    pub modified_data: Option<Value>,
+}
+
+/// Trait for hook execution (to avoid circular dependency with radium-core).
+#[async_trait::async_trait]
+pub trait HookExecutor: Send + Sync {
+    /// Execute before model call hooks.
+    async fn execute_before_model(&self, agent_id: &str, input: &str) -> Result<Vec<HookResult>, String>;
+    
+    /// Execute after model call hooks.
+    async fn execute_after_model(&self, agent_id: &str, output: &AgentOutput, success: bool) -> Result<Vec<HookResult>, String>;
+}
 
 /// Telemetry information from model execution.
 #[derive(Debug, Clone)]
@@ -104,23 +125,15 @@ impl AgentExecutor {
         agent: Arc<dyn Agent + Send + Sync>,
         input: &str,
         model: Arc<dyn radium_abstraction::Model + Send + Sync>,
-        hook_registry: Option<&Arc<HookRegistry>>,
+        hook_executor: Option<&Arc<dyn HookExecutor>>,
     ) -> ExecutionResult {
         let agent_id = agent.id();
         debug!(agent_id = %agent_id, input_len = input.len(), "Executing agent");
 
         // Execute BeforeModel hooks
         let mut effective_input = input.to_string();
-        if let Some(registry) = hook_registry {
-            let hook_context = HookContext::new(
-                "before_model",
-                serde_json::json!({
-                    "agent_id": agent_id,
-                    "input": input,
-                }),
-            );
-
-            match registry.execute_hooks(HookType::BeforeModel, &hook_context).await {
+        if let Some(executor) = hook_executor {
+            match executor.execute_before_model(agent_id, input).await {
                 Ok(results) => {
                     for result in results {
                         // If hook says to stop, abort execution
@@ -178,20 +191,8 @@ impl AgentExecutor {
         };
 
         // Execute AfterModel hooks
-        if let Some(registry) = hook_registry {
-            let hook_context = HookContext::new(
-                "after_model",
-                serde_json::json!({
-                    "agent_id": agent_id,
-                    "output": match &execution_result.output {
-                        AgentOutput::Text(t) => serde_json::json!({ "text": t }),
-                        AgentOutput::StructuredData(s) => s.clone(),
-                    },
-                    "success": execution_result.success,
-                }),
-            );
-
-            match registry.execute_hooks(HookType::AfterModel, &hook_context).await {
+        if let Some(executor) = hook_executor {
+            match executor.execute_after_model(agent_id, &execution_result.output, execution_result.success).await {
                 Ok(results) => {
                     for result in results {
                         // If hook modifies output, update it
@@ -234,7 +235,7 @@ impl AgentExecutor {
         &self,
         agent: Arc<dyn Agent + Send + Sync>,
         input: &str,
-        hook_registry: Option<&Arc<HookRegistry>>,
+        hook_executor: Option<&Arc<dyn HookExecutor>>,
     ) -> Result<ExecutionResult, ModelError> {
         let model = ModelFactory::create_from_str(
             match &self.default_model_type {
@@ -245,7 +246,7 @@ impl AgentExecutor {
             self.default_model_id.clone(),
         )?;
 
-        Ok(self.execute_agent(agent, input, model, hook_registry).await)
+        Ok(self.execute_agent(agent, input, model, hook_executor).await)
     }
 
     /// Executes an agent with a custom model type and ID.
@@ -268,7 +269,7 @@ impl AgentExecutor {
         input: &str,
         model_type: ModelType,
         model_id: String,
-        hook_registry: Option<&Arc<HookRegistry>>,
+        hook_executor: Option<&Arc<dyn HookExecutor>>,
     ) -> Result<ExecutionResult, ModelError> {
         let model = ModelFactory::create_from_str(
             match &model_type {
@@ -279,7 +280,7 @@ impl AgentExecutor {
             model_id,
         )?;
 
-        Ok(self.execute_agent(agent, input, model, hook_registry).await)
+        Ok(self.execute_agent(agent, input, model, hook_executor).await)
     }
 }
 
@@ -462,7 +463,7 @@ impl QueueProcessor {
                                 // Execute with timeout
                                 let execution_result = time::timeout(
                                     config.task_timeout,
-                                    executor_clone.execute_agent_with_default_model(agent, &input, None),
+                                    executor_clone.execute_agent_with_default_model(agent, &input, None as Option<&Arc<dyn HookExecutor>>),
                                 )
                                 .await;
 
@@ -554,7 +555,7 @@ mod tests {
         let agent = Arc::new(EchoAgent::new("test-agent".to_string(), "Test agent".to_string()));
         let model = ModelFactory::create_from_str("mock", "mock-model".to_string()).unwrap();
 
-        let result = executor.execute_agent(agent, "test input", model, None).await;
+        let result = executor.execute_agent(agent, "test input", model, None as Option<&Arc<dyn HookExecutor>>).await;
 
         assert!(result.success);
         match result.output {
@@ -571,7 +572,7 @@ mod tests {
         let executor = AgentExecutor::with_mock_model();
         let agent = Arc::new(EchoAgent::new("test-agent".to_string(), "Test agent".to_string()));
 
-        let result = executor.execute_agent_with_default_model(agent, "test input", None).await.unwrap();
+        let result = executor.execute_agent_with_default_model(agent, "test input", None as Option<&Arc<dyn HookExecutor>>).await.unwrap();
 
         assert!(result.success);
         match result.output {
@@ -593,7 +594,7 @@ mod tests {
                 "test input",
                 ModelType::Mock,
                 "custom-model".to_string(),
-                None,
+                None as Option<&Arc<dyn HookExecutor>>,
             )
             .await
             .unwrap();

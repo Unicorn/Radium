@@ -673,10 +673,7 @@ impl App {
                     self.prompt_data
                         .add_output("Available providers: gemini, claude, openai, prompt_based".to_string());
                 } else {
-                    self.prompt_data.add_output(format!(
-                        "Provider switching not yet implemented. Requested: {}",
-                        args[1]
-                    ));
+                    self.switch_orchestrator_provider(&args[1]).await?;
                 }
             }
             _ => {
@@ -714,6 +711,96 @@ impl App {
         self.prompt_data.add_output("  /orchestrator toggle   - Enable/disable orchestration".to_string());
         self.prompt_data
             .add_output("  /orchestrator switch <provider>  - Switch AI provider".to_string());
+    }
+
+    /// Switch orchestrator provider
+    async fn switch_orchestrator_provider(&mut self, provider_name: &str) -> Result<()> {
+        use radium_orchestrator::ProviderType;
+
+        // Parse provider name
+        let provider_type = match provider_name.to_lowercase().as_str() {
+            "gemini" => ProviderType::Gemini,
+            "claude" => ProviderType::Claude,
+            "openai" => ProviderType::OpenAI,
+            "prompt_based" | "prompt-based" => ProviderType::PromptBased,
+            _ => {
+                self.prompt_data.add_output(format!("❌ Invalid provider: {}", provider_name));
+                self.prompt_data.add_output("".to_string());
+                self.prompt_data.add_output("Available providers:".to_string());
+                self.prompt_data.add_output("  • gemini       - Google Gemini models".to_string());
+                self.prompt_data.add_output("  • claude       - Anthropic Claude models".to_string());
+                self.prompt_data.add_output("  • openai       - OpenAI GPT models".to_string());
+                self.prompt_data
+                    .add_output("  • prompt_based - Prompt-based fallback".to_string());
+                return Ok(());
+            }
+        };
+
+        // Create new configuration with selected provider
+        let config = OrchestrationConfig::default().with_provider(provider_type);
+
+        // Reinitialize service with new provider
+        self.prompt_data.add_output(format!("🔄 Switching to {}...", provider_type));
+
+        match OrchestrationService::initialize(config).await {
+            Ok(service) => {
+                self.orchestration_service = Some(Arc::new(service));
+                self.prompt_data.add_output(format!(
+                    "✅ Switched to {} successfully",
+                    self.orchestration_service.as_ref().unwrap().provider_name()
+                ));
+
+                // Show new configuration
+                if let Some(ref svc) = self.orchestration_service {
+                    let cfg = svc.config();
+                    self.prompt_data.add_output("".to_string());
+                    self.prompt_data.add_output("New configuration:".to_string());
+                    self.prompt_data.add_output(format!("  Provider: {}", cfg.default_provider));
+
+                    match provider_type {
+                        ProviderType::Gemini => {
+                            self.prompt_data.add_output(format!("  Model: {}", cfg.gemini.model));
+                            self.prompt_data
+                                .add_output(format!("  Temperature: {}", cfg.gemini.temperature));
+                        }
+                        ProviderType::Claude => {
+                            self.prompt_data.add_output(format!("  Model: {}", cfg.claude.model));
+                            self.prompt_data
+                                .add_output(format!("  Temperature: {}", cfg.claude.temperature));
+                        }
+                        ProviderType::OpenAI => {
+                            self.prompt_data.add_output(format!("  Model: {}", cfg.openai.model));
+                            self.prompt_data
+                                .add_output(format!("  Temperature: {}", cfg.openai.temperature));
+                        }
+                        ProviderType::PromptBased => {
+                            self.prompt_data.add_output("  Model: prompt-based".to_string());
+                            self.prompt_data
+                                .add_output(format!("  Temperature: {}", cfg.prompt_based.temperature));
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                self.prompt_data.add_output(format!("❌ Failed to switch provider: {}", e));
+                self.prompt_data.add_output("".to_string());
+                self.prompt_data
+                    .add_output("This could be due to:".to_string());
+                self.prompt_data.add_output("  • Missing API key for the provider".to_string());
+                self.prompt_data.add_output("  • Network connectivity issues".to_string());
+                self.prompt_data.add_output("  • Invalid provider configuration".to_string());
+                self.prompt_data.add_output("".to_string());
+                self.prompt_data.add_output("Check your API keys:".to_string());
+                self.prompt_data
+                    .add_output("  • Gemini:  GEMINI_API_KEY environment variable".to_string());
+                self.prompt_data
+                    .add_output("  • Claude:  ANTHROPIC_API_KEY environment variable".to_string());
+                self.prompt_data
+                    .add_output("  • OpenAI:  OPENAI_API_KEY environment variable".to_string());
+            }
+        }
+
+        Ok(())
     }
 }
 

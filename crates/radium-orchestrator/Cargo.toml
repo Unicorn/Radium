@@ -13,7 +13,6 @@ workspace = true
 [dependencies]
 # Internal crates
 radium-abstraction.workspace = true
-radium-core.workspace = true
 radium-models.workspace = true
 
 # Async runtime

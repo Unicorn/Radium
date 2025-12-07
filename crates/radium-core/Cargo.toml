@@ -70,7 +70,7 @@ tempfile = "3.8"
 # Internal crates
 radium-abstraction.workspace = true
 radium-models.workspace = true
-radium-orchestrator.workspace = true
+radium-orchestrator.workspace = true  # TODO: Circular dependency - needs architectural refactoring
 
 [build-dependencies]
 tonic-build.workspace = true

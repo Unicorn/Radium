@@ -20,7 +20,7 @@ use tracing::{debug, error, warn};
 
 pub use agents::{ChatAgent, SimpleAgent};
 pub use executor::{
-    AgentExecutor, ExecutionResult, ExecutionTelemetry, QueueProcessor, QueueProcessorConfig,
+    AgentExecutor, ExecutionResult, ExecutionTelemetry, HookExecutor, HookResult, QueueProcessor, QueueProcessorConfig,
 };
 pub use lifecycle::{AgentLifecycle, AgentState};
 pub use orchestration::{
@@ -337,7 +337,7 @@ impl Orchestrator {
         }
 
         // Execute the agent
-        let result = self.executor.execute_agent_with_default_model(agent, input, None).await?;
+        let result = self.executor.execute_agent_with_default_model(agent, input, None as Option<&Arc<dyn HookExecutor>>).await?;
 
         // Mark agent as idle if execution completed
         if result.success {
@@ -392,7 +392,7 @@ impl Orchestrator {
 
         // Execute the agent
         let result =
-            self.executor.execute_agent_with_model(agent, input, model_type, model_id, None).await?;
+            self.executor.execute_agent_with_model(agent, input, model_type, model_id, None as Option<&Arc<dyn HookExecutor>>).await?;
 
         // Mark agent as idle if execution completed
         if result.success {

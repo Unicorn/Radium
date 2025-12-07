@@ -247,7 +247,7 @@ impl WorkflowExecutor {
                 let execution_result = self
                     .engine
                     .executor
-                    .execute_agent_with_default_model(agent, &input_str)
+                    .execute_agent_with_default_model(agent, &input_str, None)
                     .await
                     .map_err(|e| WorkflowEngineError::Execution(e.to_string()))?;
 

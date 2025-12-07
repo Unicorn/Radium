@@ -22,7 +22,7 @@ pub use adapters::{BehaviorEvaluatorAdapter, BehaviorHookRegistrar};
 pub use config::HookConfig;
 pub use error::{HookError, Result as HookResult};
 pub use error_hooks::{ErrorHook, ErrorHookContext, ErrorHookType};
-pub use integration::OrchestratorHooks;
+pub use integration::{HookRegistryAdapter, OrchestratorHooks};
 pub use model::{ModelHook, ModelHookContext, ModelHookType};
 pub use registry::{Hook, HookRegistry, HookType};
 pub use telemetry::TelemetryHookContext;
