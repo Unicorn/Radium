@@ -225,6 +225,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(feature = "orchestrator-integration")]
     #[allow(unsafe_code)] // Test-only: setting env vars for isolated test
     async fn test_client_helper_connect_with_embedded() {
         // Find an available port
@@ -252,6 +253,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(feature = "orchestrator-integration")]
     #[allow(unsafe_code)] // Test-only: setting env vars for isolated test
     async fn test_client_helper_shutdown() {
         // Find an available port

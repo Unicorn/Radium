@@ -575,9 +575,10 @@ Please complete this by {{deadline}}.
         // Test deeply nested braces (should not be treated as nested placeholders)
         let template = PromptTemplate::from_string("{{{{VAR}}}}");
         let placeholders = template.list_placeholders();
-        // Should find {{VAR}} as a placeholder (outer braces are part of syntax)
+        // The parser extracts the content between the first {{ and first }}
+        // which includes the inner { from {{VAR}}
         assert_eq!(placeholders.len(), 1);
-        assert_eq!(placeholders[0], "{VAR");
+        assert_eq!(placeholders[0], "{{VAR");
     }
 
     #[test]

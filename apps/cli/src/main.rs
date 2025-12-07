@@ -252,9 +252,10 @@ enum Command {
 
     /// Manage workflow templates
     ///
-    /// List, select, and configure workflow templates for plan execution.
-    #[command(subcommand)]
-    Templates(TemplatesCommand),
+    // DISABLED: Templates command (depends on radium_core::workflow)
+    // /// List, select, and configure workflow templates for plan execution.
+    // #[command(subcommand)]
+    // Templates(TemplatesCommand),
 
     /// Authentication management
     #[command(subcommand)]
@@ -301,9 +302,10 @@ enum Command {
 
     /// MCP (Model Context Protocol) server management
     ///
-    /// List, test, and manage MCP servers and their tools.
-    #[command(subcommand)]
-    Mcp(mcp::McpCommand),
+    // DISABLED: MCP command (depends on radium_core::mcp)
+    // /// List, test, and manage MCP servers and their tools.
+    // #[command(subcommand)]
+    // Mcp(mcp::McpCommand),
 
     /// Extension management
     ///
@@ -333,12 +335,13 @@ enum Command {
     #[command(subcommand)]
     Learning(commands::learning::LearningCommand),
 
-    /// Custom command management
-    ///
-    /// List, execute, create, and validate custom commands defined in TOML files.
-    /// Custom commands support shell injection, file injection, and argument substitution.
-    #[command(subcommand)]
-    Custom(commands::CustomCommand),
+    // DISABLED: Custom command (depends on radium_core::commands)
+    // /// Custom command management
+    // ///
+    // /// List, execute, create, and validate custom commands defined in TOML files.
+    // /// Custom commands support shell injection, file injection, and argument substitution.
+    // #[command(subcommand)]
+    // Custom(commands::CustomCommand),
 
     /// Sandbox management
     ///
@@ -474,15 +477,17 @@ async fn main() -> anyhow::Result<()> {
         Command::Status { json } => {
             status::execute(json).await?;
         }
-        Command::Vibecheck { phase, goal, plan, progress, task_context, json } => {
-            vibecheck::execute(phase, goal, plan, progress, task_context, json).await?;
-        }
+        // DISABLED: Vibecheck command
+        // Command::Vibecheck { phase, goal, plan, progress, task_context, json } => {
+        //     vibecheck::execute(phase, goal, plan, progress, task_context, json).await?;
+        // }
         Command::Clean { verbose, dir } => {
             clean::execute(verbose, dir).await?;
         }
-        Command::Templates(cmd) => {
-            templates::execute(cmd).await?;
-        }
+        // DISABLED: Templates command
+        // Command::Templates(cmd) => {
+        //     templates::execute(cmd).await?;
+        // }
         Command::Auth(cmd) => {
             auth::execute(cmd).await?;
         }
@@ -504,9 +509,10 @@ async fn main() -> anyhow::Result<()> {
         Command::Doctor { json } => {
             doctor::execute(json).await?;
         }
-        Command::Mcp(cmd) => {
-            mcp::execute_mcp_command(cmd).await?;
-        }
+        // DISABLED: Mcp command
+        // Command::Mcp(cmd) => {
+        //     mcp::execute_mcp_command(cmd).await?;
+        // }
         Command::Extension(cmd) => {
             extension::execute(cmd).await?;
         }
@@ -519,9 +525,10 @@ async fn main() -> anyhow::Result<()> {
         Command::Learning(cmd) => {
             learning::execute(cmd).await?;
         }
-        Command::Custom(cmd) => {
-            custom::execute(cmd).await?;
-        }
+        // DISABLED: Custom command
+        // Command::Custom(cmd) => {
+        //     custom::execute(cmd).await?;
+        // }
         Command::Sandbox(cmd) => {
             sandbox::execute(cmd).await?;
         }
