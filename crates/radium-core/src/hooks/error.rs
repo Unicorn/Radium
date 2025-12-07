@@ -44,3 +44,70 @@ pub enum HookError {
 
 /// Result type for hook operations.
 pub type Result<T> = std::result::Result<T, HookError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_hook_error_display_all_variants() {
+        // Test RegistrationFailed
+        let err = HookError::RegistrationFailed("test".to_string());
+        let msg = format!("{}", err);
+        assert!(msg.contains("Failed to register hook"));
+        assert!(msg.contains("test"));
+
+        // Test ExecutionFailed
+        let err = HookError::ExecutionFailed("test".to_string());
+        let msg = format!("{}", err);
+        assert!(msg.contains("Hook execution failed"));
+
+        // Test NotFound
+        let err = HookError::NotFound("test".to_string());
+        let msg = format!("{}", err);
+        assert!(msg.contains("Hook not found"));
+
+        // Test InvalidConfig
+        let err = HookError::InvalidConfig("test".to_string());
+        let msg = format!("{}", err);
+        assert!(msg.contains("Invalid hook configuration"));
+
+        // Test ValidationFailed
+        let err = HookError::ValidationFailed("test".to_string());
+        let msg = format!("{}", err);
+        assert!(msg.contains("Hook validation failed"));
+
+        // Test Discovery
+        let err = HookError::Discovery("test".to_string());
+        let msg = format!("{}", err);
+        assert!(msg.contains("Hook discovery error"));
+    }
+
+    #[test]
+    fn test_hook_error_from_io_error() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
+        let hook_err: HookError = io_err.into();
+        assert!(matches!(hook_err, HookError::Io(_)));
+    }
+
+    #[test]
+    fn test_hook_error_from_serialization_error() {
+        let json_err = serde_json::from_str::<serde_json::Value>("invalid json").unwrap_err();
+        let hook_err: HookError = json_err.into();
+        assert!(matches!(hook_err, HookError::Serialization(_)));
+    }
+
+    #[test]
+    fn test_hook_error_from_config_parse_error() {
+        let toml_err = toml::from_str::<toml::Value>("invalid toml {").unwrap_err();
+        let hook_err: HookError = toml_err.into();
+        assert!(matches!(hook_err, HookError::ConfigParse(_)));
+    }
+
+    #[test]
+    fn test_hook_error_debug() {
+        let err = HookError::RegistrationFailed("test".to_string());
+        let debug_str = format!("{:?}", err);
+        assert!(debug_str.contains("RegistrationFailed"));
+    }
+}

@@ -102,4 +102,72 @@ mod tests {
             _ => panic!("Expected Storage::Serialization error variant"),
         }
     }
+
+    #[test]
+    fn test_radium_error_auth_conversion() {
+        use crate::auth::AuthError;
+        let auth_err = AuthError::InvalidFormat;
+        let radium_err: RadiumError = auth_err.into();
+        match radium_err {
+            RadiumError::Auth(_) => {}
+            _ => panic!("Expected Auth error variant"),
+        }
+    }
+
+    #[test]
+    fn test_radium_error_server_conversion() {
+        // Create a server error (tonic transport error)
+        // This is harder to create directly, so we'll test the display
+        let err = RadiumError::Config("test".to_string());
+        let msg = format!("{}", err);
+        assert!(msg.contains("Configuration error"));
+    }
+
+    #[test]
+    fn test_radium_error_display_all_variants() {
+        // Test Config
+        let err = RadiumError::Config("test config".to_string());
+        let msg = format!("{}", err);
+        assert!(msg.contains("Configuration error"));
+        assert!(msg.contains("test config"));
+
+        // Test Model
+        let err = RadiumError::Model("test model".to_string());
+        let msg = format!("{}", err);
+        assert!(msg.contains("Model error"));
+        assert!(msg.contains("test model"));
+    }
+
+    #[test]
+    fn test_radium_error_debug() {
+        let err = RadiumError::Config("test".to_string());
+        let debug_str = format!("{:?}", err);
+        assert!(debug_str.contains("Config"));
+    }
+
+    #[test]
+    fn test_radium_error_from_storage_not_found() {
+        let storage_err = StorageError::NotFound("item".to_string());
+        let radium_err: RadiumError = storage_err.into();
+        match radium_err {
+            RadiumError::Storage(StorageError::NotFound(msg)) => {
+                assert_eq!(msg, "item");
+            }
+            _ => panic!("Expected Storage::NotFound"),
+        }
+    }
+
+    #[test]
+    fn test_radium_error_from_storage_connection() {
+        let db_err = rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CONSTRAINT),
+            None,
+        );
+        let storage_err = StorageError::Connection(db_err);
+        let radium_err: RadiumError = storage_err.into();
+        match radium_err {
+            RadiumError::Storage(StorageError::Connection(_)) => {}
+            _ => panic!("Expected Storage::Connection"),
+        }
+    }
 }

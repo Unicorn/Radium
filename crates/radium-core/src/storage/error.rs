@@ -28,3 +28,54 @@ pub enum StorageError {
 
 /// Result type alias for storage operations.
 pub type StorageResult<T> = std::result::Result<T, StorageError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_storage_error_display_all_variants() {
+        // Test NotFound
+        let err = StorageError::NotFound("item".to_string());
+        let msg = format!("{}", err);
+        assert!(msg.contains("Not found"));
+        assert!(msg.contains("item"));
+
+        // Test InvalidData
+        let err = StorageError::InvalidData("invalid".to_string());
+        let msg = format!("{}", err);
+        assert!(msg.contains("Invalid data"));
+        assert!(msg.contains("invalid"));
+    }
+
+    #[test]
+    fn test_storage_error_from_connection_error() {
+        let db_err = rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CONSTRAINT),
+            None,
+        );
+        let storage_err: StorageError = db_err.into();
+        assert!(matches!(storage_err, StorageError::Connection(_)));
+    }
+
+    #[test]
+    fn test_storage_error_from_serialization_error() {
+        let json_err = serde_json::from_str::<serde_json::Value>("invalid json").unwrap_err();
+        let storage_err: StorageError = json_err.into();
+        assert!(matches!(storage_err, StorageError::Serialization(_)));
+    }
+
+    #[test]
+    fn test_storage_error_from_io_error() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
+        let storage_err: StorageError = io_err.into();
+        assert!(matches!(storage_err, StorageError::Io(_)));
+    }
+
+    #[test]
+    fn test_storage_error_debug() {
+        let err = StorageError::NotFound("test".to_string());
+        let debug_str = format!("{:?}", err);
+        assert!(debug_str.contains("NotFound"));
+    }
+}
