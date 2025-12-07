@@ -481,3 +481,73 @@ fn test_session_storage_atomic_write_no_temp_files_left() {
     assert_eq!(temp_files.len(), 0, "No temporary files should be left behind");
 }
 
+#[test]
+fn test_session_storage_compact_json_format() {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let workspace_root = temp_dir.path();
+    
+    let storage = SessionStorage::new(workspace_root)
+        .expect("Failed to create storage")
+        .with_compact_json(true);
+    let report = create_test_report("compact-json-session");
+    
+    let file_path = storage.save_report(&report).expect("Failed to save report");
+    let content = fs::read_to_string(&file_path).expect("Failed to read report file");
+    
+    // Verify it's valid JSON
+    let _: serde_json::Value = serde_json::from_str(&content).expect("Failed to parse JSON");
+    
+    // Verify it's compact (no newlines except in string values)
+    // Compact JSON should have minimal whitespace
+    let lines: Vec<&str> = content.lines().collect();
+    // Compact JSON should be mostly on one line (or very few lines)
+    assert!(lines.len() <= 3, "Compact JSON should have minimal line breaks");
+    
+    // Verify no indentation (no leading spaces on lines)
+    for line in &lines {
+        if !line.trim().is_empty() {
+            assert!(!line.starts_with("  "), "Compact JSON should not have indentation");
+        }
+    }
+}
+
+#[test]
+fn test_session_storage_pretty_json_format() {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let workspace_root = temp_dir.path();
+    
+    let storage = SessionStorage::new(workspace_root)
+        .expect("Failed to create storage")
+        .with_compact_json(false);
+    let report = create_test_report("pretty-json-session");
+    
+    let file_path = storage.save_report(&report).expect("Failed to save report");
+    let content = fs::read_to_string(&file_path).expect("Failed to read report file");
+    
+    // Verify it's valid JSON
+    let _: serde_json::Value = serde_json::from_str(&content).expect("Failed to parse JSON");
+    
+    // Verify it's pretty-printed (contains newlines and indentation)
+    assert!(content.contains('\n'), "Pretty JSON should contain newlines");
+    
+    // Verify it has indentation (leading spaces)
+    let has_indentation = content.lines().any(|line| line.starts_with("  "));
+    assert!(has_indentation, "Pretty JSON should have indentation");
+}
+
+#[test]
+fn test_session_storage_default_pretty_json() {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let workspace_root = temp_dir.path();
+    
+    // Default should be pretty-printed (backward compatibility)
+    let storage = SessionStorage::new(workspace_root).expect("Failed to create storage");
+    let report = create_test_report("default-json-session");
+    
+    let file_path = storage.save_report(&report).expect("Failed to save report");
+    let content = fs::read_to_string(&file_path).expect("Failed to read report file");
+    
+    // Default should be pretty-printed
+    assert!(content.contains('\n'), "Default JSON should be pretty-printed");
+}
+

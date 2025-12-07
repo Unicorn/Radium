@@ -151,7 +151,15 @@ impl ReportFormatter {
     }
 
     /// Format report as JSON.
-    pub fn format_json(&self, report: &SessionReport) -> anyhow::Result<String> {
-        Ok(serde_json::to_string_pretty(report)?)
+    ///
+    /// # Arguments
+    /// * `report` - The session report to format
+    /// * `compact` - If true, use compact JSON (no whitespace). If false, use pretty-printed JSON.
+    pub fn format_json(&self, report: &SessionReport, compact: bool) -> anyhow::Result<String> {
+        if compact {
+            Ok(serde_json::to_string(report)?)
+        } else {
+            Ok(serde_json::to_string_pretty(report)?)
+        }
     }
 }

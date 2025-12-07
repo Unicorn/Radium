@@ -26,16 +26,42 @@ pub struct SessionMetadata {
 /// Session report storage manager.
 pub struct SessionStorage {
     sessions_dir: PathBuf,
+    /// Whether to use compact JSON format (false = pretty-printed, default)
+    compact_json: bool,
 }
 
 impl SessionStorage {
     /// Create a new session storage manager.
+    ///
+    /// Checks the `RADIUM_COMPACT_SESSION_JSON` environment variable to determine
+    /// the default JSON format. If set to "true" or "1", compact JSON will be used.
     pub fn new(workspace_root: &Path) -> Result<Self> {
         let sessions_dir = workspace_root.join(".radium").join("_internals").join("sessions");
 
         fs::create_dir_all(&sessions_dir)?;
 
-        Ok(Self { sessions_dir })
+        // Check environment variable for compact JSON preference
+        let compact_json = std::env::var("RADIUM_COMPACT_SESSION_JSON")
+            .ok()
+            .map(|v| v == "true" || v == "1")
+            .unwrap_or(false);
+
+        Ok(Self {
+            sessions_dir,
+            compact_json,
+        })
+    }
+
+    /// Set whether to use compact JSON format.
+    ///
+    /// # Arguments
+    /// * `compact` - If true, use compact JSON (no whitespace). If false, use pretty-printed JSON.
+    ///
+    /// # Returns
+    /// Self for method chaining
+    pub fn with_compact_json(mut self, compact: bool) -> Self {
+        self.compact_json = compact;
+        self
     }
 
     /// Save a session report to disk using atomic write pattern.
@@ -47,7 +73,12 @@ impl SessionStorage {
         let filename = format!("{}.json", report.metrics.session_id);
         let file_path = self.sessions_dir.join(&filename);
 
-        let json = serde_json::to_string_pretty(report)?;
+        // Use compact or pretty JSON based on configuration
+        let json = if self.compact_json {
+            serde_json::to_string(report)?
+        } else {
+            serde_json::to_string_pretty(report)?
+        };
         self.atomic_write(&file_path, &json)?;
 
         Ok(file_path)

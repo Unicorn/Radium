@@ -102,7 +102,7 @@ async fn session_command(
     let formatter = ReportFormatter;
 
     if json {
-        println!("{}", formatter.format_json(&report)?);
+        println!("{}", formatter.format_json(&report, false)?);
     } else {
         println!("{}", formatter.format(&report));
     }
