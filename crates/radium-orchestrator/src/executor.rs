@@ -36,6 +36,15 @@ pub trait HookExecutor: Send + Sync {
     
     /// Execute after model call hooks.
     async fn execute_after_model(&self, agent_id: &str, output: &AgentOutput, success: bool) -> Result<Vec<HookResult>, String>;
+    
+    /// Execute error interception hooks.
+    async fn execute_error_interception(&self, agent_id: &str, error_message: &str, error_type: &str, error_source: Option<&str>) -> Result<Option<String>, String>;
+    
+    /// Execute error transformation hooks.
+    async fn execute_error_transformation(&self, agent_id: &str, error_message: &str, error_type: &str, error_source: Option<&str>) -> Result<Option<String>, String>;
+    
+    /// Execute error recovery hooks.
+    async fn execute_error_recovery(&self, agent_id: &str, error_message: &str, error_type: &str, error_source: Option<&str>) -> Result<Option<String>, String>;
 }
 
 /// Telemetry information from model execution.
@@ -181,10 +190,52 @@ impl AgentExecutor {
             }
             Err(e) => {
                 error!(agent_id = %agent_id, error = %e, "Agent execution failed");
+                
+                // Execute error hooks if available
+                let mut effective_error = e.to_string();
+                let mut error_handled = false;
+                
+                if let Some(executor) = hook_executor {
+                    // Try error interception first
+                    if let Ok(Some(handled_message)) = executor.execute_error_interception(
+                        agent_id,
+                        &effective_error,
+                        "agent_execution_error",
+                        Some("agent_executor"),
+                    ).await {
+                        effective_error = handled_message;
+                        error_handled = true;
+                    }
+                    
+                    // If not handled, try error transformation
+                    if !error_handled {
+                        if let Ok(Some(transformed_message)) = executor.execute_error_transformation(
+                            agent_id,
+                            &effective_error,
+                            "agent_execution_error",
+                            Some("agent_executor"),
+                        ).await {
+                            effective_error = transformed_message;
+                        }
+                    }
+                    
+                    // Try error recovery
+                    if let Ok(Some(recovered_message)) = executor.execute_error_recovery(
+                        agent_id,
+                        &effective_error,
+                        "agent_execution_error",
+                        Some("agent_executor"),
+                    ).await {
+                        // If recovery succeeded, we might want to retry or return a different result
+                        // For now, we'll use the recovered message as the error
+                        effective_error = recovered_message;
+                    }
+                }
+                
                 ExecutionResult {
-                    output: AgentOutput::Text(format!("Execution error: {}", e)),
+                    output: AgentOutput::Text(format!("Execution error: {}", effective_error)),
                     success: false,
-                    error: Some(e.to_string()),
+                    error: Some(effective_error),
                     telemetry: None,
                 }
             }

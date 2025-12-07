@@ -285,4 +285,104 @@ impl HookExecutor for HookRegistryAdapter {
             Err(e) => Err(e.to_string()),
         }
     }
+
+    async fn execute_error_interception(
+        &self,
+        agent_id: &str,
+        error_message: &str,
+        error_type: &str,
+        error_source: Option<&str>,
+    ) -> Result<Option<String>, String> {
+        let error_context = crate::hooks::error_hooks::ErrorHookContext::interception(
+            error_message.to_string(),
+            error_type.to_string(),
+            error_source.map(|s| s.to_string()),
+        );
+        let hook_context = error_context.to_hook_context(
+            crate::hooks::error_hooks::ErrorHookType::Interception,
+        );
+
+        match self.registry.execute_hooks(HookType::ErrorInterception, &hook_context).await {
+            Ok(results) => {
+                // Check if any hook handled the error (should_continue = false means handled)
+                for result in results {
+                    if !result.should_continue {
+                        return Ok(result.message);
+                    }
+                }
+                Ok(None)
+            }
+            Err(e) => Err(e.to_string()),
+        }
+    }
+
+    async fn execute_error_transformation(
+        &self,
+        agent_id: &str,
+        error_message: &str,
+        error_type: &str,
+        error_source: Option<&str>,
+    ) -> Result<Option<String>, String> {
+        let error_context = crate::hooks::error_hooks::ErrorHookContext::transformation(
+            error_message.to_string(),
+            error_type.to_string(),
+            error_source.map(|s| s.to_string()),
+        );
+        let hook_context = error_context.to_hook_context(
+            crate::hooks::error_hooks::ErrorHookType::Transformation,
+        );
+
+        match self.registry.execute_hooks(HookType::ErrorTransformation, &hook_context).await {
+            Ok(results) => {
+                // Check if any hook transformed the error
+                for result in results {
+                    if let Some(data) = result.modified_data {
+                        if let Some(transformed) = data.get("transformed_error").and_then(|v| v.as_str()) {
+                            return Ok(Some(transformed.to_string()));
+                        }
+                        if let Some(message) = result.message {
+                            return Ok(Some(message));
+                        }
+                    }
+                }
+                Ok(None)
+            }
+            Err(e) => Err(e.to_string()),
+        }
+    }
+
+    async fn execute_error_recovery(
+        &self,
+        agent_id: &str,
+        error_message: &str,
+        error_type: &str,
+        error_source: Option<&str>,
+    ) -> Result<Option<String>, String> {
+        let error_context = crate::hooks::error_hooks::ErrorHookContext::recovery(
+            error_message.to_string(),
+            error_type.to_string(),
+            error_source.map(|s| s.to_string()),
+        );
+        let hook_context = error_context.to_hook_context(
+            crate::hooks::error_hooks::ErrorHookType::Recovery,
+        );
+
+        match self.registry.execute_hooks(HookType::ErrorRecovery, &hook_context).await {
+            Ok(results) => {
+                // Check if any hook recovered from the error
+                for result in results {
+                    if let Some(data) = result.modified_data {
+                        if let Some(recovered) = data.get("recovered_error").and_then(|v| v.as_str()) {
+                            return Ok(Some(recovered.to_string()));
+                        }
+                        if let Some(message) = result.message {
+                            return Ok(Some(message));
+                        }
+                    }
+                }
+                Ok(None)
+            }
+            Err(e) => Err(e.to_string()),
+        }
+    }
 }

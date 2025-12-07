@@ -26,6 +26,7 @@ pub enum McpCommand {
 pub async fn execute_mcp_command(command: McpCommand) -> anyhow::Result<()> {
     let workspace = Workspace::discover()?;
     let config_path = McpConfigManager::default_config_path(workspace.root());
+    let config_path_display = config_path.clone();
     let mut config_manager = McpConfigManager::new(config_path);
 
     match command {
@@ -36,7 +37,7 @@ pub async fn execute_mcp_command(command: McpCommand) -> anyhow::Result<()> {
             if servers.is_empty() {
                 println!("No MCP servers configured.");
                 println!("\nTo configure a server, create a file at:");
-                println!("  {}", config_path.display());
+                println!("  {}", config_path_display.display());
                 println!("\nExample configuration:");
                 println!("  [[servers]]");
                 println!("  name = \"my-server\"");
