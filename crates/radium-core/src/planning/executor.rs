@@ -5,6 +5,8 @@ use crate::{AgentDiscovery, PromptContext, PromptTemplate};
 use radium_abstraction::Model;
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Duration;
+use tokio::time::sleep;
 
 /// Plan execution error.
 #[derive(Debug, thiserror::Error)]
@@ -32,6 +34,57 @@ pub enum ExecutionError {
     /// Task dependency not met.
     #[error("task dependency not met: {0}")]
     DependencyNotMet(String),
+}
+
+/// Error category for retry logic.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ErrorCategory {
+    /// Recoverable error that can be retried (network timeout, rate limit, etc.).
+    Recoverable,
+    /// Fatal error that should not be retried (auth failure, config missing, etc.).
+    Fatal,
+}
+
+impl ExecutionError {
+    /// Categorizes an error as recoverable or fatal.
+    pub fn category(&self) -> ErrorCategory {
+        let error_str = self.to_string().to_lowercase();
+        
+        // Check for recoverable error patterns
+        if error_str.contains("429")
+            || error_str.contains("rate limit")
+            || error_str.contains("timeout")
+            || error_str.contains("network")
+            || error_str.contains("connection")
+            || error_str.contains("5")
+            || error_str.contains("server error")
+            || error_str.contains("file lock")
+            || error_str.contains("temporary")
+        {
+            return ErrorCategory::Recoverable;
+        }
+        
+        // Check for fatal error patterns
+        if error_str.contains("401")
+            || error_str.contains("403")
+            || error_str.contains("unauthorized")
+            || error_str.contains("forbidden")
+            || error_str.contains("missing")
+            || error_str.contains("invalid")
+            || error_str.contains("not found")
+            || error_str.contains("dependency not met")
+        {
+            return ErrorCategory::Fatal;
+        }
+        
+        // Default: treat model execution errors as recoverable (might be transient)
+        // Other errors default to fatal
+        match self {
+            ExecutionError::ModelExecution(_) => ErrorCategory::Recoverable,
+            ExecutionError::Io(_) => ErrorCategory::Recoverable, // I/O errors might be transient
+            _ => ErrorCategory::Fatal,
+        }
+    }
 }
 
 /// Result type for plan execution operations.
@@ -118,6 +171,87 @@ impl PlanExecutor {
     /// Creates a new plan executor with custom configuration.
     pub fn with_config(config: ExecutionConfig) -> Self {
         Self { config, agent_discovery: AgentDiscovery::new() }
+    }
+
+    /// Retries a task execution with exponential backoff for recoverable errors.
+    ///
+    /// # Arguments
+    /// * `task_fn` - Async closure that executes the task and returns a Result
+    /// * `max_retries` - Maximum number of retry attempts (default: 3)
+    /// * `base_delay_ms` - Base delay in milliseconds for exponential backoff (default: 1000)
+    ///
+    /// # Returns
+    /// The result of the task execution, or an error if all retries are exhausted
+    pub async fn retry_with_backoff<F, Fut>(
+        &self,
+        task_fn: F,
+        max_retries: usize,
+        base_delay_ms: u64,
+    ) -> Result<TaskResult>
+    where
+        F: Fn() -> Fut,
+        Fut: std::future::Future<Output = Result<TaskResult>>,
+    {
+        let mut last_error = None;
+        
+        for attempt in 0..=max_retries {
+            match task_fn().await {
+                Ok(result) => {
+                    // If task succeeded, return immediately
+                    if result.success {
+                        return Ok(result);
+                    }
+                    
+                    // Task execution returned but marked as failed
+                    // Check if error is recoverable
+                    let error_str = result.error.as_ref().map(|s| s.to_lowercase()).unwrap_or_default();
+                    let is_recoverable = error_str.contains("429")
+                        || error_str.contains("rate limit")
+                        || error_str.contains("timeout")
+                        || error_str.contains("network")
+                        || error_str.contains("connection")
+                        || error_str.contains("5");
+                    
+                    if !is_recoverable || attempt >= max_retries {
+                        // Fatal error or retries exhausted
+                        return Ok(result);
+                    }
+                    
+                    // Recoverable error, will retry
+                    last_error = Some(result.error.unwrap_or_default());
+                }
+                Err(e) => {
+                    // Check error category
+                    let category = e.category();
+                    
+                    match category {
+                        ErrorCategory::Fatal => {
+                            // Fatal error, don't retry
+                            return Err(e);
+                        }
+                        ErrorCategory::Recoverable => {
+                            if attempt >= max_retries {
+                                // Retries exhausted
+                                return Err(e);
+                            }
+                            // Will retry, store error
+                            last_error = Some(e.to_string());
+                        }
+                    }
+                }
+            }
+            
+            // Calculate exponential backoff delay: base_delay_ms * 2^attempt
+            if attempt < max_retries {
+                let delay_ms = base_delay_ms * 2_u64.pow(attempt as u32);
+                sleep(Duration::from_millis(delay_ms)).await;
+            }
+        }
+        
+        // All retries exhausted
+        Err(ExecutionError::ModelExecution(
+            last_error.unwrap_or_else(|| "Task execution failed after retries".to_string())
+        ))
     }
 
     /// Executes a single task with the assigned agent.

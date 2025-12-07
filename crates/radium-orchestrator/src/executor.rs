@@ -9,7 +9,9 @@ use crate::{
 };
 use radium_abstraction::ModelError;
 use radium_models::{ModelFactory, ModelType};
+use radium_core::auth::{CredentialStore, ProviderType};
 use serde_json::Value;
+use std::collections::HashSet;
 use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;

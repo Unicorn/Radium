@@ -148,6 +148,33 @@ impl Model for GeminiModel {
                 error = %error_text,
                 "Gemini API returned error status"
             );
+            
+            // Map quota/rate limit errors to QuotaExceeded
+            if status == 402 || status == 429 {
+                // Check for Gemini-specific quota error patterns
+                let is_quota_error = error_text.to_uppercase().contains("RESOURCE_EXHAUSTED")
+                    || error_text.to_lowercase().contains("quota exceeded")
+                    || error_text.to_lowercase().contains("quota")
+                    || error_text.to_lowercase().contains("rate limit");
+                
+                if is_quota_error || status == 402 {
+                    return Err(ModelError::QuotaExceeded {
+                        provider: "gemini".to_string(),
+                        message: Some(error_text.clone()),
+                    });
+                }
+            }
+            
+            // For 429, if it's a rate limit (not quota), we still treat it as QuotaExceeded
+            // after potential retries (handled by orchestrator)
+            if status == 429 {
+                return Err(ModelError::QuotaExceeded {
+                    provider: "gemini".to_string(),
+                    message: Some(error_text.clone()),
+                });
+            }
+            
+            // Other errors (400, 5xx) are handled as before
             return Err(ModelError::ModelResponseError(format!(
                 "API error ({}): {}",
                 status, error_text
