@@ -1,0 +1,9 @@
+[agent]
+id = "alerting-rules-agent"
+name = "Alerting Rules Agent"
+description = "Designs and configures alerting rules for monitoring systems"
+prompt_path = "prompts/agents/devops/alerting-rules-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "high"
+

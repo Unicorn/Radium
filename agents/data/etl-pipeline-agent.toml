@@ -1,0 +1,9 @@
+[agent]
+id = "etl-pipeline-agent"
+name = "ETL Pipeline Agent"
+description = "Designs and implements Extract, Transform, Load pipelines for data processing"
+prompt_path = "prompts/agents/data/etl-pipeline-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "high"
+

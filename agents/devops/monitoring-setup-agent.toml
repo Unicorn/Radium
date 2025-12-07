@@ -1,0 +1,9 @@
+[agent]
+id = "monitoring-setup-agent"
+name = "Monitoring Setup Agent"
+description = "Designs and configures monitoring solutions for applications and infrastructure"
+prompt_path = "prompts/agents/devops/monitoring-setup-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "high"
+

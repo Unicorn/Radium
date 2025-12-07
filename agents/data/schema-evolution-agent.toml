@@ -1,0 +1,9 @@
+[agent]
+id = "schema-evolution-agent"
+name = "Schema Evolution Agent"
+description = "Manages database schema changes and migrations while maintaining backward compatibility"
+prompt_path = "prompts/agents/data/schema-evolution-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "high"
+

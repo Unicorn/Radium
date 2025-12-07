@@ -1,0 +1,9 @@
+[agent]
+id = "compliance-check-agent"
+name = "Compliance Check Agent"
+description = "Verifies code and configurations comply with security standards and regulations"
+prompt_path = "prompts/agents/security/compliance-check-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "high"
+

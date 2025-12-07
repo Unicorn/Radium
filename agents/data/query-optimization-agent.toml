@@ -1,0 +1,9 @@
+[agent]
+id = "query-optimization-agent"
+name = "Query Optimization Agent"
+description = "Analyzes and optimizes database queries for performance and efficiency"
+prompt_path = "prompts/agents/data/query-optimization-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "high"
+

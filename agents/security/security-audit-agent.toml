@@ -1,0 +1,9 @@
+[agent]
+id = "security-audit-agent"
+name = "Security Audit Agent"
+description = "Performs comprehensive security audits of codebases, identifying vulnerabilities and security best practices"
+prompt_path = "prompts/agents/security/security-audit-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "high"
+

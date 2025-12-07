@@ -1,0 +1,9 @@
+[agent]
+id = "data-migration-agent"
+name = "Data Migration Agent"
+description = "Plans and executes data migrations between systems, databases, and formats"
+prompt_path = "prompts/agents/data/data-migration-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "high"
+

@@ -1,0 +1,9 @@
+[agent]
+id = "logging-config-agent"
+name = "Logging Config Agent"
+description = "Configures logging systems, log aggregation, and log analysis pipelines"
+prompt_path = "prompts/agents/devops/logging-config-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "medium"
+
