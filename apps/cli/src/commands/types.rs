@@ -438,6 +438,70 @@ pub enum ExtensionCommand {
         #[arg(short, long)]
         description: Option<String>,
     },
+
+    /// Sign an extension with a private key
+    ///
+    /// # Examples
+    ///
+    /// Sign an extension:
+    ///   $ rad extension sign ./my-extension --key-file ./private.key
+    ///
+    /// Generate a new keypair and sign:
+    ///   $ rad extension sign ./my-extension --generate-key
+    Sign {
+        /// Path to extension directory
+        path: String,
+
+        /// Path to private key file
+        #[arg(long)]
+        key_file: Option<String>,
+
+        /// Generate a new keypair and save it
+        #[arg(long)]
+        generate_key: bool,
+    },
+
+    /// Verify an extension signature
+    ///
+    /// # Examples
+    ///
+    /// Verify an installed extension:
+    ///   $ rad extension verify my-extension
+    ///
+    /// Verify with a specific public key:
+    ///   $ rad extension verify my-extension --key-file ./public.key
+    Verify {
+        /// Extension name or path
+        name_or_path: String,
+
+        /// Path to public key file (optional, uses trusted keys if not provided)
+        #[arg(long)]
+        key_file: Option<String>,
+    },
+
+    /// Manage trusted public keys
+    ///
+    /// # Examples
+    ///
+    /// Add a trusted key:
+    ///   $ rad extension trust-key add publisher-name --key-file ./publisher.pub
+    ///
+    /// List trusted keys:
+    ///   $ rad extension trust-key list
+    ///
+    /// Remove a trusted key:
+    ///   $ rad extension trust-key remove publisher-name
+    TrustKey {
+        /// Action: add, list, or remove
+        action: String,
+
+        /// Key name (for add/remove)
+        name: Option<String>,
+
+        /// Path to public key file (for add)
+        #[arg(long)]
+        key_file: Option<String>,
+    },
 }
 
 #[derive(Subcommand, Debug, Clone)]

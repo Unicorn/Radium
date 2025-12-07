@@ -1,9 +1,9 @@
 //! Engine management command implementation.
 
-use super::EnginesCommand;
+use super::{EnginesCommand, EngineConfigCommand};
 use anyhow::{Context, Result};
 use colored::Colorize;
-use radium_core::engines::{Engine, EngineRegistry, HealthStatus};
+use radium_core::engines::{Engine, EngineRegistry, HealthStatus, PerEngineConfig};
 use radium_core::engines::providers::{ClaudeEngine, GeminiEngine, MockEngine, OpenAIEngine};
 use radium_core::workspace::Workspace;
 use serde_json::json;
