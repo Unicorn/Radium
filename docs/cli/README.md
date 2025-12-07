@@ -29,6 +29,15 @@ rad craft REQ-001
 rad complete spec.md
 ```
 
+## Documentation
+
+- **[Architecture](architecture.md)** - CLI architecture, command structure, and execution model
+- **[Command Patterns](command-patterns.md)** - Implementation guide for new commands
+- **[Testing Patterns](testing.md)** - Testing conventions and best practices
+- **[Shell Completion](shell-completion.md)** - Shell completion setup and usage
+- **[Configuration](configuration.md)** - CLI configuration and environment variables
+- **[Troubleshooting](troubleshooting.md)** - Solutions to common issues
+
 ## Command Categories
 
 - **[Workspace Management](commands/workspace.md)** - Initialize, status, clean, doctor
