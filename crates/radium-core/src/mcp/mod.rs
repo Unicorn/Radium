@@ -10,6 +10,8 @@ pub mod content;
 pub mod error;
 pub mod integration;
 pub mod messages;
+#[cfg(feature = "orchestrator-integration")]
+#[cfg(feature = "orchestrator-integration")]
 pub mod orchestration_bridge;
 pub mod prompts;
 pub mod tools;
