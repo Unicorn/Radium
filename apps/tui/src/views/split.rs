@@ -56,7 +56,7 @@ pub fn render_split_view(frame: &mut Frame, area: Rect, state: &SplitViewState) 
         .map(|(i, item)| {
             let is_selected = i == state.selected_index && state.left_focused;
             let style = if is_selected {
-                Style::default().fg(THEME.bg_primary()()).bg(THEME.primary()()).add_modifier(Modifier::BOLD)
+                Style::default().fg(THEME.bg_primary()).bg(THEME.primary()).add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(THEME.text())
             };
@@ -72,11 +72,11 @@ pub fn render_split_view(frame: &mut Frame, area: Rect, state: &SplitViewState) 
                 .border_style(if state.left_focused {
                     Style::default().fg(THEME.primary())
                 } else {
-                    Style::default().fg(THEME.border)
+                    Style::default().fg(THEME.border())
                 })
                 .title(left_title),
         )
-        .style(Style::default().fg(THEME.text));
+        .style(Style::default().fg(THEME.text()));
 
     frame.render_widget(left_list, chunks[0]);
 
@@ -92,11 +92,11 @@ pub fn render_split_view(frame: &mut Frame, area: Rect, state: &SplitViewState) 
                 .border_style(if !state.left_focused {
                     Style::default().fg(THEME.primary())
                 } else {
-                    Style::default().fg(THEME.border)
+                    Style::default().fg(THEME.border())
                 })
                 .title(right_title),
         )
-        .style(Style::default().fg(THEME.text));
+        .style(Style::default().fg(THEME.text()));
 
     frame.render_widget(right_widget, chunks[1]);
 }
