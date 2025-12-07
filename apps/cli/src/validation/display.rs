@@ -81,4 +81,48 @@ mod tests {
         assert!(get_error_suggestion("File not found").contains("Check the file path"));
         assert!(get_error_suggestion("Network error").is_empty());
     }
+
+    #[test]
+    fn test_format_validation_results_all_valid() {
+        use radium_core::context::SourceValidationResult;
+        
+        let results = vec![
+            SourceValidationResult {
+                source: "file:///path/to/file.md".to_string(),
+                accessible: true,
+                error_message: String::new(),
+            },
+            SourceValidationResult {
+                source: "https://example.com/doc".to_string(),
+                accessible: true,
+                error_message: String::new(),
+            },
+        ];
+
+        let formatted = format_validation_results(&results);
+        
+        // Should contain checkmarks for valid sources
+        assert!(formatted.contains("✓"));
+        assert!(formatted.contains("file://"));
+        assert!(formatted.contains("https://"));
+    }
+
+    #[test]
+    fn test_format_validation_results_with_errors() {
+        use radium_core::context::SourceValidationResult;
+        
+        let results = vec![
+            SourceValidationResult {
+                source: "file:///nonexistent.md".to_string(),
+                accessible: false,
+                error_message: "File not found".to_string(),
+            },
+        ];
+
+        let formatted = format_validation_results(&results);
+        
+        // Should contain X for invalid sources
+        assert!(formatted.contains("✗"));
+        assert!(formatted.contains("File not found"));
+    }
 }

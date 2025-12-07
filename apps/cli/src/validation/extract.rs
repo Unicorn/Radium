@@ -92,4 +92,37 @@ mod tests {
         let sources = extract_sources(text);
         assert!(sources.iter().any(|s| s.contains("./file.md")));
     }
+
+    #[test]
+    fn test_extract_braingrid_uris() {
+        let text = "Reference braingrid://REQ-123 and braingrid://REQ-456";
+        let sources = extract_sources(text);
+        assert!(sources.contains(&"braingrid://REQ-123".to_string()));
+        assert!(sources.contains(&"braingrid://REQ-456".to_string()));
+    }
+
+    #[test]
+    fn test_extract_no_sources() {
+        let text = "This is plain text with no sources or URIs";
+        let sources = extract_sources(text);
+        assert!(sources.is_empty());
+    }
+
+    #[test]
+    fn test_extract_removes_duplicates() {
+        let text = "See file:///path/to/file.md and file:///path/to/file.md again";
+        let sources = extract_sources(text);
+        // Should only have one instance
+        let count = sources.iter().filter(|s| s == &"file:///path/to/file.md").count();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_extract_mixed_sources() {
+        let text = "See file:///path/to/file.md, https://example.com/doc, and jira://PROJ-123";
+        let sources = extract_sources(text);
+        assert!(sources.iter().any(|s| s.contains("file://")));
+        assert!(sources.iter().any(|s| s.contains("https://")));
+        assert!(sources.iter().any(|s| s.contains("jira://")));
+    }
 }
