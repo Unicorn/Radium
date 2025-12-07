@@ -90,6 +90,34 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
         [],
     )?;
 
+    // Agent usage analytics table
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS agent_usage (
+            agent_id TEXT PRIMARY KEY,
+            execution_count INTEGER NOT NULL DEFAULT 0,
+            total_duration INTEGER NOT NULL DEFAULT 0,
+            total_tokens INTEGER NOT NULL DEFAULT 0,
+            success_count INTEGER NOT NULL DEFAULT 0,
+            failure_count INTEGER NOT NULL DEFAULT 0,
+            last_used_at INTEGER,
+            category TEXT
+        )",
+        [],
+    )?;
+
+    // Indexes for agent usage queries
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_agent_usage_category
+         ON agent_usage(category)",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_agent_usage_last_used
+         ON agent_usage(last_used_at)",
+        [],
+    )?;
+
     Ok(())
 }
 

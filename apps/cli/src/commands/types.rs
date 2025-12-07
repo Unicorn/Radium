@@ -125,11 +125,31 @@ pub enum AgentsCommand {
         subcommand: MigrateSubcommand,
     },
 
-    /// Migrate agent configurations from legacy formats
-    Migrate {
-        /// Migration subcommand
-        #[command(subcommand)]
-        subcommand: MigrateSubcommand,
+    /// Show agent usage statistics
+    Stats {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// List most popular agents
+    Popular {
+        /// Number of agents to show (default: 10)
+        #[arg(short, long, default_value = "10")]
+        limit: usize,
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Show agent performance metrics
+    Performance {
+        /// Number of agents to show (default: 10)
+        #[arg(short, long, default_value = "10")]
+        limit: usize,
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
     },
 
     /// Create a new agent template

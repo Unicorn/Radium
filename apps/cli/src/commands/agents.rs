@@ -48,6 +48,9 @@ pub async fn execute(command: AgentsCommand) -> anyhow::Result<()> {
             validate_agents(verbose, json, strict).await
         }
         AgentsCommand::Lint { id, json, strict } => lint_agents(id.as_deref(), json, strict).await,
+        AgentsCommand::Stats { json } => show_agent_stats(json).await,
+        AgentsCommand::Popular { limit, json } => show_popular_agents(limit, json).await,
+        AgentsCommand::Performance { limit, json } => show_performance_metrics(limit, json).await,
         AgentsCommand::Migrate { subcommand } => migrate_agents(subcommand).await,
         AgentsCommand::Create {
             id,
@@ -1676,6 +1679,221 @@ async fn show_migration_report(migration_id: &str) -> anyhow::Result<()> {
     let report: serde_json::Value = serde_json::from_str(&content)?;
 
     println!("{}", serde_json::to_string_pretty(&report)?);
+
+    Ok(())
+}
+
+/// Show agent usage statistics.
+async fn show_agent_stats(json_output: bool) -> anyhow::Result<()> {
+    use rusqlite::Connection;
+    use std::path::PathBuf;
+
+    // Get monitoring database path (default location)
+    let db_path = PathBuf::from(".radium/monitoring.db");
+    let conn = if db_path.exists() {
+        Connection::open(&db_path)?
+    } else {
+        // Use in-memory if no database exists
+        let conn = Connection::open_in_memory()?;
+        radium_core::monitoring::schema::initialize_schema(&conn)?;
+        conn
+    };
+
+    let analytics = AgentAnalyticsService::new(conn);
+    let stats = analytics.get_overall_stats()?;
+
+    if json_output {
+        let output = json!({
+            "total_agents": stats.total_agents,
+            "total_executions": stats.total_executions,
+            "total_duration_ms": stats.total_duration_ms,
+            "avg_duration_ms": stats.avg_duration_ms(),
+            "total_tokens": stats.total_tokens,
+            "total_successes": stats.total_successes,
+            "total_failures": stats.total_failures,
+            "success_rate": stats.success_rate(),
+        });
+        println!("{}", serde_json::to_string_pretty(&output)?);
+    } else {
+        println!();
+        println!("{}", "📊 Agent Usage Statistics".bold().cyan());
+        println!();
+        println!("  Total Agents:        {}", stats.total_agents.to_string().green());
+        println!("  Total Executions:    {}", stats.total_executions.to_string().green());
+        println!("  Total Duration:      {} ms", stats.total_duration_ms.to_string().cyan());
+        println!("  Avg Duration:        {:.2} ms", stats.avg_duration_ms().to_string().cyan());
+        println!("  Total Tokens:        {}", stats.total_tokens.to_string().yellow());
+        println!("  Successes:           {}", stats.total_successes.to_string().green());
+        println!("  Failures:            {}", stats.total_failures.to_string().red());
+        println!("  Success Rate:        {:.1}%", stats.success_rate() * 100.0);
+        println!();
+    }
+
+    Ok(())
+}
+
+/// Show most popular agents.
+async fn show_popular_agents(limit: usize, json_output: bool) -> anyhow::Result<()> {
+    use rusqlite::Connection;
+    use std::path::PathBuf;
+
+    let db_path = PathBuf::from(".radium/monitoring.db");
+    let conn = if db_path.exists() {
+        Connection::open(&db_path)?
+    } else {
+        let conn = Connection::open_in_memory()?;
+        radium_core::monitoring::schema::initialize_schema(&conn)?;
+        conn
+    };
+
+    let analytics = AgentAnalyticsService::new(conn);
+    let popular = analytics.get_popular_agents(limit)?;
+
+    if popular.is_empty() {
+        if !json_output {
+            println!("{}", "No agent usage data available.".yellow());
+        }
+        return Ok(());
+    }
+
+    if json_output {
+        let output: Vec<_> = popular
+            .iter()
+            .map(|a| {
+                json!({
+                    "agent_id": a.agent_id,
+                    "execution_count": a.execution_count,
+                    "avg_duration_ms": a.avg_duration_ms,
+                    "total_tokens": a.total_tokens,
+                    "success_rate": a.success_rate,
+                    "category": a.category,
+                })
+            })
+            .collect();
+        println!("{}", serde_json::to_string_pretty(&output)?);
+    } else {
+        println!();
+        println!(
+            "{}",
+            format!("⭐ Most Popular Agents (Top {})", limit).bold().cyan()
+        );
+        println!();
+
+        #[derive(Tabled)]
+        struct PopularRow {
+            #[tabled(rename = "Agent ID")]
+            agent_id: String,
+            #[tabled(rename = "Executions")]
+            executions: String,
+            #[tabled(rename = "Avg Duration")]
+            avg_duration: String,
+            #[tabled(rename = "Success Rate")]
+            success_rate: String,
+            #[tabled(rename = "Category")]
+            category: String,
+        }
+
+        let rows: Vec<PopularRow> = popular
+            .iter()
+            .map(|a| PopularRow {
+                agent_id: a.agent_id.clone(),
+                executions: a.execution_count.to_string(),
+                avg_duration: format!("{:.0} ms", a.avg_duration_ms),
+                success_rate: format!("{:.1}%", a.success_rate * 100.0),
+                category: a.category.as_ref().unwrap_or(&"-".to_string()).clone(),
+            })
+            .collect();
+
+        let table = Table::new(rows).with(Style::rounded()).to_string();
+        println!("{}", table);
+        println!();
+    }
+
+    Ok(())
+}
+
+/// Show agent performance metrics.
+async fn show_performance_metrics(limit: usize, json_output: bool) -> anyhow::Result<()> {
+    use rusqlite::Connection;
+    use std::path::PathBuf;
+
+    let db_path = PathBuf::from(".radium/monitoring.db");
+    let conn = if db_path.exists() {
+        Connection::open(&db_path)?
+    } else {
+        let conn = Connection::open_in_memory()?;
+        radium_core::monitoring::schema::initialize_schema(&conn)?;
+        conn
+    };
+
+    let analytics = AgentAnalyticsService::new(conn);
+    let metrics = analytics.get_performance_metrics(limit)?;
+
+    if metrics.is_empty() {
+        if !json_output {
+            println!("{}", "No agent performance data available.".yellow());
+        }
+        return Ok(());
+    }
+
+    if json_output {
+        let output: Vec<_> = metrics
+            .iter()
+            .map(|a| {
+                json!({
+                    "agent_id": a.agent_id,
+                    "execution_count": a.execution_count,
+                    "avg_duration_ms": a.avg_duration_ms,
+                    "total_duration_ms": a.total_duration_ms,
+                    "total_tokens": a.total_tokens,
+                    "success_rate": a.success_rate,
+                    "category": a.category,
+                })
+            })
+            .collect();
+        println!("{}", serde_json::to_string_pretty(&output)?);
+    } else {
+        println!();
+        println!(
+            "{}",
+            format!("⚡ Agent Performance Metrics (Slowest {} by avg duration)", limit)
+                .bold()
+                .cyan()
+        );
+        println!();
+
+        #[derive(Tabled)]
+        struct PerformanceRow {
+            #[tabled(rename = "Agent ID")]
+            agent_id: String,
+            #[tabled(rename = "Executions")]
+            executions: String,
+            #[tabled(rename = "Avg Duration")]
+            avg_duration: String,
+            #[tabled(rename = "Total Duration")]
+            total_duration: String,
+            #[tabled(rename = "Total Tokens")]
+            total_tokens: String,
+            #[tabled(rename = "Success Rate")]
+            success_rate: String,
+        }
+
+        let rows: Vec<PerformanceRow> = metrics
+            .iter()
+            .map(|a| PerformanceRow {
+                agent_id: a.agent_id.clone(),
+                executions: a.execution_count.to_string(),
+                avg_duration: format!("{:.0} ms", a.avg_duration_ms),
+                total_duration: format!("{} ms", a.total_duration_ms),
+                total_tokens: a.total_tokens.to_string(),
+                success_rate: format!("{:.1}%", a.success_rate * 100.0),
+            })
+            .collect();
+
+        let table = Table::new(rows).with(Style::rounded()).to_string();
+        println!("{}", table);
+        println!();
+    }
 
     Ok(())
 }

@@ -16,6 +16,7 @@
 //! reasoning_effort = "medium"  # optional default
 //! ```
 
+pub mod analytics;
 pub mod config;
 pub mod discovery;
 pub mod linter;
@@ -23,8 +24,12 @@ pub mod metadata;
 pub mod model_selector;
 pub mod persona;
 pub mod registry;
+pub mod telemetry;
 pub mod validation;
 
+pub use analytics::{
+    AgentAnalytics, AgentAnalyticsService, AnalyticsError, OverallStats, UsageRecord,
+};
 pub use config::{AgentConfigError, AgentConfigFile, ReasoningEffort};
 pub use discovery::{AgentDiscovery, DiscoveryError};
 pub use linter::{AgentLinter, LintError, LintResult, PromptLinter};
@@ -40,4 +45,5 @@ pub use persona::{
     RecommendedModels as PersonaRecommendedModels,
 };
 pub use registry::{AgentRegistry, RegistryError};
+pub use telemetry::{AgentTelemetryCollector, ExecutionTracker, TelemetryConfig, TelemetryError};
 pub use validation::{AgentValidator, AgentValidatorImpl, ConfigValidator, PromptValidator, ValidationError};
