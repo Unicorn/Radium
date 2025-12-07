@@ -7,7 +7,7 @@ use anyhow::{Context, Result, anyhow};
 use chrono::Utc;
 use colored::*;
 use radium_core::Workspace;
-use radium_core::context::HistoryManager;
+use radium_core::context::{ContextFileLoader, HistoryManager};
 use std::io::{self, Write};
 
 use super::step;
@@ -47,6 +47,12 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
             return Err(anyhow!("Session '{}' not found", session_id));
         }
     }
+
+    // Load context files once at session start
+    let workspace_root = workspace.root().to_path_buf();
+    let loader = ContextFileLoader::new(&workspace_root);
+    let current_dir = std::env::current_dir().unwrap_or_else(|_| workspace_root.clone());
+    let context_files = loader.load_hierarchical(&current_dir).unwrap_or_default();
 
     // Print welcome banner
     print_banner(&agent_id, &session_id, resume)?;
@@ -99,13 +105,21 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
         }
 
         // Get conversation context from history
-        let context = history.get_summary(Some(&session_id));
+        let history_context = history.get_summary(Some(&session_id));
 
-        // Build prompt with context
-        let full_prompt = if context.is_empty() {
-            input.to_string()
+        // Build prompt with context files and history
+        // History takes precedence (comes after context files)
+        let full_prompt = if !context_files.is_empty() && !history_context.is_empty() {
+            format!(
+                "# Context Files\n\n{}\n\n---\n\n# Conversation History\n\n{}\n\n---\n\nCurrent Request: {}",
+                context_files, history_context, input
+            )
+        } else if !context_files.is_empty() {
+            format!("# Context Files\n\n{}\n\n---\n\nCurrent Request: {}", context_files, input)
+        } else if !history_context.is_empty() {
+            format!("{}\n\nCurrent Request: {}", history_context, input)
         } else {
-            format!("{}\n\nCurrent Request: {}", context, input)
+            input.to_string()
         };
 
         // Use the step command's execution logic
