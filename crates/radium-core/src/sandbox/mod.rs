@@ -26,6 +26,7 @@
 mod config;
 mod docker;
 mod error;
+mod manager;
 #[cfg(feature = "podman-sandbox")]
 mod podman;
 #[allow(clippy::module_inception)]
@@ -34,6 +35,7 @@ mod seatbelt;
 
 pub use config::{NetworkMode, SandboxConfig, SandboxProfile, SandboxType};
 pub use error::{Result, SandboxError};
+pub use manager::AgentSandboxManager;
 pub use sandbox::{NoSandbox, Sandbox, SandboxFactory};
 
 #[cfg(feature = "docker-sandbox")]

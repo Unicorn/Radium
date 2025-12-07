@@ -1,0 +1,23 @@
+# SSE MCP Server Configuration
+#
+# This example shows a remote MCP server using Server-Sent Events (SSE) transport.
+# SSE is useful for real-time streaming connections.
+
+[[servers]]
+name = "sse-server"
+transport = "sse"
+url = "https://stream.example.com/mcp/sse"
+
+# Optional: Add OAuth authentication for SSE
+# [auth]
+# auth_type = "oauth"
+# token_url = "https://stream.example.com/oauth/token"
+# client_id = "your-client-id"
+# client_secret = "your-client-secret"
+
+# SSE transport is useful for:
+# - Real-time data streaming
+# - Event-driven architectures
+# - Long-lived connections
+# - Server push notifications
+

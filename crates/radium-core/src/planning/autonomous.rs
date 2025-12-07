@@ -1,7 +1,69 @@
 //! Autonomous workflow decomposition from high-level goals.
 //!
-//! Provides functionality to decompose high-level goals into executable workflows
-//! with proper dependency analysis and validation.
+//! This module provides the autonomous planning system that converts high-level goals
+//! into structured, executable workflows with automatic validation and retry logic.
+//!
+//! # Overview
+//!
+//! The autonomous planning system orchestrates a complete pipeline from goal to workflow:
+//!
+//! 1. **Plan Generation**: Uses AI to decompose goals into structured plans with iterations and tasks
+//! 2. **Plan Validation**: Multi-stage validation with retry logic (up to 2 retries)
+//! 3. **Dependency Analysis**: Builds a DAG to detect cycles and validate dependencies
+//! 4. **Workflow Generation**: Creates executable workflow templates from validated plans
+//!
+//! # Architecture
+//!
+//! ```
+//! Goal → PlanGenerator → ParsedPlan
+//!                          ↓
+//!                    PlanValidator (with retry)
+//!                          ↓
+//!                    DependencyGraph (DAG)
+//!                          ↓
+//!                    WorkflowGenerator
+//!                          ↓
+//!                    AutonomousPlan (complete)
+//! ```
+//!
+//! # Validation Retry Logic
+//!
+//! The system includes intelligent retry logic to handle validation failures:
+//!
+//! - **Max Retries**: 2 attempts after initial generation
+//! - **Feedback Loop**: Validation errors are fed back to the generator
+//! - **Error Categories**: Distinguishes between recoverable and fatal errors
+//!
+//! # Example
+//!
+//! ```rust,no_run
+//! use radium_core::planning::autonomous::AutonomousPlanner;
+//! use radium_core::agents::registry::AgentRegistry;
+//! use radium_abstraction::Model;
+//! use std::sync::Arc;
+//!
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! let agent_registry = Arc::new(AgentRegistry::new());
+//! let planner = AutonomousPlanner::new(agent_registry);
+//! let model: Arc<dyn Model> = /* ... */;
+//!
+//! let goal = "Build a REST API with authentication and user management";
+//! let plan = planner.plan_from_goal(goal, model).await?;
+//!
+//! // plan contains:
+//! // - plan: ParsedPlan with iterations and tasks
+//! // - workflow: WorkflowTemplate ready for execution
+//! // - dag: DependencyGraph for dependency analysis
+//! // - manifest: PlanManifest for execution tracking
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! # See Also
+//!
+//! - [User Guide](../../../docs/features/autonomous-planning.md) - Complete user documentation
+//! - [DAG Module](dag) - Dependency graph implementation
+//! - [Plan Generator](generator) - AI-powered plan generation
 
 use crate::agents::registry::AgentRegistry;
 use crate::models::PlanManifest;
@@ -41,17 +103,77 @@ pub enum PlanningError {
 pub type Result<T> = std::result::Result<T, PlanningError>;
 
 /// Validation report for plan validation.
+///
+/// Contains the results of plan validation, including errors and warnings.
+/// Errors indicate problems that must be fixed (e.g., circular dependencies, missing references).
+/// Warnings indicate potential issues that don't block execution (e.g., unknown agents).
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use radium_core::planning::autonomous::PlanValidator;
+/// use radium_core::agents::registry::AgentRegistry;
+/// use std::sync::Arc;
+///
+/// let registry = Arc::new(AgentRegistry::new());
+/// let validator = PlanValidator::new(registry);
+/// let plan = /* ... */;
+///
+/// let report = validator.validate_plan(&plan);
+/// if !report.is_valid {
+///     println!("Validation errors: {:?}", report.errors);
+/// }
+/// if !report.warnings.is_empty() {
+///     println!("Warnings: {:?}", report.warnings);
+/// }
+/// ```
 #[derive(Debug, Clone)]
 pub struct ValidationReport {
     /// Whether the plan is valid.
+    ///
+    /// A plan is valid if it has no errors. Warnings do not affect validity.
     pub is_valid: bool,
     /// List of validation errors.
+    ///
+    /// Errors must be fixed before the plan can be executed. Examples:
+    /// - Circular dependencies
+    /// - Missing dependency references
+    /// - Invalid task ID formats
     pub errors: Vec<String>,
     /// List of validation warnings.
+    ///
+    /// Warnings indicate potential issues but don't block execution. Examples:
+    /// - Unknown agent IDs (may be resolved at runtime)
+    /// - Missing optional fields
     pub warnings: Vec<String>,
 }
 
 /// Validates plans for correctness.
+///
+/// Performs multi-stage validation including:
+/// - Dependency graph validation (cycle detection)
+/// - Agent assignment validation
+/// - Dependency reference validation
+///
+/// # Validation Stages
+///
+/// 1. **Dependency Graph**: Builds a DAG and checks for cycles
+/// 2. **Agent Validation**: Verifies agent IDs exist in registry
+/// 3. **Dependency References**: Ensures all task dependencies exist
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use radium_core::planning::autonomous::PlanValidator;
+/// use radium_core::agents::registry::AgentRegistry;
+/// use std::sync::Arc;
+///
+/// let registry = Arc::new(AgentRegistry::new());
+/// let validator = PlanValidator::new(registry);
+/// let plan = /* ... */;
+///
+/// let report = validator.validate_plan(&plan);
+/// ```
 pub struct PlanValidator {
     /// Agent registry for validating agent assignments.
     agent_registry: Arc<AgentRegistry>,
@@ -182,6 +304,24 @@ impl PlanValidator {
 }
 
 /// Generates workflows from validated plans.
+///
+/// Converts validated plans into executable workflow templates by:
+/// - Using topological sort from DAG to determine execution order
+/// - Creating workflow steps for each task
+/// - Preserving agent assignments and task metadata
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use radium_core::planning::autonomous::WorkflowGenerator;
+/// use radium_core::planning::dag::DependencyGraph;
+///
+/// let generator = WorkflowGenerator::new();
+/// let plan = /* ... */;
+/// let dag = DependencyGraph::from_manifest(&manifest)?;
+///
+/// let workflow = generator.generate_workflow(&plan, &dag)?;
+/// ```
 pub struct WorkflowGenerator;
 
 impl WorkflowGenerator {
@@ -274,6 +414,48 @@ impl Default for WorkflowGenerator {
 }
 
 /// Autonomous planner that orchestrates goal-to-workflow pipeline.
+///
+/// The main entry point for autonomous planning. Coordinates plan generation,
+/// validation (with retry logic), dependency analysis, and workflow generation.
+///
+/// # Pipeline Flow
+///
+/// 1. **Generate Plan**: Uses `PlanGenerator` to create a plan from goal
+/// 2. **Validate Plan**: Uses `PlanValidator` to check correctness
+/// 3. **Retry on Failure**: If validation fails, regenerates with feedback (max 2 retries)
+/// 4. **Build DAG**: Creates dependency graph for cycle detection and ordering
+/// 5. **Generate Workflow**: Converts validated plan to executable workflow
+///
+/// # Retry Logic
+///
+/// If validation fails, the system:
+/// - Feeds validation errors back to the generator
+/// - Regenerates the plan with error context
+/// - Re-validates the new plan
+/// - Fails after 2 retry attempts
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use radium_core::planning::autonomous::AutonomousPlanner;
+/// use radium_core::agents::registry::AgentRegistry;
+/// use radium_abstraction::Model;
+/// use std::sync::Arc;
+///
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// let agent_registry = Arc::new(AgentRegistry::new());
+/// let planner = AutonomousPlanner::new(agent_registry);
+/// let model: Arc<dyn Model> = /* ... */;
+///
+/// let goal = "Build a REST API with authentication";
+/// let autonomous_plan = planner.plan_from_goal(goal, model).await?;
+///
+/// // Use the generated workflow
+/// println!("Generated {} iterations", autonomous_plan.plan.iterations.len());
+/// println!("Workflow has {} steps", autonomous_plan.workflow.steps().len());
+/// # Ok(())
+/// # }
+/// ```
 pub struct AutonomousPlanner {
     /// Plan generator for LLM-based decomposition.
     plan_generator: PlanGenerator,
@@ -365,15 +547,44 @@ impl AutonomousPlanner {
 }
 
 /// Complete autonomous plan with all components.
+///
+/// Contains all artifacts generated by the autonomous planning process:
+/// - The structured plan with iterations and tasks
+/// - An executable workflow template
+/// - A dependency graph for execution ordering
+/// - A plan manifest for tracking execution state
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use radium_core::planning::autonomous::AutonomousPlanner;
+///
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// let planner = /* ... */;
+/// let model = /* ... */;
+/// let autonomous_plan = planner.plan_from_goal("Build API", model).await?;
+///
+/// // Access components
+/// let plan = &autonomous_plan.plan;
+/// let workflow = &autonomous_plan.workflow;
+/// let dag = &autonomous_plan.dag;
+/// let manifest = &autonomous_plan.manifest;
+///
+/// // Use workflow for execution
+/// // Use DAG for dependency analysis
+/// // Use manifest for progress tracking
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Debug, Clone)]
 pub struct AutonomousPlan {
-    /// The parsed plan.
+    /// The parsed plan with iterations and tasks.
     pub plan: ParsedPlan,
-    /// The generated workflow template.
+    /// The generated workflow template ready for execution.
     pub workflow: WorkflowTemplate,
-    /// The dependency graph.
+    /// The dependency graph for cycle detection and ordering.
     pub dag: DependencyGraph,
-    /// The plan manifest.
+    /// The plan manifest for execution tracking.
     pub manifest: PlanManifest,
 }
 

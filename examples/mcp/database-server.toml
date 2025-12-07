@@ -1,0 +1,26 @@
+# Database MCP Server Configuration
+#
+# This example shows a database MCP server using stdio transport.
+# The server provides database query and manipulation tools.
+
+[[servers]]
+name = "database-server"
+transport = "stdio"
+command = "mcp-postgres"
+args = [
+    "--host", "localhost",
+    "--port", "5432",
+    "--database", "mydb",
+    "--user", "postgres"
+]
+
+# Environment variables can be used for sensitive credentials:
+# PGPASSWORD=secret_password
+
+# This server would provide tools like:
+# - query: Execute SQL queries
+# - insert: Insert data
+# - update: Update records
+# - delete: Delete records
+# - schema: Get database schema
+

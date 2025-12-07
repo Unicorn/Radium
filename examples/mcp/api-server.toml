@@ -1,0 +1,23 @@
+# API MCP Server Configuration
+#
+# This example shows a remote API MCP server using HTTP transport.
+# The server provides API interaction tools.
+
+[[servers]]
+name = "api-server"
+transport = "http"
+url = "https://api.example.com/mcp"
+
+# Optional: Add OAuth authentication
+# [auth]
+# auth_type = "oauth"
+# token_url = "https://api.example.com/oauth/token"
+# client_id = "your-client-id"
+# client_secret = "your-client-secret"
+
+# This server would provide tools like:
+# - call_endpoint: Make API calls
+# - get_resource: Fetch resources
+# - create_resource: Create new resources
+# - update_resource: Update existing resources
+

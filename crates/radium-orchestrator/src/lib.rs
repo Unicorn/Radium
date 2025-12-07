@@ -26,7 +26,7 @@ use tracing::{debug, error, warn};
 
 pub use agents::{ChatAgent, SimpleAgent};
 pub use executor::{
-    AgentExecutor, ExecutionResult, ExecutionTelemetry, HookExecutor, HookResult, QueueProcessor, QueueProcessorConfig,
+    AgentExecutor, ExecutionResult, ExecutionTelemetry, HookExecutor, HookResult, QueueProcessor, QueueProcessorConfig, SandboxManager,
 };
 pub use lifecycle::{AgentLifecycle, AgentState};
 pub use orchestration::{

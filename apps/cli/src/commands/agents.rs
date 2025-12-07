@@ -442,52 +442,52 @@ async fn validate_agents(verbose: bool, json_output: bool, strict: bool) -> anyh
                                 ));
                                 validation_result.valid = false;
                             } else {
-                            // Try to load prompt template to verify it's valid
-                            let resolved_path = if agent.prompt_path.is_absolute() {
-                                agent.prompt_path.clone()
-                            } else if let Some(config_dir) = config_path.parent() {
-                                config_dir.join(&agent.prompt_path)
-                            } else {
-                                agent.prompt_path.clone()
-                            };
+                                // Try to load prompt template to verify it's valid
+                                let resolved_path = if agent.prompt_path.is_absolute() {
+                                    agent.prompt_path.clone()
+                                } else if let Some(config_dir) = config_path.parent() {
+                                    config_dir.join(&agent.prompt_path)
+                                } else {
+                                    agent.prompt_path.clone()
+                                };
 
-                            if let Err(e) = PromptTemplate::load(&resolved_path) {
-                                validation_result.errors.push(format!(
-                                    "Failed to load prompt template: {}",
-                                    e
-                                ));
-                                validation_result.valid = false;
-                            } else {
-                                // Try to parse YAML frontmatter if present
-                                if let Ok(content) = fs::read_to_string(&resolved_path) {
-                                    if content.trim_start().starts_with("---") {
-                                        match AgentMetadata::from_markdown(&content) {
-                                            Ok((metadata, _)) => {
-                                                if verbose {
-                                                    validation_result.warnings.push(format!(
-                                                        "Metadata parsed: name={}, color={}",
-                                                        metadata.name, metadata.color
-                                                    ));
+                                if let Err(e) = PromptTemplate::load(&resolved_path) {
+                                    validation_result.errors.push(format!(
+                                        "Failed to load prompt template: {}",
+                                        e
+                                    ));
+                                    validation_result.valid = false;
+                                } else {
+                                    // Try to parse YAML frontmatter if present
+                                    if let Ok(content) = fs::read_to_string(&resolved_path) {
+                                        if content.trim_start().starts_with("---") {
+                                            match AgentMetadata::from_markdown(&content) {
+                                                Ok((metadata, _)) => {
+                                                    if verbose {
+                                                        validation_result.warnings.push(format!(
+                                                            "Metadata parsed: name={}, color={}",
+                                                            metadata.name, metadata.color
+                                                        ));
+                                                    }
                                                 }
-                                            }
-                                            Err(e) => {
-                                                if strict {
-                                                    validation_result.errors.push(format!(
-                                                        "YAML frontmatter parsing error: {}",
-                                                        e
-                                                    ));
-                                                    validation_result.valid = false;
-                                                } else {
-                                                    validation_result.warnings.push(format!(
-                                                        "YAML frontmatter parsing warning: {}",
-                                                        e
-                                                    ));
+                                                Err(e) => {
+                                                    if strict {
+                                                        validation_result.errors.push(format!(
+                                                            "YAML frontmatter parsing error: {}",
+                                                            e
+                                                        ));
+                                                        validation_result.valid = false;
+                                                    } else {
+                                                        validation_result.warnings.push(format!(
+                                                            "YAML frontmatter parsing warning: {}",
+                                                            e
+                                                        ));
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 }
-                            }
                             }
 
                             // Validate loop behavior if present
