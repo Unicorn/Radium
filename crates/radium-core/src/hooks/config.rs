@@ -9,6 +9,9 @@ use std::path::Path;
 pub struct HookConfig {
     /// List of hooks.
     pub hooks: Vec<HookDefinition>,
+    /// Whether to enable performance profiling (default: false).
+    #[serde(default)]
+    pub enable_profiling: bool,
 }
 
 /// Definition of a single hook.

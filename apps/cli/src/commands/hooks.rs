@@ -6,6 +6,7 @@ use radium_core::hooks::config::HookConfig;
 use radium_core::hooks::error_hooks::{ErrorHookContext, ErrorHookType};
 use radium_core::hooks::loader::HookLoader;
 use radium_core::hooks::model::{ModelHookContext, ModelHookType};
+use radium_core::hooks::profiler::ProfilingReport;
 use radium_core::hooks::registry::{HookRegistry, HookType};
 use radium_core::hooks::telemetry::TelemetryHookContext;
 use radium_core::hooks::tool::{ToolHookContext, ToolHookType};
@@ -80,6 +81,24 @@ pub enum HooksCommand {
         /// Output as JSON
         #[arg(long)]
         json: bool,
+    },
+
+    /// Show hook performance profiling statistics
+    Profile {
+        /// Specific hook name to show stats for (shows all if omitted)
+        name: Option<String>,
+
+        /// Filter by hook type
+        #[arg(long)]
+        r#type: Option<String>,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+
+        /// Reset profiling data after showing
+        #[arg(long)]
+        reset: bool,
     },
 }
 
@@ -290,6 +309,10 @@ pub async fn execute_hooks_command(command: HooksCommand) -> anyhow::Result<()> 
 
         HooksCommand::Test { name, r#type, json } => {
             test_hook(&registry, &name, r#type.as_deref(), json).await?;
+        }
+
+        HooksCommand::Profile { name, r#type, json, reset } => {
+            show_profiling_stats(&registry, name.as_deref(), r#type.as_deref(), *json, *reset).await?;
         }
     }
 
@@ -679,5 +702,118 @@ fn create_sample_context(hook_type: HookType) -> anyhow::Result<HookContext> {
     };
 
     Ok(context)
+}
+
+/// Show profiling statistics.
+async fn show_profiling_stats(
+    registry: &Arc<HookRegistry>,
+    name_filter: Option<&str>,
+    type_filter: Option<&str>,
+    json: bool,
+    reset: bool,
+) -> anyhow::Result<()> {
+    let profiler = match registry.profiler() {
+        Some(p) => p,
+        None => {
+            if json {
+                println!("{}", serde_json::json!({
+                    "error": "Profiling is not enabled for this registry"
+                }));
+            } else {
+                eprintln!("{} Profiling is not enabled for this registry.", "✗".red());
+                eprintln!("  Enable profiling when creating the registry to collect statistics.");
+            }
+            return Ok(());
+        }
+    };
+
+    if !profiler.is_enabled() {
+        if json {
+            println!("{}", serde_json::json!({
+                "enabled": false,
+                "message": "Profiling is disabled"
+            }));
+        } else {
+            eprintln!("{} Profiling is disabled.", "✗".red());
+        }
+        return Ok(());
+    }
+
+    let report = profiler.get_all_stats().await;
+
+    if let Some(name) = name_filter {
+        // Show stats for specific hook
+        if let Some(hook_stats) = report.hook_stats.iter().find(|s| s.name == name) {
+            if json {
+                println!("{}", serde_json::to_string_pretty(hook_stats)?);
+            } else {
+                println!("{}", "rad hooks profile".bold().cyan());
+                println!();
+                println!("  Hook: {}", hook_stats.name.cyan());
+                println!("  Type: {}", hook_stats.hook_type.as_str());
+                println!("  Executions: {}", hook_stats.execution_count);
+                println!("  Time: min {}μs, max {}μs, avg {:.2}μs", 
+                    hook_stats.min_time_us, hook_stats.max_time_us, hook_stats.avg_time_us);
+            }
+        } else {
+            anyhow::bail!("Hook '{}' not found in profiling data", name);
+        }
+    } else if let Some(type_str) = type_filter {
+        // Filter by type
+        let hook_type = match type_str {
+            "before_model" => HookType::BeforeModel,
+            "after_model" => HookType::AfterModel,
+            "before_tool" => HookType::BeforeTool,
+            "after_tool" => HookType::AfterTool,
+            "tool_selection" => HookType::ToolSelection,
+            "error_interception" => HookType::ErrorInterception,
+            "error_transformation" => HookType::ErrorTransformation,
+            "error_recovery" => HookType::ErrorRecovery,
+            "error_logging" => HookType::ErrorLogging,
+            "telemetry_collection" => HookType::TelemetryCollection,
+            "custom_logging" => HookType::CustomLogging,
+            "metrics_aggregation" => HookType::MetricsAggregation,
+            "performance_monitoring" => HookType::PerformanceMonitoring,
+            _ => anyhow::bail!("Invalid hook type: {}", type_str),
+        };
+
+        if let Some(type_stats) = report.type_stats.iter().find(|s| s.hook_type == hook_type) {
+            if json {
+                println!("{}", serde_json::to_string_pretty(type_stats)?);
+            } else {
+                println!("{}", "rad hooks profile".bold().cyan());
+                println!();
+                println!("  Type: {}", type_stats.hook_type.as_str());
+                println!("  Total Executions: {}", type_stats.total_executions);
+                println!("  Average Time: {:.2}μs", type_stats.avg_time_us);
+                println!("  Hooks: {}", type_stats.hook_count);
+            }
+        } else {
+            if json {
+                println!("{}", serde_json::json!({
+                    "hook_type": type_str,
+                    "message": "No profiling data for this hook type"
+                }));
+            } else {
+                println!("  No profiling data for hook type: {}", type_str);
+            }
+        }
+    } else {
+        // Show full report
+        if json {
+            println!("{}", report.to_json()?);
+        } else {
+            println!("{}", report.to_text());
+        }
+    }
+
+    if reset {
+        profiler.reset().await;
+        if !json {
+            println!("\n  {} Profiling data reset.", "•".dimmed());
+        }
+    }
+
+    Ok(())
 }
 
