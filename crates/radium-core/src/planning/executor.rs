@@ -107,6 +107,44 @@ pub enum ExecutionError {
 }
 
 /// Error category for retry logic.
+///
+/// Errors are categorized to determine whether retry is appropriate.
+/// Recoverable errors are retried with exponential backoff, while fatal errors
+/// fail immediately.
+///
+/// # Categorization Rules
+///
+/// **Recoverable Errors:**
+/// - HTTP 429 (rate limit)
+/// - Network timeouts
+/// - Connection errors
+/// - HTTP 5xx (server errors)
+/// - File lock errors
+/// - Temporary I/O errors
+/// - Model execution errors (may be transient)
+///
+/// **Fatal Errors:**
+/// - HTTP 401/403 (authentication/authorization)
+/// - Missing configuration
+/// - Invalid data
+/// - Dependency not met
+/// - Agent not found
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use radium_core::planning::executor::{ExecutionError, ErrorCategory};
+///
+/// let error = ExecutionError::ModelExecution("Rate limit exceeded".to_string());
+/// match error.category() {
+///     ErrorCategory::Recoverable => {
+///         // Will retry with exponential backoff
+///     }
+///     ErrorCategory::Fatal => {
+///         // Will fail immediately
+///     }
+/// }
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorCategory {
     /// Recoverable error that can be retried (network timeout, rate limit, etc.).
@@ -161,15 +199,59 @@ impl ExecutionError {
 pub type Result<T> = std::result::Result<T, ExecutionError>;
 
 /// Execution mode for plan execution.
+///
+/// Determines how many iterations to execute before stopping.
+///
+/// # Modes
+///
+/// - **Bounded**: Execute up to N iterations, then stop
+/// - **Continuous**: Execute all iterations until plan is complete (with safety limit)
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use radium_core::planning::executor::RunMode;
+///
+/// // Execute up to 3 iterations
+/// let bounded = RunMode::Bounded(3);
+///
+/// // Execute until complete (YOLO mode)
+/// let continuous = RunMode::Continuous;
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RunMode {
     /// Bounded execution with a maximum iteration limit.
+    ///
+    /// Stops after executing the specified number of iterations, even if
+    /// more iterations remain. Useful for incremental execution.
     Bounded(usize),
     /// Continuous execution until all tasks are complete (with sanity limit).
+    ///
+    /// Executes all iterations until the plan is complete. Includes a safety
+    /// limit to prevent infinite loops. Also known as "YOLO mode".
     Continuous,
 }
 
 /// Configuration for plan execution.
+///
+/// Controls execution behavior including retry logic, state persistence,
+/// dependency checking, and execution mode.
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use radium_core::planning::executor::{ExecutionConfig, RunMode};
+/// use std::path::PathBuf;
+///
+/// let config = ExecutionConfig {
+///     resume: true,                    // Resume from checkpoint
+///     skip_completed: true,             // Skip already completed tasks
+///     check_dependencies: true,         // Validate dependencies before execution
+///     state_path: PathBuf::from("plan/plan_manifest.json"),
+///     context_files: Some("context.md".to_string()),
+///     run_mode: RunMode::Bounded(5),    // Limit to 5 iterations
+/// };
+/// ```
 #[derive(Debug, Clone)]
 pub struct ExecutionConfig {
     /// Whether to resume from last checkpoint.
@@ -224,6 +306,40 @@ pub struct TaskResult {
 }
 
 /// Plan executor with state persistence.
+///
+/// Executes plans with intelligent retry logic, error categorization, and
+/// state persistence. Supports both bounded and continuous execution modes.
+///
+/// # Key Features
+///
+/// - **Retry Logic**: Automatic retries with exponential backoff
+/// - **Error Categorization**: Distinguishes recoverable vs fatal errors
+/// - **State Persistence**: Saves progress after each task
+/// - **Checkpoint Recovery**: Resume from last checkpoint
+/// - **Dependency Validation**: Ensures dependencies are met
+/// - **Progress Tracking**: Real-time progress reporting
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use radium_core::planning::executor::{PlanExecutor, ExecutionConfig, RunMode};
+/// use std::path::PathBuf;
+///
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// let config = ExecutionConfig {
+///     resume: false,
+///     skip_completed: true,
+///     check_dependencies: true,
+///     state_path: PathBuf::from("plan/plan_manifest.json"),
+///     context_files: None,
+///     run_mode: RunMode::Bounded(3),
+/// };
+///
+/// let executor = PlanExecutor::with_config(config);
+/// // Execute plan...
+/// # Ok(())
+/// # }
+/// ```
 pub struct PlanExecutor {
     /// Execution configuration.
     config: ExecutionConfig,
@@ -246,15 +362,37 @@ impl PlanExecutor {
     /// Executes a task with retry logic for recoverable errors.
     ///
     /// This method wraps `execute_task` with automatic retry logic using exponential backoff.
+    /// Only recoverable errors are retried; fatal errors fail immediately.
+    ///
+    /// # Retry Behavior
+    ///
+    /// - **Recoverable Errors**: Retried up to `max_retries` times with exponential backoff
+    /// - **Fatal Errors**: Fail immediately without retry
+    /// - **Backoff Formula**: delay = base_delay_ms * 2^attempt
     ///
     /// # Arguments
+    ///
     /// * `task` - The task to execute
     /// * `model` - The model instance to use
     /// * `max_retries` - Maximum number of retry attempts (default: 3)
     /// * `base_delay_ms` - Base delay in milliseconds for exponential backoff (default: 1000)
     ///
     /// # Returns
+    ///
     /// The result of the task execution, or an error if all retries are exhausted
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use radium_core::planning::executor::PlanExecutor;
+    /// # use radium_core::models::PlanTask;
+    /// # use radium_abstraction::Model;
+    /// # use std::sync::Arc;
+    /// # async fn example(executor: &PlanExecutor, task: &PlanTask, model: Arc<dyn Model>) {
+    /// // Execute with 3 retries, 1 second base delay
+    /// let result = executor.execute_task_with_retry(task, model, 3, 1000).await;
+    /// # }
+    /// ```
     pub async fn execute_task_with_retry(
         &self,
         task: &PlanTask,
