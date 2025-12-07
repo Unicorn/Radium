@@ -10,7 +10,7 @@ use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 use commands::{
-    agents, auth, chat, checkpoint, clean, craft, doctor, extension, hooks, init, mcp, monitor, plan, run,
+    agents, auth, chat, checkpoint, clean, context, craft, doctor, extension, hooks, init, mcp, monitor, plan, run,
     stats, status, step, templates,
 };
 
@@ -251,7 +251,7 @@ enum Command {
 }
 
 // Command types are now in commands::types module
-use commands::{AgentsCommand, AuthCommand, ExtensionCommand, HooksCommand, TemplatesCommand};
+use commands::{AgentsCommand, AuthCommand, ContextCommand, ExtensionCommand, HooksCommand, TemplatesCommand};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
