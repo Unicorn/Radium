@@ -1,0 +1,19 @@
+[agent]
+id = "refactor-agent"
+name = "Refactoring Agent"
+description = "Refactors code with loop behavior for iterative improvement"
+prompt_path = "prompts/agents/examples/refactor-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "medium"
+
+[agent.loop_behavior]
+steps = 2
+max_iterations = 3
+skip = []
+
+[agent.capabilities]
+model_class = "balanced"
+cost_tier = "medium"
+max_concurrent_tasks = 5
+

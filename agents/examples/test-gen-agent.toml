@@ -1,0 +1,14 @@
+[agent]
+id = "test-gen-agent"
+name = "Test Generation Agent"
+description = "Generates comprehensive tests with balanced quality and speed"
+prompt_path = "prompts/agents/examples/test-gen-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "medium"
+
+[agent.capabilities]
+model_class = "balanced"
+cost_tier = "medium"
+max_concurrent_tasks = 10
+

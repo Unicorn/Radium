@@ -1,0 +1,14 @@
+[agent]
+id = "code-gen-agent"
+name = "Code Generation Agent"
+description = "Fast code generation agent optimized for speed and iteration"
+prompt_path = "prompts/agents/examples/code-gen-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "low"
+
+[agent.capabilities]
+model_class = "fast"
+cost_tier = "low"
+max_concurrent_tasks = 20
+

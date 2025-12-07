@@ -1,0 +1,14 @@
+[agent]
+id = "perf-opt-agent"
+name = "Performance Optimization Agent"
+description = "Optimizes code and system performance"
+prompt_path = "prompts/agents/examples/perf-opt-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "high"
+
+[agent.capabilities]
+model_class = "reasoning"
+cost_tier = "high"
+max_concurrent_tasks = 3
+

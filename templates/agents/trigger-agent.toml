@@ -1,0 +1,17 @@
+[agent]
+id = "{{id}}"
+name = "{{name}}"
+description = "{{description}}"
+prompt_path = "prompts/agents/{{category}}/{{id}}.md"
+engine = "{{engine}}"
+model = "{{model}}"
+reasoning_effort = "{{reasoning_effort}}"
+
+[agent.trigger_behavior]
+trigger_agent_id = "{{trigger_agent_id}}"
+
+[agent.capabilities]
+model_class = "{{model_class}}"
+cost_tier = "{{cost_tier}}"
+max_concurrent_tasks = {{max_concurrent_tasks}}
+

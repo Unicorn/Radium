@@ -1,0 +1,14 @@
+[agent]
+id = "doc-gen-agent"
+name = "Documentation Generation Agent"
+description = "Generates comprehensive documentation with high output volume"
+prompt_path = "prompts/agents/examples/doc-gen-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "medium"
+
+[agent.capabilities]
+model_class = "balanced"
+cost_tier = "medium"
+max_concurrent_tasks = 15
+

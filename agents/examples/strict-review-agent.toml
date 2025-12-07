@@ -1,0 +1,14 @@
+[agent]
+id = "strict-review-agent"
+name = "Strict Code Review Agent"
+description = "Performs strict code review with comprehensive validation"
+prompt_path = "prompts/agents/examples/strict-review-agent.md"
+engine = "openai"
+model = "gpt-4"
+reasoning_effort = "high"
+
+[agent.capabilities]
+model_class = "reasoning"
+cost_tier = "high"
+max_concurrent_tasks = 2
+

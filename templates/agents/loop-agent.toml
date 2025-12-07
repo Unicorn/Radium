@@ -1,0 +1,19 @@
+[agent]
+id = "{{id}}"
+name = "{{name}}"
+description = "{{description}}"
+prompt_path = "prompts/agents/{{category}}/{{id}}.md"
+engine = "{{engine}}"
+model = "{{model}}"
+reasoning_effort = "{{reasoning_effort}}"
+
+[agent.loop_behavior]
+steps = {{loop_steps}}
+max_iterations = {{max_iterations}}
+skip = []
+
+[agent.capabilities]
+model_class = "{{model_class}}"
+cost_tier = "{{cost_tier}}"
+max_concurrent_tasks = {{max_concurrent_tasks}}
+

@@ -1,0 +1,17 @@
+[agent]
+id = "integration-agent"
+name = "Integration Agent"
+description = "Handles integrations with trigger behavior for dynamic agent delegation"
+prompt_path = "prompts/agents/examples/integration-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "medium"
+
+[agent.trigger_behavior]
+trigger_agent_id = "fallback-agent"
+
+[agent.capabilities]
+model_class = "balanced"
+cost_tier = "medium"
+max_concurrent_tasks = 8
+

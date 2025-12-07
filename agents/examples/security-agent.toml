@@ -1,0 +1,14 @@
+[agent]
+id = "security-agent"
+name = "Security Analysis Agent"
+description = "Deep security analysis with high reasoning effort for threat detection"
+prompt_path = "prompts/agents/examples/security-agent.md"
+engine = "openai"
+model = "o1-preview"
+reasoning_effort = "high"
+
+[agent.capabilities]
+model_class = "reasoning"
+cost_tier = "high"
+max_concurrent_tasks = 3
+

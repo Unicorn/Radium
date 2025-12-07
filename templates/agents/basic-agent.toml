@@ -1,0 +1,6 @@
+[agent]
+id = "{{id}}"
+name = "{{name}}"
+description = "{{description}}"
+prompt_path = "prompts/agents/{{category}}/{{id}}.md"
+
