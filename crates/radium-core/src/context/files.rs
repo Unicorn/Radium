@@ -1,11 +1,54 @@
 //! Context file loading and processing.
 //!
-//! Supports hierarchical loading of context files (GEMINI.md) from:
-//! - Global location: `~/.radium/GEMINI.md`
-//! - Project root: `GEMINI.md`
-//! - Subdirectory: `<subdir>/GEMINI.md`
+//! This module provides a hierarchical context file system that enables persistent
+//! instructions for agents without repetition. Context files are automatically discovered
+//! and loaded based on their location, with higher precedence files overriding lower
+//! precedence ones.
 //!
-//! Also supports context imports using `@file.md` syntax.
+//! ## Hierarchical Loading
+//!
+//! Context files are loaded from multiple locations with the following precedence order
+//! (highest to lowest):
+//!
+//! 1. **Subdirectory context file** - `<subdir>/GEMINI.md` (highest precedence)
+//! 2. **Project root context file** - `<workspace>/GEMINI.md`
+//! 3. **Global context file** - `~/.radium/GEMINI.md` (lowest precedence)
+//!
+//! Lower precedence files are prepended to higher precedence files, allowing
+//! subdirectory-specific context to override project-wide context.
+//!
+//! ## Context Imports
+//!
+//! Context files support importing other files using the `@file.md` syntax. This allows
+//! you to organize context into reusable modules and avoid duplication.
+//!
+//! - Imports are resolved relative to the importing file's directory
+//! - Circular imports are detected and rejected
+//! - Duplicate imports are automatically deduplicated
+//! - Imports inside code blocks are ignored
+//!
+//! ## Usage
+//!
+//! ```rust,no_run
+//! use radium_core::context::ContextFileLoader;
+//! use std::path::Path;
+//!
+//! // Create a loader for a workspace
+//! let loader = ContextFileLoader::new(Path::new("/workspace"));
+//!
+//! // Load context for a specific path (hierarchically)
+//! let content = loader.load_hierarchical(Path::new("/workspace/src"))?;
+//!
+//! // Discover all context files in the workspace
+//! let files = loader.discover_context_files()?;
+//!
+//! // Process imports in content
+//! let processed = loader.process_imports("@shared.md", Path::new("/workspace"))?;
+//! ```
+//!
+//! ## User Documentation
+//!
+//! For detailed user-facing documentation, see [`docs/features/context-files.md`](../../../../docs/features/context-files.md).
 
 use std::collections::HashSet;
 use std::fs;
@@ -17,6 +60,34 @@ use super::error::{ContextError, Result};
 const DEFAULT_CONTEXT_FILE_NAME: &str = "GEMINI.md";
 
 /// Context file loader for hierarchical loading and import processing.
+///
+/// This struct provides methods to discover, load, and process context files
+/// (typically `GEMINI.md`) from a workspace. It supports hierarchical loading
+/// with precedence resolution and import processing with circular dependency detection.
+///
+/// # Examples
+///
+/// Basic usage with default file name:
+///
+/// ```rust,no_run
+/// use radium_core::context::ContextFileLoader;
+/// use std::path::Path;
+///
+/// let loader = ContextFileLoader::new(Path::new("/workspace"));
+/// let content = loader.load_hierarchical(Path::new("/workspace/src"))?;
+/// ```
+///
+/// Using a custom context file name:
+///
+/// ```rust,no_run
+/// use radium_core::context::ContextFileLoader;
+/// use std::path::Path;
+///
+/// let loader = ContextFileLoader::with_file_name(
+///     Path::new("/workspace"),
+///     "CONTEXT.md".to_string()
+/// );
+/// ```
 pub struct ContextFileLoader {
     /// Workspace root path.
     workspace_root: PathBuf,
@@ -25,19 +96,43 @@ pub struct ContextFileLoader {
 }
 
 impl ContextFileLoader {
-    /// Creates a new context file loader.
+    /// Creates a new context file loader with default file name (`GEMINI.md`).
     ///
     /// # Arguments
     /// * `workspace_root` - The workspace root directory
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use radium_core::context::ContextFileLoader;
+    /// use std::path::Path;
+    ///
+    /// let loader = ContextFileLoader::new(Path::new("/workspace"));
+    /// ```
     pub fn new(workspace_root: impl AsRef<Path>) -> Self {
         Self { workspace_root: workspace_root.as_ref().to_path_buf(), custom_file_name: None }
     }
 
-    /// Creates a new context file loader with custom file name.
+    /// Creates a new context file loader with a custom file name.
+    ///
+    /// This allows you to use a different file name than the default `GEMINI.md`.
+    /// Useful for projects that want to use a different naming convention.
     ///
     /// # Arguments
     /// * `workspace_root` - The workspace root directory
-    /// * `file_name` - Custom context file name
+    /// * `file_name` - Custom context file name (e.g., `"CONTEXT.md"`)
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use radium_core::context::ContextFileLoader;
+    /// use std::path::Path;
+    ///
+    /// let loader = ContextFileLoader::with_file_name(
+    ///     Path::new("/workspace"),
+    ///     "CONTEXT.md".to_string()
+    /// );
+    /// ```
     pub fn with_file_name(workspace_root: impl AsRef<Path>, file_name: String) -> Self {
         Self {
             workspace_root: workspace_root.as_ref().to_path_buf(),
@@ -52,21 +147,54 @@ impl ContextFileLoader {
 
     /// Loads context files hierarchically for a given path.
     ///
-    /// Precedence order (highest to lowest):
-    /// 1. Subdirectory context file
-    /// 2. Project root context file
-    /// 3. Global context file (`~/.radium/GEMINI.md`)
+    /// This method discovers and loads all applicable context files based on the
+    /// provided path, following the hierarchical precedence order. The content
+    /// from all files is merged, with lower precedence files prepended to higher
+    /// precedence files.
     ///
-    /// Lower precedence files are prepended to higher precedence files.
+    /// ## Precedence Order (highest to lowest)
+    ///
+    /// 1. **Subdirectory context file** - `<path>/GEMINI.md` or `<path_parent>/GEMINI.md`
+    /// 2. **Project root context file** - `<workspace_root>/GEMINI.md`
+    /// 3. **Global context file** - `~/.radium/GEMINI.md`
+    ///
+    /// Lower precedence files are prepended to higher precedence files, so
+    /// subdirectory context can override project context.
+    ///
+    /// ## Import Processing
+    ///
+    /// After loading, all `@file.md` import statements are automatically processed.
+    /// See [`process_imports`](Self::process_imports) for details.
     ///
     /// # Arguments
-    /// * `path` - The path to load context for (can be file or directory)
+    /// * `path` - The path to load context for (can be a file or directory)
     ///
     /// # Returns
-    /// Combined context content from all applicable files
+    /// Combined context content from all applicable files, with imports resolved.
+    /// Returns an empty string if no context files are found.
     ///
     /// # Errors
-    /// Returns error if file reading fails (but missing files are ignored)
+    ///
+    /// This method returns an error if:
+    /// - A context file exists but cannot be read (permission errors, I/O errors)
+    /// - Import processing fails (circular imports, missing import files)
+    ///
+    /// Missing context files are silently ignored and do not cause errors.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use radium_core::context::ContextFileLoader;
+    /// use std::path::Path;
+    ///
+    /// let loader = ContextFileLoader::new(Path::new("/workspace"));
+    ///
+    /// // Load context for a subdirectory
+    /// let content = loader.load_hierarchical(Path::new("/workspace/src"))?;
+    ///
+    /// // Load context for a specific file
+    /// let content = loader.load_hierarchical(Path::new("/workspace/src/main.rs"))?;
+    /// ```
     pub fn load_hierarchical(&self, path: &Path) -> Result<String> {
         let file_name = self.file_name();
         let mut contexts = Vec::new();
@@ -130,13 +258,34 @@ impl ContextFileLoader {
 
     /// Gets the list of context files that would be loaded for a given path.
     ///
-    /// Returns paths in precedence order: global → project → subdirectory
+    /// This method returns the paths to all context files that would be loaded
+    /// by [`load_hierarchical`](Self::load_hierarchical) for the given path,
+    /// in precedence order (lowest to highest).
     ///
     /// # Arguments
-    /// * `path` - The path to get context files for
+    /// * `path` - The path to get context files for (can be a file or directory)
     ///
     /// # Returns
-    /// Vector of paths to context files that exist (may be empty)
+    /// Vector of paths to context files that exist, in precedence order:
+    /// 1. Global context file (`~/.radium/GEMINI.md`)
+    /// 2. Project root context file (`<workspace>/GEMINI.md`)
+    /// 3. Subdirectory context file (`<path>/GEMINI.md`)
+    ///
+    /// Returns an empty vector if no context files are found.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use radium_core::context::ContextFileLoader;
+    /// use std::path::Path;
+    ///
+    /// let loader = ContextFileLoader::new(Path::new("/workspace"));
+    /// let paths = loader.get_context_file_paths(Path::new("/workspace/src"));
+    ///
+    /// for path in paths {
+    ///     println!("Found context file: {}", path.display());
+    /// }
+    /// ```
     pub fn get_context_file_paths(&self, path: &Path) -> Vec<PathBuf> {
         let file_name = self.file_name();
         let mut paths = Vec::new();
@@ -174,11 +323,32 @@ impl ContextFileLoader {
 
     /// Discovers all context files in the workspace.
     ///
+    /// Recursively scans the workspace directory (and global location) to find
+    /// all context files. Hidden directories (starting with `.`) are skipped
+    /// during scanning.
+    ///
     /// # Returns
-    /// Vector of paths to all found context files
+    /// Vector of paths to all found context files, including:
+    /// - Global context file (`~/.radium/GEMINI.md`) if it exists
+    /// - All context files found in the workspace directory tree
     ///
     /// # Errors
-    /// Returns error if directory scanning fails
+    ///
+    /// Returns an error if:
+    /// - Directory scanning fails (permission errors, I/O errors)
+    /// - The workspace root is not a valid directory
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use radium_core::context::ContextFileLoader;
+    /// use std::path::Path;
+    ///
+    /// let loader = ContextFileLoader::new(Path::new("/workspace"));
+    /// let files = loader.discover_context_files()?;
+    ///
+    /// println!("Found {} context file(s)", files.len());
+    /// ```
     pub fn discover_context_files(&self) -> Result<Vec<PathBuf>> {
         let file_name = self.file_name();
         let mut files = Vec::new();
@@ -230,17 +400,51 @@ impl ContextFileLoader {
 
     /// Processes import statements in context content.
     ///
-    /// Supports `@file.md` syntax to import other files.
+    /// This method processes `@file.md` import statements in the content, replacing
+    /// them with the contents of the imported files. Imports are resolved relative
+    /// to the `base_path`, and circular imports are detected and rejected.
+    ///
+    /// ## Import Syntax
+    ///
+    /// - `@file.md` - Import a file relative to the base path
+    /// - `@/absolute/path/file.md` - Import using an absolute path
+    /// - Imports inside code blocks (between ` ``` ` markers) are ignored
+    ///
+    /// ## Import Processing
+    ///
+    /// - Imports are processed recursively (imported files can also contain imports)
+    /// - Circular imports are detected and cause an error
+    /// - Duplicate imports are automatically deduplicated
+    /// - Import paths are resolved relative to the importing file's directory
     ///
     /// # Arguments
-    /// * `content` - The context content to process
+    /// * `content` - The context content to process (may contain `@file.md` imports)
     /// * `base_path` - Base path for resolving relative imports
     ///
     /// # Returns
-    /// Content with imports resolved and merged
+    /// Content with all imports resolved and merged. Import statements are replaced
+    /// with the contents of the imported files.
     ///
     /// # Errors
-    /// Returns error if import resolution fails or circular imports detected
+    ///
+    /// Returns an error if:
+    /// - An import file is not found
+    /// - An import file cannot be read (permission errors, I/O errors)
+    /// - A circular import is detected (file A imports file B, which imports file A)
+    /// - The base path is invalid
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use radium_core::context::ContextFileLoader;
+    /// use std::path::Path;
+    ///
+    /// let loader = ContextFileLoader::new(Path::new("/workspace"));
+    ///
+    /// // Process content with imports
+    /// let content = "# Main Context\n\n@shared.md\n\nMore content.";
+    /// let processed = loader.process_imports(content, Path::new("/workspace"))?;
+    /// ```
     pub fn process_imports(&self, content: &str, base_path: &Path) -> Result<String> {
         let mut result = String::new();
         let mut processed_imports = HashSet::new();

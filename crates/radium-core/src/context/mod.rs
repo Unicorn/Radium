@@ -9,6 +9,13 @@
 //! - Architecture documentation injection
 //! - Context files (GEMINI.md) with hierarchical loading and imports
 //!
+//! ## Context Files
+//!
+//! The context files system (see [`files`](files) module) provides persistent
+//! instructions to agents through hierarchical `GEMINI.md` files. For detailed
+//! user-facing documentation on context files, see
+//! [Context Files Documentation](../../../docs/features/context-files.md).
+//!
 //! # Example
 //!
 //! ```rust,no_run
