@@ -28,7 +28,7 @@ pub async fn execute(command: AgentsCommand) -> anyhow::Result<()> {
             search_agents(&query, json, category.as_deref(), engine.as_deref(), model.as_deref(), sort.as_deref()).await
         }
         AgentsCommand::Info { id, json } => show_agent_info(&id, json).await,
-        AgentsCommand::Validate { verbose } => validate_agents(verbose).await,
+        AgentsCommand::Validate { verbose, json } => validate_agents(verbose, json).await,
         AgentsCommand::Create {
             id,
             name,
@@ -293,81 +293,240 @@ async fn show_agent_info(id: &str, json_output: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Validation result for a single agent.
+#[derive(Debug, Clone)]
+struct AgentValidationResult {
+    id: String,
+    file_path: Option<PathBuf>,
+    valid: bool,
+    errors: Vec<String>,
+    warnings: Vec<String>,
+}
+
 /// Validate all agent configurations.
-async fn validate_agents(verbose: bool) -> anyhow::Result<()> {
+async fn validate_agents(verbose: bool, json_output: bool) -> anyhow::Result<()> {
+    use radium_core::agents::metadata::AgentMetadata;
+    use radium_core::prompts::templates::PromptTemplate;
+
     let discovery = AgentDiscovery::new();
     let agents = discovery.discover_all()?;
 
-    let mut valid_count = 0;
-    let mut errors = Vec::new();
+    let mut results = Vec::new();
 
     for (id, config) in &agents {
-        let mut agent_errors = Vec::new();
+        let mut validation_result = AgentValidationResult {
+            id: id.clone(),
+            file_path: config.file_path.clone(),
+            valid: true,
+            errors: Vec::new(),
+            warnings: Vec::new(),
+        };
 
         // Reload and validate the config file to get comprehensive validation
         if let Some(config_path) = &config.file_path {
             match AgentConfigFile::load(config_path) {
-                Ok(_) => {
-                    // Validation passed
+                Ok(config_file) => {
+                    // Validate using the config file's validate method
+                    if let Err(e) = config_file.validate() {
+                        validation_result.valid = false;
+                        let error_msg = e.to_string();
+                        let clean_msg = error_msg
+                            .strip_prefix("invalid configuration: ")
+                            .unwrap_or(&error_msg);
+                        validation_result.errors.push(clean_msg.to_string());
+                    } else {
+                        // Additional validations beyond what validate() does
+                        let agent = &config_file.agent;
+
+                        // Validate agent ID format (kebab-case)
+                        if !agent.id.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-') {
+                            validation_result.errors.push(format!(
+                                "Agent ID '{}' must be in kebab-case (lowercase letters, numbers, hyphens only)",
+                                agent.id
+                            ));
+                            validation_result.valid = false;
+                        }
+
+                        // Validate prompt file exists and is readable
+                        let prompt_path = &agent.prompt_path;
+                        let prompt_exists = if prompt_path.is_absolute() {
+                            prompt_path.exists() && prompt_path.is_file()
+                        } else if let Some(config_dir) = config_path.parent() {
+                            let full_path = config_dir.join(prompt_path);
+                            full_path.exists() && full_path.is_file()
+                        } else {
+                            false
+                        };
+
+                        if !prompt_exists {
+                            validation_result.errors.push(format!(
+                                "Prompt file not found or not readable: {}",
+                                prompt_path.display()
+                            ));
+                            validation_result.valid = false;
+                        } else {
+                            // Try to load prompt template to verify it's valid
+                            let resolved_path = if prompt_path.is_absolute() {
+                                prompt_path.clone()
+                            } else if let Some(config_dir) = config_path.parent() {
+                                config_dir.join(prompt_path)
+                            } else {
+                                prompt_path.clone()
+                            };
+
+                            if let Err(e) = PromptTemplate::load(&resolved_path) {
+                                validation_result.errors.push(format!(
+                                    "Failed to load prompt template: {}",
+                                    e
+                                ));
+                                validation_result.valid = false;
+                            } else {
+                                // Try to parse YAML frontmatter if present
+                                if let Ok(content) = fs::read_to_string(&resolved_path) {
+                                    if content.trim_start().starts_with("---") {
+                                        match AgentMetadata::from_markdown(&content) {
+                                            Ok((metadata, _)) => {
+                                                if verbose {
+                                                    validation_result.warnings.push(format!(
+                                                        "Metadata parsed: name={}, color={}",
+                                                        metadata.name, metadata.color
+                                                    ));
+                                                }
+                                            }
+                                            Err(e) => {
+                                                validation_result.warnings.push(format!(
+                                                    "YAML frontmatter parsing warning: {}",
+                                                    e
+                                                ));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Validate loop behavior if present
+                        if let Some(loop_behavior) = &agent.loop_behavior {
+                            if loop_behavior.steps == 0 {
+                                validation_result.errors.push(
+                                    "Loop behavior: steps must be greater than 0".to_string(),
+                                );
+                                validation_result.valid = false;
+                            }
+                            if let Some(max_iter) = loop_behavior.max_iterations {
+                                if max_iter == 0 {
+                                    validation_result.errors.push(
+                                        "Loop behavior: max_iterations must be greater than 0".to_string(),
+                                    );
+                                    validation_result.valid = false;
+                                }
+                            }
+                        }
+
+                        // Validate capabilities if present
+                        if agent.capabilities.max_concurrent_tasks == 0 {
+                            validation_result.errors.push(
+                                "Capabilities: max_concurrent_tasks must be greater than 0".to_string(),
+                            );
+                            validation_result.valid = false;
+                        }
+                    }
                 }
                 Err(e) => {
-                    // Extract error message
+                    validation_result.valid = false;
                     let error_msg = e.to_string();
-                    // Remove "invalid configuration: " prefix if present
                     let clean_msg = error_msg
                         .strip_prefix("invalid configuration: ")
                         .unwrap_or(&error_msg);
-                    agent_errors.push(clean_msg.to_string());
+                    validation_result.errors.push(clean_msg.to_string());
                 }
             }
         } else {
             // If file_path is not set, we can't reload, so do basic validation
+            validation_result.valid = false;
             if config.name.is_empty() {
-                agent_errors.push("Name is empty".to_string());
+                validation_result.errors.push("Name is empty".to_string());
             }
             if config.prompt_path.as_os_str().is_empty() {
-                agent_errors.push("Prompt path is empty".to_string());
+                validation_result.errors.push("Prompt path is empty".to_string());
             }
         }
 
-        if agent_errors.is_empty() {
-            valid_count += 1;
-        } else {
-            errors.push((id.clone(), config.file_path.clone(), agent_errors));
-        }
+        results.push(validation_result);
     }
 
-    println!();
-    if errors.is_empty() {
-        println!(
-            "{}",
-            format!("✅ All {} agents validated successfully", agents.len()).bold().green()
-        );
+    let valid_count = results.iter().filter(|r| r.valid && r.errors.is_empty()).count();
+    let error_count = results.iter().filter(|r| !r.valid || !r.errors.is_empty()).count();
+
+    if json_output {
+        // Output JSON format
+        let json_results: Vec<serde_json::Value> = results
+            .iter()
+            .map(|r| {
+                json!({
+                    "id": r.id,
+                    "file_path": r.file_path.as_ref().map(|p| p.to_string_lossy().to_string()),
+                    "valid": r.valid && r.errors.is_empty(),
+                    "errors": r.errors,
+                    "warnings": r.warnings,
+                })
+            })
+            .collect();
+
+        let output = json!({
+            "summary": {
+                "total": results.len(),
+                "valid": valid_count,
+                "invalid": error_count,
+            },
+            "results": json_results,
+        });
+
+        println!("{}", serde_json::to_string_pretty(&output)?);
+        
+        // Exit with non-zero code if there are errors
+        if error_count > 0 {
+            std::process::exit(1);
+        }
     } else {
-        println!(
-            "{}",
-            format!("⚠️  Validation: {} valid, {} with errors", valid_count, errors.len())
-                .bold()
-                .yellow()
-        );
+        // Output human-readable format
         println!();
-
-        if verbose {
-            for (id, file_path, agent_errors) in &errors {
-                println!("{}", format!("  {} {}:", "❌".red(), id.red()));
-                if let Some(path) = file_path {
-                    println!("     {}", format!("File: {}", path.display()).dimmed());
-                }
-                for error in agent_errors {
-                    println!("     • {}", error);
-                }
-                println!();
-            }
+        if error_count == 0 {
+            println!(
+                "{}",
+                format!("✅ All {} agents validated successfully", results.len()).bold().green()
+            );
         } else {
-            println!("Run with {} for details", "--verbose".cyan());
+            println!(
+                "{}",
+                format!("⚠️  Validation: {} valid, {} with errors", valid_count, error_count)
+                    .bold()
+                    .yellow()
+            );
+            println!();
+
+            if verbose {
+                for result in &results {
+                    if !result.valid || !result.errors.is_empty() || !result.warnings.is_empty() {
+                        println!("{}", format!("  {} {}:", "❌".red(), result.id.red()));
+                        if let Some(path) = &result.file_path {
+                            println!("     {}", format!("File: {}", path.display()).dimmed());
+                        }
+                        for error in &result.errors {
+                            println!("     • {}", error.red());
+                        }
+                        for warning in &result.warnings {
+                            println!("     ⚠ {}", warning.yellow());
+                        }
+                        println!();
+                    }
+                }
+            } else {
+                println!("Run with {} for details", "--verbose".cyan());
+            }
         }
+        println!();
     }
-    println!();
 
     Ok(())
 }

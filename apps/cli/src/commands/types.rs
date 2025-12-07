@@ -86,6 +86,9 @@ pub enum AgentsCommand {
         /// Show detailed validation errors
         #[arg(short, long)]
         verbose: bool,
+        /// Output results as JSON
+        #[arg(short, long)]
+        json: bool,
     },
 
     /// Create a new agent template
