@@ -22,6 +22,7 @@ pub mod discovery;
 pub mod installer;
 pub mod integration;
 pub mod manifest;
+pub mod marketplace;
 pub mod structure;
 pub mod validator;
 
@@ -32,6 +33,7 @@ pub use integration::{
     get_extension_prompt_dirs,
 };
 pub use manifest::{ExtensionManifest, ExtensionManifestError};
+pub use marketplace::{MarketplaceClient, MarketplaceError, MarketplaceExtension};
 pub use structure::{
     Extension, ExtensionStructureError, default_extensions_dir, workspace_extensions_dir,
 };
