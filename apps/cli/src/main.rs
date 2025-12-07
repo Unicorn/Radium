@@ -103,6 +103,10 @@ enum Command {
         /// Output results as JSON
         #[arg(long)]
         json: bool,
+
+        /// Enable continuous execution mode (YOLO mode) - runs until all tasks complete
+        #[arg(long)]
+        yolo: bool,
     },
 
     /// Complete a requirement from source to execution
@@ -321,8 +325,8 @@ async fn main() -> anyhow::Result<()> {
         Command::Plan { input, id, name } => {
             plan::execute(input, id, name).await?;
         }
-        Command::Craft { plan_identifier, iteration, task, resume, dry_run, json } => {
-            craft::execute(plan_identifier, iteration, task, resume, dry_run, json).await?;
+        Command::Craft { plan_identifier, iteration, task, resume, dry_run, json, yolo } => {
+            craft::execute(plan_identifier, iteration, task, resume, dry_run, json, yolo).await?;
         }
         Command::Complete { source } => {
             complete::execute(source).await?;

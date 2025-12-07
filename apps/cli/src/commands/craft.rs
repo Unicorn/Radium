@@ -23,6 +23,7 @@ pub async fn execute(
     resume: bool,
     dry_run: bool,
     json: bool,
+    yolo: bool,
 ) -> anyhow::Result<()> {
     println!("{}", "rad craft".bold().cyan());
     println!();
@@ -122,6 +123,7 @@ pub async fn execute(
         task.as_deref(),
         resume,
         json,
+        yolo,
         if context_files.is_empty() { None } else { Some(context_files) },
         &mut Some(&mut executed_agent_ids),
         &session_id,
@@ -233,6 +235,7 @@ async fn execute_plan(
     task_filter: Option<&str>,
     resume: bool,
     _json: bool,
+    yolo: bool,
     context_files: Option<String>,
     executed_agent_ids: &mut Option<&mut Vec<String>>,
     session_id: &str,
