@@ -1,0 +1,213 @@
+# Radium Policy Engine - Example Configurations
+#
+# This file contains example policy configurations demonstrating different
+# use cases and security patterns for the Radium policy engine.
+
+# ============================================================================
+# Example 1: Safe Default Configuration
+# ============================================================================
+# This configuration provides a good balance of safety and usability.
+# It allows safe operations automatically, requires approval for writes,
+# and blocks dangerous commands.
+
+# [example1]
+# approval_mode = "ask"
+# 
+# [[example1.rules]]
+# name = "Allow safe file operations"
+# priority = "user"
+# action = "allow"
+# tool_pattern = "read_*"
+# reason = "Safe read operations are always allowed"
+# 
+# [[example1.rules]]
+# name = "Require approval for file writes"
+# priority = "user"
+# action = "ask_user"
+# tool_pattern = "write_*"
+# reason = "File writes require user approval"
+# 
+# [[example1.rules]]
+# name = "Deny dangerous shell commands"
+# priority = "admin"
+# action = "deny"
+# tool_pattern = "run_terminal_cmd"
+# arg_pattern = "rm -rf *"
+# reason = "Prevent accidental deletion"
+
+# ============================================================================
+# Example 2: Enterprise Security Configuration
+# ============================================================================
+# Strict security configuration for enterprise environments with
+# network restrictions and workspace isolation.
+
+# [example2]
+# approval_mode = "ask"
+# 
+# # Admin rules (highest priority - security critical)
+# [[example2.rules]]
+# name = "Block all external network operations"
+# priority = "admin"
+# action = "deny"
+# tool_pattern = "http_*"
+# reason = "Enterprise policy: no external network access"
+# 
+# [[example2.rules]]
+# name = "Block file operations outside workspace"
+# priority = "admin"
+# action = "deny"
+# tool_pattern = "write_file"
+# arg_pattern = "../*"
+# reason = "Enterprise policy: workspace isolation"
+# 
+# [[example2.rules]]
+# name = "Block dangerous shell commands"
+# priority = "admin"
+# action = "deny"
+# tool_pattern = "run_terminal_cmd"
+# arg_pattern = "sudo *"
+# reason = "Enterprise policy: no sudo access"
+# 
+# # User rules (medium priority)
+# [[example2.rules]]
+# name = "Allow safe read operations"
+# priority = "user"
+# action = "allow"
+# tool_pattern = "read_*"
+# 
+# [[example2.rules]]
+# name = "Require approval for all writes"
+# priority = "user"
+# action = "ask_user"
+# tool_pattern = "write_*"
+
+# ============================================================================
+# Example 3: Development-Friendly Configuration
+# ============================================================================
+# More permissive configuration for development environments where
+# developers need flexibility while maintaining basic safety.
+
+# [example3]
+# approval_mode = "autoEdit"
+# 
+# [[example3.rules]]
+# name = "Allow all read operations"
+# priority = "user"
+# action = "allow"
+# tool_pattern = "read_*"
+# 
+# [[example3.rules]]
+# name = "Allow file edits automatically"
+# priority = "user"
+# action = "allow"
+# tool_pattern = "write_*"
+# 
+# [[example3.rules]]
+# name = "Block only the most dangerous commands"
+# priority = "admin"
+# action = "deny"
+# tool_pattern = "run_terminal_cmd"
+# arg_pattern = "rm -rf / *"
+# reason = "Prevent deletion of root filesystem"
+
+# ============================================================================
+# Example 4: MCP Tool Management
+# ============================================================================
+# Configuration for managing MCP (Model Context Protocol) tool access.
+
+# [example4]
+# approval_mode = "ask"
+# 
+# [[example4.rules]]
+# name = "Allow specific MCP server tools"
+# priority = "user"
+# action = "allow"
+# tool_pattern = "mcp_filesystem_*"
+# reason = "Filesystem MCP tools are safe"
+# 
+# [[example4.rules]]
+# name = "Require approval for database MCP tools"
+# priority = "user"
+# action = "ask_user"
+# tool_pattern = "mcp_database_*"
+# reason = "Database operations require approval"
+# 
+# [[example4.rules]]
+# name = "Block external API MCP tools"
+# priority = "admin"
+# action = "deny"
+# tool_pattern = "mcp_api_*"
+# reason = "No external API access"
+
+# ============================================================================
+# Example 5: Argument-Based Filtering
+# ============================================================================
+# Demonstrates how to use argument patterns for fine-grained control.
+
+# [example5]
+# approval_mode = "ask"
+# 
+# [[example5.rules]]
+# name = "Allow reading config files"
+# priority = "user"
+# action = "allow"
+# tool_pattern = "read_file"
+# arg_pattern = "*.toml"
+# reason = "Config files are safe to read"
+# 
+# [[example5.rules]]
+# name = "Block reading sensitive files"
+# priority = "admin"
+# action = "deny"
+# tool_pattern = "read_file"
+# arg_pattern = "*secret*"
+# reason = "Sensitive files should not be read"
+# 
+# [[example5.rules]]
+# name = "Block dangerous git commands"
+# priority = "admin"
+# action = "deny"
+# tool_pattern = "run_terminal_cmd"
+# arg_pattern = "git push --force *"
+# reason = "Prevent force push to remote"
+
+# ============================================================================
+# Active Configuration Template
+# ============================================================================
+# Copy this section to .radium/policy.toml and customize for your needs.
+
+approval_mode = "ask"
+
+# Safe read operations
+[[rules]]
+name = "Allow safe file operations"
+priority = "user"
+action = "allow"
+tool_pattern = "read_*"
+reason = "Safe read operations are always allowed"
+
+# File writes require approval
+[[rules]]
+name = "Require approval for file writes"
+priority = "user"
+action = "ask_user"
+tool_pattern = "write_*"
+reason = "File writes require user approval"
+
+# Block dangerous commands
+[[rules]]
+name = "Deny dangerous shell commands"
+priority = "admin"
+action = "deny"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "rm -rf *"
+reason = "Prevent accidental deletion"
+
+# MCP tools require approval
+[[rules]]
+name = "Require approval for MCP tools"
+priority = "user"
+action = "ask_user"
+tool_pattern = "mcp_*"
+reason = "MCP tools may have side effects"
+

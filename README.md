@@ -18,6 +18,7 @@ Radium is a high-performance, Rust-based platform for creating, managing, and de
 - **📚 Learning System**: Track mistakes, preferences, and successes to build pattern recognition
 - **📖 ACE Skillbook**: Learn and apply successful strategies from past work
 - **🎭 Persona System**: Intelligent model selection, cost optimization, and automatic fallback chains
+- **🔒 Policy Engine**: Fine-grained tool execution control with rule-based policies and approval modes
 
 ## Quick Start
 
@@ -272,6 +273,67 @@ Control orchestration via TUI commands:
 - [Orchestration User Guide](docs/user-guide/orchestration.md) - Complete user guide
 - [Orchestration Workflows](docs/examples/orchestration-workflows.md) - Example workflows
 - [Orchestration Testing Guide](docs/user-guide/orchestration-testing.md) - Manual testing procedures
+
+## Policy Engine
+
+Radium's Policy Engine provides fine-grained control over tool execution to ensure security and prevent unwanted operations. Configure workspace-specific and enterprise-ready security policies with rule-based enforcement.
+
+### Quick Start
+
+```bash
+# Initialize a default policy file
+rad policy init
+
+# List all policy rules
+rad policy list
+
+# Check if a tool would be allowed
+rad policy check read_file config.toml
+
+# Validate policy file syntax
+rad policy validate
+```
+
+### Key Features
+
+- **TOML-based configuration** - Simple, declarative policy rules
+- **Priority-based matching** - Admin > User > Default priority tiers
+- **Pattern matching** - Glob patterns for tool names and arguments
+- **Approval modes** - Yolo, AutoEdit, and Ask modes for different security levels
+- **Session constitutions** - Per-session rules for temporary constraints
+
+### Example Configuration
+
+Create `.radium/policy.toml` in your workspace:
+
+```toml
+approval_mode = "ask"
+
+[[rules]]
+name = "Allow safe file operations"
+priority = "user"
+action = "allow"
+tool_pattern = "read_*"
+
+[[rules]]
+name = "Require approval for file writes"
+priority = "user"
+action = "ask_user"
+tool_pattern = "write_*"
+
+[[rules]]
+name = "Deny dangerous shell commands"
+priority = "admin"
+action = "deny"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "rm -rf *"
+```
+
+### Documentation
+
+- [Policy Engine Guide](docs/features/policy-engine.md) - Complete feature documentation
+- [Policy Best Practices](docs/security/policy-best-practices.md) - Security guidelines
+- [Example Configurations](examples/policy-examples.toml) - Example policy files
 
 ## Engine Management
 
