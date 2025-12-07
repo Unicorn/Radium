@@ -13,7 +13,7 @@ use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 use commands::{
-    agents, auth, autonomous, chat, checkpoint, clean, complete, context, craft, custom, doctor, extension, hooks, init, mcp, monitor, plan, run,
+    agents, auth, autonomous, chat, checkpoint, clean, complete, context, craft, custom, doctor, extension, hooks, init, learning, mcp, monitor, plan, run,
     sandbox, stats, status, step, templates, validate, vibecheck,
 };
 
@@ -316,6 +316,13 @@ enum Command {
     #[command(subcommand)]
     Context(commands::ContextCommand),
 
+    /// Learning system management
+    ///
+    /// Manage the learning system, including viewing mistakes, adding skills,
+    /// tagging skills, and viewing the skillbook.
+    #[command(subcommand)]
+    Learning(commands::learning::LearningCommand),
+
     /// Custom command management
     ///
     /// List, execute, create, and validate custom commands defined in TOML files.
@@ -491,6 +498,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Context(cmd) => {
             context::execute(cmd).await?;
+        }
+        Command::Learning(cmd) => {
+            learning::execute(cmd).await?;
         }
         Command::Custom(cmd) => {
             custom::execute(cmd).await?;
