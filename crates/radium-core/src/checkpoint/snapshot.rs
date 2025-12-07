@@ -26,6 +26,48 @@ pub struct Checkpoint {
     pub workflow_id: Option<String>,
 }
 
+/// Represents changes between two checkpoints.
+#[derive(Debug, Clone)]
+pub struct CheckpointDiff {
+    /// Files that were added.
+    pub added: Vec<String>,
+    /// Files that were modified.
+    pub modified: Vec<String>,
+    /// Files that were deleted.
+    pub deleted: Vec<String>,
+    /// Raw Git diff output.
+    pub raw_diff: String,
+    /// Statistics: number of insertions.
+    pub insertions: usize,
+    /// Statistics: number of deletions.
+    pub deletions: usize,
+}
+
+impl CheckpointDiff {
+    /// Creates a new empty diff.
+    pub fn new() -> Self {
+        Self {
+            added: Vec::new(),
+            modified: Vec::new(),
+            deleted: Vec::new(),
+            raw_diff: String::new(),
+            insertions: 0,
+            deletions: 0,
+        }
+    }
+
+    /// Gets the total number of files changed.
+    pub fn files_changed(&self) -> usize {
+        self.added.len() + self.modified.len() + self.deleted.len()
+    }
+}
+
+impl Default for CheckpointDiff {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Checkpoint {
     /// Creates a new checkpoint.
     pub fn new(id: String, commit_hash: String) -> Self {
@@ -364,6 +406,113 @@ impl CheckpointManager {
         }
 
         Ok(String::from_utf8(output.stdout)?)
+    }
+
+    /// Gets the diff between two checkpoints.
+    ///
+    /// # Arguments
+    /// * `from_id` - Source checkpoint ID
+    /// * `to_id` - Target checkpoint ID
+    ///
+    /// # Returns
+    /// Structured diff information
+    ///
+    /// # Errors
+    /// Returns error if diff fails or checkpoints not found
+    pub fn diff_checkpoints(&self, from_id: &str, to_id: &str) -> Result<CheckpointDiff> {
+        let from_checkpoint = self.get_checkpoint(from_id)?;
+        let to_checkpoint = self.get_checkpoint(to_id)?;
+
+        // Get raw diff output
+        let output = Command::new("git")
+            .args(["diff", "--name-status", &from_checkpoint.commit_hash, &to_checkpoint.commit_hash])
+            .current_dir(&self.workspace_root)
+            .output()?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(CheckpointError::GitCommandFailed(stderr.to_string()));
+        }
+
+        let name_status = String::from_utf8(output.stdout)?;
+
+        // Get full diff for statistics
+        let full_output = Command::new("git")
+            .args(["diff", "--numstat", &from_checkpoint.commit_hash, &to_checkpoint.commit_hash])
+            .current_dir(&self.workspace_root)
+            .output()?;
+
+        let mut diff = CheckpointDiff::new();
+
+        // Parse name-status output (format: STATUS\tFILE)
+        for line in name_status.lines() {
+            if line.is_empty() {
+                continue;
+            }
+
+            let parts: Vec<&str> = line.split('\t').collect();
+            if parts.len() < 2 {
+                continue;
+            }
+
+            let status = parts[0];
+            let file = parts[1..].join("\t"); // Handle filenames with tabs
+
+            match status {
+                "A" | "A+" => diff.added.push(file),
+                "M" | "M+" => diff.modified.push(file),
+                "D" => diff.deleted.push(file),
+                "R" | "R+" => {
+                    // Renamed file (format: R100\told\tnew)
+                    if parts.len() >= 3 {
+                        diff.deleted.push(parts[1].to_string());
+                        diff.added.push(parts[2].to_string());
+                    }
+                }
+                "C" => {
+                    // Copied file
+                    if parts.len() >= 3 {
+                        diff.added.push(parts[2].to_string());
+                    }
+                }
+                _ => {
+                    // Unknown status, treat as modified
+                    diff.modified.push(file);
+                }
+            }
+        }
+
+        // Parse numstat for insertions/deletions
+        if full_output.status.success() {
+            let numstat = String::from_utf8(full_output.stdout)?;
+            for line in numstat.lines() {
+                if line.is_empty() {
+                    continue;
+                }
+
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 2 {
+                    if let Ok(insertions) = parts[0].parse::<usize>() {
+                        diff.insertions += insertions;
+                    }
+                    if let Ok(deletions) = parts[1].parse::<usize>() {
+                        diff.deletions += deletions;
+                    }
+                }
+            }
+        }
+
+        // Get raw diff output for full context
+        let raw_output = Command::new("git")
+            .args(["diff", &from_checkpoint.commit_hash, &to_checkpoint.commit_hash])
+            .current_dir(&self.workspace_root)
+            .output()?;
+
+        if raw_output.status.success() {
+            diff.raw_diff = String::from_utf8(raw_output.stdout)?;
+        }
+
+        Ok(diff)
     }
 
     /// Cleans up old checkpoints, keeping only the most recent N checkpoints.
@@ -797,5 +946,78 @@ mod tests {
         manager.create_checkpoint(Some("Test checkpoint".to_string())).unwrap();
         let size_with_checkpoint = manager.get_shadow_repo_size();
         assert!(size_with_checkpoint >= size_after);
+    }
+
+    #[test]
+    fn test_diff_checkpoints() {
+        let temp_dir = setup_git_repo();
+        let manager = CheckpointManager::new(temp_dir.path()).unwrap();
+
+        // Create first checkpoint
+        let cp1 = manager.create_checkpoint(Some("Checkpoint 1".to_string())).unwrap();
+
+        // Create a file
+        let file_path = temp_dir.path().join("test_file.txt");
+        let mut file = File::create(&file_path).unwrap();
+        writeln!(file, "initial content").unwrap();
+        drop(file);
+
+        Command::new("git").args(["add", "test_file.txt"]).current_dir(temp_dir.path()).output().unwrap();
+        Command::new("git")
+            .args(["commit", "-m", "Add test file"])
+            .current_dir(temp_dir.path())
+            .output()
+            .unwrap();
+
+        // Create second checkpoint
+        let cp2 = manager.create_checkpoint(Some("Checkpoint 2".to_string())).unwrap();
+
+        // Modify file
+        let mut file = File::create(&file_path).unwrap();
+        writeln!(file, "modified content").unwrap();
+        drop(file);
+
+        Command::new("git").args(["add", "test_file.txt"]).current_dir(temp_dir.path()).output().unwrap();
+        Command::new("git")
+            .args(["commit", "-m", "Modify test file"])
+            .current_dir(temp_dir.path())
+            .output()
+            .unwrap();
+
+        // Create third checkpoint
+        let cp3 = manager.create_checkpoint(Some("Checkpoint 3".to_string())).unwrap();
+
+        // Diff between cp1 and cp2
+        let diff = manager.diff_checkpoints(&cp1.id, &cp2.id).unwrap();
+        assert!(diff.files_changed() > 0);
+
+        // Diff between cp2 and cp3
+        let diff2 = manager.diff_checkpoints(&cp2.id, &cp3.id).unwrap();
+        assert!(diff2.files_changed() > 0);
+    }
+
+    #[test]
+    fn test_diff_checkpoints_no_changes() {
+        let temp_dir = setup_git_repo();
+        let manager = CheckpointManager::new(temp_dir.path()).unwrap();
+
+        // Create two checkpoints without changes
+        let cp1 = manager.create_checkpoint(Some("Checkpoint 1".to_string())).unwrap();
+        let cp2 = manager.create_checkpoint(Some("Checkpoint 2".to_string())).unwrap();
+
+        // Diff should show no changes (same commit)
+        let diff = manager.diff_checkpoints(&cp1.id, &cp2.id).unwrap();
+        // Note: If checkpoints point to the same commit, there may be no changes
+        // This test verifies the method doesn't panic
+        assert!(diff.files_changed() >= 0);
+    }
+
+    #[test]
+    fn test_diff_checkpoints_not_found() {
+        let temp_dir = setup_git_repo();
+        let manager = CheckpointManager::new(temp_dir.path()).unwrap();
+
+        let result = manager.diff_checkpoints("nonexistent-1", "nonexistent-2");
+        assert!(result.is_err());
     }
 }

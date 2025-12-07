@@ -26,4 +26,4 @@ mod error;
 mod snapshot;
 
 pub use error::{CheckpointError, Result};
-pub use snapshot::{Checkpoint, CheckpointManager};
+pub use snapshot::{Checkpoint, CheckpointDiff, CheckpointManager};

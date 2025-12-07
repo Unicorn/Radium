@@ -2,7 +2,8 @@
 
 use anyhow::{Context, Result};
 use clap::Subcommand;
-use radium_core::checkpoint::CheckpointManager;
+use colored::Colorize;
+use radium_core::checkpoint::{CheckpointDiff, CheckpointManager};
 use radium_core::workspace::Workspace;
 
 /// Checkpoint subcommands
@@ -27,6 +28,18 @@ pub enum CheckpointCommand {
     },
     /// Show checkpoint repository information
     Info,
+    /// Show diff between two checkpoints
+    Diff {
+        /// Source checkpoint ID
+        from_id: String,
+        /// Target checkpoint ID
+        to_id: String,
+    },
+    /// Show changes in a checkpoint (from previous checkpoint)
+    Show {
+        /// Checkpoint ID to show
+        checkpoint_id: String,
+    },
 }
 
 /// Execute checkpoint command
@@ -44,6 +57,12 @@ pub async fn execute(cmd: CheckpointCommand) -> Result<()> {
         }
         CheckpointCommand::Cleanup { keep } => cleanup_command(&checkpoint_manager, keep).await,
         CheckpointCommand::Info => info_command(&checkpoint_manager).await,
+        CheckpointCommand::Diff { from_id, to_id } => {
+            diff_command(&checkpoint_manager, &from_id, &to_id).await
+        }
+        CheckpointCommand::Show { checkpoint_id } => {
+            show_command(&checkpoint_manager, &checkpoint_id).await
+        }
     }
 }
 
@@ -160,6 +179,135 @@ async fn info_command(checkpoint_manager: &CheckpointManager) -> Result<()> {
         if checkpoints.len() > 5 {
             println!("  ... and {} more", checkpoints.len() - 5);
         }
+    }
+
+    Ok(())
+}
+
+async fn diff_command(
+    checkpoint_manager: &CheckpointManager,
+    from_id: &str,
+    to_id: &str,
+) -> Result<()> {
+    println!("Diff between checkpoints:");
+    println!("  From: {}", from_id);
+    println!("  To:   {}", to_id);
+    println!();
+
+    let diff = checkpoint_manager
+        .diff_checkpoints(from_id, to_id)
+        .context(format!("Failed to diff checkpoints: {} -> {}", from_id, to_id))?;
+
+    // Display statistics
+    println!("Statistics:");
+    println!("  Files changed: {}", diff.files_changed());
+    println!("  Files added:    {}", diff.added.len().to_string().green());
+    println!("  Files modified: {}", diff.modified.len().to_string().yellow());
+    println!("  Files deleted:  {}", diff.deleted.len().to_string().red());
+    println!("  Insertions:     {}", diff.insertions.to_string().green());
+    println!("  Deletions:      {}", diff.deletions.to_string().red());
+    println!();
+
+    // Display file changes
+    if !diff.added.is_empty() {
+        println!("{}", "Added files:".green().bold());
+        for file in &diff.added {
+            println!("  + {}", file.green());
+        }
+        println!();
+    }
+
+    if !diff.modified.is_empty() {
+        println!("{}", "Modified files:".yellow().bold());
+        for file in &diff.modified {
+            println!("  ~ {}", file.yellow());
+        }
+        println!();
+    }
+
+    if !diff.deleted.is_empty() {
+        println!("{}", "Deleted files:".red().bold());
+        for file in &diff.deleted {
+            println!("  - {}", file.red());
+        }
+        println!();
+    }
+
+    if diff.files_changed() == 0 {
+        println!("No changes between checkpoints.");
+    }
+
+    Ok(())
+}
+
+async fn show_command(
+    checkpoint_manager: &CheckpointManager,
+    checkpoint_id: &str,
+) -> Result<()> {
+    let checkpoints = checkpoint_manager.list_checkpoints()?;
+
+    // Find the checkpoint and its position
+    let current_idx = checkpoints
+        .iter()
+        .position(|cp| cp.id == checkpoint_id)
+        .context(format!("Checkpoint not found: {}", checkpoint_id))?;
+
+    if current_idx == 0 {
+        println!("This is the most recent checkpoint. No previous checkpoint to compare against.");
+        return Ok(());
+    }
+
+    // Get the previous checkpoint
+    let previous_id = &checkpoints[current_idx - 1].id;
+
+    println!("Showing changes in checkpoint: {}", checkpoint_id);
+    println!("Comparing with previous checkpoint: {}", previous_id);
+    println!();
+
+    let diff = checkpoint_manager
+        .diff_checkpoints(previous_id, checkpoint_id)
+        .context(format!(
+            "Failed to diff checkpoints: {} -> {}",
+            previous_id, checkpoint_id
+        ))?;
+
+    // Display statistics
+    println!("Statistics:");
+    println!("  Files changed: {}", diff.files_changed());
+    println!("  Files added:    {}", diff.added.len().to_string().green());
+    println!("  Files modified: {}", diff.modified.len().to_string().yellow());
+    println!("  Files deleted:  {}", diff.deleted.len().to_string().red());
+    println!("  Insertions:     {}", diff.insertions.to_string().green());
+    println!("  Deletions:      {}", diff.deletions.to_string().red());
+    println!();
+
+    // Display file changes
+    if !diff.added.is_empty() {
+        println!("{}", "Added files:".green().bold());
+        for file in &diff.added {
+            println!("  + {}", file.green());
+        }
+        println!();
+    }
+
+    if !diff.modified.is_empty() {
+        println!("{}", "Modified files:".yellow().bold());
+        for file in &diff.modified {
+            println!("  ~ {}", file.yellow());
+        }
+        println!();
+    }
+
+    if !diff.deleted.is_empty() {
+        println!("{}", "Deleted files:".red().bold());
+        for file in &diff.deleted {
+            println!("  - {}", file.red());
+        }
+        println!();
+    }
+
+    if diff.files_changed() == 0 {
+        println!("No changes from previous checkpoint.");
     }
 
     Ok(())
