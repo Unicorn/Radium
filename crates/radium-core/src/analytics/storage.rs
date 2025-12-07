@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+use uuid::Uuid;
 
 /// Lightweight session metadata for efficient listing.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -36,15 +37,60 @@ impl SessionStorage {
         Ok(Self { sessions_dir })
     }
 
-    /// Save a session report to disk.
+    /// Save a session report to disk using atomic write pattern.
+    ///
+    /// This ensures that concurrent writes to the same session file
+    /// don't result in corrupted data. The write is atomic: either
+    /// the complete file is written or the original file remains unchanged.
     pub fn save_report(&self, report: &SessionReport) -> Result<PathBuf> {
         let filename = format!("{}.json", report.metrics.session_id);
         let file_path = self.sessions_dir.join(&filename);
 
         let json = serde_json::to_string_pretty(report)?;
-        fs::write(&file_path, json)?;
+        self.atomic_write(&file_path, &json)?;
 
         Ok(file_path)
+    }
+
+    /// Write content to a file atomically using temp file + rename pattern.
+    ///
+    /// This prevents data corruption from concurrent writes by:
+    /// 1. Writing to a temporary file with a unique name
+    /// 2. Atomically renaming the temp file to the final destination
+    ///
+    /// The atomic rename is guaranteed by the OS, ensuring that either
+    /// the complete file exists or the original file remains unchanged.
+    fn atomic_write(&self, file_path: &Path, content: &str) -> Result<()> {
+        // Generate unique temporary filename
+        let temp_suffix = Uuid::new_v4().to_string();
+        let temp_filename = format!(
+            "{}.tmp.{}",
+            file_path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("session"),
+            temp_suffix
+        );
+        let temp_path = file_path
+            .parent()
+            .unwrap_or(&self.sessions_dir)
+            .join(&temp_filename);
+
+        // Write to temporary file
+        fs::write(&temp_path, content).map_err(|e| {
+            // Clean up temp file on write error
+            let _ = fs::remove_file(&temp_path);
+            anyhow::anyhow!("Failed to write temporary file: {}", e)
+        })?;
+
+        // Atomically rename temp file to final destination
+        fs::rename(&temp_path, file_path).map_err(|e| {
+            // Clean up temp file on rename error
+            let _ = fs::remove_file(&temp_path);
+            anyhow::anyhow!("Failed to atomically rename file: {}", e)
+        })?;
+
+        Ok(())
     }
 
     /// Load a session report by session ID.

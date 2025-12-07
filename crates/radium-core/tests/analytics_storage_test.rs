@@ -408,3 +408,76 @@ fn test_session_storage_list_report_metadata() {
     assert_eq!(metadata[0].tool_calls, 10);
 }
 
+#[test]
+fn test_session_storage_atomic_write_concurrent_safety() {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let workspace_root = temp_dir.path();
+    
+    let storage = SessionStorage::new(workspace_root).expect("Failed to create storage");
+    
+    // Create two different reports with the same session ID
+    let report1 = create_test_report("concurrent-session");
+    let mut report2 = create_test_report("concurrent-session");
+    report2.metrics.tool_calls = 999; // Make it clearly different
+    
+    // Simulate concurrent writes by saving both in sequence
+    // In a real concurrent scenario, both would try to write simultaneously
+    // The atomic write ensures the final file is complete (not corrupted)
+    let result1 = storage.save_report(&report1);
+    let result2 = storage.save_report(&report2);
+    
+    // Both should succeed (last write wins)
+    assert!(result1.is_ok(), "First write should succeed");
+    assert!(result2.is_ok(), "Second write should succeed");
+    
+    // Load the final file - it should contain complete JSON from one of the writes
+    let loaded = storage.load_report("concurrent-session").expect("Failed to load report");
+    
+    // The final file should be complete and valid (not a mix of both)
+    // It should match either report1 or report2 completely
+    let matches_report1 = loaded.metrics.tool_calls == report1.metrics.tool_calls;
+    let matches_report2 = loaded.metrics.tool_calls == report2.metrics.tool_calls;
+    
+    assert!(matches_report1 || matches_report2, 
+            "Final file should contain complete data from one write, not corrupted mix");
+    
+    // Verify the file is valid JSON (not corrupted)
+    let file_path = storage.sessions_dir().join("concurrent-session.json");
+    let content = fs::read_to_string(&file_path).expect("Failed to read file");
+    let _: serde_json::Value = serde_json::from_str(&content)
+        .expect("File should contain valid JSON, not corrupted data");
+}
+
+#[test]
+fn test_session_storage_atomic_write_no_temp_files_left() {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let workspace_root = temp_dir.path();
+    
+    let storage = SessionStorage::new(workspace_root).expect("Failed to create storage");
+    let report = create_test_report("cleanup-test-session");
+    
+    // Save a report
+    storage.save_report(&report).expect("Failed to save report");
+    
+    // Check that no .tmp files were left behind
+    let sessions_dir = storage.sessions_dir();
+    let entries: Vec<_> = fs::read_dir(sessions_dir)
+        .expect("Failed to read directory")
+        .map(|e| e.expect("Failed to read entry"))
+        .collect();
+    
+    // Should only have the .json file, no .tmp files
+    let temp_files: Vec<_> = entries
+        .iter()
+        .filter(|e| {
+            e.path()
+                .file_name()
+                .and_then(|n| n.to_str())
+                .map(|n| n.contains(".tmp"))
+                .unwrap_or(false)
+        })
+        .collect();
+    
+    assert_eq!(temp_files.len(), 0, "No temporary files should be left behind");
+}
+
