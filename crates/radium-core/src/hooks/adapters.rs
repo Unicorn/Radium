@@ -6,7 +6,7 @@
 use crate::hooks::error::Result;
 use crate::hooks::registry::{Hook, HookRegistry, HookType};
 use crate::hooks::types::{HookContext, HookPriority, HookResult as HookExecutionResult};
-use crate::workflow::behaviors::{BehaviorAction, BehaviorError, BehaviorEvaluator};
+use crate::workflow::behaviors::{BehaviorEvaluator, BehaviorError};
 use async_trait::async_trait;
 use std::path::Path;
 use std::sync::Arc;
@@ -34,11 +34,23 @@ impl<E: BehaviorEvaluator> BehaviorEvaluatorAdapter<E> {
         priority: HookPriority,
         hook_type: HookType,
     ) -> Self {
-        Self { evaluator, name: name.into(), priority, hook_type }
+        Self {
+            evaluator,
+            name: name.into(),
+            priority,
+            hook_type,
+        }
     }
 
     /// Create an adapter for workflow step hooks.
-    pub fn for_workflow_step(evaluator: Arc<E>, name: impl Into<String>) -> Arc<dyn Hook> {
+    pub fn for_workflow_step(
+        evaluator: Arc<E>,
+        name: impl Into<String>,
+    ) -> Arc<dyn Hook>
+    where
+        E: Send + Sync + 'static,
+        E::Decision: Send + 'static,
+    {
         Arc::new(Self {
             evaluator,
             name: name.into(),
@@ -49,8 +61,9 @@ impl<E: BehaviorEvaluator> BehaviorEvaluatorAdapter<E> {
 }
 
 #[async_trait]
-impl<E: BehaviorEvaluator + Send + Sync + 'static> Hook for BehaviorEvaluatorAdapter<E>
+impl<E> Hook for BehaviorEvaluatorAdapter<E>
 where
+    E: BehaviorEvaluator + Send + Sync + 'static,
     E::Decision: Send + 'static,
 {
     fn name(&self) -> &str {
@@ -67,10 +80,17 @@ where
 
     async fn execute(&self, context: &HookContext) -> Result<HookExecutionResult> {
         // Extract behavior file path and output from context
-        let behavior_file =
-            context.data.get("behavior_file").and_then(|v| v.as_str()).map(Path::new);
+        let behavior_file = context
+            .data
+            .get("behavior_file")
+            .and_then(|v| v.as_str())
+            .map(Path::new);
 
-        let output = context.data.get("output").and_then(|v| v.as_str()).unwrap_or("");
+        let output = context
+            .data
+            .get("output")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
 
         // If no behavior file, return success (no behavior to evaluate)
         let Some(behavior_path) = behavior_file else {
@@ -110,20 +130,16 @@ pub struct BehaviorHookRegistrar;
 
 impl BehaviorHookRegistrar {
     /// Register a behavior evaluator as a hook.
-    pub async fn register_behavior_hook<E: BehaviorEvaluator + Send + Sync + 'static>(
+    pub async fn register_behavior_hook<E>(
         registry: &HookRegistry,
         evaluator: Arc<E>,
         name: impl Into<String>,
         priority: HookPriority,
     ) -> Result<()>
     where
+        E: BehaviorEvaluator + Send + Sync + 'static,
         E::Decision: Send + 'static,
     {
-        registry: &HookRegistry,
-        evaluator: Arc<E>,
-        name: impl Into<String>,
-        priority: HookPriority,
-    ) -> Result<()> {
         let adapter = BehaviorEvaluatorAdapter::new(
             evaluator,
             name,
