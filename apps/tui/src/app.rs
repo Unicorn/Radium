@@ -70,7 +70,7 @@ impl App {
         // Initialize MCP integration (will be loaded asynchronously)
         let mcp_integration = workspace_status.as_ref().and_then(|ws| {
             if let Some(root) = &ws.root {
-                let workspace = radium_core::Workspace::new(root.clone());
+                let _workspace = radium_core::Workspace::create(root.clone()).ok();
                 let integration = Arc::new(Mutex::new(McpIntegration::new()));
                 // Initialize asynchronously - will be done on first use
                 Some(integration)
@@ -119,7 +119,7 @@ impl App {
     async fn ensure_orchestration_service(&mut self) -> Result<()> {
         if self.orchestration_service.is_none() && self.orchestration_enabled {
             let config = OrchestrationConfig::default();
-            match OrchestrationService::initialize(config).await {
+            match OrchestrationService::initialize(config, None).await {
                 Ok(service) => {
                     self.orchestration_service = Some(Arc::new(service));
                 }
@@ -373,14 +373,16 @@ impl App {
             _ => {
                 // Check if it's an MCP slash command
                 let full_command = format!("/{}", cmd.name);
-                if let Some(prompt) = self.mcp_slash_registry.get_command(&full_command) {
+                let mcp_prompt = self.mcp_slash_registry.get_command(&full_command).cloned();
+                if let Some(prompt) = mcp_prompt {
                     // Execute MCP prompt
-                    self.execute_mcp_prompt(&full_command, prompt, &cmd.args).await?;
+                    self.execute_mcp_prompt(&full_command, &prompt, &cmd.args).await?;
                 } else {
                     // Try to load MCP prompts if not found
                     self.ensure_mcp_loaded().await?;
-                    if let Some(prompt) = self.mcp_slash_registry.get_command(&full_command) {
-                        self.execute_mcp_prompt(&full_command, prompt, &cmd.args).await?;
+                    let mcp_prompt = self.mcp_slash_registry.get_command(&full_command).cloned();
+                    if let Some(prompt) = mcp_prompt {
+                        self.execute_mcp_prompt(&full_command, &prompt, &cmd.args).await?;
                     } else {
                         self.prompt_data
                             .add_output(format!("Unknown command: /{}. Type /help for help.", cmd.name));
@@ -470,8 +472,9 @@ impl App {
             if integration.lock().await.connected_server_count().await == 0 {
                 if let Some(ref ws_status) = self.workspace_status {
                     if let Some(ref root) = ws_status.root {
-                        let workspace = radium_core::Workspace::new(root.clone());
-                        integration.lock().await.initialize(&workspace).await?;
+                        if let Some(workspace) = radium_core::Workspace::create(root.clone()).ok() {
+                            integration.lock().await.initialize(&workspace).await?;
+                        }
                         
                         // Load prompts
                         let prompts = integration.lock().await.get_all_prompts().await;
@@ -932,7 +935,7 @@ impl App {
         // Reinitialize service with new provider
         self.prompt_data.add_output(format!("🔄 Switching to {}...", provider_type));
 
-        match OrchestrationService::initialize(config).await {
+        match OrchestrationService::initialize(config, None).await {
             Ok(service) => {
                 self.orchestration_service = Some(Arc::new(service));
                 self.prompt_data.add_output(format!(
