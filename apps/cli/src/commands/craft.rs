@@ -3,12 +3,15 @@
 //! Executes a generated plan through its iterations and tasks.
 
 use anyhow::{Context, bail};
+use chrono::Utc;
 use colored::Colorize;
 use radium_core::{
-    context::ContextFileLoader, ExecutionConfig, PlanDiscovery, PlanExecutor, PlanManifest,
-    PlanStatus, RequirementId, Workspace,
+    analytics::{ReportFormatter, SessionAnalytics, SessionReport, SessionStorage},
+    context::ContextFileLoader, ExecutionConfig, monitoring::MonitoringService, PlanDiscovery,
+    PlanExecutor, PlanManifest, PlanStatus, RequirementId, Workspace,
 };
 use radium_models::ModelFactory;
+use uuid::Uuid;
 
 /// Execute the craft command.
 ///
@@ -94,6 +97,15 @@ pub async fn execute(
     let loader = ContextFileLoader::new(&workspace_root);
     let context_files = loader.load_hierarchical(&plan_dir).unwrap_or_default();
 
+    // Generate session ID for tracking
+    let session_id = Uuid::new_v4().to_string();
+    let session_start_time = Utc::now();
+    let mut executed_agent_ids = Vec::new();
+    
+    // Open monitoring service for agent tracking
+    let monitoring_path = workspace.radium_dir().join("monitoring.db");
+    let monitoring = MonitoringService::open(&monitoring_path).ok();
+
     // Execute the plan
     println!();
     println!("{}", "Executing plan...".bold());
@@ -103,16 +115,51 @@ pub async fn execute(
     }
     println!();
 
-    execute_plan(
-        &mut manifest,
-        &manifest_path,
-        iteration.as_deref(),
-        task.as_deref(),
-        resume,
-        json,
-        if context_files.is_empty() { None } else { Some(context_files) },
-    )
-    .await?;
+    {
+        let mut agent_ids = executed_agent_ids;
+        execute_plan(
+            &mut manifest,
+            &manifest_path,
+            iteration.as_deref(),
+            task.as_deref(),
+            resume,
+            json,
+            if context_files.is_empty() { None } else { Some(context_files) },
+            Some(&mut agent_ids),
+            &session_id,
+            monitoring.as_ref(),
+        )
+        .await?;
+        executed_agent_ids = agent_ids;
+    }
+
+    // Generate and display session report
+    let session_end_time = Some(Utc::now());
+    
+    // Generate session metrics if we have monitoring and agent IDs
+    if let Some(monitoring) = monitoring {
+        if !executed_agent_ids.is_empty() {
+            let analytics = SessionAnalytics::new(monitoring);
+            
+            // Generate session metrics
+            if let Ok(metrics) = analytics.generate_session_metrics_with_workspace(
+                &session_id,
+                &executed_agent_ids,
+                session_start_time,
+                session_end_time,
+                Some(workspace.root()),
+            ) {
+                let report = SessionReport::new(metrics);
+                
+                // Save report
+                let storage = SessionStorage::new(workspace.root())?;
+                if let Ok(_) = storage.save_report(&report) {
+                    // Display session summary
+                    display_session_summary(&report);
+                }
+            }
+        }
+    }
 
     println!();
     println!("{}", "Plan execution completed!".green().bold());
@@ -161,6 +208,27 @@ fn display_plan_info(project_name: &str, manifest: &PlanManifest) -> anyhow::Res
     Ok(())
 }
 
+/// Display session summary at end of execution.
+fn display_session_summary(report: &SessionReport) {
+    println!();
+    println!("{}", "─".repeat(60).dimmed());
+    println!("{}", "Session Summary".bold().cyan());
+    println!("{}", "─".repeat(60).dimmed());
+    
+    let formatter = ReportFormatter;
+    let summary = formatter.format(report);
+    
+    // Print a condensed version (first few lines)
+    for line in summary.lines().take(15) {
+        println!("{}", line);
+    }
+    
+    println!();
+    println!("  {} Full report: {}", "💡".cyan(), format!("rad stats session {}", report.metrics.session_id).dimmed());
+    println!("{}", "─".repeat(60).dimmed());
+    println!();
+}
+
 /// Execute the plan with state persistence.
 async fn execute_plan(
     manifest: &mut PlanManifest,
@@ -170,6 +238,9 @@ async fn execute_plan(
     resume: bool,
     _json: bool,
     context_files: Option<String>,
+    executed_agent_ids: Option<&mut Vec<String>>,
+    session_id: &str,
+    monitoring: Option<&MonitoringService>,
 ) -> anyhow::Result<()> {
     // Create executor with configuration
     let config = ExecutionConfig {
@@ -253,6 +324,25 @@ async fn execute_plan(
             println!("      {} Agent: {}", "•".dimmed(), agent_id.cyan());
             println!("      {} Executing...", "•".cyan());
 
+            // Register agent in monitoring for session tracking
+            // Create agent ID that includes session context for lookup
+            let tracked_agent_id = format!("{}-{}", session_id, agent_id);
+            if let Some(monitoring) = monitoring {
+                use radium_core::monitoring::{AgentRecord, AgentStatus};
+                let mut agent_record = AgentRecord::new(tracked_agent_id.clone(), agent_id.clone());
+                agent_record.plan_id = Some(session_id.to_string());
+                if let Err(e) = monitoring.register_agent(&agent_record) {
+                    eprintln!("      {} Warning: Failed to register agent: {}", "⚠".yellow(), e);
+                } else {
+                    let _ = monitoring.update_status(&tracked_agent_id, AgentStatus::Running);
+                }
+            }
+
+            // Track agent ID for session analytics
+            if let Some(ref mut agent_ids) = executed_agent_ids {
+                agent_ids.push(tracked_agent_id.clone());
+            }
+
             // Create model instance
             let engine = "mock"; // Default to mock for now
             let model_id = String::new();
@@ -298,6 +388,23 @@ async fn execute_plan(
                                 prompt.to_string().dimmed(),
                                 completion.to_string().dimmed()
                             );
+                            
+                            // Record telemetry if monitoring is available
+                            if let Some(monitoring) = monitoring {
+                                use radium_core::monitoring::{TelemetryRecord, TelemetryTracking};
+                                let mut telemetry = TelemetryRecord::new(tracked_agent_id.clone())
+                                    .with_tokens(prompt as u64, completion as u64);
+                                telemetry.calculate_cost();
+                                if let Err(e) = monitoring.record_telemetry(&telemetry).await {
+                                    eprintln!("      {} Warning: Failed to record telemetry: {}", "⚠".yellow(), e);
+                                }
+                            }
+                        }
+
+                        // Complete agent in monitoring
+                        if let Some(monitoring) = monitoring {
+                            use radium_core::monitoring::AgentStatus;
+                            let _ = monitoring.complete_agent(&tracked_agent_id, 0);
                         }
 
                         // Mark task as complete

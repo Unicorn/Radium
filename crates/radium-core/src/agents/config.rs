@@ -78,6 +78,77 @@ impl std::fmt::Display for ReasoningEffort {
     }
 }
 
+/// Model class categories for agent selection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ModelClass {
+    /// Fast models (e.g., Flash, Mini) - optimized for speed.
+    Fast,
+
+    /// Balanced models (e.g., Pro, 4o) - balanced speed and quality.
+    Balanced,
+
+    /// Reasoning models (e.g., o1, Thinking) - optimized for deep reasoning.
+    Reasoning,
+}
+
+impl std::fmt::Display for ModelClass {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Fast => write!(f, "fast"),
+            Self::Balanced => write!(f, "balanced"),
+            Self::Reasoning => write!(f, "reasoning"),
+        }
+    }
+}
+
+/// Cost tier for agent model selection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CostTier {
+    /// Low cost tier.
+    Low,
+
+    /// Medium cost tier.
+    Medium,
+
+    /// High cost tier.
+    High,
+}
+
+impl std::fmt::Display for CostTier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Low => write!(f, "low"),
+            Self::Medium => write!(f, "medium"),
+            Self::High => write!(f, "high"),
+        }
+    }
+}
+
+/// Agent capabilities for dynamic selection.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AgentCapabilities {
+    /// Model class category for this agent.
+    pub model_class: ModelClass,
+
+    /// Cost tier for this agent's models.
+    pub cost_tier: CostTier,
+
+    /// Maximum number of concurrent tasks this agent can handle.
+    pub max_concurrent_tasks: usize,
+}
+
+impl Default for AgentCapabilities {
+    fn default() -> Self {
+        Self {
+            model_class: ModelClass::Balanced,
+            cost_tier: CostTier::Medium,
+            max_concurrent_tasks: 5,
+        }
+    }
+}
+
 /// Agent configuration file (TOML format).
 ///
 /// This is the structure of an agent configuration file, typically stored at
@@ -353,6 +424,13 @@ pub struct AgentConfig {
     /// This is not stored in the TOML, but set during loading.
     #[serde(skip)]
     pub file_path: Option<PathBuf>,
+
+    /// Agent capabilities for dynamic selection.
+    ///
+    /// Defines the agent's model class, cost tier, and concurrency limits.
+    /// If not specified, defaults to Balanced/Medium/5.
+    #[serde(default)]
+    pub capabilities: AgentCapabilities,
 }
 
 impl AgentConfig {
@@ -371,6 +449,7 @@ impl AgentConfig {
             trigger_behavior: None,
             category: None,
             file_path: None,
+            capabilities: AgentCapabilities::default(),
         }
     }
 
@@ -427,6 +506,13 @@ impl AgentConfig {
     #[must_use]
     pub fn with_trigger_behavior(mut self, config: AgentTriggerBehavior) -> Self {
         self.trigger_behavior = Some(config);
+        self
+    }
+
+    /// Set the agent capabilities.
+    #[must_use]
+    pub fn with_capabilities(mut self, capabilities: AgentCapabilities) -> Self {
+        self.capabilities = capabilities;
         self
     }
 }

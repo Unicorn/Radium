@@ -1954,9 +1954,11 @@ dependencies = [
  "tabled",
  "tempfile",
  "tokio",
+ "toml",
  "tonic",
  "tracing",
  "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]

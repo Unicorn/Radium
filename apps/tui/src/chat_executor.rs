@@ -103,7 +103,16 @@ pub async fn execute_chat_message(
 }
 
 /// Load prompt from file.
+///
+/// Search order (precedence from highest to lowest):
+/// 1. Absolute path (if provided)
+/// 2. Relative to current directory
+/// 3. Relative to workspace root
+/// 4. Relative to home directory (.radium/)
+/// 5. Extension prompt directories (project-level, then user-level)
 fn load_prompt(prompt_path: &PathBuf) -> Result<String> {
+    use radium_core::extensions::integration::get_extension_prompt_dirs;
+
     // Try as absolute path first
     if prompt_path.is_absolute() && prompt_path.exists() {
         return Ok(fs::read_to_string(prompt_path)?);
@@ -127,6 +136,19 @@ fn load_prompt(prompt_path: &PathBuf) -> Result<String> {
         let home_path = std::path::PathBuf::from(home).join(".radium").join(prompt_path);
         if home_path.exists() {
             return Ok(fs::read_to_string(home_path)?);
+        }
+    }
+
+    // Try extension prompt directories (lowest precedence)
+    // Extract just the filename from the path to search in extension directories
+    if let Some(file_name) = prompt_path.file_name() {
+        if let Ok(extension_dirs) = get_extension_prompt_dirs() {
+            for ext_dir in extension_dirs {
+                let ext_prompt_path = ext_dir.join(file_name);
+                if ext_prompt_path.exists() {
+                    return Ok(fs::read_to_string(ext_prompt_path)?);
+                }
+            }
         }
     }
 
