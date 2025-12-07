@@ -14,6 +14,9 @@ Radium is a high-performance, Rust-based platform for creating, managing, and de
 - **📊 Comprehensive Monitoring**: Real-time tracking of agents and workflows
 - **📈 Session Analytics**: Track costs, performance, and optimize agent sessions
 - **🔧 Auto-Managed Server**: Embedded server lifecycle management for seamless deployment
+- **🧠 Metacognitive Oversight (Vibe Check)**: Chain-Pattern Interrupt system for preventing reasoning lock-in (+27% success rate, -41% harmful actions)
+- **📚 Learning System**: Track mistakes, preferences, and successes to build pattern recognition
+- **📖 ACE Skillbook**: Learn and apply successful strategies from past work
 
 ## Quick Start
 
@@ -293,6 +296,56 @@ rad stats export --output analytics.json
 
 - [Session Analytics Guide](docs/features/session-analytics.md) - Complete feature documentation
 - [Optimizing Costs](docs/guides/optimizing-costs.md) - Strategies for reducing session costs
+
+## Metacognitive Oversight (Vibe Check)
+
+Radium's Vibe Check system provides Chain-Pattern Interrupt (CPI) functionality to prevent reasoning lock-in and improve agent alignment. Research shows CPI systems improve agent success rates by +27% and reduce harmful actions by -41%.
+
+### Quick Start
+
+```bash
+# Manual vibe check
+rad vibecheck --goal "Build feature" --plan "Use React and Node.js"
+
+# With phase specification
+rad vibecheck --phase planning --goal "Design API" --plan "REST API"
+
+# JSON output
+rad vibecheck --goal "Test" --plan "Test plan" --json
+```
+
+### Key Features
+
+- **Phase-Aware Feedback**: Oversight adapts to planning, implementation, and review phases
+- **Learning Integration**: Mistakes and successes are automatically captured
+- **Risk Assessment**: Risk scores (0.0-1.0) indicate potential issues
+- **Pattern Detection**: Identifies traits like Complex Solution Bias, Feature Creep
+- **Constitution Rules**: Session-scoped rules for workflow constraints
+
+### Learning System
+
+The learning system tracks mistakes, preferences, and successes:
+
+```bash
+# List learning entries
+rad learning list
+
+# Add a mistake
+rad learning add-mistake --category "Feature Creep" --description "Added unnecessary feature"
+
+# View skillbook
+rad learning show-skillbook
+
+# Tag a skill
+rad learning tag-skill --skill-id "skill-00001" --tag "helpful"
+```
+
+### Documentation
+
+- [Vibe Check User Guide](docs/user-guide/vibe-check.md) - Complete usage guide
+- [Learning System Guide](docs/user-guide/learning-system.md) - Learning system documentation
+- [Constitution Rules Guide](docs/user-guide/constitution-rules.md) - Session rules documentation
+- [Vibe Check Workflow Example](docs/examples/vibe-check-workflow.md) - Complete workflow example
 
 ## Documentation
 
