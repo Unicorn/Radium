@@ -1,7 +1,7 @@
 //! Policy management commands.
 
 use clap::Subcommand;
-use radium_core::policy::{ApprovalMode, PolicyEngine};
+use radium_core::policy::{ApprovalMode, PolicyEngine, merge_template, PolicyTemplate, TemplateDiscovery};
 use radium_core::workspace::Workspace;
 use std::path::PathBuf;
 
@@ -73,6 +73,43 @@ pub enum PolicyCommand {
         /// Rule name to remove
         name: String,
     },
+
+    /// Policy template management
+    Templates {
+        #[command(subcommand)]
+        command: TemplateCommand,
+    },
+}
+
+/// Template management commands.
+#[derive(Subcommand, Debug)]
+pub enum TemplateCommand {
+    /// List available policy templates
+    List,
+    /// Show template contents
+    Show {
+        /// Template name
+        name: String,
+    },
+    /// Apply a template to workspace
+    Apply {
+        /// Template name
+        name: String,
+        /// Merge with existing rules (default: append)
+        #[arg(long)]
+        merge: bool,
+        /// Replace all existing rules
+        #[arg(long)]
+        replace: bool,
+        /// Preview changes without applying
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Validate template syntax
+    Validate {
+        /// Template name
+        name: String,
+    },
 }
 
 /// Execute policy command.
@@ -86,6 +123,7 @@ pub async fn execute_policy_command(command: PolicyCommand) -> anyhow::Result<()
             add_policy(name, priority, action, tool_pattern, arg_pattern, reason).await
         }
         PolicyCommand::Remove { name } => remove_policy(name).await,
+        PolicyCommand::Templates { command } => execute_template_command(command).await,
     }
 }
 
@@ -526,5 +564,151 @@ async fn remove_policy(name: String) -> anyhow::Result<()> {
     println!("✓ Removed policy rule: {}", name);
 
     Ok(())
+}
+
+/// Execute template command.
+async fn execute_template_command(command: TemplateCommand) -> anyhow::Result<()> {
+    match command {
+        TemplateCommand::List => list_templates().await,
+        TemplateCommand::Show { name } => show_template(name).await,
+        TemplateCommand::Apply { name, merge, replace, dry_run } => {
+            apply_template(name, merge, replace, dry_run).await
+        }
+        TemplateCommand::Validate { name } => validate_template(name).await,
+    }
+}
+
+/// List available policy templates.
+async fn list_templates() -> anyhow::Result<()> {
+    let workspace = Workspace::discover()?;
+    let templates_dir = workspace.root().join("templates");
+    let mut discovery = TemplateDiscovery::new(&templates_dir);
+    let templates = discovery.discover()?;
+
+    if templates.is_empty() {
+        println!("No policy templates found in {}", templates_dir.display());
+        println!();
+        println!("Templates should be placed in: templates/policies/*.toml");
+        return Ok(());
+    }
+
+    println!("Available Policy Templates");
+    println!("==========================");
+    println!();
+    for template in &templates {
+        println!("  {} - {}", template.name, template.description);
+    }
+    println!();
+    println!("Use 'rad policy templates show <name>' to view a template");
+    println!("Use 'rad policy templates apply <name>' to apply a template");
+
+    Ok(())
+}
+
+/// Show template contents.
+async fn show_template(name: String) -> anyhow::Result<()> {
+    let workspace = Workspace::discover()?;
+    let templates_dir = workspace.root().join("templates");
+    let mut discovery = TemplateDiscovery::new(&templates_dir);
+    discovery.discover()?;
+
+    let template = discovery.get_template(&name)
+        .ok_or_else(|| anyhow::anyhow!("Template '{}' not found", name))?;
+
+    println!("Template: {}", template.name);
+    println!("Description: {}", template.description);
+    println!("Path: {}", template.path.display());
+    println!();
+    println!("Content:");
+    println!("{}", "=".repeat(60));
+    let content = template.get_content()?;
+    println!("{}", content);
+
+    Ok(())
+}
+
+/// Apply a template to workspace.
+async fn apply_template(
+    name: String,
+    merge: bool,
+    replace: bool,
+    dry_run: bool,
+) -> anyhow::Result<()> {
+    let workspace = Workspace::discover()?;
+    let templates_dir = workspace.root().join("templates");
+    let policy_file = workspace.root().join(".radium").join("policy.toml");
+
+    let mut discovery = TemplateDiscovery::new(&templates_dir);
+    discovery.discover()?;
+
+    let template = discovery.get_template(&name)
+        .ok_or_else(|| anyhow::anyhow!("Template '{}' not found", name))?;
+
+    // Validate template first
+    let mut template_clone = template.clone();
+    template_clone.validate().map_err(|e| {
+        anyhow::anyhow!("Template validation failed: {}", e)
+    })?;
+
+    let template_content = template.get_content()?;
+
+    // Determine merge strategy
+    let should_replace = replace || (!merge && !policy_file.exists());
+
+    // Merge template
+    let merged_content = merge_template(&policy_file, &template_content, should_replace)?;
+
+    if dry_run {
+        println!("Dry run - preview of changes:");
+        println!("{}", "=".repeat(60));
+        println!("{}", merged_content);
+        println!("{}", "=".repeat(60));
+        println!();
+        println!("To apply, run without --dry-run");
+        return Ok(());
+    }
+
+    // Ensure .radium directory exists
+    if let Some(parent) = policy_file.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    // Write merged policy
+    std::fs::write(&policy_file, merged_content)?;
+
+    if should_replace {
+        println!("✓ Applied template '{}' (replaced existing rules)", name);
+    } else {
+        println!("✓ Applied template '{}' (merged with existing rules)", name);
+    }
+    println!("  Policy file: {}", policy_file.display());
+
+    Ok(())
+}
+
+/// Validate template syntax.
+async fn validate_template(name: String) -> anyhow::Result<()> {
+    let workspace = Workspace::discover()?;
+    let templates_dir = workspace.root().join("templates");
+    let mut discovery = TemplateDiscovery::new(&templates_dir);
+    discovery.discover()?;
+
+    let template = discovery.get_template(&name)
+        .ok_or_else(|| anyhow::anyhow!("Template '{}' not found", name))?
+        .clone();
+
+    let mut template_mut = template;
+    match template_mut.validate() {
+        Ok(()) => {
+            println!("✓ Template '{}' is valid", name);
+            println!("  Path: {}", template_mut.path.display());
+            Ok(())
+        }
+        Err(e) => {
+            eprintln!("✗ Template '{}' is invalid", name);
+            eprintln!("  Error: {}", e);
+            Err(anyhow::anyhow!("Template validation failed: {}", e))
+        }
+    }
 }
 

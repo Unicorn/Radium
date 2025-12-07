@@ -16,8 +16,8 @@ use commands::{
     agents, auth, budget, checkpoint, clean, context, craft, doctor, engines, extension, hooks, init, learning, monitor, plan, policy, run,
     sandbox, stats, status, step, validate,
     // Disabled commands (depend on disabled modules):
-    // autonomous, chat, complete, custom, mcp, vibecheck
-    templates,
+    // chat, custom, mcp
+    templates, complete, autonomous, vibecheck,
 };
 
 /// Radium CLI - Next-generation agentic orchestration tool
@@ -469,10 +469,9 @@ async fn main() -> anyhow::Result<()> {
         Command::Craft { plan_identifier, iteration, task, resume, dry_run, json, yolo, engine } => {
             craft::execute(plan_identifier, iteration, task, resume, dry_run, json, yolo, engine).await?;
         }
-        // DISABLED: Complete command
-        // Command::Complete { source } => {
-        //     complete::execute(source).await?;
-        // }
+        Command::Complete { source } => {
+            complete::execute(source).await?;
+        }
         Command::Run { script, model, dir } => {
             run::execute(script, model, dir).await?;
         }
@@ -492,10 +491,9 @@ async fn main() -> anyhow::Result<()> {
         Command::Status { json } => {
             status::execute(json).await?;
         }
-        // DISABLED: Vibecheck command
-        // Command::Vibecheck { phase, goal, plan, progress, task_context, json } => {
-        //     vibecheck::execute(phase, goal, plan, progress, task_context, json).await?;
-        // }
+        Command::Vibecheck { phase, goal, plan, progress, task_context, json } => {
+            vibecheck::execute(phase, goal, plan, progress, task_context, json).await?;
+        }
         Command::Clean { verbose, dir } => {
             clean::execute(verbose, dir).await?;
         }
@@ -555,10 +553,9 @@ async fn main() -> anyhow::Result<()> {
         Command::Validate { sources, json } => {
             validate::execute(sources, json).await?;
         }
-        // DISABLED: Autonomous command
-        // Command::Autonomous { goal } => {
-        //     autonomous::execute(goal).await?;
-        // }
+        Command::Autonomous { goal } => {
+            autonomous::execute(goal).await?;
+        }
         Command::Budget(cmd) => {
             budget::execute(cmd).await?;
         }

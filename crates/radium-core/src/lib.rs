@@ -24,9 +24,8 @@ pub mod auth;
 pub mod checkpoint;
 #[cfg(feature = "server")]
 pub mod client;
-#[cfg(feature = "orchestrator-integration")]
-pub mod collaboration;
-pub mod commands;
+// pub mod collaboration;  // TEMPORARILY DISABLED: depends on radium-orchestrator (circular dependency)
+// pub mod commands;  // TEMPORARILY DISABLED: depends on hooks/sandbox
 pub mod config;
 pub mod context;
 pub mod engines;
@@ -43,8 +42,7 @@ pub mod planning;
 pub mod policy;
 pub mod prompts;
 pub mod sandbox;
-#[cfg(feature = "orchestrator-integration")]
-pub mod server;
+// pub mod server;  // TEMPORARILY DISABLED: depends on radium-orchestrator (circular dependency)
 pub mod storage;
 #[cfg(feature = "workflow")]
 pub mod workflow;

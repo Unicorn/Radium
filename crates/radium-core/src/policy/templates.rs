@@ -2,13 +2,12 @@
 
 use crate::policy::{PolicyEngine, PolicyError, PolicyResult};
 use crate::workspace::Workspace;
-use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::fs;
 use std::collections::HashMap;
 
 /// Policy template metadata.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct PolicyTemplate {
     /// Template name (e.g., "development", "production").
     pub name: String,
@@ -17,7 +16,6 @@ pub struct PolicyTemplate {
     /// Path to template file.
     pub path: PathBuf,
     /// Template content (loaded on demand).
-    #[serde(skip)]
     content: Option<String>,
 }
 
@@ -44,7 +42,7 @@ impl PolicyTemplate {
     ///
     /// # Returns
     /// `Ok(())` if template is valid, or error if validation fails.
-    pub fn validate(&self) -> PolicyResult<()> {
+    pub fn validate(&mut self) -> PolicyResult<()> {
         let content = self.load_content().map_err(|e| {
             PolicyError::InvalidConfiguration(format!("Failed to read template: {}", e))
         })?;
@@ -154,8 +152,13 @@ impl TemplateDiscovery {
     /// # Returns
     /// Vector of (template_name, validation_result) tuples.
     pub fn validate_all(&mut self) -> Vec<(String, PolicyResult<()>)> {
-        self.templates.iter_mut()
-            .map(|(name, template)| (name.clone(), template.validate()))
+        self.templates
+            .values_mut()
+            .map(|template| {
+                let name = template.name.clone();
+                let result = template.validate();
+                (name, result)
+            })
             .collect()
     }
 }
@@ -208,16 +211,16 @@ pub fn merge_template(
         );
     } else {
         // Merge: append template rules to existing rules
-        let existing_rules = existing_config
-            .get_mut("rules")
-            .and_then(|v| v.as_array_mut())
-            .unwrap_or_else(|| {
-                let array = Value::Array(vec![]);
-                existing_config.as_table_mut().unwrap().insert("rules".to_string(), array.clone());
-                array.as_array_mut().unwrap()
-            });
-
-        existing_rules.extend(template_rules);
+        let existing_table = existing_config.as_table_mut().unwrap();
+        
+        // Get or create rules array
+        if !existing_table.contains_key("rules") {
+            existing_table.insert("rules".to_string(), Value::Array(vec![]));
+        }
+        
+        if let Some(Value::Array(existing_rules)) = existing_table.get_mut("rules") {
+            existing_rules.extend(template_rules);
+        }
     }
 
     // Convert back to TOML string

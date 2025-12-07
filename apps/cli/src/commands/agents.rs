@@ -2,7 +2,7 @@
 //!
 //! Provides commands for discovering, searching, and managing agents.
 
-use super::{AgentsCommand, MigrateSubcommand};
+use super::AgentsCommand;
 use colored::Colorize;
 use radium_core::agents::config::{AgentConfig, AgentConfigFile, ReasoningEffort};
 use radium_core::agents::discovery::AgentDiscovery;
@@ -55,7 +55,6 @@ pub async fn execute(command: AgentsCommand) -> anyhow::Result<()> {
         AgentsCommand::Stats { json } => show_agent_stats(json).await,
         AgentsCommand::Popular { limit, json } => show_popular_agents(limit, json).await,
         AgentsCommand::Performance { limit, json } => show_performance_metrics(limit, json).await,
-        AgentsCommand::Migrate { subcommand } => migrate_agents(subcommand).await,
         AgentsCommand::Create {
             id,
             name,
