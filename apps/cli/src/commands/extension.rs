@@ -35,12 +35,65 @@ async fn install_extension(
     let manager = ExtensionManager::new()?;
 
     println!("{}", format!("Installing extension from: {}", source).yellow());
+    println!("{}", "Validating extension package...".bright_black());
+
+    // Check if extension already exists and prompt for overwrite if needed
+    let mut should_overwrite = overwrite;
+    if !overwrite {
+        // Try to load manifest to get extension name
+        use radium_core::extensions::manifest::ExtensionManifest;
+        use std::path::Path;
+        
+        let source_path = if source.starts_with("http://") || source.starts_with("https://") {
+            // For URLs, we can't check ahead of time, so skip the check
+            None
+        } else {
+            Some(Path::new(source))
+        };
+        
+        if let Some(path) = source_path {
+            if path.exists() {
+                let manifest_path = if path.is_dir() {
+                    path.join("radium-extension.json")
+                } else {
+                    // For archives, we can't easily check without extracting
+                    // So we'll handle the error during installation
+                    path.to_path_buf()
+                };
+                
+                if manifest_path.exists() && manifest_path.is_file() {
+                    if let Ok(manifest) = ExtensionManifest::load(&manifest_path) {
+                        if let Ok(Some(existing)) = manager.get(&manifest.name) {
+                            println!(
+                                "{}",
+                                format!("⚠ Extension '{}' is already installed", existing.name).yellow()
+                            );
+                            println!("  Installed version: {}", existing.version.bright_black());
+                            println!("  New version: {}", manifest.version.bright_black());
+                            
+                            if let Ok(true) = Confirm::new("Overwrite existing extension?")
+                                .with_default(false)
+                                .prompt()
+                            {
+                                should_overwrite = true;
+                            } else {
+                                println!("{}", "Installation cancelled.".yellow());
+                                return Ok(());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     let options = InstallOptions {
-        overwrite,
+        overwrite: should_overwrite,
         install_dependencies: install_deps,
         validate_after_install: true,
     };
+
+    println!("{}", "Installing extension files...".bright_black());
 
     match manager.install_from_source(source, options) {
         Ok(extension) => {
@@ -52,10 +105,58 @@ async fn install_extension(
             if !extension.manifest.description.is_empty() {
                 println!("  Description: {}", extension.manifest.description.bright_black());
             }
+            
+            // Show component summary
+            let component_count = extension.manifest.components.prompts.len()
+                + extension.manifest.components.mcp_servers.len()
+                + extension.manifest.components.commands.len()
+                + extension.manifest.components.hooks.len();
+            
+            if component_count > 0 {
+                println!("  Components: {} total", component_count);
+            }
+            
+            if !extension.manifest.dependencies.is_empty() {
+                println!("  Dependencies: {}", extension.manifest.dependencies.join(", "));
+            }
+            
             Ok(())
         }
         Err(e) => {
-            println!("{}", format!("✗ Failed to install extension: {}", e).red());
+            let error_msg = format!("{}", e);
+            println!("{}", format!("✗ Failed to install extension: {}", error_msg).red());
+            
+            // Provide helpful suggestions based on error type
+            if error_msg.contains("manifest") || error_msg.contains("JSON") {
+                println!();
+                println!("{}", "💡 Troubleshooting tips:".yellow());
+                println!("  • Ensure radium-extension.json is valid JSON");
+                println!("  • Check that all required fields are present (name, version, description, author)");
+                println!("  • Verify the manifest file exists in the extension root");
+            } else if error_msg.contains("version") {
+                println!();
+                println!("{}", "💡 Troubleshooting tips:".yellow());
+                println!("  • Version must follow semantic versioning (e.g., 1.0.0)");
+                println!("  • Check the version field in radium-extension.json");
+            } else if error_msg.contains("name") {
+                println!();
+                println!("{}", "💡 Troubleshooting tips:".yellow());
+                println!("  • Extension name must start with a letter");
+                println!("  • Name can only contain letters, numbers, dashes, and underscores");
+                println!("  • Check the name field in radium-extension.json");
+            } else if error_msg.contains("already installed") || error_msg.contains("conflict") {
+                println!();
+                println!("{}", "💡 Troubleshooting tips:".yellow());
+                println!("  • Use --overwrite flag to replace existing extension");
+                println!("  • Or uninstall the existing extension first: rad extension uninstall <name>");
+            } else if error_msg.contains("dependency") {
+                println!();
+                println!("{}", "💡 Troubleshooting tips:".yellow());
+                println!("  • Use --install-deps flag to automatically install dependencies");
+                println!("  • Or install dependencies manually first");
+            }
+            
+            println!();
             println!("{}", "Run 'rad extension install --help' for usage examples.".dimmed());
             Err(anyhow::anyhow!("Installation failed: {}", e))
         }
@@ -66,18 +167,47 @@ async fn install_extension(
 async fn uninstall_extension(name: &str) -> anyhow::Result<()> {
     let manager = ExtensionManager::new()?;
 
-    println!("{}", format!("Uninstalling extension: {}", name).yellow());
-
-    match manager.uninstall(name) {
-        Ok(()) => {
-            println!("{}", format!("✓ Extension '{}' uninstalled successfully", name).green());
+    // Check if extension exists first
+    if let Ok(Some(extension)) = manager.get(name) {
+        println!("{}", format!("Uninstalling extension: {}", name).yellow());
+        println!("  Version: {}", extension.version.bright_black());
+        if !extension.manifest.description.is_empty() {
+            println!("  Description: {}", extension.manifest.description.bright_black());
+        }
+        
+        // Confirm uninstallation
+        if let Ok(true) = Confirm::new(&format!("Are you sure you want to uninstall '{}'?", name))
+            .with_default(false)
+            .prompt()
+        {
+            match manager.uninstall(name) {
+                Ok(()) => {
+                    println!("{}", format!("✓ Extension '{}' uninstalled successfully", name).green());
+                    Ok(())
+                }
+                Err(e) => {
+                    println!("{}", format!("✗ Failed to uninstall extension: {}", e).red());
+                    println!();
+                    println!("{}", "💡 Troubleshooting tips:".yellow());
+                    println!("  • Ensure the extension name is correct (case-sensitive)");
+                    println!("  • Check that the extension directory exists");
+                    println!();
+                    println!("{}", "Run 'rad extension list' to see installed extensions.".dimmed());
+                    Err(anyhow::anyhow!("Uninstallation failed: {}", e))
+                }
+            }
+        } else {
+            println!("{}", "Uninstallation cancelled.".yellow());
             Ok(())
         }
-        Err(e) => {
-            println!("{}", format!("✗ Failed to uninstall extension: {}", e).red());
-            println!("{}", "Run 'rad extension uninstall --help' for usage examples.".dimmed());
-            Err(anyhow::anyhow!("Uninstallation failed: {}", e))
-        }
+    } else {
+        println!("{}", format!("✗ Extension '{}' not found", name).red());
+        println!();
+        println!("{}", "💡 Troubleshooting tips:".yellow());
+        println!("  • Check the extension name is correct (case-sensitive)");
+        println!("  • Use 'rad extension list' to see installed extensions");
+        println!();
+        Err(anyhow::anyhow!("Extension not found: {}", name))
     }
 }
 
@@ -90,8 +220,18 @@ async fn list_extensions(json_output: bool, verbose: bool) -> anyhow::Result<()>
         if !json_output {
             println!("{}", "No extensions installed.".yellow());
             println!();
-            println!("Install extensions from a local directory:");
-            println!("  $ rad extension install ./my-extension");
+            println!("{}", "Get started:".bright_black());
+            println!("  Install from local directory:");
+            println!("    $ rad extension install ./my-extension");
+            println!();
+            println!("  Install from URL:");
+            println!("    $ rad extension install https://example.com/extension.tar.gz");
+            println!();
+            println!("  Create a new extension:");
+            println!("    $ rad extension create my-extension --author \"Your Name\"");
+            println!();
+            println!("  See examples:");
+            println!("    $ ls examples/extensions/");
         }
         return Ok(());
     }
