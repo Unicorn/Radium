@@ -70,7 +70,7 @@ use crate::models::PlanManifest;
 use crate::planning::dag::{DagError, DependencyGraph};
 use crate::planning::generator::PlanGenerator;
 use crate::planning::parser::{ParsedIteration, ParsedPlan, ParsedTask};
-use crate::workflow::templates::{WorkflowStep, WorkflowStepConfig, WorkflowStepType, WorkflowTemplate};
+// use crate::workflow::templates::{WorkflowStep, WorkflowStepConfig, WorkflowStepType, WorkflowTemplate};  // DISABLED: workflow module
 use radium_abstraction::Model;
 use std::sync::Arc;
 use thiserror::Error;
@@ -341,11 +341,57 @@ impl WorkflowGenerator {
     ///
     /// # Errors
     /// Returns error if workflow generation fails
+    /// DISABLED: workflow module is disabled
+    #[allow(dead_code)]
     pub fn generate_workflow(
         &self,
-        plan: &ParsedPlan,
-        dag: &DependencyGraph,
-    ) -> Result<WorkflowTemplate> {
+        _plan: &ParsedPlan,
+        _dag: &DependencyGraph,
+    ) -> Result<()> {
+        // DISABLED: workflow module
+        // Get topological sort for execution order
+        // let sorted_tasks = dag.topological_sort()?;
+
+        // Create workflow template
+        // let mut template = WorkflowTemplate::new(&plan.project_name);
+        // if let Some(desc) = &plan.description {
+        //     template = template.with_description(desc.clone());
+        // }
+
+        // Create steps in dependency order
+        // let mut step_order = 0u32;
+        // for task_id in sorted_tasks {
+        //     // Find the task in the plan
+        //     if let Some((iteration, task)) = self.find_task_in_plan(plan, &task_id) {
+        //         let agent_id = task.agent_id.as_deref().unwrap_or("auto");
+
+        //         let step_config = WorkflowStepConfig {
+        //             agent_id: agent_id.to_string(),
+        //             agent_name: Some(task.title.clone()),
+        //             step_type: WorkflowStepType::Step,
+        //             execute_once: false,
+        //             engine: None,
+        //             model: None,
+        //             model_reasoning_effort: None,
+        //             not_completed_fallback: None,
+        //             module: None,
+        //             label: None,
+        //         };
+
+        //         let step = WorkflowStep {
+        //             config: step_config,
+        //         };
+
+        //         template = template.add_step(step);
+        //         step_order += 1;
+        //     }
+        // }
+
+        // Ok(template)
+        Err(PlanningError::WorkflowGenerationFailed(
+            "Workflow module is disabled".to_string()
+        ))
+    }
         // Get topological sort for execution order
         let sorted_tasks = dag.topological_sort()?;
 
@@ -535,14 +581,20 @@ impl AutonomousPlanner {
         let dag = DependencyGraph::from_manifest(&manifest)?;
 
         // Step 4: Generate workflow
-        let workflow = self.workflow_generator.generate_workflow(&parsed_plan, &dag)?;
+        // DISABLED: workflow module is disabled
+        // let workflow = self.workflow_generator.generate_workflow(&parsed_plan, &dag)?;
 
-        Ok(AutonomousPlan {
-            plan: parsed_plan,
-            workflow,
-            dag,
-            manifest,
-        })
+        // For now, return error since workflow is required
+        return Err(PlanningError::WorkflowGenerationFailed(
+            "Workflow module is disabled. Cannot generate workflow.".to_string()
+        ));
+
+        // Ok(AutonomousPlan {
+        //     plan: parsed_plan,
+        //     workflow,
+        //     dag,
+        //     manifest,
+        // })
     }
 }
 
@@ -577,11 +629,13 @@ impl AutonomousPlanner {
 /// # }
 /// ```
 #[derive(Debug, Clone)]
+/// DISABLED: workflow module is disabled, so this struct cannot be used
+#[allow(dead_code)]
 pub struct AutonomousPlan {
     /// The parsed plan with iterations and tasks.
     pub plan: ParsedPlan,
     /// The generated workflow template ready for execution.
-    pub workflow: WorkflowTemplate,
+    // pub workflow: WorkflowTemplate,  // DISABLED: workflow module
     /// The dependency graph for cycle detection and ordering.
     pub dag: DependencyGraph,
     /// The plan manifest for execution tracking.

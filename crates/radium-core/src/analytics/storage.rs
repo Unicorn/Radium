@@ -1,5 +1,6 @@
 //! Session report storage and persistence.
 
+#[cfg(feature = "monitoring")]
 use super::report::SessionReport;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
@@ -69,6 +70,7 @@ impl SessionStorage {
     /// This ensures that concurrent writes to the same session file
     /// don't result in corrupted data. The write is atomic: either
     /// the complete file is written or the original file remains unchanged.
+    #[cfg(feature = "monitoring")]
     pub fn save_report(&self, report: &SessionReport) -> Result<PathBuf> {
         let filename = format!("{}.json", report.metrics.session_id);
         let file_path = self.sessions_dir.join(&filename);
@@ -126,6 +128,7 @@ impl SessionStorage {
     }
 
     /// Load a session report by session ID.
+    #[cfg(feature = "monitoring")]
     pub fn load_report(&self, session_id: &str) -> Result<SessionReport> {
         let filename = format!("{}.json", session_id);
         let file_path = self.sessions_dir.join(&filename);
@@ -140,6 +143,7 @@ impl SessionStorage {
     ///
     /// For backward compatibility, this method loads all reports.
     /// For better performance with large numbers of sessions, use `list_reports_paginated()`.
+    #[cfg(feature = "monitoring")]
     pub fn list_reports(&self) -> Result<Vec<SessionReport>> {
         if !self.sessions_dir.exists() {
             debug!("Sessions directory not found: {}", self.sessions_dir.display());
@@ -156,11 +160,12 @@ impl SessionStorage {
     ///
     /// # Returns
     /// Vector of session reports sorted by generation time (most recent first)
+    #[cfg(feature = "monitoring")]
     pub fn list_reports_paginated(
         &self,
         limit: Option<usize>,
         offset: Option<usize>,
-    ) -> Result<Vec<SessionReport>> {
+    ) -> Result<Vec<super::report::SessionReport>> {
         let mut reports = Vec::new();
 
         if !self.sessions_dir.exists() {
@@ -213,7 +218,7 @@ impl SessionStorage {
         // Now load only the paginated reports
         for path in paginated_paths {
             if let Ok(content) = fs::read_to_string(&path) {
-                match serde_json::from_str::<SessionReport>(&content) {
+                match serde_json::from_str::<super::report::SessionReport>(&content) {
                     Ok(report) => {
                         reports.push(report);
                     }

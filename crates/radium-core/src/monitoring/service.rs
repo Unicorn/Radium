@@ -260,6 +260,7 @@ impl MonitoringService {
     /// Returns error if insertion fails
     pub async fn register_agent_with_hooks(&self, record: &AgentRecord) -> Result<()> {
         // Execute telemetry hooks for agent start
+        #[cfg(feature = "orchestrator-integration")]
         if let Some(ref registry) = self.hook_registry {
             use crate::hooks::integration::OrchestratorHooks;
             let hooks = OrchestratorHooks::new(Arc::clone(registry));
@@ -344,8 +345,10 @@ impl MonitoringService {
         let end_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
 
         // Execute telemetry hooks for agent completion
-        if let Some(ref registry) = self.hook_registry {
+        #[cfg(feature = "orchestrator-integration")]
+        {
             use crate::hooks::integration::OrchestratorHooks;
+            if let Some(ref registry) = self.hook_registry {
             let hooks = OrchestratorHooks::new(Arc::clone(registry));
             let telemetry_data = serde_json::json!({
                 "event_type": "agent_complete",
@@ -360,6 +363,7 @@ impl MonitoringService {
                     error = %e,
                     "Telemetry hook execution failed for agent completion"
                 );
+            }
             }
         }
 
@@ -404,8 +408,10 @@ impl MonitoringService {
         let end_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
 
         // Execute telemetry hooks for agent failure
-        if let Some(ref registry) = self.hook_registry {
+        #[cfg(feature = "orchestrator-integration")]
+        {
             use crate::hooks::integration::OrchestratorHooks;
+            if let Some(ref registry) = self.hook_registry {
             let hooks = OrchestratorHooks::new(Arc::clone(registry));
             let telemetry_data = serde_json::json!({
                 "event_type": "agent_fail",
@@ -419,6 +425,7 @@ impl MonitoringService {
                     error = %e,
                     "Telemetry hook execution failed for agent failure"
                 );
+            }
             }
         }
 

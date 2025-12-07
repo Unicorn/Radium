@@ -10,7 +10,27 @@ use radium_abstraction::{ChatMessage, Model, ModelError, ModelParameters};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::workflow::behaviors::vibe_check::WorkflowPhase;
+// WorkflowPhase enum (local copy since workflow module is disabled)
+/// Workflow phase for phase-aware oversight.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorkflowPhase {
+    /// Planning phase - focus on alignment and assumptions.
+    Planning,
+    /// Implementation phase - focus on consistency and methods.
+    Implementation,
+    /// Review phase - focus on completeness and verification.
+    Review,
+}
+
+impl std::fmt::Display for WorkflowPhase {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Planning => write!(f, "planning"),
+            Self::Implementation => write!(f, "implementation"),
+            Self::Review => write!(f, "review"),
+        }
+    }
+}
 
 /// Errors that can occur during metacognitive oversight.
 #[derive(Error, Debug)]

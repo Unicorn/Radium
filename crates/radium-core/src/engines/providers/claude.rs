@@ -263,15 +263,21 @@ impl Engine for ClaudeEngine {
         // Check response status and handle errors
         let status = response.status();
         if !status.is_success() {
+            // Get headers before consuming the response body
+            let retry_after = if status == 429 {
+                response.headers()
+                    .get("retry-after")
+                    .and_then(|h| h.to_str().ok())
+                    .and_then(|s| s.parse::<u64>().ok())
+            } else {
+                None
+            };
+            
             let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
             
             // Enhanced error handling
             if status == 429 {
                 // Rate limit error
-                let retry_after = response.headers()
-                    .get("retry-after")
-                    .and_then(|h| h.to_str().ok())
-                    .and_then(|s| s.parse::<u64>().ok());
                 
                 let mut error_msg = "Rate limit exceeded".to_string();
                 if let Some(seconds) = retry_after {
@@ -288,7 +294,7 @@ impl Engine for ClaudeEngine {
                 )));
             } else if status == 400 {
                 // Bad request - try to parse error details
-                if let Ok(error_json): Result<serde_json::Value, _> = serde_json::from_str(&error_text) {
+                if let Ok(error_json) = serde_json::from_str::<serde_json::Value>(&error_text) {
                     if let Some(error_detail) = error_json.get("error").and_then(|e| e.get("message")) {
                         return Err(EngineError::ExecutionError(format!(
                             "Invalid request: {}",

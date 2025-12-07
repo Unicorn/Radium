@@ -5,7 +5,7 @@
 
 use crate::extensions::manifest::ExtensionManifest;
 use crate::extensions::structure::MANIFEST_FILE;
-use ed25519_dalek::{Signature, SigningKey, VerifyingKey};
+use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use rand::rngs::OsRng;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -55,11 +55,10 @@ impl ExtensionSigner {
     /// # Errors
     /// Returns error if key format is invalid
     pub fn from_private_key(private_key_bytes: &[u8]) -> Result<Self> {
-        let signing_key = SigningKey::from_bytes(
-            private_key_bytes
-                .try_into()
-                .map_err(|_| SigningError::InvalidKey("Invalid key length (expected 64 bytes)".to_string()))?,
-        );
+        let key_array: [u8; 32] = private_key_bytes
+            .try_into()
+            .map_err(|_| SigningError::InvalidKey("Invalid key length (expected 32 bytes)".to_string()))?;
+        let signing_key = SigningKey::from_bytes(&key_array);
         Ok(Self { signing_key })
     }
 
@@ -152,23 +151,21 @@ impl SignatureVerifier {
         }
 
         let signature_bytes = fs::read(&sig_path)?;
-        let signature = Signature::from_bytes(
-            signature_bytes
-                .try_into()
-                .map_err(|_| SigningError::InvalidKey("Invalid signature length (expected 64 bytes)".to_string()))?,
-        );
+        let signature_array: [u8; 64] = signature_bytes
+            .try_into()
+            .map_err(|v: Vec<u8>| SigningError::InvalidKey(format!("Invalid signature length (expected 64 bytes, got {})", v.len())))?;
+        let signature = Signature::from_bytes(&signature_array);
 
         // Parse public key
-        let verifying_key = VerifyingKey::from_bytes(
-            public_key_bytes
-                .try_into()
-                .map_err(|_| SigningError::InvalidKey("Invalid public key length (expected 32 bytes)".to_string()))?,
-        )
-        .map_err(|e| SigningError::InvalidKey(format!("Invalid public key: {}", e)))?;
+        let public_key_array: [u8; 32] = public_key_bytes
+            .try_into()
+            .map_err(|_| SigningError::InvalidKey("Invalid public key length (expected 32 bytes)".to_string()))?;
+        let verifying_key = VerifyingKey::from_bytes(&public_key_array)
+            .map_err(|e| SigningError::InvalidKey(format!("Invalid public key: {}", e)))?;
 
         // Verify signature
         verifying_key
-            .verify_strict(manifest_content.as_bytes(), &signature)
+            .verify(manifest_content.as_bytes(), &signature)
             .map_err(|e| SigningError::VerificationFailed(format!("Signature verification failed: {}", e)))?;
 
         Ok(())

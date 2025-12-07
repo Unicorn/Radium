@@ -196,6 +196,7 @@ mod tests {
             category: None,
             file_path: None,
             capabilities: AgentCapabilities::default(),
+            persona_config: None,
             sandbox: None,
         }
     }

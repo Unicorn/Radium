@@ -3,6 +3,7 @@
 //! Provides functionality for installing, uninstalling, and updating
 //! extension packages.
 
+#[cfg(feature = "workflow")]
 use crate::extensions::conflict::{ConflictDetector, ConflictError};
 use crate::extensions::discovery::{DiscoveryOptions, ExtensionDiscovery, ExtensionDiscoveryError};
 use crate::extensions::manifest::ExtensionManifest;
@@ -60,6 +61,7 @@ pub enum ExtensionInstallerError {
     Validation(#[from] ExtensionValidationError),
 
     /// Conflict detection error.
+    #[cfg(feature = "workflow")]
     #[error("conflict error: {0}")]
     ConflictDetection(#[from] ConflictError),
 }
@@ -193,6 +195,7 @@ impl ExtensionManager {
         ExtensionValidator::validate(package_path, &manifest)?;
 
         // Check for conflicts
+        #[cfg(feature = "workflow")]
         ConflictDetector::check_conflicts(&manifest, package_path)?;
 
         // Verify signature if present (warning mode - non-blocking)

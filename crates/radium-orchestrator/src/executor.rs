@@ -275,11 +275,9 @@ impl AgentExecutor {
         current_provider: &str,
     ) -> Option<(String, ModelType, String)> {
         // Failover order: openai → gemini → mock
-        let failover_order = vec![
-            ("openai", ModelType::OpenAI, "gpt-3.5-turbo".to_string()),
+        let failover_order = [("openai", ModelType::OpenAI, "gpt-3.5-turbo".to_string()),
             ("gemini", ModelType::Gemini, "gemini-pro".to_string()),
-            ("mock", ModelType::Mock, "mock-model".to_string()),
-        ];
+            ("mock", ModelType::Mock, "mock-model".to_string())];
 
         // Find current provider index to start from next in order
         let current_idx = failover_order
@@ -300,7 +298,7 @@ impl AgentExecutor {
             // Check if provider is available
             // Mock is always available (no credentials needed)
             if *provider_name == "mock" {
-                return Some((provider_name.to_string(), model_type.clone(), default_model_id.clone()));
+                return Some(((*provider_name).to_string(), model_type.clone(), default_model_id.clone()));
             }
 
             // For real providers, check environment variables for API keys
@@ -313,7 +311,7 @@ impl AgentExecutor {
             };
 
             if has_credentials {
-                return Some((provider_name.to_string(), model_type.clone(), default_model_id.clone()));
+                return Some(((*provider_name).to_string(), model_type.clone(), default_model_id.clone()));
             }
         }
 
@@ -417,7 +415,7 @@ impl AgentExecutor {
                 Ok(output) => {
                     info!(agent_id = %agent_id, output_type = ?output, provider = %current_provider, "Agent execution completed successfully");
                     ExecutionResult {
-                        output: output.clone(),
+                        output: output,
                         success: true,
                         error: None,
                         telemetry: None, // Will be populated when agents capture ModelResponse

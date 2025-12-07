@@ -32,6 +32,7 @@ mod config;
 mod detection;
 mod engine_trait;
 mod error;
+mod metrics;
 pub mod providers;
 mod registry;
 

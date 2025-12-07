@@ -5,7 +5,8 @@
 		"lib": ["ES2022", "DOM"],
 		"declaration": true,
 		"outDir": "./dist",
-		"allowSyntheticDefaultImports": true
+		"allowSyntheticDefaultImports": true,
+		"baseUrl": "../../"
 	},
 	"include": ["src/**/*"],
 	"exclude": ["node_modules", "dist"]

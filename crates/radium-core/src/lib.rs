@@ -35,7 +35,7 @@ pub mod learning;
 // pub mod mcp;  // TEMPORARILY DISABLED: depends on radium-orchestrator (circular dependency)
 pub mod memory;
 pub mod models;
-// pub mod monitoring;  // TEMPORARILY DISABLED: depends on hooks
+pub mod monitoring;
 pub mod oversight;
 pub mod planning;
 // pub mod policy;  // TEMPORARILY DISABLED: depends on hooks
@@ -56,6 +56,7 @@ pub mod proto {
 pub use agents::config::{AgentConfigError, AgentConfigFile, ReasoningEffort};
 pub use agents::discovery::{AgentDiscovery, DiscoveryError, DiscoveryOptions};
 pub use agents::registry::{AgentRegistry, RegistryError};
+#[cfg(feature = "monitoring")]
 pub use analytics::{ReportFormatter, SessionAnalytics, SessionMetrics, SessionReport};
 pub use auth::{AuthError, AuthResult, CredentialStore, ProviderType};
 pub use checkpoint::{Checkpoint, CheckpointError, CheckpointManager, Result as CheckpointResult};
@@ -100,6 +101,7 @@ pub use models::workflow::{Workflow, WorkflowError, WorkflowState, WorkflowStep}
 //     Result as MonitoringResult, TelemetryParser, TelemetryRecord, TelemetryTracking,
 //     initialize_schema,
 // };
+#[cfg(feature = "workflow")]
 pub use oversight::{
     MetacognitiveError, MetacognitiveService, OversightRequest, OversightResponse,
     Result as OversightResult,

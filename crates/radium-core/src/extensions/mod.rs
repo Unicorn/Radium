@@ -17,6 +17,7 @@
 //! # }
 //! ```
 
+#[cfg(feature = "workflow")]
 pub mod conflict;
 pub mod discovery;
 pub mod installer;

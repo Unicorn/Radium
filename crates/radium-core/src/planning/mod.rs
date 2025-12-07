@@ -3,6 +3,7 @@
 //! This module provides AI-powered plan generation from specifications,
 //! including iteration structuring, task extraction, and dependency analysis.
 
+#[cfg(feature = "workflow")]
 mod autonomous;
 mod dag;
 mod executor;
@@ -10,6 +11,7 @@ mod generator;
 pub mod markdown;
 mod parser;
 
+#[cfg(feature = "workflow")]
 pub use autonomous::{
     AutonomousPlan, AutonomousPlanner, PlanValidator, PlanningError, Result as PlanningResult,
     ValidationReport, WorkflowGenerator,

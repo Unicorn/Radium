@@ -15,6 +15,9 @@ default = ["docker-sandbox", "seatbelt-sandbox"]
 docker-sandbox = []
 podman-sandbox = []
 seatbelt-sandbox = []
+orchestrator-integration = []
+workflow = []
+monitoring = []
 
 [dependencies]
 # gRPC

@@ -5,7 +5,8 @@
 use tracing::error;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use radium_core::{config::Config, server};
+use radium_core::config::Config;
+// use radium_core::server;  // DISABLED: server module
 
 #[tokio::main]
 async fn main() {
@@ -29,8 +30,11 @@ async fn main() {
     };
 
     // Start server
-    if let Err(e) = server::run(&config).await {
-        error!(error = %e, "Server error");
-        std::process::exit(1);
-    }
+    // DISABLED: server module is disabled
+    error!("Server module is disabled. Cannot start server.");
+    std::process::exit(1);
+    // if let Err(e) = server::run(&config).await {
+    //     error!(error = %e, "Server error");
+    //     std::process::exit(1);
+    // }
 }

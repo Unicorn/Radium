@@ -1,6 +1,6 @@
 //! CLI configuration loading and merging.
 
-use radium_core::cli_config::CliConfig;
+use radium_core::CliConfig;
 
 /// Load and merge CLI configuration.
 ///

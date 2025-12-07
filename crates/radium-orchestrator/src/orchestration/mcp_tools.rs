@@ -202,7 +202,7 @@ fn mcp_schema_to_tool_parameters(
                 .and_then(|r| r.as_array())
                 .map(|arr| {
                     arr.iter()
-                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                        .filter_map(|v| v.as_str().map(std::string::ToString::to_string))
                         .collect::<Vec<_>>()
                 })
                 .unwrap_or_default();
@@ -278,15 +278,15 @@ pub fn create_mcp_tool(
     // Convert MCP tool schema to ToolParameters
     let parameters = mcp_schema_to_tool_parameters(def.input_schema.as_ref());
 
-    let tool = Tool::new(
+    
+
+    Tool::new(
         format!("mcp_{}_{}", actual_server, actual_tool),
         def.tool_name.clone(), // Use the registered name (may be prefixed)
         def.description,
         parameters,
         handler,
-    );
-
-    tool
+    )
 }
 
 #[cfg(test)]

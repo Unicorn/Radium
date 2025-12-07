@@ -149,8 +149,7 @@ impl AgentSelector {
         // Find minimum queue depth
         let min_depth = candidates_with_load
             .first()
-            .map(|(_, depth)| *depth)
-            .unwrap_or(0);
+            .map_or(0, |(_, depth)| *depth);
 
         // Filter to agents with minimum queue depth
         let best_candidates: Vec<String> = candidates_with_load

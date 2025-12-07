@@ -170,7 +170,7 @@ impl Model for OpenAIModel {
                 if is_quota_error || status == 402 {
                     return Err(ModelError::QuotaExceeded {
                         provider: "openai".to_string(),
-                        message: Some(error_text.clone()),
+                        message: Some(error_text),
                     });
                 }
             }
@@ -180,7 +180,7 @@ impl Model for OpenAIModel {
             if status == 429 {
                 return Err(ModelError::QuotaExceeded {
                     provider: "openai".to_string(),
-                    message: Some(error_text.clone()),
+                    message: Some(error_text),
                 });
             }
             

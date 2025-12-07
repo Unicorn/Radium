@@ -4,9 +4,9 @@
 //! to prevent installation of conflicting extensions.
 
 use crate::agents::discovery::AgentDiscovery;
-use crate::commands::CommandRegistry;
+// use crate::commands::CommandRegistry;  // DISABLED: commands module
 use crate::extensions::manifest::ExtensionManifest;
-use crate::workflow::template_discovery::TemplateDiscovery;
+// use crate::workflow::template_discovery::TemplateDiscovery;  // DISABLED: workflow module
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use thiserror::Error;
@@ -55,10 +55,12 @@ impl ConflictDetector {
         Self::check_agent_conflicts(manifest, package_path)?;
 
         // Check template conflicts
-        Self::check_template_conflicts(manifest, package_path)?;
+        // DISABLED: workflow module
+        // Self::check_template_conflicts(manifest, package_path)?;
 
         // Check command conflicts
-        Self::check_command_conflicts(manifest, package_path)?;
+        // DISABLED: commands module
+        // Self::check_command_conflicts(manifest, package_path)?;
 
         Ok(())
     }
@@ -107,96 +109,104 @@ impl ConflictDetector {
     }
 
     /// Checks for template name conflicts.
-    fn check_template_conflicts(manifest: &ExtensionManifest, package_path: &Path) -> Result<()> {
+    /// DISABLED: workflow module is disabled
+    #[allow(dead_code)]
+    fn check_template_conflicts(_manifest: &ExtensionManifest, _package_path: &Path) -> Result<()> {
+        // DISABLED: workflow module
         // Discover existing templates
-        let discovery = TemplateDiscovery::new();
-        let existing_templates = discovery.discover_all()
-            .map_err(|e| ConflictError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to discover templates: {}", e),
-            )))?;
+        // let discovery = TemplateDiscovery::new();
+        // let existing_templates = discovery.discover_all()
+        //     .map_err(|e| ConflictError::Io(std::io::Error::new(
+        //         std::io::ErrorKind::Other,
+        //         format!("Failed to discover templates: {}", e),
+        //     )))?;
 
+        // DISABLED: workflow module
         // Check if extension has templates directory
-        let templates_dir = package_path.join("templates");
-        if !templates_dir.exists() {
-            return Ok(()); // No templates in extension
-        }
+        // let templates_dir = package_path.join("templates");
+        // if !templates_dir.exists() {
+        //     return Ok(()); // No templates in extension
+        // }
 
         // Scan extension templates directory for JSON files
-        if let Ok(entries) = std::fs::read_dir(&templates_dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("json") {
-                    // Try to load template to get name
-                    if let Ok(content) = std::fs::read_to_string(&path) {
-                        if let Ok(template) = serde_json::from_str::<serde_json::Value>(&content) {
-                            if let Some(name) = template.get("name").and_then(|v| v.as_str()) {
-                                if existing_templates.contains_key(name) {
-                                    return Err(ConflictError::TemplateConflict(format!(
-                                        "Template name '{}' already exists",
-                                        name
-                                    )));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        // if let Ok(entries) = std::fs::read_dir(&templates_dir) {
+        //     for entry in entries.flatten() {
+        //         let path = entry.path();
+        //         if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("json") {
+        //             // Try to load template to get name
+        //             if let Ok(content) = std::fs::read_to_string(&path) {
+        //                 if let Ok(template) = serde_json::from_str::<serde_json::Value>(&content) {
+        //                     if let Some(name) = template.get("name").and_then(|v| v.as_str()) {
+        //                         if existing_templates.contains_key(name) {
+        //                             return Err(ConflictError::TemplateConflict(format!(
+        //                                 "Template name '{}' already exists",
+        //                                 name
+        //                             )));
+        //                         }
+        //                     }
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
 
         Ok(())
     }
 
     /// Checks for command name conflicts.
-    fn check_command_conflicts(manifest: &ExtensionManifest, package_path: &Path) -> Result<()> {
+    /// DISABLED: commands module is disabled
+    #[allow(dead_code)]
+    fn check_command_conflicts(_manifest: &ExtensionManifest, _package_path: &Path) -> Result<()> {
+        // DISABLED: commands module
         // Discover existing commands
-        let mut registry = CommandRegistry::new();
-        registry.discover()
-            .map_err(|e| ConflictError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to discover commands: {}", e),
-            )))?;
+        // let mut registry = CommandRegistry::new();
+        // registry.discover()
+        //     .map_err(|e| ConflictError::Io(std::io::Error::new(
+        //         std::io::ErrorKind::Other,
+        //         format!("Failed to discover commands: {}", e),
+        //     )))?;
 
+        // DISABLED: commands module
         // Check if extension has commands directory
-        let commands_dir = package_path.join("commands");
-        if !commands_dir.exists() {
-            return Ok(()); // No commands in extension
-        }
+        // let commands_dir = package_path.join("commands");
+        // if !commands_dir.exists() {
+        //     return Ok(()); // No commands in extension
+        // }
 
         // Extension commands are namespaced, so conflicts are less likely
         // But we still check for exact name matches (without namespace)
-        let extension_name = &manifest.name;
+        // let extension_name = &manifest.name;
 
         // Scan extension commands directory
-        if let Ok(entries) = std::fs::read_dir(&commands_dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("toml") {
-                    // Try to load command to get name
-                    if let Ok(content) = std::fs::read_to_string(&path) {
-                        if let Ok(cmd) = toml::from_str::<toml::Value>(&content) {
-                            if let Some(name) = cmd.get("name").and_then(|v| v.as_str()) {
-                                let namespaced_name = format!("{}:{}", extension_name, name);
-                                // Check if namespaced command already exists
-                                if registry.get(&namespaced_name).is_some() {
-                                    return Err(ConflictError::CommandConflict(format!(
-                                        "Command '{}' already exists",
-                                        namespaced_name
-                                    )));
-                                }
-                                // Also check for non-namespaced conflict (shouldn't happen but be safe)
-                                if registry.get(name).is_some() {
-                                    return Err(ConflictError::CommandConflict(format!(
-                                        "Command name '{}' conflicts with existing command",
-                                        name
-                                    )));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        // if let Ok(entries) = std::fs::read_dir(&commands_dir) {
+        //     for entry in entries.flatten() {
+        //         let path = entry.path();
+        //         if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("toml") {
+        //             // Try to load command to get name
+        //             if let Ok(content) = std::fs::read_to_string(&path) {
+        //                 if let Ok(cmd) = toml::from_str::<toml::Value>(&content) {
+        //                     if let Some(name) = cmd.get("name").and_then(|v| v.as_str()) {
+        //                         let namespaced_name = format!("{}:{}", extension_name, name);
+        //                         // Check if namespaced command already exists
+        //                         if registry.get(&namespaced_name).is_some() {
+        //                             return Err(ConflictError::CommandConflict(format!(
+        //                                 "Command '{}' already exists",
+        //                                 namespaced_name
+        //                             )));
+        //                         }
+        //                         // Also check for non-namespaced conflict (shouldn't happen but be safe)
+        //                         if registry.get(name).is_some() {
+        //                             return Err(ConflictError::CommandConflict(format!(
+        //                                 "Command name '{}' conflicts with existing command",
+        //                                 name
+        //                             )));
+        //                         }
+        //                     }
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
 
         Ok(())
     }
