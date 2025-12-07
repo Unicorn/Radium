@@ -1,0 +1,198 @@
+//! MCP tool discovery and execution.
+
+use crate::mcp::client::McpClient;
+use crate::mcp::{McpError, McpTool, McpToolResult, Result};
+use serde_json::{json, Value};
+use std::collections::HashMap;
+
+/// Tool registry for managing discovered MCP tools.
+pub struct McpToolRegistry {
+    /// Map of tool names to tools (with server prefix for conflicts).
+    tools: HashMap<String, McpTool>,
+    /// Map of original tool names to prefixed names (for conflict resolution).
+    tool_name_map: HashMap<String, String>,
+    /// Server name for prefixing.
+    server_name: String,
+}
+
+impl McpToolRegistry {
+    /// Create a new tool registry.
+    pub fn new(server_name: String) -> Self {
+        Self {
+            tools: HashMap::new(),
+            tool_name_map: HashMap::new(),
+            server_name,
+        }
+    }
+
+    /// Register a tool, handling name conflicts with automatic prefixing.
+    pub fn register_tool(&mut self, tool: McpTool) {
+        let original_name = tool.name.clone();
+        let prefixed_name = if self.tools.contains_key(&original_name) {
+            format!("{}:{}", self.server_name, original_name)
+        } else {
+            original_name.clone()
+        };
+
+        self.tool_name_map.insert(original_name.clone(), prefixed_name.clone());
+        self.tools.insert(prefixed_name, tool);
+    }
+
+    /// Get a tool by name (supports both original and prefixed names).
+    pub fn get_tool(&self, name: &str) -> Option<&McpTool> {
+        self.tools.get(name)
+            .or_else(|| {
+                // Try to find by original name
+                self.tool_name_map.get(name).and_then(|prefixed| {
+                    self.tools.get(prefixed)
+                })
+            })
+    }
+
+    /// Get all registered tools.
+    pub fn get_all_tools(&self) -> Vec<&McpTool> {
+        self.tools.values().collect()
+    }
+
+    /// Check if a tool exists.
+    pub fn has_tool(&self, name: &str) -> bool {
+        self.tools.contains_key(name) || self.tool_name_map.contains_key(name)
+    }
+}
+
+impl McpClient {
+    /// Discover tools from the MCP server.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if tool discovery fails.
+    pub async fn discover_tools(&self) -> Result<Vec<McpTool>> {
+        let result = self
+            .send_request("tools/list", None)
+            .await?;
+
+        let tools_value = result
+            .get("tools")
+            .ok_or_else(|| {
+                McpError::Protocol("tools/list response missing 'tools' field".to_string())
+            })?;
+
+        let tools: Vec<McpTool> = serde_json::from_value(tools_value.clone())
+            .map_err(|e| {
+                McpError::Protocol(format!("Failed to parse tools: {}", e))
+            })?;
+
+        Ok(tools)
+    }
+
+    /// Execute a tool on the MCP server.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if tool execution fails.
+    pub async fn execute_tool(
+        &self,
+        tool_name: &str,
+        arguments: &Value,
+    ) -> Result<McpToolResult> {
+        let params = json!({
+            "name": tool_name,
+            "arguments": arguments
+        });
+
+        let result = self
+            .send_request("tools/call", Some(params))
+            .await?;
+
+        // Parse the result
+        let content = result
+            .get("content")
+            .and_then(|c| c.as_array())
+            .ok_or_else(|| {
+                McpError::Protocol("tools/call response missing 'content' field".to_string())
+            })?;
+
+        let mcp_content: Vec<crate::mcp::McpContent> = serde_json::from_value(
+            serde_json::Value::Array(content.clone())
+        )
+        .map_err(|e| {
+            McpError::Protocol(format!("Failed to parse tool result content: {}", e))
+        })?;
+
+        let is_error = result
+            .get("isError")
+            .and_then(|e| e.as_bool())
+            .unwrap_or(false);
+
+        Ok(McpToolResult {
+            content: mcp_content,
+            is_error,
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_tool_registry_creation() {
+        let registry = McpToolRegistry::new("test-server".to_string());
+        assert_eq!(registry.get_all_tools().len(), 0);
+    }
+
+    #[test]
+    fn test_tool_registry_register_tool() {
+        let mut registry = McpToolRegistry::new("test-server".to_string());
+        let tool = McpTool {
+            name: "test_tool".to_string(),
+            description: Some("A test tool".to_string()),
+            input_schema: None,
+        };
+
+        registry.register_tool(tool);
+        assert_eq!(registry.get_all_tools().len(), 1);
+        assert!(registry.has_tool("test_tool"));
+    }
+
+    #[test]
+    fn test_tool_registry_conflict_resolution() {
+        let mut registry = McpToolRegistry::new("server1".to_string());
+        
+        let tool1 = McpTool {
+            name: "query".to_string(),
+            description: Some("Query tool".to_string()),
+            input_schema: None,
+        };
+        registry.register_tool(tool1);
+
+        let tool2 = McpTool {
+            name: "query".to_string(),
+            description: Some("Another query tool".to_string()),
+            input_schema: None,
+        };
+        registry.register_tool(tool2);
+
+        // First tool should have original name, second should be prefixed
+        assert!(registry.has_tool("query"));
+        assert!(registry.has_tool("server1:query"));
+        assert_eq!(registry.get_all_tools().len(), 2);
+    }
+
+    #[test]
+    fn test_tool_registry_get_tool() {
+        let mut registry = McpToolRegistry::new("test-server".to_string());
+        let tool = McpTool {
+            name: "test_tool".to_string(),
+            description: Some("A test tool".to_string()),
+            input_schema: None,
+        };
+
+        registry.register_tool(tool);
+        
+        let retrieved = registry.get_tool("test_tool");
+        assert!(retrieved.is_some());
+        assert_eq!(retrieved.unwrap().name, "test_tool");
+    }
+}
+

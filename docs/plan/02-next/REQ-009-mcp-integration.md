@@ -2,7 +2,7 @@
 req_id: REQ-009
 title: MCP Integration
 phase: NEXT
-status: Not Started
+status: Review
 priority: High
 estimated_effort: 4-5 hours
 dependencies: [REQ-002]

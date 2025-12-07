@@ -1,0 +1,326 @@
+//! MCP server configuration management.
+
+use crate::mcp::{McpError, McpServerConfig, Result, TransportType};
+use std::path::{Path, PathBuf};
+use toml::Value as TomlValue;
+
+/// MCP server configuration manager.
+pub struct McpConfigManager {
+    /// Configuration file path.
+    config_path: PathBuf,
+    /// Loaded server configurations.
+    servers: Vec<McpServerConfig>,
+}
+
+impl McpConfigManager {
+    /// Create a new configuration manager.
+    pub fn new(config_path: PathBuf) -> Self {
+        Self {
+            config_path,
+            servers: Vec::new(),
+        }
+    }
+
+    /// Get the default configuration file path.
+    pub fn default_config_path(workspace_root: &Path) -> PathBuf {
+        workspace_root.join(".radium").join("mcp-servers.toml")
+    }
+
+    /// Load server configurations from the config file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration cannot be loaded or parsed.
+    pub fn load(&mut self) -> Result<()> {
+        if !self.config_path.exists() {
+            // No config file is not an error - just return empty config
+            self.servers = Vec::new();
+            return Ok(());
+        }
+
+        let content = std::fs::read_to_string(&self.config_path).map_err(|e| {
+            McpError::Io(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Failed to read MCP config file: {}", e),
+            ))
+        })?;
+
+        let toml: toml::Table = toml::from_str(&content).map_err(|e| {
+            McpError::TomlParse(e)
+        })?;
+
+        self.servers = Self::parse_servers(&toml)?;
+
+        Ok(())
+    }
+
+    /// Parse server configurations from TOML.
+    fn parse_servers(toml: &toml::Table) -> Result<Vec<McpServerConfig>> {
+        let mut servers = Vec::new();
+
+        if let Some(servers_array) = toml.get("servers").and_then(|s| s.as_array()) {
+            for server_value in servers_array {
+                if let Some(server_table) = server_value.as_table() {
+                    let server = Self::parse_server_config(server_table)?;
+                    servers.push(server);
+                }
+            }
+        }
+
+        Ok(servers)
+    }
+
+    /// Parse a single server configuration from TOML.
+    fn parse_server_config(server_table: &toml::Table) -> Result<McpServerConfig> {
+        let name = server_table
+            .get("name")
+            .and_then(|n| n.as_str())
+            .ok_or_else(|| {
+                McpError::Config("Server configuration missing 'name' field".to_string())
+            })?
+            .to_string();
+
+        let transport_str = server_table
+            .get("transport")
+            .and_then(|t| t.as_str())
+            .ok_or_else(|| {
+                McpError::Config("Server configuration missing 'transport' field".to_string())
+            })?;
+
+        let transport = match transport_str {
+            "stdio" => TransportType::Stdio,
+            "sse" => TransportType::Sse,
+            "http" => TransportType::Http,
+            _ => {
+                return Err(McpError::Config(format!(
+                    "Invalid transport type: {}",
+                    transport_str
+                )));
+            }
+        };
+
+        let command = server_table
+            .get("command")
+            .and_then(|c| c.as_str())
+            .map(|s| s.to_string());
+
+        let args = server_table
+            .get("args")
+            .and_then(|a| a.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect()
+            });
+
+        let url = server_table
+            .get("url")
+            .and_then(|u| u.as_str())
+            .map(|s| s.to_string());
+
+        // Validate transport-specific requirements
+        match transport {
+            TransportType::Stdio => {
+                if command.is_none() {
+                    return Err(McpError::Config(
+                        "Stdio transport requires 'command' field".to_string(),
+                    ));
+                }
+            }
+            TransportType::Sse | TransportType::Http => {
+                if url.is_none() {
+                    return Err(McpError::Config(format!(
+                        "{} transport requires 'url' field",
+                        transport_str
+                    )));
+                }
+            }
+        }
+
+        // Parse auth configuration if present
+        let auth = server_table.get("auth").and_then(|a| {
+            a.as_table().map(|auth_table| {
+                let auth_type = auth_table
+                    .get("auth_type")
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("oauth")
+                    .to_string();
+
+                let mut params = std::collections::HashMap::new();
+                for (key, value) in auth_table {
+                    if key != "auth_type" {
+                        if let Some(str_val) = value.as_str() {
+                            params.insert(key.clone(), str_val.to_string());
+                        }
+                    }
+                }
+
+                crate::mcp::McpAuthConfig { auth_type, params }
+            })
+        });
+
+        Ok(McpServerConfig {
+            name,
+            transport,
+            command,
+            args,
+            url,
+            auth,
+        })
+    }
+
+    /// Get all server configurations.
+    pub fn get_servers(&self) -> &[McpServerConfig] {
+        &self.servers
+    }
+
+    /// Get a server configuration by name.
+    pub fn get_server(&self, name: &str) -> Option<&McpServerConfig> {
+        self.servers.iter().find(|s| s.name == name)
+    }
+
+    /// Save server configurations to the config file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration cannot be saved.
+    pub fn save(&self) -> Result<()> {
+        let mut toml_table = toml::Table::new();
+
+        let mut servers_array = Vec::new();
+        for server in &self.servers {
+            let mut server_table = toml::Table::new();
+            server_table.insert("name".to_string(), TomlValue::String(server.name.clone()));
+            server_table.insert(
+                "transport".to_string(),
+                TomlValue::String(match server.transport {
+                    TransportType::Stdio => "stdio".to_string(),
+                    TransportType::Sse => "sse".to_string(),
+                    TransportType::Http => "http".to_string(),
+                }),
+            );
+
+            if let Some(ref command) = server.command {
+                server_table.insert("command".to_string(), TomlValue::String(command.clone()));
+            }
+
+            if let Some(ref args) = server.args {
+                let args_array: Vec<TomlValue> =
+                    args.iter().map(|a| TomlValue::String(a.clone())).collect();
+                server_table.insert("args".to_string(), TomlValue::Array(args_array));
+            }
+
+            if let Some(ref url) = server.url {
+                server_table.insert("url".to_string(), TomlValue::String(url.clone()));
+            }
+
+            if let Some(ref auth) = server.auth {
+                let mut auth_table = toml::Table::new();
+                auth_table.insert(
+                    "auth_type".to_string(),
+                    TomlValue::String(auth.auth_type.clone()),
+                );
+                for (key, value) in &auth.params {
+                    auth_table.insert(key.clone(), TomlValue::String(value.clone()));
+                }
+                server_table.insert("auth".to_string(), TomlValue::Table(auth_table));
+            }
+
+            servers_array.push(TomlValue::Table(server_table));
+        }
+
+        toml_table.insert("servers".to_string(), TomlValue::Array(servers_array));
+
+        let content = toml::to_string_pretty(&toml_table).map_err(|e| {
+            McpError::Config(format!("Failed to serialize config: {}", e))
+        })?;
+
+        // Create parent directory if it doesn't exist
+        if let Some(parent) = self.config_path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| {
+                McpError::Io(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("Failed to create config directory: {}", e),
+                ))
+            })?;
+        }
+
+        std::fs::write(&self.config_path, content).map_err(|e| {
+            McpError::Io(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Failed to write config file: {}", e),
+            ))
+        })?;
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_parse_stdio_server_config() {
+        let mut table = toml::Table::new();
+        table.insert("name".to_string(), TomlValue::String("test-server".to_string()));
+        table.insert("transport".to_string(), TomlValue::String("stdio".to_string()));
+        table.insert("command".to_string(), TomlValue::String("mcp-server".to_string()));
+        table.insert(
+            "args".to_string(),
+            TomlValue::Array(vec![
+                TomlValue::String("--config".to_string()),
+                TomlValue::String("config.json".to_string()),
+            ]),
+        );
+
+        let config = McpConfigManager::parse_server_config(&table).unwrap();
+        assert_eq!(config.name, "test-server");
+        assert_eq!(config.transport, TransportType::Stdio);
+        assert_eq!(config.command, Some("mcp-server".to_string()));
+    }
+
+    #[test]
+    fn test_parse_sse_server_config() {
+        let mut table = toml::Table::new();
+        table.insert("name".to_string(), TomlValue::String("sse-server".to_string()));
+        table.insert("transport".to_string(), TomlValue::String("sse".to_string()));
+        table.insert(
+            "url".to_string(),
+            TomlValue::String("http://localhost:8080/sse".to_string()),
+        );
+
+        let config = McpConfigManager::parse_server_config(&table).unwrap();
+        assert_eq!(config.name, "sse-server");
+        assert_eq!(config.transport, TransportType::Sse);
+        assert_eq!(config.url, Some("http://localhost:8080/sse".to_string()));
+    }
+
+    #[test]
+    fn test_config_manager_load_and_save() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("mcp-servers.toml");
+        let mut manager = McpConfigManager::new(config_path.clone());
+
+        // Create a test config
+        let server = McpServerConfig {
+            name: "test-server".to_string(),
+            transport: TransportType::Stdio,
+            command: Some("mcp-server".to_string()),
+            args: Some(vec!["--config".to_string(), "config.json".to_string()]),
+            url: None,
+            auth: None,
+        };
+        manager.servers.push(server);
+
+        // Save and reload
+        manager.save().unwrap();
+        let mut new_manager = McpConfigManager::new(config_path);
+        new_manager.load().unwrap();
+
+        assert_eq!(new_manager.get_servers().len(), 1);
+        assert_eq!(new_manager.get_server("test-server").unwrap().name, "test-server");
+    }
+}
+

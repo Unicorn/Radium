@@ -10,8 +10,8 @@ use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 use commands::{
-    agents, auth, chat, checkpoint, clean, craft, doctor, init, monitor, plan, run, stats, status,
-    step, templates,
+    agents, auth, chat, checkpoint, clean, craft, doctor, init, mcp, monitor, plan, run, stats,
+    status, step, templates,
 };
 
 /// Radium CLI - Next-generation agentic orchestration tool
@@ -228,6 +228,12 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+
+    /// MCP (Model Context Protocol) server management
+    ///
+    /// List, test, and manage MCP servers and their tools.
+    #[command(subcommand)]
+    Mcp(mcp::McpCommand),
 }
 
 // Command types are now in commands::types module
@@ -317,6 +323,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Doctor { json } => {
             doctor::execute(json).await?;
+        }
+        Command::Mcp(cmd) => {
+            mcp::execute_mcp_command(cmd).await?;
         }
     }
 

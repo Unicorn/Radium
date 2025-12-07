@@ -3,8 +3,10 @@
 //! This module defines the core agent trait and orchestration structures.
 
 pub mod agents;
+pub mod error;
 pub mod executor;
 pub mod lifecycle;
+pub mod orchestration;
 pub mod plugin;
 pub mod queue;
 pub mod registry;
@@ -21,9 +23,18 @@ pub use executor::{
     AgentExecutor, ExecutionResult, ExecutionTelemetry, QueueProcessor, QueueProcessorConfig,
 };
 pub use lifecycle::{AgentLifecycle, AgentState};
+pub use orchestration::{
+    agent_tools::{AgentMetadata as OrchestrationAgentMetadata, AgentToolRegistry},
+    context::{Message, OrchestrationContext, UserPreferences},
+    tool::{Tool, ToolArguments, ToolCall, ToolHandler, ToolParameters, ToolResult},
+    FinishReason, OrchestrationProvider, OrchestrationResult,
+};
 pub use plugin::{InMemoryPlugin, Plugin, PluginLoader, PluginMetadata};
 pub use queue::{ExecutionQueue, ExecutionTask, Priority, QueueMetrics};
 pub use registry::{AgentMetadata, AgentRegistry};
+
+// Re-export orchestration error separately to avoid conflicts
+pub use error::OrchestrationError;
 
 /// Represents the context provided to an agent during its execution.
 #[derive(Clone, Copy)]
@@ -73,7 +84,7 @@ pub trait Agent {
         &self,
         input: &str,
         context: AgentContext<'_>,
-    ) -> Result<AgentOutput, ModelError>;
+    ) -> std::result::Result<AgentOutput, ModelError>;
 }
 
 /// Orchestrator for managing agents and their execution.
@@ -114,7 +125,7 @@ impl Orchestrator {
     ///
     /// # Returns
     /// Returns `Ok(())` if started successfully, or an error if already running.
-    pub fn start_queue_processor(&mut self) -> Result<(), String> {
+    pub fn start_queue_processor(&mut self) -> std::result::Result<(), String> {
         self.processor.start()
     }
 
@@ -122,7 +133,7 @@ impl Orchestrator {
     ///
     /// # Returns
     /// Returns `Ok(())` if stopped successfully, or an error if not running.
-    pub fn stop_queue_processor(&mut self) -> Result<(), String> {
+    pub fn stop_queue_processor(&mut self) -> std::result::Result<(), String> {
         self.processor.stop()
     }
 
@@ -202,7 +213,7 @@ impl Orchestrator {
     ///
     /// # Returns
     /// Returns `Ok(())` if successful, `Err(AgentState)` with current state if transition is invalid.
-    pub async fn start_agent(&self, id: &str) -> Result<(), lifecycle::AgentState> {
+    pub async fn start_agent(&self, id: &str) -> std::result::Result<(), lifecycle::AgentState> {
         if !self.registry.is_registered(id).await {
             return Err(lifecycle::AgentState::Idle);
         }
@@ -216,7 +227,7 @@ impl Orchestrator {
     ///
     /// # Returns
     /// Returns `Ok(())` if successful, `Err(AgentState)` with current state if transition is invalid.
-    pub async fn stop_agent(&self, id: &str) -> Result<(), lifecycle::AgentState> {
+    pub async fn stop_agent(&self, id: &str) -> std::result::Result<(), lifecycle::AgentState> {
         self.lifecycle.stop_agent(id).await
     }
 
@@ -227,7 +238,7 @@ impl Orchestrator {
     ///
     /// # Returns
     /// Returns `Ok(())` if successful, `Err(AgentState)` with current state if transition is invalid.
-    pub async fn pause_agent(&self, id: &str) -> Result<(), lifecycle::AgentState> {
+    pub async fn pause_agent(&self, id: &str) -> std::result::Result<(), lifecycle::AgentState> {
         self.lifecycle.pause_agent(id).await
     }
 
@@ -238,7 +249,7 @@ impl Orchestrator {
     ///
     /// # Returns
     /// Returns `Ok(())` if successful, `Err(AgentState)` with current state if transition is invalid.
-    pub async fn resume_agent(&self, id: &str) -> Result<(), lifecycle::AgentState> {
+    pub async fn resume_agent(&self, id: &str) -> std::result::Result<(), lifecycle::AgentState> {
         self.lifecycle.resume_agent(id).await
     }
 
@@ -263,7 +274,7 @@ impl Orchestrator {
     pub async fn enqueue_task(
         &self,
         task: ExecutionTask,
-    ) -> Result<(), mpsc::error::SendError<ExecutionTask>> {
+    ) -> std::result::Result<(), mpsc::error::SendError<ExecutionTask>> {
         self.queue.enqueue_task(task).await
     }
 
@@ -298,7 +309,7 @@ impl Orchestrator {
         &self,
         agent_id: &str,
         input: &str,
-    ) -> Result<ExecutionResult, ModelError> {
+    ) -> std::result::Result<ExecutionResult, ModelError> {
         // Check if agent is registered
         let agent = self.get_agent(agent_id).await.ok_or_else(|| {
             ModelError::UnsupportedModelProvider(format!("Agent not found: {}", agent_id))
@@ -352,7 +363,7 @@ impl Orchestrator {
         input: &str,
         model_type: radium_models::ModelType,
         model_id: String,
-    ) -> Result<ExecutionResult, ModelError> {
+    ) -> std::result::Result<ExecutionResult, ModelError> {
         // Check if agent is registered
         let agent = self.get_agent(agent_id).await.ok_or_else(|| {
             ModelError::UnsupportedModelProvider(format!("Agent not found: {}", agent_id))
@@ -469,7 +480,7 @@ impl Agent for EchoAgent {
         &self,
         input: &str,
         _context: AgentContext<'_>,
-    ) -> Result<AgentOutput, ModelError> {
+    ) -> std::result::Result<AgentOutput, ModelError> {
         debug!(agent_id = %self.id, input = %input, "EchoAgent executing");
         Ok(AgentOutput::Text(format!("Echo from {}: {input}", self.id)))
     }

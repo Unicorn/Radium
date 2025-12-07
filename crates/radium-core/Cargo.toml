@@ -57,6 +57,9 @@ anyhow.workspace = true
 # Pattern matching
 glob = "0.3"
 
+# HTTP client for MCP transports
+reqwest = { version = "0.12", features = ["json", "stream"] }
+
 # Internal crates
 radium-abstraction.workspace = true
 radium-models.workspace = true

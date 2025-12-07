@@ -28,6 +28,7 @@ pub mod context;
 pub mod engines;
 pub mod error;
 pub mod learning;
+pub mod mcp;
 pub mod memory;
 pub mod models;
 pub mod monitoring;

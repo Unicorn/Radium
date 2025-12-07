@@ -8,6 +8,7 @@ pub mod clean;
 pub mod craft;
 pub mod doctor;
 pub mod init;
+pub mod mcp;
 pub mod monitor;
 pub mod plan;
 pub mod run;
