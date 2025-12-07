@@ -1,7 +1,7 @@
 //! Policy management commands.
 
 use clap::Subcommand;
-use radium_core::policy::{ApprovalMode, PolicyAction, PolicyEngine, PolicyError};
+use radium_core::policy::{ApprovalMode, PolicyEngine};
 use radium_core::workspace::Workspace;
 use std::path::PathBuf;
 
@@ -74,48 +74,102 @@ async fn list_policies(json: bool, verbose: bool) -> anyhow::Result<()> {
         })?
     };
 
-    // Get rules count by checking if we can evaluate a dummy tool
-    // Since we can't access rules directly, we'll use a workaround
-    let approval_mode = engine.approval_mode();
-    
-    // For now, we'll need to add a method to PolicyEngine to get rules
-    // For this implementation, let's use a simpler approach
+    if !policy_file.exists() {
+        if json {
+            println!("{}", serde_json::json!({
+                "approval_mode": "ask",
+                "rules": [],
+                "file_exists": false,
+            }));
+        } else {
+            println!("Policy Configuration");
+            println!("===================");
+            println!("No policy file found: {}", policy_file.display());
+            println!("Run 'rad policy init' to create a default policy.toml file.");
+        }
+        return Ok(());
+    }
+
+    // Parse TOML directly to get rule details
+    let content = std::fs::read_to_string(&policy_file)?;
+    let config: toml::Value = toml::from_str(&content)?;
+
+    let approval_mode_str = config
+        .get("approval_mode")
+        .and_then(|v| v.as_str())
+        .unwrap_or("ask");
+    let rules = config.get("rules").and_then(|v| v.as_array()).unwrap_or(&vec![]);
+
     if json {
-        // JSON output - simplified since we can't access rules directly
+        let rules_json: Vec<serde_json::Value> = rules
+            .iter()
+            .filter_map(|rule| {
+                rule.as_table().map(|t| {
+                    serde_json::json!({
+                        "name": t.get("name").and_then(|v| v.as_str()).unwrap_or(""),
+                        "tool_pattern": t.get("tool_pattern").and_then(|v| v.as_str()).unwrap_or(""),
+                        "arg_pattern": t.get("arg_pattern").and_then(|v| v.as_str()),
+                        "action": t.get("action").and_then(|v| v.as_str()).unwrap_or(""),
+                        "priority": t.get("priority").and_then(|v| v.as_str()).unwrap_or("user"),
+                        "reason": t.get("reason").and_then(|v| v.as_str()),
+                    })
+                })
+            })
+            .collect();
+
         println!("{}", serde_json::json!({
-            "approval_mode": format!("{:?}", approval_mode).to_lowercase(),
-            "note": "Rule details require PolicyEngine::get_rules() method",
+            "approval_mode": approval_mode_str,
+            "rules": rules_json,
+            "rule_count": engine.rule_count(),
         }));
     } else {
-        // Human-readable output
         println!("Policy Configuration");
         println!("===================");
-        println!("Approval Mode: {:?}", approval_mode);
+        println!("Approval Mode: {}", approval_mode_str);
+        println!("Rules: {}", engine.rule_count());
         println!();
-        println!("Note: Rule listing requires PolicyEngine API enhancement.");
-        println!("Policy file: {}", policy_file.display());
-            println!("No policy rules configured.");
-            println!("Run 'rad policy init' to create a default policy.toml file.");
-        } else {
-            println!("Rules ({}):", engine.rules.len());
-            println!();
 
+        if rules.is_empty() {
+            println!("No policy rules configured.");
+            println!("Edit {} to add rules.", policy_file.display());
+        } else {
             if verbose {
                 // Detailed table format
                 println!("{:<30} {:<10} {:<10} {:<20} {:<30}", "Name", "Priority", "Action", "Tool Pattern", "Arg Pattern");
                 println!("{}", "-".repeat(100));
-                for rule in &engine.rules {
-                    let arg_pattern = rule.arg_pattern.as_deref().unwrap_or("(none)");
-                    println!(
-                        "{:<30} {:<10} {:<10} {:<20} {:<30}",
-                        rule.name,
-                        format!("{:?}", rule.priority),
-                        format!("{:?}", rule.action),
-                        rule.tool_pattern,
-                        arg_pattern
-                    );
+                for rule in rules {
+                    if let Some(rule_table) = rule.as_table() {
+                        let name = rule_table.get("name").and_then(|v| v.as_str()).unwrap_or("(unnamed)");
+                        let priority = rule_table.get("priority").and_then(|v| v.as_str()).unwrap_or("user");
+                        let action = rule_table.get("action").and_then(|v| v.as_str()).unwrap_or("allow");
+                        let tool_pattern = rule_table.get("tool_pattern").and_then(|v| v.as_str()).unwrap_or("");
+                        let arg_pattern = rule_table.get("arg_pattern").and_then(|v| v.as_str()).unwrap_or("(none)");
+                        println!(
+                            "{:<30} {:<10} {:<10} {:<20} {:<30}",
+                            name, priority, action, tool_pattern, arg_pattern
+                        );
+                    }
                 }
-        }
+            } else {
+                // Simple list format
+                for (i, rule) in rules.iter().enumerate() {
+                    if let Some(rule_table) = rule.as_table() {
+                        let name = rule_table.get("name").and_then(|v| v.as_str()).unwrap_or("(unnamed)");
+                        let priority = rule_table.get("priority").and_then(|v| v.as_str()).unwrap_or("user");
+                        let action = rule_table.get("action").and_then(|v| v.as_str()).unwrap_or("allow");
+                        let tool_pattern = rule_table.get("tool_pattern").and_then(|v| v.as_str()).unwrap_or("");
+                        println!("{}. {} ({} priority, {} action)", i + 1, name, priority, action);
+                        println!("   Pattern: {}", tool_pattern);
+                        if let Some(arg_pattern) = rule_table.get("arg_pattern").and_then(|v| v.as_str()) {
+                            println!("   Arg Pattern: {}", arg_pattern);
+                        }
+                        if let Some(reason) = rule_table.get("reason").and_then(|v| v.as_str()) {
+                            println!("   Reason: {}", reason);
+                        }
+                        println!();
+                    }
+                }
+            }
         }
     }
 
@@ -149,9 +203,9 @@ async fn check_policy(tool_name: String, args: Vec<String>, json: bool) -> anyho
             "tool_name": tool_name,
             "args": args,
             "decision": {
-                "action": format!("{:?}", decision.action()).to_lowercase(),
-                "reason": decision.reason(),
-                "matched_rule": decision.matched_rule(),
+                "action": format!("{:?}", decision.action).to_lowercase(),
+                "reason": decision.reason.as_ref(),
+                "matched_rule": decision.matched_rule.as_ref(),
             }
         }));
     } else {
@@ -192,21 +246,9 @@ async fn validate_policy(file: Option<PathBuf>) -> anyhow::Result<()> {
         Ok(engine) => {
             println!("✓ Policy file is valid: {}", policy_file.display());
             println!("  Approval Mode: {:?}", engine.approval_mode());
-            println!("  Rules loaded successfully");
-
-            // Note: Pattern validation happens during rule loading
-            // If we got here, the patterns are valid
-
-            if errors.is_empty() {
-                println!("  All rule patterns are valid.");
-                Ok(())
-            } else {
-                eprintln!("\n✗ Found {} pattern error(s):", errors.len());
-                for error in errors {
-                    eprintln!("  {}", error);
-                }
-                Err(anyhow::anyhow!("Policy file has invalid patterns"))
-            }
+            println!("  Rules: {}", engine.rule_count());
+            println!("  All rule patterns are valid.");
+            Ok(())
         }
         Err(e) => {
             eprintln!("✗ Policy file is invalid: {}", policy_file.display());

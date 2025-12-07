@@ -13,7 +13,7 @@ use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 use commands::{
-    agents, auth, budget, checkpoint, clean, context, craft, doctor, extension, hooks, init, learning, monitor, plan, run,
+    agents, auth, budget, checkpoint, clean, context, craft, doctor, extension, hooks, init, learning, monitor, plan, policy, run,
     sandbox, stats, status, step, validate,
     // Disabled commands (depend on disabled modules):
     // autonomous, chat, complete, custom, mcp, templates, vibecheck
@@ -321,6 +321,13 @@ enum Command {
     #[command(subcommand)]
     Hooks(hooks::HooksCommand),
 
+    /// Policy management
+    ///
+    /// Manage tool execution policies for controlling agent behavior.
+    /// Configure allow/deny/ask rules for tool execution with priority-based matching.
+    #[command(subcommand)]
+    Policy(policy::PolicyCommand),
+
     /// Context file management
     ///
     /// List, show, and validate context files (GEMINI.md) in the workspace.
@@ -456,24 +463,26 @@ async fn main() -> anyhow::Result<()> {
         Command::Craft { plan_identifier, iteration, task, resume, dry_run, json, yolo, engine } => {
             craft::execute(plan_identifier, iteration, task, resume, dry_run, json, yolo, engine).await?;
         }
-        Command::Complete { source } => {
-            complete::execute(source).await?;
-        }
+        // DISABLED: Complete command
+        // Command::Complete { source } => {
+        //     complete::execute(source).await?;
+        // }
         Command::Run { script, model, dir } => {
             run::execute(script, model, dir).await?;
         }
         Command::Step { id, prompt, model, engine, reasoning } => {
             step::execute(id, prompt, model, engine, reasoning).await?;
         }
-        Command::Chat { agent_id, session, resume, list } => {
-            if list {
-                chat::list_sessions().await?;
-            } else if let Some(id) = agent_id {
-                chat::execute(id, session, resume).await?;
-            } else {
-                anyhow::bail!("Agent ID is required when not using --list");
-            }
-        }
+        // DISABLED: Chat command
+        // Command::Chat { agent_id, session, resume, list } => {
+        //     if list {
+        //         chat::list_sessions().await?;
+        //     } else if let Some(id) = agent_id {
+        //         chat::execute(id, session, resume).await?;
+        //     } else {
+        //         anyhow::bail!("Agent ID is required when not using --list");
+        //     }
+        // }
         Command::Status { json } => {
             status::execute(json).await?;
         }
@@ -519,6 +528,9 @@ async fn main() -> anyhow::Result<()> {
         Command::Hooks(cmd) => {
             hooks::execute_hooks_command(cmd).await?;
         }
+        Command::Policy(cmd) => {
+            policy::execute_policy_command(cmd).await?;
+        }
         Command::Context(cmd) => {
             context::execute(cmd).await?;
         }
@@ -535,9 +547,10 @@ async fn main() -> anyhow::Result<()> {
         Command::Validate { sources, json } => {
             validate::execute(sources, json).await?;
         }
-        Command::Autonomous { goal } => {
-            autonomous::execute(goal).await?;
-        }
+        // DISABLED: Autonomous command
+        // Command::Autonomous { goal } => {
+        //     autonomous::execute(goal).await?;
+        // }
         Command::Budget(cmd) => {
             budget::execute(cmd).await?;
         }

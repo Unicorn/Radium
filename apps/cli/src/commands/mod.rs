@@ -19,6 +19,7 @@ pub mod init;
 // pub mod mcp;  // DISABLED: depends on radium_core::mcp (circular dependency)
 pub mod monitor;
 pub mod plan;
+pub mod policy;
 pub mod run;
 pub mod sandbox;
 pub mod stats;
@@ -35,3 +36,4 @@ pub use types::{AgentsCommand, AuthCommand, EnginesCommand, ExtensionCommand, Ho
 // pub use types::{CustomCommand, TemplatesCommand};  // DISABLED: commands disabled
 pub use context::ContextCommand;
 pub use budget::BudgetCommand;
+pub use policy::{execute_policy_command, PolicyCommand};
