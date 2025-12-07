@@ -46,6 +46,33 @@ pub enum PolicyCommand {
         #[arg(short, long)]
         force: bool,
     },
+
+    /// Add a new policy rule
+    Add {
+        /// Rule name
+        name: String,
+        /// Priority (admin, user, default)
+        #[arg(long)]
+        priority: Option<String>,
+        /// Action (allow, deny, ask_user)
+        #[arg(long)]
+        action: Option<String>,
+        /// Tool pattern (glob pattern)
+        #[arg(long)]
+        tool_pattern: Option<String>,
+        /// Argument pattern (optional)
+        #[arg(long)]
+        arg_pattern: Option<String>,
+        /// Reason for the rule
+        #[arg(long)]
+        reason: Option<String>,
+    },
+
+    /// Remove a policy rule by name
+    Remove {
+        /// Rule name to remove
+        name: String,
+    },
 }
 
 /// Execute policy command.
@@ -55,6 +82,10 @@ pub async fn execute_policy_command(command: PolicyCommand) -> anyhow::Result<()
         PolicyCommand::Check { tool_name, args, json } => check_policy(tool_name, args, json).await,
         PolicyCommand::Validate { file } => validate_policy(file).await,
         PolicyCommand::Init { force } => init_policy(force).await,
+        PolicyCommand::Add { name, priority, action, tool_pattern, arg_pattern, reason } => {
+            add_policy(name, priority, action, tool_pattern, arg_pattern, reason).await
+        }
+        PolicyCommand::Remove { name } => remove_policy(name).await,
     }
 }
 

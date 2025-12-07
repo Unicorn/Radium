@@ -33,5 +33,5 @@ mod telemetry;
 pub use error::{MonitoringError, Result};
 pub use logs::LogManager;
 pub use schema::initialize_schema;
-pub use service::{AgentRecord, AgentStatus, MonitoringService};
+pub use service::{AgentRecord, AgentStatus, AgentUsage, MonitoringService, UsageFilter};
 pub use telemetry::{TelemetryParser, TelemetryRecord, TelemetrySummary, TelemetryTracking};

@@ -383,21 +383,21 @@ impl MonitoringService {
         {
             use crate::hooks::integration::OrchestratorHooks;
             if let Some(ref registry) = self.hook_registry {
-                let hooks = OrchestratorHooks::new(Arc::clone(registry));
-                let telemetry_data = serde_json::json!({
-                    "event_type": "agent_complete",
-                    "agent_id": agent_id,
-                    "exit_code": exit_code,
-                    "end_time": end_time,
-                    "success": exit_code == 0,
-                });
-                if let Err(e) = hooks.telemetry_collection("agent_complete", &telemetry_data).await {
-                    tracing::warn!(
-                        agent_id = %agent_id,
-                        error = %e,
-                        "Telemetry hook execution failed for agent completion"
-                    );
-                }
+            let hooks = OrchestratorHooks::new(Arc::clone(registry));
+            let telemetry_data = serde_json::json!({
+                "event_type": "agent_complete",
+                "agent_id": agent_id,
+                "exit_code": exit_code,
+                "end_time": end_time,
+                "success": exit_code == 0,
+            });
+            if let Err(e) = hooks.telemetry_collection("agent_complete", &telemetry_data).await {
+                tracing::warn!(
+                    agent_id = %agent_id,
+                    error = %e,
+                    "Telemetry hook execution failed for agent completion"
+                );
+            }
             }
         }
 
@@ -446,20 +446,20 @@ impl MonitoringService {
         {
             use crate::hooks::integration::OrchestratorHooks;
             if let Some(ref registry) = self.hook_registry {
-                let hooks = OrchestratorHooks::new(Arc::clone(registry));
-                let telemetry_data = serde_json::json!({
-                    "event_type": "agent_fail",
-                    "agent_id": agent_id,
-                    "error_message": error_message,
-                    "end_time": end_time,
-                });
-                if let Err(e) = hooks.telemetry_collection("agent_fail", &telemetry_data).await {
-                    tracing::warn!(
-                        agent_id = %agent_id,
-                        error = %e,
-                        "Telemetry hook execution failed for agent failure"
-                    );
-                }
+            let hooks = OrchestratorHooks::new(Arc::clone(registry));
+            let telemetry_data = serde_json::json!({
+                "event_type": "agent_fail",
+                "agent_id": agent_id,
+                "error_message": error_message,
+                "end_time": end_time,
+            });
+            if let Err(e) = hooks.telemetry_collection("agent_fail", &telemetry_data).await {
+                tracing::warn!(
+                    agent_id = %agent_id,
+                    error = %e,
+                    "Telemetry hook execution failed for agent failure"
+                );
+            }
             }
         }
 
@@ -647,20 +647,6 @@ impl MonitoringService {
         }
     }
 
-    /// Helper function to map a database row to AgentUsage.
-    fn row_to_agent_usage(row: &rusqlite::Row) -> rusqlite::Result<AgentUsage> {
-        Ok(AgentUsage {
-            agent_id: row.get(0)?,
-            execution_count: row.get::<_, i64>(1)? as u64,
-            total_duration: row.get::<_, i64>(2)? as u64,
-            total_tokens: row.get::<_, i64>(3)? as u64,
-            success_count: row.get::<_, i64>(4)? as u64,
-            failure_count: row.get::<_, i64>(5)? as u64,
-            last_used_at: row.get(6)?,
-            category: row.get(7)?,
-        })
-    }
-
     /// Lists agent usage statistics with optional filtering.
     ///
     /// # Arguments
@@ -672,67 +658,192 @@ impl MonitoringService {
     /// # Errors
     /// Returns error if query fails
     pub fn list_agent_usage(&self, filter: UsageFilter) -> Result<Vec<AgentUsage>> {
-        let mut query = "SELECT agent_id, execution_count, total_duration, total_tokens,
-                                success_count, failure_count, last_used_at, category
-                         FROM agent_usage".to_string();
-        let mut conditions = Vec::new();
-        let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
-
-        if let Some(ref category) = filter.category {
-            conditions.push("category = ?");
-            params_vec.push(Box::new(category.clone()));
-        }
-
-        if let Some(min_executions) = filter.min_executions {
-            conditions.push("execution_count >= ?");
-            params_vec.push(Box::new(min_executions as i64));
-        }
-
-        if let Some(since) = filter.since {
-            conditions.push("last_used_at >= ?");
-            params_vec.push(Box::new(since as i64));
-        }
-
-        if !conditions.is_empty() {
-            query.push_str(" WHERE ");
-            query.push_str(&conditions.join(" AND "));
-        }
-
-        query.push_str(" ORDER BY last_used_at DESC NULLS LAST");
-
-        let mut stmt = self.conn.prepare(&query)?;
-
-        // Use the helper function for row mapping
-        let records: Vec<AgentUsage> = match (filter.category.as_ref(), filter.min_executions, filter.since) {
+        // Build query and params together for each filter combination
+        let (query, params): (String, rusqlite::Params) = match (filter.category.as_ref(), filter.min_executions, filter.since) {
             (Some(cat), Some(min), Some(since)) => {
-                stmt.query_map(params![cat, min as i64, since as i64], Self::row_to_agent_usage)?.collect::<std::result::Result<Vec<_>, _>>()?
+                let q = "SELECT agent_id, execution_count, total_duration, total_tokens,
+                                success_count, failure_count, last_used_at, category
+                         FROM agent_usage
+                         WHERE category = ? AND execution_count >= ? AND last_used_at >= ?
+                         ORDER BY last_used_at DESC NULLS LAST".to_string();
+                (q, params![cat, min as i64, since as i64].into())
             }
             (Some(cat), Some(min), None) => {
-                stmt.query_map(params![cat, min as i64], Self::row_to_agent_usage)?.collect::<std::result::Result<Vec<_>, _>>()?
+                let q = "SELECT agent_id, execution_count, total_duration, total_tokens,
+                                success_count, failure_count, last_used_at, category
+                         FROM agent_usage
+                         WHERE category = ? AND execution_count >= ?
+                         ORDER BY last_used_at DESC NULLS LAST".to_string();
+                (q, params![cat, min as i64].into())
             }
             (Some(cat), None, Some(since)) => {
-                stmt.query_map(params![cat, since as i64], Self::row_to_agent_usage)?.collect::<std::result::Result<Vec<_>, _>>()?
+                let q = "SELECT agent_id, execution_count, total_duration, total_tokens,
+                                success_count, failure_count, last_used_at, category
+                         FROM agent_usage
+                         WHERE category = ? AND last_used_at >= ?
+                         ORDER BY last_used_at DESC NULLS LAST".to_string();
+                (q, params![cat, since as i64].into())
             }
             (Some(cat), None, None) => {
-                stmt.query_map(params![cat], Self::row_to_agent_usage)?.collect::<std::result::Result<Vec<_>, _>>()?
+                let q = "SELECT agent_id, execution_count, total_duration, total_tokens,
+                                success_count, failure_count, last_used_at, category
+                         FROM agent_usage
+                         WHERE category = ?
+                         ORDER BY last_used_at DESC NULLS LAST".to_string();
+                (q, params![cat].into())
             }
             (None, Some(min), Some(since)) => {
-                stmt.query_map(params![min as i64, since as i64], Self::row_to_agent_usage)?.collect::<std::result::Result<Vec<_>, _>>()?
+                let q = "SELECT agent_id, execution_count, total_duration, total_tokens,
+                                success_count, failure_count, last_used_at, category
+                         FROM agent_usage
+                         WHERE execution_count >= ? AND last_used_at >= ?
+                         ORDER BY last_used_at DESC NULLS LAST".to_string();
+                (q, params![min as i64, since as i64].into())
             }
             (None, Some(min), None) => {
-                stmt.query_map(params![min as i64], Self::row_to_agent_usage)?.collect::<std::result::Result<Vec<_>, _>>()?
+                let q = "SELECT agent_id, execution_count, total_duration, total_tokens,
+                                success_count, failure_count, last_used_at, category
+                         FROM agent_usage
+                         WHERE execution_count >= ?
+                         ORDER BY last_used_at DESC NULLS LAST".to_string();
+                (q, params![min as i64].into())
             }
             (None, None, Some(since)) => {
-                stmt.query_map(params![since as i64], Self::row_to_agent_usage)?.collect::<std::result::Result<Vec<_>, _>>()?
+                let q = "SELECT agent_id, execution_count, total_duration, total_tokens,
+                                success_count, failure_count, last_used_at, category
+                         FROM agent_usage
+                         WHERE last_used_at >= ?
+                         ORDER BY last_used_at DESC NULLS LAST".to_string();
+                (q, params![since as i64].into())
             }
             (None, None, None) => {
-                stmt.query_map([], Self::row_to_agent_usage)?.collect::<std::result::Result<Vec<_>, _>>()?
+                let q = "SELECT agent_id, execution_count, total_duration, total_tokens,
+                                success_count, failure_count, last_used_at, category
+                         FROM agent_usage
+                         ORDER BY last_used_at DESC NULLS LAST".to_string();
+                (q, params![].into())
             }
         };
 
-        Ok(records)
+        let mut stmt = self.conn.prepare(&query)?;
+        let records = stmt.query_map(params, |row| {
+                    Ok(AgentUsage {
+                        agent_id: row.get(0)?,
+                        execution_count: row.get::<_, i64>(1)? as u64,
+                        total_duration: row.get::<_, i64>(2)? as u64,
+                        total_tokens: row.get::<_, i64>(3)? as u64,
+                        success_count: row.get::<_, i64>(4)? as u64,
+                        failure_count: row.get::<_, i64>(5)? as u64,
+                        last_used_at: row.get(6)?,
+                        category: row.get(7)?,
+                    })
+                })?
+            }
+            (Some(cat), Some(min), None) => {
+                stmt.query_map(params![cat, min as i64], |row| {
+                    Ok(AgentUsage {
+                        agent_id: row.get(0)?,
+                        execution_count: row.get::<_, i64>(1)? as u64,
+                        total_duration: row.get::<_, i64>(2)? as u64,
+                        total_tokens: row.get::<_, i64>(3)? as u64,
+                        success_count: row.get::<_, i64>(4)? as u64,
+                        failure_count: row.get::<_, i64>(5)? as u64,
+                        last_used_at: row.get(6)?,
+                        category: row.get(7)?,
+                    })
+                })?
+            }
+            (Some(cat), None, Some(since)) => {
+                stmt.query_map(params![cat, since as i64], |row| {
+                    Ok(AgentUsage {
+                        agent_id: row.get(0)?,
+                        execution_count: row.get::<_, i64>(1)? as u64,
+                        total_duration: row.get::<_, i64>(2)? as u64,
+                        total_tokens: row.get::<_, i64>(3)? as u64,
+                        success_count: row.get::<_, i64>(4)? as u64,
+                        failure_count: row.get::<_, i64>(5)? as u64,
+                        last_used_at: row.get(6)?,
+                        category: row.get(7)?,
+                    })
+                })?
+            }
+            (Some(cat), None, None) => {
+                stmt.query_map(params![cat], |row| {
+                    Ok(AgentUsage {
+                        agent_id: row.get(0)?,
+                        execution_count: row.get::<_, i64>(1)? as u64,
+                        total_duration: row.get::<_, i64>(2)? as u64,
+                        total_tokens: row.get::<_, i64>(3)? as u64,
+                        success_count: row.get::<_, i64>(4)? as u64,
+                        failure_count: row.get::<_, i64>(5)? as u64,
+                        last_used_at: row.get(6)?,
+                        category: row.get(7)?,
+                    })
+                })?
+            }
+            (None, Some(min), Some(since)) => {
+                stmt.query_map(params![min as i64, since as i64], |row| {
+                    Ok(AgentUsage {
+                        agent_id: row.get(0)?,
+                        execution_count: row.get::<_, i64>(1)? as u64,
+                        total_duration: row.get::<_, i64>(2)? as u64,
+                        total_tokens: row.get::<_, i64>(3)? as u64,
+                        success_count: row.get::<_, i64>(4)? as u64,
+                        failure_count: row.get::<_, i64>(5)? as u64,
+                        last_used_at: row.get(6)?,
+                        category: row.get(7)?,
+                    })
+                })?
+            }
+            (None, Some(min), None) => {
+                stmt.query_map(params![min as i64], |row| {
+                    Ok(AgentUsage {
+                        agent_id: row.get(0)?,
+                        execution_count: row.get::<_, i64>(1)? as u64,
+                        total_duration: row.get::<_, i64>(2)? as u64,
+                        total_tokens: row.get::<_, i64>(3)? as u64,
+                        success_count: row.get::<_, i64>(4)? as u64,
+                        failure_count: row.get::<_, i64>(5)? as u64,
+                        last_used_at: row.get(6)?,
+                        category: row.get(7)?,
+                    })
+                })?
+            }
+            (None, None, Some(since)) => {
+                stmt.query_map(params![since as i64], |row| {
+                    Ok(AgentUsage {
+                        agent_id: row.get(0)?,
+                        execution_count: row.get::<_, i64>(1)? as u64,
+                        total_duration: row.get::<_, i64>(2)? as u64,
+                        total_tokens: row.get::<_, i64>(3)? as u64,
+                        success_count: row.get::<_, i64>(4)? as u64,
+                        failure_count: row.get::<_, i64>(5)? as u64,
+                        last_used_at: row.get(6)?,
+                        category: row.get(7)?,
+                    })
+                })?
+            }
+            (None, None, None) => {
+                stmt.query_map([], |row| {
+                    Ok(AgentUsage {
+                        agent_id: row.get(0)?,
+                        execution_count: row.get::<_, i64>(1)? as u64,
+                        total_duration: row.get::<_, i64>(2)? as u64,
+                        total_tokens: row.get::<_, i64>(3)? as u64,
+                        success_count: row.get::<_, i64>(4)? as u64,
+                        failure_count: row.get::<_, i64>(5)? as u64,
+                        last_used_at: row.get(6)?,
+                        category: row.get(7)?,
+                    })
+                })?
+            }
+        };
+
+        Ok(records.collect::<std::result::Result<Vec<_>, _>>()?)
     }
+
 }
+
 
 impl Default for MonitoringService {
     fn default() -> Self {

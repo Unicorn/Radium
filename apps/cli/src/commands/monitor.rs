@@ -2,7 +2,7 @@
 
 use anyhow::{Context, Result};
 use clap::Subcommand;
-use radium_core::monitoring::{AgentStatus, MonitoringService, TelemetrySummary, TelemetryTracking};
+use radium_core::monitoring::{AgentStatus, AgentUsage, MonitoringService, TelemetrySummary, TelemetryTracking, UsageFilter};
 use radium_core::workspace::Workspace;
 
 /// Monitoring subcommands
@@ -33,6 +33,20 @@ pub enum MonitorCommand {
         #[arg(long)]
         json: bool,
     },
+    /// Show agent usage analytics
+    Usage {
+        /// Agent ID (optional, shows all if not specified)
+        agent_id: Option<String>,
+        /// Filter by category
+        #[arg(long)]
+        category: Option<String>,
+        /// Minimum execution count
+        #[arg(long)]
+        min_executions: Option<u64>,
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 /// Execute monitor command
@@ -53,6 +67,14 @@ pub async fn execute(cmd: MonitorCommand) -> Result<()> {
         }
         MonitorCommand::Telemetry { agent_id, json } => {
             telemetry_command(&monitoring, agent_id.as_deref(), json).await
+        }
+        MonitorCommand::Usage {
+            agent_id,
+            category,
+            min_executions,
+            json,
+        } => {
+            usage_command(&monitoring, agent_id.as_deref(), category.as_deref(), min_executions, json).await
         }
     }
 }
@@ -253,4 +275,117 @@ async fn telemetry_command(
         }
     }
     Ok(())
+}
+
+async fn usage_command(
+    monitoring: &MonitoringService,
+    agent_id: Option<&str>,
+    category: Option<&str>,
+    min_executions: Option<u64>,
+    json: bool,
+) -> Result<()> {
+    if let Some(id) = agent_id {
+        let usage = monitoring.get_agent_usage(id)
+            .context(format!("Agent usage for {} not found", id))?;
+
+        if let Some(usage) = usage {
+            if json {
+                println!("{}", serde_json::to_string_pretty(&usage)?);
+            } else {
+                display_agent_usage(&usage);
+            }
+        } else {
+            println!("No usage data found for agent: {}", id);
+        }
+    } else {
+        // List all usage with filters
+        let filter = UsageFilter {
+            category: category.map(|s| s.to_string()),
+            min_executions,
+            since: None,
+        };
+
+        let usage_list = monitoring.list_agent_usage(filter)?;
+
+        if json {
+            println!("{}", serde_json::to_string_pretty(&usage_list)?);
+        } else {
+            if usage_list.is_empty() {
+                println!("No agent usage data found.");
+            } else {
+                println!("{:<30} {:<12} {:<15} {:<12} {:<10} {:<10} {:<20}", 
+                    "Agent ID", "Executions", "Total Duration", "Total Tokens", "Success", "Failure", "Last Used");
+                println!("{}", "-".repeat(120));
+                for usage in usage_list {
+                    let last_used = if let Some(timestamp) = usage.last_used_at {
+                        chrono::DateTime::from_timestamp(timestamp as i64, 0)
+                            .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+                            .unwrap_or_else(|| timestamp.to_string())
+                    } else {
+                        "Never".to_string()
+                    };
+                    let duration_secs = usage.total_duration / 1000;
+                    let avg_duration = if usage.execution_count > 0 {
+                        duration_secs as f64 / usage.execution_count as f64
+                    } else {
+                        0.0
+                    };
+                    let success_rate = if usage.execution_count > 0 {
+                        (usage.success_count as f64 / usage.execution_count as f64) * 100.0
+                    } else {
+                        0.0
+                    };
+
+                    println!(
+                        "{:<30} {:<12} {:<15} {:<12} {:<10} {:<10} {:<20}",
+                        usage.agent_id,
+                        usage.execution_count,
+                        format!("{}s (avg: {:.1}s)", duration_secs, avg_duration),
+                        usage.total_tokens,
+                        format!("{} ({:.1}%)", usage.success_count, success_rate),
+                        usage.failure_count,
+                        last_used
+                    );
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn display_agent_usage(usage: &AgentUsage) {
+    println!("Agent Usage: {}", usage.agent_id);
+    println!("Execution Count: {}", usage.execution_count);
+    
+    let duration_secs = usage.total_duration / 1000;
+    let avg_duration = if usage.execution_count > 0 {
+        duration_secs as f64 / usage.execution_count as f64
+    } else {
+        0.0
+    };
+    println!("Total Duration: {}s (average: {:.1}s per execution)", duration_secs, avg_duration);
+    
+    println!("Total Tokens: {}", usage.total_tokens);
+    println!("Success Count: {}", usage.success_count);
+    println!("Failure Count: {}", usage.failure_count);
+    
+    let success_rate = if usage.execution_count > 0 {
+        (usage.success_count as f64 / usage.execution_count as f64) * 100.0
+    } else {
+        0.0
+    };
+    println!("Success Rate: {:.1}%", success_rate);
+    
+    if let Some(timestamp) = usage.last_used_at {
+        let last_used = chrono::DateTime::from_timestamp(timestamp as i64, 0)
+            .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+            .unwrap_or_else(|| timestamp.to_string());
+        println!("Last Used: {}", last_used);
+    } else {
+        println!("Last Used: Never");
+    }
+    
+    if let Some(ref category) = usage.category {
+        println!("Category: {}", category);
+    }
 }

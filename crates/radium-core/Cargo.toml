@@ -16,7 +16,7 @@ docker-sandbox = []
 podman-sandbox = []
 seatbelt-sandbox = []
 orchestrator-integration = []
-workflow = []
+workflow = ["radium-orchestrator"]
 monitoring = []
 
 [dependencies]

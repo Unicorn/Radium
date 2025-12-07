@@ -44,7 +44,7 @@ tonic.workspace = true
 tokio.workspace = true
 
 # Internal crates
-radium-core = { workspace = true, features = ["monitoring"] }
+radium-core = { workspace = true, features = ["monitoring", "workflow"] }
 radium-models.workspace = true
 radium-abstraction.workspace = true
 

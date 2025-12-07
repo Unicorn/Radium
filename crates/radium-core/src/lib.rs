@@ -32,7 +32,7 @@ pub mod error;
 pub mod extensions;
 pub mod hooks;
 pub mod learning;
-// pub mod mcp;  // TEMPORARILY DISABLED: depends on radium-orchestrator (circular dependency)
+pub mod mcp;  // Re-enabled for REQ-51 MCP integration work
 pub mod memory;
 pub mod models;
 pub mod monitoring;
@@ -43,7 +43,8 @@ pub mod prompts;
 pub mod sandbox;
 // pub mod server;  // TEMPORARILY DISABLED: depends on radium-orchestrator (circular dependency)
 pub mod storage;
-// pub mod workflow;  // TEMPORARILY DISABLED: depends on radium-orchestrator (circular dependency)
+#[cfg(feature = "workflow")]
+pub mod workflow;
 pub mod workspace;
 
 /// Generated protobuf code for the Radium gRPC API.
@@ -128,13 +129,14 @@ pub use storage::{
     AgentRepository, Database, SqliteAgentRepository, SqliteTaskRepository,
     SqliteWorkflowRepository, StorageError, TaskRepository, WorkflowRepository,
 };
-// pub use workflow::{  // DISABLED: workflow module
-//     BehaviorAction, BehaviorError, CheckpointDecision, CheckpointEvaluator, CheckpointState,
-//     ExecutionContext, LoopBehaviorConfig, LoopCounters, LoopDecision, LoopEvaluator, StepRecord,
-//     StepResult, StepStatus, StepTracker, StepTrackingError, TriggerBehaviorConfig, TriggerDecision,
-//     TriggerEvaluator, VibeCheckDecision, VibeCheckEvaluator, VibeCheckState, WorkflowEngine,
-//     WorkflowEngineError, WorkflowTemplate, WorkflowTemplateError,
-// };
+#[cfg(feature = "workflow")]
+pub use workflow::{
+    BehaviorAction, BehaviorError, CheckpointDecision, CheckpointEvaluator, CheckpointState,
+    ExecutionContext, LoopBehaviorConfig, LoopCounters, LoopDecision, LoopEvaluator, StepRecord,
+    StepResult, StepStatus, StepTracker, StepTrackingError, TriggerBehaviorConfig, TriggerDecision,
+    TriggerEvaluator, VibeCheckDecision, VibeCheckEvaluator, VibeCheckState, WorkflowEngine,
+    WorkflowEngineError, WorkflowTemplate, WorkflowTemplateError,
+};
 pub use workspace::{
     DiscoveredPlan, PlanDiscovery, PlanDiscoveryOptions, RequirementId, RequirementIdError, SortBy,
     SortOrder, Workspace, WorkspaceConfig, WorkspaceError, WorkspaceStructure,

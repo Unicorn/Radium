@@ -392,46 +392,6 @@ impl WorkflowGenerator {
             "Workflow module is disabled".to_string()
         ))
     }
-        // Get topological sort for execution order
-        let sorted_tasks = dag.topological_sort()?;
-
-        // Create workflow template
-        let mut template = WorkflowTemplate::new(&plan.project_name);
-        if let Some(desc) = &plan.description {
-            template = template.with_description(desc.clone());
-        }
-
-        // Create steps in dependency order
-        let mut step_order = 0u32;
-        for task_id in sorted_tasks {
-            // Find the task in the plan
-            if let Some((iteration, task)) = self.find_task_in_plan(plan, &task_id) {
-                let agent_id = task.agent_id.as_deref().unwrap_or("auto");
-
-                let step_config = WorkflowStepConfig {
-                    agent_id: agent_id.to_string(),
-                    agent_name: Some(task.title.clone()),
-                    step_type: WorkflowStepType::Step,
-                    execute_once: false,
-                    engine: None,
-                    model: None,
-                    model_reasoning_effort: None,
-                    not_completed_fallback: None,
-                    module: None,
-                    label: None,
-                };
-
-                let step = WorkflowStep {
-                    config: step_config,
-                };
-
-                template = template.add_step(step);
-                step_order += 1;
-            }
-        }
-
-        Ok(template)
-    }
 
     /// Finds a task in the plan by task ID.
     fn find_task_in_plan<'a>(

@@ -179,7 +179,9 @@ pub async fn execute(
         };
 
         // Update sandbox section
-        let sandbox_table = toml::to_value(&sandbox_config)?;
+        // Convert SandboxConfig to toml::Value via string serialization
+        let sandbox_str = toml::to_string(&sandbox_config)?;
+        let sandbox_table: toml::Value = toml::from_str(&sandbox_str)?;
         workspace_config
             .as_table_mut()
             .ok_or_else(|| anyhow::anyhow!("Invalid config format"))?
