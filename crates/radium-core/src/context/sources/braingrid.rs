@@ -1,7 +1,6 @@
 //! Braingrid source reader.
 
 use async_trait::async_trait;
-use std::process::Command;
 use tokio::process::Command as TokioCommand;
 
 use super::traits::SourceReader;
