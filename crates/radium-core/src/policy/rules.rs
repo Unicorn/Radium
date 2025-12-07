@@ -18,7 +18,13 @@ pub struct PolicyRule {
     /// Human-readable name for this rule.
     pub name: String,
     /// Glob pattern for matching tool names.
-    /// Examples: "read_*", "bash:*", "mcp:*"
+    /// Examples: "read_*", "bash:*", "mcp:*", "server:tool", "*:dangerous", "server1:*"
+    /// 
+    /// For MCP tools, patterns can match:
+    /// - `mcp_*` - All MCP tools (orchestration format: mcp_server_tool)
+    /// - `mcp_server1_*` - All tools from server1
+    /// - `*:tool` - Tool named "tool" from any server (if using server:tool format)
+    /// - `server1:*` - All tools from server1 (if using server:tool format)
     pub tool_pattern: String,
     /// Optional glob pattern for matching tool arguments.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -546,5 +552,80 @@ reason = "Shell commands disabled for security"
         let decision = engine.evaluate_tool("bash:ls", &["-la"]).await.unwrap();
         assert!(decision.is_allowed());
         assert_eq!(decision.matched_rule.as_deref(), Some("allow-all-bash"));
+    }
+
+    #[tokio::test]
+    async fn test_policy_engine_mcp_tool_patterns() {
+        let mut engine = PolicyEngine::new(ApprovalMode::Ask).unwrap();
+
+        // Test pattern matching for MCP tool names
+        // MCP tools in orchestration use format: mcp_server_tool
+        let rule1 = PolicyRule {
+            name: "allow-all-mcp".to_string(),
+            tool_pattern: "mcp_*".to_string(), // Matches tools starting with mcp_
+            arg_pattern: None,
+            action: PolicyAction::Allow,
+            priority: PolicyPriority::User,
+            reason: Some("Allow all MCP tools".to_string()),
+        };
+        engine.add_rule(rule1);
+
+        let rule2 = PolicyRule {
+            name: "deny-specific-server".to_string(),
+            tool_pattern: "mcp_untrusted_*".to_string(), // Matches tools from untrusted server
+            arg_pattern: None,
+            action: PolicyAction::Deny,
+            priority: PolicyPriority::Admin, // Higher priority
+            reason: Some("Deny untrusted server".to_string()),
+        };
+        engine.add_rule(rule2);
+
+        // Test MCP tool name matching
+        let decision1 = engine.evaluate_tool("mcp_server1_tool1", &[]).await.unwrap();
+        assert!(decision1.is_allowed());
+        assert_eq!(decision1.matched_rule, Some("allow-all-mcp".to_string()));
+
+        let decision2 = engine.evaluate_tool("mcp_untrusted_tool1", &[]).await.unwrap();
+        assert!(decision2.is_denied());
+        assert_eq!(decision2.matched_rule, Some("deny-specific-server".to_string()));
+
+        // Test with server:tool format (if tools are registered with that format)
+        let decision3 = engine.evaluate_tool("mcp_trusted_read", &[]).await.unwrap();
+        assert!(decision3.is_allowed());
+    }
+
+    #[tokio::test]
+    async fn test_policy_engine_mcp_tool_glob_patterns() {
+        let mut engine = PolicyEngine::new(ApprovalMode::Ask).unwrap();
+
+        // Test glob patterns that would match server:tool format
+        // Pattern: *:dangerous matches any server with dangerous tool
+        let rule = PolicyRule {
+            name: "deny-dangerous-tools".to_string(),
+            tool_pattern: "*:dangerous".to_string(),
+            arg_pattern: None,
+            action: PolicyAction::Deny,
+            priority: PolicyPriority::Admin,
+            reason: Some("Deny dangerous tools from any server".to_string()),
+        };
+        engine.add_rule(rule);
+
+        // Test that pattern matches (if tool names use server:tool format)
+        let decision = engine.evaluate_tool("server1:dangerous", &[]).await.unwrap();
+        assert!(decision.is_denied());
+
+        // Test pattern: server1:* matches all tools from server1
+        let rule2 = PolicyRule {
+            name: "allow-server1".to_string(),
+            tool_pattern: "server1:*".to_string(),
+            arg_pattern: None,
+            action: PolicyAction::Allow,
+            priority: PolicyPriority::User,
+            reason: None,
+        };
+        engine.add_rule(rule2);
+
+        let decision2 = engine.evaluate_tool("server1:read", &[]).await.unwrap();
+        assert!(decision2.is_allowed());
     }
 }
