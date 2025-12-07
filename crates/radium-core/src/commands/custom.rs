@@ -182,10 +182,12 @@ impl CommandRegistry {
     /// Discovers all custom commands.
     ///
     /// Search order (precedence from highest to lowest):
-    /// 1. Project commands
+    /// 1. Project commands (highest precedence)
     /// 2. User commands
     /// 3. Extension commands (user-level)
-    /// 4. Extension commands (project-level)
+    /// 4. Extension commands (project-level) (lowest precedence)
+    ///
+    /// Extension commands are namespaced with the extension name (e.g., `extension-name:command-name`).
     ///
     /// # Errors
     /// Returns error if discovery fails

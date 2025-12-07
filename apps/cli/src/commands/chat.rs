@@ -113,9 +113,9 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
                 println!("\nGoodbye! Session saved as '{}'", session_id);
                 
                 // Generate and display session report
-                if let Some(monitoring) = monitoring {
+                if let Some(ref monitoring) = monitoring {
                     if !executed_agent_ids.is_empty() {
-                        let analytics = SessionAnalytics::new(monitoring);
+                        let analytics = SessionAnalytics::new(monitoring.clone());
                         let session_end_time = Some(Utc::now());
                         
                         if let Ok(metrics) = analytics.generate_session_metrics_with_workspace(
