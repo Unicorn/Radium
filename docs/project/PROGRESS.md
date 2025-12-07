@@ -102,6 +102,25 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
   - **Tests:** Comprehensive unit tests for all MCP components
   - **Status:** Ready for review
 
+### REQ-019: Hooks System ✅ COMPLETE
+
+- [x] **Task 1-10: Complete Hooks System Implementation** - Completed
+  - **Completed:** 2025-01-XX
+  - **Commit:** feat(hooks): implement complete hooks system [REQ-019]
+  - **Files:**
+    - `crates/radium-core/src/hooks/` - Complete hooks module implementation
+    - `crates/radium-core/tests/hooks_integration_test.rs` - Integration tests
+  - **Features:**
+    - Hook trait and registry with priority-based execution
+    - Model call hooks (before/after) with request/response modification
+    - Tool execution hooks (before/after/selection) with result modification
+    - Error handling hooks (interception, transformation, recovery, logging)
+    - Telemetry hooks for monitoring and metrics
+    - TOML-based hook configuration with validation
+    - OrchestratorHooks helper for integration with orchestrator providers
+  - **Tests:** Comprehensive unit and integration tests (4+ tests)
+  - **Status:** Ready for review
+
 ### Completed Recently
 
 - [x] **REQ-011: Context Files System**: Hierarchical context file loading with GEMINI.md support

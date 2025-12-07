@@ -97,7 +97,7 @@ Advanced features for future implementation:
 | REQ-016 | TUI Improvements | LATER | Completed | Medium | 15-20h | [View](03-later/REQ-016-tui-improvements.md) |
 | REQ-017 | Agent Library | LATER | Completed | Medium | 30-40h | [View](03-later/REQ-017-agent-library.md) |
 | REQ-018 | Extension System | LATER | Not Started | Low | TBD | [View](03-later/REQ-018-extension-system.md) |
-| REQ-019 | Hooks System | LATER | Not Started | Low | TBD | [View](03-later/REQ-019-hooks-system.md) |
+| REQ-019 | Hooks System | LATER | Review | Low | 8-10h | [View](03-later/REQ-019-hooks-system.md) |
 | REQ-020 | Session Analytics | LATER | Completed | Low | TBD | [View](03-later/REQ-020-session-analytics.md) |
 
 ## REQ Naming Convention
