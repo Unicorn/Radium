@@ -339,3 +339,59 @@ pub enum ExtensionCommand {
         description: Option<String>,
     },
 }
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum CustomCommand {
+    /// List all available custom commands
+    List {
+        /// Filter by namespace
+        #[arg(long)]
+        namespace: Option<String>,
+
+        /// Show detailed information
+        #[arg(short, long)]
+        verbose: bool,
+    },
+
+    /// Execute a custom command
+    Execute {
+        /// Command name (with optional namespace prefix)
+        name: String,
+
+        /// Arguments to pass to the command
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+
+    /// Create a new custom command
+    Create {
+        /// Command name
+        name: String,
+
+        /// Command description
+        #[arg(short, long)]
+        description: Option<String>,
+
+        /// Command template (if not provided, will prompt)
+        #[arg(short, long)]
+        template: Option<String>,
+
+        /// Create in user directory instead of project
+        #[arg(long)]
+        user: bool,
+
+        /// Namespace (creates subdirectory)
+        #[arg(long)]
+        namespace: Option<String>,
+    },
+
+    /// Validate custom command files
+    Validate {
+        /// Specific command name to validate (validates all if omitted)
+        name: Option<String>,
+
+        /// Show detailed validation information
+        #[arg(short, long)]
+        verbose: bool,
+    },
+}

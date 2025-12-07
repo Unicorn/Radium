@@ -8,6 +8,7 @@ pub mod clean;
 pub mod complete;
 pub mod context;
 pub mod craft;
+pub mod custom;
 pub mod doctor;
 pub mod extension;
 pub mod hooks;
@@ -23,5 +24,5 @@ pub mod templates;
 pub mod types;
 
 // Re-export types for convenience
-pub use types::{AgentsCommand, AuthCommand, ExtensionCommand, HooksCommand, TemplatesCommand};
+pub use types::{AgentsCommand, AuthCommand, CustomCommand, ExtensionCommand, HooksCommand, TemplatesCommand};
 pub use context::ContextCommand;

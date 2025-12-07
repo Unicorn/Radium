@@ -11,7 +11,7 @@ use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 use commands::{
-    agents, auth, chat, checkpoint, clean, complete, context, craft, doctor, extension, hooks, init, mcp, monitor, plan, run,
+    agents, auth, chat, checkpoint, clean, complete, context, craft, custom, doctor, extension, hooks, init, mcp, monitor, plan, run,
     stats, status, step, templates,
 };
 
@@ -269,6 +269,13 @@ enum Command {
     /// Context files provide persistent instructions to agents.
     #[command(subcommand)]
     Context(commands::ContextCommand),
+
+    /// Custom command management
+    ///
+    /// List, execute, create, and validate custom commands defined in TOML files.
+    /// Custom commands support shell injection, file injection, and argument substitution.
+    #[command(subcommand)]
+    Custom(commands::CustomCommand),
 }
 
 // Command types are now in commands::types module
@@ -373,6 +380,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Context(cmd) => {
             context::execute(cmd).await?;
+        }
+        Command::Custom(cmd) => {
+            custom::execute(cmd).await?;
         }
     }
 
