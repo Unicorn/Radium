@@ -32,6 +32,13 @@ impl McpIntegration {
 
     /// Initialize MCP integration by loading and connecting to configured servers.
     ///
+    /// Loads MCP server configurations from:
+    /// 1. Workspace MCP config file (.radium/mcp-servers.toml) - highest precedence
+    /// 2. Extension MCP configs (from installed extensions) - lower precedence
+    ///
+    /// Extension configs are loaded after workspace configs, so workspace configs
+    /// take precedence if there are name conflicts.
+    ///
     /// # Errors
     ///
     /// Returns an error if configuration loading or connection fails.
@@ -40,11 +47,47 @@ impl McpIntegration {
         let mut config_manager = McpConfigManager::new(config_path);
         config_manager.load()?;
 
+        // Collect all server configs (workspace + extensions)
+        let mut all_servers: Vec<crate::mcp::McpServerConfig> = config_manager.get_servers().to_vec();
+
+        // Load extension MCP configs and add to server list
+        // Extension configs are loaded after workspace configs (lower precedence)
+        if let Ok(extension_config_paths) = crate::extensions::integration::get_extension_mcp_configs() {
+            for config_path in extension_config_paths {
+                // Try to load each extension MCP config
+                // Extension configs may be in JSON format, so we need to handle both
+                if let Ok(content) = std::fs::read_to_string(&config_path) {
+                    // Try to parse as TOML first (workspace format)
+                    if let Ok(toml_table) = toml::from_str::<toml::Table>(&content) {
+                        if let Ok(extension_servers) = McpConfigManager::parse_servers(&toml_table) {
+                            // Add extension servers (workspace servers take precedence)
+                            for server_config in extension_servers {
+                                // Only add if not already present (workspace configs take precedence)
+                                if !all_servers.iter().any(|s| s.name == server_config.name) {
+                                    all_servers.push(server_config);
+                                }
+                            }
+                        }
+                    }
+                    // If TOML parsing fails, try JSON (extension format)
+                    else if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&content) {
+                        // Convert JSON to McpServerConfig
+                        if let Some(server_config) = Self::parse_json_mcp_config(&json_value) {
+                            // Only add if not already present
+                            if !all_servers.iter().any(|s| s.name == server_config.name) {
+                                all_servers.push(server_config);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         let mut clients = self.clients.lock().await;
         let mut tool_registries = self.tool_registries.lock().await;
 
-        for server_config in config_manager.get_servers() {
-            match McpClient::connect(server_config).await {
+        for server_config in all_servers {
+            match McpClient::connect(&server_config).await {
                 Ok(client) => {
                     let client = Arc::new(Mutex::new(client));
                     clients.insert(server_config.name.clone(), client.clone());
@@ -81,6 +124,44 @@ impl McpIntegration {
         }
 
         Ok(())
+    }
+
+    /// Parse a JSON MCP server configuration into McpServerConfig.
+    ///
+    /// This allows extensions to provide MCP configs in JSON format.
+    fn parse_json_mcp_config(json: &serde_json::Value) -> Option<crate::mcp::McpServerConfig> {
+        use crate::mcp::{McpServerConfig, TransportType};
+
+        let name = json.get("name")?.as_str()?.to_string();
+        let transport_str = json.get("transport")?.as_str()?;
+        let transport = match transport_str {
+            "stdio" => TransportType::Stdio,
+            "sse" => TransportType::Sse,
+            "http" => TransportType::Http,
+            _ => return None,
+        };
+
+        let command = json.get("command").and_then(|v| v.as_str()).map(|s| s.to_string());
+        let args = json.get("args")
+            .and_then(|v| v.as_array())
+            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect());
+        let url = json.get("url").and_then(|v| v.as_str()).map(|s| s.to_string());
+
+        // Validate transport-specific requirements
+        match transport {
+            TransportType::Stdio => {
+                if command.is_none() {
+                    return None;
+                }
+            }
+            TransportType::Sse | TransportType::Http => {
+                if url.is_none() {
+                    return None;
+                }
+            }
+        }
+
+        Some(McpServerConfig { name, transport, command, args, url, auth: None })
     }
 
     /// Get all available tools from all MCP servers.

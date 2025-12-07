@@ -50,7 +50,9 @@ impl McpConfigManager {
     }
 
     /// Parse server configurations from TOML.
-    fn parse_servers(toml: &toml::Table) -> Result<Vec<McpServerConfig>> {
+    ///
+    /// This is public to allow extension integration to parse TOML MCP configs.
+    pub fn parse_servers(toml: &toml::Table) -> Result<Vec<McpServerConfig>> {
         let mut servers = Vec::new();
 
         if let Some(servers_array) = toml.get("servers").and_then(|s| s.as_array()) {

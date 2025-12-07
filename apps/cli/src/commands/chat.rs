@@ -6,12 +6,17 @@
 use anyhow::{Context, Result, anyhow};
 use chrono::Utc;
 use colored::*;
-use radium_core::Workspace;
-use radium_core::context::{ContextFileLoader, HistoryManager};
-use radium_core::mcp::{McpIntegration, SlashCommandRegistry};
+use radium_core::{
+    analytics::{ReportFormatter, SessionAnalytics, SessionReport, SessionStorage},
+    context::{ContextFileLoader, HistoryManager},
+    monitoring::MonitoringService,
+    mcp::{McpIntegration, SlashCommandRegistry},
+    Workspace,
+};
 use std::io::{self, Write};
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use uuid::Uuid;
 
 use super::step;
 
@@ -31,7 +36,7 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
     std::fs::create_dir_all(&history_dir)?;
     let mut history = HistoryManager::new(&history_dir)?;
 
-    // Determine session ID
+    // Determine session ID (use same ID for both chat history and analytics)
     let session_id = if resume {
         if let Some(name) = session_name {
             name
@@ -42,6 +47,15 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
         session_name
             .unwrap_or_else(|| format!("{}_{}", agent_id, Utc::now().format("%Y%m%d_%H%M%S")))
     };
+    
+    // Generate analytics session ID (UUID-based for analytics tracking)
+    let analytics_session_id = Uuid::new_v4().to_string();
+    let session_start_time = Utc::now();
+    let mut executed_agent_ids = Vec::new();
+    
+    // Open monitoring service for agent tracking
+    let monitoring_path = workspace.radium_dir().join("monitoring.db");
+    let monitoring = MonitoringService::open(&monitoring_path).ok();
 
     // Check if session exists when resuming
     if resume {
@@ -97,6 +111,30 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
         match input {
             "/quit" | "/exit" | "/q" => {
                 println!("\nGoodbye! Session saved as '{}'", session_id);
+                
+                // Generate and display session report
+                if let Some(monitoring) = monitoring {
+                    if !executed_agent_ids.is_empty() {
+                        let analytics = SessionAnalytics::new(monitoring);
+                        let session_end_time = Some(Utc::now());
+                        
+                        if let Ok(metrics) = analytics.generate_session_metrics_with_workspace(
+                            &analytics_session_id,
+                            &executed_agent_ids,
+                            session_start_time,
+                            session_end_time,
+                            Some(workspace.root()),
+                        ) {
+                            let report = SessionReport::new(metrics);
+                            let storage = SessionStorage::new(workspace.root()).ok();
+                            if let Some(ref storage) = storage {
+                                let _ = storage.save_report(&report);
+                                display_session_summary(&report);
+                            }
+                        }
+                    }
+                }
+                
                 break;
             }
             "/help" | "/h" => {
@@ -118,6 +156,28 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
             }
             "/save" => {
                 println!("Session automatically saved as '{}'", session_id);
+                
+                // Generate and display session report on auto-save
+                if let Some(monitoring) = monitoring {
+                    if !executed_agent_ids.is_empty() {
+                        let analytics = SessionAnalytics::new(monitoring);
+                        let session_end_time = Some(Utc::now());
+                        
+                        if let Ok(metrics) = analytics.generate_session_metrics_with_workspace(
+                            &analytics_session_id,
+                            &executed_agent_ids,
+                            session_start_time,
+                            session_end_time,
+                            Some(workspace.root()),
+                        ) {
+                            let report = SessionReport::new(metrics);
+                            let storage = SessionStorage::new(workspace.root()).ok();
+                            if let Some(ref storage) = storage {
+                                let _ = storage.save_report(&report);
+                            }
+                        }
+                    }
+                }
                 continue;
             }
             _ => {
@@ -200,6 +260,18 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
             input.to_string()
         };
 
+        // Register agent in monitoring for session tracking
+        let tracked_agent_id = format!("{}-{}", analytics_session_id, agent_id);
+        if let Some(monitoring) = monitoring.as_ref() {
+            use radium_core::monitoring::{AgentRecord, AgentStatus};
+            let mut agent_record = AgentRecord::new(tracked_agent_id.clone(), agent_id.clone());
+            agent_record.plan_id = Some(analytics_session_id.clone());
+            if monitoring.register_agent(&agent_record).is_ok() {
+                let _ = monitoring.update_status(&tracked_agent_id, AgentStatus::Running);
+                executed_agent_ids.push(tracked_agent_id.clone());
+            }
+        }
+
         // Use the step command's execution logic
         let prompt_vec = vec![full_prompt];
         match step::execute(
@@ -212,6 +284,12 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
         .await
         {
             Ok(_) => {
+                // Complete agent in monitoring
+                if let Some(monitoring) = monitoring.as_ref() {
+                    use radium_core::monitoring::AgentStatus;
+                    let _ = monitoring.complete_agent(&tracked_agent_id, 0);
+                }
+                
                 // Record interaction in history
                 history.add_interaction(
                     Some(&session_id),
@@ -221,6 +299,11 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
                 )?;
             }
             Err(e) => {
+                // Mark agent as failed
+                if let Some(monitoring) = monitoring.as_ref() {
+                    use radium_core::monitoring::AgentStatus;
+                    let _ = monitoring.fail_agent(&tracked_agent_id, &e.to_string());
+                }
                 eprintln!("\n{}: {}", "Error".red().bold(), e);
             }
         }
@@ -269,6 +352,27 @@ fn print_banner(
     println!();
 
     Ok(())
+}
+
+/// Display session summary at end of execution.
+fn display_session_summary(report: &SessionReport) {
+    println!();
+    println!("{}", "─".repeat(60).dimmed());
+    println!("{}", "Session Summary".bold().cyan());
+    println!("{}", "─".repeat(60).dimmed());
+    
+    let formatter = ReportFormatter;
+    let summary = formatter.format(report);
+    
+    // Print a condensed version (first few lines)
+    for line in summary.lines().take(15) {
+        println!("{}", line);
+    }
+    
+    println!();
+    println!("  {} Full report: {}", "💡".cyan(), format!("rad stats session {}", report.metrics.session_id).dimmed());
+    println!("{}", "─".repeat(60).dimmed());
+    println!();
 }
 
 /// Print conversation history

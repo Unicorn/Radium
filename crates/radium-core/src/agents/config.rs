@@ -644,6 +644,90 @@ prompt_path = "prompts/minimal.md"
     }
 
     #[test]
+    fn test_model_class_display() {
+        assert_eq!(ModelClass::Fast.to_string(), "fast");
+        assert_eq!(ModelClass::Balanced.to_string(), "balanced");
+        assert_eq!(ModelClass::Reasoning.to_string(), "reasoning");
+    }
+
+    #[test]
+    fn test_cost_tier_display() {
+        assert_eq!(CostTier::Low.to_string(), "low");
+        assert_eq!(CostTier::Medium.to_string(), "medium");
+        assert_eq!(CostTier::High.to_string(), "high");
+    }
+
+    #[test]
+    fn test_agent_capabilities_default() {
+        let capabilities = AgentCapabilities::default();
+        assert_eq!(capabilities.model_class, ModelClass::Balanced);
+        assert_eq!(capabilities.cost_tier, CostTier::Medium);
+        assert_eq!(capabilities.max_concurrent_tasks, 5);
+    }
+
+    #[test]
+    fn test_agent_config_with_capabilities() {
+        use std::fs;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config_path = temp_dir.path().join("test-agent.toml");
+        let prompts_dir = temp_dir.path().join("prompts");
+        fs::create_dir_all(&prompts_dir).unwrap();
+        let prompt_path = prompts_dir.join("test.md");
+        fs::write(&prompt_path, "# Test Agent").unwrap();
+
+        let toml_content = r#"
+[agent]
+id = "test-agent"
+name = "Test Agent"
+description = "Test agent with capabilities"
+prompt_path = "prompts/test.md"
+
+[agent.capabilities]
+model_class = "fast"
+cost_tier = "low"
+max_concurrent_tasks = 10
+"#;
+
+        fs::write(&config_path, toml_content).unwrap();
+
+        let config = AgentConfigFile::load(&config_path).unwrap();
+        assert_eq!(config.agent.id, "test-agent");
+        assert_eq!(config.agent.capabilities.model_class, ModelClass::Fast);
+        assert_eq!(config.agent.capabilities.cost_tier, CostTier::Low);
+        assert_eq!(config.agent.capabilities.max_concurrent_tasks, 10);
+    }
+
+    #[test]
+    fn test_agent_config_capabilities_defaults() {
+        use std::fs;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config_path = temp_dir.path().join("test-agent.toml");
+        let prompts_dir = temp_dir.path().join("prompts");
+        fs::create_dir_all(&prompts_dir).unwrap();
+        let prompt_path = prompts_dir.join("test.md");
+        fs::write(&prompt_path, "# Test Agent").unwrap();
+
+        let toml_content = r#"
+[agent]
+id = "test-agent"
+name = "Test Agent"
+description = "Test agent without capabilities"
+prompt_path = "prompts/test.md"
+"#;
+
+        fs::write(&config_path, toml_content).unwrap();
+
+        let config = AgentConfigFile::load(&config_path).unwrap();
+        assert_eq!(config.agent.id, "test-agent");
+        // Should use defaults
+        assert_eq!(config.agent.capabilities.model_class, ModelClass::Balanced);
+        assert_eq!(config.agent.capabilities.cost_tier, CostTier::Medium);
+        assert_eq!(config.agent.capabilities.max_concurrent_tasks, 5);
+    }
+
+    #[test]
     fn test_agent_config_with_loop_behavior() {
         use std::fs;
 

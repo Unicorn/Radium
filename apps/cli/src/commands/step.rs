@@ -3,12 +3,16 @@
 //! Executes a single agent from configuration.
 
 use anyhow::{Context, bail};
+use chrono::Utc;
 use colored::Colorize;
 use radium_core::{
-    context::ContextFileLoader, AgentDiscovery, PromptContext, PromptTemplate, Workspace,
+    analytics::{ReportFormatter, SessionAnalytics, SessionReport, SessionStorage},
+    context::ContextFileLoader, AgentDiscovery, monitoring::MonitoringService, PromptContext,
+    PromptTemplate, Workspace,
 };
 use radium_models::ModelFactory;
 use std::fs;
+use uuid::Uuid;
 
 /// Execute the step command.
 ///
@@ -22,6 +26,10 @@ pub async fn execute(
 ) -> anyhow::Result<()> {
     println!("{}", "rad step".bold().cyan());
     println!();
+    
+    // Generate session ID for tracking
+    let session_id = Uuid::new_v4().to_string();
+    let session_start_time = Utc::now();
 
     // Discover workspace (optional for step command)
     let workspace = Workspace::discover().ok();
@@ -124,18 +132,95 @@ pub async fn execute(
     println!("{}", preview.dimmed());
     println!("{}", "─".repeat(60).dimmed());
 
+    // Register agent in monitoring for session tracking
+    let tracked_agent_id = format!("{}-{}", session_id, agent.id);
+    let monitoring_path = workspace
+        .as_ref()
+        .map(|w| w.radium_dir().join("monitoring.db"))
+        .unwrap_or_else(|| std::path::PathBuf::from(".radium/monitoring.db"));
+    let monitoring = MonitoringService::open(&monitoring_path).ok();
+    
+    if let Some(monitoring) = monitoring.as_ref() {
+        use radium_core::monitoring::{AgentRecord, AgentStatus};
+        let mut agent_record = AgentRecord::new(tracked_agent_id.clone(), agent.id.clone());
+        agent_record.plan_id = Some(session_id.clone());
+        if monitoring.register_agent(&agent_record).is_ok() {
+            let _ = monitoring.update_status(&tracked_agent_id, AgentStatus::Running);
+        }
+    }
+
     // Execute agent (simulated)
     println!();
     println!("{}", "Executing agent...".bold());
     println!();
 
-    execute_agent_stub(&agent.id, &rendered, selected_engine, selected_model).await?;
+    let execution_result = execute_agent_stub(&agent.id, &rendered, selected_engine, selected_model).await;
+
+    // Complete agent in monitoring
+    if let Some(monitoring) = monitoring.as_ref() {
+        use radium_core::monitoring::AgentStatus;
+        match execution_result {
+            Ok(_) => {
+                let _ = monitoring.complete_agent(&tracked_agent_id, 0);
+            }
+            Err(ref e) => {
+                let _ = monitoring.fail_agent(&tracked_agent_id, &e.to_string());
+            }
+        }
+    }
+
+    execution_result?;
+
+    // Generate and display session report
+    let session_end_time = Some(Utc::now());
+    if let Some(monitoring) = monitoring {
+        let analytics = SessionAnalytics::new(monitoring);
+        let agent_ids = vec![tracked_agent_id];
+        
+        if let Ok(metrics) = analytics.generate_session_metrics_with_workspace(
+            &session_id,
+            &agent_ids,
+            session_start_time,
+            session_end_time,
+            workspace.as_ref().map(|w| w.root()),
+        ) {
+            let report = SessionReport::new(metrics);
+            if let Some(workspace) = workspace.as_ref() {
+                let storage = SessionStorage::new(workspace.root()).ok();
+                if let Some(ref storage) = storage {
+                    let _ = storage.save_report(&report);
+                    display_session_summary(&report);
+                }
+            }
+        }
+    }
 
     println!();
     println!("{}", "Agent execution completed!".green().bold());
     println!();
 
     Ok(())
+}
+
+/// Display session summary at end of execution.
+fn display_session_summary(report: &SessionReport) {
+    println!();
+    println!("{}", "─".repeat(60).dimmed());
+    println!("{}", "Session Summary".bold().cyan());
+    println!("{}", "─".repeat(60).dimmed());
+    
+    let formatter = ReportFormatter;
+    let summary = formatter.format(report);
+    
+    // Print a condensed version (first few lines)
+    for line in summary.lines().take(15) {
+        println!("{}", line);
+    }
+    
+    println!();
+    println!("  {} Full report: {}", "💡".cyan(), format!("rad stats session {}", report.metrics.session_id).dimmed());
+    println!("{}", "─".repeat(60).dimmed());
+    println!();
 }
 
 /// Load prompt from file.

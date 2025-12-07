@@ -115,23 +115,19 @@ pub async fn execute(
     }
     println!();
 
-    {
-        let mut agent_ids = executed_agent_ids;
-        execute_plan(
-            &mut manifest,
-            &manifest_path,
-            iteration.as_deref(),
-            task.as_deref(),
-            resume,
-            json,
-            if context_files.is_empty() { None } else { Some(context_files) },
-            Some(&mut agent_ids),
-            &session_id,
-            monitoring.as_ref(),
-        )
-        .await?;
-        executed_agent_ids = agent_ids;
-    }
+    execute_plan(
+        &mut manifest,
+        &manifest_path,
+        iteration.as_deref(),
+        task.as_deref(),
+        resume,
+        json,
+        if context_files.is_empty() { None } else { Some(context_files) },
+        &mut Some(&mut executed_agent_ids),
+        &session_id,
+        monitoring.as_ref(),
+    )
+    .await?;
 
     // Generate and display session report
     let session_end_time = Some(Utc::now());
@@ -238,7 +234,7 @@ async fn execute_plan(
     resume: bool,
     _json: bool,
     context_files: Option<String>,
-    executed_agent_ids: Option<&mut Vec<String>>,
+    executed_agent_ids: &mut Option<&mut Vec<String>>,
     session_id: &str,
     monitoring: Option<&MonitoringService>,
 ) -> anyhow::Result<()> {
@@ -339,7 +335,7 @@ async fn execute_plan(
             }
 
             // Track agent ID for session analytics
-            if let Some(ref mut agent_ids) = executed_agent_ids {
+            if let Some(agent_ids) = executed_agent_ids.as_mut() {
                 agent_ids.push(tracked_agent_id.clone());
             }
 
