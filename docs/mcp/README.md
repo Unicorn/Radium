@@ -32,11 +32,18 @@ rad mcp tools
 
 ## Documentation
 
+- [User Guide](user-guide.md) - **Start here!** Complete setup and usage guide
 - [Configuration Guide](configuration.md) - How to configure MCP servers
 - [Authentication](authentication.md) - OAuth setup and token management
 - [Using MCP Tools](tools.md) - How agents use MCP tools
 - [Slash Commands](prompts.md) - Using MCP prompts as slash commands
 - [Troubleshooting](troubleshooting.md) - Common issues and solutions
+
+## Example Guides
+
+- [Stdio Server Example](examples/stdio-server.md) - Local server setup
+- [Remote Server Example](examples/remote-server.md) - HTTP/SSE server setup
+- [OAuth Server Example](examples/oauth-server.md) - OAuth authentication setup
 
 ## Examples
 

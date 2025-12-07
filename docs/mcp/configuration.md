@@ -98,5 +98,79 @@ rad mcp test --server database-server
 
 ## Examples
 
-See [examples directory](../../examples/mcp/) for complete configuration examples.
+### Example 1: Local Filesystem Server
+
+```toml
+[[servers]]
+name = "filesystem"
+transport = "stdio"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/directory"]
+```
+
+### Example 2: PostgreSQL Database Server
+
+```toml
+[[servers]]
+name = "postgres"
+transport = "stdio"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-postgres", "postgresql://user:pass@localhost/dbname"]
+```
+
+### Example 3: Remote API with OAuth
+
+```toml
+[[servers]]
+name = "api-server"
+transport = "http"
+url = "https://api.example.com/mcp"
+auth = {
+    auth_type = "oauth",
+    params = {
+        token_url = "https://api.example.com/oauth/token",
+        client_id = "your-client-id",
+        client_secret = "your-client-secret"
+    }
+}
+```
+
+### Example 4: Multiple Servers
+
+```toml
+# Database server
+[[servers]]
+name = "postgres-main"
+transport = "stdio"
+command = "mcp-postgres"
+args = ["postgresql://localhost/maindb"]
+
+# File server
+[[servers]]
+name = "filesystem"
+transport = "stdio"
+command = "mcp-filesystem"
+args = ["--root", "/home/user/documents"]
+
+# Remote API
+[[servers]]
+name = "github-api"
+transport = "http"
+url = "https://api.github.com/mcp"
+auth = {
+    auth_type = "oauth",
+    params = {
+        token_url = "https://github.com/login/oauth/access_token",
+        client_id = "github-client-id",
+        client_secret = "github-client-secret"
+    }
+}
+```
+
+## More Examples
+
+See the [examples directory](../../examples/mcp/) for complete configuration examples:
+- [Stdio Server Example](examples/stdio-server.md)
+- [Remote Server Example](examples/remote-server.md)
+- [OAuth Server Example](examples/oauth-server.md)
 

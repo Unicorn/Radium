@@ -188,22 +188,90 @@ If issues persist:
 
 ### "Failed to connect to MCP server"
 
+**Possible Causes:**
 - Server not running (stdio)
 - URL incorrect (HTTP/SSE)
 - Network issues
 - Authentication required
 
+**Solutions:**
+1. For stdio: Verify server executable is in PATH and running
+2. For HTTP/SSE: Test URL with `curl` to verify accessibility
+3. Check network connectivity and firewall settings
+4. Verify authentication is configured if required
+
 ### "Tool not found"
 
+**Possible Causes:**
 - Tool name incorrect
 - Server prefix missing
 - Tool not discovered
 - Server connection issue
 
+**Solutions:**
+1. List available tools: `rad mcp tools`
+2. Check tool name includes server prefix (e.g., `server-name/tool-name`)
+3. Verify server is connected: `rad mcp test`
+4. Check server provides the tool you're looking for
+
 ### "Authentication error"
 
+**Possible Causes:**
 - Token expired
 - Invalid credentials
 - Token URL incorrect
 - Refresh token missing
+
+**Solutions:**
+1. Check token status: `rad mcp auth status`
+2. Verify OAuth credentials in configuration
+3. Check `token_url` is correct
+4. Ensure refresh token is available for auto-refresh
+5. Re-authenticate if needed
+
+### "MCP configuration error: Stdio transport requires 'command' field"
+
+**Problem:** Missing required field in configuration
+
+**Solution:**
+```toml
+# Add the missing field
+[[servers]]
+name = "my-server"
+transport = "stdio"
+command = "mcp-server"  # Required for stdio transport
+```
+
+### "MCP configuration error: HTTP transport requires 'url' field"
+
+**Problem:** Missing URL for HTTP/SSE transport
+
+**Solution:**
+```toml
+# Add the missing field
+[[servers]]
+name = "my-server"
+transport = "http"
+url = "https://api.example.com/mcp"  # Required for HTTP/SSE transport
+```
+
+### "MCP transport error: Failed to spawn process"
+
+**Problem:** Cannot execute the server command
+
+**Solutions:**
+1. Verify command is in PATH: `which mcp-server`
+2. Use full path: `command = "/usr/local/bin/mcp-server"`
+3. Check file permissions: `chmod +x /path/to/mcp-server`
+4. For npm packages, use `npx`: `command = "npx"`
+
+### "MCP connection error: Connection closed"
+
+**Problem:** Server disconnected unexpectedly
+
+**Solutions:**
+1. Check server logs for errors
+2. Verify server is still running
+3. Check network stability (for remote servers)
+4. Review server resource usage (memory, CPU)
 
