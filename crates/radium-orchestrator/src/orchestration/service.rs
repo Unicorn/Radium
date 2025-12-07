@@ -365,7 +365,7 @@ mod tests {
     async fn test_service_initialization_without_api_key() {
         // This should fail without API keys
         let config = OrchestrationConfig::default();
-        let result = OrchestrationService::initialize(config).await;
+        let result = OrchestrationService::initialize(config, None).await;
         // Will fail without API keys - that's expected
         assert!(result.is_err());
     }
