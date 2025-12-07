@@ -33,6 +33,7 @@ rad hooks enable my-logging-hook
 
 - **[Getting Started](getting-started.md)** - Quick start guide and basic usage
 - **[Architecture](architecture.md)** - System architecture and design patterns
+- **[Configuration](configuration.md)** - Configuration file format and schema reference
 - **[Creating Hooks](creating-hooks.md)** - Guide for creating custom hooks
 - **[Hook Types](hook-types.md)** - Detailed reference for all 13 hook types
 - **[Examples](examples.md)** - Practical examples and patterns
