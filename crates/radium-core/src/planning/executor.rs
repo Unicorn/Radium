@@ -255,7 +255,7 @@ pub enum RunMode {
 ///     run_mode: RunMode::Bounded(5),    // Limit to 5 iterations
 /// };
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ExecutionConfig {
     /// Whether to resume from last checkpoint.
     pub resume: bool,
