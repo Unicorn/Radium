@@ -755,8 +755,8 @@ impl Radium for RadiumService {
         &self,
         request: Request<ValidateSourcesRequest>,
     ) -> Result<Response<ValidateSourcesResponse>, Status> {
-        use crate::context::validator::SourceValidator;
-        use crate::context::sources::registry::SourceRegistry;
+        use crate::context::{SourceRegistry, SourceValidator};
+        use std::sync::Arc;
         
         let req = request.into_inner();
         let sources = req.sources;
@@ -765,23 +765,29 @@ impl Radium for RadiumService {
         
         // Create source validator
         let registry = SourceRegistry::new();
-        let validator = SourceValidator::new(Arc::new(registry));
+        let validator = SourceValidator::new(registry);
         
         // Validate sources
         let results = validator.validate_sources(sources).await;
         
         // Convert to proto
         let proto_results: Vec<SourceValidationResult> = results
-            .into_iter()
+            .iter()
             .map(|result| SourceValidationResult {
-                source: result.source,
+                source: result.source.clone(),
                 accessible: result.accessible,
-                error_message: result.error_message.unwrap_or_default(),
-                size_bytes: result.size_bytes.unwrap_or(0),
+                error_message: result.error_message.clone(),
+                size_bytes: result.size_bytes,
             })
             .collect();
         
-        Ok(Response::new(ValidateSourcesResponse { results: proto_results }))
+        // Check if all sources are valid
+        let all_valid = results.iter().all(|r| r.accessible);
+        
+        Ok(Response::new(ValidateSourcesResponse { 
+            results: proto_results,
+            all_valid,
+        }))
     }
 }
 
