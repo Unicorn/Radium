@@ -4,9 +4,9 @@
 //! to prevent installation of conflicting extensions.
 
 use crate::agents::discovery::AgentDiscovery;
-use crate::commands::CommandRegistry;
+// use crate::commands::CommandRegistry;  // DISABLED: commands module
 use crate::extensions::manifest::ExtensionManifest;
-use crate::workflow::template_discovery::TemplateDiscovery;
+// use crate::workflow::template_discovery::TemplateDiscovery;  // DISABLED: workflow module
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use thiserror::Error;

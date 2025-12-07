@@ -62,7 +62,12 @@ impl ClientHelper {
             .parse::<bool>()
             .unwrap_or(false);
 
-        Self { config, use_embedded, embedded_server: None }
+        Self {
+            config,
+            use_embedded,
+            #[cfg(feature = "orchestrator-integration")]
+            embedded_server: None,
+        }
     }
 
     /// Ensure the server is running and return a connected client.
@@ -80,24 +85,33 @@ impl ClientHelper {
     /// - Server doesn't become ready within timeout
     /// - Client connection fails
     pub async fn connect(&mut self) -> Result<RadiumClient<Channel>> {
-        if !self.use_embedded {
-            // Use external server - just connect
+        #[cfg(not(feature = "orchestrator-integration"))]
+        {
+            // Without orchestrator integration, always use external server
             return self.connect_to_external().await;
         }
 
-        // Initialize embedded server if not already done
-        if self.embedded_server.is_none() {
-            let mut server = EmbeddedServer::new(self.config.clone());
-            server.start().await?;
-            server.wait_for_ready(DEFAULT_READINESS_TIMEOUT).await?;
-            self.embedded_server = Some(server);
+        #[cfg(feature = "orchestrator-integration")]
+        {
+            if !self.use_embedded {
+                // Use external server - just connect
+                return self.connect_to_external().await;
+            }
+
+            // Initialize embedded server if not already done
+            if self.embedded_server.is_none() {
+                let mut server = EmbeddedServer::new(self.config.clone());
+                server.start().await?;
+                server.wait_for_ready(DEFAULT_READINESS_TIMEOUT).await?;
+                self.embedded_server = Some(server);
+            }
+
+            // Get server address
+            let address = self.embedded_server.as_ref().unwrap().address();
+
+            // Create client connection
+            self.create_client(address).await
         }
-
-        // Get server address
-        let address = self.embedded_server.as_ref().unwrap().address();
-
-        // Create client connection
-        self.create_client(address).await
     }
 
     /// Connect to an external server (embedded server disabled).
@@ -165,6 +179,7 @@ impl ClientHelper {
     ///
     /// Returns an error if shutdown fails.
     pub async fn shutdown(&mut self) -> Result<()> {
+        #[cfg(feature = "orchestrator-integration")]
         if let Some(mut server) = self.embedded_server.take() {
             server.shutdown().await?;
         }

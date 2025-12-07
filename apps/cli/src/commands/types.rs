@@ -533,6 +533,28 @@ pub enum ExtensionCommand {
         #[arg(long)]
         key_file: Option<String>,
     },
+
+    /// Publish an extension to the marketplace
+    ///
+    /// # Examples
+    ///
+    /// Publish an extension:
+    ///   $ rad extension publish ./my-extension --api-key YOUR_API_KEY
+    ///
+    /// Publish and sign automatically:
+    ///   $ rad extension publish ./my-extension --api-key YOUR_API_KEY --sign-with-key ./private.key
+    Publish {
+        /// Path to extension directory
+        path: String,
+
+        /// Marketplace API key
+        #[arg(long)]
+        api_key: Option<String>,
+
+        /// Path to private key for signing (optional, extension must be signed if not provided)
+        #[arg(long)]
+        sign_with_key: Option<String>,
+    },
 }
 
 #[derive(Subcommand, Debug, Clone)]

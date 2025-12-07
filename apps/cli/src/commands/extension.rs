@@ -6,8 +6,9 @@ use super::ExtensionCommand;
 use colored::Colorize;
 use inquire::Confirm;
 use radium_core::extensions::{
-    ExtensionDiscovery, ExtensionManager, ExtensionSigner, InstallOptions, MarketplaceClient,
-    MarketplaceExtension, SignatureVerifier, TrustedKeysManager,
+    ExtensionDiscovery, ExtensionManager, ExtensionPublisher, ExtensionSigner, InstallOptions,
+    MarketplaceClient, MarketplaceExtension, PublishingError, SignatureVerifier,
+    TrustedKeysManager,
 };
 use serde_json::json;
 use std::fs;
@@ -38,6 +39,9 @@ pub async fn execute(command: ExtensionCommand) -> anyhow::Result<()> {
         }
         ExtensionCommand::TrustKey { action, name, key_file } => {
             manage_trusted_keys(&action, name.as_deref(), key_file.as_deref()).await
+        }
+        ExtensionCommand::Publish { path, api_key, sign_with_key } => {
+            publish_extension(&path, api_key.as_deref(), sign_with_key.as_deref()).await
         }
     }
 }

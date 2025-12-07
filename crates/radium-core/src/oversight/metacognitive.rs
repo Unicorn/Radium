@@ -10,7 +10,7 @@ use radium_abstraction::{ChatMessage, Model, ModelError, ModelParameters};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::workflow::behaviors::vibe_check::WorkflowPhase;
+// use crate::workflow::behaviors::vibe_check::WorkflowPhase;  // DISABLED: workflow module
 
 /// Errors that can occur during metacognitive oversight.
 #[derive(Error, Debug)]

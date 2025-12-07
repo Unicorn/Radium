@@ -4,13 +4,17 @@
 //! and successes to build pattern recognition for future improvement.
 //! Extends with ACE (Agentic Context Engineering) skillbook functionality.
 
+#[cfg(feature = "workflow")]
 pub mod integration;
+#[cfg(feature = "workflow")]
 pub mod recovery_learning;
 pub mod skill_manager;
 pub mod store;
 pub mod updates;
 
+#[cfg(feature = "workflow")]
 pub use integration::{LearningConfig, LearningIntegration};
+#[cfg(feature = "workflow")]
 pub use recovery_learning::{
     RecoveryLearning, RecoveryLearningError, RecoveryPattern, Result as RecoveryLearningResult,
 };
