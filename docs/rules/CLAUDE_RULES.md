@@ -14,9 +14,11 @@ This document outlines the guidelines for Claude Code to work effectively in par
 
 Before picking up ANY task from the roadmap:
 
+- [ ] **Check BrainGrid for related REQs and tasks** - Use `braingrid requirement list -p PROJ-14` and `braingrid task list -r REQ-X -p PROJ-14`
 - [ ] Read `roadmap/PROGRESS.md` to understand current status
 - [ ] Check `.clinerules` and `.cursor/rules` for any active work
 - [ ] Update the relevant task status in `PROGRESS.md` to **"In Progress - Claude"**
+- [ ] **Update BrainGrid task status** if working on a BrainGrid task: `braingrid task update TASK-X -p PROJ-14 --status IN_PROGRESS`
 - [ ] Document the task details in the progress file with implementation approach
 - [ ] Create/update a todo list in this session to track substeps
 
@@ -65,21 +67,28 @@ After completing a task:
 - [ ] Run `cargo fmt --all -- --check` - formatting correct
 - [ ] Run `npm run deny` and `npm run audit` if dependencies changed
 - [ ] Update `roadmap/PROGRESS.md` with completion status
-- [ ] Create git commit with message format: `feat/fix/refactor(scope): description [RAD-XXX]`
+- [ ] **Update BrainGrid task status** if applicable: `braingrid task update TASK-X -p PROJ-14 --status COMPLETED --notes "Completed in commit [hash]"`
+- [ ] Create git commit with message format: `feat/fix/refactor(scope): description [RAD-XXX] [REQ-X]` (include REQ/TASK IDs if applicable)
 - [ ] Include emoji footer: `🤖 Claude Code`
 
 ## Commit Message Format
 
 ```
-feat(module): brief description [RAD-XXX]
+feat(module): brief description [RAD-XXX] [REQ-1] [TASK-1]
 
 - Detailed bullet points of changes
 - What was implemented and why
 - Any important trade-offs or decisions
+- References to BrainGrid REQ/TASK if applicable
 
 🤖 Claude Code
 Co-Authored-By: Claude <noreply@anthropic.com>
 ```
+
+**Include BrainGrid References:**
+- Add `[REQ-X]` if the work relates to a BrainGrid requirement
+- Add `[TASK-X]` if completing a specific BrainGrid task
+- Example: `feat(auth): add OAuth2 support [RAD-123] [REQ-5] [TASK-12]`
 
 ## When Blocked
 
@@ -134,10 +143,48 @@ The project must always maintain:
 - Extended test coverage
 - Documentation improvements
 
+## BrainGrid Integration
+
+### Essential Commands
+
+```bash
+# List all requirements
+braingrid requirement list -p PROJ-14
+
+# Show specific requirement details
+braingrid requirement show REQ-1 -p PROJ-14
+
+# List tasks for a requirement
+braingrid task list -r REQ-1 -p PROJ-14
+
+# Update task status
+braingrid task update TASK-1 -p PROJ-14 --status IN_PROGRESS
+braingrid task update TASK-1 -p PROJ-14 --status COMPLETED --notes "Completed in commit abc123"
+
+# Create new requirement from prompt
+braingrid specify -p PROJ-14 --prompt "Feature description"
+```
+
+### Workflow Integration
+
+1. **Before Starting:** Always check BrainGrid for related REQs/tasks
+2. **When Starting:** Update BrainGrid task status to `IN_PROGRESS`
+3. **During Work:** Reference REQ/TASK IDs in commit messages
+4. **When Completing:** Update BrainGrid task status to `COMPLETED` with notes
+
+### Automatic Updates
+
+When completing work:
+- Automatically update corresponding BrainGrid task status
+- Include commit hash in BrainGrid task notes
+- Update requirement status if all tasks are complete
+- Cross-reference BrainGrid IDs in PROGRESS.md
+
 ## Resources
 
 - Main Project: `/Users/clay/Development/RAD/new/radium`
 - Progress Tracking: `roadmap/PROGRESS.md`
+- BrainGrid Project: `PROJ-14` (use `-p PROJ-14` flag)
 - Cline Rules: `.clinerules`
 - Cursor Rules: `.cursor/rules`
 - Build System: Nx workspace + Cargo (Rust) + Bun (Node.js)

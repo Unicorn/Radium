@@ -321,8 +321,8 @@ impl App {
     }
 
     fn start_auth_wizard(&mut self) {
-        // Trigger the setup wizard for authentication
-        self.setup_wizard = Some(SetupWizard::new());
+        // Trigger the setup wizard for authentication, skip welcome screen
+        self.setup_wizard = Some(SetupWizard::new_skip_welcome());
     }
 
     async fn show_agents(&mut self) -> Result<()> {

@@ -5,16 +5,52 @@
 ## 🚨 Critical Rules - Read First
 
 1. **ALWAYS read `roadmap/PROGRESS.md` before starting ANY work**
-2. **NEVER work on a task that is assigned to another agent/person**
-3. **UPDATE progress immediately when starting or completing tasks**
-4. **COMMIT after each logical unit of work is complete**
-5. **RUN all checks before committing** (`cargo check`, `cargo clippy`, `cargo test`)
+2. **ALWAYS check BrainGrid for related REQs and tasks** before starting work
+3. **NEVER work on a task that is assigned to another agent/person**
+4. **UPDATE progress immediately when starting or completing tasks** (both local and BrainGrid)
+5. **COMMIT after each logical unit of work is complete**
+6. **RUN all checks before committing** (`cargo check`, `cargo clippy`, `cargo test`)
 
 ---
 
 ## 📖 Before Starting Work
 
-### Step 1: Read Progress File
+### Step 1: Check BrainGrid for Related Requirements and Tasks
+**ALWAYS check BrainGrid first** to understand the project's structured requirements:
+
+```bash
+# List all requirements for the project
+braingrid requirement list -p PROJ-14
+
+# If working on a specific feature, search for related REQs
+braingrid requirement list -p PROJ-14 --format json | grep -i "feature-name"
+
+# Check tasks for a specific requirement
+braingrid task list -r REQ-1 -p PROJ-14
+
+# View full requirement details
+braingrid requirement show REQ-1 -p PROJ-14
+```
+
+**What to look for:**
+- Existing REQs that match your work scope
+- Related tasks that might be in progress or blocked
+- Dependencies between requirements
+- Acceptance criteria and success metrics
+- Out-of-scope items to avoid
+
+**If you find a related REQ:**
+- Review the full requirement content for context
+- Check associated tasks and their status
+- Note any dependencies or blockers
+- Update task status when starting work (see Step 3)
+
+**If no related REQ exists:**
+- Consider creating a new REQ if the work is substantial
+- Use `braingrid specify` to create a requirement from a prompt
+- Link the REQ to your work in commit messages
+
+### Step 2: Read Progress File
 ```
 Read: roadmap/PROGRESS.md
 ```
@@ -24,21 +60,41 @@ Understand:
 - Blockers that might affect your work
 - Recently completed tasks for context
 
-### Step 2: Select or Verify Task Assignment
+### Step 3: Select or Verify Task Assignment
 - If assigned a specific task: Verify it's still unassigned in PROGRESS.md
 - If self-selecting: Choose an unassigned task with no unmet dependencies
 - **Priority order:** High → Medium → Low
+- **Cross-reference with BrainGrid:** Ensure BrainGrid tasks align with local progress
 
-### Step 3: Update Progress File
-Before writing any code, update PROGRESS.md:
+### Step 4: Update Progress Files (Local + BrainGrid)
+Before writing any code, update both local progress and BrainGrid:
+
+**Update PROGRESS.md:**
 ```markdown
 - [ ] **RAD-XXX**: Task description
   - **Status:** In Progress  <!-- Changed from "Not Started" -->
   - **Assignee:** [Your Agent Name]  <!-- Added -->
+  - **BrainGrid REQ:** REQ-1 (if applicable)
+  - **BrainGrid Task:** TASK-1 (if applicable)
   - ...
 ```
 
-### Step 4: Add to Update Log
+**Update BrainGrid Task Status (if applicable):**
+```bash
+# Update task status to IN_PROGRESS
+braingrid task update TASK-1 -p PROJ-14 --status IN_PROGRESS
+
+# Or if working on a requirement level
+braingrid requirement update REQ-1 -p PROJ-14 --status IN_PROGRESS
+```
+
+**When to update BrainGrid:**
+- Starting work on a task → Set status to `IN_PROGRESS`
+- Completing a task → Set status to `COMPLETED` and add completion notes
+- Blocking a task → Set status to `BLOCKED` and document the blocker
+- Creating new work → Create REQ/task if substantial feature work
+
+### Step 5: Add to Update Log
 ```markdown
 | Date | Agent/Person | Changes |
 |------|--------------|---------|
@@ -190,8 +246,9 @@ git add -A
 git commit -m "type(scope): description [RAD-XXX]"
 ```
 
-### Step 3: Update Progress File
+### Step 3: Update Progress Files (Local + BrainGrid)
 
+**Update PROGRESS.md:**
 Move task from Active to Completed:
 
 ```markdown
@@ -201,7 +258,24 @@ Move task from Active to Completed:
   - **Completed:** YYYY-MM-DD
   - **Commit:** abc1234
   - **Files:** list of files changed
+  - **BrainGrid REQ:** REQ-1
+  - **BrainGrid Task:** TASK-1
 ```
+
+**Update BrainGrid:**
+```bash
+# Mark task as completed
+braingrid task update TASK-1 -p PROJ-14 --status COMPLETED \
+  --notes "Completed in commit abc1234. Files changed: [list]"
+
+# If completing a requirement, update requirement status
+braingrid requirement update REQ-1 -p PROJ-14 --status COMPLETED
+```
+
+**Automatic Updates:**
+- When completing a task, automatically update the corresponding BrainGrid task
+- Include commit hash and changed files in BrainGrid notes
+- Update requirement status if all tasks are complete
 
 ### Step 4: Update Log Entry
 ```markdown
@@ -413,16 +487,82 @@ Before ending a session or switching tasks:
 
 ---
 
+## 🧠 BrainGrid CLI Integration
+
+### Essential Commands
+
+| Action | Command |
+|--------|---------|
+| List requirements | `braingrid requirement list -p PROJ-14` |
+| Show requirement | `braingrid requirement show REQ-1 -p PROJ-14` |
+| List tasks | `braingrid task list -r REQ-1 -p PROJ-14` |
+| Update task | `braingrid task update TASK-1 -p PROJ-14 --status IN_PROGRESS` |
+| Create requirement | `braingrid specify -p PROJ-14 --prompt "Feature description"` |
+| Project status | `braingrid status` |
+
+### When to Use BrainGrid
+
+**Before Starting Work:**
+- Check for existing REQs related to your feature
+- Review task dependencies and blockers
+- Understand acceptance criteria and success metrics
+
+**During Work:**
+- Update task status when starting/completing
+- Document blockers in task notes
+- Link commits to tasks/REQs in commit messages
+
+**After Completing Work:**
+- Mark tasks as COMPLETED
+- Add completion notes with commit hash
+- Update requirement status if all tasks done
+
+### BrainGrid Workflow
+
+1. **Discovery Phase:**
+   ```bash
+   braingrid requirement list -p PROJ-14
+   braingrid requirement show REQ-1 -p PROJ-14
+   ```
+
+2. **Task Selection:**
+   ```bash
+   braingrid task list -r REQ-1 -p PROJ-14
+   ```
+
+3. **Status Updates:**
+   ```bash
+   # Starting work
+   braingrid task update TASK-1 -p PROJ-14 --status IN_PROGRESS
+   
+   # Completing work
+   braingrid task update TASK-1 -p PROJ-14 --status COMPLETED \
+     --notes "Completed in commit abc123. Implements feature X."
+   ```
+
+4. **Creating New Requirements:**
+   ```bash
+   braingrid specify -p PROJ-14 --prompt "Add user authentication with OAuth2"
+   ```
+
+### Integration with Local Progress
+
+- **Sync Status:** Keep BrainGrid task status in sync with PROGRESS.md
+- **Reference Links:** Include REQ/TASK IDs in PROGRESS.md entries
+- **Commit Messages:** Reference REQ/TASK IDs in commit messages: `[REQ-1]` or `[TASK-1]`
+
 ## 📚 Quick Reference
 
 | Action | Command/Location |
 |--------|-----------------|
 | View progress | `roadmap/PROGRESS.md` |
+| Check BrainGrid | `braingrid requirement list -p PROJ-14` |
 | Check code | `cargo check --all-targets` |
 | Run linter | `cargo clippy --all-targets -- -D warnings` |
 | Run tests | `cargo test` |
 | Format code | `cargo fmt` |
 | Project root | `radium/` |
+| BrainGrid project | `PROJ-14` |
 
 ### Status Values
 - `Not Started` - Task is in queue

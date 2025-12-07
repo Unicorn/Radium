@@ -178,9 +178,7 @@ impl SessionAnalytics {
             for record in telemetry {
                 // Aggregate model usage
                 let model_key = record
-                    .model
-                    .as_ref()
-                    .map(|m| m.clone())
+                    .model.clone()
                     .unwrap_or_else(|| "unknown".to_string());
                 
                 let stats = metrics.model_usage.entry(model_key.clone()).or_insert_with(|| {
@@ -251,7 +249,7 @@ impl SessionAnalytics {
             .iter()
             .filter(|a| {
                 a.id.contains(session_id)
-                    || a.plan_id.as_ref().map(|p| p.contains(session_id)).unwrap_or(false)
+                    || a.plan_id.as_ref().is_some_and(|p| p.contains(session_id))
             })
             .map(|a| a.id.clone())
             .collect();
@@ -273,7 +271,7 @@ impl SessionAnalytics {
                 }
                 if let Some(end) = agent.end_time {
                     let agent_end = DateTime::from_timestamp(end as i64, 0).unwrap_or_else(Utc::now);
-                    end_time = Some(end_time.map(|e| e.max(agent_end)).unwrap_or(agent_end));
+                    end_time = Some(end_time.map_or(agent_end, |e| e.max(agent_end)));
                 }
             }
         }

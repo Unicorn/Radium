@@ -4,6 +4,7 @@
 
 use anyhow::{Context, Result};
 use radium_core::{AgentDiscovery, PromptContext, PromptTemplate, Workspace};
+use radium_core::auth::{CredentialStore, ProviderType};
 use radium_core::context::HistoryManager;
 use radium_models::ModelFactory;
 use std::fs;
@@ -45,8 +46,24 @@ pub async fn execute_chat_message(
     let engine = agent.engine.as_deref().unwrap_or("gemini");
     let model = agent.model.as_deref().unwrap_or("gemini-2.0-flash-exp");
 
+    // Load API key from CredentialStore
+    let api_key = if let Ok(store) = CredentialStore::new() {
+        let provider = match engine {
+            "gemini" => ProviderType::Gemini,
+            "openai" => ProviderType::OpenAI,
+            _ => ProviderType::Gemini, // default
+        };
+        store.get(provider).ok()
+    } else {
+        None
+    };
+
     // Execute model
-    let result = match ModelFactory::create_from_str(engine, model.to_string()) {
+    let result = match if let Some(key) = api_key {
+        ModelFactory::create_with_api_key(engine, model.to_string(), key)
+    } else {
+        ModelFactory::create_from_str(engine, model.to_string())
+    } {
         Ok(model_instance) => {
             match model_instance.generate_text(&rendered, None).await {
                 Ok(response) => ChatExecutionResult {

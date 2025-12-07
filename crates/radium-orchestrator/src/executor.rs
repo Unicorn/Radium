@@ -33,9 +33,9 @@ impl ExecutionTelemetry {
     /// Creates telemetry from ModelUsage.
     pub fn from_usage(usage: &radium_abstraction::ModelUsage, model_id: Option<String>) -> Self {
         Self {
-            input_tokens: usage.prompt_tokens as u64,
-            output_tokens: usage.completion_tokens as u64,
-            total_tokens: usage.total_tokens as u64,
+            input_tokens: u64::from(usage.prompt_tokens),
+            output_tokens: u64::from(usage.completion_tokens),
+            total_tokens: u64::from(usage.total_tokens),
             model_id,
         }
     }

@@ -17,7 +17,7 @@ use crate::theme::THEME;
 /// - `code` inline code
 /// - Code blocks (```code```)
 /// - Lists (- item)
-pub fn render_markdown(text: &str) -> Vec<Line> {
+pub fn render_markdown(text: &str) -> Vec<Line<'_>> {
     let mut lines = Vec::new();
     let mut in_code_block = false;
     let mut code_block_lang = String::new();
@@ -64,7 +64,7 @@ pub fn render_markdown(text: &str) -> Vec<Line> {
 }
 
 /// Parse a single line of markdown into styled spans.
-fn parse_markdown_line(line: &str) -> Line {
+fn parse_markdown_line(line: &str) -> Line<'_> {
     let mut spans = Vec::new();
     let mut chars = line.chars().peekable();
     let mut current_text = String::new();

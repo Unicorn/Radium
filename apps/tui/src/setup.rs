@@ -46,6 +46,19 @@ impl SetupWizard {
         }
     }
 
+    /// Creates a new setup wizard, skipping the welcome screen.
+    ///
+    /// Used when user explicitly triggers authentication via /auth command.
+    pub fn new_skip_welcome() -> Self {
+        Self {
+            state: SetupState::ProviderSelection {
+                selected_providers: vec![],
+                cursor: 0,
+            },
+            error_message: None,
+        }
+    }
+
     /// Checks if setup is needed.
     pub fn is_needed() -> bool {
         if let Ok(store) = CredentialStore::new() {
