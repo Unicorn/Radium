@@ -500,8 +500,8 @@ async fn add_policy(
     // Create new rule
     let mut rule = toml::map::Map::new();
     rule.insert("name".to_string(), toml::Value::String(name.clone()));
-    rule.insert("priority".to_string(), toml::Value::String(priority_lower));
-    rule.insert("action".to_string(), toml::Value::String(action_lower));
+    rule.insert("priority".to_string(), toml::Value::String(priority_lower.clone()));
+    rule.insert("action".to_string(), toml::Value::String(action_lower.clone()));
     rule.insert("tool_pattern".to_string(), toml::Value::String(tool_pattern.clone()));
     
     if let Some(arg_pattern) = arg_pattern {
