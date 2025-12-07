@@ -2,6 +2,7 @@
 //!
 //! Defines the TOML configuration format for agents.
 
+use crate::sandbox::SandboxConfig;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use thiserror::Error;
@@ -431,6 +432,13 @@ pub struct AgentConfig {
     /// If not specified, defaults to Balanced/Medium/5.
     #[serde(default)]
     pub capabilities: AgentCapabilities,
+
+    /// Optional sandbox configuration for safe command execution.
+    ///
+    /// When set, agent commands will execute in the specified sandbox environment.
+    /// If not set, commands execute directly without sandboxing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sandbox: Option<SandboxConfig>,
 }
 
 impl AgentConfig {
@@ -450,6 +458,7 @@ impl AgentConfig {
             category: None,
             file_path: None,
             capabilities: AgentCapabilities::default(),
+            sandbox: None,
         }
     }
 
@@ -513,6 +522,13 @@ impl AgentConfig {
     #[must_use]
     pub fn with_capabilities(mut self, capabilities: AgentCapabilities) -> Self {
         self.capabilities = capabilities;
+        self
+    }
+
+    /// Set the sandbox configuration.
+    #[must_use]
+    pub fn with_sandbox(mut self, sandbox: SandboxConfig) -> Self {
+        self.sandbox = Some(sandbox);
         self
     }
 }

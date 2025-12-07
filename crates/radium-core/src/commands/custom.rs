@@ -7,8 +7,10 @@
 //! - Argument placeholders: `{{args}}`, `{{arg1}}`, etc.
 //! - User vs project command precedence
 //! - Namespaced commands via directory structure
+//! - Sandboxed execution for safe command execution
 
 use super::error::{CommandError, Result};
+use crate::sandbox::{Sandbox, SandboxConfig};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -43,6 +45,7 @@ impl CustomCommand {
     /// # Arguments
     /// * `args` - Arguments to substitute into template
     /// * `base_dir` - Base directory for file resolution
+    /// * `sandbox` - Optional sandbox for command execution
     ///
     /// # Returns
     /// The rendered command output
@@ -50,13 +53,34 @@ impl CustomCommand {
     /// # Errors
     /// Returns error if execution fails
     pub fn execute(&self, args: &[String], base_dir: &Path) -> Result<String> {
+        self.execute_with_sandbox(args, base_dir, None)
+    }
+
+    /// Executes the command with provided arguments and optional sandbox.
+    ///
+    /// # Arguments
+    /// * `args` - Arguments to substitute into template
+    /// * `base_dir` - Base directory for file resolution
+    /// * `sandbox` - Optional sandbox for command execution
+    ///
+    /// # Returns
+    /// The rendered command output
+    ///
+    /// # Errors
+    /// Returns error if execution fails
+    pub fn execute_with_sandbox(
+        &self,
+        args: &[String],
+        base_dir: &Path,
+        sandbox: Option<&mut Box<dyn Sandbox>>,
+    ) -> Result<String> {
         let mut rendered = self.template.clone();
 
         // Substitute arguments
         rendered = Self::substitute_args(&rendered, args);
 
         // Execute shell commands (!{command})
-        rendered = Self::execute_shell_commands(&rendered)?;
+        rendered = Self::execute_shell_commands(&rendered, sandbox)?;
 
         // Inject file contents (@{file})
         rendered = Self::inject_files(&rendered, base_dir)?;
@@ -84,7 +108,20 @@ impl CustomCommand {
     }
 
     /// Executes shell command injections.
-    fn execute_shell_commands(template: &str) -> Result<String> {
+    ///
+    /// # Arguments
+    /// * `template` - Template string with shell command injections
+    /// * `sandbox` - Optional sandbox for command execution
+    ///
+    /// # Returns
+    /// Template with shell commands executed and replaced
+    ///
+    /// # Errors
+    /// Returns error if command execution fails
+    fn execute_shell_commands(
+        template: &str,
+        sandbox: Option<&mut Box<dyn Sandbox>>,
+    ) -> Result<String> {
         let mut result = template.to_string();
 
         // Find all !{...} patterns
@@ -99,11 +136,43 @@ impl CustomCommand {
             let command_str = &result[start + 2..end];
 
             // Execute shell command
-            let output = Command::new("sh")
-                .arg("-c")
-                .arg(command_str)
-                .output()
-                .map_err(|e| CommandError::ShellExecution(e.to_string()))?;
+            let output = if let Some(sandbox) = sandbox {
+                // Execute in sandbox (blocking call to async method)
+                let rt = tokio::runtime::Handle::try_current()
+                    .ok()
+                    .or_else(|| {
+                        // Create a new runtime if not in async context
+                        Some(tokio::runtime::Runtime::new().ok()?.handle().clone())
+                    })
+                    .ok_or_else(|| {
+                        CommandError::ShellExecution(
+                            "Failed to get tokio runtime for sandbox execution".to_string(),
+                        )
+                    })?;
+
+                // Parse command (simple: assume first word is command, rest are args)
+                let parts: Vec<&str> = command_str.split_whitespace().collect();
+                if parts.is_empty() {
+                    return Err(CommandError::ShellExecution(
+                        "Empty command in shell injection".to_string(),
+                    ));
+                }
+
+                let command = parts[0];
+                let cmd_args: Vec<String> = parts[1..].iter().map(|s| s.to_string()).collect();
+
+                rt.block_on(async {
+                    sandbox.execute(command, &cmd_args, None).await
+                })
+                .map_err(|e| CommandError::ShellExecution(format!("Sandbox execution failed: {}", e)))?
+            } else {
+                // Execute directly without sandbox
+                Command::new("sh")
+                    .arg("-c")
+                    .arg(command_str)
+                    .output()
+                    .map_err(|e| CommandError::ShellExecution(e.to_string()))?
+            };
 
             if !output.status.success() {
                 let stderr = String::from_utf8_lossy(&output.stderr);
@@ -391,7 +460,7 @@ mod tests {
             namespace: None,
         };
 
-        let result = CustomCommand::execute_shell_commands(&command.template).unwrap();
+        let result = CustomCommand::execute_shell_commands(&command.template, None).unwrap();
         assert!(result.starts_with("Date: 20")); // Year starts with 20
     }
 
