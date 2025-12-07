@@ -9,6 +9,7 @@ pub mod complete;
 pub mod control_flow;
 pub mod engine;
 pub mod executor;
+pub mod failure;
 pub mod parallel;
 pub mod service;
 pub mod step_tracking;
@@ -23,6 +24,9 @@ pub use behaviors::{
 };
 pub use engine::{ExecutionContext, StepResult, WorkflowEngine, WorkflowEngineError};
 pub use executor::WorkflowExecutor;
+pub use failure::{
+    FailureClassifier, FailureHistory, FailurePolicy, FailureRecord, FailureType,
+};
 pub use service::{WorkflowExecution, WorkflowService};
 pub use step_tracking::{StepRecord, StepStatus, StepTracker, StepTrackingError};
 pub use template_discovery::TemplateDiscovery;

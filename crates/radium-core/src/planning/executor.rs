@@ -471,6 +471,45 @@ impl PlanExecutor {
             iteration.tasks.iter().any(|task| !task.completed)
         })
     }
+
+    /// Prints progress information for the current execution state.
+    ///
+    /// # Arguments
+    /// * `manifest` - The plan manifest
+    /// * `execution_iteration` - Current execution iteration number
+    /// * `elapsed` - Elapsed time since execution started
+    /// * `current_task_name` - Name of the currently active task (if any)
+    pub fn print_progress(
+        &self,
+        manifest: &PlanManifest,
+        execution_iteration: usize,
+        elapsed: Duration,
+        current_task_name: Option<&str>,
+    ) {
+        let total_tasks = manifest.total_tasks();
+        let completed_tasks: usize = manifest
+            .iterations
+            .iter()
+            .flat_map(|i| &i.tasks)
+            .filter(|t| t.completed)
+            .count();
+
+        let elapsed_secs = elapsed.as_secs();
+        let elapsed_min = elapsed_secs / 60;
+        let elapsed_sec = elapsed_secs % 60;
+        let elapsed_str = if elapsed_min > 0 {
+            format!("{}m {}s", elapsed_min, elapsed_sec)
+        } else {
+            format!("{}s", elapsed_sec)
+        };
+
+        let current_task = current_task_name.unwrap_or("Evaluating next task");
+
+        println!(
+            "[Iteration {}] Progress: {}/{} tasks | Current: {} | Elapsed: {}",
+            execution_iteration, completed_tasks, total_tasks, current_task, elapsed_str
+        );
+    }
 }
 
 impl Default for PlanExecutor {

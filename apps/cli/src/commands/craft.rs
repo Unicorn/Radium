@@ -5,6 +5,7 @@
 use anyhow::{Context, bail};
 use chrono::Utc;
 use colored::Colorize;
+use std::time::Instant;
 use radium_core::{
     analytics::{ReportFormatter, SessionAnalytics, SessionReport, SessionStorage},
     context::ContextFileLoader, ExecutionConfig, monitoring::MonitoringService, PlanDiscovery,
@@ -274,9 +275,14 @@ async fn execute_plan(
     let mut execution_iteration = 0;
     const CONTINUOUS_SANITY_LIMIT: usize = 1000;
     let mut abort_requested = false; // Will be used in Task 5 for SIGINT handling
+    let start_time = Instant::now();
 
     loop {
         execution_iteration += 1;
+        
+        // Print progress at start of each execution iteration
+        let elapsed = start_time.elapsed();
+        executor.print_progress(manifest, execution_iteration, elapsed, None);
 
         // Check if we should continue based on run mode
         let should_continue = match run_mode {
@@ -349,6 +355,10 @@ async fn execute_plan(
             }
 
             println!("    {} {}", "→".cyan(), task.title);
+            
+            // Update progress with current task name
+            let elapsed = start_time.elapsed();
+            executor.print_progress(manifest, execution_iteration, elapsed, Some(&task.title));
 
             // Check dependencies
             if let Err(e) = executor.check_dependencies(manifest, task) {

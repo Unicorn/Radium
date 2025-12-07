@@ -121,6 +121,24 @@ impl AgentExecutor {
         Self::new(ModelType::Mock, "mock-model".to_string())
     }
 
+    /// Infers the provider name from a model instance.
+    ///
+    /// This is a best-effort inference based on the model ID.
+    /// For more accurate tracking, the provider should be passed explicitly.
+    fn infer_provider_from_model(model: &Arc<dyn radium_abstraction::Model + Send + Sync>) -> String {
+        let model_id = model.model_id().to_lowercase();
+        if model_id.contains("gpt") || model_id.contains("openai") {
+            "openai".to_string()
+        } else if model_id.contains("gemini") {
+            "gemini".to_string()
+        } else if model_id.contains("mock") {
+            "mock".to_string()
+        } else {
+            // Default to openai if we can't determine
+            "openai".to_string()
+        }
+    }
+
     /// Finds the next available provider for failover.
     ///
     /// Returns the next provider in the failover order (openai → gemini → mock)
@@ -378,39 +396,35 @@ impl AgentExecutor {
                 }
             };
 
-            // If we get here, execution succeeded or failed with non-quota error
-            break;
-        }
-
-        let execution_result;
-
-        // Execute AfterModel hooks
-        if let Some(executor) = hook_executor {
-            match executor.execute_after_model(agent_id, &execution_result.output, execution_result.success).await {
-                Ok(results) => {
-                    for result in results {
-                        // If hook modifies output, update it
-                        if let Some(modified_data) = result.modified_data {
-                            if let Some(new_output) = modified_data.get("output") {
-                                if let Some(text) = new_output.get("text").and_then(|v| v.as_str()) {
-                                    return ExecutionResult {
-                                        output: AgentOutput::Text(text.to_string()),
-                                        success: execution_result.success,
-                                        error: execution_result.error,
-                                        telemetry: execution_result.telemetry,
-                                    };
+            // Execute AfterModel hooks if execution succeeded or failed with non-quota error
+            if let Some(executor) = hook_executor {
+                match executor.execute_after_model(agent_id, &execution_result.output, execution_result.success).await {
+                    Ok(results) => {
+                        for result in results {
+                            // If hook modifies output, update it
+                            if let Some(modified_data) = result.modified_data {
+                                if let Some(new_output) = modified_data.get("output") {
+                                    if let Some(text) = new_output.get("text").and_then(|v| v.as_str()) {
+                                        return ExecutionResult {
+                                            output: AgentOutput::Text(text.to_string()),
+                                            success: execution_result.success,
+                                            error: execution_result.error,
+                                            telemetry: execution_result.telemetry,
+                                        };
+                                    }
                                 }
                             }
                         }
                     }
-                }
-                Err(e) => {
-                    warn!(agent_id = %agent_id, error = %e, "AfterModel hook execution failed");
+                    Err(e) => {
+                        warn!(agent_id = %agent_id, error = %e, "AfterModel hook execution failed");
+                    }
                 }
             }
-        }
 
-        execution_result
+            // If we get here, execution succeeded or failed with non-quota error
+            return execution_result;
+        }
     }
 
     /// Executes an agent using the default model configuration.
