@@ -12,7 +12,7 @@ use tracing_subscriber::FmtSubscriber;
 
 use commands::{
     agents, auth, autonomous, chat, checkpoint, clean, complete, context, craft, custom, doctor, extension, hooks, init, mcp, monitor, plan, run,
-    stats, status, step, templates,
+    sandbox, stats, status, step, templates,
 };
 
 /// Radium CLI - Next-generation agentic orchestration tool
@@ -281,6 +281,13 @@ enum Command {
     #[command(subcommand)]
     Custom(commands::CustomCommand),
 
+    /// Sandbox management
+    ///
+    /// List, test, and manage sandbox environments for safe agent execution.
+    /// Supports Docker, Podman, and macOS Seatbelt sandboxing.
+    #[command(subcommand)]
+    Sandbox(sandbox::SandboxCommand),
+
     /// Autonomous execution from high-level goals
     ///
     /// Decomposes a high-level goal into an executable workflow and executes it
@@ -396,6 +403,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Custom(cmd) => {
             custom::execute(cmd).await?;
+        }
+        Command::Sandbox(cmd) => {
+            sandbox::execute(cmd).await?;
         }
         Command::Autonomous { goal } => {
             autonomous::execute(goal).await?;

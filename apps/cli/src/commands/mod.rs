@@ -18,6 +18,7 @@ pub mod mcp;
 pub mod monitor;
 pub mod plan;
 pub mod run;
+pub mod sandbox;
 pub mod stats;
 pub mod status;
 pub mod step;
@@ -25,5 +26,5 @@ pub mod templates;
 pub mod types;
 
 // Re-export types for convenience
-pub use types::{AgentsCommand, AuthCommand, CustomCommand, ExtensionCommand, HooksCommand, TemplatesCommand};
+pub use types::{AgentsCommand, AuthCommand, CustomCommand, EnginesCommand, ExtensionCommand, HooksCommand, TemplatesCommand};
 pub use context::ContextCommand;
