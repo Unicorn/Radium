@@ -42,6 +42,8 @@ pub enum ModelError {
 
 impl ModelError {
     /// Formats the message part for QuotaExceeded error display.
+    /// This method is used by the thiserror Display implementation.
+    #[allow(dead_code)] // Used by thiserror macro via format string
     fn message_formatted(&self) -> String {
         match self {
             Self::QuotaExceeded { message, .. } => {

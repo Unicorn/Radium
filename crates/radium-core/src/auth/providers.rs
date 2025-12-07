@@ -10,6 +10,8 @@ pub enum ProviderType {
     Gemini,
     /// OpenAI
     OpenAI,
+    /// Anthropic Claude
+    Claude,
 }
 
 impl ProviderType {
@@ -19,6 +21,7 @@ impl ProviderType {
         match self {
             Self::Gemini => "gemini",
             Self::OpenAI => "openai",
+            Self::Claude => "claude",
         }
     }
 
@@ -36,6 +39,7 @@ impl ProviderType {
         match s.to_lowercase().as_str() {
             "gemini" => Some(Self::Gemini),
             "openai" => Some(Self::OpenAI),
+            "claude" => Some(Self::Claude),
             _ => None,
         }
     }
@@ -43,7 +47,7 @@ impl ProviderType {
     /// Returns all supported provider types.
     #[must_use]
     pub fn all() -> Vec<Self> {
-        vec![Self::Gemini, Self::OpenAI]
+        vec![Self::Gemini, Self::OpenAI, Self::Claude]
     }
 
     /// Returns the environment variable names that can be used for this provider.
@@ -54,6 +58,7 @@ impl ProviderType {
         match self {
             Self::Gemini => vec!["GOOGLE_API_KEY", "GEMINI_API_KEY"],
             Self::OpenAI => vec!["OPENAI_API_KEY"],
+            Self::Claude => vec!["ANTHROPIC_API_KEY"],
         }
     }
 }
@@ -81,6 +86,7 @@ mod tests {
     fn test_provider_type_as_str() {
         assert_eq!(ProviderType::Gemini.as_str(), "gemini");
         assert_eq!(ProviderType::OpenAI.as_str(), "openai");
+        assert_eq!(ProviderType::Claude.as_str(), "claude");
     }
 
     #[test]
@@ -89,15 +95,18 @@ mod tests {
         assert_eq!(ProviderType::parse("GEMINI"), Some(ProviderType::Gemini));
         assert_eq!(ProviderType::parse("openai"), Some(ProviderType::OpenAI));
         assert_eq!(ProviderType::parse("OpenAI"), Some(ProviderType::OpenAI));
+        assert_eq!(ProviderType::parse("claude"), Some(ProviderType::Claude));
+        assert_eq!(ProviderType::parse("Claude"), Some(ProviderType::Claude));
         assert_eq!(ProviderType::parse("unknown"), None);
     }
 
     #[test]
     fn test_provider_type_all() {
         let all = ProviderType::all();
-        assert_eq!(all.len(), 2);
+        assert_eq!(all.len(), 3);
         assert!(all.contains(&ProviderType::Gemini));
         assert!(all.contains(&ProviderType::OpenAI));
+        assert!(all.contains(&ProviderType::Claude));
     }
 
     #[test]
@@ -107,6 +116,9 @@ mod tests {
 
         let openai_vars = ProviderType::OpenAI.env_var_names();
         assert_eq!(openai_vars, vec!["OPENAI_API_KEY"]);
+
+        let claude_vars = ProviderType::Claude.env_var_names();
+        assert_eq!(claude_vars, vec!["ANTHROPIC_API_KEY"]);
     }
 
     #[test]

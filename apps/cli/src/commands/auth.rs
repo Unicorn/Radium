@@ -36,7 +36,7 @@ pub async fn execute(command: AuthCommand) -> Result<()> {
 
 async fn login_provider(provider_name: &str) -> Result<()> {
     let provider_type = ProviderType::parse(provider_name).ok_or_else(|| {
-        anyhow!("Unknown provider: {}. Supported providers: gemini, openai", provider_name)
+        anyhow!("Unknown provider: {}. Supported providers: gemini, openai, claude", provider_name)
     })?;
 
     println!();
