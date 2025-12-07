@@ -1,7 +1,7 @@
 //! Engine management command implementation.
 
 use super::{EnginesCommand, EngineConfigCommand};
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use colored::Colorize;
 use radium_core::engines::{Engine, EngineRegistry, HealthStatus, PerEngineConfig};
 use radium_core::engines::providers::{ClaudeEngine, GeminiEngine, MockEngine, OpenAIEngine};
@@ -355,3 +355,149 @@ async fn health_engines(json_output: bool, timeout: u64) -> Result<()> {
     Ok(())
 }
 
+/// Execute engine configuration command.
+async fn execute_config_command(cmd: EngineConfigCommand) -> Result<()> {
+    match cmd {
+        EngineConfigCommand::Show { json } => show_engine_config(json).await,
+        EngineConfigCommand::Set { key, value } => set_engine_config(&key, &value).await,
+        EngineConfigCommand::Reset { engine } => reset_engine_config(engine.as_deref()).await,
+    }
+}
+
+/// Show current engine configuration.
+async fn show_engine_config(json_output: bool) -> Result<()> {
+    let registry = init_registry();
+    let global_config = registry.get_global_config()
+        .context("Failed to get engine configuration")?;
+
+    if json_output {
+        let config_json = json!({
+            "default": global_config.default,
+            "engines": global_config.engines.iter().map(|(k, v)| {
+                (k.clone(), json!({
+                    "default_model": v.default_model,
+                    "temperature": v.temperature,
+                    "max_tokens": v.max_tokens,
+                }))
+            }).collect::<serde_json::Map<String, serde_json::Value>>(),
+        });
+        println!("{}", serde_json::to_string_pretty(&config_json)?);
+    } else {
+        println!();
+        println!("{}", "Engine Configuration".bold().green());
+        println!();
+
+        if let Some(ref default) = global_config.default {
+            println!("  Default Engine: {}", default.cyan());
+        } else {
+            println!("  Default Engine: {}", "Not set".dimmed());
+        }
+        println!();
+
+        if global_config.engines.is_empty() {
+            println!("  {}", "No engine-specific configurations".dimmed());
+        } else {
+            println!("  {}", "Per-Engine Configuration:".bold());
+            for (engine_id, config) in &global_config.engines {
+                println!("    {}", engine_id.cyan());
+                if let Some(ref model) = config.default_model {
+                    println!("      Default Model: {}", model);
+                }
+                if let Some(temp) = config.temperature {
+                    println!("      Temperature: {}", temp);
+                }
+                if let Some(max) = config.max_tokens {
+                    println!("      Max Tokens: {}", max);
+                }
+            }
+        }
+        println!();
+    }
+
+    Ok(())
+}
+
+/// Set an engine configuration value.
+async fn set_engine_config(key: &str, value: &str) -> Result<()> {
+    let registry = init_registry();
+
+    // Parse key format: <engine>.<setting> or just <setting> for global
+    let parts: Vec<&str> = key.split('.').collect();
+    
+    if parts.len() == 1 {
+        // Global setting
+        match parts[0] {
+            "default" => {
+                registry.set_default(value)
+                    .with_context(|| format!("Failed to set default engine: {}", value))?;
+                println!();
+                println!("{}", format!("✓ Set default engine to: {}", value).green());
+                println!();
+            }
+            _ => {
+                bail!("Unknown global setting: {}. Use 'default' to set default engine.", parts[0]);
+            }
+        }
+    } else if parts.len() == 2 {
+        // Per-engine setting: <engine>.<setting>
+        let engine_id = parts[0];
+        let setting = parts[1];
+
+        // Get or create engine config
+        let mut engine_config = registry.get_engine_config(engine_id)
+            .unwrap_or_else(|| PerEngineConfig::new());
+
+        match setting {
+            "default_model" => {
+                engine_config.default_model = Some(value.to_string());
+            }
+            "temperature" => {
+                let temp: f32 = value.parse()
+                    .with_context(|| format!("Invalid temperature value: {}", value))?;
+                engine_config.temperature = Some(temp);
+            }
+            "max_tokens" => {
+                let max: usize = value.parse()
+                    .with_context(|| format!("Invalid max_tokens value: {}", value))?;
+                engine_config.max_tokens = Some(max);
+            }
+            _ => {
+                bail!("Unknown setting: {}. Supported: default_model, temperature, max_tokens", setting);
+            }
+        }
+
+        registry.set_engine_config(engine_id.to_string(), engine_config)
+            .with_context(|| format!("Failed to set configuration for engine: {}", engine_id))?;
+
+        println!();
+        println!("{}", format!("✓ Set {} = {} for engine {}", key, value, engine_id).green());
+        println!();
+    } else {
+        bail!("Invalid key format: {}. Use '<engine>.<setting>' or '<setting>'", key);
+    }
+
+    Ok(())
+}
+
+/// Reset engine configuration.
+async fn reset_engine_config(engine: Option<&str>) -> Result<()> {
+    let registry = init_registry();
+
+    if let Some(engine_id) = engine {
+        // Reset specific engine by setting empty config
+        let empty_config = PerEngineConfig::new();
+        registry.set_engine_config(engine_id.to_string(), empty_config)
+            .with_context(|| format!("Failed to reset configuration for engine: {}", engine_id))?;
+        println!();
+        println!("{}", format!("✓ Reset configuration for engine: {}", engine_id).green());
+        println!();
+    } else {
+        // Reset all engines (but keep default)
+        println!();
+        println!("{}", "⚠ To reset all engine configurations, manually edit .radium/config.toml".yellow());
+        println!("  Or reset individual engines with: rad engines config reset <engine-id>");
+        println!();
+    }
+
+    Ok(())
+}

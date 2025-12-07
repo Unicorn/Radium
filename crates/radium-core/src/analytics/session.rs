@@ -7,7 +7,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use crate::analytics::code_changes::CodeChanges;
-// use crate::monitoring::{MonitoringService, TelemetryTracking};  // DISABLED: monitoring module
+use crate::monitoring::{MonitoringService, TelemetryTracking};
 
 /// Session metrics aggregated from telemetry and agent activity.
 #[derive(Debug, Clone, Serialize, Deserialize)]

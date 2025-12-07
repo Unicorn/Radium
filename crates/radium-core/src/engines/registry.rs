@@ -109,10 +109,13 @@ impl EngineRegistry {
                     if key == "default" {
                         continue; // Already handled
                     }
-                    
+
                     // Try to deserialize as PerEngineConfig
-                    if let Ok(engine_config) = PerEngineConfig::deserialize(value) {
-                        global_config.set_engine_config(key.clone(), engine_config);
+                    // Convert toml::Value to PerEngineConfig via string serialization
+                    if let Ok(value_str) = toml::to_string(&value) {
+                        if let Ok(engine_config) = toml::from_str::<PerEngineConfig>(&value_str) {
+                            global_config.set_engine_config(key.clone(), engine_config);
+                        }
                     }
                 }
             }
@@ -187,8 +190,11 @@ impl EngineRegistry {
         
         // Add per-engine configs
         for (engine_id, engine_config) in &global_config.engines {
-            let engine_value = toml::to_value(engine_config)
+            // Serialize to TOML string then parse as Value
+            let engine_str = toml::to_string(engine_config)
                 .map_err(|e| EngineError::InvalidConfig(format!("Failed to serialize engine config: {}", e)))?;
+            let engine_value: toml::Value = toml::from_str(&engine_str)
+                .map_err(|e| EngineError::InvalidConfig(format!("Failed to parse engine config: {}", e)))?;
             engines_table.insert(engine_id.clone(), engine_value);
         }
         

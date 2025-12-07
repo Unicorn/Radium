@@ -70,7 +70,7 @@ use crate::models::PlanManifest;
 use crate::planning::dag::{DagError, DependencyGraph};
 use crate::planning::generator::PlanGenerator;
 use crate::planning::parser::{ParsedIteration, ParsedPlan, ParsedTask};
-// use crate::workflow::templates::{WorkflowStep, WorkflowStepConfig, WorkflowStepType, WorkflowTemplate};  // DISABLED: workflow module
+use crate::workflow::templates::{WorkflowStep, WorkflowStepConfig, WorkflowStepType, WorkflowTemplate};
 use radium_abstraction::Model;
 use std::sync::Arc;
 use thiserror::Error;
