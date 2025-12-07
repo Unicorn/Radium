@@ -100,10 +100,25 @@ pub enum AgentsCommand {
         #[arg(short, long)]
         reasoning: Option<String>,
 
-        /// Output directory (default: ./agents/)
-        #[arg(short, long)]
-        output: Option<String>,
+    /// Output directory (default: ./agents/)
+    #[arg(short, long)]
+    output: Option<String>,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum ContextCommand {
+    /// List all context files in workspace
+    List,
+
+    /// Show which context files would be loaded for a path
+    Show {
+        /// Path to check (file or directory)
+        path: String,
     },
+
+    /// Validate all context files (syntax, imports, circular deps)
+    Validate,
+},
 }
 
 #[derive(Subcommand, Debug, Clone)]

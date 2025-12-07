@@ -248,6 +248,13 @@ enum Command {
     /// agent behavior at various points in the execution flow.
     #[command(subcommand)]
     Hooks(hooks::HooksCommand),
+
+    /// Context file management
+    ///
+    /// List, show, and validate context files (GEMINI.md) in the workspace.
+    /// Context files provide persistent instructions to agents.
+    #[command(subcommand)]
+    Context(commands::ContextCommand),
 }
 
 // Command types are now in commands::types module
@@ -346,6 +353,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Hooks(cmd) => {
             hooks::execute_hooks_command(cmd).await?;
+        }
+        Command::Context(cmd) => {
+            context::execute(cmd).await?;
         }
     }
 
