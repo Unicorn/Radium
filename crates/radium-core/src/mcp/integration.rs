@@ -3,6 +3,7 @@
 use crate::mcp::client::McpClient;
 use crate::mcp::config::McpConfigManager;
 use crate::mcp::tools::McpToolRegistry;
+use crate::mcp::prompts::SlashCommandRegistry;
 use crate::mcp::{McpError, Result};
 use crate::workspace::Workspace;
 use std::collections::HashMap;
@@ -15,6 +16,8 @@ pub struct McpIntegration {
     clients: Arc<Mutex<HashMap<String, Arc<Mutex<McpClient>>>>>,
     /// Tool registries for each server.
     tool_registries: Arc<Mutex<HashMap<String, McpToolRegistry>>>,
+    /// Slash command registry for MCP prompts.
+    slash_registry: Arc<Mutex<SlashCommandRegistry>>,
 }
 
 impl McpIntegration {
@@ -23,6 +26,7 @@ impl McpIntegration {
         Self {
             clients: Arc::new(Mutex::new(HashMap::new())),
             tool_registries: Arc::new(Mutex::new(HashMap::new())),
+            slash_registry: Arc::new(Mutex::new(SlashCommandRegistry::new())),
         }
     }
 
@@ -53,6 +57,17 @@ impl McpIntegration {
                     }
 
                     tool_registries.insert(server_config.name.clone(), tool_registry);
+
+                    // Discover prompts and register as slash commands
+                    let mut slash_registry = self.slash_registry.lock().await;
+                    if let Ok(prompts) = client.lock().await.list_prompts().await {
+                        for prompt in prompts {
+                            slash_registry.register_prompt_with_server(
+                                server_config.name.clone(),
+                                prompt,
+                            );
+                        }
+                    }
                 }
                 Err(e) => {
                     // Log error but continue with other servers
@@ -172,6 +187,11 @@ impl McpIntegration {
 
         let client = client.lock().await;
         client.execute_prompt(prompt_name, arguments).await
+    }
+
+    /// Get the slash command registry.
+    pub fn slash_registry(&self) -> Arc<Mutex<SlashCommandRegistry>> {
+        Arc::clone(&self.slash_registry)
     }
 }
 

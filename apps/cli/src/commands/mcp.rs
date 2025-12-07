@@ -25,6 +25,8 @@ pub enum McpCommand {
         #[clap(subcommand)]
         subcommand: AuthSubcommand,
     },
+    /// List available MCP prompts (slash commands)
+    Prompts,
 }
 
 /// OAuth authentication subcommands.
@@ -207,6 +209,44 @@ pub async fn execute_mcp_command(command: McpCommand) -> anyhow::Result<()> {
                         }
                     }
                 }
+            }
+        }
+        McpCommand::Prompts => {
+            let integration = McpIntegration::new();
+            integration.initialize(&workspace).await?;
+
+            let slash_registry = integration.slash_registry();
+            let registry = slash_registry.lock().await;
+            let commands = registry.get_all_commands();
+
+            if commands.is_empty() {
+                println!("No MCP prompts available.");
+                println!("\nMCP prompts are automatically registered as slash commands when MCP servers are connected.");
+                return Ok(());
+            }
+
+            println!("Available MCP slash commands:");
+            println!();
+            for (cmd_name, prompt) in commands {
+                let server_name = registry
+                    .get_server_for_command(cmd_name)
+                    .map(|s| s.as_str())
+                    .unwrap_or("unknown");
+                println!("  {} (from server: {})", cmd_name, server_name);
+                if let Some(desc) = &prompt.description {
+                    println!("    {}", desc);
+                }
+                if let Some(args) = &prompt.arguments {
+                    if !args.is_empty() {
+                        println!("    Arguments:");
+                        for arg in args {
+                            let required = if arg.required { "required" } else { "optional" };
+                            let arg_desc = arg.description.as_deref().unwrap_or("No description");
+                            println!("      {} ({}) - {}", arg.name, required, arg_desc);
+                        }
+                    }
+                }
+                println!();
             }
         }
     }
