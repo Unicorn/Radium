@@ -17,6 +17,7 @@
 //! # }
 //! ```
 
+pub mod analytics;
 #[cfg(feature = "workflow")]
 pub mod conflict;
 pub mod discovery;
@@ -45,6 +46,7 @@ pub use signing::{
 pub use structure::{
     Extension, ExtensionStructureError, default_extensions_dir, workspace_extensions_dir,
 };
+pub use analytics::{ExtensionAnalytics, ExtensionAnalyticsError, ExtensionAnalyticsService, ExtensionEvent, ExtensionEventType};
 pub use versioning::{UpdateChecker, UpdateInfo, VersionComparator, VersioningError};
 
 /// Unified error type for extension operations.

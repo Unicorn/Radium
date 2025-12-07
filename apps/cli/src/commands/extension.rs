@@ -49,6 +49,9 @@ pub async fn execute(command: ExtensionCommand) -> anyhow::Result<()> {
         ExtensionCommand::Update { name, all, dry_run } => {
             update_extension(name.as_deref(), all, dry_run).await
         }
+        ExtensionCommand::Analytics { action, name, json } => {
+            manage_analytics(&action, name.as_deref(), json).await
+        }
     }
 }
 

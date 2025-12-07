@@ -99,8 +99,16 @@ pub enum AgentsCommand {
 
     /// Show persona configuration for an agent
     Persona {
-        /// Agent ID
-        id: String,
+        /// Agent ID (optional if using --list or --validate)
+        id: Option<String>,
+
+        /// List all agents with persona configs
+        #[arg(long)]
+        list: bool,
+
+        /// Validate persona config for agent
+        #[arg(long)]
+        validate: bool,
 
         /// Output as JSON
         #[arg(long)]
@@ -608,6 +616,39 @@ pub enum ExtensionCommand {
         /// Preview updates without applying
         #[arg(long)]
         dry_run: bool,
+    },
+
+    /// Manage extension analytics
+    ///
+    /// # Examples
+    ///
+    /// Show analytics status:
+    ///   $ rad extension analytics status
+    ///
+    /// Opt in to analytics:
+    ///   $ rad extension analytics opt-in
+    ///
+    /// Opt out of analytics:
+    ///   $ rad extension analytics opt-out
+    ///
+    /// View analytics data:
+    ///   $ rad extension analytics view
+    ///
+    /// View analytics for specific extension:
+    ///   $ rad extension analytics view my-extension
+    ///
+    /// Clear analytics data:
+    ///   $ rad extension analytics clear
+    Analytics {
+        /// Action: status, opt-in, opt-out, view, clear
+        action: String,
+
+        /// Extension name (for view action)
+        name: Option<String>,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
     },
 }
 
