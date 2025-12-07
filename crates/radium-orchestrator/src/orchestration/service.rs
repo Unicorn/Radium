@@ -11,7 +11,7 @@ use super::{
     OrchestrationProvider, OrchestrationResult,
     agent_tools::AgentToolRegistry,
     config::{OrchestrationConfig, ProviderType},
-    context::{Message, OrchestrationContext, UserPreferences},
+    context::{Message, OrchestrationContext},
     engine::{EngineConfig, OrchestrationEngine},
     providers::{
         claude::ClaudeOrchestrator, gemini::GeminiOrchestrator, openai::OpenAIOrchestrator,
@@ -19,7 +19,6 @@ use super::{
     },
 };
 use crate::error::Result;
-use radium_models::ModelType;
 
 /// Session state for maintaining conversation context
 #[derive(Debug, Clone)]
@@ -118,7 +117,7 @@ impl OrchestrationService {
             ProviderType::Gemini => Arc::new(
                 GeminiOrchestrator::new(&config.gemini.model, &api_key)
                     .with_temperature(config.gemini.temperature)
-                    .with_max_iterations(config.gemini.max_tool_iterations),
+                    .with_max_iterations(config.gemini.max_tool_iterations as u32),
             ),
             ProviderType::Claude => Arc::new(
                 ClaudeOrchestrator::new(&config.claude.model, &api_key)
