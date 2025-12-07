@@ -24,7 +24,7 @@ fn create_temp_workspace() -> (TempDir, Workspace) {
 #[test]
 fn test_memory_store_with_context_manager_integration() {
     let (_temp_dir, workspace) = create_temp_workspace();
-    let req_id = RequirementId::from_str("REQ-INT-1").unwrap();
+    let req_id = RequirementId::new(1);
 
     // Create MemoryStore and ContextManager for a plan
     let mut memory_store = MemoryStore::new(workspace.root(), req_id).unwrap();
@@ -51,6 +51,10 @@ fn test_memory_store_with_context_manager_integration() {
 fn test_hierarchical_context_files_with_source_registry() {
     let (temp_dir, _workspace) = create_temp_workspace();
 
+    // Create shared file for import (must exist before project file references it)
+    let shared_file = temp_dir.path().join("shared.md");
+    fs::write(&shared_file, "# Shared Rules\n\n- Rule 1\n- Rule 2").unwrap();
+
     // Create global context file (simulated in temp dir for testing)
     let global_dir = temp_dir.path().join(".radium");
     fs::create_dir_all(&global_dir).unwrap();
@@ -60,10 +64,6 @@ fn test_hierarchical_context_files_with_source_registry() {
     // Create project root context file
     let project_file = temp_dir.path().join("GEMINI.md");
     fs::write(&project_file, "# Project Context\n\n@shared.md\n\nProject instructions.").unwrap();
-
-    // Create shared file for import
-    let shared_file = temp_dir.path().join("shared.md");
-    fs::write(&shared_file, "# Shared Rules\n\n- Rule 1\n- Rule 2").unwrap();
 
     // Create subdirectory with context file
     let subdir = temp_dir.path().join("src");
@@ -142,7 +142,7 @@ fn test_multi_source_context_gathering() {
     fs::write(&context_file, "# Context File\n\nContext instructions.").unwrap();
 
     // Create memory store and add entry
-    let req_id = RequirementId::from_str("REQ-INT-2").unwrap();
+    let req_id = RequirementId::new(2);
     let mut memory_store = MemoryStore::new(workspace.root(), req_id).unwrap();
     let entry = MemoryEntry::new("test-agent".to_string(), "Memory content".to_string());
     memory_store.store(entry).unwrap();
@@ -390,7 +390,7 @@ fn test_performance_cache_hit_vs_miss() {
 #[test]
 fn test_memory_context_with_hierarchical_files() {
     let (temp_dir, workspace) = create_temp_workspace();
-    let req_id = RequirementId::from_str("REQ-INT-3").unwrap();
+    let req_id = RequirementId::new(3);
 
     // Create context file
     let context_file = temp_dir.path().join("GEMINI.md");
@@ -415,7 +415,7 @@ fn test_memory_context_with_hierarchical_files() {
 #[test]
 fn test_custom_command_with_memory_context() {
     let (_temp_dir, workspace) = create_temp_workspace();
-    let req_id = RequirementId::from_str("REQ-INT-4").unwrap();
+    let req_id = RequirementId::new(4);
 
     // Create memory store and add entry
     let mut memory_store = MemoryStore::new(workspace.root(), req_id).unwrap();
@@ -435,7 +435,7 @@ fn test_custom_command_with_memory_context() {
 #[test]
 fn test_error_handling_missing_memory() {
     let (_temp_dir, workspace) = create_temp_workspace();
-    let req_id = RequirementId::from_str("REQ-INT-5").unwrap();
+    let req_id = RequirementId::new(5);
 
     // Create context manager without storing any memory
     let context_manager = ContextManager::for_plan(&workspace, req_id).unwrap();
@@ -450,7 +450,7 @@ fn test_error_handling_missing_memory() {
 #[test]
 fn test_integration_all_components() {
     let (temp_dir, workspace) = create_temp_workspace();
-    let req_id = RequirementId::from_str("REQ-INT-6").unwrap();
+    let req_id = RequirementId::new(6);
 
     // Setup: Create context file
     let context_file = temp_dir.path().join("GEMINI.md");
