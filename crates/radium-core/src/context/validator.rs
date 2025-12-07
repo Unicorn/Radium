@@ -1,6 +1,9 @@
 //! Source validation orchestration.
 
 use std::sync::Arc;
+use std::time::Instant;
+
+use tracing::{debug, info, warn};
 
 use super::sources::{SourceRegistry, SourceError};
 
@@ -31,6 +34,14 @@ impl SourceValidator {
         &self,
         sources: Vec<String>,
     ) -> Vec<SourceValidationResult> {
+        let start_time = Instant::now();
+        let source_count = sources.len();
+
+        info!(
+            source_count = source_count,
+            "Starting source validation"
+        );
+
         // Spawn concurrent validation tasks
         let handles: Vec<_> = sources
             .into_iter()
@@ -46,15 +57,46 @@ impl SourceValidator {
         let mut results = Vec::new();
         for handle in handles {
             match handle.await {
-                Ok(result) => results.push(result),
-                Err(_) => results.push(SourceValidationResult {
-                    source: "unknown".to_string(),
-                    accessible: false,
-                    error_message: "Task panicked".to_string(),
-                    size_bytes: 0,
-                }),
+                Ok(result) => {
+                    if result.accessible {
+                        debug!(
+                            source = %result.source,
+                            size_bytes = result.size_bytes,
+                            "Source validation successful"
+                        );
+                    } else {
+                        warn!(
+                            source = %result.source,
+                            error = %result.error_message,
+                            "Source validation failed"
+                        );
+                    }
+                    results.push(result);
+                }
+                Err(_) => {
+                    warn!("Validation task panicked");
+                    results.push(SourceValidationResult {
+                        source: "unknown".to_string(),
+                        accessible: false,
+                        error_message: "Task panicked".to_string(),
+                        size_bytes: 0,
+                    });
+                }
             }
         }
+
+        let duration = start_time.elapsed();
+        let valid_count = results.iter().filter(|r| r.accessible).count();
+        let invalid_count = results.len() - valid_count;
+
+        info!(
+            source_count = source_count,
+            valid_count = valid_count,
+            invalid_count = invalid_count,
+            duration_ms = duration.as_millis(),
+            "Source validation completed"
+        );
+
         results
     }
 
@@ -63,10 +105,16 @@ impl SourceValidator {
         registry: &SourceRegistry,
         source: &str,
     ) -> SourceValidationResult {
+        debug!(source = %source, "Validating source");
+
         // Get the appropriate reader for this source
         let reader = match registry.get_reader(source) {
             Some(r) => r,
             None => {
+                warn!(
+                    source = %source,
+                    "No reader registered for source scheme"
+                );
                 return SourceValidationResult {
                     source: source.to_string(),
                     accessible: false,
@@ -76,24 +124,44 @@ impl SourceValidator {
             }
         };
 
+        let scheme = reader.scheme();
+        debug!(source = %source, scheme = scheme, "Using reader for source");
+
         // Verify the source
         match reader.verify(source).await {
-            Ok(metadata) => SourceValidationResult {
-                source: source.to_string(),
-                accessible: metadata.accessible,
-                error_message: if metadata.accessible {
-                    String::new()
-                } else {
-                    "Source verification returned inaccessible".to_string()
-                },
-                size_bytes: metadata.size_bytes.unwrap_or(0) as i64,
-            },
-            Err(e) => SourceValidationResult {
-                source: source.to_string(),
-                accessible: false,
-                error_message: Self::format_error_message(&e),
-                size_bytes: 0,
-            },
+            Ok(metadata) => {
+                let result = SourceValidationResult {
+                    source: source.to_string(),
+                    accessible: metadata.accessible,
+                    error_message: if metadata.accessible {
+                        String::new()
+                    } else {
+                        "Source verification returned inaccessible".to_string()
+                    },
+                    size_bytes: metadata.size_bytes.unwrap_or(0) as i64,
+                };
+                debug!(
+                    source = %source,
+                    accessible = result.accessible,
+                    size_bytes = result.size_bytes,
+                    "Source verification completed"
+                );
+                result
+            }
+            Err(e) => {
+                let error_msg = Self::format_error_message(&e);
+                debug!(
+                    source = %source,
+                    error = %error_msg,
+                    "Source verification error"
+                );
+                SourceValidationResult {
+                    source: source.to_string(),
+                    accessible: false,
+                    error_message: error_msg,
+                    size_bytes: 0,
+                }
+            }
         }
     }
 
