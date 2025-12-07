@@ -56,6 +56,16 @@ pub async fn execute(
     println!("  {} Prompt: {}", "•".dimmed(), prompt_text.dimmed());
     println!();
 
+    // Validate sources before execution
+    {
+        use crate::validation::validate_and_prompt;
+        let validation_root = workspace.as_ref().map(|w| w.root().to_path_buf());
+        if !validate_and_prompt(&prompt_text, validation_root).await? {
+            anyhow::bail!("Source validation failed or user declined to proceed");
+        }
+    }
+    println!();
+
     // Discover agents
     let discovery = AgentDiscovery::new();
     let agents = discovery.discover_all().context("Failed to discover agents")?;

@@ -49,6 +49,16 @@ pub async fn execute(
     println!("  Size: {} bytes", spec_content.len().to_string().dimmed());
     println!();
 
+    // Validate sources before planning
+    {
+        use crate::validation::validate_and_prompt;
+        let workspace_root = workspace.root().to_path_buf();
+        if !validate_and_prompt(&spec_content, Some(workspace_root)).await? {
+            anyhow::bail!("Source validation failed or user declined to proceed");
+        }
+    }
+    println!();
+
     // Generate or use provided requirement ID
     let requirement_id = if let Some(id_str) = id {
         // Parse existing ID

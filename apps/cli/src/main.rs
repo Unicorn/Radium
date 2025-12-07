@@ -4,6 +4,7 @@
 //! orchestration system and workflow execution engine.
 
 mod commands;
+mod validation;
 
 use clap::{CommandFactory, Parser, Subcommand};
 use tracing::Level;
