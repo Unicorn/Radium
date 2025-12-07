@@ -7,6 +7,7 @@ mod commands;
 mod validation;
 
 use clap::{CommandFactory, Parser, Subcommand};
+use clap_complete::{generate, shells};
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
@@ -326,6 +327,24 @@ use commands::{AgentsCommand, AuthCommand, ExtensionCommand, TemplatesCommand};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Handle completion generation
+    if let Ok(shell) = std::env::var("RADIUM_GENERATE_COMPLETIONS") {
+        let mut cmd = Args::command();
+        let shell_type = match shell.as_str() {
+            "bash" => shells::Bash,
+            "zsh" => shells::Zsh,
+            "fish" => shells::Fish,
+            "powershell" => shells::PowerShell,
+            "elvish" => shells::Elvish,
+            _ => {
+                eprintln!("Unknown shell: {}. Supported: bash, zsh, fish, powershell, elvish", shell);
+                std::process::exit(1);
+            }
+        };
+        generate(shell_type, &mut cmd, "rad", &mut std::io::stdout());
+        return Ok(());
+    }
+
     let args = Args::parse();
 
     // Initialize tracing

@@ -57,6 +57,7 @@ chrono = { version = "0.4", features = ["serde"] }
 
 # CLI
 clap.workspace = true
+clap_complete = "4.5"
 inquire = "0.7"
 tabled = "0.15"
 colored = "2.1"
