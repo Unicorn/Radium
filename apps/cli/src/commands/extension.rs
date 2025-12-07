@@ -19,6 +19,9 @@ pub async fn execute(command: ExtensionCommand) -> anyhow::Result<()> {
         ExtensionCommand::List { json, verbose } => list_extensions(json, verbose).await,
         ExtensionCommand::Info { name, json } => show_extension_info(&name, json).await,
         ExtensionCommand::Search { query, json } => search_extensions(&query, json).await,
+        ExtensionCommand::Create { name, author, description } => {
+            create_extension(&name, author.as_deref(), description.as_deref()).await
+        }
     }
 }
 
@@ -283,4 +286,129 @@ fn display_extensions_detailed(extensions: &[radium_core::extensions::Extension]
         );
         println!();
     }
+}
+
+/// Create a new extension template.
+async fn create_extension(
+    name: &str,
+    author: Option<&str>,
+    description: Option<&str>,
+) -> anyhow::Result<()> {
+    use radium_core::extensions::manifest::{ExtensionManifest, ExtensionComponents};
+    use std::fs;
+    use std::path::Path;
+
+    // Validate extension name
+    if name.is_empty() {
+        return Err(anyhow::anyhow!("Extension name cannot be empty"));
+    }
+
+    if !name.chars().next().unwrap_or(' ').is_alphabetic() {
+        return Err(anyhow::anyhow!(
+            "Extension name must start with a letter: '{}'",
+            name
+        ));
+    }
+
+    if !name.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+        return Err(anyhow::anyhow!(
+            "Extension name can only contain letters, numbers, dashes, and underscores: '{}'",
+            name
+        ));
+    }
+
+    // Check if directory already exists
+    let extension_dir = Path::new(name);
+    if extension_dir.exists() {
+        return Err(anyhow::anyhow!(
+            "Directory '{}' already exists. Choose a different name or remove the existing directory.",
+            name
+        ));
+    }
+
+    println!("{}", format!("Creating extension: {}", name).yellow());
+
+    // Create extension directory
+    fs::create_dir_all(extension_dir)?;
+
+    // Create component directories
+    let prompts_dir = extension_dir.join("prompts");
+    let mcp_dir = extension_dir.join("mcp");
+    let commands_dir = extension_dir.join("commands");
+    let hooks_dir = extension_dir.join("hooks");
+
+    fs::create_dir_all(&prompts_dir)?;
+    fs::create_dir_all(&mcp_dir)?;
+    fs::create_dir_all(&commands_dir)?;
+    fs::create_dir_all(&hooks_dir)?;
+
+    // Create manifest
+    let manifest = ExtensionManifest {
+        name: name.to_string(),
+        version: "1.0.0".to_string(),
+        description: description.unwrap_or("A Radium extension").to_string(),
+        author: author.unwrap_or("").to_string(),
+        components: ExtensionComponents {
+            prompts: vec!["prompts/*.md".to_string()],
+            mcp_servers: vec!["mcp/*.json".to_string()],
+            commands: vec!["commands/*.toml".to_string()],
+            hooks: vec!["hooks/*.toml".to_string()],
+        },
+        dependencies: Vec::new(),
+        metadata: std::collections::HashMap::new(),
+    };
+
+    let manifest_path = extension_dir.join("radium-extension.json");
+    let manifest_json = serde_json::to_string_pretty(&manifest)?;
+    fs::write(&manifest_path, manifest_json)?;
+
+    // Create README.md
+    let readme_content = format!(
+        r#"# {}
+
+{}
+
+## Installation
+
+Install this extension:
+
+```bash
+rad extension install ./{}
+```
+
+## Components
+
+This extension can contain:
+
+- **Prompts**: Agent prompt templates in `prompts/`
+- **MCP Servers**: MCP server configurations in `mcp/`
+- **Commands**: Custom commands in `commands/`
+- **Hooks**: Hook configurations in `hooks/`
+
+## Documentation
+
+See [Creating Extensions](../../docs/extensions/creating-extensions.md) for detailed information on building extensions.
+"#,
+        name,
+        description.unwrap_or("A Radium extension"),
+        name
+    );
+
+    let readme_path = extension_dir.join("README.md");
+    fs::write(&readme_path, readme_content)?;
+
+    println!(
+        "{}",
+        format!("✓ Extension '{}' created successfully", name).green()
+    );
+    println!();
+    println!("  Directory: {}", extension_dir.display());
+    println!("  Manifest: {}", manifest_path.display());
+    println!();
+    println!("Next steps:");
+    println!("  1. Add your components to the extension directories");
+    println!("  2. Test installation: rad extension install ./{}", name);
+    println!("  3. See docs/extensions/creating-extensions.md for details");
+
+    Ok(())
 }

@@ -312,4 +312,30 @@ pub enum ExtensionCommand {
         #[arg(long)]
         json: bool,
     },
+
+    /// Create a new extension template
+    ///
+    /// Generates a new extension directory with the proper structure and manifest file.
+    ///
+    /// # Examples
+    ///
+    /// Create a basic extension:
+    ///   $ rad extension create my-extension
+    ///
+    /// Create with author and description:
+    ///   $ rad extension create my-extension --author "Your Name" --description "My custom extension"
+    ///
+    /// See `docs/extensions/creating-extensions.md` for more information.
+    Create {
+        /// Extension name (must be alphanumeric with dashes/underscores, start with letter)
+        name: String,
+
+        /// Extension author
+        #[arg(short, long)]
+        author: Option<String>,
+
+        /// Extension description
+        #[arg(short, long)]
+        description: Option<String>,
+    },
 }

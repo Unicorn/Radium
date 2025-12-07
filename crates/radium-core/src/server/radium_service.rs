@@ -755,22 +755,36 @@ impl Radium for RadiumService {
         &self,
         request: Request<ValidateSourcesRequest>,
     ) -> Result<Response<ValidateSourcesResponse>, Status> {
+        use crate::context::sources::{BraingridReader, HttpReader, JiraReader, LocalFileReader};
         use crate::context::{SourceRegistry, SourceValidator};
-        use std::sync::Arc;
         
+        let request_id = Self::get_request_id(&request);
         let req = request.into_inner();
         let sources = req.sources;
         
-        info!("ValidateSources RPC called with {} sources", sources.len());
+        info!(request_id = %request_id, count = sources.len(), "ValidateSources RPC called");
+        
+        // Get workspace root for LocalFileReader (default to current directory if workspace not found)
+        let workspace_root = crate::workspace::Workspace::discover()
+            .map(|w| w.root().to_path_buf())
+            .unwrap_or_else(|_| {
+                std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
+            });
+        
+        // Create and initialize source registry with all readers
+        let mut registry = SourceRegistry::new();
+        registry.register(Box::new(LocalFileReader::with_base_dir(&workspace_root)));
+        registry.register(Box::new(HttpReader::new()));
+        registry.register(Box::new(JiraReader::new()));
+        registry.register(Box::new(BraingridReader::new()));
         
         // Create source validator
-        let registry = SourceRegistry::new();
         let validator = SourceValidator::new(registry);
         
-        // Validate sources
+        // Validate sources concurrently
         let results = validator.validate_sources(sources).await;
         
-        // Convert to proto
+        // Convert to proto format
         let proto_results: Vec<SourceValidationResult> = results
             .iter()
             .map(|result| SourceValidationResult {
@@ -784,7 +798,15 @@ impl Radium for RadiumService {
         // Check if all sources are valid
         let all_valid = results.iter().all(|r| r.accessible);
         
-        Ok(Response::new(ValidateSourcesResponse { 
+        info!(
+            request_id = %request_id,
+            total = proto_results.len(),
+            valid = proto_results.iter().filter(|r| r.accessible).count(),
+            all_valid = all_valid,
+            "ValidateSources completed"
+        );
+        
+        Ok(Response::new(ValidateSourcesResponse {
             results: proto_results,
             all_valid,
         }))

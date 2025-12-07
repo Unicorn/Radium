@@ -45,6 +45,9 @@ pub struct TelemetryRecord {
 
     /// Provider name.
     pub provider: Option<String>,
+    
+    /// Approval type for tool calls ("user" or "auto").
+    pub approval_type: Option<String>,
 }
 
 impl TelemetryRecord {
@@ -64,6 +67,7 @@ impl TelemetryRecord {
             estimated_cost: 0.0,
             model: None,
             provider: None,
+            approval_type: None,
         }
     }
 

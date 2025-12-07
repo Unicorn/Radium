@@ -406,6 +406,7 @@ mod tests {
             trigger_behavior: None,
             category: None,
             file_path: None,
+            capabilities: crate::agents::config::AgentCapabilities::default(),
         }
     }
 
