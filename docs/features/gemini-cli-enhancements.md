@@ -252,6 +252,8 @@ Gemini CLI is an open-source AI agent that brings the power of Gemini directly i
 - Extensible platform ecosystem
 - Workspace-specific extensions
 
+**Requirements**: [REQ-018: Extension System](../plan/03-later/REQ-018-extension-system.md)
+
 **Reference**: [Gemini CLI Extensions Documentation](https://geminicli.com/docs/extensions/index)
 
 ---
@@ -283,6 +285,8 @@ Gemini CLI is an open-source AI agent that brings the power of Gemini directly i
 - Behavior modification at runtime
 - Telemetry and monitoring integration
 - Plugin-like functionality
+
+**Requirements**: [REQ-019: Hooks System](../plan/03-later/REQ-019-hooks-system.md)
 
 **Reference**: Gemini CLI hooks system (internal implementation)
 
