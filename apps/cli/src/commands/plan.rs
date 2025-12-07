@@ -4,9 +4,14 @@
 
 use anyhow::{Context, bail};
 use colored::Colorize;
-use radium_core::{Iteration, Plan, PlanManifest, PlanStatus, PlanTask, RequirementId, Workspace};
+use radium_core::{
+    generate_plan_files, Iteration, Plan, PlanGenerator, PlanManifest, PlanParser, PlanStatus,
+    PlanTask, RequirementId, Workspace,
+};
+use radium_models::ModelFactory;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 /// Execute the plan command.
 ///
@@ -87,13 +92,66 @@ pub async fn execute(
     fs::write(&spec_dest, spec_content.as_bytes()).context("Failed to write specifications.md")?;
     println!("  ✓ Copied specification file");
 
-    // Generate basic plan from specification
+    // Generate AI-powered plan from specification
     println!();
-    println!("{}", "Generating plan...".bold());
+    println!("{}", "Generating plan with AI...".bold());
 
-    let plan = generate_basic_plan(&spec_content, &requirement_id, &folder_name)?;
-    println!("  ✓ Generated {} iterations", plan.total_iterations);
-    println!("  ✓ Generated {} tasks", plan.total_tasks);
+    // Create model instance (default to mock for now, can be configured later)
+    let engine = std::env::var("RADIUM_ENGINE").unwrap_or_else(|_| "mock".to_string());
+    let model_id = std::env::var("RADIUM_MODEL").unwrap_or_else(|_| String::new());
+    let model = ModelFactory::create_from_str(&engine, model_id)
+        .context("Failed to create model for plan generation")?;
+    let model_arc: Arc<dyn radium_abstraction::Model> = Arc::new(model);
+
+    // Generate plan using AI
+    let generator = PlanGenerator::new();
+    let parsed_plan = generator
+        .generate(&spec_content, model_arc)
+        .await
+        .context("Failed to generate plan from specification")?;
+
+    println!("  ✓ Generated plan with {} iterations", parsed_plan.iterations.len());
+
+    // Convert ParsedPlan to Plan and PlanManifest
+    let project_name = parsed_plan.project_name.clone();
+    let total_iterations = parsed_plan.iterations.len() as u32;
+    let total_tasks: usize = parsed_plan.iterations.iter().map(|i| i.tasks.len()).sum();
+
+    let mut plan = Plan::new(
+        requirement_id,
+        project_name.clone(),
+        folder_name.clone(),
+        "backlog".to_string(),
+    );
+    plan.total_iterations = total_iterations;
+    plan.total_tasks = total_tasks as u32;
+
+    // Convert ParsedPlan to PlanManifest
+    let mut manifest = PlanManifest::new(requirement_id, project_name.clone());
+    for parsed_iter in &parsed_plan.iterations {
+        let mut iteration = Iteration::new(parsed_iter.number, parsed_iter.name.clone());
+        iteration.description = parsed_iter.description.clone();
+        iteration.goal = parsed_iter.goal.clone();
+
+        for parsed_task in &parsed_iter.tasks {
+            let task = PlanTask {
+                id: format!("I{}.T{}", parsed_iter.number, parsed_task.number),
+                number: parsed_task.number,
+                title: parsed_task.title.clone(),
+                description: parsed_task.description.clone(),
+                completed: false,
+                agent_id: parsed_task.agent_id.clone(),
+                dependencies: parsed_task.dependencies.clone(),
+                acceptance_criteria: parsed_task.acceptance_criteria.clone(),
+                metadata: std::collections::HashMap::new(),
+            };
+            iteration.add_task(task);
+        }
+
+        manifest.add_iteration(iteration);
+    }
+
+    println!("  ✓ Generated {} tasks", total_tasks);
 
     // Save plan.json
     let plan_json_path = plan_dir.join("plan.json");
@@ -101,13 +159,16 @@ pub async fn execute(
     fs::write(&plan_json_path, plan_json).context("Failed to write plan.json")?;
     println!("  ✓ Saved plan.json");
 
-    // Generate plan manifest
-    let manifest = generate_manifest(&plan, &spec_content);
+    // Save plan manifest
     let manifest_path = plan_dir.join("plan").join("plan_manifest.json");
     let manifest_json =
         serde_json::to_string_pretty(&manifest).context("Failed to serialize manifest")?;
     fs::write(&manifest_path, manifest_json).context("Failed to write plan_manifest.json")?;
     println!("  ✓ Saved plan_manifest.json");
+
+    // Generate markdown documentation files
+    generate_plan_files(&plan_dir, &parsed_plan).context("Failed to generate markdown files")?;
+    println!("  ✓ Generated markdown documentation files");
 
     println!();
     println!("{}", "Plan generated successfully!".green().bold());
