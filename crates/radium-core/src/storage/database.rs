@@ -405,9 +405,10 @@ mod tests {
         // Try to open database in a non-existent directory
         let result = Database::open("/nonexistent/path/database.db");
         assert!(result.is_err());
-        match result.unwrap_err() {
-            crate::storage::error::StorageError::Connection(_) => {}
-            _ => panic!("Expected Connection error"),
+        if let Err(crate::storage::error::StorageError::Connection(_)) = result {
+            // Expected error type
+        } else {
+            panic!("Expected Connection error");
         }
     }
 
@@ -433,15 +434,15 @@ mod tests {
 
     #[test]
     fn test_database_transaction_connection_error() {
+        // Test that transaction properly handles errors
         let mut db = Database::open_in_memory().unwrap();
         
-        // Close the connection to simulate a connection error
-        drop(db.conn_mut());
+        // Test transaction with an error that should rollback
+        let result: StorageResult<()> = db.transaction(|_tx| {
+            Err(crate::storage::error::StorageError::InvalidData("test error".to_string()))
+        });
         
-        // Try to use the database - this should fail
-        // Note: This test verifies that we handle connection errors properly
-        // In practice, we can't easily test this without mocking, but we can test
-        // that transaction errors are properly propagated
+        assert!(result.is_err());
     }
 
     #[test]
