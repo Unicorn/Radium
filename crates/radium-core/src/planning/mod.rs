@@ -3,12 +3,17 @@
 //! This module provides AI-powered plan generation from specifications,
 //! including iteration structuring, task extraction, and dependency analysis.
 
+mod autonomous;
 mod dag;
 mod executor;
 mod generator;
 pub mod markdown;
 mod parser;
 
+pub use autonomous::{
+    AutonomousPlan, AutonomousPlanner, PlanValidator, PlanningError, Result as PlanningResult,
+    ValidationReport, WorkflowGenerator,
+};
 pub use dag::{DagError, DependencyGraph, Result as DagResult};
 pub use executor::{ExecutionConfig, ExecutionError, PlanExecutor, RunMode, TaskResult};
 pub use generator::{PlanGenerator, PlanGeneratorConfig};
