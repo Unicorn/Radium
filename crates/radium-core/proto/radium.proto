@@ -46,6 +46,15 @@ service Radium {
 
   // Source Validation Operations
   rpc ValidateSources (ValidateSourcesRequest) returns (ValidateSourcesResponse) {}
+
+  // Collaboration Operations
+  rpc SendMessage (SendMessageRequest) returns (SendMessageResponse) {}
+  rpc GetMessages (GetMessagesRequest) returns (GetMessagesResponse) {}
+  rpc RequestResourceLock (RequestResourceLockRequest) returns (RequestResourceLockResponse) {}
+  rpc ReleaseResourceLock (ReleaseResourceLockRequest) returns (ReleaseResourceLockResponse) {}
+  rpc SpawnWorkerAgent (SpawnWorkerAgentRequest) returns (SpawnWorkerAgentResponse) {}
+  rpc GetWorkerStatus (GetWorkerStatusRequest) returns (GetWorkerStatusResponse) {}
+  rpc ReportProgress (ReportProgressRequest) returns (ReportProgressResponse) {}
 }
 
 // ===================================================================
@@ -235,11 +244,22 @@ message DeleteTaskResponse {
 // Orchestrator RPCs
 // ===================================================================
 
+// Selection criteria for dynamic agent selection.
+message SelectionCriteria {
+  // Model class to match: "fast", "balanced", or "reasoning".
+  // If not specified, defaults to "balanced".
+  optional string model_class = 1;
+}
+
 message ExecuteAgentRequest {
-  string agent_id = 1;
+  // Agent ID for direct addressing. If provided, selection criteria is ignored.
+  optional string agent_id = 1;
   string input = 2;
   optional string model_type = 3;  // "mock", "gemini", "openai"
   optional string model_id = 4;
+  // Selection criteria for dynamic agent selection.
+  // Used when agent_id is not provided. If both are missing, returns INVALID_ARGUMENT.
+  optional SelectionCriteria criteria = 5;
 }
 
 message ExecuteAgentResponse {
@@ -358,4 +378,98 @@ message SourceValidationResult {
 message ValidateSourcesResponse {
   repeated SourceValidationResult results = 1;  // Validation result for each source
   bool all_valid = 2;                           // True if all sources are accessible
+}
+
+// ===================================================================
+// Collaboration RPCs
+// ===================================================================
+
+message SendMessageRequest {
+  string sender_id = 1;
+  string recipient_id = 2;  // Empty for broadcast
+  string message_type = 3;  // "TaskRequest", "TaskResponse", "StatusUpdate", "ResourceLock", "ResourceRelease"
+  string payload_json = 4;  // JSON payload
+}
+
+message SendMessageResponse {
+  bool success = 1;
+  string message_id = 2;
+  optional string error = 3;
+}
+
+message GetMessagesRequest {
+  string agent_id = 1;
+  bool undelivered_only = 2;  // If true, only return undelivered messages
+}
+
+message GetMessagesResponse {
+  repeated AgentMessage messages = 1;
+}
+
+message AgentMessage {
+  string id = 1;
+  string sender_id = 2;
+  optional string recipient_id = 3;
+  string message_type = 4;
+  string payload_json = 5;
+  int64 timestamp = 6;
+  bool delivered = 7;
+}
+
+message RequestResourceLockRequest {
+  string agent_id = 1;
+  string resource_path = 2;
+  string lock_type = 3;  // "Read" or "Write"
+  optional int64 timeout_secs = 4;
+}
+
+message RequestResourceLockResponse {
+  bool success = 1;
+  string lock_id = 2;
+  optional string error = 3;
+}
+
+message ReleaseResourceLockRequest {
+  string lock_id = 1;
+  string agent_id = 2;
+}
+
+message ReleaseResourceLockResponse {
+  bool success = 1;
+  optional string error = 2;
+}
+
+message SpawnWorkerAgentRequest {
+  string supervisor_id = 1;
+  string worker_agent_id = 2;
+  string task_input = 3;
+  int32 delegation_depth = 4;
+}
+
+message SpawnWorkerAgentResponse {
+  bool success = 1;
+  string worker_id = 2;
+  optional string error = 3;
+}
+
+message GetWorkerStatusRequest {
+  string worker_id = 1;
+}
+
+message GetWorkerStatusResponse {
+  bool success = 1;
+  string status = 2;  // "Spawned", "Running", "Completed", "Failed", "Cancelled"
+  optional string error = 3;
+}
+
+message ReportProgressRequest {
+  string agent_id = 1;
+  int32 percentage = 2;  // 0-100
+  string status = 3;  // "Idle", "Working", "Waiting", "Blocked", "Complete", "Error"
+  optional string message = 4;
+}
+
+message ReportProgressResponse {
+  bool success = 1;
+  optional string error = 2;
 }

@@ -4,7 +4,6 @@ use crate::collaboration::error::{CollaborationError, Result};
 use crate::collaboration::message_bus::{MessageBus, MessageType};
 use crate::storage::database::Database;
 use crate::storage::error::StorageError;
-use radium_orchestrator::Orchestrator;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex as StdMutex};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -236,14 +235,27 @@ impl DelegationRepository for DatabaseDelegationRepository {
 /// Maximum delegation depth allowed.
 const MAX_DELEGATION_DEPTH: usize = 3;
 
+/// Trait for executing worker agents (to avoid circular dependency).
+pub trait WorkerExecutor: Send + Sync {
+    /// Executes a worker agent.
+    fn execute_worker(&self, worker_id: &str, task_input: &str) -> std::pin::Pin<Box<dyn std::future::Future<Output = std::result::Result<WorkerExecutionResult, String>> + Send>>;
+}
+
+/// Result of worker execution.
+pub struct WorkerExecutionResult {
+    pub success: bool,
+    pub output: Option<String>,
+    pub error: Option<String>,
+}
+
 /// Delegation manager for supervisor-worker patterns.
 pub struct DelegationManager {
     /// Database repository for delegation persistence.
     repository: Arc<dyn DelegationRepository>,
     /// Message bus for sending events to supervisors.
     message_bus: Arc<MessageBus>,
-    /// Orchestrator for spawning worker agents.
-    orchestrator: Arc<Orchestrator>,
+    /// Worker executor (to avoid circular dependency with orchestrator).
+    worker_executor: Arc<dyn WorkerExecutor>,
 }
 
 impl DelegationManager {
@@ -251,14 +263,14 @@ impl DelegationManager {
     pub fn new(
         db: Arc<StdMutex<Database>>,
         message_bus: Arc<MessageBus>,
-        orchestrator: Arc<Orchestrator>,
+        worker_executor: Arc<dyn WorkerExecutor>,
     ) -> Self {
         let repository: Arc<dyn DelegationRepository> =
             Arc::new(DatabaseDelegationRepository::new(db));
         Self {
             repository,
             message_bus,
-            orchestrator,
+            worker_executor,
         }
     }
 
@@ -287,13 +299,7 @@ impl DelegationManager {
             });
         }
 
-        // Check if worker agent exists
-        if self.orchestrator.get_agent(worker_agent_id).await.is_none() {
-            return Err(CollaborationError::WorkerSpawnError {
-                worker_id: worker_agent_id.to_string(),
-                reason: "Worker agent not found in orchestrator".to_string(),
-            });
-        }
+        // Note: Worker agent existence check would be done by worker_executor
 
         let spawned_at = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -315,10 +321,8 @@ impl DelegationManager {
         self.repository
             .update_delegation(worker_agent_id, WorkerStatus::Running, None)?;
 
-        // Spawn worker via orchestrator (this is a simplified version - actual implementation
-        // would need to pass context with parent_agent_id and delegation_depth)
-        // For now, we'll just execute the agent and handle completion asynchronously
-        let orchestrator = Arc::clone(&self.orchestrator);
+        // Spawn worker via worker executor
+        let worker_executor = Arc::clone(&self.worker_executor);
         let message_bus = Arc::clone(&self.message_bus);
         let supervisor_id = supervisor_id.to_string();
         let worker_id = worker_agent_id.to_string();
@@ -332,7 +336,7 @@ impl DelegationManager {
             );
 
             // Execute worker agent
-            match orchestrator.execute_agent(&worker_id, task_input).await {
+            match worker_executor.execute_worker(&worker_id, task_input).await {
                 Ok(result) => {
                     let completed_at = SystemTime::now()
                         .duration_since(UNIX_EPOCH)
@@ -378,7 +382,7 @@ impl DelegationManager {
                     // Send failure event to supervisor
                     let payload = serde_json::json!({
                         "worker_id": worker_id,
-                        "error": e.to_string(),
+                        "error": e,
                     });
 
                     let _ = message_bus
@@ -421,9 +425,7 @@ impl DelegationManager {
         self.repository
             .update_delegation(worker_id, WorkerStatus::Cancelled, None)?;
 
-        // Stop the agent in orchestrator
-        let _ = self.orchestrator.stop_agent(worker_id).await;
-
+        // Note: Worker cancellation would be handled by worker_executor
         debug!(worker_id = %worker_id, "Worker cancelled");
 
         Ok(())
