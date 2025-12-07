@@ -1,0 +1,506 @@
+//! Integration tests for SkillManager with LLM.
+//!
+//! Tests that SkillManager correctly generates skillbook updates from oversight feedback,
+//! parses UpdateOperation types, and handles incremental updates.
+
+use radium_abstraction::{ChatMessage, Model, ModelError, ModelParameters, ModelResponse};
+use radium_core::learning::{
+    store::LearningStore, skill_manager::SkillManager, UpdateBatch, UpdateOperation,
+    UpdateOperationType,
+};
+use radium_core::oversight::OversightResponse;
+use std::sync::Arc;
+use tempfile::TempDir;
+
+// Mock model that returns structured JSON responses
+struct MockSkillModel {
+    response: String,
+}
+
+#[async_trait::async_trait]
+impl Model for MockSkillModel {
+    async fn generate_text(
+        &self,
+        _prompt: &str,
+        _params: Option<ModelParameters>,
+    ) -> Result<ModelResponse, ModelError> {
+        Ok(ModelResponse {
+            content: "Mock text".to_string(),
+            model_id: Some("mock".to_string()),
+            usage: None,
+        })
+    }
+
+    async fn generate_chat_completion(
+        &self,
+        _messages: &[ChatMessage],
+        _params: Option<ModelParameters>,
+    ) -> Result<ModelResponse, ModelError> {
+        Ok(ModelResponse {
+            content: self.response.clone(),
+            model_id: Some("mock".to_string()),
+            usage: None,
+        })
+    }
+
+    fn model_id(&self) -> &str {
+        "mock"
+    }
+}
+
+#[tokio::test]
+async fn test_add_operation_parsing() {
+    let temp_dir = TempDir::new().unwrap();
+    let learning_store = LearningStore::new(temp_dir.path()).unwrap();
+
+    // Mock model that returns ADD operation
+    let json_response = r#"{
+        "reasoning": "Add new skill based on oversight feedback",
+        "operations": [
+            {
+                "type": "ADD",
+                "section": "task_guidance",
+                "content": "Break complex tasks into smaller, manageable steps",
+                "skill_id": null
+            }
+        ]
+    }"#;
+
+    let model = Arc::new(MockSkillModel { response: json_response.to_string() });
+    let skill_manager = SkillManager::new(model);
+
+    let oversight = OversightResponse::new(
+        "The approach is too complex, break it down".to_string(),
+        0.6,
+    );
+
+    let batch = skill_manager
+        .generate_updates(&oversight, &learning_store, "Test context", "50%")
+        .await
+        .unwrap();
+
+    assert_eq!(batch.operations.len(), 1);
+    let op = &batch.operations[0];
+    assert_eq!(op.op_type, UpdateOperationType::Add);
+    assert_eq!(op.section.as_deref(), Some("task_guidance"));
+    assert_eq!(
+        op.content.as_deref(),
+        Some("Break complex tasks into smaller, manageable steps")
+    );
+    assert!(op.skill_id.is_none());
+}
+
+#[tokio::test]
+async fn test_tag_operation_parsing() {
+    let temp_dir = TempDir::new().unwrap();
+    let mut learning_store = LearningStore::new(temp_dir.path()).unwrap();
+
+    // Create a skill first
+    let skill = learning_store
+        .add_skill(
+            "code_patterns".to_string(),
+            "Use Result types for error handling".to_string(),
+            None,
+        )
+        .unwrap();
+
+    // Mock model that returns TAG operation
+    let json_response = format!(
+        r#"{{
+        "reasoning": "Tag skill as helpful",
+        "operations": [
+            {{
+                "type": "TAG",
+                "section": null,
+                "content": null,
+                "skill_id": "{}",
+                "metadata": {{"helpful": 1}}
+            }}
+        ]
+    }}"#,
+        skill.id
+    );
+
+    let model = Arc::new(MockSkillModel { response: json_response });
+    let skill_manager = SkillManager::new(model);
+
+    let oversight = OversightResponse::new(
+        "Using Result types worked well".to_string(),
+        0.3,
+    );
+
+    let batch = skill_manager
+        .generate_updates(&oversight, &learning_store, "Test context", "100%")
+        .await
+        .unwrap();
+
+    assert_eq!(batch.operations.len(), 1);
+    let op = &batch.operations[0];
+    assert_eq!(op.op_type, UpdateOperationType::Tag);
+    assert_eq!(op.skill_id.as_deref(), Some(&skill.id));
+    assert_eq!(op.metadata.get("helpful"), Some(&1));
+}
+
+#[tokio::test]
+async fn test_update_operation_parsing() {
+    let temp_dir = TempDir::new().unwrap();
+    let mut learning_store = LearningStore::new(temp_dir.path()).unwrap();
+
+    // Create a skill first
+    let skill = learning_store
+        .add_skill(
+            "error_handling".to_string(),
+            "Handle errors explicitly".to_string(),
+            None,
+        )
+        .unwrap();
+
+    // Mock model that returns UPDATE operation
+    let json_response = format!(
+        r#"{{
+        "reasoning": "Update skill with more specific guidance",
+        "operations": [
+            {{
+                "type": "UPDATE",
+                "section": null,
+                "content": "Handle errors explicitly with proper error types and context",
+                "skill_id": "{}"
+            }}
+        ]
+    }}"#,
+        skill.id
+    );
+
+    let model = Arc::new(MockSkillModel { response: json_response });
+    let skill_manager = SkillManager::new(model);
+
+    let oversight = OversightResponse::new(
+        "Error handling needs more detail".to_string(),
+        0.4,
+    );
+
+    let batch = skill_manager
+        .generate_updates(&oversight, &learning_store, "Test context", "75%")
+        .await
+        .unwrap();
+
+    assert_eq!(batch.operations.len(), 1);
+    let op = &batch.operations[0];
+    assert_eq!(op.op_type, UpdateOperationType::Update);
+    assert_eq!(op.skill_id.as_deref(), Some(&skill.id));
+    assert_eq!(
+        op.content.as_deref(),
+        Some("Handle errors explicitly with proper error types and context")
+    );
+}
+
+#[tokio::test]
+async fn test_remove_operation_parsing() {
+    let temp_dir = TempDir::new().unwrap();
+    let mut learning_store = LearningStore::new(temp_dir.path()).unwrap();
+
+    // Create a skill first
+    let skill = learning_store
+        .add_skill(
+            "general".to_string(),
+            "Outdated skill that should be removed".to_string(),
+            None,
+        )
+        .unwrap();
+
+    // Mock model that returns REMOVE operation
+    let json_response = format!(
+        r#"{{
+        "reasoning": "Remove outdated skill",
+        "operations": [
+            {{
+                "type": "REMOVE",
+                "section": null,
+                "content": null,
+                "skill_id": "{}"
+            }}
+        ]
+    }}"#,
+        skill.id
+    );
+
+    let model = Arc::new(MockSkillModel { response: json_response });
+    let skill_manager = SkillManager::new(model);
+
+    let oversight = OversightResponse::new(
+        "This skill is no longer relevant".to_string(),
+        0.2,
+    );
+
+    let batch = skill_manager
+        .generate_updates(&oversight, &learning_store, "Test context", "100%")
+        .await
+        .unwrap();
+
+    assert_eq!(batch.operations.len(), 1);
+    let op = &batch.operations[0];
+    assert_eq!(op.op_type, UpdateOperationType::Remove);
+    assert_eq!(op.skill_id.as_deref(), Some(&skill.id));
+}
+
+#[tokio::test]
+async fn test_pattern_extraction_from_oversight() {
+    let temp_dir = TempDir::new().unwrap();
+    let learning_store = LearningStore::new(temp_dir.path()).unwrap();
+
+    // Mock model that extracts patterns from oversight
+    let json_response = r#"{
+        "reasoning": "Extract helpful and harmful patterns from oversight",
+        "operations": [
+            {
+                "type": "ADD",
+                "section": "task_guidance",
+                "content": "Simplify complex solutions before implementing",
+                "skill_id": null
+            },
+            {
+                "type": "ADD",
+                "section": "code_patterns",
+                "content": "Avoid over-engineering with unnecessary abstractions",
+                "skill_id": null
+            }
+        ]
+    }"#;
+
+    let model = Arc::new(MockSkillModel { response: json_response.to_string() });
+    let skill_manager = SkillManager::new(model);
+
+    let oversight = OversightResponse::new(
+        "The solution is too complex and over-engineered".to_string(),
+        0.7,
+    )
+    .with_helpful_patterns(vec!["Simplify solutions".to_string()])
+    .with_harmful_patterns(vec!["Over-engineering".to_string(), "Unnecessary abstractions".to_string()]);
+
+    let batch = skill_manager
+        .generate_updates(&oversight, &learning_store, "Web development task", "30%")
+        .await
+        .unwrap();
+
+    // Should extract patterns and create skills
+    assert_eq!(batch.operations.len(), 2);
+    assert!(batch.operations.iter().any(|op| {
+        op.op_type == UpdateOperationType::Add
+            && op.section.as_deref() == Some("task_guidance")
+            && op.content.as_deref().unwrap().contains("Simplify")
+    }));
+    assert!(batch.operations.iter().any(|op| {
+        op.op_type == UpdateOperationType::Add
+            && op.section.as_deref() == Some("code_patterns")
+            && op.content.as_deref().unwrap().contains("over-engineering")
+    }));
+}
+
+#[tokio::test]
+async fn test_incremental_updates() {
+    let temp_dir = TempDir::new().unwrap();
+    let learning_store = LearningStore::new(temp_dir.path()).unwrap();
+
+    // First batch: Add a skill
+    let json_response1 = r#"{
+        "reasoning": "First batch of updates",
+        "operations": [
+            {
+                "type": "ADD",
+                "section": "general",
+                "content": "First skill",
+                "skill_id": null
+            }
+        ]
+    }"#;
+
+    let model1 = Arc::new(MockSkillModel { response: json_response1.to_string() });
+    let skill_manager1 = SkillManager::new(model1);
+
+    let oversight1 = OversightResponse::new("First oversight".to_string(), 0.5);
+    let batch1 = skill_manager1
+        .generate_updates(&oversight1, &learning_store, "Context 1", "25%")
+        .await
+        .unwrap();
+
+    assert_eq!(batch1.operations.len(), 1);
+
+    // Second batch: Add another skill (incremental)
+    let json_response2 = r#"{
+        "reasoning": "Second batch of updates",
+        "operations": [
+            {
+                "type": "ADD",
+                "section": "general",
+                "content": "Second skill",
+                "skill_id": null
+            }
+        ]
+    }"#;
+
+    let model2 = Arc::new(MockSkillModel { response: json_response2.to_string() });
+    let skill_manager2 = SkillManager::new(model2);
+
+    let oversight2 = OversightResponse::new("Second oversight".to_string(), 0.4);
+    let batch2 = skill_manager2
+        .generate_updates(&oversight2, &learning_store, "Context 2", "50%")
+        .await
+        .unwrap();
+
+    assert_eq!(batch2.operations.len(), 1);
+    assert_ne!(batch1.operations[0].content, batch2.operations[0].content);
+}
+
+#[tokio::test]
+async fn test_malformed_json_handling() {
+    let temp_dir = TempDir::new().unwrap();
+    let learning_store = LearningStore::new(temp_dir.path()).unwrap();
+
+    // Mock model that returns invalid JSON
+    let invalid_json = "This is not valid JSON at all";
+
+    let model = Arc::new(MockSkillModel { response: invalid_json.to_string() });
+    let skill_manager = SkillManager::new(model);
+
+    let oversight = OversightResponse::new("Test oversight".to_string(), 0.5);
+
+    let result = skill_manager
+        .generate_updates(&oversight, &learning_store, "Test context", "50%")
+        .await;
+
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("ParseError") || error.to_string().contains("JSON"));
+}
+
+#[tokio::test]
+async fn test_malformed_json_missing_fields() {
+    let temp_dir = TempDir::new().unwrap();
+    let learning_store = LearningStore::new(temp_dir.path()).unwrap();
+
+    // Mock model that returns JSON missing required fields
+    let incomplete_json = r#"{
+        "reasoning": "Test",
+        "operations": [
+            {
+                "type": "ADD"
+            }
+        ]
+    }"#;
+
+    let model = Arc::new(MockSkillModel { response: incomplete_json.to_string() });
+    let skill_manager = SkillManager::new(model);
+
+    let oversight = OversightResponse::new("Test oversight".to_string(), 0.5);
+
+    // Should still parse (missing fields are optional for some operations)
+    let batch = skill_manager
+        .generate_updates(&oversight, &learning_store, "Test context", "50%")
+        .await
+        .unwrap();
+
+    // Operation should be parsed even with missing fields
+    assert_eq!(batch.operations.len(), 1);
+    assert_eq!(batch.operations[0].op_type, UpdateOperationType::Add);
+}
+
+#[tokio::test]
+async fn test_multiple_operations_in_batch() {
+    let temp_dir = TempDir::new().unwrap();
+    let learning_store = LearningStore::new(temp_dir.path()).unwrap();
+
+    // Mock model that returns multiple operations
+    let json_response = r#"{
+        "reasoning": "Multiple operations in one batch",
+        "operations": [
+            {
+                "type": "ADD",
+                "section": "task_guidance",
+                "content": "Skill 1",
+                "skill_id": null
+            },
+            {
+                "type": "ADD",
+                "section": "code_patterns",
+                "content": "Skill 2",
+                "skill_id": null
+            },
+            {
+                "type": "ADD",
+                "section": "error_handling",
+                "content": "Skill 3",
+                "skill_id": null
+            }
+        ]
+    }"#;
+
+    let model = Arc::new(MockSkillModel { response: json_response.to_string() });
+    let skill_manager = SkillManager::new(model);
+
+    let oversight = OversightResponse::new("Complex oversight with multiple patterns".to_string(), 0.6);
+
+    let batch = skill_manager
+        .generate_updates(&oversight, &learning_store, "Complex context", "60%")
+        .await
+        .unwrap();
+
+    assert_eq!(batch.operations.len(), 3);
+    assert_eq!(batch.operations[0].section.as_deref(), Some("task_guidance"));
+    assert_eq!(batch.operations[1].section.as_deref(), Some("code_patterns"));
+    assert_eq!(batch.operations[2].section.as_deref(), Some("error_handling"));
+}
+
+#[tokio::test]
+async fn test_empty_operations_batch() {
+    let temp_dir = TempDir::new().unwrap();
+    let learning_store = LearningStore::new(temp_dir.path()).unwrap();
+
+    // Mock model that returns empty operations array
+    let json_response = r#"{
+        "reasoning": "No updates needed",
+        "operations": []
+    }"#;
+
+    let model = Arc::new(MockSkillModel { response: json_response.to_string() });
+    let skill_manager = SkillManager::new(model);
+
+    let oversight = OversightResponse::new("Everything looks good".to_string(), 0.2);
+
+    let batch = skill_manager
+        .generate_updates(&oversight, &learning_store, "Good context", "100%")
+        .await
+        .unwrap();
+
+    assert!(batch.is_empty());
+    assert_eq!(batch.operations.len(), 0);
+}
+
+// Optional: Live LLM test (ignored by default for CI)
+#[tokio::test]
+#[ignore]
+async fn test_live_llm_skill_generation() {
+    // This test requires a real LLM and should be run manually
+    // It's marked with #[ignore] so it won't run in CI
+    let temp_dir = TempDir::new().unwrap();
+    let learning_store = LearningStore::new(temp_dir.path()).unwrap();
+
+    // Would need actual model initialization here
+    // For now, just verify the test structure exists
+    let oversight = OversightResponse::new(
+        "The solution needs simplification and better error handling".to_string(),
+        0.6,
+    )
+    .with_helpful_patterns(vec!["Simplify solutions".to_string()])
+    .with_harmful_patterns(vec!["Complex abstractions".to_string()]);
+
+    // In a real test, we would:
+    // 1. Initialize a real model
+    // 2. Call generate_updates
+    // 3. Verify the response contains valid operations
+    // 4. Check that operations make sense given the oversight
+
+    // For now, just verify the oversight is valid
+    assert!(!oversight.advice.is_empty());
+    assert!(oversight.risk_score >= 0.0 && oversight.risk_score <= 1.0);
+}
+
