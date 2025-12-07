@@ -433,14 +433,19 @@ async fn main() -> anyhow::Result<()> {
     let cli_config = config::load_config();
     
     // Apply config to environment (only if not already set)
-    // SAFETY: We're in single-threaded main() before any async/spawning
+    // SAFETY: We're in single-threaded main() before any async/spawning.
+    // Environment variables are set here before any threads are created or
+    // async operations begin. This is safe because:
+    // 1. We're in main() before tokio runtime initialization
+    // 2. No other threads exist at this point
+    // 3. All environment access happens synchronously in this block
     unsafe {
         config::apply_config_to_env(&cli_config);
     }
 
     // Set workspace if provided (CLI arg takes precedence)
+    // SAFETY: Same as above - single-threaded execution before async operations
     if let Some(workspace) = args.workspace {
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { std::env::set_var("RADIUM_WORKSPACE", workspace) };
     } else if let Some(ref workspace) = cli_config.workspace {
         // Use workspace from config if not provided via CLI

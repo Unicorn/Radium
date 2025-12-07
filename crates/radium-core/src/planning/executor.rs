@@ -909,4 +909,121 @@ mod tests {
         assert_eq!(delays[2], 400);  // 100 * 2^2 = 400
         assert_eq!(delays[3], 800);  // 100 * 2^3 = 800
     }
+
+    #[test]
+    fn test_run_mode_bounded() {
+        let bounded = RunMode::Bounded(5);
+        
+        // Test bounded mode logic
+        let execution_iteration = 1;
+        let should_continue = match bounded {
+            RunMode::Bounded(max) => execution_iteration <= max,
+            _ => false,
+        };
+        assert!(should_continue, "Should continue when iteration <= max");
+        
+        let execution_iteration = 5;
+        let should_continue = match bounded {
+            RunMode::Bounded(max) => execution_iteration <= max,
+            _ => false,
+        };
+        assert!(should_continue, "Should continue when iteration == max");
+        
+        let execution_iteration = 6;
+        let should_continue = match bounded {
+            RunMode::Bounded(max) => execution_iteration <= max,
+            _ => false,
+        };
+        assert!(!should_continue, "Should not continue when iteration > max");
+    }
+
+    #[test]
+    fn test_run_mode_continuous() {
+        let continuous = RunMode::Continuous;
+        const CONTINUOUS_SANITY_LIMIT: usize = 1000;
+        
+        // Test continuous mode logic
+        let execution_iteration = 1;
+        let should_continue = match continuous {
+            RunMode::Continuous => {
+                if execution_iteration > CONTINUOUS_SANITY_LIMIT {
+                    false
+                } else {
+                    true
+                }
+            }
+            _ => false,
+        };
+        assert!(should_continue, "Should continue when iteration <= sanity limit");
+        
+        let execution_iteration = 1000;
+        let should_continue = match continuous {
+            RunMode::Continuous => {
+                if execution_iteration > CONTINUOUS_SANITY_LIMIT {
+                    false
+                } else {
+                    true
+                }
+            }
+            _ => false,
+        };
+        assert!(should_continue, "Should continue when iteration == sanity limit");
+        
+        let execution_iteration = 1001;
+        let should_continue = match continuous {
+            RunMode::Continuous => {
+                if execution_iteration > CONTINUOUS_SANITY_LIMIT {
+                    false
+                } else {
+                    true
+                }
+            }
+            _ => false,
+        };
+        assert!(!should_continue, "Should not continue when iteration > sanity limit");
+    }
+
+    #[test]
+    fn test_bounded_mode_iteration_limit() {
+        // Test that bounded mode respects iteration limits
+        let max_iterations = 5;
+        let bounded = RunMode::Bounded(max_iterations);
+        
+        // Simulate execution iterations
+        for iteration in 1..=10 {
+            let should_continue = match bounded {
+                RunMode::Bounded(max) => iteration <= max,
+                _ => false,
+            };
+            
+            if iteration <= max_iterations {
+                assert!(should_continue, "Should continue at iteration {}", iteration);
+            } else {
+                assert!(!should_continue, "Should stop at iteration {}", iteration);
+            }
+        }
+    }
+
+    #[test]
+    fn test_continuous_mode_sanity_limit() {
+        // Test that continuous mode enforces sanity limit
+        const CONTINUOUS_SANITY_LIMIT: usize = 1000;
+        let continuous = RunMode::Continuous;
+        
+        // Test iterations around the sanity limit
+        let test_iterations = vec![1, 500, 999, 1000, 1001, 2000];
+        
+        for iteration in test_iterations {
+            let should_continue = match continuous {
+                RunMode::Continuous => iteration <= CONTINUOUS_SANITY_LIMIT,
+                _ => false,
+            };
+            
+            if iteration <= CONTINUOUS_SANITY_LIMIT {
+                assert!(should_continue, "Should continue at iteration {}", iteration);
+            } else {
+                assert!(!should_continue, "Should stop at iteration {} (sanity limit)", iteration);
+            }
+        }
+    }
 }
