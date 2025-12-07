@@ -5,8 +5,8 @@
 use anyhow::{Context, bail};
 use colored::Colorize;
 use radium_core::{
-    ExecutionConfig, PlanDiscovery, PlanExecutor, PlanManifest, PlanStatus, RequirementId,
-    Workspace,
+    context::ContextFileLoader, ExecutionConfig, PlanDiscovery, PlanExecutor, PlanManifest,
+    PlanStatus, RequirementId, Workspace,
 };
 use radium_models::ModelFactory;
 
@@ -34,7 +34,7 @@ pub async fn execute(
 
     // Check if plan_identifier is a file path
     let plan_path = std::path::PathBuf::from(&plan_id);
-    let (project_name, mut manifest, manifest_path) = if plan_path.exists() && plan_path.is_file() {
+    let (project_name, mut manifest, manifest_path, plan_dir) = if plan_path.exists() && plan_path.is_file() {
         println!("  Loading plan from file: {}", plan_id.green());
         let content = std::fs::read_to_string(&plan_path).context("Failed to read plan file")?;
 
@@ -42,7 +42,8 @@ pub async fn execute(
         let manifest: PlanManifest =
             serde_json::from_str(&content).context("Failed to parse plan manifest")?;
 
-        (manifest.project_name.clone(), manifest, plan_path)
+        let plan_dir = plan_path.parent().unwrap_or(&plan_path).to_path_buf();
+        (manifest.project_name.clone(), manifest, plan_path, plan_dir)
     } else {
         // Find the plan in workspace
         println!("  Looking for plan: {}", plan_id.green());
@@ -73,8 +74,9 @@ pub async fn execute(
 
         let manifest = discovered_plan.load_manifest().context("Failed to load plan manifest")?;
         let manifest_path = discovered_plan.path.join("plan/plan_manifest.json");
+        let plan_dir = discovered_plan.path.clone();
 
-        (discovered_plan.plan.project_name, manifest, manifest_path)
+        (discovered_plan.plan.project_name, manifest, manifest_path, plan_dir)
     };
 
     // Display plan information
@@ -87,9 +89,18 @@ pub async fn execute(
         return Ok(());
     }
 
+    // Load context files from plan directory
+    let workspace_root = workspace.root().to_path_buf();
+    let loader = ContextFileLoader::new(&workspace_root);
+    let context_files = loader.load_hierarchical(&plan_dir).unwrap_or_default();
+
     // Execute the plan
     println!();
     println!("{}", "Executing plan...".bold());
+    if !context_files.is_empty() {
+        let context_file_paths = loader.get_context_file_paths(&plan_dir);
+        println!("  {} Loaded context from {} file(s)", "✓".green(), context_file_paths.len());
+    }
     println!();
 
     execute_plan(
@@ -99,6 +110,7 @@ pub async fn execute(
         task.as_deref(),
         resume,
         json,
+        if context_files.is_empty() { None } else { Some(context_files) },
     )
     .await?;
 
@@ -157,6 +169,7 @@ async fn execute_plan(
     task_filter: Option<&str>,
     resume: bool,
     _json: bool,
+    context_files: Option<String>,
 ) -> anyhow::Result<()> {
     // Create executor with configuration
     let config = ExecutionConfig {
@@ -164,6 +177,7 @@ async fn execute_plan(
         skip_completed: !resume,
         check_dependencies: true,
         state_path: manifest_path.to_path_buf(),
+        context_files,
     };
     let executor = PlanExecutor::with_config(config);
 

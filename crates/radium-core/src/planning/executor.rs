@@ -51,6 +51,9 @@ pub struct ExecutionConfig {
 
     /// Path to save state checkpoints.
     pub state_path: std::path::PathBuf,
+
+    /// Optional context files content to inject into prompts.
+    pub context_files: Option<String>,
 }
 
 impl Default for ExecutionConfig {
@@ -60,6 +63,7 @@ impl Default for ExecutionConfig {
             skip_completed: true,
             check_dependencies: true,
             state_path: std::path::PathBuf::from("plan/plan_manifest.json"),
+            context_files: None,
         }
     }
 }
@@ -138,6 +142,11 @@ impl PlanExecutor {
         context.set("task_title", task.title.clone());
         if let Some(desc) = &task.description {
             context.set("task_description", desc.clone());
+        }
+
+        // Inject context files if available
+        if let Some(ref context_files) = self.config.context_files {
+            context.set("context_files", context_files.clone());
         }
 
         let rendered =
