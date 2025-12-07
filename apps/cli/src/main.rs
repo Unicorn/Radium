@@ -10,7 +10,8 @@ use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 use commands::{
-    agents, auth, chat, clean, craft, doctor, init, monitor, plan, run, status, step, templates,
+    agents, auth, chat, checkpoint, clean, craft, doctor, init, monitor, plan, run, status, step,
+    templates,
 };
 
 /// Radium CLI - Next-generation agentic orchestration tool
@@ -294,6 +295,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Monitor(cmd) => {
             monitor::execute(cmd).await?;
+        }
+        Command::Checkpoint(cmd) => {
+            checkpoint::execute(cmd).await?;
         }
         Command::Doctor { json } => {
             doctor::execute(json).await?;

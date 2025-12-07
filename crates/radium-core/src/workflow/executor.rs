@@ -8,9 +8,11 @@ use tracing::{debug, error, info};
 
 use radium_orchestrator::{AgentExecutor, Orchestrator};
 
+use crate::checkpoint::{Checkpoint, CheckpointManager};
 use crate::models::{Workflow, WorkflowState};
 use crate::monitoring::{AgentRecord, AgentStatus, MonitoringService};
 use crate::storage::TaskRepository;
+use crate::workspace::Workspace;
 
 use super::control_flow::{StepCondition, should_execute_step};
 use super::engine::{ExecutionContext, StepResult, WorkflowEngine, WorkflowEngineError};
@@ -25,6 +27,8 @@ pub struct WorkflowExecutor {
     engine: WorkflowEngine,
     /// Monitoring service for agent lifecycle tracking (optional).
     monitoring: Option<Arc<std::sync::Mutex<MonitoringService>>>,
+    /// Checkpoint manager for creating snapshots (optional).
+    checkpoint_manager: Option<Arc<std::sync::Mutex<CheckpointManager>>>,
 }
 
 impl WorkflowExecutor {
@@ -42,9 +46,17 @@ impl WorkflowExecutor {
         executor: Arc<AgentExecutor>,
         monitoring: Option<Arc<std::sync::Mutex<MonitoringService>>>,
     ) -> Self {
+        // Try to initialize checkpoint manager from workspace
+        let checkpoint_manager = Workspace::discover()
+            .ok()
+            .and_then(|ws| {
+                CheckpointManager::new(ws.root()).ok().map(|cm| Arc::new(std::sync::Mutex::new(cm)))
+            });
+
         Self {
             engine: WorkflowEngine::new(orchestrator, executor),
             monitoring,
+            checkpoint_manager,
         }
     }
 
@@ -176,10 +188,12 @@ impl WorkflowExecutor {
 
                 // 2.5. Register agent with monitoring service (if available)
                 let agent_id = task.agent_id.clone();
+                let mut checkpoint_id: Option<String> = None;
+                
                 if let Some(ref monitoring) = self.monitoring {
                     let record = AgentRecord::new(agent_id.clone(), "workflow".to_string())
                         .with_plan(context.workflow_id.clone());
-                    if let Ok(svc) = monitoring.lock() {
+                    if let Ok(mut svc) = monitoring.lock() {
                         if let Err(e) = svc.register_agent(&record) {
                             debug!(
                                 agent_id = %agent_id,
@@ -188,6 +202,32 @@ impl WorkflowExecutor {
                             );
                         } else {
                             let _ = svc.update_status(&agent_id, AgentStatus::Running);
+                        }
+                    }
+                }
+
+                // 2.6. Create checkpoint before step execution (if checkpoint manager available)
+                // This creates a snapshot before any file modifications
+                if let Some(ref checkpoint_mgr) = self.checkpoint_manager {
+                    if let Ok(mut cm) = checkpoint_mgr.lock() {
+                        match cm.create_checkpoint(Some(format!("Before workflow step: {}", step.id))) {
+                            Ok(checkpoint) => {
+                                checkpoint_id = Some(checkpoint.id.clone());
+                                debug!(
+                                    workflow_id = %context.workflow_id,
+                                    step_id = %step.id,
+                                    checkpoint_id = %checkpoint.id,
+                                    "Created checkpoint before step execution"
+                                );
+                            }
+                            Err(e) => {
+                                debug!(
+                                    workflow_id = %context.workflow_id,
+                                    step_id = %step.id,
+                                    error = %e,
+                                    "Failed to create checkpoint (workspace may not be a git repo)"
+                                );
+                            }
                         }
                     }
                 }

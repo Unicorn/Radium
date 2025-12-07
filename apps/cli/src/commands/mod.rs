@@ -3,6 +3,7 @@
 pub mod agents;
 pub mod auth;
 pub mod chat;
+pub mod checkpoint;
 pub mod clean;
 pub mod craft;
 pub mod doctor;
