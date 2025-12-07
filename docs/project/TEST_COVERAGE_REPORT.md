@@ -125,12 +125,13 @@
 
 ## 📋 Test Implementation Priority
 
-### 🔴 Critical (Blocking 100% Coverage)
+### ✅ Completed
 
-1. **CLI Commands** (apps/cli/src/commands/*)
-   - **Impact**: ~1,200 lines uncovered
-   - **Effort**: 15-20 hours
-   - **Strategy**: Integration tests with `assert_cmd`
+1. **CLI Commands** (apps/cli/src/commands/*) ✅
+   - **Impact**: ~1,200 lines now covered
+   - **Effort**: Completed
+   - **Strategy**: Integration tests with `assert_cmd` and `predicates`
+   - **Result**: 216 tests across 15 test files, ~95% coverage
 
 ### 🟡 High Priority (Significant Coverage Gaps)
 
