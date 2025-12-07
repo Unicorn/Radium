@@ -1,5 +1,7 @@
 # Gemini CLI Enhancements for Radium
 
+> **Note**: Detailed feature requirements have been extracted to [/docs/plan](../plan/README.md) for structured implementation planning.
+
 > **Source**: Features and patterns learned from [gemini-cli](https://github.com/google-gemini/gemini-cli)  
 > **Last Updated**: 2025-12-02
 
@@ -40,6 +42,8 @@ Gemini CLI is an open-source AI agent that brings the power of Gemini directly i
 - Supports community-contributed MCP servers
 - Foundation for extensible tool ecosystem
 
+**Requirements**: [REQ-009: MCP Integration](../plan/02-next/REQ-009-mcp-integration.md)
+
 **Reference**: [Gemini CLI MCP Documentation](https://geminicli.com/docs/tools/mcp-server)
 
 ---
@@ -73,6 +77,8 @@ Gemini CLI is an open-source AI agent that brings the power of Gemini directly i
 - Enterprise-ready with admin policy support
 - User-friendly approval workflows
 
+**Requirements**: [REQ-010: Policy Engine](../plan/02-next/REQ-010-policy-engine.md)
+
 **Reference**: [Gemini CLI Policy Engine Documentation](https://geminicli.com/docs/core/policy-engine)
 
 ---
@@ -104,6 +110,8 @@ Gemini CLI is an open-source AI agent that brings the power of Gemini directly i
 - Persistent instructions without repeating in prompts
 - Modular context organization
 - Team-shared context files via version control
+
+**Requirements**: [REQ-011: Context Files](../plan/02-next/REQ-011-context-files.md)
 
 **Reference**: [Gemini CLI Context Files Documentation](https://geminicli.com/docs/cli/gemini-md)
 
@@ -138,6 +146,8 @@ Gemini CLI is an open-source AI agent that brings the power of Gemini directly i
 - Project-specific and user-specific commands
 - Improved developer productivity
 
+**Requirements**: [REQ-012: Custom Commands](../plan/02-next/REQ-012-custom-commands.md)
+
 **Reference**: [Gemini CLI Custom Commands Documentation](https://geminicli.com/docs/cli/custom-commands)
 
 ---
@@ -169,6 +179,8 @@ Gemini CLI is an open-source AI agent that brings the power of Gemini directly i
 - Easy rollback to previous states
 - Conversation context preservation
 - Confidence in trying new approaches
+
+**Requirements**: [REQ-013: Checkpointing](../plan/02-next/REQ-013-checkpointing.md)
 
 **Reference**: [Gemini CLI Checkpointing Documentation](https://geminicli.com/docs/cli/checkpointing)
 

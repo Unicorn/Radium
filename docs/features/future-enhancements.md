@@ -1,5 +1,7 @@
 # Future Enhancements
 
+> **Note**: Detailed feature requirements have been extracted to [/docs/plan](../plan/README.md) for structured implementation planning.
+
 This document tracks feature ideas and enhancements for future implementation.
 
 ## In Development (NEXT Phase)
@@ -13,6 +15,8 @@ The following features are planned for implementation in the NEXT phase of devel
 
 Integration with the Model Context Protocol to enable external tool discovery and execution from MCP servers. Supports multiple transports (stdio, SSE, HTTP), OAuth authentication, and rich content responses.
 
+**Requirements**: [REQ-009: MCP Integration](../plan/02-next/REQ-009-mcp-integration.md)
+
 **Reference**: [gemini-cli-enhancements.md](./gemini-cli-enhancements.md#mcp-model-context-protocol-integration)
 
 ---
@@ -23,6 +27,8 @@ Integration with the Model Context Protocol to enable external tool discovery an
 **Priority**: High
 
 Fine-grained control over tool execution through rule-based policies. Supports allow/deny/ask_user decisions, priority-based rule matching, and approval modes.
+
+**Requirements**: [REQ-010: Policy Engine](../plan/02-next/REQ-010-policy-engine.md)
 
 **Reference**: [gemini-cli-enhancements.md](./gemini-cli-enhancements.md#policy-engine-for-tool-execution)
 
@@ -35,6 +41,8 @@ Fine-grained control over tool execution through rule-based policies. Supports a
 
 Hierarchical context file system for providing persistent instructions to agents. Supports global, project, and subdirectory context files with import syntax.
 
+**Requirements**: [REQ-011: Context Files](../plan/02-next/REQ-011-context-files.md)
+
 **Reference**: [gemini-cli-enhancements.md](./gemini-cli-enhancements.md#context-files-geminimd)
 
 ---
@@ -45,6 +53,8 @@ Hierarchical context file system for providing persistent instructions to agents
 **Priority**: High
 
 TOML-based system for defining reusable agent commands with shell and file injection syntax.
+
+**Requirements**: [REQ-012: Custom Commands](../plan/02-next/REQ-012-custom-commands.md)
 
 **Reference**: [gemini-cli-enhancements.md](./gemini-cli-enhancements.md#custom-commands-toml-based)
 
@@ -57,6 +67,8 @@ TOML-based system for defining reusable agent commands with shell and file injec
 
 Automatic Git snapshots and conversation history preservation for safe experimentation with code changes.
 
+**Requirements**: [REQ-013: Checkpointing](../plan/02-next/REQ-013-checkpointing.md)
+
 **Reference**: [gemini-cli-enhancements.md](./gemini-cli-enhancements.md#checkpointing-system)
 
 ---
@@ -67,6 +79,8 @@ Automatic Git snapshots and conversation history preservation for safe experimen
 **Priority**: High
 
 Isolated execution environments for safe agent operations. Supports Docker/Podman and macOS Seatbelt sandboxing.
+
+**Requirements**: [REQ-008: Sandboxing](../plan/02-next/REQ-008-sandboxing.md)
 
 **Reference**: [gemini-cli-enhancements.md](./gemini-cli-enhancements.md#sandboxing)
 
@@ -141,6 +155,8 @@ cache, reducing costs.
 **Status**: ✅ Complete (2025-01-XX)
 **Priority**: Low (Future Enhancement) → ✅ Implemented
 
+**Requirements**: [REQ-020: Session Analytics](../plan/03-later/REQ-020-session-analytics.md)
+
 ---
 
 ## Other Future Ideas
@@ -188,6 +204,8 @@ cache, reducing costs.
 
 Installable extensions that package prompts, MCP servers, and custom commands. Enables community-contributed extensions and easy sharing of agent configurations.
 
+**Requirements**: [REQ-018: Extension System](../plan/03-later/REQ-018-extension-system.md)
+
 **Reference**: [gemini-cli-enhancements.md](./gemini-cli-enhancements.md#extension-system)
 
 ---
@@ -198,6 +216,8 @@ Installable extensions that package prompts, MCP servers, and custom commands. E
 **Priority**: Medium
 
 Intercept and customize behavior at various points in the execution flow. Supports before/after model calls, tool selection, error handling, and telemetry hooks.
+
+**Requirements**: [REQ-019: Hooks System](../plan/03-later/REQ-019-hooks-system.md)
 
 **Reference**: [gemini-cli-enhancements.md](./gemini-cli-enhancements.md#hooks-system)
 

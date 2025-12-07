@@ -1,5 +1,7 @@
 # Vibe-Check MCP Integration Summary
 
+> **Note**: Detailed feature requirements have been extracted to [REQ-014: Vibe Check (Metacognitive Oversight)](../plan/02-next/REQ-014-vibe-check.md) for structured implementation planning.
+
 **Date**: 2025-01-XX  
 **Status**: ✅ Complete  
 **Source**: `old/vibe-check-mcp-server/`

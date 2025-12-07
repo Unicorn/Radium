@@ -21,6 +21,8 @@
 
 **Completed**: All workspace features fully implemented with 22+ passing tests. RequirementId auto-incrementing, Plan/Iteration/Task structures, and PlanDiscovery all working.
 
+**Requirements**: [REQ-001: Workspace System](../plan/01-now/REQ-001-workspace-system.md)
+
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-0-workspace-system) for detailed tasks.
 
 ### Step 1: Agent Configuration System
@@ -37,6 +39,11 @@
 - [ ] **Context Files (GEMINI.md)** hierarchical loading system (Future)
 
 **Completed**: Core agent configuration system fully implemented with ~1,070 lines of code across agents/config.rs (337 lines), agents/discovery.rs (377 lines), and prompts/templates.rs (356 lines). TOML-based configuration, agent discovery, and template system all working. MCP and Context Files deferred to future enhancement.
+
+**Requirements**: 
+- [REQ-002: Agent Configuration System](../plan/01-now/REQ-002-agent-configuration.md)
+- [REQ-009: MCP Integration](../plan/02-next/REQ-009-mcp-integration.md) (Future)
+- [REQ-011: Context Files](../plan/02-next/REQ-011-context-files.md) (Future)
 
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-1-agent-configuration-system) for detailed tasks.
 
@@ -72,6 +79,8 @@
 
 **Test Coverage**: ✅ 216 tests across 15 test files provide comprehensive coverage of CLI functionality.
 
+**Requirements**: [REQ-003: Core CLI Commands](../plan/01-now/REQ-003-core-cli-commands.md)
+
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-2-core-cli-commands) for detailed tasks.  
 **Test Requirements**: See [TEST_COVERAGE_REPORT.md](./TEST_COVERAGE_REPORT.md#step-2-core-cli-commands) for test details.
 
@@ -92,6 +101,10 @@
 - [x] **Phase-aware interrupt integration** (NEW - planning/implementation/review)
 
 **Completed**: Full workflow behavior system with 50+ passing tests. Includes workflow behaviors (~1,400 lines) with types.rs, loop_behavior.rs, trigger.rs, checkpoint.rs, vibe_check.rs (NEW), template discovery, Policy Engine (~450 lines) with TOML-based rules, priority-based matching (Admin/User/Default), approval modes (yolo/autoEdit/ask), glob pattern matching, and ConstitutionManager for session-scoped rules.
+
+**Requirements**: 
+- [REQ-004: Workflow Behaviors](../plan/01-now/REQ-004-workflow-behaviors.md)
+- [REQ-010: Policy Engine](../plan/02-next/REQ-010-policy-engine.md)
 
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-3-workflow-behaviors) for detailed tasks.
 
@@ -140,6 +153,8 @@
 
 **Summary**: Full plan generation and execution system with AI-powered planning, state persistence, dependency management, and progress tracking. Users can generate plans from specifications and execute them with automatic checkpointing and resume support.
 
+**Requirements**: [REQ-005: Plan Generation & Execution](../plan/02-next/REQ-005-plan-generation.md)
+
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-4-plan-generation--execution) for detailed tasks.
 
 ### Step 5: Memory & Context System
@@ -175,6 +190,10 @@
 
 **Summary**: Complete memory and context system with ~2,000+ lines of code and 50+ passing tests. Agents can now store and retrieve context from previous runs, inject file contents, execute shell commands, use custom TOML-based commands, and maintain conversation history across sessions.
 
+**Requirements**: 
+- [REQ-006: Memory & Context System](../plan/02-next/REQ-006-memory-context.md)
+- [REQ-012: Custom Commands](../plan/02-next/REQ-012-custom-commands.md)
+
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-5-memory--context-system) for detailed tasks.
 
 ### Step 6: Monitoring & Telemetry
@@ -198,6 +217,10 @@
 - ⏳ Telemetry parsing from actual model responses (infrastructure ready, requires agent modifications to expose ModelResponse.usage)
 
 **Why Next**: Needed for debugging, cost tracking, and agent coordination.
+
+**Requirements**: 
+- [REQ-007: Monitoring & Telemetry](../plan/02-next/REQ-007-monitoring-telemetry.md)
+- [REQ-013: Checkpointing](../plan/02-next/REQ-013-checkpointing.md)
 
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-6-monitoring--telemetry) for detailed tasks.
 
@@ -236,6 +259,8 @@
 
 **Why Next**: Critical for agent safety and alignment. Research shows +27% success rate and -41% harmful actions. Prevents reasoning lock-in and improves alignment with user intent.
 
+**Requirements**: [REQ-014: Vibe Check (Metacognitive Oversight)](../plan/02-next/REQ-014-vibe-check.md)
+
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-66-metacognitive-oversight-system) for detailed tasks.
 
 ### Step 6.5: Sandboxing
@@ -257,6 +282,8 @@
 - 15+ tests passing
 
 **Why Next**: Security and safety for agent execution, especially for shell commands and file operations.
+
+**Requirements**: [REQ-008: Sandboxing](../plan/02-next/REQ-008-sandboxing.md)
 
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-65-sandboxing) for detailed tasks.
 
@@ -282,6 +309,8 @@
 
 **Completed**: Engine abstraction layer fully implemented with 23+ tests passing. Engine registry, binary detection, and trait system all working.
 
+**Requirements**: [REQ-015: Engine Abstraction Layer](../plan/03-later/REQ-015-engine-abstraction.md)
+
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-7-engine-abstraction-layer) for detailed tasks.
 
 ### Step 8: Enhanced TUI
@@ -297,6 +326,8 @@
 - ✅ Real-time state updates
 
 **Completed**: Enhanced TUI fully implemented with 36+ tests passing. Complete workflow dashboard with state management, components, and real-time visualization.
+
+**Requirements**: [REQ-016: TUI Improvements](../plan/03-later/REQ-016-tui-improvements.md)
 
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-8-enhanced-tui) for detailed tasks.
 
@@ -344,6 +375,8 @@
 - Foundation for multi-model orchestration
 - 72 existing agents ready to enhance
 
+**Requirements**: [REQ-017: Agent Library](../plan/03-later/REQ-017-agent-library.md)
+
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-9-agent-library) for detailed tasks.
 
 ### Step 10: Advanced Features
@@ -360,6 +393,10 @@
 - Non-interactive mode and JSON output
 - **Extension System** (installable extensions with gemini-extension.json)
 - **Hooks System** for behavior customization
+
+**Requirements**: 
+- [REQ-018: Extension System](../plan/03-later/REQ-018-extension-system.md)
+- [REQ-019: Hooks System](../plan/03-later/REQ-019-hooks-system.md)
 
 **Why Later**: Advanced features that enhance usability but aren't core to functionality.
 

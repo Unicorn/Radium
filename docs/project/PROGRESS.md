@@ -34,6 +34,27 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
 
 ## 🚀 Active Work
 
+### REQ-1: Documentation Organization (In Progress)
+
+- [x] **Task 1: Create /docs/plan folder structure and template system** - Completed
+- [x] **Task 2: Extract NOW phase requirements (Steps 0-3) into REQ documents** - Completed
+- [x] **Task 3: Extract NEXT phase core features (Steps 4-6) into REQ documents** - Completed
+- [x] **Task 4: Extract NEXT phase sub-features into separate REQ documents** - Completed
+- [x] **Task 5: Extract LATER phase requirements (Steps 7-11) into REQ documents** - Completed
+- [x] **Task 6: Validate REQ documents for Braingrid compatibility and completeness** - Completed
+- [x] **Task 7: Refine and fix issues identified in validation** - Completed (no fixes needed)
+  - **Completed:** 2025-12-06
+  - **Commit:** docs(plan): create folder structure and REQ template system [REQ-1] [TASK-1]
+  - **Files:**
+    - `docs/plan/README.md` - Navigation guide and feature matrix
+    - `docs/plan/templates/req-template.md` - Standard REQ template
+    - Directory structure: `01-now/`, `02-next/`, `03-later/`, `templates/`
+  - **Features:**
+    - Phase-based organization (NOW/NEXT/LATER)
+    - Comprehensive REQ template with all required sections
+    - Feature matrix table for tracking all REQs
+    - Clear numbering scheme documentation
+
 ### Completed Recently
 
 - [x] **Session Reports & Analytics System**: Comprehensive session reporting with metrics and cost transparency

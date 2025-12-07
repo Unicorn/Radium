@@ -14,6 +14,8 @@ This plan breaks down legacy system feature parity into 10 actionable steps, int
 
 ## Step 0: Workspace System
 
+**Requirements**: [REQ-001: Workspace System](../plan/01-now/REQ-001-workspace-system.md)
+
 **Priority**: 🔴 Critical  
 **Est. Time**: 10-14 hours  
 **Dependencies**: None
@@ -87,6 +89,11 @@ Establish the workspace structure that all legacy system features depend on.
 ---
 
 ## Step 1: Agent Configuration System
+
+**Requirements**: 
+- [REQ-002: Agent Configuration System](../plan/01-now/REQ-002-agent-configuration.md)
+- [REQ-009: MCP Integration](../plan/02-next/REQ-009-mcp-integration.md) (Future)
+- [REQ-011: Context Files](../plan/02-next/REQ-011-context-files.md) (Future)
 
 **Priority**: 🔴 Critical  
 **Est. Time**: 15-18 hours  
@@ -174,6 +181,9 @@ Implement agent configuration and prompt system matching legacy system's structu
 ---
 
 ### Step 2: Core CLI Commands
+
+**Requirements**: [REQ-003: Core CLI Commands](../plan/01-now/REQ-003-core-cli-commands.md)
+
 **Status**: ✅ Complete (Implementation) | ❌ 0% Test Coverage  
 **Priority**: 🔴 Critical  
 **Est. Time**: 8-10 hours (Completed) | **Test Est.**: 15-20 hours
@@ -294,6 +304,10 @@ Implement agent configuration and prompt system matching legacy system's structu
 
 ## Step 3: Workflow Behaviors
 
+**Requirements**: 
+- [REQ-004: Workflow Behaviors](../plan/01-now/REQ-004-workflow-behaviors.md)
+- [REQ-010: Policy Engine](../plan/02-next/REQ-010-policy-engine.md)
+
 **Status**: ✅ Complete (Implementation) | ⚠️ ~70% Test Coverage  
 **Priority**: 🟡 High  
 **Est. Time**: 18-22 hours (Completed) | **Test Est.**: 8-12 hours  
@@ -403,6 +417,8 @@ Implement workflow behaviors (loop, trigger, checkpoint) matching legacy system'
 
 ## Step 4: Plan Generation & Execution
 
+**Requirements**: [REQ-005: Plan Generation & Execution](../plan/02-next/REQ-005-plan-generation.md)
+
 **Priority**: 🟡 High  
 **Est. Time**: 15-20 hours  
 **Dependencies**: Step 0, Step 1, Step 3
@@ -461,6 +477,10 @@ Implement full `rad plan` and `rad craft` commands for plan generation and execu
 ---
 
 ## Step 5: Memory & Context System
+
+**Requirements**: 
+- [REQ-006: Memory & Context System](../plan/02-next/REQ-006-memory-context.md)
+- [REQ-012: Custom Commands](../plan/02-next/REQ-012-custom-commands.md)
 
 **Priority**: 🟡 High  
 **Est. Time**: 15-18 hours  
@@ -551,6 +571,10 @@ Implement plan-scoped memory and context management for agent execution.
 
 ## Step 6: Monitoring & Telemetry
 
+**Requirements**: 
+- [REQ-007: Monitoring & Telemetry](../plan/02-next/REQ-007-monitoring-telemetry.md)
+- [REQ-013: Checkpointing](../plan/02-next/REQ-013-checkpointing.md)
+
 **Priority**: 🟡 High  
 **Est. Time**: 18-22 hours  
 **Dependencies**: Step 1
@@ -635,6 +659,8 @@ Implement agent monitoring and telemetry tracking matching legacy system's syste
 
 ## Step 6.5: Sandboxing
 
+**Requirements**: [REQ-008: Sandboxing](../plan/02-next/REQ-008-sandboxing.md)
+
 **Priority**: 🟡 High  
 **Est. Time**: 12-15 hours  
 **Dependencies**: Step 1
@@ -702,6 +728,8 @@ Implement sandboxing support for safe agent execution, especially for shell comm
 ---
 
 ## Step 6.6: Metacognitive Oversight System
+
+**Requirements**: [REQ-014: Vibe Check (Metacognitive Oversight)](../plan/02-next/REQ-014-vibe-check.md)
 
 **Status**: ✅ Complete  
 **Priority**: 🟡 High  
@@ -841,6 +869,8 @@ Implement Chain-Pattern Interrupt (CPI) system for agent oversight, preventing r
 
 ## Step 7: Engine Abstraction Layer
 
+**Requirements**: [REQ-015: Engine Abstraction Layer](../plan/03-later/REQ-015-engine-abstraction.md)
+
 **Priority**: 🟢 Medium  
 **Est. Time**: 15-20 hours  
 **Dependencies**: Step 1
@@ -919,6 +949,8 @@ Support multiple AI engines/providers matching legacy system's engine system.
 ---
 
 ## Step 8: Enhanced TUI
+
+**Requirements**: [REQ-016: TUI Improvements](../plan/03-later/REQ-016-tui-improvements.md)
 
 **Priority**: 🟢 Medium  
 **Est. Time**: 15-20 hours  
@@ -1006,6 +1038,8 @@ Enhance TUI to match legacy system's workflow dashboard functionality.
 ---
 
 ## Step 9: Agent Library (70+ Agents)
+
+**Requirements**: [REQ-017: Agent Library](../plan/03-later/REQ-017-agent-library.md)
 
 **Priority**: 🟢 Medium  
 **Est. Time**: 30-40 hours  
