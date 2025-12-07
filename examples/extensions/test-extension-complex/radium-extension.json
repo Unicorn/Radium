@@ -1,0 +1,22 @@
+{
+  "name": "test-extension-complex",
+  "version": "2.0.0",
+  "description": "Comprehensive test extension with all component types and dependencies",
+  "author": "Test Author <test@example.com>",
+  "components": {
+    "prompts": [
+      "prompts/*.md",
+      "prompts/frameworks/*.md"
+    ],
+    "mcp_servers": [
+      "mcp/server1.json",
+      "mcp/server2.json"
+    ],
+    "commands": [
+      "commands/*.toml",
+      "commands/deploy/*.toml"
+    ]
+  },
+  "dependencies": ["test-extension-simple"]
+}
+

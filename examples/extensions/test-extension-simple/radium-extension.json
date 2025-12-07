@@ -1,0 +1,12 @@
+{
+  "name": "test-extension-simple",
+  "version": "1.0.0",
+  "description": "Simple test extension for manual testing",
+  "author": "Test Author",
+  "components": {
+    "prompts": ["prompts/*.md"],
+    "commands": ["commands/*.toml"]
+  },
+  "dependencies": []
+}
+
