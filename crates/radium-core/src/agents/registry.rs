@@ -8,6 +8,28 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use thiserror::Error;
 
+/// Filter criteria for agent filtering.
+#[derive(Debug, Clone, Default)]
+pub struct FilterCriteria {
+    /// Filter by category (partial match, case-insensitive).
+    pub category: Option<String>,
+    /// Filter by engine (exact match, case-insensitive).
+    pub engine: Option<String>,
+    /// Filter by model (partial match, case-insensitive).
+    pub model: Option<String>,
+}
+
+/// Sort order for agent sorting.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SortOrder {
+    /// Sort by agent name (alphabetical).
+    Name,
+    /// Sort by category (alphabetical).
+    Category,
+    /// Sort by engine (alphabetical).
+    Engine,
+}
+
 /// Agent registry errors.
 #[derive(Debug, Error)]
 pub enum RegistryError {
@@ -242,6 +264,120 @@ impl AgentRegistry {
 
         agents.remove(id).ok_or_else(|| RegistryError::NotFound(id.to_string()))
     }
+
+    /// Filters agents by category (partial match, case-insensitive).
+    ///
+    /// # Errors
+    ///
+    /// Returns error if lock is poisoned.
+    pub fn filter_by_category(&self, category: &str) -> Result<Vec<AgentConfig>> {
+        let category_lower = category.to_lowercase();
+        self.filter(|agent| {
+            agent.category.as_ref().map_or(false, |c| {
+                c.to_lowercase().contains(&category_lower)
+            })
+        })
+    }
+
+    /// Filters agents by engine (exact match, case-insensitive).
+    ///
+    /// # Errors
+    ///
+    /// Returns error if lock is poisoned.
+    pub fn filter_by_engine(&self, engine: &str) -> Result<Vec<AgentConfig>> {
+        let engine_lower = engine.to_lowercase();
+        self.filter(|agent| {
+            agent.engine.as_ref().map_or(false, |e| e.to_lowercase() == engine_lower)
+        })
+    }
+
+    /// Filters agents by model (partial match, case-insensitive).
+    ///
+    /// # Errors
+    ///
+    /// Returns error if lock is poisoned.
+    pub fn filter_by_model(&self, model: &str) -> Result<Vec<AgentConfig>> {
+        let model_lower = model.to_lowercase();
+        self.filter(|agent| {
+            agent.model.as_ref().map_or(false, |m| {
+                m.to_lowercase().contains(&model_lower)
+            })
+        })
+    }
+
+    /// Filters agents using combined criteria.
+    ///
+    /// All specified criteria must match (AND logic).
+    ///
+    /// # Errors
+    ///
+    /// Returns error if lock is poisoned.
+    pub fn filter_combined(&self, criteria: &FilterCriteria) -> Result<Vec<AgentConfig>> {
+        self.filter(|agent| {
+            // Category filter
+            if let Some(ref category) = criteria.category {
+                let category_lower = category.to_lowercase();
+                if !agent.category.as_ref().map_or(false, |c| {
+                    c.to_lowercase().contains(&category_lower)
+                }) {
+                    return false;
+                }
+            }
+
+            // Engine filter
+            if let Some(ref engine) = criteria.engine {
+                let engine_lower = engine.to_lowercase();
+                if !agent.engine.as_ref().map_or(false, |e| e.to_lowercase() == engine_lower) {
+                    return false;
+                }
+            }
+
+            // Model filter
+            if let Some(ref model) = criteria.model {
+                let model_lower = model.to_lowercase();
+                if !agent.model.as_ref().map_or(false, |m| {
+                    m.to_lowercase().contains(&model_lower)
+                }) {
+                    return false;
+                }
+            }
+
+            true
+        })
+    }
+
+    /// Sorts agents by the specified order.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if lock is poisoned.
+    pub fn sort(&self, order: SortOrder) -> Result<Vec<AgentConfig>> {
+        let mut agents = self.list_all()?;
+
+        match order {
+            SortOrder::Name => {
+                agents.sort_by(|a, b| a.name.cmp(&b.name));
+            }
+            SortOrder::Category => {
+                agents.sort_by(|a, b| {
+                    a.category
+                        .as_ref()
+                        .unwrap_or(&String::new())
+                        .cmp(b.category.as_ref().unwrap_or(&String::new()))
+                });
+            }
+            SortOrder::Engine => {
+                agents.sort_by(|a, b| {
+                    a.engine
+                        .as_ref()
+                        .unwrap_or(&String::new())
+                        .cmp(b.engine.as_ref().unwrap_or(&String::new()))
+                });
+            }
+        }
+
+        Ok(agents)
+    }
 }
 
 impl Default for AgentRegistry {
@@ -415,5 +551,162 @@ mod tests {
         registry.clear().unwrap();
 
         assert_eq!(registry.count().unwrap(), 0);
+    }
+
+    #[test]
+    fn test_filter_by_category() {
+        let registry = AgentRegistry::new();
+
+        registry
+            .register(create_test_agent("agent-1", "Agent 1").with_category("core"))
+            .unwrap();
+        registry
+            .register(create_test_agent("agent-2", "Agent 2").with_category("testing"))
+            .unwrap();
+        registry
+            .register(create_test_agent("agent-3", "Agent 3").with_category("core"))
+            .unwrap();
+
+        let core_agents = registry.filter_by_category("core").unwrap();
+        assert_eq!(core_agents.len(), 2);
+        assert!(core_agents.iter().all(|a| a.category.as_ref().map_or(false, |c| c.contains("core"))));
+
+        let testing_agents = registry.filter_by_category("test").unwrap();
+        assert_eq!(testing_agents.len(), 1);
+    }
+
+    #[test]
+    fn test_filter_by_engine() {
+        let registry = AgentRegistry::new();
+
+        registry
+            .register(create_test_agent("agent-1", "Agent 1").with_engine("gemini"))
+            .unwrap();
+        registry
+            .register(create_test_agent("agent-2", "Agent 2").with_engine("openai"))
+            .unwrap();
+        registry
+            .register(create_test_agent("agent-3", "Agent 3").with_engine("gemini"))
+            .unwrap();
+
+        let gemini_agents = registry.filter_by_engine("gemini").unwrap();
+        assert_eq!(gemini_agents.len(), 2);
+        assert!(gemini_agents.iter().all(|a| a.engine.as_ref().map_or(false, |e| e == "gemini")));
+
+        let openai_agents = registry.filter_by_engine("openai").unwrap();
+        assert_eq!(openai_agents.len(), 1);
+    }
+
+    #[test]
+    fn test_filter_by_model() {
+        let registry = AgentRegistry::new();
+
+        registry
+            .register(create_test_agent("agent-1", "Agent 1").with_model("gemini-2.0-flash-exp"))
+            .unwrap();
+        registry
+            .register(create_test_agent("agent-2", "Agent 2").with_model("gpt-4"))
+            .unwrap();
+        registry
+            .register(create_test_agent("agent-3", "Agent 3").with_model("gemini-2.0-flash-thinking"))
+            .unwrap();
+
+        let flash_agents = registry.filter_by_model("flash").unwrap();
+        assert_eq!(flash_agents.len(), 2);
+        assert!(flash_agents.iter().all(|a| a.model.as_ref().map_or(false, |m| m.contains("flash"))));
+    }
+
+    #[test]
+    fn test_filter_combined() {
+        let registry = AgentRegistry::new();
+
+        registry
+            .register(
+                create_test_agent("agent-1", "Agent 1")
+                    .with_category("core")
+                    .with_engine("gemini")
+                    .with_model("gemini-2.0-flash-exp"),
+            )
+            .unwrap();
+        registry
+            .register(
+                create_test_agent("agent-2", "Agent 2")
+                    .with_category("core")
+                    .with_engine("openai")
+                    .with_model("gpt-4"),
+            )
+            .unwrap();
+        registry
+            .register(
+                create_test_agent("agent-3", "Agent 3")
+                    .with_category("testing")
+                    .with_engine("gemini")
+                    .with_model("gemini-2.0-flash-exp"),
+            )
+            .unwrap();
+
+        // Filter by category and engine
+        let criteria = FilterCriteria {
+            category: Some("core".to_string()),
+            engine: Some("gemini".to_string()),
+            model: None,
+        };
+        let filtered = registry.filter_combined(&criteria).unwrap();
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].id, "agent-1");
+
+        // Filter by all criteria
+        let criteria = FilterCriteria {
+            category: Some("core".to_string()),
+            engine: Some("gemini".to_string()),
+            model: Some("flash".to_string()),
+        };
+        let filtered = registry.filter_combined(&criteria).unwrap();
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].id, "agent-1");
+    }
+
+    #[test]
+    fn test_sort() {
+        let registry = AgentRegistry::new();
+
+        registry
+            .register(create_test_agent("z-agent", "Z Agent").with_category("zebra"))
+            .unwrap();
+        registry
+            .register(create_test_agent("a-agent", "A Agent").with_category("alpha"))
+            .unwrap();
+        registry
+            .register(create_test_agent("m-agent", "M Agent").with_category("middle"))
+            .unwrap();
+
+        // Sort by name
+        let sorted = registry.sort(SortOrder::Name).unwrap();
+        assert_eq!(sorted[0].id, "a-agent");
+        assert_eq!(sorted[1].id, "m-agent");
+        assert_eq!(sorted[2].id, "z-agent");
+
+        // Sort by category
+        let sorted = registry.sort(SortOrder::Category).unwrap();
+        assert_eq!(sorted[0].category.as_ref().unwrap(), "alpha");
+        assert_eq!(sorted[1].category.as_ref().unwrap(), "middle");
+        assert_eq!(sorted[2].category.as_ref().unwrap(), "zebra");
+
+        // Sort by engine
+        registry.clear().unwrap();
+        registry
+            .register(create_test_agent("agent-1", "Agent 1").with_engine("z-engine"))
+            .unwrap();
+        registry
+            .register(create_test_agent("agent-2", "Agent 2").with_engine("a-engine"))
+            .unwrap();
+        registry
+            .register(create_test_agent("agent-3", "Agent 3").with_engine("m-engine"))
+            .unwrap();
+
+        let sorted = registry.sort(SortOrder::Engine).unwrap();
+        assert_eq!(sorted[0].engine.as_ref().unwrap(), "a-engine");
+        assert_eq!(sorted[1].engine.as_ref().unwrap(), "m-engine");
+        assert_eq!(sorted[2].engine.as_ref().unwrap(), "z-engine");
     }
 }

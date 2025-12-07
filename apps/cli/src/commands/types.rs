@@ -53,6 +53,22 @@ pub enum AgentsCommand {
         /// Output as JSON
         #[arg(long)]
         json: bool,
+
+        /// Filter by category (partial match)
+        #[arg(long)]
+        category: Option<String>,
+
+        /// Filter by engine (exact match)
+        #[arg(long)]
+        engine: Option<String>,
+
+        /// Filter by model (partial match)
+        #[arg(long)]
+        model: Option<String>,
+
+        /// Sort results by field (name, category, engine)
+        #[arg(long)]
+        sort: Option<String>,
     },
 
     /// Show detailed information about a specific agent

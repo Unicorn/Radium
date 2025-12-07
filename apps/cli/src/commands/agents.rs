@@ -6,6 +6,7 @@ use super::AgentsCommand;
 use colored::Colorize;
 use radium_core::agents::config::{AgentConfig, AgentConfigFile, ReasoningEffort};
 use radium_core::agents::discovery::AgentDiscovery;
+use radium_core::agents::registry::{AgentRegistry, FilterCriteria, SortOrder};
 use serde_json::json;
 use std::collections::HashMap;
 use std::fs;
@@ -16,7 +17,16 @@ use tabled::{Table, Tabled, settings::Style};
 pub async fn execute(command: AgentsCommand) -> anyhow::Result<()> {
     match command {
         AgentsCommand::List { json, verbose } => list_agents(json, verbose).await,
-        AgentsCommand::Search { query, json } => search_agents(&query, json).await,
+        AgentsCommand::Search {
+            query,
+            json,
+            category,
+            engine,
+            model,
+            sort,
+        } => {
+            search_agents(&query, json, category.as_deref(), engine.as_deref(), model.as_deref(), sort.as_deref()).await
+        }
         AgentsCommand::Info { id, json } => show_agent_info(&id, json).await,
         AgentsCommand::Validate { verbose } => validate_agents(verbose).await,
         AgentsCommand::Create {
@@ -90,32 +100,96 @@ async fn list_agents(json_output: bool, verbose: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Search for agents by query.
-async fn search_agents(query: &str, json_output: bool) -> anyhow::Result<()> {
-    let discovery = AgentDiscovery::new();
-    let all_agents = discovery.discover_all()?;
+/// Search for agents by query with optional filters and sorting.
+async fn search_agents(
+    query: &str,
+    json_output: bool,
+    category_filter: Option<&str>,
+    engine_filter: Option<&str>,
+    model_filter: Option<&str>,
+    sort_option: Option<&str>,
+) -> anyhow::Result<()> {
+    // Create registry and discover agents
+    let registry = AgentRegistry::with_discovery()?;
 
+    // Build filter criteria
+    let mut criteria = FilterCriteria::default();
+    if let Some(cat) = category_filter {
+        criteria.category = Some(cat.to_string());
+    }
+    if let Some(eng) = engine_filter {
+        criteria.engine = Some(eng.to_string());
+    }
+    if let Some(modl) = model_filter {
+        criteria.model = Some(modl.to_string());
+    }
+
+    // Apply filters if any are specified
+    let mut candidates = if criteria.category.is_some()
+        || criteria.engine.is_some()
+        || criteria.model.is_some()
+    {
+        registry.filter_combined(&criteria)?
+    } else {
+        registry.list_all()?
+    };
+
+    // Apply text search query
     let query_lower = query.to_lowercase();
-    let matches: HashMap<String, AgentConfig> = all_agents
-        .into_iter()
-        .filter(|(id, config)| {
-            id.to_lowercase().contains(&query_lower)
-                || config.name.to_lowercase().contains(&query_lower)
-                || config.description.to_lowercase().contains(&query_lower)
-                || config
-                    .category
-                    .as_ref()
-                    .map(|c| c.to_lowercase().contains(&query_lower))
-                    .unwrap_or(false)
-        })
-        .collect();
+    candidates.retain(|config| {
+        config.id.to_lowercase().contains(&query_lower)
+            || config.name.to_lowercase().contains(&query_lower)
+            || config.description.to_lowercase().contains(&query_lower)
+            || config
+                .category
+                .as_ref()
+                .map(|c| c.to_lowercase().contains(&query_lower))
+                .unwrap_or(false)
+    });
 
-    if matches.is_empty() {
+    // Apply sorting if specified
+    if let Some(sort_str) = sort_option {
+        let sort_order = match sort_str.to_lowercase().as_str() {
+            "name" => SortOrder::Name,
+            "category" => SortOrder::Category,
+            "engine" => SortOrder::Engine,
+            _ => {
+                eprintln!("{} Invalid sort option: {}. Valid options: name, category, engine", "⚠️".yellow(), sort_str);
+                SortOrder::Name // Default to name
+            }
+        };
+        // Create a temporary registry with filtered agents for sorting
+        let temp_registry = AgentRegistry::new();
+        for agent in &candidates {
+            let _ = temp_registry.register_or_replace(agent.clone());
+        }
+        candidates = temp_registry.sort(sort_order)?;
+    }
+
+    if candidates.is_empty() {
         if !json_output {
             println!("{}", format!("No agents found matching '{}'", query).yellow());
+            if category_filter.is_some() || engine_filter.is_some() || model_filter.is_some() {
+                println!("  Applied filters:");
+                if let Some(cat) = category_filter {
+                    println!("    Category: {}", cat);
+                }
+                if let Some(eng) = engine_filter {
+                    println!("    Engine: {}", eng);
+                }
+                if let Some(modl) = model_filter {
+                    println!("    Model: {}", modl);
+                }
+            }
         }
         return Ok(());
     }
+
+    // Convert to HashMap for display
+    let matches: HashMap<String, AgentConfig> = candidates
+        .into_iter()
+        .map(|config| (config.id.clone(), config))
+        .collect();
 
     if json_output {
         let results: Vec<_> = matches
@@ -126,6 +200,8 @@ async fn search_agents(query: &str, json_output: bool) -> anyhow::Result<()> {
                     "name": config.name,
                     "description": config.description,
                     "category": config.category,
+                    "engine": config.engine,
+                    "model": config.model,
                 })
             })
             .collect();
@@ -136,6 +212,21 @@ async fn search_agents(query: &str, json_output: bool) -> anyhow::Result<()> {
             "{}",
             format!("🔍 Found {} matching agents for '{}'", matches.len(), query).bold().green()
         );
+        if category_filter.is_some() || engine_filter.is_some() || model_filter.is_some() {
+            println!("  {} Filters applied:", "•".cyan());
+            if let Some(cat) = category_filter {
+                println!("    Category: {}", cat.cyan());
+            }
+            if let Some(eng) = engine_filter {
+                println!("    Engine: {}", eng.cyan());
+            }
+            if let Some(modl) = model_filter {
+                println!("    Model: {}", modl.cyan());
+            }
+        }
+        if let Some(sort_str) = sort_option {
+            println!("  {} Sorted by: {}", "•".cyan(), sort_str.cyan());
+        }
         println!();
         display_agents_table(&matches);
     }
