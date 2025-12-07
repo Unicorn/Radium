@@ -156,8 +156,12 @@ impl AgentDiscovery {
             }
         }
 
-        // Add to agents map (later entries override earlier ones)
-        agents.insert(agent.id.clone(), agent);
+        // Add to agents map (only if not already present to maintain precedence)
+        // Earlier paths (project, user) take precedence over later paths (extensions)
+        // This ensures project-local agents override extension agents
+        if !agents.contains_key(&agent.id) {
+            agents.insert(agent.id.clone(), agent);
+        }
 
         Ok(())
     }
