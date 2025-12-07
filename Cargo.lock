@@ -2057,7 +2057,6 @@ dependencies = [
  "criterion",
  "futures",
  "radium-abstraction",
- "radium-core",
  "radium-models",
  "reqwest",
  "serde",
