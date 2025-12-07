@@ -21,6 +21,7 @@ use tokio::sync::{RwLock, Semaphore, mpsc};
 use tokio::time;
 use tracing::{debug, error, info, warn};
 
+
 /// Result of hook execution.
 #[derive(Debug, Clone)]
 pub struct HookResult {
@@ -432,6 +433,16 @@ impl AgentExecutor {
         let agent_id = agent.id();
         debug!(agent_id = %agent_id, input_len = input.len(), "Executing agent");
 
+        // Initialize sandbox for agent if configured
+        if let Err(e) = self.initialize_sandbox_for_agent(agent_id).await {
+            warn!(
+                agent_id = %agent_id,
+                error = %e,
+                "Failed to initialize sandbox, continuing without sandbox"
+            );
+        }
+
+
         // Execute BeforeModel hooks
         let mut effective_input = input.to_string();
         if let Some(executor) = hook_executor {
@@ -442,6 +453,8 @@ impl AgentExecutor {
                         if !result.should_continue {
                             let message = result.message.unwrap_or_else(|| "Execution aborted by hook".to_string());
                             warn!(agent_id = %agent_id, message = %message, "Execution aborted by hook");
+                            // Cleanup sandbox before early return
+                            self.cleanup_sandbox_for_agent(agent_id).await;
                             return ExecutionResult {
                                 output: AgentOutput::Text(format!("Execution aborted: {}", message)),
                                 success: false,
@@ -581,6 +594,8 @@ impl AgentExecutor {
                                 "All configured providers are exhausted. Execution paused.".to_string()
                             };
                             
+                            // Cleanup sandbox before returning
+                            self.cleanup_sandbox_for_agent(agent_id).await;
                             return ExecutionResult {
                                 output: AgentOutput::Text(error_message.clone()),
                                 success: false,
@@ -670,6 +685,8 @@ impl AgentExecutor {
             }
 
             // If we get here, execution succeeded or failed with non-quota error
+            // Cleanup sandbox before returning
+            self.cleanup_sandbox_for_agent(agent_id).await;
             return execution_result;
         }
     }
