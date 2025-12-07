@@ -61,18 +61,35 @@ impl McpClient {
 pub struct SlashCommandRegistry {
     /// Map of command names to prompts.
     commands: std::collections::HashMap<String, McpPrompt>,
+    /// Map of command names to server names.
+    command_to_server: std::collections::HashMap<String, String>,
 }
 
 impl SlashCommandRegistry {
     /// Create a new slash command registry.
     pub fn new() -> Self {
-        Self { commands: std::collections::HashMap::new() }
+        Self {
+            commands: std::collections::HashMap::new(),
+            command_to_server: std::collections::HashMap::new(),
+        }
     }
 
     /// Register a prompt as a slash command.
     pub fn register_prompt(&mut self, prompt: McpPrompt) {
         let command_name = format!("/{}", prompt.name.replace(' ', "_").to_lowercase());
-        self.commands.insert(command_name, prompt);
+        self.commands.insert(command_name.clone(), prompt);
+    }
+
+    /// Register a prompt with its server name.
+    pub fn register_prompt_with_server(&mut self, server_name: String, prompt: McpPrompt) {
+        let command_name = format!("/{}", prompt.name.replace(' ', "_").to_lowercase());
+        self.commands.insert(command_name.clone(), prompt);
+        self.command_to_server.insert(command_name, server_name);
+    }
+
+    /// Get the server name for a command.
+    pub fn get_server_for_command(&self, command_name: &str) -> Option<&String> {
+        self.command_to_server.get(command_name)
     }
 
     /// Get a command by name.
@@ -134,5 +151,22 @@ mod tests {
         let retrieved = registry.get_command("/test_prompt");
         assert!(retrieved.is_some());
         assert_eq!(retrieved.unwrap().name, "test prompt");
+    }
+
+    #[test]
+    fn test_slash_command_registry_with_server() {
+        let mut registry = SlashCommandRegistry::new();
+        let prompt = McpPrompt {
+            name: "test prompt".to_string(),
+            description: Some("A test prompt".to_string()),
+            arguments: None,
+        };
+
+        registry.register_prompt_with_server("test-server".to_string(), prompt);
+        assert!(registry.has_command("/test_prompt"));
+        assert_eq!(
+            registry.get_server_for_command("/test_prompt"),
+            Some(&"test-server".to_string())
+        );
     }
 }

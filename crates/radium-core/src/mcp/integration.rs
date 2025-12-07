@@ -129,6 +129,50 @@ impl McpIntegration {
         let clients = self.clients.lock().await;
         clients.len()
     }
+
+    /// Get all prompts from all MCP servers.
+    ///
+    /// Returns a vector of tuples: (server_name, prompt)
+    pub async fn get_all_prompts(&self) -> Vec<(String, crate::mcp::McpPrompt)> {
+        let clients = self.clients.lock().await;
+        let mut result = Vec::new();
+
+        for (server_name, client) in clients.iter() {
+            let client = client.lock().await;
+            if let Ok(prompts) = client.list_prompts().await {
+                for prompt in prompts {
+                    result.push((server_name.clone(), prompt));
+                }
+            }
+        }
+
+        result
+    }
+
+    /// Execute a prompt from an MCP server.
+    ///
+    /// # Arguments
+    /// * `server_name` - Name of the server that has the prompt
+    /// * `prompt_name` - Name of the prompt to execute
+    /// * `arguments` - Optional arguments for the prompt
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the prompt cannot be found or executed.
+    pub async fn execute_prompt(
+        &self,
+        server_name: &str,
+        prompt_name: &str,
+        arguments: Option<serde_json::Value>,
+    ) -> Result<serde_json::Value> {
+        let clients = self.clients.lock().await;
+        let client = clients
+            .get(server_name)
+            .ok_or_else(|| McpError::ServerNotFound(server_name.to_string()))?;
+
+        let client = client.lock().await;
+        client.execute_prompt(prompt_name, arguments).await
+    }
 }
 
 impl Default for McpIntegration {

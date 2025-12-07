@@ -4,6 +4,7 @@
 // handling the full loop of: input -> model decision -> tool execution -> result -> repeat.
 
 use std::sync::Arc;
+use tokio::time::{timeout, Duration};
 
 use super::{
     FinishReason, OrchestrationProvider, OrchestrationResult,
@@ -59,7 +60,31 @@ impl OrchestrationEngine {
     /// 2. Execute any requested tools
     /// 3. Add results to conversation
     /// 4. Repeat until complete or max iterations reached
+    ///
+    /// The execution is wrapped in a timeout to prevent indefinite hanging.
     pub async fn execute(
+        &self,
+        input: &str,
+        context: &mut OrchestrationContext,
+    ) -> Result<OrchestrationResult> {
+        let timeout_duration = Duration::from_secs(self.config.timeout_seconds);
+        
+        // Wrap the entire execution in a timeout
+        match timeout(timeout_duration, self.execute_internal(input, context)).await {
+            Ok(result) => result,
+            Err(_) => {
+                // Timeout occurred
+                Ok(OrchestrationResult::new(
+                    format!("Orchestration timed out after {} seconds", self.config.timeout_seconds),
+                    vec![],
+                    FinishReason::Error,
+                ))
+            }
+        }
+    }
+
+    /// Internal execution logic (without timeout wrapper)
+    async fn execute_internal(
         &self,
         input: &str,
         context: &mut OrchestrationContext,
@@ -78,8 +103,14 @@ impl OrchestrationEngine {
             }
 
             // Get orchestration decision from provider
-            let result =
-                self.provider.execute_with_tools(&current_input, &self.tools, context).await?;
+            let result = match self.provider.execute_with_tools(&current_input, &self.tools, context).await {
+                Ok(r) => r,
+                Err(e) => {
+                    // Provider error - check if it's a function calling error that should trigger fallback
+                    // This will be handled by the service layer if fallback is enabled
+                    return Err(e);
+                }
+            };
 
             // If no tool calls, we're done
             if result.tool_calls.is_empty() {

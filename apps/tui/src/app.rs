@@ -3,8 +3,10 @@
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyModifiers};
 use radium_core::auth::{CredentialStore, ProviderType};
+use radium_core::mcp::{McpIntegration, SlashCommandRegistry};
 use radium_orchestrator::{OrchestrationConfig, OrchestrationService};
 use std::sync::Arc;
+use tokio::sync::Mutex;
 
 use crate::commands::{Command, DisplayContext};
 use crate::setup::SetupWizard;
@@ -33,6 +35,10 @@ pub struct App {
     pub orchestration_service: Option<Arc<OrchestrationService>>,
     /// Whether orchestration is enabled
     pub orchestration_enabled: bool,
+    /// MCP integration for external tools
+    pub mcp_integration: Option<Arc<Mutex<McpIntegration>>>,
+    /// MCP slash command registry
+    pub mcp_slash_registry: SlashCommandRegistry,
 }
 
 impl App {
@@ -61,6 +67,18 @@ impl App {
         // Initialize orchestration service
         let (orchestration_service, orchestration_enabled) = Self::init_orchestration();
 
+        // Initialize MCP integration (will be loaded asynchronously)
+        let mcp_integration = workspace_status.as_ref().and_then(|ws| {
+            if let Some(root) = &ws.root {
+                let workspace = radium_core::Workspace::new(root.clone());
+                let integration = Arc::new(Mutex::new(McpIntegration::new()));
+                // Initialize asynchronously - will be done on first use
+                Some(integration)
+            } else {
+                None
+            }
+        });
+
         let mut app = Self {
             should_quit: false,
             prompt_data: PromptData::new(),
@@ -72,6 +90,8 @@ impl App {
             workspace_status,
             orchestration_service,
             orchestration_enabled,
+            mcp_integration,
+            mcp_slash_registry: SlashCommandRegistry::new(),
         };
 
         // Show setup wizard if not configured, otherwise start chat
@@ -347,9 +367,25 @@ impl App {
             "orchestrator" => {
                 self.handle_orchestrator_command(&cmd.args).await?;
             }
+            "mcp-commands" | "mcp-help" => {
+                self.show_mcp_commands().await?;
+            }
             _ => {
-                self.prompt_data
-                    .add_output(format!("Unknown command: /{}. Type /help for help.", cmd.name));
+                // Check if it's an MCP slash command
+                let full_command = format!("/{}", cmd.name);
+                if let Some(prompt) = self.mcp_slash_registry.get_command(&full_command) {
+                    // Execute MCP prompt
+                    self.execute_mcp_prompt(&full_command, prompt, &cmd.args).await?;
+                } else {
+                    // Try to load MCP prompts if not found
+                    self.ensure_mcp_loaded().await?;
+                    if let Some(prompt) = self.mcp_slash_registry.get_command(&full_command) {
+                        self.execute_mcp_prompt(&full_command, prompt, &cmd.args).await?;
+                    } else {
+                        self.prompt_data
+                            .add_output(format!("Unknown command: /{}. Type /help for help.", cmd.name));
+                    }
+                }
             }
         }
         Ok(())
@@ -369,6 +405,12 @@ impl App {
         self.prompt_data.add_output("  /models         - Select AI model".to_string());
         self.prompt_data.add_output("  /orchestrator   - Manage orchestration".to_string());
         self.prompt_data.add_output("  /help           - Show this help".to_string());
+        
+        let mcp_count = self.mcp_slash_registry.get_all_commands().len();
+        if mcp_count > 0 {
+            self.prompt_data.add_output(format!("  /mcp-commands   - List MCP slash commands ({} available)", mcp_count));
+        }
+        
         self.prompt_data.add_output("".to_string());
         self.prompt_data.add_output("💡 Natural Conversation:".to_string());
         self.prompt_data.add_output(format!(
@@ -377,6 +419,141 @@ impl App {
         ));
         self.prompt_data.add_output("".to_string());
         self.prompt_data.add_output("When in a chat, type normally to send messages.".to_string());
+    }
+
+    /// Show MCP commands
+    async fn show_mcp_commands(&mut self) -> Result<()> {
+        self.ensure_mcp_loaded().await?;
+        
+        let commands = self.mcp_slash_registry.get_all_commands();
+        
+        self.prompt_data.clear_output();
+        if commands.is_empty() {
+            self.prompt_data.add_output("No MCP commands available.".to_string());
+            self.prompt_data.add_output("Configure MCP servers to enable slash commands.".to_string());
+            return Ok(());
+        }
+
+        self.prompt_data.add_output("MCP Slash Commands:".to_string());
+        self.prompt_data.add_output("".to_string());
+        
+        for (cmd_name, prompt) in commands {
+            let desc = prompt
+                .description
+                .as_ref()
+                .map(|d| d.as_str())
+                .unwrap_or("No description");
+            self.prompt_data.add_output(format!("  {} - {}", cmd_name, desc));
+            
+            // Show arguments if available
+            if let Some(args) = &prompt.arguments {
+                if !args.is_empty() {
+                    for arg in args {
+                        let required = if arg.required { "required" } else { "optional" };
+                        let arg_desc = arg
+                            .description
+                            .as_ref()
+                            .map(|d| d.as_str())
+                            .unwrap_or("");
+                        self.prompt_data.add_output(format!("      {} {}: {}", arg.name, required, arg_desc));
+                    }
+                }
+            }
+        }
+        
+        Ok(())
+    }
+
+    /// Ensure MCP integration is loaded
+    async fn ensure_mcp_loaded(&mut self) -> Result<()> {
+        if let Some(ref integration) = self.mcp_integration {
+            if integration.lock().await.connected_server_count().await == 0 {
+                if let Some(ref ws_status) = self.workspace_status {
+                    if let Some(ref root) = ws_status.root {
+                        let workspace = radium_core::Workspace::new(root.clone());
+                        integration.lock().await.initialize(&workspace).await?;
+                        
+                        // Load prompts
+                        let prompts = integration.lock().await.get_all_prompts().await;
+                        for (server_name, prompt) in prompts {
+                            self.mcp_slash_registry.register_prompt_with_server(server_name, prompt);
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Execute an MCP prompt
+    async fn execute_mcp_prompt(
+        &mut self,
+        command: &str,
+        prompt: &radium_core::mcp::McpPrompt,
+        args: &[String],
+    ) -> Result<()> {
+        // Get server name from registry
+        let server_name = self
+            .mcp_slash_registry
+            .get_server_for_command(command)
+            .ok_or_else(|| anyhow::anyhow!("Could not find server for command: {}", command))?;
+
+        // Parse arguments
+        let mcp_args = if !args.is_empty() {
+            let mut arg_map = serde_json::Map::new();
+            for (i, arg) in args.iter().enumerate() {
+                if let Some(arg_def) = prompt.arguments.as_ref().and_then(|args| args.get(i)) {
+                    arg_map.insert(arg_def.name.clone(), serde_json::Value::String(arg.clone()));
+                } else {
+                    arg_map.insert(format!("arg{}", i), serde_json::Value::String(arg.clone()));
+                }
+            }
+            Some(serde_json::Value::Object(arg_map))
+        } else {
+            None
+        };
+
+        // Execute prompt
+        if let Some(ref integration) = self.mcp_integration {
+            match integration
+                .lock()
+                .await
+                .execute_prompt(server_name, &prompt.name, mcp_args)
+                .await
+            {
+                Ok(result) => {
+                    // Format result for display
+                    if let Some(messages) = result.get("messages").and_then(|m| m.as_array()) {
+                        for message in messages {
+                            if let Some(content) = message.get("content").and_then(|c| c.as_array()) {
+                                for item in content {
+                                    if let Some(text) = item.get("text").and_then(|t| t.as_str()) {
+                                        self.prompt_data.add_output(text.to_string());
+                                    }
+                                }
+                            } else if let Some(text) = message.get("content").and_then(|c| c.as_str()) {
+                                self.prompt_data.add_output(text.to_string());
+                            }
+                        }
+                    } else {
+                        // Fallback: show JSON
+                        self.prompt_data.add_output(
+                            serde_json::to_string_pretty(&result)
+                                .unwrap_or_else(|_| format!("Prompt '{}' executed", prompt.name))
+                        );
+                    }
+                }
+                Err(e) => {
+                    self.prompt_data
+                        .add_output(format!("MCP Error: {}", e));
+                }
+            }
+        } else {
+            self.prompt_data
+                .add_output("MCP integration not available".to_string());
+        }
+
+        Ok(())
     }
 
     fn start_auth_wizard(&mut self) {
@@ -540,13 +717,26 @@ impl App {
 
         let partial = &input[1..]; // Remove the '/'
 
-        // Filter commands that match the partial input
-        let suggestions: Vec<String> = self
+        // Filter built-in commands that match the partial input
+        let mut suggestions: Vec<String> = self
             .available_commands
             .iter()
             .filter(|(cmd, _desc)| cmd.starts_with(partial))
             .map(|(cmd, desc)| format!("/{} - {}", cmd, desc))
             .collect();
+
+        // Add MCP commands that match
+        for (cmd_name, prompt) in self.mcp_slash_registry.get_all_commands() {
+            let cmd_without_slash = &cmd_name[1..]; // Remove leading '/'
+            if cmd_without_slash.starts_with(partial) {
+                let desc = prompt
+                    .description
+                    .as_ref()
+                    .map(|d| d.as_str())
+                    .unwrap_or("MCP command");
+                suggestions.push(format!("{} - {}", cmd_name, desc));
+            }
+        }
 
         self.prompt_data.command_suggestions = suggestions;
 

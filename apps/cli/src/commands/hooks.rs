@@ -189,19 +189,63 @@ pub async fn execute_hooks_command(command: HooksCommand) -> anyhow::Result<()> 
         }
 
         HooksCommand::Enable { name } => {
-            // Note: Hook enable/disable functionality would need to be implemented
-            // in the HookRegistry. For now, we'll just acknowledge the command.
-            println!("Enabling hook '{}'...", name);
-            println!("Note: Hook enable/disable functionality is not yet fully implemented.");
-            println!("Hooks are automatically enabled when registered.");
+            // Update registry
+            if let Err(e) = registry.set_enabled(&name, true).await {
+                eprintln!("Failed to enable hook '{}': {}", name, e);
+                return Ok(());
+            }
+            
+            // Update workspace config
+            let hooks_config_path = workspace.root().join(".radium").join("hooks.toml");
+            if hooks_config_path.exists() {
+                match radium_core::hooks::config::HookConfig::from_file(&hooks_config_path) {
+                    Ok(mut config) => {
+                        if let Err(e) = config.set_hook_enabled(&name, true) {
+                            // Hook not in config, that's okay - it might be from an extension
+                            tracing::debug!("Hook '{}' not found in workspace config: {}", name, e);
+                        } else {
+                            if let Err(e) = config.save(&hooks_config_path) {
+                                eprintln!("Warning: Failed to save hook config: {}", e);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!("Failed to load hook config: {}", e);
+                    }
+                }
+            }
+            
+            println!("Hook '{}' enabled.", name);
         }
 
         HooksCommand::Disable { name } => {
-            // Note: Hook enable/disable functionality would need to be implemented
-            // in the HookRegistry. For now, we'll just acknowledge the command.
-            println!("Disabling hook '{}'...", name);
-            println!("Note: Hook enable/disable functionality is not yet fully implemented.");
-            println!("Use 'rad hooks unregister' to remove a hook.");
+            // Update registry
+            if let Err(e) = registry.set_enabled(&name, false).await {
+                eprintln!("Failed to disable hook '{}': {}", name, e);
+                return Ok(());
+            }
+            
+            // Update workspace config
+            let hooks_config_path = workspace.root().join(".radium").join("hooks.toml");
+            if hooks_config_path.exists() {
+                match radium_core::hooks::config::HookConfig::from_file(&hooks_config_path) {
+                    Ok(mut config) => {
+                        if let Err(e) = config.set_hook_enabled(&name, false) {
+                            // Hook not in config, that's okay - it might be from an extension
+                            tracing::debug!("Hook '{}' not found in workspace config: {}", name, e);
+                        } else {
+                            if let Err(e) = config.save(&hooks_config_path) {
+                                eprintln!("Warning: Failed to save hook config: {}", e);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!("Failed to load hook config: {}", e);
+                    }
+                }
+            }
+            
+            println!("Hook '{}' disabled.", name);
         }
     }
 

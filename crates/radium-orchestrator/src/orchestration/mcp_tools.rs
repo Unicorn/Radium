@@ -8,8 +8,8 @@
 //! conversion utilities.
 
 use async_trait::async_trait;
+use serde_json;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 
 use super::tool::{Tool, ToolArguments, ToolHandler, ToolParameters, ToolResult};
 use crate::error::Result;

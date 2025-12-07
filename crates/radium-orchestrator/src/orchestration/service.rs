@@ -172,6 +172,9 @@ impl OrchestrationService {
     ///
     /// # Returns
     /// Orchestration result with response and tool calls
+    ///
+    /// This method handles automatic fallback to prompt-based orchestration
+    /// when function calling fails and fallback is enabled.
     pub async fn handle_input(
         &self,
         session_id: &str,
@@ -193,13 +196,73 @@ impl OrchestrationService {
         // Build context from session
         let mut context = session.to_context();
 
-        // Execute orchestration
-        let result = self.engine.execute(input, &mut context).await?;
+        // Try primary provider first
+        match self.engine.execute(input, &mut context).await {
+            Ok(r) => {
+                // Update session from context
+                session.update_from_context(&context);
+                Ok(r)
+            }
+            Err(e) => {
+                // Check if fallback is enabled and error is function-calling related
+                if self.config.fallback.enabled && self.provider.supports_function_calling() {
+                    tracing::warn!(
+                        "Function calling failed with primary provider ({}): {}. Attempting fallback to prompt-based orchestration.",
+                        self.provider.provider_name(),
+                        e
+                    );
 
-        // Update session from context
-        session.update_from_context(&context);
+                    // Try fallback to prompt-based
+                    match self.try_fallback(input, &mut context).await {
+                        Ok(r) => {
+                            session.update_from_context(&context);
+                            Ok(r)
+                        }
+                        Err(fallback_err) => {
+                            // Both primary and fallback failed
+                            session.update_from_context(&context);
+                            Err(crate::error::OrchestrationError::Other(format!(
+                                "Orchestration failed: Primary provider error: {}. Fallback error: {}",
+                                e, fallback_err
+                            )))
+                        }
+                    }
+                } else {
+                    // No fallback or not a function-calling provider
+                    session.update_from_context(&context);
+                    Err(e)
+                }
+            }
+        }
+    }
 
-        Ok(result)
+    /// Try fallback orchestration with prompt-based provider
+    async fn try_fallback(
+        &self,
+        input: &str,
+        context: &mut OrchestrationContext,
+    ) -> Result<OrchestrationResult> {
+        // Create prompt-based provider
+        let model = Box::new(radium_models::MockModel::new("fallback-model".to_string()));
+        let fallback_provider: Arc<dyn OrchestrationProvider> =
+            Arc::new(super::providers::prompt_based::PromptBasedOrchestrator::new(model));
+
+        // Get tools from registry
+        let tools = self.tool_registry.read().await.get_tools().to_vec();
+
+        // Create fallback engine
+        let engine_config = EngineConfig {
+            max_iterations: self.config.prompt_based.max_tool_iterations,
+            timeout_seconds: self.config.default_provider_config().max_tool_iterations as u64 * 24, // 2 minutes per iteration
+        };
+        let fallback_engine = OrchestrationEngine::new(
+            fallback_provider,
+            tools,
+            engine_config,
+        );
+
+        // Execute with fallback engine
+        fallback_engine.execute(input, context).await
     }
 
     /// Get session state
@@ -238,7 +301,7 @@ impl OrchestrationService {
 
 impl OrchestrationConfig {
     /// Get configuration for default provider
-    fn default_provider_config(&self) -> ProviderConfig {
+    fn default_provider_config(&self) -> ProviderConfig<'_> {
         match self.default_provider {
             ProviderType::Gemini => ProviderConfig {
                 model: &self.gemini.model,
@@ -265,7 +328,9 @@ impl OrchestrationConfig {
 }
 
 struct ProviderConfig<'a> {
+    #[allow(dead_code)]
     model: &'a str,
+    #[allow(dead_code)]
     temperature: f32,
     max_tool_iterations: usize,
 }

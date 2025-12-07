@@ -3,6 +3,7 @@
 use crate::hooks::error::Result;
 use crate::hooks::types::{HookContext, HookPriority, HookResult as HookExecutionResult};
 use async_trait::async_trait;
+use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -78,6 +79,8 @@ pub trait Hook: Send + Sync {
 pub struct HookRegistry {
     /// Registered hooks, organized by type.
     hooks: Arc<RwLock<Vec<Arc<dyn Hook>>>>,
+    /// Set of enabled hook names.
+    enabled_hooks: Arc<RwLock<std::collections::HashSet<String>>>,
 }
 
 impl Default for HookRegistry {
@@ -95,21 +98,56 @@ impl std::fmt::Debug for HookRegistry {
 impl HookRegistry {
     /// Create a new hook registry.
     pub fn new() -> Self {
-        Self { hooks: Arc::new(RwLock::new(Vec::new())) }
+        Self {
+            hooks: Arc::new(RwLock::new(Vec::new())),
+            enabled_hooks: Arc::new(RwLock::new(HashSet::new())),
+        }
     }
 
     /// Clone the registry (creates a new registry with shared hook storage).
     pub fn clone(&self) -> Self {
-        Self { hooks: Arc::clone(&self.hooks) }
+        Self {
+            hooks: Arc::clone(&self.hooks),
+            enabled_hooks: Arc::clone(&self.enabled_hooks),
+        }
     }
 
     /// Register a hook.
     pub async fn register(&self, hook: Arc<dyn Hook>) -> Result<()> {
+        let hook_name = hook.name().to_string();
         let mut hooks = self.hooks.write().await;
         hooks.push(hook);
         // Sort by priority (higher priority first)
         hooks.sort_by(|a, b| b.priority().cmp(&a.priority()));
+        
+        // Enable by default
+        let mut enabled = self.enabled_hooks.write().await;
+        enabled.insert(hook_name);
         Ok(())
+    }
+    
+    /// Set the enabled state of a hook.
+    pub async fn set_enabled(&self, name: &str, enabled: bool) -> Result<()> {
+        // Verify hook exists
+        let hooks = self.hooks.read().await;
+        if !hooks.iter().any(|h| h.name() == name) {
+            return Err(crate::hooks::error::HookError::NotFound(name.to_string()));
+        }
+        drop(hooks);
+        
+        let mut enabled_hooks = self.enabled_hooks.write().await;
+        if enabled {
+            enabled_hooks.insert(name.to_string());
+        } else {
+            enabled_hooks.remove(name);
+        }
+        Ok(())
+    }
+    
+    /// Check if a hook is enabled.
+    pub async fn is_enabled(&self, name: &str) -> bool {
+        let enabled_hooks = self.enabled_hooks.read().await;
+        enabled_hooks.contains(name)
     }
 
     /// Unregister a hook by name.
@@ -132,9 +170,15 @@ impl HookRegistry {
         context: &HookContext,
     ) -> Result<Vec<HookExecutionResult>> {
         let hooks = self.get_hooks(hook_type).await;
+        let enabled_hooks = self.enabled_hooks.read().await;
         let mut results = Vec::new();
 
         for hook in hooks {
+            // Only execute enabled hooks
+            if !enabled_hooks.contains(hook.name()) {
+                continue;
+            }
+            
             match hook.execute(context).await {
                 Ok(result) => {
                     results.push(result.clone());

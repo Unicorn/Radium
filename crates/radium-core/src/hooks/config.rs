@@ -21,10 +21,17 @@ pub struct HookDefinition {
     pub hook_type: String,
     /// Priority of the hook.
     pub priority: Option<u32>,
+    /// Whether the hook is enabled.
+    #[serde(default = "default_enabled")]
+    pub enabled: bool,
     /// Script path for the hook (if using external script).
     pub script: Option<String>,
     /// Inline hook configuration.
     pub config: Option<toml::Value>,
+}
+
+fn default_enabled() -> bool {
+    true
 }
 
 impl HookConfig {
@@ -37,6 +44,36 @@ impl HookConfig {
     /// Parse hook configuration from a TOML string.
     pub fn from_str(content: &str) -> Result<Self> {
         toml::from_str(content).map_err(|e| HookError::ConfigParse(e))
+    }
+
+    /// Save hook configuration to a TOML file.
+    pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<()> {
+        let content = toml::to_string_pretty(self)
+            .map_err(|e| HookError::InvalidConfig(format!("Failed to serialize config: {}", e)))?;
+        
+        // Create parent directory if it doesn't exist
+        if let Some(parent) = path.as_ref().parent() {
+            std::fs::create_dir_all(parent).map_err(|e| HookError::Io(e))?;
+        }
+        
+        std::fs::write(path, content).map_err(|e| HookError::Io(e))?;
+        Ok(())
+    }
+
+    /// Update the enabled state of a hook by name.
+    pub fn set_hook_enabled(&mut self, name: &str, enabled: bool) -> Result<()> {
+        let hook = self.hooks.iter_mut()
+            .find(|h| h.name == name)
+            .ok_or_else(|| HookError::NotFound(name.to_string()))?;
+        hook.enabled = enabled;
+        Ok(())
+    }
+
+    /// Get the enabled state of a hook by name.
+    pub fn is_hook_enabled(&self, name: &str) -> Option<bool> {
+        self.hooks.iter()
+            .find(|h| h.name == name)
+            .map(|h| h.enabled)
     }
 
     /// Validate the hook configuration.

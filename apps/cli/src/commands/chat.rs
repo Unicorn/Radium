@@ -8,7 +8,10 @@ use chrono::Utc;
 use colored::*;
 use radium_core::Workspace;
 use radium_core::context::{ContextFileLoader, HistoryManager};
+use radium_core::mcp::{McpIntegration, SlashCommandRegistry};
 use std::io::{self, Write};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 use super::step;
 
@@ -54,8 +57,20 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
     let current_dir = std::env::current_dir().unwrap_or_else(|_| workspace_root.clone());
     let context_files = loader.load_hierarchical(&current_dir).unwrap_or_default();
 
+    // Initialize MCP integration and load slash commands
+    let mcp_integration = Arc::new(Mutex::new(McpIntegration::new()));
+    let mut slash_registry = SlashCommandRegistry::new();
+    if mcp_integration.lock().await.initialize(&workspace).await.is_ok() {
+        // Discover MCP prompts and register them as slash commands
+        let integration = mcp_integration.lock().await;
+        let prompts = integration.get_all_prompts().await;
+        for (server_name, prompt) in prompts {
+            slash_registry.register_prompt_with_server(server_name, prompt);
+        }
+    }
+
     // Print welcome banner
-    print_banner(&agent_id, &session_id, resume)?;
+    print_banner(&agent_id, &session_id, resume, &slash_registry)?;
 
     // Show conversation history if resuming
     if resume {
@@ -85,7 +100,11 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
                 break;
             }
             "/help" | "/h" => {
-                print_help()?;
+                print_help(&slash_registry)?;
+                continue;
+            }
+            "/mcp-commands" | "/mcp-help" => {
+                print_mcp_commands(&slash_registry)?;
                 continue;
             }
             "/history" => {
@@ -101,7 +120,66 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
                 println!("Session automatically saved as '{}'", session_id);
                 continue;
             }
-            _ => {}
+            _ => {
+                // Check if it's an MCP slash command
+                if input.starts_with('/') && !input.starts_with("//") {
+                    if let Some(prompt) = slash_registry.get_command(input) {
+                        // Execute MCP prompt
+                        match execute_mcp_prompt(&mcp_integration, prompt, input, &slash_registry)
+                            .await
+                        {
+                            Ok(result) => {
+                                println!("\n{}", result);
+                                continue;
+                            }
+                            Err(e) => {
+                                eprintln!("\n{}: {}", "MCP Error".red().bold(), e);
+                                continue;
+                            }
+                        }
+                    } else {
+                        // Try to discover and load MCP prompts if not found
+                        if load_mcp_prompts(&mcp_integration, &mut slash_registry, &workspace)
+                            .await
+                            .is_ok()
+                        {
+                            if let Some(prompt) = slash_registry.get_command(input) {
+                                match execute_mcp_prompt(
+                                    &mcp_integration,
+                                    prompt,
+                                    input,
+                                    &slash_registry,
+                                )
+                                .await
+                                {
+                                    Ok(result) => {
+                                        println!("\n{}", result);
+                                        continue;
+                                    }
+                                    Err(e) => {
+                                        eprintln!("\n{}: {}", "MCP Error".red().bold(), e);
+                                        continue;
+                                    }
+                                }
+                            } else {
+                                eprintln!(
+                                    "\n{}: Unknown command '{}'. Use /help for available commands.",
+                                    "Error".red().bold(),
+                                    input
+                                );
+                                continue;
+                            }
+                        } else {
+                            eprintln!(
+                                "\n{}: Unknown command '{}'. Use /help for available commands.",
+                                "Error".red().bold(),
+                                input
+                            );
+                            continue;
+                        }
+                    }
+                }
+            }
         }
 
         // Get conversation context from history
@@ -152,7 +230,12 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
 }
 
 /// Print welcome banner
-fn print_banner(agent_id: &str, session_id: &str, resume: bool) -> Result<()> {
+fn print_banner(
+    agent_id: &str,
+    session_id: &str,
+    resume: bool,
+    slash_registry: &SlashCommandRegistry,
+) -> Result<()> {
     println!();
     println!("{}", "╔═══════════════════════════════════════════╗".cyan().bold());
     println!(
@@ -172,7 +255,17 @@ fn print_banner(agent_id: &str, session_id: &str, resume: bool) -> Result<()> {
     }
 
     println!();
-    println!("{} {}", "Commands:".green().bold(), "/help /history /clear /save /quit");
+    let mcp_count = slash_registry.get_all_commands().len();
+    if mcp_count > 0 {
+        println!(
+            "{} {} {}",
+            "Commands:".green().bold(),
+            "/help /history /clear /save /quit",
+            format!("({} MCP commands available)", mcp_count).cyan()
+        );
+    } else {
+        println!("{} {}", "Commands:".green().bold(), "/help /history /clear /save /quit");
+    }
     println!();
 
     Ok(())
@@ -208,7 +301,7 @@ fn print_history(history: &HistoryManager, session_id: &str) -> Result<()> {
 }
 
 /// Print help text
-fn print_help() -> Result<()> {
+fn print_help(slash_registry: &SlashCommandRegistry) -> Result<()> {
     println!();
     println!("{}", "╔═══════════════════════════════════════════╗".cyan().bold());
     println!(
@@ -232,6 +325,12 @@ fn print_help() -> Result<()> {
         println!("  {} - {}", cmd.green().bold(), desc);
     }
 
+    let mcp_commands = slash_registry.get_all_commands();
+    if !mcp_commands.is_empty() {
+        println!();
+        println!("  {} - List available MCP slash commands", "/mcp-commands".green().bold());
+    }
+
     println!();
     println!(
         "{} Your conversation is automatically saved after each message.",
@@ -240,6 +339,142 @@ fn print_help() -> Result<()> {
     println!();
 
     Ok(())
+}
+
+/// Print MCP commands
+fn print_mcp_commands(slash_registry: &SlashCommandRegistry) -> Result<()> {
+    let commands = slash_registry.get_all_commands();
+
+    if commands.is_empty() {
+        println!("\n{}", "No MCP commands available.".yellow());
+        println!("{} Configure MCP servers to enable slash commands.", "Tip:".yellow().bold());
+        return Ok(());
+    }
+
+    println!();
+    println!("{}", "╔═══════════════════════════════════════════╗".cyan().bold());
+    println!(
+        "{}{}{}",
+        "║  ".cyan().bold(),
+        "MCP Slash Commands".white().bold(),
+        "                        ║".cyan().bold()
+    );
+    println!("{}", "╚═══════════════════════════════════════════╝".cyan().bold());
+    println!();
+
+    for (cmd_name, prompt) in commands {
+        let desc = prompt
+            .description
+            .as_ref()
+            .map(|d| d.as_str())
+            .unwrap_or("No description");
+        println!("  {} - {}", cmd_name.green().bold(), desc);
+
+        // Show arguments if available
+        if let Some(args) = &prompt.arguments {
+            if !args.is_empty() {
+                for arg in args {
+                    let required = if arg.required { "required" } else { "optional" };
+                    let arg_desc = arg
+                        .description
+                        .as_ref()
+                        .map(|d| d.as_str())
+                        .unwrap_or("");
+                    println!("      {} {}: {}", arg.name.cyan(), required.yellow(), arg_desc);
+                }
+            }
+        }
+    }
+
+    println!();
+
+    Ok(())
+}
+
+/// Load MCP prompts into the slash command registry
+async fn load_mcp_prompts(
+    mcp_integration: &Arc<Mutex<McpIntegration>>,
+    registry: &mut SlashCommandRegistry,
+    workspace: &Workspace,
+) -> Result<()> {
+    let mut integration = mcp_integration.lock().await;
+
+    // Re-initialize if needed
+    if integration.connected_server_count().await == 0 {
+        integration.initialize(workspace).await?;
+    }
+
+    // Get all prompts from all servers
+    let prompts = integration.get_all_prompts().await;
+    for (server_name, prompt) in prompts {
+        registry.register_prompt_with_server(server_name, prompt);
+    }
+
+    Ok(())
+}
+
+/// Execute an MCP prompt
+async fn execute_mcp_prompt(
+    mcp_integration: &Arc<Mutex<McpIntegration>>,
+    prompt: &radium_core::mcp::McpPrompt,
+    input: &str,
+    slash_registry: &SlashCommandRegistry,
+) -> Result<String> {
+    // Parse arguments from input
+    // Format: /command_name arg1 arg2 ...
+    let parts: Vec<&str> = input.split_whitespace().collect();
+    let args = if parts.len() > 1 {
+        // Simple argument parsing - for now, just pass as key-value pairs
+        // In a more complete implementation, we'd parse based on prompt.arguments
+        let mut arg_map = serde_json::Map::new();
+        for (i, part) in parts.iter().skip(1).enumerate() {
+            if let Some(arg_def) = prompt.arguments.as_ref().and_then(|args| args.get(i)) {
+                arg_map.insert(arg_def.name.clone(), serde_json::Value::String(part.to_string()));
+            } else {
+                // Fallback: use index as key
+                arg_map.insert(format!("arg{}", i), serde_json::Value::String(part.to_string()));
+            }
+        }
+        Some(serde_json::Value::Object(arg_map))
+    } else {
+        None
+    };
+
+    // Get server name from registry
+    let server_name = slash_registry
+        .get_server_for_command(input.split_whitespace().next().unwrap_or(""))
+        .ok_or_else(|| anyhow!("Could not find server for command: {}", input))?;
+
+    // Execute the prompt
+    let integration = mcp_integration.lock().await;
+    let result = integration
+        .execute_prompt(server_name, &prompt.name, args)
+        .await
+        .map_err(|e| anyhow!("Failed to execute MCP prompt: {}", e))?;
+
+    // Format the result for display
+    // The result is a JSON value, extract text content if available
+    if let Some(messages) = result.get("messages").and_then(|m| m.as_array()) {
+        let mut output_parts = Vec::new();
+        for message in messages {
+            if let Some(content) = message.get("content").and_then(|c| c.as_array()) {
+                for item in content {
+                    if let Some(text) = item.get("text").and_then(|t| t.as_str()) {
+                        output_parts.push(text.to_string());
+                    }
+                }
+            } else if let Some(text) = message.get("content").and_then(|c| c.as_str()) {
+                output_parts.push(text.to_string());
+            }
+        }
+        if !output_parts.is_empty() {
+            return Ok(output_parts.join("\n"));
+        }
+    }
+
+    // Fallback: return JSON representation
+    Ok(serde_json::to_string_pretty(&result)
+        .unwrap_or_else(|_| format!("Prompt executed: {}", prompt.name)))
 }
 
 /// List available chat sessions

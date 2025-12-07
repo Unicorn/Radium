@@ -65,6 +65,48 @@ impl OrchestrationConfig {
             ProviderType::PromptBased => None, // No API key needed for prompt-based
         }
     }
+
+    /// Load configuration from a TOML file
+    ///
+    /// # Arguments
+    /// * `path` - Path to the TOML configuration file
+    ///
+    /// # Errors
+    /// Returns error if file cannot be read or parsed
+    pub fn load_from_toml(path: impl AsRef<std::path::Path>) -> Result<Self, String> {
+        use std::fs;
+        
+        let content = fs::read_to_string(path.as_ref())
+            .map_err(|e| format!("Failed to read config file: {}", e))?;
+        
+        Self::from_toml_str(&content)
+    }
+
+    /// Load configuration from TOML string
+    ///
+    /// # Arguments
+    /// * `toml_content` - TOML content as string (can include [orchestration] section)
+    ///
+    /// # Errors
+    /// Returns error if TOML cannot be parsed
+    pub fn from_toml_str(toml_content: &str) -> Result<Self, String> {
+        let toml: toml::Value = toml::from_str(toml_content)
+            .map_err(|e| format!("Failed to parse TOML: {}", e))?;
+        
+        // Extract [orchestration] section if present, otherwise try to deserialize entire content
+        let config_value = if let Some(orchestration) = toml.get("orchestration") {
+            orchestration.clone()
+        } else {
+            // Try to deserialize entire content as orchestration config
+            toml
+        };
+        
+        // Convert toml::Value to OrchestrationConfig
+        let config: Self = config_value.try_into()
+            .map_err(|e: toml::de::Error| format!("Failed to deserialize orchestration config: {}", e))?;
+        
+        Ok(config)
+    }
 }
 
 /// Provider type

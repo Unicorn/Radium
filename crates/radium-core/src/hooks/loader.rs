@@ -3,7 +3,7 @@
 use crate::extensions::integration::get_extension_hook_paths;
 use crate::hooks::config::HookConfig;
 use crate::hooks::error::{HookError, Result};
-use crate::hooks::registry::{HookRegistry, HookType};
+use crate::hooks::registry::HookRegistry;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -143,6 +143,18 @@ impl HookLoader {
                         "Failed to validate workspace hook configuration: {}",
                         e
                     )));
+                }
+
+                // Set enabled state for hooks in config
+                for hook_def in &config.hooks {
+                    registry.set_enabled(&hook_def.name, hook_def.enabled).await
+                        .unwrap_or_else(|e| {
+                            tracing::warn!(
+                                hook_name = %hook_def.name,
+                                error = %e,
+                                "Failed to set enabled state for hook"
+                            );
+                        });
                 }
 
                 let count = config.hooks.len();
