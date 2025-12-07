@@ -32,6 +32,12 @@ pub enum MonitorCommand {
         /// Output as JSON
         #[arg(long)]
         json: bool,
+        /// Show tool execution details
+        #[arg(long)]
+        show_tools: bool,
+        /// Filter by tool name
+        #[arg(long)]
+        tool: Option<String>,
     },
     /// Show agent usage analytics
     Usage {
@@ -65,8 +71,8 @@ pub async fn execute(cmd: MonitorCommand) -> Result<()> {
         MonitorCommand::List { status, json } => {
             list_command(&monitoring, status.as_deref(), json).await
         }
-        MonitorCommand::Telemetry { agent_id, json } => {
-            telemetry_command(&monitoring, agent_id.as_deref(), json).await
+        MonitorCommand::Telemetry { agent_id, json, show_tools, tool } => {
+            telemetry_command(&monitoring, agent_id.as_deref(), json, show_tools, tool.as_deref()).await
         }
         MonitorCommand::Usage {
             agent_id,
@@ -194,10 +200,18 @@ async fn telemetry_command(
     monitoring: &MonitoringService,
     agent_id: Option<&str>,
     json: bool,
+    show_tools: bool,
+    tool_filter: Option<&str>,
 ) -> Result<()> {
     if let Some(id) = agent_id {
-        let telemetry = monitoring.get_agent_telemetry(id)?;
-        let total_cost = monitoring.get_total_cost(id)?;
+        let mut telemetry = monitoring.get_agent_telemetry(id)?;
+        
+        // Filter by tool if specified
+        if let Some(tool_name) = tool_filter {
+            telemetry.retain(|t| t.tool_name.as_deref() == Some(tool_name));
+        }
+        
+        let total_cost = telemetry.iter().map(|t| t.estimated_cost).sum::<f64>();
 
         if json {
             println!(
@@ -215,25 +229,99 @@ async fn telemetry_command(
             if telemetry.is_empty() {
                 println!("No telemetry data found.");
             } else {
-                println!(
-                    "{:<20} {:<15} {:<15} {:<15} {:<15} {:<10}",
-                    "Timestamp", "Input Tokens", "Output Tokens", "Total Tokens", "Cost", "Model"
-                );
-                println!("{}", "-".repeat(90));
-                for record in telemetry {
-                    let timestamp = chrono::DateTime::from_timestamp(record.timestamp as i64, 0)
-                        .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
-                        .unwrap_or_else(|| record.timestamp.to_string());
-                    let model = record.model.as_deref().unwrap_or("-");
+                if show_tools {
+                    // Enhanced display with tool information
                     println!(
-                        "{:<20} {:<15} {:<15} {:<15} ${:<14.4} {:<10}",
-                        timestamp,
-                        record.input_tokens,
-                        record.output_tokens,
-                        record.total_tokens,
-                        record.estimated_cost,
-                        model
+                        "{:<20} {:<15} {:<15} {:<15} {:<15} {:<20} {:<15} {:<10}",
+                        "Timestamp", "Input Tokens", "Output Tokens", "Total Tokens", "Cost", "Tool", "Approval", "Model"
                     );
+                    println!("{}", "-".repeat(130));
+                    for record in &telemetry {
+                        let timestamp = chrono::DateTime::from_timestamp(record.timestamp as i64, 0)
+                            .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+                            .unwrap_or_else(|| record.timestamp.to_string());
+                        let model = record.model.as_deref().unwrap_or("-");
+                        let tool = record.tool_name.as_deref().unwrap_or("-");
+                        let approval = if let Some(approved) = record.tool_approved {
+                            if approved {
+                                record.tool_approval_type.as_deref().unwrap_or("approved")
+                            } else {
+                                "denied"
+                            }
+                        } else {
+                            "-"
+                        };
+                        println!(
+                            "{:<20} {:<15} {:<15} {:<15} ${:<14.4} {:<20} {:<15} {:<10}",
+                            timestamp,
+                            record.input_tokens,
+                            record.output_tokens,
+                            record.total_tokens,
+                            record.estimated_cost,
+                            tool,
+                            approval,
+                            model
+                        );
+                    }
+                    
+                    // Show tool usage summary
+                    let tool_usage: std::collections::HashMap<String, (u64, u64, u64)> = telemetry
+                        .iter()
+                        .filter_map(|t| {
+                            t.tool_name.as_ref().map(|name| {
+                                let count = 1;
+                                let approved = if t.tool_approved == Some(true) { 1 } else { 0 };
+                                let denied = if t.tool_approved == Some(false) { 1 } else { 0 };
+                                (name.clone(), (count, approved, denied))
+                            })
+                        })
+                        .fold(std::collections::HashMap::new(), |mut acc, (name, (count, approved, denied))| {
+                            let entry = acc.entry(name).or_insert((0, 0, 0));
+                            entry.0 += count;
+                            entry.1 += approved;
+                            entry.2 += denied;
+                            acc
+                        });
+                    
+                    if !tool_usage.is_empty() {
+                        println!();
+                        println!("Tool Usage Summary:");
+                        println!("{:<30} {:<15} {:<15} {:<15}", "Tool", "Executions", "Approved", "Denied");
+                        println!("{}", "-".repeat(75));
+                        let mut tool_vec: Vec<_> = tool_usage.into_iter().collect();
+                        tool_vec.sort_by(|a, b| b.1 .0.cmp(&a.1 .0)); // Sort by execution count
+                        for (tool, (count, approved, denied)) in tool_vec {
+                            println!(
+                                "{:<30} {:<15} {:<15} {:<15}",
+                                tool,
+                                count,
+                                approved,
+                                denied
+                            );
+                        }
+                    }
+                } else {
+                    // Standard display without tool details
+                    println!(
+                        "{:<20} {:<15} {:<15} {:<15} {:<15} {:<10}",
+                        "Timestamp", "Input Tokens", "Output Tokens", "Total Tokens", "Cost", "Model"
+                    );
+                    println!("{}", "-".repeat(90));
+                    for record in &telemetry {
+                        let timestamp = chrono::DateTime::from_timestamp(record.timestamp as i64, 0)
+                            .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+                            .unwrap_or_else(|| record.timestamp.to_string());
+                        let model = record.model.as_deref().unwrap_or("-");
+                        println!(
+                            "{:<20} {:<15} {:<15} {:<15} ${:<14.4} {:<10}",
+                            timestamp,
+                            record.input_tokens,
+                            record.output_tokens,
+                            record.total_tokens,
+                            record.estimated_cost,
+                            model
+                        );
+                    }
                 }
             }
         }
@@ -243,16 +331,46 @@ async fn telemetry_command(
         let total_cost: f64 = summary.iter().map(|s| s.total_cost).sum();
         let total_tokens: u64 = summary.iter().map(|s| s.total_tokens).sum();
 
+        // Get tool usage summary if requested
+        let mut tool_summary: Option<std::collections::HashMap<String, (u64, u64, u64)>> = None;
+        if show_tools {
+            let mut tool_usage = std::collections::HashMap::new();
+            for s in &summary {
+                let telemetry = monitoring.get_agent_telemetry(&s.agent_id)?;
+                for t in telemetry {
+                    if let Some(ref tool_name) = t.tool_name {
+                        let entry = tool_usage.entry(tool_name.clone()).or_insert((0, 0, 0));
+                        entry.0 += 1;
+                        if t.tool_approved == Some(true) {
+                            entry.1 += 1;
+                        } else if t.tool_approved == Some(false) {
+                            entry.2 += 1;
+                        }
+                    }
+                }
+            }
+            tool_summary = Some(tool_usage);
+        }
+
         if json {
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&serde_json::json!({
-                    "total_agents": summary.len(),
-                    "total_cost": total_cost,
-                    "total_tokens": total_tokens,
-                    "summary": summary
-                }))?
-            );
+            let mut json_obj = serde_json::json!({
+                "total_agents": summary.len(),
+                "total_cost": total_cost,
+                "total_tokens": total_tokens,
+                "summary": summary
+            });
+            if let Some(ref tool_usage) = tool_summary {
+                let tool_json: Vec<_> = tool_usage.iter().map(|(tool, (count, approved, denied))| {
+                    serde_json::json!({
+                        "tool": tool,
+                        "executions": count,
+                        "approved": approved,
+                        "denied": denied
+                    })
+                }).collect();
+                json_obj["tool_usage"] = serde_json::json!(tool_json);
+            }
+            println!("{}", serde_json::to_string_pretty(&json_obj)?);
         } else {
             println!("Monitoring Summary");
             println!("Total Agents: {}", summary.len());
@@ -262,7 +380,7 @@ async fn telemetry_command(
                 println!();
                 println!("{:<30} {:<15} {:<15} {:<10}", "Agent ID", "Total Tokens", "Total Cost", "Records");
                 println!("{}", "-".repeat(70));
-                for s in summary {
+                for s in &summary {
                     println!(
                         "{:<30} {:<15} ${:<14.4} {:<10}",
                         s.agent_id,
@@ -270,6 +388,27 @@ async fn telemetry_command(
                         s.total_cost,
                         s.record_count
                     );
+                }
+            }
+            
+            // Show tool usage summary if requested
+            if let Some(tool_usage) = tool_summary {
+                if !tool_usage.is_empty() {
+                    println!();
+                    println!("Tool Usage Summary (All Agents):");
+                    println!("{:<30} {:<15} {:<15} {:<15}", "Tool", "Executions", "Approved", "Denied");
+                    println!("{}", "-".repeat(75));
+                    let mut tool_vec: Vec<_> = tool_usage.into_iter().collect();
+                    tool_vec.sort_by(|a, b| b.1 .0.cmp(&a.1 .0)); // Sort by execution count
+                    for (tool, (count, approved, denied)) in tool_vec {
+                        println!(
+                            "{:<30} {:<15} {:<15} {:<15}",
+                            tool,
+                            count,
+                            approved,
+                            denied
+                        );
+                    }
                 }
             }
         }
