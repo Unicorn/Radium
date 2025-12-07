@@ -16,7 +16,7 @@ docker-sandbox = []
 podman-sandbox = []
 seatbelt-sandbox = []
 orchestrator-integration = []
-workflow = ["radium-orchestrator"]
+workflow = ["radium-orchestrator", "orchestrator-integration"]
 monitoring = []
 
 [dependencies]
@@ -86,6 +86,9 @@ tempfile = "3.8"
 # Graph algorithms
 petgraph = "0.6"
 
+# File watching
+notify = "6.1"
+
 # Internal crates
 radium-abstraction.workspace = true
 radium-models.workspace = true
@@ -102,6 +105,7 @@ assert_cmd.workspace = true
 predicates.workspace = true
 bytes = "1.7"
 http-body-util = "0.1"
+hyper-util = { version = "0.1", features = ["full"] }
 tempfile = "3.8"
 criterion = { version = "0.5", features = ["html_reports", "async_tokio"] }
 

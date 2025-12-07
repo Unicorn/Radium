@@ -178,6 +178,20 @@ impl WorkflowExecutor {
         // Create execution context
         let mut context = ExecutionContext::new(workflow.id.clone());
 
+        // Start behavior file watcher if workspace is available
+        let mut behavior_watcher = if let Ok(workspace) = Workspace::discover() {
+            let ws_structure = WorkspaceStructure::new(workspace.root());
+            let behavior_file = ws_structure.memory_dir().join("behavior.json");
+            let mut watcher = super::behaviors::types::BehaviorFileWatcher::new(behavior_file);
+            if watcher.start().is_ok() {
+                Some(watcher)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
         // Sort steps by order
         let mut sorted_steps = workflow.steps.clone();
         sorted_steps.sort_by_key(|step| step.order);
@@ -618,6 +632,10 @@ impl WorkflowExecutor {
                     )?;
                 }
 
+                // Stop behavior file watcher before returning error
+                if let Some(mut watcher) = behavior_watcher.take() {
+                    watcher.stop();
+                }
                 return Err(WorkflowEngineError::Execution(error_msg));
             }
 
@@ -718,6 +736,11 @@ impl WorkflowExecutor {
                     .num_milliseconds()),
             "Workflow execution completed successfully"
         );
+
+        // Stop behavior file watcher (will be dropped when function returns)
+        if let Some(mut watcher) = behavior_watcher.take() {
+            watcher.stop();
+        }
 
         Ok(context)
     }
