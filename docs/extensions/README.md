@@ -36,10 +36,54 @@ rad extension list
 rad extension info my-extension
 ```
 
+### Searching Extensions
+
+```bash
+rad extension search "github"
+```
+
+### Creating a New Extension
+
+```bash
+rad extension create my-extension --author "Your Name" --description "My extension description"
+```
+
 ### Uninstalling an Extension
 
 ```bash
 rad extension uninstall my-extension
+```
+
+### Advanced Installation Options
+
+Install with automatic dependency resolution:
+
+```bash
+rad extension install ./my-extension --install-deps
+```
+
+Overwrite an existing extension:
+
+```bash
+rad extension install ./my-extension --overwrite
+```
+
+### JSON Output
+
+All commands support JSON output for scripting:
+
+```bash
+rad extension list --json
+rad extension info my-extension --json
+rad extension search "query" --json
+```
+
+### Verbose Listing
+
+Get detailed information about all extensions:
+
+```bash
+rad extension list --verbose
 ```
 
 ## What are Extensions?

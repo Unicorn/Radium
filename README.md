@@ -144,6 +144,33 @@ rad agents create my-agent "My Agent" --category core
 - [Developer Guide: Agent System Architecture](docs/developer-guide/agent-system-architecture.md) - Technical architecture details
 - [Examples](examples/agents/) - Example agent configurations
 
+## Extension System
+
+Radium's extension system allows you to package and share reusable agent configurations, MCP servers, custom commands, and hooks. Extensions enable the community to share workflows, tools, and configurations.
+
+### Quick Start
+
+```bash
+# Install an extension
+rad extension install ./my-extension
+
+# List installed extensions
+rad extension list
+
+# Get extension information
+rad extension info my-extension
+
+# Create a new extension
+rad extension create my-extension --author "Your Name" --description "My extension"
+```
+
+### Documentation
+
+- [Extension System Guide](docs/extensions/README.md) - Complete user guide
+- [Creating Extensions](docs/extensions/creating-extensions.md) - Guide for extension authors
+- [Extension Architecture](docs/extensions/architecture.md) - Technical architecture details
+- [Examples](examples/extensions/) - Example extension packages
+
 ## Context Files
 
 Context files (GEMINI.md) provide persistent instructions to agents without repeating them in every prompt. They support hierarchical loading (global, project, subdirectory) and can import other files using `@file.md` syntax.
