@@ -1,0 +1,74 @@
+# Project Context
+
+This file provides persistent instructions to Radium agents. Customize it with your project's guidelines, standards, and practices.
+
+## Project Overview
+
+Describe your project's purpose, goals, and key characteristics here.
+
+## Coding Standards
+
+Define your project's coding standards:
+
+- Language-specific conventions
+- Code formatting rules
+- Naming conventions
+- Comment and documentation standards
+
+## Testing Requirements
+
+Specify testing expectations:
+
+- Test coverage goals
+- Testing frameworks and tools
+- Test organization and naming
+- Integration vs unit testing strategy
+
+## Architecture Guidelines
+
+Document architectural principles:
+
+- Design patterns to follow or avoid
+- Module organization
+- Dependency management
+- Performance considerations
+
+## Development Workflow
+
+Outline your development process:
+
+- Branch naming conventions
+- Commit message format
+- Code review process
+- Release procedures
+
+## Additional Context
+
+Add any other information that agents should know:
+
+- Common patterns and practices
+- Known pitfalls to avoid
+- Project-specific tools or utilities
+- Team conventions
+
+## Importing Other Files
+
+You can organize context across multiple files using imports:
+
+```markdown
+@docs/coding-standards.md
+@docs/architecture.md
+```
+
+This allows you to:
+- Keep the main context file focused
+- Share context files across projects
+- Organize complex guidelines into logical sections
+
+## Tips
+
+- Keep instructions clear and actionable
+- Update this file as your project evolves
+- Use markdown structure for readability
+- Reference external documentation when appropriate
+
