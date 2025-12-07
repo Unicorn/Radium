@@ -1125,9 +1125,9 @@ trigger_agent_id = "helper-agent"
                     steps: 2,
                     max_iterations: Some(5),
                     skip: vec![],
-                persona: None,
                 })
                 .with_file_path(config_path.clone()),
+            persona: None,
         };
         assert!(config.validate().is_ok());
 
@@ -1138,9 +1138,9 @@ trigger_agent_id = "helper-agent"
                     steps: 0,
                     max_iterations: None,
                     skip: vec![],
-                persona: None,
                 })
                 .with_file_path(config_path.clone()),
+            persona: None,
         };
         assert!(config.validate().is_err());
 
@@ -1151,9 +1151,9 @@ trigger_agent_id = "helper-agent"
                     steps: 2,
                     max_iterations: Some(0),
                     skip: vec![],
-                persona: None,
                 })
                 .with_file_path(config_path),
+            persona: None,
         };
         assert!(config.validate().is_err());
     }
@@ -1172,9 +1172,9 @@ trigger_agent_id = "helper-agent"
             agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                 .with_trigger_behavior(AgentTriggerBehavior {
                     trigger_agent_id: Some("fallback-agent".to_string()),
-                persona: None,
                 })
                 .with_file_path(config_path.clone()),
+            persona: None,
         };
         assert!(config.validate().is_ok());
 
@@ -1183,9 +1183,9 @@ trigger_agent_id = "helper-agent"
             agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                 .with_trigger_behavior(AgentTriggerBehavior {
                     trigger_agent_id: Some("".to_string()),
-                persona: None,
                 })
                 .with_file_path(config_path.clone()),
+            persona: None,
         };
         assert!(config.validate().is_err());
 
@@ -1197,9 +1197,9 @@ trigger_agent_id = "helper-agent"
                 agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                     .with_trigger_behavior(AgentTriggerBehavior {
                         trigger_agent_id: Some(invalid_id.to_string()),
-                    persona: None,
                     })
                     .with_file_path(test_config_path),
+                persona: None,
             };
             assert!(
                 config.validate().is_err(),
@@ -1273,9 +1273,10 @@ trigger_agent_id = "helper-agent"
                 file_path: None,
                 capabilities: AgentCapabilities::default(),
                 sandbox: None,
-            persona: None,
+                persona_config: None,
             }
             .with_file_path(config_dir.join("empty-id.toml")),
+            persona: None,
         };
         assert!(config.validate().is_err());
 
@@ -1296,9 +1297,10 @@ trigger_agent_id = "helper-agent"
                 file_path: None,
                 capabilities: AgentCapabilities::default(),
                 sandbox: None,
-            persona: None,
+                persona_config: None,
             }
             .with_file_path(config_dir.join("empty-name.toml")),
+            persona: None,
         };
         assert!(config.validate().is_err());
 
@@ -1319,9 +1321,10 @@ trigger_agent_id = "helper-agent"
                 file_path: None,
                 capabilities: AgentCapabilities::default(),
                 sandbox: None,
-            persona: None,
+                persona_config: None,
             }
             .with_file_path(config_dir.join("empty-prompt.toml")),
+            persona: None,
         };
         assert!(config.validate().is_err());
     }
@@ -1492,9 +1495,9 @@ cost_tier = "invalid"
                     steps: 2,
                     max_iterations: Some(5),
                     skip: vec![], // Empty skip list should be valid
-                persona: None,
                 })
                 .with_file_path(config_path),
+            persona: None,
         };
         assert!(config.validate().is_ok());
     }

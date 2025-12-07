@@ -415,33 +415,33 @@ async fn validate_agents(verbose: bool, json_output: bool, strict: bool) -> anyh
                         Ok(config_file) => {
                             let agent = &config_file.agent;
 
-                        // Validate agent ID format (kebab-case)
-                        if !agent.id.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-') {
-                            validation_result.errors.push(format!(
-                                "Agent ID '{}' must be in kebab-case (lowercase letters, numbers, hyphens only)",
-                                agent.id
-                            ));
-                            validation_result.valid = false;
-                        }
+                            // Validate agent ID format (kebab-case)
+                            if !agent.id.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-') {
+                                validation_result.errors.push(format!(
+                                    "Agent ID '{}' must be in kebab-case (lowercase letters, numbers, hyphens only)",
+                                    agent.id
+                                ));
+                                validation_result.valid = false;
+                            }
 
-                        // Validate prompt file exists and is readable
-                        let prompt_path = &agent.prompt_path;
-                        let prompt_exists = if prompt_path.is_absolute() {
-                            prompt_path.exists() && prompt_path.is_file()
-                        } else if let Some(config_dir) = config_path.parent() {
-                            let full_path = config_dir.join(prompt_path);
-                            full_path.exists() && full_path.is_file()
-                        } else {
-                            false
-                        };
+                            // Validate prompt file exists and is readable
+                            let prompt_path = &agent.prompt_path;
+                            let prompt_exists = if prompt_path.is_absolute() {
+                                prompt_path.exists() && prompt_path.is_file()
+                            } else if let Some(config_dir) = config_path.parent() {
+                                let full_path = config_dir.join(prompt_path);
+                                full_path.exists() && full_path.is_file()
+                            } else {
+                                false
+                            };
 
-                        if !prompt_exists {
-                            validation_result.errors.push(format!(
-                                "Prompt file not found or not readable: {}",
-                                prompt_path.display()
-                            ));
-                            validation_result.valid = false;
-                        } else {
+                            if !prompt_exists {
+                                validation_result.errors.push(format!(
+                                    "Prompt file not found or not readable: {}",
+                                    prompt_path.display()
+                                ));
+                                validation_result.valid = false;
+                            } else {
                             // Try to load prompt template to verify it's valid
                             let resolved_path = if agent.prompt_path.is_absolute() {
                                 agent.prompt_path.clone()
@@ -488,38 +488,38 @@ async fn validate_agents(verbose: bool, json_output: bool, strict: bool) -> anyh
                                     }
                                 }
                             }
-
-                        // Validate loop behavior if present
-                        if let Some(loop_behavior) = &agent.loop_behavior {
-                            if loop_behavior.steps == 0 {
-                                validation_result.errors.push(
-                                    "Loop behavior: steps must be greater than 0".to_string(),
-                                );
-                                validation_result.valid = false;
                             }
-                            if let Some(max_iter) = loop_behavior.max_iterations {
-                                if max_iter == 0 {
+
+                            // Validate loop behavior if present
+                            if let Some(loop_behavior) = &agent.loop_behavior {
+                                if loop_behavior.steps == 0 {
                                     validation_result.errors.push(
-                                        "Loop behavior: max_iterations must be greater than 0".to_string(),
+                                        "Loop behavior: steps must be greater than 0".to_string(),
                                     );
                                     validation_result.valid = false;
                                 }
+                                if let Some(max_iter) = loop_behavior.max_iterations {
+                                    if max_iter == 0 {
+                                        validation_result.errors.push(
+                                            "Loop behavior: max_iterations must be greater than 0".to_string(),
+                                        );
+                                        validation_result.valid = false;
+                                    }
+                                }
+                            }
+
+                            // Validate capabilities if present
+                            if agent.capabilities.max_concurrent_tasks == 0 {
+                                validation_result.errors.push(
+                                    "Capabilities: max_concurrent_tasks must be greater than 0".to_string(),
+                                );
+                                validation_result.valid = false;
                             }
                         }
-
-                        // Validate capabilities if present
-                        if agent.capabilities.max_concurrent_tasks == 0 {
-                            validation_result.errors.push(
-                                "Capabilities: max_concurrent_tasks must be greater than 0".to_string(),
-                            );
-                            validation_result.valid = false;
-                        }
-                    }
                     Err(e) => {
                         validation_result.valid = false;
                         validation_result.errors.push(format!("Failed to load config file: {}", e));
                     }
-                }
                 }
                 Err(e) => {
                     validation_result.valid = false;
