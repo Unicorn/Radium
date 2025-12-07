@@ -45,6 +45,16 @@ jobs:
           cargo llvm-cov --workspace --lcov --output-path lcov.info
           cargo llvm-cov --workspace --html
 
+      - name: Check coverage thresholds
+        run: |
+          cargo llvm-cov --workspace --summary-only --fail-under-lines 100 --fail-under-functions 100 --fail-under-branches 95
+
       - name: Display coverage summary
         run: |
           cargo llvm-cov --workspace --summary-only
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: target/llvm-cov/html/
