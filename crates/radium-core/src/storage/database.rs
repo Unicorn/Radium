@@ -129,12 +129,84 @@ impl Database {
             [],
         )?;
 
+        // Create agent_messages table for agent-to-agent communication
+        self.conn.execute(
+            r#"
+            CREATE TABLE IF NOT EXISTS agent_messages (
+                id TEXT PRIMARY KEY,
+                sender_id TEXT NOT NULL,
+                recipient_id TEXT,
+                message_type TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                timestamp INTEGER NOT NULL,
+                delivered INTEGER NOT NULL DEFAULT 0,
+                FOREIGN KEY (sender_id) REFERENCES agents(id),
+                FOREIGN KEY (recipient_id) REFERENCES agents(id)
+            )
+            "#,
+            [],
+        )?;
+
+        // Create agent_delegations table for supervisor-worker relationships
+        self.conn.execute(
+            r#"
+            CREATE TABLE IF NOT EXISTS agent_delegations (
+                supervisor_id TEXT NOT NULL,
+                worker_id TEXT NOT NULL,
+                spawned_at INTEGER NOT NULL,
+                completed_at INTEGER,
+                status TEXT NOT NULL,
+                PRIMARY KEY (supervisor_id, worker_id),
+                FOREIGN KEY (supervisor_id) REFERENCES agents(id),
+                FOREIGN KEY (worker_id) REFERENCES agents(id)
+            )
+            "#,
+            [],
+        )?;
+
+        // Create agent_progress table for progress tracking
+        self.conn.execute(
+            r#"
+            CREATE TABLE IF NOT EXISTS agent_progress (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                agent_id TEXT NOT NULL,
+                timestamp INTEGER NOT NULL,
+                percentage INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                message TEXT,
+                FOREIGN KEY (agent_id) REFERENCES agents(id)
+            )
+            "#,
+            [],
+        )?;
+
         // Create indexes for better query performance
         self.conn
             .execute("CREATE INDEX IF NOT EXISTS idx_tasks_agent_id ON tasks(agent_id)", [])?;
 
         self.conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_workflow_steps_workflow_id ON workflow_steps(workflow_id)",
+            [],
+        )?;
+
+        // Indexes for collaboration tables
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_agent_messages_sender_id ON agent_messages(sender_id)",
+            [],
+        )?;
+
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_agent_messages_recipient_id ON agent_messages(recipient_id)",
+            [],
+        )?;
+
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_agent_delegations_supervisor_id ON agent_delegations(supervisor_id)",
+            [],
+        )?;
+
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_agent_progress_agent_id ON agent_progress(agent_id)",
             [],
         )?;
 
@@ -189,6 +261,9 @@ mod tests {
         assert!(tables.contains(&"workflows".to_string()));
         assert!(tables.contains(&"workflow_steps".to_string()));
         assert!(tables.contains(&"tasks".to_string()));
+        assert!(tables.contains(&"agent_messages".to_string()));
+        assert!(tables.contains(&"agent_delegations".to_string()));
+        assert!(tables.contains(&"agent_progress".to_string()));
     }
 
     #[test]
@@ -232,7 +307,7 @@ mod tests {
         let mut stmt =
             db1.conn().prepare("SELECT COUNT(*) FROM sqlite_master WHERE type='table'").unwrap();
         let table_count: i64 = stmt.query_row([], |row| row.get(0)).unwrap();
-        assert!(table_count >= 4); // At least agents, workflows, workflow_steps, tasks
+        assert!(table_count >= 7); // At least agents, workflows, workflow_steps, tasks, agent_messages, agent_delegations, agent_progress
     }
 
     #[test]
@@ -318,6 +393,10 @@ mod tests {
 
         assert!(indexes.contains(&"idx_tasks_agent_id".to_string()));
         assert!(indexes.contains(&"idx_workflow_steps_workflow_id".to_string()));
+        assert!(indexes.contains(&"idx_agent_messages_sender_id".to_string()));
+        assert!(indexes.contains(&"idx_agent_messages_recipient_id".to_string()));
+        assert!(indexes.contains(&"idx_agent_delegations_supervisor_id".to_string()));
+        assert!(indexes.contains(&"idx_agent_progress_agent_id".to_string()));
     }
 
     #[test]
