@@ -92,3 +92,7 @@ criterion = { version = "0.5", features = ["html_reports", "async_tokio"] }
 [[bench]]
 name = "hooks_benchmark"
 harness = false
+
+[[bench]]
+name = "context_files_bench"
+harness = false
