@@ -118,6 +118,55 @@ fn benchmark_extension_installation(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, benchmark_manifest_parsing, benchmark_extension_discovery, benchmark_extension_installation);
+fn benchmark_dependency_graph(c: &mut Criterion) {
+    let temp_dir = TempDir::new().unwrap();
+    let extensions_dir = temp_dir.path().join("extensions");
+    fs::create_dir_all(&extensions_dir).unwrap();
+
+    let manager = ExtensionManager::with_directory(extensions_dir.clone());
+    let options = radium_core::extensions::InstallOptions::default();
+
+    // Create extensions with dependencies
+    for i in 0..50 {
+        let package_path = create_test_extension_package(&temp_dir, &format!("ext{}", i));
+        manager.install(&package_path, options.clone()).unwrap();
+    }
+
+    c.bench_function("build_dependency_graph_50_extensions", |b| {
+        let extensions = manager.list().unwrap();
+        b.iter(|| {
+            use radium_core::extensions::DependencyGraph;
+            black_box(DependencyGraph::from_extensions(black_box(&extensions)));
+        });
+    });
+}
+
+fn benchmark_signature_verification(c: &mut Criterion) {
+    use radium_core::extensions::signing::{ExtensionSigner, SignatureVerifier};
+    use std::path::Path;
+
+    let temp_dir = TempDir::new().unwrap();
+    let extension_path = create_test_extension_package(&temp_dir, "test-ext");
+
+    // Generate keypair and sign
+    let (signer, public_key) = ExtensionSigner::generate();
+    let _signature_path = signer.sign_extension(&extension_path).unwrap();
+    let verifier = SignatureVerifier::from_public_key(&public_key).unwrap();
+
+    c.bench_function("verify_extension_signature", |b| {
+        b.iter(|| {
+            black_box(verifier.verify_extension(black_box(&extension_path))).unwrap();
+        });
+    });
+}
+
+criterion_group!(
+    benches,
+    benchmark_manifest_parsing,
+    benchmark_extension_discovery,
+    benchmark_extension_installation,
+    benchmark_dependency_graph,
+    benchmark_signature_verification
+);
 criterion_main!(benches);
 
