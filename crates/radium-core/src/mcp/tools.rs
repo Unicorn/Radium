@@ -194,5 +194,187 @@ mod tests {
         assert!(retrieved.is_some());
         assert_eq!(retrieved.unwrap().name, "test_tool");
     }
+
+    #[test]
+    fn test_tool_registry_get_tool_by_prefixed_name() {
+        let mut registry = McpToolRegistry::new("server1".to_string());
+        
+        let tool1 = McpTool {
+            name: "query".to_string(),
+            description: Some("Query tool".to_string()),
+            input_schema: None,
+        };
+        registry.register_tool(tool1);
+
+        let tool2 = McpTool {
+            name: "query".to_string(),
+            description: Some("Another query tool".to_string()),
+            input_schema: None,
+        };
+        registry.register_tool(tool2);
+
+        // Should be able to get by prefixed name
+        let retrieved = registry.get_tool("server1:query");
+        assert!(retrieved.is_some());
+        assert_eq!(retrieved.unwrap().name, "query");
+    }
+
+    #[test]
+    fn test_tool_registry_get_tool_nonexistent() {
+        let registry = McpToolRegistry::new("test-server".to_string());
+        let retrieved = registry.get_tool("nonexistent");
+        assert!(retrieved.is_none());
+    }
+
+    #[test]
+    fn test_tool_registry_has_tool_nonexistent() {
+        let registry = McpToolRegistry::new("test-server".to_string());
+        assert!(!registry.has_tool("nonexistent"));
+    }
+
+    #[test]
+    fn test_tool_registry_multiple_tools() {
+        let mut registry = McpToolRegistry::new("test-server".to_string());
+        
+        let tool1 = McpTool {
+            name: "tool1".to_string(),
+            description: Some("First tool".to_string()),
+            input_schema: None,
+        };
+        registry.register_tool(tool1);
+
+        let tool2 = McpTool {
+            name: "tool2".to_string(),
+            description: Some("Second tool".to_string()),
+            input_schema: None,
+        };
+        registry.register_tool(tool2);
+
+        let tool3 = McpTool {
+            name: "tool3".to_string(),
+            description: Some("Third tool".to_string()),
+            input_schema: None,
+        };
+        registry.register_tool(tool3);
+
+        assert_eq!(registry.get_all_tools().len(), 3);
+        assert!(registry.has_tool("tool1"));
+        assert!(registry.has_tool("tool2"));
+        assert!(registry.has_tool("tool3"));
+    }
+
+    #[test]
+    fn test_tool_registry_tool_with_schema() {
+        let mut registry = McpToolRegistry::new("test-server".to_string());
+        let tool = McpTool {
+            name: "schema_tool".to_string(),
+            description: Some("Tool with schema".to_string()),
+            input_schema: Some(json!({
+                "type": "object",
+                "properties": {
+                    "param1": {"type": "string"}
+                }
+            })),
+        };
+
+        registry.register_tool(tool);
+        
+        let retrieved = registry.get_tool("schema_tool");
+        assert!(retrieved.is_some());
+        assert!(retrieved.unwrap().input_schema.is_some());
+    }
+
+    #[test]
+    fn test_tool_registry_tool_without_description() {
+        let mut registry = McpToolRegistry::new("test-server".to_string());
+        let tool = McpTool {
+            name: "no_desc_tool".to_string(),
+            description: None,
+            input_schema: None,
+        };
+
+        registry.register_tool(tool);
+        
+        let retrieved = registry.get_tool("no_desc_tool");
+        assert!(retrieved.is_some());
+        assert!(retrieved.unwrap().description.is_none());
+    }
+
+    #[test]
+    fn test_tool_registry_conflict_resolution_multiple() {
+        let mut registry = McpToolRegistry::new("server1".to_string());
+        
+        // Register three tools with the same name
+        for i in 0..3 {
+            let tool = McpTool {
+                name: "duplicate".to_string(),
+                description: Some(format!("Tool {}", i)),
+                input_schema: None,
+            };
+            registry.register_tool(tool);
+        }
+
+        // First should have original name, others should be prefixed
+        assert!(registry.has_tool("duplicate"));
+        assert!(registry.has_tool("server1:duplicate"));
+        assert_eq!(registry.get_all_tools().len(), 3);
+    }
+
+    #[test]
+    fn test_tool_registry_empty_registry() {
+        let registry = McpToolRegistry::new("test-server".to_string());
+        assert_eq!(registry.get_all_tools().len(), 0);
+        assert!(!registry.has_tool("any_tool"));
+    }
+
+    #[test]
+    fn test_tool_registry_get_all_tools_order() {
+        let mut registry = McpToolRegistry::new("test-server".to_string());
+        
+        // Register tools in a specific order
+        let tool_names = vec!["tool_a", "tool_b", "tool_c"];
+        for name in &tool_names {
+            let tool = McpTool {
+                name: name.to_string(),
+                description: None,
+                input_schema: None,
+            };
+            registry.register_tool(tool);
+        }
+
+        let all_tools = registry.get_all_tools();
+        assert_eq!(all_tools.len(), 3);
+        
+        // Verify all tools are present (order may vary due to HashMap)
+        let retrieved_names: Vec<String> = all_tools.iter().map(|t| t.name.clone()).collect();
+        for name in &tool_names {
+            assert!(retrieved_names.contains(&name.to_string()));
+        }
+    }
+
+    #[test]
+    fn test_tool_registry_conflict_with_different_servers() {
+        // Simulate tools from different servers
+        let mut registry1 = McpToolRegistry::new("server1".to_string());
+        let mut registry2 = McpToolRegistry::new("server2".to_string());
+        
+        let tool1 = McpTool {
+            name: "common_tool".to_string(),
+            description: Some("From server1".to_string()),
+            input_schema: None,
+        };
+        registry1.register_tool(tool1);
+
+        let tool2 = McpTool {
+            name: "common_tool".to_string(),
+            description: Some("From server2".to_string()),
+            input_schema: None,
+        };
+        registry2.register_tool(tool2);
+
+        // Each registry should handle its own conflicts
+        assert!(registry1.has_tool("common_tool"));
+        assert!(registry2.has_tool("common_tool"));
+    }
 }
 

@@ -322,5 +322,225 @@ mod tests {
         assert_eq!(new_manager.get_servers().len(), 1);
         assert_eq!(new_manager.get_server("test-server").unwrap().name, "test-server");
     }
+
+    #[test]
+    fn test_parse_http_server_config() {
+        let mut table = toml::Table::new();
+        table.insert("name".to_string(), TomlValue::String("http-server".to_string()));
+        table.insert("transport".to_string(), TomlValue::String("http".to_string()));
+        table.insert(
+            "url".to_string(),
+            TomlValue::String("https://api.example.com/mcp".to_string()),
+        );
+
+        let config = McpConfigManager::parse_server_config(&table).unwrap();
+        assert_eq!(config.name, "http-server");
+        assert_eq!(config.transport, TransportType::Http);
+        assert_eq!(config.url, Some("https://api.example.com/mcp".to_string()));
+    }
+
+    #[test]
+    fn test_parse_server_config_missing_name() {
+        let mut table = toml::Table::new();
+        table.insert("transport".to_string(), TomlValue::String("stdio".to_string()));
+        table.insert("command".to_string(), TomlValue::String("mcp-server".to_string()));
+
+        let result = McpConfigManager::parse_server_config(&table);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("name"));
+    }
+
+    #[test]
+    fn test_parse_server_config_missing_transport() {
+        let mut table = toml::Table::new();
+        table.insert("name".to_string(), TomlValue::String("test-server".to_string()));
+
+        let result = McpConfigManager::parse_server_config(&table);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("transport"));
+    }
+
+    #[test]
+    fn test_parse_server_config_invalid_transport() {
+        let mut table = toml::Table::new();
+        table.insert("name".to_string(), TomlValue::String("test-server".to_string()));
+        table.insert("transport".to_string(), TomlValue::String("invalid".to_string()));
+
+        let result = McpConfigManager::parse_server_config(&table);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Invalid transport"));
+    }
+
+    #[test]
+    fn test_parse_server_config_stdio_missing_command() {
+        let mut table = toml::Table::new();
+        table.insert("name".to_string(), TomlValue::String("test-server".to_string()));
+        table.insert("transport".to_string(), TomlValue::String("stdio".to_string()));
+
+        let result = McpConfigManager::parse_server_config(&table);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("command"));
+    }
+
+    #[test]
+    fn test_parse_server_config_sse_missing_url() {
+        let mut table = toml::Table::new();
+        table.insert("name".to_string(), TomlValue::String("test-server".to_string()));
+        table.insert("transport".to_string(), TomlValue::String("sse".to_string()));
+
+        let result = McpConfigManager::parse_server_config(&table);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("url"));
+    }
+
+    #[test]
+    fn test_parse_server_config_http_missing_url() {
+        let mut table = toml::Table::new();
+        table.insert("name".to_string(), TomlValue::String("test-server".to_string()));
+        table.insert("transport".to_string(), TomlValue::String("http".to_string()));
+
+        let result = McpConfigManager::parse_server_config(&table);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("url"));
+    }
+
+    #[test]
+    fn test_parse_server_config_with_auth() {
+        let mut table = toml::Table::new();
+        table.insert("name".to_string(), TomlValue::String("auth-server".to_string()));
+        table.insert("transport".to_string(), TomlValue::String("http".to_string()));
+        table.insert(
+            "url".to_string(),
+            TomlValue::String("https://api.example.com/mcp".to_string()),
+        );
+
+        let mut auth_table = toml::Table::new();
+        auth_table.insert("auth_type".to_string(), TomlValue::String("oauth".to_string()));
+        auth_table.insert("client_id".to_string(), TomlValue::String("test-id".to_string()));
+        auth_table.insert("client_secret".to_string(), TomlValue::String("test-secret".to_string()));
+        table.insert("auth".to_string(), TomlValue::Table(auth_table));
+
+        let config = McpConfigManager::parse_server_config(&table).unwrap();
+        assert!(config.auth.is_some());
+        assert_eq!(config.auth.as_ref().unwrap().auth_type, "oauth");
+        assert_eq!(
+            config.auth.as_ref().unwrap().params.get("client_id"),
+            Some(&"test-id".to_string())
+        );
+    }
+
+    #[test]
+    fn test_config_manager_load_missing_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("nonexistent.toml");
+        let mut manager = McpConfigManager::new(config_path);
+
+        // Loading a missing file should not error, just return empty config
+        manager.load().unwrap();
+        assert_eq!(manager.get_servers().len(), 0);
+    }
+
+    #[test]
+    fn test_config_manager_load_invalid_toml() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("mcp-servers.toml");
+        std::fs::write(&config_path, "[invalid toml").unwrap();
+
+        let mut manager = McpConfigManager::new(config_path);
+        let result = manager.load();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_config_manager_multiple_servers() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("mcp-servers.toml");
+        let mut manager = McpConfigManager::new(config_path.clone());
+
+        // Add multiple servers
+        manager.servers.push(McpServerConfig {
+            name: "server1".to_string(),
+            transport: TransportType::Stdio,
+            command: Some("mcp1".to_string()),
+            args: None,
+            url: None,
+            auth: None,
+        });
+
+        manager.servers.push(McpServerConfig {
+            name: "server2".to_string(),
+            transport: TransportType::Http,
+            command: None,
+            args: None,
+            url: Some("http://localhost:8080".to_string()),
+            auth: None,
+        });
+
+        manager.save().unwrap();
+
+        let mut new_manager = McpConfigManager::new(config_path);
+        new_manager.load().unwrap();
+
+        assert_eq!(new_manager.get_servers().len(), 2);
+        assert!(new_manager.get_server("server1").is_some());
+        assert!(new_manager.get_server("server2").is_some());
+    }
+
+    #[test]
+    fn test_config_manager_get_server_nonexistent() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("mcp-servers.toml");
+        let manager = McpConfigManager::new(config_path);
+
+        assert!(manager.get_server("nonexistent").is_none());
+    }
+
+    #[test]
+    fn test_config_manager_parse_servers_empty_array() {
+        let mut table = toml::Table::new();
+        table.insert("servers".to_string(), TomlValue::Array(Vec::new()));
+
+        let servers = McpConfigManager::parse_servers(&table).unwrap();
+        assert_eq!(servers.len(), 0);
+    }
+
+    #[test]
+    fn test_config_manager_parse_servers_missing_key() {
+        let table = toml::Table::new();
+        let servers = McpConfigManager::parse_servers(&table).unwrap();
+        assert_eq!(servers.len(), 0);
+    }
+
+    #[test]
+    fn test_config_manager_parse_servers_invalid_entry() {
+        let mut table = toml::Table::new();
+        table.insert(
+            "servers".to_string(),
+            TomlValue::Array(vec![TomlValue::String("not a table".to_string())]),
+        );
+
+        let servers = McpConfigManager::parse_servers(&table).unwrap();
+        // Invalid entries should be skipped
+        assert_eq!(servers.len(), 0);
+    }
+
+    #[test]
+    fn test_config_manager_save_creates_directory() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("subdir").join("mcp-servers.toml");
+        let mut manager = McpConfigManager::new(config_path.clone());
+
+        manager.servers.push(McpServerConfig {
+            name: "test-server".to_string(),
+            transport: TransportType::Stdio,
+            command: Some("mcp-server".to_string()),
+            args: None,
+            url: None,
+            auth: None,
+        });
+
+        manager.save().unwrap();
+        assert!(config_path.exists());
+    }
 }
 

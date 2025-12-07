@@ -206,6 +206,98 @@ impl McpClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mcp::{McpError, McpTransport, Result};
+
+    /// Mock transport implementation for testing.
+    struct MockTransport {
+        connected: bool,
+        sent_messages: Vec<Vec<u8>>,
+        receive_queue: Vec<Vec<u8>>,
+        should_fail_connect: bool,
+        should_fail_send: bool,
+        should_fail_receive: bool,
+    }
+
+    impl MockTransport {
+        fn new() -> Self {
+            Self {
+                connected: false,
+                sent_messages: Vec::new(),
+                receive_queue: Vec::new(),
+                should_fail_connect: false,
+                should_fail_send: false,
+                should_fail_receive: false,
+            }
+        }
+
+        fn with_receive_response(mut self, response: Vec<u8>) -> Self {
+            self.receive_queue.push(response);
+            self
+        }
+
+        fn with_fail_connect(mut self) -> Self {
+            self.should_fail_connect = true;
+            self
+        }
+
+        fn with_fail_send(mut self) -> Self {
+            self.should_fail_send = true;
+            self
+        }
+
+        fn with_fail_receive(mut self) -> Self {
+            self.should_fail_receive = true;
+            self
+        }
+
+        fn get_sent_messages(&self) -> &[Vec<u8>] {
+            &self.sent_messages
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl McpTransport for MockTransport {
+        async fn connect(&mut self) -> Result<()> {
+            if self.should_fail_connect {
+                return Err(McpError::Connection("Mock connection failure".to_string()));
+            }
+            self.connected = true;
+            Ok(())
+        }
+
+        async fn disconnect(&mut self) -> Result<()> {
+            self.connected = false;
+            Ok(())
+        }
+
+        async fn send(&mut self, message: &[u8]) -> Result<()> {
+            if !self.connected {
+                return Err(McpError::Connection("Not connected".to_string()));
+            }
+            if self.should_fail_send {
+                return Err(McpError::Transport("Mock send failure".to_string()));
+            }
+            self.sent_messages.push(message.to_vec());
+            Ok(())
+        }
+
+        async fn receive(&mut self) -> Result<Vec<u8>> {
+            if !self.connected {
+                return Err(McpError::Connection("Not connected".to_string()));
+            }
+            if self.should_fail_receive {
+                return Err(McpError::Transport("Mock receive failure".to_string()));
+            }
+            if self.receive_queue.is_empty() {
+                return Err(McpError::Connection("No messages available".to_string()));
+            }
+            Ok(self.receive_queue.remove(0))
+        }
+
+        fn is_connected(&self) -> bool {
+            self.connected
+        }
+    }
 
     #[test]
     fn test_mcp_client_creation() {
@@ -221,6 +313,83 @@ mod tests {
 
         assert_eq!(config.name, "test-server");
         assert_eq!(config.transport, TransportType::Stdio);
+    }
+
+    #[tokio::test]
+    async fn test_mock_transport_connect() {
+        let mut transport = MockTransport::new();
+        assert!(!transport.is_connected());
+        
+        transport.connect().await.unwrap();
+        assert!(transport.is_connected());
+    }
+
+    #[tokio::test]
+    async fn test_mock_transport_send_receive() {
+        let mut transport = MockTransport::new();
+        transport.connect().await.unwrap();
+
+        let message = b"test message";
+        transport.send(message).await.unwrap();
+        
+        assert_eq!(transport.get_sent_messages().len(), 1);
+        assert_eq!(transport.get_sent_messages()[0], message);
+    }
+
+    #[tokio::test]
+    async fn test_mock_transport_receive_queue() {
+        let mut transport = MockTransport::new()
+            .with_receive_response(b"response1".to_vec())
+            .with_receive_response(b"response2".to_vec());
+        
+        transport.connect().await.unwrap();
+
+        let msg1 = transport.receive().await.unwrap();
+        assert_eq!(msg1, b"response1");
+
+        let msg2 = transport.receive().await.unwrap();
+        assert_eq!(msg2, b"response2");
+    }
+
+    #[tokio::test]
+    async fn test_mock_transport_disconnect() {
+        let mut transport = MockTransport::new();
+        transport.connect().await.unwrap();
+        assert!(transport.is_connected());
+
+        transport.disconnect().await.unwrap();
+        assert!(!transport.is_connected());
+    }
+
+    #[tokio::test]
+    async fn test_mock_transport_error_handling() {
+        let mut transport = MockTransport::new().with_fail_connect();
+        let result = transport.connect().await;
+        assert!(result.is_err());
+        assert!(!transport.is_connected());
+    }
+
+    #[tokio::test]
+    async fn test_mock_transport_send_when_not_connected() {
+        let mut transport = MockTransport::new();
+        let result = transport.send(b"test").await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_mock_transport_receive_when_not_connected() {
+        let mut transport = MockTransport::new();
+        let result = transport.receive().await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_mock_transport_receive_empty_queue() {
+        let mut transport = MockTransport::new();
+        transport.connect().await.unwrap();
+        
+        let result = transport.receive().await;
+        assert!(result.is_err());
     }
 }
 

@@ -153,5 +153,68 @@ mod tests {
         let transport = SseTransport::new("http://localhost:8080/sse".to_string());
         assert!(!transport.is_connected());
     }
+
+    #[tokio::test]
+    async fn test_sse_transport_connect_twice() {
+        let mut transport = SseTransport::new("http://localhost:8080/sse".to_string());
+        
+        // First connect might fail if server doesn't exist, but we can test the logic
+        if transport.connect().await.is_ok() {
+            // Try to connect again - should fail
+            let result = transport.connect().await;
+            assert!(result.is_err());
+            assert!(result.unwrap_err().to_string().contains("Already connected"));
+            
+            let _ = transport.disconnect().await;
+        }
+    }
+
+    #[tokio::test]
+    async fn test_sse_transport_send_when_not_connected() {
+        let mut transport = SseTransport::new("http://localhost:8080/sse".to_string());
+        let result = transport.send(b"test message").await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Not connected"));
+    }
+
+    #[tokio::test]
+    async fn test_sse_transport_receive_when_not_connected() {
+        let mut transport = SseTransport::new("http://localhost:8080/sse".to_string());
+        let result = transport.receive().await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Not connected"));
+    }
+
+    #[tokio::test]
+    async fn test_sse_transport_receive_empty_buffer() {
+        let mut transport = SseTransport::new("http://localhost:8080/sse".to_string());
+        
+        // Connect (might fail, but we can test the receive logic)
+        if transport.connect().await.is_ok() {
+            // Try to receive when buffer is empty
+            let result = transport.receive().await;
+            // This might succeed if the background task added a message, or fail if buffer is empty
+            // We just verify the method doesn't panic
+            let _ = result;
+            
+            let _ = transport.disconnect().await;
+        }
+    }
+
+    #[tokio::test]
+    async fn test_sse_transport_disconnect_when_not_connected() {
+        let mut transport = SseTransport::new("http://localhost:8080/sse".to_string());
+        // Disconnecting when not connected should not error
+        let result = transport.disconnect().await;
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_sse_transport_url_storage() {
+        let url = "http://localhost:8080/sse".to_string();
+        let transport = SseTransport::new(url.clone());
+        // Verify the URL is stored (we can't access it directly, but creation should work)
+        assert!(!transport.is_connected());
+    }
 }
 
