@@ -2,6 +2,10 @@
 //!
 //! This module provides adapters that allow existing systems (BehaviorEvaluator,
 //! PolicyEngine, MonitoringService) to work with the unified Hook trait.
+//!
+//! This module is only available when the `workflow` module is enabled.
+
+#![cfg(feature = "workflow")]
 
 use crate::hooks::error::Result;
 use crate::hooks::registry::{Hook, HookRegistry, HookType};

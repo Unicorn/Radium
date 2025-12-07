@@ -3,6 +3,7 @@
 pub mod agents;
 pub mod auth;
 pub mod autonomous;
+pub mod budget;
 pub mod chat;
 pub mod checkpoint;
 pub mod clean;
@@ -32,3 +33,4 @@ pub mod vibecheck;
 // Re-export types for convenience
 pub use types::{AgentsCommand, AuthCommand, CustomCommand, EnginesCommand, ExtensionCommand, HooksCommand, MigrateSubcommand, TemplatesCommand};
 pub use context::ContextCommand;
+pub use budget::BudgetCommand;

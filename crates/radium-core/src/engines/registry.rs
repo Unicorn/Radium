@@ -1,27 +1,13 @@
 //! Engine registry for managing available engines.
 
+use super::config::{GlobalEngineConfig, PerEngineConfig};
 use super::engine_trait::{Engine, EngineMetadata};
 use super::error::{EngineError, Result};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::time::timeout;
-
-/// Engine configuration structure for TOML serialization.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EngineConfig {
-    /// Default engine ID.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub default: Option<String>,
-}
-
-impl Default for EngineConfig {
-    fn default() -> Self {
-        Self { default: None }
-    }
-}
 
 /// Health status for an engine.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,6 +45,9 @@ pub struct EngineRegistry {
 
     /// Configuration file path (optional).
     config_path: Option<PathBuf>,
+
+    /// Loaded engine configuration.
+    engine_config: Arc<RwLock<GlobalEngineConfig>>,
 }
 
 impl EngineRegistry {
@@ -68,6 +57,7 @@ impl EngineRegistry {
             engines: Arc::new(RwLock::new(HashMap::new())),
             default_engine: Arc::new(RwLock::new(None)),
             config_path: None,
+            engine_config: Arc::new(RwLock::new(GlobalEngineConfig::new())),
         }
     }
 
@@ -104,15 +94,41 @@ impl EngineRegistry {
 
         // Extract [engines] section
         if let Some(engines_value) = toml.get("engines") {
-            let engine_config: EngineConfig = engines_value
-                .clone()
-                .try_into()
-                .map_err(|e: toml::de::Error| {
-                    EngineError::InvalidConfig(format!("Invalid engines config: {}", e))
-                })?;
-
+            let mut global_config = GlobalEngineConfig::new();
+            
+            if let Some(engines_table) = engines_value.as_table() {
+                // Handle default engine
+                if let Some(default) = engines_table.get("default") {
+                    if let Some(default_str) = default.as_str() {
+                        global_config.default = Some(default_str.to_string());
+                    }
+                }
+                
+                // Handle per-engine configs (e.g., [engines.gemini])
+                for (key, value) in engines_table {
+                    if key == "default" {
+                        continue; // Already handled
+                    }
+                    
+                    // Try to deserialize as PerEngineConfig
+                    if let Ok(engine_config) = PerEngineConfig::deserialize(value) {
+                        global_config.set_engine_config(key.clone(), engine_config);
+                    }
+                }
+            }
+            
+            // Validate configuration
+            global_config.validate()?;
+            
+            // Update stored config
+            let mut stored_config = self
+                .engine_config
+                .write()
+                .map_err(|e| EngineError::RegistryError(format!("Lock poisoned: {}", e)))?;
+            *stored_config = global_config.clone();
+            
             // Set default engine if specified and it exists
-            if let Some(ref default_id) = engine_config.default {
+            if let Some(ref default_id) = global_config.default {
                 // Only set if engine is already registered (we might load config before engines are registered)
                 if self.has(default_id) {
                     let mut default = self
@@ -137,14 +153,20 @@ impl EngineRegistry {
             None => return Ok(()), // No config path set, skip saving
         };
 
-        // Get current default engine
+        // Get current default engine and update config
         let default_id = self
             .default_engine
             .read()
             .map_err(|e| EngineError::RegistryError(format!("Lock poisoned: {}", e)))?
             .clone();
 
-        let engine_config = EngineConfig { default: default_id };
+        let mut global_config = self
+            .engine_config
+            .read()
+            .map_err(|e| EngineError::RegistryError(format!("Lock poisoned: {}", e)))?
+            .clone();
+        
+        global_config.default = default_id;
 
         // Read existing config or create new
         let mut toml: toml::Table = if config_path.exists() {
@@ -155,13 +177,22 @@ impl EngineRegistry {
             toml::Table::new()
         };
 
-        // Update [engines] section
-        // Serialize engine_config to TOML string, then parse as Value
-        let engines_str = toml::to_string(&engine_config)
-            .map_err(|e| EngineError::InvalidConfig(format!("Failed to serialize: {}", e)))?;
-        let engines_toml: toml::Value = toml::from_str(&engines_str)
-            .map_err(|e| EngineError::InvalidConfig(format!("Failed to parse: {}", e)))?;
-        toml.insert("engines".to_string(), engines_toml);
+        // Build engines section
+        let mut engines_table = toml::Table::new();
+        
+        // Add default
+        if let Some(ref default) = global_config.default {
+            engines_table.insert("default".to_string(), toml::Value::String(default.clone()));
+        }
+        
+        // Add per-engine configs
+        for (engine_id, engine_config) in &global_config.engines {
+            let engine_value = toml::to_value(engine_config)
+                .map_err(|e| EngineError::InvalidConfig(format!("Failed to serialize engine config: {}", e)))?;
+            engines_table.insert(engine_id.clone(), engine_value);
+        }
+        
+        toml.insert("engines".to_string(), toml::Value::Table(engines_table));
 
         // Write back to file
         let content = toml::to_string_pretty(&toml)
@@ -177,6 +208,41 @@ impl EngineRegistry {
             .map_err(|e| EngineError::Io(e))?;
 
         Ok(())
+    }
+
+    /// Gets the engine configuration for a specific engine.
+    pub fn get_engine_config(&self, engine_id: &str) -> Option<PerEngineConfig> {
+        self.engine_config
+            .read()
+            .ok()
+            .and_then(|config| config.get_engine_config(engine_id).cloned())
+    }
+
+    /// Sets the engine configuration for a specific engine.
+    ///
+    /// # Errors
+    /// Returns error if configuration is invalid or lock is poisoned.
+    pub fn set_engine_config(&self, engine_id: String, config: PerEngineConfig) -> Result<()> {
+        config.validate()?;
+        
+        let mut global_config = self
+            .engine_config
+            .write()
+            .map_err(|e| EngineError::RegistryError(format!("Lock poisoned: {}", e)))?;
+        
+        global_config.set_engine_config(engine_id, config);
+        self.save_config()?;
+        
+        Ok(())
+    }
+
+    /// Gets the global engine configuration.
+    pub fn get_global_config(&self) -> Result<GlobalEngineConfig> {
+        Ok(self
+            .engine_config
+            .read()
+            .map_err(|e| EngineError::RegistryError(format!("Lock poisoned: {}", e)))?
+            .clone())
     }
 
     /// Registers an engine.

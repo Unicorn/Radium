@@ -6,3 +6,13 @@ prompt_path = "prompts/agents/core/code-agent.md"
 engine = "gemini"
 model = "gemini-2.0-flash-exp"
 reasoning_effort = "medium"
+
+[agent.persona]
+[agent.persona.models]
+primary = "gemini-2.0-flash-exp"
+fallback = "gemini-2.0-flash-thinking"
+premium = "gemini-1.5-pro"
+
+[agent.persona.performance]
+profile = "balanced"
+estimated_tokens = 1500

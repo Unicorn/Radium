@@ -13,7 +13,7 @@ use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 use commands::{
-    agents, auth, autonomous, chat, checkpoint, clean, complete, context, craft, custom, doctor, extension, hooks, init, learning, mcp, monitor, plan, run,
+    agents, auth, autonomous, budget, chat, checkpoint, clean, complete, context, craft, custom, doctor, extension, hooks, init, learning, mcp, monitor, plan, run,
     sandbox, stats, status, step, templates, validate, vibecheck,
 };
 
@@ -366,6 +366,12 @@ enum Command {
         /// High-level goal description
         goal: String,
     },
+
+    /// Budget management for agent execution costs
+    ///
+    /// Set, view, and manage budget limits for AI model costs.
+    #[command(subcommand)]
+    Budget(commands::BudgetCommand),
 }
 
 // Command types are now in commands::types module
@@ -521,6 +527,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Autonomous { goal } => {
             autonomous::execute(goal).await?;
+        }
+        Command::Budget(cmd) => {
+            budget::execute(cmd).await?;
         }
     }
 

@@ -43,6 +43,10 @@ pub enum AgentsCommand {
         /// Show detailed information
         #[arg(short, long)]
         verbose: bool,
+
+        /// Filter by performance profile (speed, balanced, thinking, expert)
+        #[arg(long)]
+        profile: Option<String>,
     },
 
     /// Search for agents by name or capability
@@ -97,6 +101,24 @@ pub enum AgentsCommand {
     Persona {
         /// Agent ID
         id: String,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Show cost estimate for running an agent
+    Cost {
+        /// Agent ID
+        id: String,
+
+        /// Expected input tokens (default: uses agent's estimated_tokens if available)
+        #[arg(long)]
+        input_tokens: Option<u64>,
+
+        /// Expected output tokens (default: uses agent's estimated_tokens if available)
+        #[arg(long)]
+        output_tokens: Option<u64>,
 
         /// Output as JSON
         #[arg(long)]
@@ -201,6 +223,10 @@ pub enum AgentsCommand {
         /// Interactive mode - prompt for all fields
         #[arg(short, long)]
         interactive: bool,
+
+        /// Include persona configuration template
+        #[arg(long)]
+        with_persona: bool,
     },
 }
 
@@ -511,5 +537,34 @@ pub enum EnginesCommand {
         /// Timeout in seconds for each health check
         #[arg(long, default_value = "5")]
         timeout: u64,
+    },
+
+    /// Manage engine configuration
+    #[command(subcommand)]
+    Config(EngineConfigCommand),
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum EngineConfigCommand {
+    /// Show current engine configuration
+    Show {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Set a configuration value
+    Set {
+        /// Configuration key in format: <engine>.<key> (e.g., gemini.temperature)
+        key: String,
+
+        /// Configuration value
+        value: String,
+    },
+
+    /// Reset configuration to defaults
+    Reset {
+        /// Reset specific engine (if omitted, resets all)
+        engine: Option<String>,
     },
 }

@@ -7,10 +7,12 @@
 //! - Error handling hooks (interception, transformation, recovery, logging)
 //! - Telemetry hooks (collection, logging, metrics, performance monitoring)
 
+#[cfg(feature = "workflow")]
 pub mod adapters;
 pub mod config;
 pub mod error;
 pub mod error_hooks;
+#[cfg(feature = "orchestrator-integration")]
 pub mod integration;
 pub mod loader;
 pub mod model;
@@ -19,10 +21,12 @@ pub mod telemetry;
 pub mod tool;
 pub mod types;
 
+#[cfg(feature = "workflow")]
 pub use adapters::{BehaviorEvaluatorAdapter, BehaviorHookRegistrar};
 pub use config::HookConfig;
 pub use error::{HookError, Result as HookResult};
 pub use error_hooks::{ErrorHook, ErrorHookContext, ErrorHookType};
+#[cfg(feature = "orchestrator-integration")]
 pub use integration::{HookRegistryAdapter, OrchestratorHooks};
 pub use loader::HookLoader;
 pub use model::{ModelHook, ModelHookContext, ModelHookType};

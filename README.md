@@ -17,6 +17,7 @@ Radium is a high-performance, Rust-based platform for creating, managing, and de
 - **🧠 Metacognitive Oversight (Vibe Check)**: Chain-Pattern Interrupt system for preventing reasoning lock-in (+27% success rate, -41% harmful actions)
 - **📚 Learning System**: Track mistakes, preferences, and successes to build pattern recognition
 - **📖 ACE Skillbook**: Learn and apply successful strategies from past work
+- **🎭 Persona System**: Intelligent model selection, cost optimization, and automatic fallback chains
 
 ## Quick Start
 
@@ -109,6 +110,16 @@ prompt_path = "prompts/agents/core/my-agent.md"
 engine = "gemini"
 model = "gemini-2.0-flash-exp"
 reasoning_effort = "medium"
+
+[agent.persona]
+[agent.persona.models]
+primary = "gemini-2.0-flash-exp"
+fallback = "gemini-2.0-flash-thinking"
+premium = "gemini-1.5-pro"
+
+[agent.persona.performance]
+profile = "balanced"
+estimated_tokens = 1500
 ```
 
 Create the corresponding prompt file at `prompts/agents/core/my-agent.md`:
@@ -145,6 +156,7 @@ rad agents create my-agent "My Agent" --category core
 ### Documentation
 
 - [User Guide: Agent Configuration](docs/user-guide/agent-configuration.md) - Complete guide for configuring agents
+- [User Guide: Persona System](docs/user-guide/persona-system.md) - Intelligent model selection and cost optimization
 - [Developer Guide: Agent System Architecture](docs/developer-guide/agent-system-architecture.md) - Technical architecture details
 - [Examples](examples/agents/) - Example agent configurations
 

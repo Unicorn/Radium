@@ -18,7 +18,7 @@ use tabled::{Table, Tabled, settings::Style};
 /// Execute the agents command.
 pub async fn execute(command: AgentsCommand) -> anyhow::Result<()> {
     match command {
-        AgentsCommand::List { json, verbose } => list_agents(json, verbose).await,
+        AgentsCommand::List { json, verbose, profile } => list_agents(json, verbose, profile.as_deref()).await,
         AgentsCommand::Search {
             query,
             json,
@@ -45,6 +45,9 @@ pub async fn execute(command: AgentsCommand) -> anyhow::Result<()> {
         }
         AgentsCommand::Info { id, json } => show_agent_info(&id, json).await,
         AgentsCommand::Persona { id, json } => show_agent_persona(&id, json).await,
+        AgentsCommand::Cost { id, input_tokens, output_tokens, json } => {
+            show_agent_cost(&id, input_tokens, output_tokens, json).await
+        }
         AgentsCommand::Validate { verbose, json, strict } => {
             validate_agents(verbose, json, strict).await
         }
@@ -64,6 +67,7 @@ pub async fn execute(command: AgentsCommand) -> anyhow::Result<()> {
             output,
             template,
             interactive,
+            with_persona,
         } => {
             create_agent(
                 id.as_deref(),
@@ -76,6 +80,7 @@ pub async fn execute(command: AgentsCommand) -> anyhow::Result<()> {
                 output.as_deref(),
                 template.as_deref(),
                 interactive,
+                with_persona,
             )
             .await
         }
@@ -83,9 +88,30 @@ pub async fn execute(command: AgentsCommand) -> anyhow::Result<()> {
 }
 
 /// List all available agents.
-async fn list_agents(json_output: bool, verbose: bool) -> anyhow::Result<()> {
+async fn list_agents(json_output: bool, verbose: bool, profile_filter: Option<&str>) -> anyhow::Result<()> {
     let discovery = AgentDiscovery::new();
-    let agents = discovery.discover_all()?;
+    let mut agents = discovery.discover_all()?;
+    
+    // Filter by performance profile if specified
+    if let Some(profile) = profile_filter {
+        use radium_core::agents::persona::PerformanceProfile;
+        let profile_enum = match profile.to_lowercase().as_str() {
+            "speed" => PerformanceProfile::Speed,
+            "balanced" => PerformanceProfile::Balanced,
+            "thinking" => PerformanceProfile::Thinking,
+            "expert" => PerformanceProfile::Expert,
+            _ => {
+                eprintln!("{} Invalid profile: {}. Valid options: speed, balanced, thinking, expert", "⚠️".yellow(), profile);
+                return Ok(());
+            }
+        };
+        
+        agents.retain(|(_, config)| {
+            config.persona_config.as_ref()
+                .map(|p| p.performance.profile == profile_enum)
+                .unwrap_or(false)
+        });
+    }
 
     if agents.is_empty() {
         if !json_output {
@@ -328,7 +354,7 @@ async fn show_agent_info(id: &str, json_output: bool) -> anyhow::Result<()> {
         discovery.find_by_id(id)?.ok_or_else(|| anyhow::anyhow!("Agent '{}' not found", id))?;
 
     if json_output {
-        let info = json!({
+        let mut info = json!({
             "id": agent.id,
             "name": agent.name,
             "description": agent.description,
@@ -339,6 +365,31 @@ async fn show_agent_info(id: &str, json_output: bool) -> anyhow::Result<()> {
             "reasoning_effort": agent.reasoning_effort,
             "file_path": agent.file_path,
         });
+        
+        // Add persona metadata if available
+        if let Some(persona) = &agent.persona_config {
+            info["persona"] = json!({
+                "models": {
+                    "primary": {
+                        "engine": persona.models.primary.engine,
+                        "model": persona.models.primary.model,
+                    },
+                    "fallback": persona.models.fallback.as_ref().map(|f| json!({
+                        "engine": f.engine,
+                        "model": f.model,
+                    })),
+                    "premium": persona.models.premium.as_ref().map(|p| json!({
+                        "engine": p.engine,
+                        "model": p.model,
+                    })),
+                },
+                "performance": {
+                    "profile": format!("{:?}", persona.performance.profile),
+                    "estimated_tokens": persona.performance.estimated_tokens,
+                },
+            });
+        }
+        
         println!("{}", serde_json::to_string_pretty(&info)?);
     } else {
         println!();
@@ -365,6 +416,30 @@ async fn show_agent_info(id: &str, json_output: bool) -> anyhow::Result<()> {
         if let Some(effort) = &agent.reasoning_effort {
             println!("  Reasoning:   {:?}", effort);
         }
+        
+        // Show persona metadata if available
+        if let Some(persona) = &agent.persona_config {
+            println!();
+            println!("{}", "Persona Configuration:".bold());
+            println!("  Performance Profile: {}", format!("{:?}", persona.performance.profile).cyan());
+            if let Some(tokens) = persona.performance.estimated_tokens {
+                println!("  Estimated Tokens: {}", tokens.to_string().cyan());
+            }
+            println!("  Primary Model: {} / {}", 
+                persona.models.primary.engine.cyan(),
+                persona.models.primary.model.cyan());
+            if let Some(fallback) = &persona.models.fallback {
+                println!("  Fallback Model: {} / {}", 
+                    fallback.engine.cyan(),
+                    fallback.model.cyan());
+            }
+            if let Some(premium) = &persona.models.premium {
+                println!("  Premium Model: {} / {}", 
+                    premium.engine.cyan(),
+                    premium.model.cyan());
+            }
+        }
+        
         println!();
         if let Some(path) = &agent.file_path {
             println!("{}", "Source:".bold());
@@ -465,6 +540,155 @@ async fn show_agent_persona(id: &str, json_output: bool) -> anyhow::Result<()> {
             println!("  1. YAML frontmatter in the agent's prompt file");
             println!("  2. TOML [agent.persona] section in the agent config file");
             println!();
+        }
+    }
+
+    Ok(())
+}
+
+/// Show cost estimate for running an agent.
+async fn show_agent_cost(
+    id: &str,
+    input_tokens: Option<u64>,
+    output_tokens: Option<u64>,
+    json_output: bool,
+) -> anyhow::Result<()> {
+    use radium_core::agents::persona::{ModelPricingDB, PerformanceProfile};
+    
+    let discovery = AgentDiscovery::new();
+    let agent =
+        discovery.find_by_id(id)?.ok_or_else(|| anyhow::anyhow!("Agent '{}' not found", id))?;
+
+    let pricing_db = ModelPricingDB::new();
+    
+    // Determine token estimates
+    let input = input_tokens.or_else(|| {
+        agent.persona_config.as_ref()
+            .and_then(|p| p.performance.estimated_tokens)
+            .map(|t| t / 2) // Rough estimate: half for input
+    }).unwrap_or(1000);
+    
+    let output = output_tokens.or_else(|| {
+        agent.persona_config.as_ref()
+            .and_then(|p| p.performance.estimated_tokens)
+            .map(|t| t / 2) // Rough estimate: half for output
+    }).unwrap_or(500);
+
+    if let Some(persona) = &agent.persona_config {
+        // Calculate costs for all models in the chain
+        let primary_cost = pricing_db.get_pricing(&persona.models.primary.model)
+            .estimate_cost(input, output);
+        let fallback_cost = persona.models.fallback.as_ref()
+            .map(|f| pricing_db.get_pricing(&f.model).estimate_cost(input, output));
+        let premium_cost = persona.models.premium.as_ref()
+            .map(|p| pricing_db.get_pricing(&p.model).estimate_cost(input, output));
+
+        if json_output {
+            let cost_json = json!({
+                "agent_id": agent.id,
+                "agent_name": agent.name,
+                "input_tokens": input,
+                "output_tokens": output,
+                "total_tokens": input + output,
+                "costs": {
+                    "primary": {
+                        "model": format!("{}:{}", persona.models.primary.engine, persona.models.primary.model),
+                        "cost": primary_cost
+                    },
+                    "fallback": fallback_cost.map(|c| json!({
+                        "model": format!("{}:{}", persona.models.fallback.as_ref().unwrap().engine, persona.models.fallback.as_ref().unwrap().model),
+                        "cost": c
+                    })),
+                    "premium": premium_cost.map(|c| json!({
+                        "model": format!("{}:{}", persona.models.premium.as_ref().unwrap().engine, persona.models.premium.as_ref().unwrap().model),
+                        "cost": c
+                    }))
+                },
+                "estimated_cost": primary_cost
+            });
+            println!("{}", serde_json::to_string_pretty(&cost_json)?);
+        } else {
+            println!();
+            println!("{}", format!("💰 Cost Estimate: {}", agent.name).bold().cyan());
+            println!();
+            println!("  Token Estimates:");
+            println!("    Input:  {}", input.to_string().cyan());
+            println!("    Output: {}", output.to_string().cyan());
+            println!("    Total:  {}", (input + output).to_string().cyan());
+            println!();
+            println!("  Estimated Costs:");
+            println!(
+                "  {} Primary:   ${:.4} ({})",
+                "•".green(),
+                primary_cost,
+                format!("{}:{}", persona.models.primary.engine, persona.models.primary.model).cyan()
+            );
+            if let Some((fallback, cost)) = persona.models.fallback.as_ref().zip(fallback_cost) {
+                println!(
+                    "  {} Fallback:  ${:.4} ({})",
+                    "•".yellow(),
+                    cost,
+                    format!("{}:{}", fallback.engine, fallback.model).cyan()
+                );
+            }
+            if let Some((premium, cost)) = persona.models.premium.as_ref().zip(premium_cost) {
+                println!(
+                    "  {} Premium:   ${:.4} ({})",
+                    "•".magenta(),
+                    cost,
+                    format!("{}:{}", premium.engine, premium.model).cyan()
+                );
+            }
+            println!();
+        }
+    } else {
+        // No persona config - estimate based on default model if available
+        if let Some(model) = &agent.model {
+            let cost = pricing_db.get_pricing(model).estimate_cost(input, output);
+            
+            if json_output {
+                let cost_json = json!({
+                    "agent_id": agent.id,
+                    "agent_name": agent.name,
+                    "input_tokens": input,
+                    "output_tokens": output,
+                    "total_tokens": input + output,
+                    "cost": cost,
+                    "model": model,
+                    "note": "No persona configuration - using default model"
+                });
+                println!("{}", serde_json::to_string_pretty(&cost_json)?);
+            } else {
+                println!();
+                println!("{}", format!("💰 Cost Estimate: {}", agent.name).bold().cyan());
+                println!();
+                println!("  Token Estimates:");
+                println!("    Input:  {}", input.to_string().cyan());
+                println!("    Output: {}", output.to_string().cyan());
+                println!("    Total:  {}", (input + output).to_string().cyan());
+                println!();
+                println!("  Estimated Cost: ${:.4} ({})", cost, model.cyan());
+                println!();
+                println!("  {} No persona configuration found.", "⚠️".yellow());
+                println!("  Add persona metadata for more accurate cost estimates with fallback chains.");
+                println!();
+            }
+        } else {
+            if json_output {
+                let cost_json = json!({
+                    "agent_id": agent.id,
+                    "agent_name": agent.name,
+                    "error": "No model or persona configuration found"
+                });
+                println!("{}", serde_json::to_string_pretty(&cost_json)?);
+            } else {
+                println!();
+                println!("{}", format!("💰 Cost Estimate: {}", agent.name).bold().cyan());
+                println!();
+                println!("  {} No model or persona configuration found.", "⚠️".yellow());
+                println!("  Cannot estimate cost without model information.");
+                println!();
+            }
         }
     }
 
@@ -911,6 +1135,7 @@ async fn create_agent(
     output_dir: Option<&str>,
     template: Option<&str>,
     interactive: bool,
+    with_persona: bool,
 ) -> anyhow::Result<()> {
     // Interactive mode: prompt for all fields
     let (id_str, name_str, description_str, category_str, engine_str, model_str, reasoning_str) = if interactive {
@@ -1013,7 +1238,33 @@ async fn create_agent(
         )?
     } else {
         // Use default generation
-        let config_file = AgentConfigFile { agent: agent.clone() };
+        use radium_core::agents::config::PersonaConfigToml;
+        use radium_core::agents::config::PersonaModelsToml;
+        use radium_core::agents::config::PersonaPerformanceToml;
+        
+        let mut config_file = AgentConfigFile { 
+            agent: agent.clone(),
+            persona: None,
+        };
+        
+        // Add persona configuration if requested
+        if with_persona {
+            let default_engine = engine.unwrap_or("gemini");
+            let default_model = model.unwrap_or("gemini-2.0-flash-exp");
+            
+            config_file.persona = Some(PersonaConfigToml {
+                models: Some(PersonaModelsToml {
+                    primary: format!("{}:{}", default_engine, default_model),
+                    fallback: Some(format!("{}:gemini-2.0-flash-thinking", default_engine)),
+                    premium: Some(format!("{}:gemini-1.5-pro", default_engine)),
+                }),
+                performance: Some(PersonaPerformanceToml {
+                    profile: "balanced".to_string(),
+                    estimated_tokens: Some(1500),
+                }),
+            });
+        }
+        
         toml::to_string_pretty(&config_file)
             .map_err(|e| anyhow::anyhow!("Failed to serialize config: {}", e))?
     };

@@ -17,6 +17,7 @@ pub async fn execute(command: EnginesCommand) -> Result<()> {
         EnginesCommand::Status { json } => status_engines(json).await,
         EnginesCommand::SetDefault { engine_id } => set_default_engine(&engine_id).await,
         EnginesCommand::Health { json, timeout } => health_engines(json, timeout).await,
+        EnginesCommand::Config(cmd) => execute_config_command(cmd).await,
     }
 }
 

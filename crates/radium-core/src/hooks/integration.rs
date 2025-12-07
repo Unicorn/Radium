@@ -3,6 +3,10 @@
 //! This module provides utilities for integrating hooks with orchestrator providers.
 //! Since radium-orchestrator doesn't depend on radium-core, hooks integration
 //! happens at the application level where both crates are available.
+//!
+//! This module is only available when the `orchestrator-integration` feature is enabled.
+
+#![cfg(feature = "orchestrator-integration")]
 
 use crate::hooks::model::ModelHookContext;
 use crate::hooks::registry::{HookRegistry, HookType};

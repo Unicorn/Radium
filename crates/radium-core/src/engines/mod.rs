@@ -28,12 +28,14 @@
 //! # }
 //! ```
 
+mod config;
 mod detection;
 mod engine_trait;
 mod error;
 pub mod providers;
 mod registry;
 
+pub use config::{GlobalEngineConfig, PerEngineConfig};
 pub use detection::BinaryDetector;
 pub use engine_trait::{Engine, EngineMetadata, ExecutionRequest, ExecutionResponse, TokenUsage};
 pub use error::{EngineError, Result};

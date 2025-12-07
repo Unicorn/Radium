@@ -23,8 +23,8 @@ pub mod autonomous;
 pub mod auth;
 pub mod checkpoint;
 pub mod client;
-pub mod collaboration;
-pub mod commands;
+// pub mod collaboration;  // TEMPORARILY DISABLED: depends on radium-orchestrator (circular dependency)
+// pub mod commands;  // TEMPORARILY DISABLED: depends on hooks/sandbox
 pub mod config;
 pub mod context;
 pub mod engines;
@@ -32,18 +32,18 @@ pub mod error;
 pub mod extensions;
 pub mod hooks;
 pub mod learning;
-pub mod mcp;
+// pub mod mcp;  // TEMPORARILY DISABLED: depends on radium-orchestrator (circular dependency)
 pub mod memory;
 pub mod models;
-pub mod monitoring;
+// pub mod monitoring;  // TEMPORARILY DISABLED: depends on hooks
 pub mod oversight;
 pub mod planning;
-pub mod policy;
+// pub mod policy;  // TEMPORARILY DISABLED: depends on hooks
 pub mod prompts;
-pub mod sandbox;
-pub mod server;
+// pub mod sandbox;  // TEMPORARILY DISABLED: depends on radium-orchestrator (circular dependency)
+// pub mod server;  // TEMPORARILY DISABLED: depends on radium-orchestrator (circular dependency)
 pub mod storage;
-pub mod workflow;
+// pub mod workflow;  // TEMPORARILY DISABLED: depends on radium-orchestrator (circular dependency)
 pub mod workspace;
 
 /// Generated protobuf code for the Radium gRPC API.
@@ -77,8 +77,12 @@ pub use extensions::{
 pub use hooks::{
     Hook, HookConfig, HookContext, HookError, HookPriority, HookRegistry,
     HookResult as HookExecutionResult, HookResult, HookType, ModelHookContext, ModelHookType,
-    OrchestratorHooks, TelemetryHookContext, ToolHookContext, ToolHookType,
+    TelemetryHookContext, ToolHookContext, ToolHookType,
 };
+#[cfg(feature = "orchestrator-integration")]
+pub use hooks::{HookRegistryAdapter, OrchestratorHooks};
+#[cfg(feature = "workflow")]
+pub use hooks::{BehaviorEvaluatorAdapter, BehaviorHookRegistrar};
 pub use learning::{
     CategorySummary, LearningEntry, LearningError, LearningStore, LearningType,
     Result as LearningResult, STANDARD_CATEGORIES, STANDARD_SECTIONS, Skill, SkillStatus,

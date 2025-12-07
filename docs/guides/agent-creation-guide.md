@@ -254,6 +254,74 @@ cost_tier = "low"
 max_concurrent_tasks = 20
 ```
 
+#### Persona Configuration
+
+Configure persona metadata for intelligent model selection, cost optimization, and automatic fallback chains.
+
+```toml
+[agent.persona]
+[agent.persona.models]
+primary = "gemini-2.0-flash-exp"
+fallback = "gemini-2.0-flash-thinking"  # Optional
+premium = "gemini-1.5-pro"              # Optional
+
+[agent.persona.performance]
+profile = "balanced"                    # Options: "speed", "balanced", "thinking", "expert"
+estimated_tokens = 1500                 # Optional
+```
+
+**Fields:**
+- `primary` (required): Primary recommended model
+- `fallback` (optional): Model to use if primary is unavailable
+- `premium` (optional): Premium model for critical tasks
+- `profile` (optional): Performance profile - `"speed"`, `"balanced"`, `"thinking"`, or `"expert"` (default: `"balanced"`)
+- `estimated_tokens` (optional): Estimated token usage per execution
+
+**Model Format:**
+Models can be specified as:
+- Simple: `"gemini-2.0-flash-exp"` (uses agent's engine)
+- Full: `"gemini:gemini-2.0-flash-exp"` (explicit engine)
+
+**Performance Profiles:**
+- `speed`: Fast responses, lower cost - best for simple tasks
+- `balanced`: Balanced speed and quality - best for general tasks
+- `thinking`: Deep reasoning - best for complex problems
+- `expert`: Expert-level reasoning, highest cost - best for critical tasks
+
+**Use Cases:**
+- Automatic model selection based on task requirements
+- Cost estimation and budget tracking
+- Automatic fallback when models are unavailable
+- Matching model capabilities to task complexity
+
+**Example:**
+```toml
+[agent]
+id = "arch-agent"
+name = "Architecture Agent"
+description = "Defines system architecture"
+prompt_path = "prompts/agents/core/arch-agent.md"
+
+[agent.persona]
+[agent.persona.models]
+primary = "gemini-2.0-flash-thinking"
+fallback = "gemini-2.0-flash-exp"
+premium = "gemini-1.5-pro"
+
+[agent.persona.performance]
+profile = "thinking"
+estimated_tokens = 2000
+```
+
+**Quick Start:**
+When creating a new agent, use the `--with-persona` flag to generate a persona template:
+
+```bash
+rad agents create my-agent --with-persona
+```
+
+For more details, see the [Persona System User Guide](../user-guide/persona-system.md).
+
 #### Sandbox Configuration
 
 Configure sandboxing for safe command execution in isolated environments.
