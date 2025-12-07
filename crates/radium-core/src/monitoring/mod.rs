@@ -34,4 +34,4 @@ pub use error::{MonitoringError, Result};
 pub use logs::LogManager;
 pub use schema::initialize_schema;
 pub use service::{AgentRecord, AgentStatus, MonitoringService};
-pub use telemetry::{TelemetryParser, TelemetryRecord, TelemetryTracking};
+pub use telemetry::{TelemetryParser, TelemetryRecord, TelemetrySummary, TelemetryTracking};

@@ -291,6 +291,19 @@ impl TelemetryParser {
     }
 }
 
+/// Telemetry summary for aggregated queries.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelemetrySummary {
+    /// Agent ID.
+    pub agent_id: String,
+    /// Total tokens across all telemetry records.
+    pub total_tokens: u64,
+    /// Total estimated cost across all telemetry records.
+    pub total_cost: f64,
+    /// Number of telemetry records.
+    pub record_count: u64,
+}
+
 /// Extension trait for MonitoringService to add telemetry tracking.
 #[async_trait(?Send)]
 pub trait TelemetryTracking {
@@ -305,6 +318,9 @@ pub trait TelemetryTracking {
 
     /// Gets total estimated cost for an agent.
     fn get_total_cost(&self, agent_id: &str) -> Result<f64>;
+
+    /// Gets telemetry summary for all agents (optimized aggregation).
+    fn get_telemetry_summary(&self) -> Result<Vec<TelemetrySummary>>;
 }
 
 #[async_trait(?Send)]
@@ -411,11 +427,37 @@ impl TelemetryTracking for MonitoringService {
 
         Ok(cost)
     }
+
+    fn get_telemetry_summary(&self) -> Result<Vec<TelemetrySummary>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT agent_id,
+                    SUM(total_tokens) as total_tokens,
+                    SUM(estimated_cost) as total_cost,
+                    COUNT(*) as record_count
+             FROM telemetry
+             GROUP BY agent_id
+             ORDER BY agent_id",
+        )?;
+
+        let summaries = stmt
+            .query_map([], |row| {
+                Ok(TelemetrySummary {
+                    agent_id: row.get(0)?,
+                    total_tokens: row.get::<_, Option<i64>>(1)?.unwrap_or(0) as u64,
+                    total_cost: row.get::<_, Option<f64>>(2)?.unwrap_or(0.0),
+                    record_count: row.get::<_, i64>(3)? as u64,
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        Ok(summaries)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::monitoring::service::{AgentRecord, MonitoringService};
 
     #[test]
     fn test_telemetry_record_new() {
@@ -646,5 +688,84 @@ mod tests {
         assert_eq!(record.cached_tokens, 10);
         assert_eq!(record.model, Some("gpt-3.5-turbo".to_string()));
         assert!(record.estimated_cost > 0.0);
+    }
+
+    #[test]
+    fn test_telemetry_summary_accuracy() {
+        let service = MonitoringService::new().unwrap();
+
+        // Register agents
+        let agent1 = AgentRecord::new("agent-1".to_string(), "developer".to_string());
+        let agent2 = AgentRecord::new("agent-2".to_string(), "architect".to_string());
+        let agent3 = AgentRecord::new("agent-3".to_string(), "reviewer".to_string());
+        service.register_agent(&agent1).unwrap();
+        service.register_agent(&agent2).unwrap();
+        service.register_agent(&agent3).unwrap();
+
+        // Insert telemetry for agent-1: 100 tokens, $0.01
+        let mut t1 = TelemetryRecord::new("agent-1".to_string())
+            .with_tokens(50, 50)
+            .with_model("gpt-4".to_string(), "openai".to_string());
+        t1.calculate_cost();
+        service.record_telemetry_sync(&t1).unwrap();
+
+        // Insert telemetry for agent-2: 200 tokens, $0.02
+        let mut t2 = TelemetryRecord::new("agent-2".to_string())
+            .with_tokens(100, 100)
+            .with_model("gpt-4".to_string(), "openai".to_string());
+        t2.calculate_cost();
+        service.record_telemetry_sync(&t2).unwrap();
+        service.record_telemetry_sync(&t2).unwrap(); // Duplicate for testing
+
+        // Insert telemetry for agent-3: 300 tokens, $0.03
+        let mut t3 = TelemetryRecord::new("agent-3".to_string())
+            .with_tokens(150, 150)
+            .with_model("gpt-4".to_string(), "openai".to_string());
+        t3.calculate_cost();
+        service.record_telemetry_sync(&t3).unwrap();
+
+        // Get summary
+        let summary = service.get_telemetry_summary().unwrap();
+        assert_eq!(summary.len(), 3);
+
+        // Verify agent-1
+        let s1 = summary.iter().find(|s| s.agent_id == "agent-1").unwrap();
+        assert_eq!(s1.total_tokens, 100);
+        assert_eq!(s1.record_count, 1);
+        assert!((s1.total_cost - t1.estimated_cost).abs() < 0.0001);
+
+        // Verify agent-2 (2 records)
+        let s2 = summary.iter().find(|s| s.agent_id == "agent-2").unwrap();
+        assert_eq!(s2.total_tokens, 400); // 200 * 2
+        assert_eq!(s2.record_count, 2);
+        assert!((s2.total_cost - (t2.estimated_cost * 2.0)).abs() < 0.0001);
+
+        // Verify agent-3
+        let s3 = summary.iter().find(|s| s.agent_id == "agent-3").unwrap();
+        assert_eq!(s3.total_tokens, 300);
+        assert_eq!(s3.record_count, 1);
+        assert!((s3.total_cost - t3.estimated_cost).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_telemetry_summary_empty() {
+        let service = MonitoringService::new().unwrap();
+
+        // No telemetry records
+        let summary = service.get_telemetry_summary().unwrap();
+        assert_eq!(summary.len(), 0);
+    }
+
+    #[test]
+    fn test_telemetry_summary_no_telemetry_for_agents() {
+        let service = MonitoringService::new().unwrap();
+
+        // Register agents but no telemetry
+        let agent1 = AgentRecord::new("agent-1".to_string(), "developer".to_string());
+        service.register_agent(&agent1).unwrap();
+
+        // Summary should be empty (no telemetry records)
+        let summary = service.get_telemetry_summary().unwrap();
+        assert_eq!(summary.len(), 0);
     }
 }

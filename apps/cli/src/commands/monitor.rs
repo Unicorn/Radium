@@ -2,7 +2,7 @@
 
 use anyhow::{Context, Result};
 use clap::Subcommand;
-use radium_core::monitoring::{AgentStatus, MonitoringService, TelemetryTracking};
+use radium_core::monitoring::{AgentStatus, MonitoringService, TelemetrySummary, TelemetryTracking};
 use radium_core::workspace::Workspace;
 
 /// Monitoring subcommands
@@ -216,34 +216,40 @@ async fn telemetry_command(
             }
         }
     } else {
-        // Show summary for all agents
-        let agents = monitoring.list_agents()?;
-        let mut total_cost = 0.0;
-        let mut total_tokens = 0u64;
-
-        for agent in &agents {
-            let cost = monitoring.get_total_cost(&agent.id).unwrap_or(0.0);
-            total_cost += cost;
-            let telemetry = monitoring.get_agent_telemetry(&agent.id).unwrap_or_default();
-            for t in telemetry {
-                total_tokens += t.total_tokens;
-            }
-        }
+        // Show summary for all agents (optimized query)
+        let summary = monitoring.get_telemetry_summary()?;
+        let total_cost: f64 = summary.iter().map(|s| s.total_cost).sum();
+        let total_tokens: u64 = summary.iter().map(|s| s.total_tokens).sum();
 
         if json {
             println!(
                 "{}",
                 serde_json::to_string_pretty(&serde_json::json!({
-                    "total_agents": agents.len(),
+                    "total_agents": summary.len(),
                     "total_cost": total_cost,
-                    "total_tokens": total_tokens
+                    "total_tokens": total_tokens,
+                    "summary": summary
                 }))?
             );
         } else {
             println!("Monitoring Summary");
-            println!("Total Agents: {}", agents.len());
+            println!("Total Agents: {}", summary.len());
             println!("Total Cost: ${:.4}", total_cost);
             println!("Total Tokens: {}", total_tokens);
+            if !summary.is_empty() {
+                println!();
+                println!("{:<30} {:<15} {:<15} {:<10}", "Agent ID", "Total Tokens", "Total Cost", "Records");
+                println!("{}", "-".repeat(70));
+                for s in summary {
+                    println!(
+                        "{:<30} {:<15} ${:<14.4} {:<10}",
+                        s.agent_id,
+                        s.total_tokens,
+                        s.total_cost,
+                        s.record_count
+                    );
+                }
+            }
         }
     }
     Ok(())
