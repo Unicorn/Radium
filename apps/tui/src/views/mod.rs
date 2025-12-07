@@ -6,6 +6,7 @@ pub mod markdown;
 pub mod model_selector;
 pub mod prompt;
 pub mod sessions;
+pub mod shortcuts;
 pub mod splash;
 pub mod split;
 
@@ -15,5 +16,6 @@ pub use markdown::render_markdown;
 pub use model_selector::{ModelInfo, render_model_selector};
 pub use prompt::{PromptData, render_prompt, render_setup_wizard};
 pub use sessions::render_sessions;
+pub use shortcuts::render_shortcuts;
 pub use splash::render_splash;
 pub use split::{SplitViewState, render_split_view};

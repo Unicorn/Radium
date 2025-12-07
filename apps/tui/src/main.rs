@@ -15,7 +15,7 @@ use ratatui::prelude::*;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use radium_tui::app::App;
-use radium_tui::views::{render_prompt, render_setup_wizard, render_splash};
+use radium_tui::views::{render_prompt, render_setup_wizard, render_shortcuts, render_splash};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -72,8 +72,10 @@ async fn main() -> Result<()> {
         terminal.draw(|frame| {
             let area = frame.area();
 
-            // Render setup wizard if active, otherwise render normal prompt
-            if let Some(wizard) = &app.setup_wizard {
+            // Render shortcuts overlay if active (on top of everything)
+            if app.show_shortcuts {
+                render_shortcuts(frame, area);
+            } else if let Some(wizard) = &app.setup_wizard {
                 render_setup_wizard(frame, area, wizard);
             } else {
                 render_prompt(frame, area, &app.prompt_data);

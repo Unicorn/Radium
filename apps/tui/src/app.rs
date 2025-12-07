@@ -12,7 +12,9 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::commands::{Command, DisplayContext};
+use crate::config::TuiConfig;
 use crate::setup::SetupWizard;
+use crate::theme::RadiumTheme;
 use crate::views::PromptData;
 use crate::workspace::WorkspaceStatus;
 
@@ -42,6 +44,10 @@ pub struct App {
     pub mcp_integration: Option<Arc<Mutex<McpIntegration>>>,
     /// MCP slash command registry
     pub mcp_slash_registry: SlashCommandRegistry,
+    /// Current theme (loaded from config)
+    pub theme: RadiumTheme,
+    /// Whether to show keyboard shortcuts overlay
+    pub show_shortcuts: bool,
 }
 
 impl App {
@@ -83,6 +89,9 @@ impl App {
             }
         });
 
+        // Load theme from config
+        let theme = RadiumTheme::from_config();
+
         let mut app = Self {
             should_quit: false,
             prompt_data: PromptData::new(),
@@ -96,6 +105,8 @@ impl App {
             orchestration_enabled,
             mcp_integration,
             mcp_slash_registry: SlashCommandRegistry::new(),
+            theme,
+            show_shortcuts: false,
         };
 
         // Show setup wizard if not configured, otherwise start chat
@@ -237,6 +248,21 @@ impl App {
     }
 
     pub async fn handle_key(&mut self, key: KeyCode, modifiers: KeyModifiers) -> Result<()> {
+        // If shortcuts overlay is active, handle dismissal
+        if self.show_shortcuts {
+            match key {
+                KeyCode::Esc | KeyCode::Char('?') | KeyCode::F(1) => {
+                    self.show_shortcuts = false;
+                    return Ok(());
+                }
+                _ => {
+                    // Any other key also dismisses
+                    self.show_shortcuts = false;
+                    return Ok(());
+                }
+            }
+        }
+
         // If setup wizard is active, delegate to it
         if let Some(wizard) = &mut self.setup_wizard {
             let done = wizard.handle_key(key, modifiers).await?;
@@ -251,6 +277,11 @@ impl App {
 
         // Normal key handling
         match key {
+            // Show shortcuts overlay
+            KeyCode::Char('?') | KeyCode::F(1) => {
+                self.show_shortcuts = true;
+                return Ok(());
+            }
             // Quit
             KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => {
                 self.should_quit = true;
@@ -428,6 +459,9 @@ impl App {
             "mcp-commands" | "mcp-help" => {
                 self.show_mcp_commands().await?;
             }
+            "reload-config" => {
+                self.reload_config().await?;
+            }
             _ => {
                 // Check if it's an MCP slash command
                 let full_command = format!("/{}", cmd.name);
@@ -465,6 +499,7 @@ impl App {
         self.prompt_data.add_output("  /models         - Select AI model".to_string());
         self.prompt_data.add_output("  /orchestrator   - Manage orchestration".to_string());
         self.prompt_data.add_output("  /complete       - Complete requirement from source".to_string());
+        self.prompt_data.add_output("  /reload-config  - Reload configuration file".to_string());
         self.prompt_data.add_output("  /help           - Show this help".to_string());
         
         let mcp_count = self.mcp_slash_registry.get_all_commands().len();
@@ -1146,6 +1181,37 @@ impl App {
         self.prompt_data.add_output("".to_string());
         self.prompt_data.add_output("⚠️  Completion service is not yet implemented".to_string());
         self.prompt_data.add_output("This feature requires CompletionService, CompletionEvent, and CompletionOptions types".to_string());
+        Ok(())
+    }
+
+    /// Handle /reload-config command
+    async fn reload_config(&mut self) -> Result<()> {
+        self.prompt_data.clear_output();
+        self.prompt_data.add_output("🔄 Reloading configuration...".to_string());
+        self.prompt_data.add_output("".to_string());
+
+        match TuiConfig::reload() {
+            Ok(config) => {
+                // Reload theme from config
+                let new_theme = RadiumTheme::from_config();
+                self.theme = new_theme.clone();
+                
+                // Update global theme for views
+                crate::theme::update_theme(new_theme);
+                
+                self.prompt_data.add_output("✅ Configuration reloaded successfully!".to_string());
+                self.prompt_data.add_output(format!("   Theme preset: {}", config.theme.preset));
+                if config.theme.preset == "custom" {
+                    self.prompt_data.add_output("   Using custom colors".to_string());
+                }
+                self.prompt_data.add_output("   Theme updated (changes visible immediately)".to_string());
+            }
+            Err(e) => {
+                self.prompt_data.add_output(format!("❌ Failed to reload configuration: {}", e));
+                self.prompt_data.add_output("   Using default theme".to_string());
+            }
+        }
+
         Ok(())
     }
 }
