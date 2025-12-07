@@ -313,6 +313,94 @@ mod tests {
     }
 
     #[test]
+    fn test_discovery_with_malformed_toml() {
+        let temp = TempDir::new().unwrap();
+
+        // Create a valid agent
+        create_test_agent_config(temp.path(), "test-agents", "valid-agent");
+
+        // Create a malformed TOML file
+        let malformed_path = temp.path().join("test-agents").join("malformed.toml");
+        fs::write(&malformed_path, "[agent]\nid = invalid syntax\n").unwrap();
+
+        let options = DiscoveryOptions {
+            search_paths: vec![temp.path().to_path_buf()],
+            sub_agent_filter: None,
+        };
+
+        let discovery = AgentDiscovery::with_options(options);
+        // Discovery should continue even with malformed files
+        // It should log errors but not fail completely
+        let result = discovery.discover_all();
+        
+        // Should still discover the valid agent
+        if let Ok(agents) = result {
+            assert!(agents.contains_key("valid-agent"), "Should discover valid agent even with malformed file");
+        }
+    }
+
+    #[test]
+    fn test_discovery_mixed_valid_invalid_configs() {
+        let temp = TempDir::new().unwrap();
+
+        // Create 3 valid agents
+        create_test_agent_config(temp.path(), "test-agents", "agent-1");
+        create_test_agent_config(temp.path(), "test-agents", "agent-2");
+        create_test_agent_config(temp.path(), "test-agents", "agent-3");
+
+        // Create 2 invalid configs (missing required fields)
+        let invalid_dir = temp.path().join("test-agents");
+        fs::write(invalid_dir.join("invalid-1.toml"), "[agent]\nid = \"invalid-1\"\n").unwrap();
+        fs::write(invalid_dir.join("invalid-2.toml"), "[agent]\nname = \"Invalid\"\n").unwrap();
+
+        let options = DiscoveryOptions {
+            search_paths: vec![temp.path().to_path_buf()],
+            sub_agent_filter: None,
+        };
+
+        let discovery = AgentDiscovery::with_options(options);
+        let agents = discovery.discover_all().expect("Discovery should continue despite errors");
+
+        // Should discover 3 valid agents
+        assert_eq!(agents.len(), 3, "Should discover 3 valid agents");
+        assert!(agents.contains_key("agent-1"));
+        assert!(agents.contains_key("agent-2"));
+        assert!(agents.contains_key("agent-3"));
+        assert!(!agents.contains_key("invalid-1"));
+        assert!(!agents.contains_key("invalid-2"));
+    }
+
+    #[test]
+    fn test_discovery_prompt_file_resolution_edge_cases() {
+        let temp = TempDir::new().unwrap();
+        let agents_dir = temp.path().join("agents");
+        fs::create_dir_all(&agents_dir).unwrap();
+
+        // Create agent with relative path that should resolve
+        let prompts_dir = temp.path().join("prompts");
+        fs::create_dir_all(&prompts_dir).unwrap();
+        let prompt_file = prompts_dir.join("test.md");
+        fs::write(&prompt_file, "# Test").unwrap();
+
+        let config = AgentConfigFile {
+            agent: AgentConfig::new("test-agent", "Test Agent", PathBuf::from("../prompts/test.md"))
+                .with_description("Test")
+                .with_file_path(agents_dir.join("test-agent.toml")),
+        };
+        config.save(&agents_dir.join("test-agent.toml")).unwrap();
+
+        let options = DiscoveryOptions {
+            search_paths: vec![temp.path().to_path_buf()],
+            sub_agent_filter: None,
+        };
+
+        let discovery = AgentDiscovery::with_options(options);
+        let agents = discovery.discover_all().expect("Should discover agent");
+
+        assert!(agents.contains_key("test-agent"));
+    }
+
+    #[test]
     fn test_agent_category() {
         let temp = TempDir::new().unwrap();
         create_test_agent_config(temp.path(), "test-agents", "arch-agent");

@@ -331,8 +331,8 @@ impl AutonomousOrchestrator {
 
         Ok(ExecutionResult {
             success: true,
-            workflow_id,
-            context: ExecutionContext::new(workflow_id.clone()),
+            workflow_id: workflow_id.clone(),
+            context: ExecutionContext::new(workflow_id),
             steps_completed: workflow_template.steps.len() as u32,
             steps_failed: 0,
             recoveries_performed: 0,

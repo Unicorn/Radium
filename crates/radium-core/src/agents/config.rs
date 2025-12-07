@@ -1133,4 +1133,173 @@ trigger_agent_id = "helper-agent"
         };
         assert!(config.validate().is_err());
     }
+
+    #[test]
+    fn test_invalid_reasoning_effort_enum() {
+        use std::fs;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config_path = temp_dir.path().join("test.toml");
+        let prompts_dir = temp_dir.path().join("prompts");
+        fs::create_dir_all(&prompts_dir).unwrap();
+        let prompt_path = prompts_dir.join("test.md");
+        fs::write(&prompt_path, "# Test").unwrap();
+
+        // Invalid reasoning_effort value
+        let toml_content = r#"
+[agent]
+id = "test-agent"
+name = "Test Agent"
+description = "Test"
+prompt_path = "prompts/test.md"
+reasoning_effort = "invalid"
+"#;
+
+        fs::write(&config_path, toml_content).unwrap();
+        assert!(AgentConfigFile::load(&config_path).is_err());
+    }
+
+    #[test]
+    fn test_invalid_model_class_enum() {
+        use std::fs;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config_path = temp_dir.path().join("test.toml");
+        let prompts_dir = temp_dir.path().join("prompts");
+        fs::create_dir_all(&prompts_dir).unwrap();
+        let prompt_path = prompts_dir.join("test.md");
+        fs::write(&prompt_path, "# Test").unwrap();
+
+        // Invalid model_class value
+        let toml_content = r#"
+[agent]
+id = "test-agent"
+name = "Test Agent"
+description = "Test"
+prompt_path = "prompts/test.md"
+
+[agent.capabilities]
+model_class = "invalid"
+cost_tier = "low"
+"#;
+
+        fs::write(&config_path, toml_content).unwrap();
+        assert!(AgentConfigFile::load(&config_path).is_err());
+    }
+
+    #[test]
+    fn test_invalid_cost_tier_enum() {
+        use std::fs;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config_path = temp_dir.path().join("test.toml");
+        let prompts_dir = temp_dir.path().join("prompts");
+        fs::create_dir_all(&prompts_dir).unwrap();
+        let prompt_path = prompts_dir.join("test.md");
+        fs::write(&prompt_path, "# Test").unwrap();
+
+        // Invalid cost_tier value
+        let toml_content = r#"
+[agent]
+id = "test-agent"
+name = "Test Agent"
+description = "Test"
+prompt_path = "prompts/test.md"
+
+[agent.capabilities]
+model_class = "fast"
+cost_tier = "invalid"
+"#;
+
+        fs::write(&config_path, toml_content).unwrap();
+        assert!(AgentConfigFile::load(&config_path).is_err());
+    }
+
+    #[test]
+    fn test_capabilities_validation() {
+        use std::fs;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let prompt_path = temp_dir.path().join("test.md");
+        fs::write(&prompt_path, "# Test").unwrap();
+        let config_path = temp_dir.path().join("test.toml");
+
+        // Valid capabilities
+        let config = AgentConfigFile {
+            agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
+                .with_file_path(config_path.clone()),
+        };
+        // Default capabilities should be valid
+        assert!(config.validate().is_ok());
+
+        // Test with explicit valid capabilities
+        let mut agent = AgentConfig::new("test-agent", "Test", prompt_path.clone());
+        agent.capabilities = AgentCapabilities {
+            model_class: ModelClass::Fast,
+            cost_tier: CostTier::Low,
+            max_concurrent_tasks: 10,
+        };
+        let config = AgentConfigFile {
+            agent: agent.with_file_path(config_path),
+        };
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_agent_id_special_characters() {
+        use std::fs;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let prompt_path = temp_dir.path().join("test.md");
+        fs::write(&prompt_path, "# Test").unwrap();
+        let config_path = temp_dir.path().join("test.toml");
+
+        // Test various invalid characters
+        let invalid_ids = vec![
+            "agent@123",
+            "agent#test",
+            "agent$test",
+            "agent%test",
+            "agent&test",
+            "agent*test",
+            "agent+test",
+            "agent=test",
+            "agent.test",
+            "agent/test",
+            "agent\\test",
+        ];
+
+        for invalid_id in invalid_ids {
+            let config = AgentConfigFile {
+                agent: AgentConfig::new(invalid_id, "Test", prompt_path.clone())
+                    .with_file_path(config_path.clone()),
+            };
+            assert!(
+                config.validate().is_err(),
+                "ID '{}' should be invalid",
+                invalid_id
+            );
+        }
+    }
+
+    #[test]
+    fn test_empty_skip_list_in_loop_behavior() {
+        use std::fs;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let prompt_path = temp_dir.path().join("test.md");
+        fs::write(&prompt_path, "# Test").unwrap();
+        let config_path = temp_dir.path().join("test.toml");
+
+        let config = AgentConfigFile {
+            agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
+                .with_loop_behavior(AgentLoopBehavior {
+                    steps: 2,
+                    max_iterations: Some(5),
+                    skip: vec![], // Empty skip list should be valid
+                })
+                .with_file_path(config_path),
+        };
+        assert!(config.validate().is_ok());
+    }
 }
