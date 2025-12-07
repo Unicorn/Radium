@@ -113,9 +113,10 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
                 println!("\nGoodbye! Session saved as '{}'", session_id);
                 
                 // Generate and display session report
-                if let Some(ref monitoring) = monitoring {
-                    if !executed_agent_ids.is_empty() {
-                        let analytics = SessionAnalytics::new(monitoring.clone());
+                if !executed_agent_ids.is_empty() {
+                    let monitoring_path = workspace.radium_dir().join("monitoring.db");
+                    if let Ok(monitoring) = MonitoringService::open(monitoring_path) {
+                        let analytics = SessionAnalytics::new(monitoring);
                         let session_end_time = Some(Utc::now());
                         
                         if let Ok(metrics) = analytics.generate_session_metrics_with_workspace(
@@ -158,8 +159,9 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
                 println!("Session automatically saved as '{}'", session_id);
                 
                 // Generate and display session report on auto-save
-                if let Some(monitoring) = monitoring {
-                    if !executed_agent_ids.is_empty() {
+                if !executed_agent_ids.is_empty() {
+                    let monitoring_path = workspace.radium_dir().join("monitoring.db");
+                    if let Ok(monitoring) = MonitoringService::open(monitoring_path) {
                         let analytics = SessionAnalytics::new(monitoring);
                         let session_end_time = Some(Utc::now());
                         
