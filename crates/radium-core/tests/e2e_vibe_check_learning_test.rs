@@ -346,7 +346,9 @@ async fn test_skillbook_updates_from_oversight() {
 
     // Apply updates to learning store
     let mut store = learning_store.lock().unwrap();
-    store.apply_updates(&batch).unwrap();
+    for operation in &batch.operations {
+        store.apply_update(operation).unwrap();
+    }
 
     // Verify skill was added
     let skills = store.get_skills_by_section("task_guidance", false);
