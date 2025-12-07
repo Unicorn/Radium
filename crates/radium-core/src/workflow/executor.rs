@@ -255,28 +255,71 @@ impl WorkflowExecutor {
                 
                 // 4. Record telemetry if available
                 if let Some(ref monitoring) = self.monitoring {
-                    if let Ok(svc) = monitoring.lock() {
-                        if let Some(ref telemetry) = execution_result.telemetry {
-                            use crate::monitoring::{TelemetryRecord, TelemetryTracking};
-                            let mut record = TelemetryRecord::new(agent_id.clone())
-                                .with_tokens(telemetry.input_tokens, telemetry.output_tokens);
-                            
-                            if let Some(ref model_id) = telemetry.model_id {
-                                // Try to determine provider from model ID
-                                let provider = if model_id.contains("gpt") {
-                                    "openai"
-                                } else if model_id.contains("claude") {
-                                    "anthropic"
-                                } else if model_id.contains("gemini") {
-                                    "google"
-                                } else {
-                                    "unknown"
-                                };
-                                record = record.with_model(model_id.clone(), provider.to_string());
+                    if let Some(ref telemetry) = execution_result.telemetry {
+                        use crate::monitoring::{TelemetryRecord, TelemetryTracking};
+                        let mut record = TelemetryRecord::new(agent_id.clone())
+                            .with_tokens(telemetry.input_tokens, telemetry.output_tokens);
+                        
+                        if let Some(ref model_id) = telemetry.model_id {
+                            // Try to determine provider from model ID
+                            let provider = if model_id.contains("gpt") {
+                                "openai"
+                            } else if model_id.contains("claude") {
+                                "anthropic"
+                            } else if model_id.contains("gemini") {
+                                "google"
+                            } else {
+                                "unknown"
+                            };
+                            record = record.with_model(model_id.clone(), provider.to_string());
+                        }
+                        
+                        record.calculate_cost();
+                        
+                        // Get hook registry before locking (to avoid holding lock across await)
+                        let hook_registry = {
+                            if let Ok(svc) = monitoring.lock() {
+                                svc.get_hook_registry()
+                            } else {
+                                None
                             }
+                        };
+                        
+                        // Execute hooks outside the lock if registry exists
+                        let mut effective_record = record.clone();
+                        if let Some(registry) = hook_registry {
+                            use crate::hooks::registry::HookType;
+                            use crate::hooks::types::HookContext;
+                            let hook_context = HookContext::new(
+                                "telemetry_collection",
+                                serde_json::json!({
+                                    "agent_id": record.agent_id,
+                                    "input_tokens": record.input_tokens,
+                                    "output_tokens": record.output_tokens,
+                                    "total_tokens": record.total_tokens,
+                                    "estimated_cost": record.estimated_cost,
+                                    "model": record.model,
+                                    "provider": record.provider,
+                                }),
+                            );
                             
-                            record.calculate_cost();
-                            if let Err(e) = svc.record_telemetry(&record) {
+                            if let Ok(results) = registry.execute_hooks(HookType::TelemetryCollection, &hook_context).await {
+                                for result in results {
+                                    if let Some(modified_data) = result.modified_data {
+                                        if let Some(custom_fields) = modified_data.as_object() {
+                                            if let Some(new_cost) = custom_fields.get("estimated_cost").and_then(|v| v.as_f64()) {
+                                                effective_record.estimated_cost = new_cost;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Now lock and write to database (synchronous, fast)
+                        if let Ok(svc) = monitoring.lock() {
+                            // Use a synchronous internal method to write
+                            if let Err(e) = svc.record_telemetry_sync(&effective_record) {
                                 debug!(
                                     agent_id = %agent_id,
                                     error = %e,

@@ -23,9 +23,10 @@
 - **Action**: REQ-11 should be deleted or merged into REQ-163
 
 #### Hooks System
-- **REQ-154**: PLANNED, 0 tasks - **DUPLICATE/EMPTY**
-- **REQ-155**: IN_PROGRESS, 14 tasks (0 completed) - **KEEP THIS ONE**
-- **Action**: REQ-154 should be deleted (REQ-155 has task breakdown)
+- **REQ-124**: PLANNED, 0 tasks - **DELETED** ✅ (duplicate of REQ-154)
+- **REQ-154**: PLANNED, 0 tasks - **KEPT** (more recent than REQ-124)
+- **REQ-155**: IN_PROGRESS, 16 tasks (0 completed) - **KEEP THIS ONE** (active implementation)
+- **Action**: REQ-124 deleted. REQ-154 remains as PLANNED version. REQ-155 is the active implementation.
 
 #### Extension System
 - **REQ-18**: IN_PROGRESS, 11 tasks (0 completed) - **KEEP THIS ONE**
@@ -120,9 +121,35 @@ Many REQs are marked COMPLETED but have 0 tasks. These need task breakdowns:
 - ✅ Workflow documented for future REQ porting
 - ✅ Agent rules emphasize Braingrid-first approach
 
+## PLANNED Status Cleanup (2025-12-07)
+
+### Analysis Completed
+- ✅ Analyzed all 6 PLANNED requirements for duplicates
+- ✅ Identified 1 duplicate group (REQ-154 and REQ-124: Hooks System)
+- ✅ Generated duplicate report: `BRAINGRID_PLANNED_DUPLICATES_REPORT.md`
+
+### Duplicates Removed
+- ✅ **REQ-124**: Deleted (duplicate of REQ-154, Hooks System)
+  - Both had identical content (4,726 characters)
+  - REQ-154 kept due to more recent update timestamp
+  - REQ-124 successfully deleted from Braingrid
+
+### Unique PLANNED Requirements Retained
+- ✅ **REQ-154**: Hooks System (kept, more recent than deleted REQ-124)
+- ✅ **REQ-135**: MCP Integration (unique, no duplicates)
+- ✅ **REQ-130**: Model-Agnostic Orchestration System (unique, no duplicates)
+- ✅ **REQ-123**: Extension System (unique, no duplicates)
+- ✅ **REQ-120**: Engine Abstraction Layer (unique, no duplicates)
+
+### Notes
+- All PLANNED requirements were analyzed using content similarity comparison
+- Duplicate detection threshold: >80% content similarity or >90% title similarity
+- REQ-154 and REQ-124 were created by a sync script that duplicated the requirement
+- After cleanup, REQ-155 (Hooks System, IN_PROGRESS) remains as the active implementation with 16 tasks
+
 ## Remaining Work
 
-- [ ] Clean up duplicate REQs in Braingrid (REQ-11, REQ-154, etc.)
+- [ ] Clean up duplicate REQs in Braingrid (REQ-11, REQ-154, etc.) - Note: REQ-124 (PLANNED duplicate) already deleted
 - [ ] Add task breakdowns to REQs with 0 tasks
 - [ ] Port REQ-009 (MCP Integration) to Braingrid
 - [ ] Verify all REQs from PROGRESS.md are in Braingrid

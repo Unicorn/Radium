@@ -2,8 +2,12 @@
 
 use super::error::{MonitoringError, Result};
 use super::service::MonitoringService;
+use crate::hooks::registry::{HookRegistry, HookType};
+use crate::hooks::types::HookContext;
+use async_trait::async_trait;
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Telemetry record for token usage and costs.
@@ -212,9 +216,10 @@ impl TelemetryParser {
 }
 
 /// Extension trait for MonitoringService to add telemetry tracking.
+#[async_trait(?Send)]
 pub trait TelemetryTracking {
     /// Records telemetry for an agent.
-    fn record_telemetry(&self, record: &TelemetryRecord) -> Result<()>;
+    async fn record_telemetry(&self, record: &TelemetryRecord) -> Result<()>;
 
     /// Gets telemetry records for an agent.
     fn get_agent_telemetry(&self, agent_id: &str) -> Result<Vec<TelemetryRecord>>;
@@ -226,28 +231,48 @@ pub trait TelemetryTracking {
     fn get_total_cost(&self, agent_id: &str) -> Result<f64>;
 }
 
+#[async_trait(?Send)]
 impl TelemetryTracking for MonitoringService {
-    fn record_telemetry(&self, record: &TelemetryRecord) -> Result<()> {
-        self.conn.execute(
-            "INSERT INTO telemetry (agent_id, timestamp, input_tokens, output_tokens, cached_tokens,
-                                    cache_creation_tokens, cache_read_tokens, total_tokens,
-                                    estimated_cost, model, provider)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-            params![
-                record.agent_id,
-                record.timestamp,
-                record.input_tokens,
-                record.output_tokens,
-                record.cached_tokens,
-                record.cache_creation_tokens,
-                record.cache_read_tokens,
-                record.total_tokens,
-                record.estimated_cost,
-                record.model,
-                record.provider,
-            ],
-        )?;
-        Ok(())
+    async fn record_telemetry(&self, record: &TelemetryRecord) -> Result<()> {
+        // Execute TelemetryCollection hooks to allow augmentation (outside DB lock)
+        let mut effective_record = record.clone();
+
+        // Clone hook registry reference to avoid holding &self across await
+        let hook_registry = self.get_hook_registry();
+        
+        if let Some(registry) = hook_registry {
+            let hook_context = HookContext::new(
+                "telemetry_collection",
+                serde_json::json!({
+                    "agent_id": record.agent_id,
+                    "input_tokens": record.input_tokens,
+                    "output_tokens": record.output_tokens,
+                    "total_tokens": record.total_tokens,
+                    "estimated_cost": record.estimated_cost,
+                    "model": record.model,
+                    "provider": record.provider,
+                }),
+            );
+
+            if let Ok(results) = registry.execute_hooks(HookType::TelemetryCollection, &hook_context).await {
+                for result in results {
+                    // If hook modifies telemetry, update it
+                    if let Some(modified_data) = result.modified_data {
+                        if let Some(custom_fields) = modified_data.as_object() {
+                            // Allow hooks to add custom fields (we'll store them as JSON in a metadata field if needed)
+                            // For now, we just process the standard fields
+                            if let Some(new_cost) = custom_fields.get("estimated_cost").and_then(|v| v.as_f64()) {
+                                effective_record.estimated_cost = new_cost;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Now write to database (synchronous, no await needed)
+        // Use the internal sync method
+        self.record_telemetry_sync(&effective_record)
     }
 
     fn get_agent_telemetry(&self, agent_id: &str) -> Result<Vec<TelemetryRecord>> {
@@ -365,8 +390,8 @@ mod tests {
         assert_eq!(output, 50);
     }
 
-    #[test]
-    fn test_record_telemetry() {
+    #[tokio::test]
+    async fn test_record_telemetry() {
         use super::super::service::AgentRecord;
 
         let service = MonitoringService::new().unwrap();
@@ -380,7 +405,7 @@ mod tests {
             .with_model("gpt-3.5-turbo".to_string(), "openai".to_string());
 
         record.calculate_cost();
-        service.record_telemetry(&record).unwrap();
+        service.record_telemetry(&record).await.unwrap();
 
         let retrieved = service.get_agent_telemetry("agent-1").unwrap();
         assert_eq!(retrieved.len(), 1);
@@ -388,8 +413,8 @@ mod tests {
         assert_eq!(retrieved[0].output_tokens, 50);
     }
 
-    #[test]
-    fn test_get_total_tokens() {
+    #[tokio::test]
+    async fn test_get_total_tokens() {
         use super::super::service::AgentRecord;
 
         let service = MonitoringService::new().unwrap();
@@ -401,8 +426,8 @@ mod tests {
         let record1 = TelemetryRecord::new("agent-1".to_string()).with_tokens(100, 50);
         let record2 = TelemetryRecord::new("agent-1".to_string()).with_tokens(200, 100);
 
-        service.record_telemetry(&record1).unwrap();
-        service.record_telemetry(&record2).unwrap();
+        service.record_telemetry(&record1).await.unwrap();
+        service.record_telemetry(&record2).await.unwrap();
 
         let (input, output, total) = service.get_total_tokens("agent-1").unwrap();
         assert_eq!(input, 300);
@@ -410,8 +435,8 @@ mod tests {
         assert_eq!(total, 450);
     }
 
-    #[test]
-    fn test_get_total_cost() {
+    #[tokio::test]
+    async fn test_get_total_cost() {
         use super::super::service::AgentRecord;
 
         let service = MonitoringService::new().unwrap();
@@ -425,7 +450,7 @@ mod tests {
             .with_model("gpt-3.5-turbo".to_string(), "openai".to_string());
         record1.calculate_cost();
 
-        service.record_telemetry(&record1).unwrap();
+        service.record_telemetry(&record1).await.unwrap();
 
         let total_cost = service.get_total_cost("agent-1").unwrap();
         assert!((total_cost - 2.0).abs() < 0.01);

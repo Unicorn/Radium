@@ -55,6 +55,34 @@ pub enum PlanStatus {
     Failed,
 }
 
+/// Task status.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TaskStatus {
+    /// Task is pending execution.
+    Pending,
+
+    /// Task is currently in progress.
+    InProgress,
+
+    /// Task is completed.
+    Completed,
+
+    /// Task has failed.
+    Failed,
+}
+
+impl std::fmt::Display for TaskStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Pending => write!(f, "Pending"),
+            Self::InProgress => write!(f, "In Progress"),
+            Self::Completed => write!(f, "Completed"),
+            Self::Failed => write!(f, "Failed"),
+        }
+    }
+}
+
 impl std::fmt::Display for PlanStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

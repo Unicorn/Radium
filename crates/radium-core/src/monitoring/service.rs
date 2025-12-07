@@ -2,8 +2,11 @@
 
 use super::error::{MonitoringError, Result};
 use super::schema::initialize_schema;
+use crate::hooks::registry::{HookRegistry, HookType};
+use crate::hooks::types::HookContext;
 use rusqlite::{Connection, params};
 use std::path::Path;
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Agent status.
@@ -126,6 +129,8 @@ impl AgentRecord {
 pub struct MonitoringService {
     /// Database connection.
     pub(super) conn: Connection,
+    /// Optional hook registry for telemetry interception.
+    hook_registry: Option<Arc<HookRegistry>>,
 }
 
 impl MonitoringService {
@@ -136,7 +141,20 @@ impl MonitoringService {
     pub fn new() -> Result<Self> {
         let conn = Connection::open_in_memory()?;
         initialize_schema(&conn)?;
-        Ok(Self { conn })
+        Ok(Self { conn, hook_registry: None })
+    }
+
+    /// Creates a new monitoring service with hook registry.
+    ///
+    /// # Arguments
+    /// * `hook_registry` - Hook registry for telemetry interception
+    ///
+    /// # Errors
+    /// Returns error if database initialization fails
+    pub fn with_hooks(hook_registry: Arc<HookRegistry>) -> Result<Self> {
+        let conn = Connection::open_in_memory()?;
+        initialize_schema(&conn)?;
+        Ok(Self { conn, hook_registry: Some(hook_registry) })
     }
 
     /// Opens a monitoring service with a database file.
@@ -149,7 +167,56 @@ impl MonitoringService {
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
         let conn = Connection::open(path)?;
         initialize_schema(&conn)?;
-        Ok(Self { conn })
+        Ok(Self { conn, hook_registry: None })
+    }
+
+    /// Opens a monitoring service with a database file and hook registry.
+    ///
+    /// # Arguments
+    /// * `path` - Path to database file
+    /// * `hook_registry` - Hook registry for telemetry interception
+    ///
+    /// # Errors
+    /// Returns error if database opening or initialization fails
+    pub fn open_with_hooks(path: impl AsRef<Path>, hook_registry: Arc<HookRegistry>) -> Result<Self> {
+        let conn = Connection::open(path)?;
+        initialize_schema(&conn)?;
+        Ok(Self { conn, hook_registry: Some(hook_registry) })
+    }
+
+    /// Sets the hook registry for this monitoring service.
+    pub fn set_hook_registry(&mut self, hook_registry: Arc<HookRegistry>) {
+        self.hook_registry = Some(hook_registry);
+    }
+
+    /// Gets a clone of the hook registry if it exists.
+    pub fn get_hook_registry(&self) -> Option<Arc<HookRegistry>> {
+        self.hook_registry.as_ref().map(Arc::clone)
+    }
+
+    /// Records telemetry synchronously (internal method, hooks should be executed before calling this).
+    pub fn record_telemetry_sync(&self, record: &crate::monitoring::telemetry::TelemetryRecord) -> Result<()> {
+        use crate::monitoring::telemetry::TelemetryRecord;
+        self.conn.execute(
+            "INSERT INTO telemetry (agent_id, timestamp, input_tokens, output_tokens, cached_tokens,
+                                    cache_creation_tokens, cache_read_tokens, total_tokens,
+                                    estimated_cost, model, provider)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            rusqlite::params![
+                record.agent_id,
+                record.timestamp,
+                record.input_tokens,
+                record.output_tokens,
+                record.cached_tokens,
+                record.cache_creation_tokens,
+                record.cache_read_tokens,
+                record.total_tokens,
+                record.estimated_cost,
+                record.model,
+                record.provider,
+            ],
+        )?;
+        Ok(())
     }
 
     /// Registers a new agent.
