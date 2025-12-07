@@ -66,21 +66,7 @@ async fn status_command(
         let record = monitoring.get_agent(id).context(format!("Agent {} not found", id))?;
 
         if json {
-            // Convert to JSON manually since AgentRecord doesn't implement Serialize
-            let json = serde_json::json!({
-                "id": record.id,
-                "parent_id": record.parent_id,
-                "plan_id": record.plan_id,
-                "agent_type": record.agent_type,
-                "status": format!("{:?}", record.status),
-                "process_id": record.process_id,
-                "start_time": record.start_time,
-                "end_time": record.end_time,
-                "exit_code": record.exit_code,
-                "error_message": record.error_message,
-                "log_file": record.log_file,
-            });
-            println!("{}", serde_json::to_string_pretty(&json)?);
+            println!("{}", serde_json::to_string_pretty(&record)?);
         } else {
             println!("Agent: {}", record.id);
             println!("Type: {}", record.agent_type);
@@ -111,26 +97,7 @@ async fn status_command(
     } else {
         let agents = monitoring.list_agents()?;
         if json {
-            // Convert to JSON manually
-            let json_agents: Vec<serde_json::Value> = agents
-                .iter()
-                .map(|a| {
-                    serde_json::json!({
-                        "id": a.id,
-                        "parent_id": a.parent_id,
-                        "plan_id": a.plan_id,
-                        "agent_type": a.agent_type,
-                        "status": format!("{:?}", a.status),
-                        "process_id": a.process_id,
-                        "start_time": a.start_time,
-                        "end_time": a.end_time,
-                        "exit_code": a.exit_code,
-                        "error_message": a.error_message,
-                        "log_file": a.log_file,
-                    })
-                })
-                .collect();
-            println!("{}", serde_json::to_string_pretty(&json_agents)?);
+            println!("{}", serde_json::to_string_pretty(&agents)?);
         } else {
             if agents.is_empty() {
                 println!("No agents found.");
@@ -170,26 +137,7 @@ async fn list_command(
     }
 
     if json {
-        // Convert to JSON manually
-        let json_agents: Vec<serde_json::Value> = agents
-            .iter()
-            .map(|a| {
-                serde_json::json!({
-                    "id": a.id,
-                    "parent_id": a.parent_id,
-                    "plan_id": a.plan_id,
-                    "agent_type": a.agent_type,
-                    "status": format!("{:?}", a.status),
-                    "process_id": a.process_id,
-                    "start_time": a.start_time,
-                    "end_time": a.end_time,
-                    "exit_code": a.exit_code,
-                    "error_message": a.error_message,
-                    "log_file": a.log_file,
-                })
-            })
-            .collect();
-        println!("{}", serde_json::to_string_pretty(&json_agents)?);
+        println!("{}", serde_json::to_string_pretty(&agents)?);
     } else {
         if agents.is_empty() {
             println!("No agents found.");

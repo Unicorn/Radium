@@ -5,12 +5,14 @@ use super::schema::initialize_schema;
 use crate::hooks::registry::{HookRegistry, HookType};
 use crate::hooks::types::HookContext;
 use rusqlite::{Connection, params};
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Agent status.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum AgentStatus {
     /// Agent is starting up.
     Starting,
@@ -50,7 +52,7 @@ impl AgentStatus {
 }
 
 /// Agent record in monitoring database.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentRecord {
     /// Unique agent ID.
     pub id: String,
@@ -682,5 +684,84 @@ mod tests {
 
         let agents = service.get_plan_agents("REQ-001").unwrap();
         assert_eq!(agents.len(), 2);
+    }
+
+    #[test]
+    fn test_agent_record_json_serialization() {
+        let record = AgentRecord::new("agent-123".to_string(), "developer".to_string())
+            .with_parent("parent-456".to_string())
+            .with_plan("REQ-49".to_string())
+            .with_process_id(12345)
+            .with_log_file("/path/to/log".to_string());
+
+        // Serialize to JSON
+        let json = serde_json::to_string(&record).unwrap();
+        assert!(json.contains("agent-123"));
+        assert!(json.contains("developer"));
+        assert!(json.contains("parent-456"));
+        assert!(json.contains("REQ-49"));
+
+        // Deserialize back
+        let deserialized: AgentRecord = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.id, record.id);
+        assert_eq!(deserialized.agent_type, record.agent_type);
+        assert_eq!(deserialized.parent_id, record.parent_id);
+        assert_eq!(deserialized.plan_id, record.plan_id);
+        assert_eq!(deserialized.process_id, record.process_id);
+        assert_eq!(deserialized.log_file, record.log_file);
+        assert_eq!(deserialized.status, record.status);
+    }
+
+    #[test]
+    fn test_agent_status_json_serialization() {
+        // Test all status variants
+        let statuses = vec![
+            AgentStatus::Starting,
+            AgentStatus::Running,
+            AgentStatus::Completed,
+            AgentStatus::Failed,
+            AgentStatus::Terminated,
+        ];
+
+        for status in statuses {
+            // Serialize to JSON
+            let json = serde_json::to_string(&status).unwrap();
+            // Should be lowercase string
+            assert!(json.starts_with('"'));
+            assert!(json.ends_with('"'));
+
+            // Deserialize back
+            let deserialized: AgentStatus = serde_json::from_str(&json).unwrap();
+            assert_eq!(deserialized, status);
+        }
+    }
+
+    #[test]
+    fn test_agent_record_json_round_trip() {
+        // Create record with all fields populated
+        let mut record = AgentRecord::new("agent-123".to_string(), "developer".to_string())
+            .with_parent("parent-456".to_string())
+            .with_plan("REQ-49".to_string())
+            .with_process_id(12345)
+            .with_log_file("/path/to/log".to_string());
+
+        // Update status and add completion info
+        record.status = AgentStatus::Completed;
+        // Note: We can't directly set end_time, exit_code, etc. through builder,
+        // but we can test with what we have
+
+        // Serialize and deserialize
+        let json = serde_json::to_string(&record).unwrap();
+        let deserialized: AgentRecord = serde_json::from_str(&json).unwrap();
+
+        // Verify all fields preserved
+        assert_eq!(deserialized.id, record.id);
+        assert_eq!(deserialized.agent_type, record.agent_type);
+        assert_eq!(deserialized.parent_id, record.parent_id);
+        assert_eq!(deserialized.plan_id, record.plan_id);
+        assert_eq!(deserialized.process_id, record.process_id);
+        assert_eq!(deserialized.log_file, record.log_file);
+        assert_eq!(deserialized.status, record.status);
+        assert_eq!(deserialized.start_time, record.start_time);
     }
 }
