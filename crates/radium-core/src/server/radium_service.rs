@@ -25,7 +25,8 @@ use crate::proto::{
     PingResponse, RegisterAgentRequest, RegisterAgentResponse, RegisteredAgent, StartAgentRequest,
     StartAgentResponse, StopAgentRequest, StopAgentResponse, StopWorkflowExecutionRequest,
     StopWorkflowExecutionResponse, UpdateAgentRequest, UpdateAgentResponse, UpdateTaskRequest,
-    UpdateTaskResponse, UpdateWorkflowRequest, UpdateWorkflowResponse, WorkflowExecution,
+    UpdateTaskResponse, UpdateWorkflowRequest, UpdateWorkflowResponse, ValidateSourcesRequest,
+    ValidateSourcesResponse, SourceValidationResult, WorkflowExecution,
 };
 use crate::storage::{
     AgentRepository, Database, SqliteAgentRepository, SqliteTaskRepository,

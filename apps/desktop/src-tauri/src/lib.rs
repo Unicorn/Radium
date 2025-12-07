@@ -952,7 +952,8 @@ pub fn run() {
             execute_agent,
             start_agent,
             stop_agent,
-            get_registered_agents
+            get_registered_agents,
+            complete_task
         ])
         .setup(|app| {
             info!("Radium Desktop starting up");

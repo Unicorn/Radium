@@ -394,6 +394,7 @@
         <div class="table-container" style="padding: 1.5rem;">
           <h3 style="margin-bottom: 1rem; color: #00ff88;">Quick Actions</h3>
           <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+            <button class="btn" onclick="showCompleteTaskModal()">Complete Task</button>
             <button class="btn" onclick="navigate('agents'); setTimeout(() => { if (window.showCreateForm) window.showCreateForm(); }, 100);">Create Agent</button>
             <button class="btn" onclick="navigate('workflows'); setTimeout(() => { if (window.showCreateWorkflowForm) window.showCreateWorkflowForm(); }, 100);">Create Workflow</button>
             <button class="btn" onclick="navigate('orchestrator'); setTimeout(() => { if (window.showRegisterForm) window.showRegisterForm(); }, 100);">Register Agent</button>
@@ -665,8 +666,40 @@
           </table>
         </div>
       </div>
+      
+      <!-- Complete Task Modal -->
+      <div id="complete-task-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.8); z-index: 1000; overflow-y: auto; padding: 2rem;">
+        <div style="max-width: 600px; margin: 0 auto; background: rgba(0, 0, 0, 0.9); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 2rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+            <h2 style="color: #00ff88;">Complete Task</h2>
+            <button class="btn btn-small" onclick="closeCompleteTaskModal()">Close</button>
+          </div>
+          <div class="form-group">
+            <label for="complete-task-source">Source *</label>
+            <input type="text" id="complete-task-source" placeholder="File path, Jira ticket (e.g., RAD-42), or REQ ID (e.g., REQ-2025-001)" required />
+            <div style="margin-top: 0.5rem; font-size: 0.9rem; color: #aaa;">
+              Examples: ./specs/feature.md, RAD-42, REQ-2025-001
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-small" onclick="closeCompleteTaskModal()">Cancel</button>
+            <button class="btn" id="complete-task-submit-btn" onclick="executeCompleteTask()">Execute</button>
+          </div>
+          <div id="complete-task-progress" style="display: none; margin-top: 1.5rem;">
+            <div style="color: #00ff88; margin-bottom: 0.5rem;">Progress:</div>
+            <div id="complete-task-progress-content" style="background: rgba(0, 0, 0, 0.5); padding: 1rem; border-radius: 8px; max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 0.9rem; white-space: pre-wrap;"></div>
+          </div>
+          <div id="complete-task-result" style="display: none; margin-top: 1.5rem;">
+            <div id="complete-task-result-content" class="result-content">
+              <h4>Result</h4>
+              <div id="complete-task-result-text"></div>
+            </div>
+          </div>
+        </div>
+      </div>
     </main>
     
+    <script type="module" src="js/complete-task.js"></script>
     <script type="module" src="js/agents.js"></script>
     <script type="module" src="js/workflows.js"></script>
     <script type="module" src="js/tasks.js"></script>
