@@ -1,0 +1,35 @@
+# Example: Agent with macOS Seatbelt Sandboxing
+#
+# This agent uses macOS native Seatbelt sandboxing for safe command execution.
+# Seatbelt provides profile-based restrictions without container overhead.
+
+[agent]
+id = "seatbelt-sandboxed-agent"
+name = "Seatbelt Sandboxed Agent"
+description = "An example agent using macOS Seatbelt sandboxing"
+prompt_path = "prompts/agents/core/code-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "medium"
+
+[agent.sandbox]
+# Use Seatbelt for macOS native sandboxing
+# Note: Only available on macOS
+sandbox_type = "seatbelt"
+
+# Network mode: closed (no network access) for maximum security
+# Options: open, closed, proxied
+network = "closed"
+
+# Sandbox profile: restrictive for maximum security
+# Options: permissive, restrictive, custom(path)
+profile = "restrictive"
+
+# Environment variables
+env = {
+    "RUST_LOG" = "info"
+}
+
+# Note: Seatbelt doesn't support volume mounts or custom flags
+# Use Docker/Podman if you need those features
+

@@ -1,0 +1,24 @@
+# Example: Docker Sandbox with Volume Mounts
+#
+# This configuration mounts the workspace into the container for file access.
+# Useful when the agent needs to read/write project files.
+
+[sandbox]
+sandbox_type = "docker"
+network = "open"
+image = "rust:latest"
+working_dir = "/workspace"
+
+# Mount workspace and common directories
+volumes = [
+    "${PWD}:/workspace",
+    "${HOME}/.cargo:/root/.cargo"
+]
+
+# Development environment variables
+env = {
+    "RUST_BACKTRACE" = "1",
+    "CARGO_HOME" = "/root/.cargo",
+    "WORKSPACE" = "/workspace"
+}
+

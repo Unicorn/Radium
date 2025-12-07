@@ -1,0 +1,43 @@
+# Example: Agent with Docker Sandboxing
+#
+# This agent uses Docker container-based sandboxing for safe command execution.
+# The sandbox configuration ensures commands run in an isolated environment.
+
+[agent]
+id = "docker-sandboxed-agent"
+name = "Docker Sandboxed Agent"
+description = "An example agent using Docker sandboxing for safe execution"
+prompt_path = "prompts/agents/core/code-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "medium"
+
+[agent.sandbox]
+# Use Docker for container-based sandboxing
+sandbox_type = "docker"
+
+# Network mode: closed (no network access) for maximum security
+# Options: open, closed, proxied
+network = "closed"
+
+# Container image to use
+# Alpine is lightweight and secure
+image = "alpine:latest"
+
+# Working directory inside container
+working_dir = "/workspace"
+
+# Volume mounts (host:container format)
+# Mount the current workspace into the container
+volumes = ["${PWD}:/workspace"]
+
+# Environment variables
+env = {
+    "RUST_LOG" = "info",
+    "WORKSPACE" = "/workspace"
+}
+
+# Custom Docker flags (optional)
+# Uncomment to add additional capabilities if needed
+# custom_flags = ["--cap-add=SYS_ADMIN"]
+

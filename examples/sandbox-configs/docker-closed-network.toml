@@ -1,0 +1,19 @@
+# Example: Docker Sandbox with Closed Network
+#
+# This configuration uses Docker with no network access for maximum security.
+# Useful when the agent doesn't need internet access.
+
+[sandbox]
+sandbox_type = "docker"
+network = "closed"
+image = "alpine:latest"
+working_dir = "/app"
+
+# No volumes mounted for maximum isolation
+volumes = []
+
+# Minimal environment
+env = {
+    "PATH" = "/usr/local/bin:/usr/bin:/bin"
+}
+
