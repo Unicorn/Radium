@@ -57,7 +57,7 @@ impl LearningEntry {
     /// Ensures text is a single sentence.
     fn enforce_one_sentence(text: String) -> String {
         // Remove newlines
-        let mut sentence = text.replace('\n', " ").replace('\r', " ");
+        let mut sentence = text.replace(['\n', '\r'], " ");
 
         // Split by sentence-ending punctuation
         let parts: Vec<&str> = sentence.split(&['.', '!', '?'][..]).collect();
@@ -96,13 +96,28 @@ impl CategoryData {
 struct LearningLog {
     /// Map of category to category data.
     categories: HashMap<String, CategoryData>,
+    /// Map of skill ID to skill.
+    #[serde(default)]
+    skills: HashMap<String, Skill>,
+    /// Map of section to list of skill IDs.
+    #[serde(default)]
+    sections: HashMap<String, Vec<String>>,
+    /// Next ID counter for generating skill IDs.
+    #[serde(default)]
+    next_skill_id: u32,
     /// Last update timestamp.
     last_updated: DateTime<Utc>,
 }
 
 impl LearningLog {
     fn new() -> Self {
-        Self { categories: HashMap::new(), last_updated: Utc::now() }
+        Self {
+            categories: HashMap::new(),
+            skills: HashMap::new(),
+            sections: HashMap::new(),
+            next_skill_id: 0,
+            last_updated: Utc::now(),
+        }
     }
 }
 
@@ -117,6 +132,131 @@ pub const STANDARD_CATEGORIES: &[&str] = &[
     "Success",
     "Other",
 ];
+
+/// Standard skill sections for organizing skills.
+pub const STANDARD_SECTIONS: &[&str] = &[
+    "task_guidance",
+    "tool_usage",
+    "error_handling",
+    "code_patterns",
+    "communication",
+    "general",
+];
+
+/// Skill entry for skillbook (ACE learning).
+///
+/// Skills are strategies that can be helpful, harmful, or neutral.
+/// They are organized by sections and tracked with usage counts.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Skill {
+    /// Unique identifier for the skill.
+    pub id: String,
+    /// Section this skill belongs to.
+    pub section: String,
+    /// Content/description of the skill.
+    pub content: String,
+    /// Count of times this skill was helpful.
+    pub helpful: u32,
+    /// Count of times this skill was harmful.
+    pub harmful: u32,
+    /// Count of times this skill was neutral.
+    pub neutral: u32,
+    /// Timestamp when this skill was created.
+    pub created_at: DateTime<Utc>,
+    /// Timestamp when this skill was last updated.
+    pub updated_at: DateTime<Utc>,
+    /// Status of the skill (active or invalid).
+    #[serde(default = "default_skill_status")]
+    pub status: SkillStatus,
+}
+
+fn default_skill_status() -> SkillStatus {
+    SkillStatus::Active
+}
+
+/// Status of a skill.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SkillStatus {
+    /// Skill is active and can be used.
+    Active,
+    /// Skill is invalid/soft-deleted.
+    Invalid,
+}
+
+impl Skill {
+    /// Creates a new skill.
+    pub fn new(id: String, section: String, content: String) -> Self {
+        Self {
+            id,
+            section,
+            content: Self::enforce_one_sentence(content),
+            helpful: 0,
+            harmful: 0,
+            neutral: 0,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            status: SkillStatus::Active,
+        }
+    }
+
+    /// Ensures text is a single sentence.
+    fn enforce_one_sentence(text: String) -> String {
+        // Remove newlines
+        let mut sentence = text.replace(['\n', '\r'], " ");
+
+        // Split by sentence-ending punctuation
+        let parts: Vec<&str> = sentence.split(&['.', '!', '?'][..]).collect();
+        if let Some(first) = parts.first() {
+            sentence = first.trim().to_string();
+        }
+
+        // Ensure it ends with sentence-ending punctuation
+        if !sentence.ends_with(&['.', '!', '?'][..]) {
+            sentence.push('.');
+        }
+
+        sentence
+    }
+
+    /// Tags this skill as helpful, harmful, or neutral.
+    ///
+    /// # Arguments
+    /// * `tag` - The tag to apply ("helpful", "harmful", or "neutral")
+    /// * `increment` - Amount to increment (default: 1)
+    ///
+    /// # Errors
+    /// Returns error if tag is invalid
+    pub fn tag(&mut self, tag: &str, increment: u32) -> Result<()> {
+        match tag {
+            "helpful" => self.helpful += increment,
+            "harmful" => self.harmful += increment,
+            "neutral" => self.neutral += increment,
+            _ => {
+                return Err(LearningError::InvalidEntry(format!(
+                    "Invalid tag: {}. Must be 'helpful', 'harmful', or 'neutral'",
+                    tag
+                )));
+            }
+        }
+        self.updated_at = Utc::now();
+        Ok(())
+    }
+
+    /// Returns a dictionary with LLM-relevant fields only.
+    ///
+    /// Excludes created_at and updated_at which are internal metadata.
+    pub fn to_llm_dict(&self) -> HashMap<String, String> {
+        let mut dict = HashMap::new();
+        dict.insert("id".to_string(), self.id.clone());
+        dict.insert("section".to_string(), self.section.clone());
+        dict.insert("content".to_string(), self.content.clone());
+        dict.insert("helpful".to_string(), self.helpful.to_string());
+        dict.insert("harmful".to_string(), self.harmful.to_string());
+        dict.insert("neutral".to_string(), self.neutral.to_string());
+        dict
+    }
+}
 
 /// Errors that can occur during learning operations.
 #[derive(Error, Debug)]
@@ -139,11 +279,12 @@ pub type Result<T> = std::result::Result<T, LearningError>;
 
 /// Learning store for tracking mistakes and solutions.
 ///
-/// Stores learning entries in a JSON file, organized by category.
+/// Stores learning entries and skills in a JSON file, organized by category and section.
+/// Extends the original mistake-tracking system with ACE skillbook functionality.
 pub struct LearningStore {
     /// Path to the learning log file.
     log_path: PathBuf,
-    /// In-memory cache of learning log.
+    /// In-memory cache of learning log (includes both entries and skills).
     log: LearningLog,
 }
 
@@ -220,7 +361,7 @@ impl LearningStore {
         }
 
         // Add to category
-        let category_data = self.log.categories.entry(category.clone()).or_insert_with(CategoryData::new);
+        let category_data = self.log.categories.entry(category).or_insert_with(CategoryData::new);
         category_data.count += 1;
         category_data.examples.push(entry.clone());
         category_data.last_updated = Utc::now();
@@ -330,6 +471,257 @@ impl LearningStore {
         context.trim().to_string()
     }
 
+    /// Generates a skill ID for a given section.
+    ///
+    /// # Arguments
+    /// * `section` - The section name
+    ///
+    /// # Returns
+    /// A new skill ID in format "section-00001"
+    fn generate_skill_id(&mut self, section: &str) -> String {
+        self.log.next_skill_id += 1;
+        let section_prefix = section.split_whitespace().next().unwrap_or("general").to_lowercase();
+        format!("{}-{:05}", section_prefix, self.log.next_skill_id)
+    }
+
+    /// Adds a new skill to the skillbook.
+    ///
+    /// # Arguments
+    /// * `section` - The section this skill belongs to
+    /// * `content` - The skill content/description
+    /// * `skill_id` - Optional skill ID (auto-generated if None)
+    ///
+    /// # Returns
+    /// The created skill
+    pub fn add_skill(
+        &mut self,
+        section: String,
+        content: String,
+        skill_id: Option<String>,
+    ) -> Result<Skill> {
+        let id = skill_id.unwrap_or_else(|| self.generate_skill_id(&section));
+        let skill = Skill::new(id.clone(), section.clone(), content);
+
+        // Add to skills map
+        self.log.skills.insert(id.clone(), skill.clone());
+
+        // Add to sections map
+        self.log.sections.entry(section).or_default().push(id);
+
+        // Update timestamp
+        self.log.last_updated = Utc::now();
+
+        // Save to disk
+        Self::save_log(&self.log_path, &self.log)?;
+
+        Ok(skill)
+    }
+
+    /// Tags a skill as helpful, harmful, or neutral.
+    ///
+    /// # Arguments
+    /// * `skill_id` - The skill ID to tag
+    /// * `tag` - The tag to apply ("helpful", "harmful", or "neutral")
+    /// * `increment` - Amount to increment (default: 1)
+    ///
+    /// # Errors
+    /// Returns error if skill not found or tag is invalid
+    pub fn tag_skill(&mut self, skill_id: &str, tag: &str, increment: u32) -> Result<()> {
+        let skill = self.log.skills.get_mut(skill_id).ok_or_else(|| {
+            LearningError::InvalidEntry(format!("Skill not found: {}", skill_id))
+        })?;
+
+        skill.tag(tag, increment)?;
+        self.log.last_updated = Utc::now();
+
+        // Save to disk
+        Self::save_log(&self.log_path, &self.log)?;
+
+        Ok(())
+    }
+
+    /// Gets all skills for a specific section.
+    ///
+    /// # Arguments
+    /// * `section` - The section to get skills for
+    /// * `include_invalid` - Whether to include invalid/soft-deleted skills
+    ///
+    /// # Returns
+    /// Vector of skills for the section
+    pub fn get_skills_by_section(&self, section: &str, include_invalid: bool) -> Vec<Skill> {
+        let Some(skill_ids) = self.log.sections.get(section) else {
+            return Vec::new();
+        };
+
+        skill_ids
+            .iter()
+            .filter_map(|id| self.log.skills.get(id).cloned())
+            .filter(|skill| include_invalid || skill.status == SkillStatus::Active)
+            .collect()
+    }
+
+    /// Gets all skills in the skillbook.
+    ///
+    /// # Arguments
+    /// * `include_invalid` - Whether to include invalid/soft-deleted skills
+    ///
+    /// # Returns
+    /// Vector of all skills
+    pub fn get_all_skills(&self, include_invalid: bool) -> Vec<Skill> {
+        self.log
+            .skills
+            .values()
+            .filter(|skill| include_invalid || skill.status == SkillStatus::Active)
+            .cloned()
+            .collect()
+    }
+
+    /// Gets a skill by ID.
+    ///
+    /// # Arguments
+    /// * `skill_id` - The skill ID
+    ///
+    /// # Returns
+    /// The skill if found, None otherwise
+    pub fn get_skill(&self, skill_id: &str) -> Option<Skill> {
+        self.log.skills.get(skill_id).cloned()
+    }
+
+    /// Formats skills as context for agent prompts.
+    ///
+    /// # Arguments
+    /// * `max_per_section` - Maximum skills per section to include
+    ///
+    /// # Returns
+    /// Formatted skillbook context string
+    pub fn as_context(&self, max_per_section: usize) -> String {
+        let mut context = String::new();
+
+        if self.log.skills.is_empty() {
+            return context;
+        }
+
+        context.push_str("# Skillbook Strategies\n\n");
+
+        // Group skills by section
+        for (section, skill_ids) in &self.log.sections {
+            let skills: Vec<&Skill> = skill_ids
+                .iter()
+                .filter_map(|id| self.log.skills.get(id))
+                .filter(|skill| skill.status == SkillStatus::Active)
+                .take(max_per_section)
+                .collect();
+
+            if skills.is_empty() {
+                continue;
+            }
+
+            context.push_str(&format!("## {}\n\n", section));
+
+            for skill in skills {
+                // Show helpful/harmful counts
+                let counts = if skill.helpful > 0 || skill.harmful > 0 {
+                    format!(" (helpful={}, harmful={})", skill.helpful, skill.harmful)
+                } else {
+                    String::new()
+                };
+
+                context.push_str(&format!(
+                    "- [{}] {}{}\n",
+                    skill.id, skill.content, counts
+                ));
+            }
+
+            context.push('\n');
+        }
+
+        context.trim().to_string()
+    }
+
+    /// Applies a batch of update operations to the skillbook.
+    ///
+    /// # Arguments
+    /// * `update` - The update batch to apply
+    ///
+    /// # Errors
+    /// Returns error if any operation fails
+    pub fn apply_update(&mut self, update: &crate::learning::UpdateBatch) -> Result<()> {
+        for operation in &update.operations {
+            self.apply_operation(operation)?;
+        }
+
+        // Update timestamp
+        self.log.last_updated = Utc::now();
+
+        // Save to disk
+        Self::save_log(&self.log_path, &self.log)?;
+
+        Ok(())
+    }
+
+    /// Applies a single update operation.
+    ///
+    /// # Arguments
+    /// * `operation` - The operation to apply
+    ///
+    /// # Errors
+    /// Returns error if operation is invalid
+    fn apply_operation(&mut self, operation: &crate::learning::UpdateOperation) -> Result<()> {
+        use crate::learning::UpdateOperationType;
+
+        match operation.op_type {
+            UpdateOperationType::Add => {
+                let section = operation.section.as_ref().ok_or_else(|| {
+                    LearningError::InvalidEntry("Section required for ADD operation".to_string())
+                })?;
+
+                let content = operation.content.as_ref().ok_or_else(|| {
+                    LearningError::InvalidEntry("Content required for ADD operation".to_string())
+                })?;
+
+                self.add_skill(section.clone(), content.clone(), operation.skill_id.clone())?;
+            }
+            UpdateOperationType::Update => {
+                let skill_id = operation.skill_id.as_ref().ok_or_else(|| {
+                    LearningError::InvalidEntry("Skill ID required for UPDATE operation".to_string())
+                })?;
+
+                let skill = self.log.skills.get_mut(skill_id).ok_or_else(|| {
+                    LearningError::InvalidEntry(format!("Skill not found: {}", skill_id))
+                })?;
+
+                if let Some(ref content) = operation.content {
+                    skill.content = Skill::enforce_one_sentence(content.clone());
+                }
+
+                skill.updated_at = Utc::now();
+            }
+            UpdateOperationType::Tag => {
+                let skill_id = operation.skill_id.as_ref().ok_or_else(|| {
+                    LearningError::InvalidEntry("Skill ID required for TAG operation".to_string())
+                })?;
+
+                // Apply each tag in metadata
+                for (tag, increment) in &operation.metadata {
+                    self.tag_skill(skill_id, tag, *increment)?;
+                }
+            }
+            UpdateOperationType::Remove => {
+                let skill_id = operation.skill_id.as_ref().ok_or_else(|| {
+                    LearningError::InvalidEntry("Skill ID required for REMOVE operation".to_string())
+                })?;
+
+                // Soft delete: mark as invalid
+                if let Some(skill) = self.log.skills.get_mut(skill_id) {
+                    skill.status = SkillStatus::Invalid;
+                    skill.updated_at = Utc::now();
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     /// Normalizes a category name to a standard category if possible.
     fn normalize_category(category: &str) -> String {
         let lower = category.to_lowercase();
@@ -369,8 +761,10 @@ impl LearningStore {
 
     /// Checks if two descriptions are similar (simple word overlap).
     fn is_similar(a: &str, b: &str) -> bool {
-        let a_words: Vec<&str> = a.to_lowercase().split_whitespace().collect();
-        let b_words: Vec<&str> = b.to_lowercase().split_whitespace().collect();
+        let a_lower = a.to_lowercase();
+        let b_lower = b.to_lowercase();
+        let a_words: Vec<&str> = a_lower.split_whitespace().collect();
+        let b_words: Vec<&str> = b_lower.split_whitespace().collect();
 
         if a_words.is_empty() || b_words.is_empty() {
             return false;
@@ -446,7 +840,7 @@ mod tests {
     #[test]
     fn test_learning_store_new() {
         let temp_dir = TempDir::new().unwrap();
-        let store = LearningStore::new(temp_dir.path()).unwrap();
+        let _store = LearningStore::new(temp_dir.path()).unwrap();
         assert!(temp_dir.path().join("learning-log.json").exists());
     }
 

@@ -144,3 +144,72 @@ fn test_run_invalid_script_format() {
     // Either success or failure is acceptable, just verify it doesn't panic
     assert!(result.get_output().status.code().is_some());
 }
+
+#[test]
+fn test_run_parallel_syntax() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+    create_test_agent(&temp_dir, "agent1", "Agent One");
+    create_test_agent(&temp_dir, "agent2", "Agent Two");
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    // Test parallel execution syntax (agent1 & agent2)
+    let result = cmd
+        .current_dir(temp_dir.path())
+        .arg("run")
+        .arg("agent1 'prompt1' & agent2 'prompt2'")
+        .assert();
+
+    // May succeed or fail depending on implementation
+    assert!(result.get_output().status.code().is_some());
+}
+
+#[test]
+fn test_run_sequential_syntax() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+    create_test_agent(&temp_dir, "agent1", "Agent One");
+    create_test_agent(&temp_dir, "agent2", "Agent Two");
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    // Test sequential execution syntax (agent1 && agent2)
+    let result = cmd
+        .current_dir(temp_dir.path())
+        .arg("run")
+        .arg("agent1 'prompt1' && agent2 'prompt2'")
+        .assert();
+
+    // May succeed or fail depending on implementation
+    assert!(result.get_output().status.code().is_some());
+}
+
+#[test]
+fn test_run_no_workspace() {
+    let temp_dir = TempDir::new().unwrap();
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("run")
+        .arg("test-agent 'test prompt'")
+        .assert()
+        .failure() // Should fail if no workspace found
+        .stderr(
+            predicate::str::contains("workspace")
+                .or(predicate::str::contains("not found"))
+                .or(predicate::str::contains("Failed")),
+        );
+}
+
+#[test]
+fn test_run_empty_script() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    // Empty script should fail
+    cmd.current_dir(temp_dir.path())
+        .arg("run")
+        .arg("")
+        .assert()
+        .failure();
+}

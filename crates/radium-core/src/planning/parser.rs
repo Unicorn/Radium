@@ -311,7 +311,7 @@ mod tests {
 
     #[test]
     fn test_parse_simple_plan() {
-        let response = r#"# My Project
+        let response = r"# My Project
 
 A simple project description.
 
@@ -327,7 +327,7 @@ Goal: Set up the project foundation
    - Agent: config-agent
    - Dependencies: I1.T1
    - Acceptance: Linters configured
-"#;
+";
 
         let plan = PlanParser::parse(response).unwrap();
 
@@ -355,7 +355,7 @@ Goal: Set up the project foundation
 
     #[test]
     fn test_extract_tech_stack() {
-        let response = r#"# Project
+        let response = r"# Project
 
 ## Tech Stack
 - Rust
@@ -363,7 +363,7 @@ Goal: Set up the project foundation
 - Docker
 
 ## Iteration 1
-"#;
+";
 
         let plan = PlanParser::parse(response).unwrap();
         assert_eq!(plan.tech_stack, vec!["Rust", "PostgreSQL", "Docker"]);
@@ -371,7 +371,7 @@ Goal: Set up the project foundation
 
     #[test]
     fn test_parse_multiple_iterations() {
-        let response = r#"# Multi-Iteration Project
+        let response = r"# Multi-Iteration Project
 
 Planning phase with multiple iterations.
 
@@ -393,7 +393,7 @@ Goal: Implement main features
 2. **Add feature B** - Second feature
    - Agent: feature-agent
    - Dependencies: I2.T1
-"#;
+";
 
         let plan = PlanParser::parse(response).unwrap();
         assert_eq!(plan.iterations.len(), 2);
@@ -405,12 +405,12 @@ Goal: Implement main features
 
     #[test]
     fn test_parse_task_without_optional_fields() {
-        let response = r#"# Minimal Project
+        let response = r"# Minimal Project
 
 ## Iteration 1: Start
 
 1. **Basic task** - Just a simple task
-"#;
+";
 
         let plan = PlanParser::parse(response).unwrap();
         let task = &plan.iterations[0].tasks[0];
@@ -422,7 +422,7 @@ Goal: Implement main features
 
     #[test]
     fn test_parse_multiple_acceptance_criteria() {
-        let response = r#"# Project
+        let response = r"# Project
 
 ## Iteration 1: Test
 
@@ -430,7 +430,7 @@ Goal: Implement main features
    - Acceptance: First criterion
    - Acceptance: Second criterion
    - Acceptance: Third criterion
-"#;
+";
 
         let plan = PlanParser::parse(response).unwrap();
         let task = &plan.iterations[0].tasks[0];
@@ -442,13 +442,13 @@ Goal: Implement main features
 
     #[test]
     fn test_parse_complex_dependencies() {
-        let response = r#"# Project
+        let response = r"# Project
 
 ## Iteration 1: Test
 
 1. **Task with deps** - Multiple dependencies
    - Dependencies: I1.T1, I1.T2, I2.T1
-"#;
+";
 
         let plan = PlanParser::parse(response).unwrap();
         let task = &plan.iterations[0].tasks[0];
@@ -457,10 +457,10 @@ Goal: Implement main features
 
     #[test]
     fn test_parse_error_missing_project_name() {
-        let response = r#"## Iteration 1: Test
+        let response = r"## Iteration 1: Test
 
 1. **Task** - Description
-"#;
+";
 
         let result = PlanParser::parse(response);
         assert!(result.is_err());
@@ -485,7 +485,7 @@ Goal: Implement main features
 
     #[test]
     fn test_parse_tech_stack_with_asterisks() {
-        let response = r#"# Project
+        let response = r"# Project
 
 ## Technologies
 * Python
@@ -494,7 +494,7 @@ Goal: Implement main features
 
 ## Iteration 1: Start
 1. **Task** - Description
-"#;
+";
 
         let plan = PlanParser::parse(response).unwrap();
         assert_eq!(plan.tech_stack, vec!["Python", "Flask", "MongoDB"]);
@@ -502,12 +502,12 @@ Goal: Implement main features
 
     #[test]
     fn test_parse_task_with_depends_keyword() {
-        let response = r#"# Project
+        let response = r"# Project
 
 ## Iteration 1: Test
 1. **Task with depends** - Description
    - Depends: I1.T1, I1.T2
-"#;
+";
 
         let plan = PlanParser::parse(response).unwrap();
         let task = &plan.iterations[0].tasks[0];
@@ -516,12 +516,12 @@ Goal: Implement main features
 
     #[test]
     fn test_parse_iteration_without_goal() {
-        let response = r#"# Project
+        let response = r"# Project
 
 ## Iteration 1: No Goal Iteration
 
 1. **Task** - Do something
-"#;
+";
 
         let plan = PlanParser::parse(response).unwrap();
         let iter = &plan.iterations[0];
@@ -530,11 +530,11 @@ Goal: Implement main features
 
     #[test]
     fn test_parse_task_title_without_bold() {
-        let response = r#"# Project
+        let response = r"# Project
 
 ## Iteration 1: Test
 1. Plain Task Title - Description
-"#;
+";
 
         let plan = PlanParser::parse(response).unwrap();
         let task = &plan.iterations[0].tasks[0];
@@ -544,7 +544,7 @@ Goal: Implement main features
 
     #[test]
     fn test_parse_multiple_empty_lines() {
-        let response = r#"# Project
+        let response = r"# Project
 
 
 
@@ -554,7 +554,7 @@ Goal: Implement main features
 1. **Task** - Description
 
 
-"#;
+";
 
         let plan = PlanParser::parse(response).unwrap();
         assert_eq!(plan.iterations.len(), 1);
@@ -563,11 +563,11 @@ Goal: Implement main features
 
     #[test]
     fn test_parse_project_with_whitespace() {
-        let response = r#"#    Project with Spaces
+        let response = r"#    Project with Spaces
 
 ## Iteration 1: Test
 1. **Task** - Description
-"#;
+";
 
         let plan = PlanParser::parse(response).unwrap();
         assert_eq!(plan.project_name, "Project with Spaces");
@@ -575,12 +575,12 @@ Goal: Implement main features
 
     #[test]
     fn test_parse_empty_dependencies() {
-        let response = r#"# Project
+        let response = r"# Project
 
 ## Iteration 1: Test
 1. **Task** - Description
    - Dependencies:
-"#;
+";
 
         let plan = PlanParser::parse(response).unwrap();
         let task = &plan.iterations[0].tasks[0];
@@ -589,13 +589,13 @@ Goal: Implement main features
 
     #[test]
     fn test_parse_task_numbers_non_sequential() {
-        let response = r#"# Project
+        let response = r"# Project
 
 ## Iteration 1: Test
 1. **First** - One
 3. **Third** - Three
 5. **Fifth** - Five
-"#;
+";
 
         let plan = PlanParser::parse(response).unwrap();
         // Parser assigns sequential numbers internally
@@ -607,11 +607,11 @@ Goal: Implement main features
 
     #[test]
     fn test_parse_no_description() {
-        let response = r#"# Minimal
+        let response = r"# Minimal
 
 ## Iteration 1: Test
 1. **Task**
-"#;
+";
 
         let plan = PlanParser::parse(response).unwrap();
         assert_eq!(plan.description, None);

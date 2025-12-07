@@ -331,7 +331,7 @@ mod tests {
 
     #[test]
     fn test_template_multiline() {
-        let content = r#"
+        let content = r"
 # Agent Prompt
 
 Hello {{name}}!
@@ -339,7 +339,7 @@ Hello {{name}}!
 Your task is to {{task}}.
 
 Please complete this by {{deadline}}.
-"#;
+";
         let template = PromptTemplate::from_string(content);
         let mut context = PromptContext::new();
         context.set("name", "Agent");

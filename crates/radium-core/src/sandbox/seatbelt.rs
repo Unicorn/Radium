@@ -62,8 +62,9 @@ impl SeatbeltSandbox {
             }
         };
 
+        
         format!(
-            r#"(version 1)
+            r"(version 1)
 (debug deny)
 (allow default)
 {network_rule}
@@ -73,11 +74,12 @@ impl SeatbeltSandbox {
 (allow process-fork)
 (allow sysctl-read)
 (allow ipc-posix-shm*)
-"#
+"
         )
     }
 
     /// Restrictive sandbox profile.
+    #[allow(clippy::needless_raw_string_hashes)]
     fn restrictive_profile(&self) -> String {
         let network_rule = match self.config.network {
             NetworkMode::Open => "(allow network*)",

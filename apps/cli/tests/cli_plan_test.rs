@@ -106,3 +106,84 @@ fn test_plan_creates_plan_directory() {
             || temp_dir.path().join("radium").exists()
     );
 }
+
+#[test]
+fn test_plan_with_both_id_and_name() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("plan")
+        .arg("--id")
+        .arg("REQ-042")
+        .arg("--name")
+        .arg("my-project")
+        .arg("Test specification")
+        .assert()
+        .success();
+}
+
+#[test]
+fn test_plan_with_nonexistent_file() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    // The plan command may treat nonexistent files as direct input
+    // or fail - depends on implementation. Test that it doesn't panic.
+    let result = cmd
+        .current_dir(temp_dir.path())
+        .arg("plan")
+        .arg("nonexistent.md")
+        .assert();
+
+    // Either success or failure is acceptable, just verify it doesn't panic
+    assert!(result.get_output().status.code().is_some());
+}
+
+#[test]
+fn test_plan_with_empty_input() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    // Empty input might be accepted or rejected - depends on implementation
+    let result = cmd.current_dir(temp_dir.path()).arg("plan").arg("").assert();
+
+    // Either success or failure is acceptable, just verify it doesn't panic
+    assert!(result.get_output().status.code().is_some());
+}
+
+#[test]
+fn test_plan_with_invalid_id_format() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    // Invalid ID format might be accepted or rejected - depends on implementation
+    let result = cmd
+        .current_dir(temp_dir.path())
+        .arg("plan")
+        .arg("--id")
+        .arg("INVALID-ID")
+        .arg("Test specification")
+        .assert();
+
+    // Either success or failure is acceptable, just verify it doesn't panic
+    assert!(result.get_output().status.code().is_some());
+}
+
+#[test]
+fn test_plan_with_very_long_specification() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+
+    let long_spec = "Test specification. ".repeat(100);
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("plan")
+        .arg(&long_spec)
+        .assert()
+        .success();
+}

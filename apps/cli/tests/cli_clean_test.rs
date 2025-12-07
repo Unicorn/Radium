@@ -140,3 +140,86 @@ fn test_clean_shows_summary() {
     // The exact output format may vary, but command should succeed
     // and clean the artifacts (verified in test_clean_removes_artifacts)
 }
+
+#[test]
+fn test_clean_removes_logs() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+    create_test_artifacts(&temp_dir);
+
+    // Verify logs exist before cleaning
+    let logs_dir = temp_dir.path().join(".radium").join("_internals").join("logs");
+    assert!(logs_dir.join("test.log").exists());
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.current_dir(temp_dir.path()).arg("clean").assert().success();
+
+    // Verify logs are removed
+    assert!(!logs_dir.join("test.log").exists());
+}
+
+#[test]
+fn test_clean_removes_memory_files() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+    create_test_artifacts(&temp_dir);
+
+    // Verify memory files exist before cleaning
+    let memory_dir = temp_dir.path().join(".radium").join("_internals").join("memory");
+    assert!(memory_dir.join("test.json").exists());
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.current_dir(temp_dir.path()).arg("clean").assert().success();
+
+    // Verify memory files are removed
+    assert!(!memory_dir.join("test.json").exists());
+}
+
+#[test]
+fn test_clean_verbose_shows_details() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+    create_test_artifacts(&temp_dir);
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("clean")
+        .arg("--verbose")
+        .assert()
+        .success()
+        .stdout(
+            predicate::str::contains("Cleaning")
+                .or(predicate::str::contains("Removing"))
+                .or(predicate::str::contains("Cleaned")),
+        );
+}
+
+#[test]
+fn test_clean_preserves_plan_structure() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+    create_test_artifacts(&temp_dir);
+
+    // Create a plan file to verify it's not removed
+    let plan_dir = temp_dir.path().join(".radium").join("plan").join("backlog");
+    fs::create_dir_all(&plan_dir).unwrap();
+    fs::write(plan_dir.join("test-plan.json"), r#"{"test": "plan"}"#).unwrap();
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.current_dir(temp_dir.path()).arg("clean").assert().success();
+
+    // Verify plan file is preserved
+    assert!(plan_dir.join("test-plan.json").exists());
+}
+
+#[test]
+fn test_clean_with_invalid_directory() {
+    let temp_dir = TempDir::new().unwrap();
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.arg("clean")
+        .arg("--dir")
+        .arg("/nonexistent/path")
+        .assert()
+        .failure(); // Should fail if directory doesn't exist
+}

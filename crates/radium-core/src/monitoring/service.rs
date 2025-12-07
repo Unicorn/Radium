@@ -94,24 +94,28 @@ impl AgentRecord {
     }
 
     /// Sets the parent agent ID.
+    #[must_use]
     pub fn with_parent(mut self, parent_id: String) -> Self {
         self.parent_id = Some(parent_id);
         self
     }
 
     /// Sets the plan ID.
+    #[must_use]
     pub fn with_plan(mut self, plan_id: String) -> Self {
         self.plan_id = Some(plan_id);
         self
     }
 
     /// Sets the process ID.
+    #[must_use]
     pub fn with_process_id(mut self, process_id: u32) -> Self {
         self.process_id = Some(process_id);
         self
     }
 
     /// Sets the log file path.
+    #[must_use]
     pub fn with_log_file(mut self, log_file: String) -> Self {
         self.log_file = Some(log_file);
         self
@@ -330,6 +334,40 @@ impl MonitoringService {
 
         let records = stmt
             .query_map(params![plan_id], |row| {
+                Ok(AgentRecord {
+                    id: row.get(0)?,
+                    parent_id: row.get(1)?,
+                    plan_id: row.get(2)?,
+                    agent_type: row.get(3)?,
+                    status: AgentStatus::from_str(&row.get::<_, String>(4)?).unwrap(),
+                    process_id: row.get(5)?,
+                    start_time: row.get(6)?,
+                    end_time: row.get(7)?,
+                    exit_code: row.get(8)?,
+                    error_message: row.get(9)?,
+                    log_file: row.get(10)?,
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        Ok(records)
+    }
+
+    /// Lists all agents.
+    ///
+    /// # Returns
+    /// List of all agent records, ordered by start_time descending
+    ///
+    /// # Errors
+    /// Returns error if query fails
+    pub fn list_agents(&self) -> Result<Vec<AgentRecord>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, parent_id, plan_id, agent_type, status, process_id, start_time, end_time, exit_code, error_message, log_file
+             FROM agents ORDER BY start_time DESC"
+        )?;
+
+        let records = stmt
+            .query_map([], |row| {
                 Ok(AgentRecord {
                     id: row.get(0)?,
                     parent_id: row.get(1)?,

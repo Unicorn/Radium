@@ -230,7 +230,19 @@ pub async fn execute_workflow_parallel(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::WorkflowStep;
+    use crate::models::{Task, WorkflowStep};
+    use crate::storage::repositories::TaskRepository;
+    use crate::storage::{Database, SqliteTaskRepository};
+    use radium_orchestrator::{AgentExecutor, Orchestrator, SimpleAgent};
+    use serde_json::json;
+    use std::sync::Arc;
+
+    fn setup_test_engine() -> (WorkflowEngine, Arc<Orchestrator>, Arc<AgentExecutor>) {
+        let orchestrator = Arc::new(Orchestrator::new());
+        let executor = Arc::new(AgentExecutor::with_mock_model());
+        let engine = WorkflowEngine::new(Arc::clone(&orchestrator), Arc::clone(&executor));
+        (engine, orchestrator, executor)
+    }
 
     #[test]
     fn test_group_steps_by_order() {
@@ -278,4 +290,313 @@ mod tests {
         assert_eq!(groups[1].len(), 2); // Steps 2 and 3 (order 1)
         assert_eq!(groups[2].len(), 1); // Step 4 (order 2)
     }
+
+    #[test]
+    fn test_group_steps_by_order_single_step() {
+        let steps = vec![WorkflowStep::new(
+            "step-1".to_string(),
+            "Step 1".to_string(),
+            "".to_string(),
+            "task-1".to_string(),
+            0,
+        )];
+
+        let groups = group_steps_by_order(&steps);
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].len(), 1);
+    }
+
+    #[test]
+    fn test_group_steps_by_order_empty() {
+        let steps: Vec<WorkflowStep> = vec![];
+        let groups = group_steps_by_order(&steps);
+        assert_eq!(groups.len(), 0);
+    }
+
+    #[test]
+    fn test_group_steps_by_order_all_same_order() {
+        let steps = vec![
+            WorkflowStep::new(
+                "step-1".to_string(),
+                "Step 1".to_string(),
+                "".to_string(),
+                "task-1".to_string(),
+                0,
+            ),
+            WorkflowStep::new(
+                "step-2".to_string(),
+                "Step 2".to_string(),
+                "".to_string(),
+                "task-2".to_string(),
+                0,
+            ),
+            WorkflowStep::new(
+                "step-3".to_string(),
+                "Step 3".to_string(),
+                "".to_string(),
+                "task-3".to_string(),
+                0,
+            ),
+        ];
+
+        let groups = group_steps_by_order(&steps);
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].len(), 3); // All steps in same group
+    }
+
+    #[test]
+    fn test_group_steps_by_order_all_different_orders() {
+        let steps = vec![
+            WorkflowStep::new(
+                "step-1".to_string(),
+                "Step 1".to_string(),
+                "".to_string(),
+                "task-1".to_string(),
+                0,
+            ),
+            WorkflowStep::new(
+                "step-2".to_string(),
+                "Step 2".to_string(),
+                "".to_string(),
+                "task-2".to_string(),
+                1,
+            ),
+            WorkflowStep::new(
+                "step-3".to_string(),
+                "Step 3".to_string(),
+                "".to_string(),
+                "task-3".to_string(),
+                2,
+            ),
+        ];
+
+        let groups = group_steps_by_order(&steps);
+        assert_eq!(groups.len(), 3);
+        assert_eq!(groups[0].len(), 1);
+        assert_eq!(groups[1].len(), 1);
+        assert_eq!(groups[2].len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_execute_parallel_steps_success() {
+        let (engine, orchestrator, _executor) = setup_test_engine();
+        let mut db = Database::open_in_memory().unwrap();
+
+        // Register agent
+        let agent = Arc::new(SimpleAgent::new("test-agent".to_string(), "Test agent".to_string()));
+        orchestrator.register_agent(agent).await;
+
+        // Create tasks
+        {
+            let mut task_repo = SqliteTaskRepository::new(&mut db);
+            for i in 0..3 {
+                let task = Task::new(
+                    format!("task-{}", i),
+                    format!("Task {}", i),
+                    format!("Test task {}", i),
+                    "test-agent".to_string(),
+                    json!({"input": format!("test-{}", i)}),
+                );
+                task_repo.create(&task).unwrap();
+            }
+        }
+
+        // Create steps
+        let steps = vec![
+            WorkflowStep::new(
+                "step-0".to_string(),
+                "Step 0".to_string(),
+                "First step".to_string(),
+                "task-0".to_string(),
+                0,
+            ),
+            WorkflowStep::new(
+                "step-1".to_string(),
+                "Step 1".to_string(),
+                "Second step".to_string(),
+                "task-1".to_string(),
+                0,
+            ),
+            WorkflowStep::new(
+                "step-2".to_string(),
+                "Step 2".to_string(),
+                "Third step".to_string(),
+                "task-2".to_string(),
+                0,
+            ),
+        ];
+
+        let context = ExecutionContext::new("workflow-1".to_string());
+        let step_indices = vec![0, 1, 2];
+
+        let task_repo = SqliteTaskRepository::new(&mut db);
+        let results = execute_parallel_steps(&engine, &steps, &step_indices, &context, &task_repo)
+            .await
+            .unwrap();
+
+        assert_eq!(results.len(), 3);
+        assert!(results[0].success);
+        assert!(results[1].success);
+        assert!(results[2].success);
+    }
+
+    #[tokio::test]
+    async fn test_execute_parallel_steps_single_step() {
+        let (engine, orchestrator, _executor) = setup_test_engine();
+        let mut db = Database::open_in_memory().unwrap();
+
+        // Register agent
+        let agent = Arc::new(SimpleAgent::new("test-agent".to_string(), "Test agent".to_string()));
+        orchestrator.register_agent(agent).await;
+
+        // Create task
+        {
+            let mut task_repo = SqliteTaskRepository::new(&mut db);
+            let task = Task::new(
+                "task-0".to_string(),
+                "Task 0".to_string(),
+                "Test task".to_string(),
+                "test-agent".to_string(),
+                json!({"input": "test"}),
+            );
+            task_repo.create(&task).unwrap();
+        }
+
+        let steps = vec![WorkflowStep::new(
+            "step-0".to_string(),
+            "Step 0".to_string(),
+            "Single step".to_string(),
+            "task-0".to_string(),
+            0,
+        )];
+
+        let context = ExecutionContext::new("workflow-1".to_string());
+        let step_indices = vec![0];
+
+        let task_repo = SqliteTaskRepository::new(&mut db);
+        let results = execute_parallel_steps(&engine, &steps, &step_indices, &context, &task_repo)
+            .await
+            .unwrap();
+
+        assert_eq!(results.len(), 1);
+        assert!(results[0].success);
+    }
+
+    #[tokio::test]
+    async fn test_execute_parallel_steps_empty() {
+        let (engine, _orchestrator, _executor) = setup_test_engine();
+        let mut db = Database::open_in_memory().unwrap();
+
+        let steps: Vec<WorkflowStep> = vec![];
+        let context = ExecutionContext::new("workflow-1".to_string());
+        let step_indices: Vec<usize> = vec![];
+
+        let task_repo = SqliteTaskRepository::new(&mut db);
+        let results = execute_parallel_steps(&engine, &steps, &step_indices, &context, &task_repo)
+            .await
+            .unwrap();
+
+        assert_eq!(results.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_execute_parallel_steps_with_step_failure() {
+        let (engine, orchestrator, _executor) = setup_test_engine();
+        let mut db = Database::open_in_memory().unwrap();
+
+        // Register agent
+        let agent = Arc::new(SimpleAgent::new("test-agent".to_string(), "Test agent".to_string()));
+        orchestrator.register_agent(agent).await;
+
+        // Create tasks
+        {
+            let mut task_repo = SqliteTaskRepository::new(&mut db);
+            let task1 = Task::new(
+                "task-0".to_string(),
+                "Task 0".to_string(),
+                "Test task".to_string(),
+                "test-agent".to_string(),
+                json!({"input": "test"}),
+            );
+            task_repo.create(&task1).unwrap();
+
+            // Task with non-existent agent - will cause failure
+            let task2 = Task::new(
+                "task-1".to_string(),
+                "Task 1".to_string(),
+                "Failing task".to_string(),
+                "nonexistent-agent".to_string(),
+                json!({"input": "test"}),
+            );
+            task_repo.create(&task2).unwrap();
+        }
+
+        let steps = vec![
+            WorkflowStep::new(
+                "step-0".to_string(),
+                "Step 0".to_string(),
+                "First step".to_string(),
+                "task-0".to_string(),
+                0,
+            ),
+            WorkflowStep::new(
+                "step-1".to_string(),
+                "Step 1".to_string(),
+                "Failing step".to_string(),
+                "task-1".to_string(),
+                0,
+            ),
+        ];
+
+        let context = ExecutionContext::new("workflow-1".to_string());
+        let step_indices = vec![0, 1];
+
+        let task_repo = SqliteTaskRepository::new(&mut db);
+        let result =
+            execute_parallel_steps(&engine, &steps, &step_indices, &context, &task_repo).await;
+
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            WorkflowEngineError::Execution(msg) => {
+                assert!(msg.contains("Parallel step execution failed"));
+            }
+            _ => panic!("Expected Execution error"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_execute_parallel_steps_task_not_found() {
+        let (engine, _orchestrator, _executor) = setup_test_engine();
+        let mut db = Database::open_in_memory().unwrap();
+
+        // Create step referencing non-existent task
+        let step = WorkflowStep::new(
+            "step-0".to_string(),
+            "Step 0".to_string(),
+            "Step with missing task".to_string(),
+            "nonexistent-task".to_string(),
+            0,
+        );
+
+        let steps = vec![step];
+        let context = ExecutionContext::new("workflow-1".to_string());
+        let step_indices = vec![0];
+
+        let task_repo = SqliteTaskRepository::new(&mut db);
+        let result =
+            execute_parallel_steps(&engine, &steps, &step_indices, &context, &task_repo).await;
+
+        // Should fail because task doesn't exist
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            WorkflowEngineError::Execution(msg) => {
+                assert!(msg.contains("Parallel step execution failed"));
+            }
+            _ => panic!("Expected Execution error"),
+        }
+    }
+
+    // Note: Full integration tests for execute_workflow_parallel would require Arc<Mutex<Database>>
+    // pattern due to simultaneous TaskRepository and WorkflowRepository borrows.
+    // See executor.rs for similar pattern. The execute_parallel_steps function is thoroughly tested above.
 }

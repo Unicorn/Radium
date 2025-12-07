@@ -44,24 +44,28 @@ impl EngineMetadata {
     }
 
     /// Sets the CLI command.
+    #[must_use]
     pub fn with_cli_command(mut self, command: String) -> Self {
         self.cli_command = Some(command);
         self
     }
 
     /// Sets supported models.
+    #[must_use]
     pub fn with_models(mut self, models: Vec<String>) -> Self {
         self.models = models;
         self
     }
 
     /// Sets authentication requirement.
+    #[must_use]
     pub fn with_auth_required(mut self, required: bool) -> Self {
         self.requires_auth = required;
         self
     }
 
     /// Sets version.
+    #[must_use]
     pub fn with_version(mut self, version: String) -> Self {
         self.version = Some(version);
         self
@@ -104,18 +108,21 @@ impl ExecutionRequest {
     }
 
     /// Sets the system message.
+    #[must_use]
     pub fn with_system(mut self, system: String) -> Self {
         self.system = Some(system);
         self
     }
 
     /// Sets the temperature.
+    #[must_use]
     pub fn with_temperature(mut self, temperature: f32) -> Self {
         self.temperature = Some(temperature);
         self
     }
 
     /// Sets max tokens.
+    #[must_use]
     pub fn with_max_tokens(mut self, max_tokens: usize) -> Self {
         self.max_tokens = Some(max_tokens);
         self

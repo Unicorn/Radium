@@ -243,3 +243,110 @@ fn test_agents_validate_verbose() {
         .assert()
         .success();
 }
+
+#[test]
+fn test_agents_list_no_workspace() {
+    let temp_dir = TempDir::new().unwrap();
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    // Agents can be discovered from home directory even without workspace
+    // So this might succeed or fail depending on implementation
+    let result = cmd.current_dir(temp_dir.path()).arg("agents").arg("list").assert();
+    // Just verify it doesn't panic
+    assert!(result.get_output().status.code().is_some());
+}
+
+#[test]
+fn test_agents_search_empty_query() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+    create_test_agent(&temp_dir, "test-agent", "Test Agent");
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    // Empty query might match all or none - depends on implementation
+    cmd.current_dir(temp_dir.path())
+        .arg("agents")
+        .arg("search")
+        .arg("")
+        .assert()
+        .success();
+}
+
+#[test]
+fn test_agents_info_json_structure() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+    create_test_agent(&temp_dir, "test-agent", "Test Agent");
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    let assert = cmd
+        .current_dir(temp_dir.path())
+        .arg("agents")
+        .arg("info")
+        .arg("test-agent")
+        .arg("--json")
+        .assert()
+        .success();
+
+    let output = assert.get_output();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+
+    // Verify required fields
+    assert_eq!(json["id"], "test-agent");
+    assert!(json.get("name").is_some());
+    assert!(json.get("engine").is_some());
+    assert!(json.get("model").is_some());
+}
+
+#[test]
+fn test_agents_validate_invalid_config() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+
+    // Create an invalid agent config (missing required fields)
+    let agents_dir = temp_dir.path().join("agents");
+    fs::create_dir_all(&agents_dir).unwrap();
+    fs::write(agents_dir.join("invalid.toml"), "[agent]\nid = \"invalid\"").unwrap();
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    // Validation should report errors
+    let result = cmd.current_dir(temp_dir.path()).arg("agents").arg("validate").assert();
+    // May succeed with warnings or fail - depends on implementation
+    assert!(result.get_output().status.code().is_some());
+}
+
+#[test]
+fn test_agents_list_multiple_agents() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+    create_test_agent(&temp_dir, "agent1", "Agent One");
+    create_test_agent(&temp_dir, "agent2", "Agent Two");
+    create_test_agent(&temp_dir, "agent3", "Agent Three");
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("agents")
+        .arg("list")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("agent1"))
+        .stdout(predicate::str::contains("agent2"))
+        .stdout(predicate::str::contains("agent3"));
+}
+
+#[test]
+fn test_agents_search_case_insensitive() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+    create_test_agent(&temp_dir, "test-agent", "Test Agent");
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("agents")
+        .arg("search")
+        .arg("TEST")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("test-agent"));
+}

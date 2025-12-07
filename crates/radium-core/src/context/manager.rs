@@ -2,6 +2,7 @@
 
 use super::error::Result;
 use super::injection::{ContextInjector, InjectionDirective};
+use crate::learning::LearningStore;
 use crate::memory::MemoryStore;
 use crate::workspace::{PlanDiscovery, RequirementId, Workspace};
 use std::path::Path;
@@ -13,6 +14,7 @@ use std::path::Path;
 /// - Memory from previous agent executions
 /// - File contents via injection syntax
 /// - Architecture documentation
+/// - Learning context from past mistakes and successes
 pub struct ContextManager {
     /// Workspace root path.
     workspace_root: std::path::PathBuf,
@@ -22,6 +24,9 @@ pub struct ContextManager {
 
     /// Memory store for agent outputs.
     memory_store: Option<MemoryStore>,
+
+    /// Learning store for past mistakes and strategies.
+    learning_store: Option<LearningStore>,
 }
 
 impl ContextManager {
@@ -33,7 +38,12 @@ impl ContextManager {
         let workspace_root = workspace.root().to_path_buf();
         let injector = ContextInjector::new(&workspace_root);
 
-        Self { workspace_root, injector, memory_store: None }
+        Self {
+            workspace_root,
+            injector,
+            memory_store: None,
+            learning_store: None,
+        }
     }
 
     /// Creates a context manager for a specific plan.
@@ -54,7 +64,15 @@ impl ContextManager {
         // Initialize memory store for this plan
         let memory_store = MemoryStore::new(&workspace_root, requirement_id)?;
 
-        Ok(Self { workspace_root, injector, memory_store: Some(memory_store) })
+        // Initialize learning store (optional - may fail if directory doesn't exist)
+        let learning_store = LearningStore::new(&workspace_root).ok();
+
+        Ok(Self {
+            workspace_root,
+            injector,
+            memory_store: Some(memory_store),
+            learning_store,
+        })
     }
 
     /// Gathers plan context information.
@@ -136,6 +154,46 @@ impl ContextManager {
         }
     }
 
+    /// Gathers learning context from past mistakes and successes.
+    ///
+    /// # Arguments
+    /// * `max_per_category` - Maximum examples per category to include (default: 3)
+    ///
+    /// # Returns
+    /// Learning context as a formatted string, or None if no learning store is available
+    pub fn gather_learning_context(&self, max_per_category: usize) -> Option<String> {
+        let Some(ref learning_store) = self.learning_store else {
+            return None;
+        };
+
+        let context = learning_store.generate_context(max_per_category);
+        if context.is_empty() {
+            None
+        } else {
+            Some(format!("# Learning Context\n\n{}\n", context))
+        }
+    }
+
+    /// Gathers skillbook context from learned strategies.
+    ///
+    /// # Arguments
+    /// * `max_per_section` - Maximum skills per section to include (default: 5)
+    ///
+    /// # Returns
+    /// Skillbook context as a formatted string, or None if no learning store is available
+    pub fn gather_skillbook_context(&self, max_per_section: usize) -> Option<String> {
+        let Some(ref learning_store) = self.learning_store else {
+            return None;
+        };
+
+        let context = learning_store.as_context(max_per_section);
+        if context.is_empty() {
+            None
+        } else {
+            Some(format!("{}\n", context))
+        }
+    }
+
     /// Processes injection directives and returns injected content.
     ///
     /// # Arguments
@@ -206,6 +264,18 @@ impl ContextManager {
             context.push_str("\n---\n\n");
         }
 
+        // Add learning context if available (mistakes and preferences)
+        if let Some(learning_ctx) = self.gather_learning_context(3) {
+            context.push_str(&learning_ctx);
+            context.push_str("\n---\n\n");
+        }
+
+        // Add skillbook context if available (strategies and skills)
+        if let Some(skillbook_ctx) = self.gather_skillbook_context(5) {
+            context.push_str(&skillbook_ctx);
+            context.push_str("\n---\n\n");
+        }
+
         // Process injection directives
         if !directives.is_empty() {
             let injected = self.process_directives(&directives)?;
@@ -228,6 +298,21 @@ impl ContextManager {
     /// Returns a mutable reference to the memory store if initialized.
     pub fn memory_store_mut(&mut self) -> Option<&mut MemoryStore> {
         self.memory_store.as_mut()
+    }
+
+    /// Returns a reference to the learning store if initialized.
+    pub fn learning_store(&self) -> Option<&LearningStore> {
+        self.learning_store.as_ref()
+    }
+
+    /// Returns a mutable reference to the learning store if initialized.
+    pub fn learning_store_mut(&mut self) -> Option<&mut LearningStore> {
+        self.learning_store.as_mut()
+    }
+
+    /// Sets the learning store.
+    pub fn set_learning_store(&mut self, learning_store: LearningStore) {
+        self.learning_store = Some(learning_store);
     }
 }
 

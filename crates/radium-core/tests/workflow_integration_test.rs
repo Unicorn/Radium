@@ -15,7 +15,7 @@ async fn test_workflow_execution_end_to_end() {
     let db = Arc::new(std::sync::Mutex::new(Database::open_in_memory().unwrap()));
     let orchestrator = Arc::new(Orchestrator::new());
     let executor = Arc::new(AgentExecutor::with_mock_model());
-    let workflow_executor = WorkflowExecutor::new(Arc::clone(&orchestrator), Arc::clone(&executor));
+    let workflow_executor = WorkflowExecutor::new(Arc::clone(&orchestrator), Arc::clone(&executor), None);
 
     // Register agent
     let agent = Arc::new(SimpleAgent::new("test-agent".to_string(), "Test agent".to_string()));
@@ -89,7 +89,7 @@ async fn test_workflow_error_recovery() {
     let db = Arc::new(std::sync::Mutex::new(Database::open_in_memory().unwrap()));
     let orchestrator = Arc::new(Orchestrator::new());
     let executor = Arc::new(AgentExecutor::with_mock_model());
-    let workflow_executor = WorkflowExecutor::new(Arc::clone(&orchestrator), Arc::clone(&executor));
+    let workflow_executor = WorkflowExecutor::new(Arc::clone(&orchestrator), Arc::clone(&executor), None);
 
     // Register agent
     let agent = Arc::new(SimpleAgent::new("test-agent".to_string(), "Test agent".to_string()));
@@ -156,7 +156,7 @@ async fn test_workflow_state_persistence() {
     let db = Arc::new(std::sync::Mutex::new(Database::open_in_memory().unwrap()));
     let orchestrator = Arc::new(Orchestrator::new());
     let executor = Arc::new(AgentExecutor::with_mock_model());
-    let workflow_executor = WorkflowExecutor::new(Arc::clone(&orchestrator), Arc::clone(&executor));
+    let workflow_executor = WorkflowExecutor::new(Arc::clone(&orchestrator), Arc::clone(&executor), None);
 
     // Register agent
     let agent = Arc::new(SimpleAgent::new("test-agent".to_string(), "Test agent".to_string()));

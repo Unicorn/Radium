@@ -64,6 +64,9 @@ colored = "2.1"
 anyhow.workspace = true
 serde_json.workspace = true
 
+# System directories
+dirs = "5.0"
+
 [dev-dependencies]
 tempfile = "3.8"
 assert_cmd = "2.0"

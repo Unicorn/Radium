@@ -136,7 +136,7 @@ impl Default for PlanGenerator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use radium_models::{ModelFactory, ModelType};
+    use radium_models::ModelFactory;
 
     #[test]
     fn test_plan_generator_new() {

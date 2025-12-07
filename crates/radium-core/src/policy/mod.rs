@@ -28,7 +28,7 @@
 //! # }
 //! ```
 
-mod constitution;
+pub mod constitution;
 mod rules;
 mod types;
 

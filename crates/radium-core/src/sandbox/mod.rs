@@ -26,6 +26,7 @@
 mod config;
 mod docker;
 mod error;
+#[allow(clippy::module_inception)]
 mod sandbox;
 mod seatbelt;
 

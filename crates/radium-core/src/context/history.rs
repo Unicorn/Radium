@@ -68,11 +68,8 @@ impl HistoryManager {
         fs::create_dir_all(data_dir)?;
 
         let history_path = data_dir.join("history.json");
-        let histories = if history_path.exists() {
-            Self::load_history(&history_path)?
-        } else {
-            HashMap::new()
-        };
+        let histories =
+            if history_path.exists() { Self::load_history(&history_path)? } else { HashMap::new() };
 
         Ok(Self { history_path, histories })
     }
@@ -95,14 +92,9 @@ impl HistoryManager {
         output: String,
     ) -> Result<()> {
         let session_id = session_id.unwrap_or("default").to_string();
-        let interaction = Interaction {
-            goal,
-            plan,
-            output,
-            timestamp: Utc::now(),
-        };
+        let interaction = Interaction { goal, plan, output, timestamp: Utc::now() };
 
-        let session_history = self.histories.entry(session_id).or_insert_with(Vec::new);
+        let session_history = self.histories.entry(session_id).or_default();
         session_history.push(interaction);
 
         // Keep only last MAX_INTERACTIONS
@@ -134,11 +126,8 @@ impl HistoryManager {
         }
 
         // Get last SUMMARY_INTERACTIONS interactions
-        let recent: Vec<&Interaction> = session_history
-            .iter()
-            .rev()
-            .take(SUMMARY_INTERACTIONS)
-            .collect();
+        let recent: Vec<&Interaction> =
+            session_history.iter().rev().take(SUMMARY_INTERACTIONS).collect();
 
         let mut summary = String::from("History Context:\n");
         for (i, interaction) in recent.iter().rev().enumerate() {
@@ -209,7 +198,7 @@ mod tests {
     #[test]
     fn test_history_manager_new() {
         let temp_dir = TempDir::new().unwrap();
-        let manager = HistoryManager::new(temp_dir.path()).unwrap();
+        let _manager = HistoryManager::new(temp_dir.path()).unwrap();
         assert!(temp_dir.path().join("history.json").exists());
     }
 
@@ -321,4 +310,3 @@ mod tests {
         assert!(summary.is_empty());
     }
 }
-

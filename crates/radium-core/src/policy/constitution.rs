@@ -6,7 +6,7 @@
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use tokio::time::{interval, Duration};
+use tokio::time::{Duration, interval};
 
 /// Maximum number of rules per session.
 const MAX_RULES_PER_SESSION: usize = 50;
@@ -50,9 +50,7 @@ pub struct ConstitutionManager {
 impl ConstitutionManager {
     /// Creates a new constitution manager.
     pub fn new() -> Self {
-        let manager = Self {
-            constitutions: Arc::new(RwLock::new(HashMap::new())),
-        };
+        let manager = Self { constitutions: Arc::new(RwLock::new(HashMap::new())) };
 
         // Start cleanup task
         manager.start_cleanup_task();
@@ -73,7 +71,8 @@ impl ConstitutionManager {
         }
 
         let mut constitutions = self.constitutions.write().unwrap();
-        let entry = constitutions.entry(session_id.to_string()).or_insert_with(ConstitutionEntry::new);
+        let entry =
+            constitutions.entry(session_id.to_string()).or_insert_with(ConstitutionEntry::new);
 
         // Enforce max rules limit (remove oldest if at limit)
         if entry.rules.len() >= MAX_RULES_PER_SESSION {
@@ -95,7 +94,8 @@ impl ConstitutionManager {
         }
 
         let mut constitutions = self.constitutions.write().unwrap();
-        let entry = constitutions.entry(session_id.to_string()).or_insert_with(ConstitutionEntry::new);
+        let entry =
+            constitutions.entry(session_id.to_string()).or_insert_with(ConstitutionEntry::new);
 
         // Limit to MAX_RULES_PER_SESSION
         let rules: Vec<String> = rules.into_iter().take(MAX_RULES_PER_SESSION).collect();
@@ -112,7 +112,7 @@ impl ConstitutionManager {
     /// Vector of rules for the session, or empty vector if session not found
     pub fn get_constitution(&self, session_id: &str) -> Vec<String> {
         let constitutions = self.constitutions.read().unwrap();
-        let entry = match constitutions.get(session_id) {
+        let _entry = match constitutions.get(session_id) {
             Some(entry) => entry,
             None => return vec![],
         };
@@ -158,8 +158,6 @@ impl Default for ConstitutionManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::thread;
-    use std::time::Duration as StdDuration;
 
     #[test]
     fn test_constitution_manager_new() {
@@ -200,7 +198,10 @@ mod tests {
     fn test_reset_constitution() {
         let manager = ConstitutionManager::new();
         manager.update_constitution("session-1", "old rule".to_string());
-        manager.reset_constitution("session-1", vec!["new rule 1".to_string(), "new rule 2".to_string()]);
+        manager.reset_constitution(
+            "session-1",
+            vec!["new rule 1".to_string(), "new rule 2".to_string()],
+        );
 
         let rules = manager.get_constitution("session-1");
         assert_eq!(rules.len(), 2);
@@ -212,9 +213,8 @@ mod tests {
     #[test]
     fn test_reset_constitution_max_rules() {
         let manager = ConstitutionManager::new();
-        let many_rules: Vec<String> = (0..=MAX_RULES_PER_SESSION)
-            .map(|i| format!("rule-{}", i))
-            .collect();
+        let many_rules: Vec<String> =
+            (0..=MAX_RULES_PER_SESSION).map(|i| format!("rule-{}", i)).collect();
         manager.reset_constitution("session-1", many_rules);
 
         let rules = manager.get_constitution("session-1");
@@ -253,4 +253,3 @@ mod tests {
         assert!(rules.contains(&format!("rule-{}", MAX_RULES_PER_SESSION)));
     }
 }
-

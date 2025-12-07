@@ -64,6 +64,7 @@ impl TelemetryRecord {
     }
 
     /// Sets token counts.
+    #[must_use]
     pub fn with_tokens(mut self, input: u64, output: u64) -> Self {
         self.input_tokens = input;
         self.output_tokens = output;
@@ -72,6 +73,7 @@ impl TelemetryRecord {
     }
 
     /// Sets cache statistics.
+    #[must_use]
     pub fn with_cache_stats(mut self, cached: u64, creation: u64, read: u64) -> Self {
         self.cached_tokens = cached;
         self.cache_creation_tokens = creation;
@@ -80,6 +82,7 @@ impl TelemetryRecord {
     }
 
     /// Sets model information.
+    #[must_use]
     pub fn with_model(mut self, model: String, provider: String) -> Self {
         self.model = Some(model);
         self.provider = Some(provider);

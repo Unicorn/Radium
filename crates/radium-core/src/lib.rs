@@ -25,7 +25,7 @@ pub mod config;
 pub mod context;
 pub mod engines;
 pub mod error;
-// pub mod learning;  // Module not yet implemented
+pub mod learning;
 pub mod memory;
 pub mod models;
 pub mod monitoring;
@@ -61,11 +61,11 @@ pub use engines::{
     ExecutionResponse, Result as EngineResult, TokenUsage,
 };
 pub use error::{RadiumError, Result};
-// Learning module not yet implemented
-// pub use learning::{
-//     CategorySummary, LearningEntry, LearningError, LearningStore, LearningType,
-//     Result as LearningResult, STANDARD_CATEGORIES,
-// };
+pub use learning::{
+    CategorySummary, LearningEntry, LearningError, LearningStore, LearningType, Skill, SkillStatus,
+    UpdateBatch, UpdateOperation, UpdateOperationType, Result as LearningResult, STANDARD_CATEGORIES,
+    STANDARD_SECTIONS,
+};
 pub use memory::{
     FileAdapter, MemoryAdapter, MemoryEntry, MemoryError, MemoryStore, Result as MemoryResult,
 };
@@ -78,12 +78,13 @@ pub use monitoring::{
     Result as MonitoringResult, TelemetryParser, TelemetryRecord, TelemetryTracking,
     initialize_schema,
 };
+pub use oversight::{
+    MetacognitiveError, MetacognitiveService, OversightRequest, OversightResponse,
+    Result as OversightResult,
+};
 pub use planning::{
     ExecutionConfig, ExecutionError, ParsedIteration, ParsedPlan, ParsedTask, PlanExecutor,
     PlanGenerator, PlanGeneratorConfig, PlanParser, TaskResult as PlanTaskResult,
-};
-pub use oversight::{
-    MetacognitiveError, MetacognitiveService, OversightRequest, OversightResponse, Result as OversightResult,
 };
 pub use policy::{
     ApprovalMode, ConstitutionManager, PolicyAction, PolicyDecision, PolicyEngine, PolicyError,

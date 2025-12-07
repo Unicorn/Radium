@@ -2,7 +2,7 @@
 
 > **Goal**: Achieve complete legacy system feature parity in 10 steps  
 > **Reference**: See [legacy-system-feature-backlog.md](./legacy-system-feature-backlog.md) for complete feature catalog  
-> **Last Updated**: 2025-12-02 (includes gemini-cli enhancements)
+> **Last Updated**: 2025-01-XX (includes vibe-check integration and gap analysis)
 
 ## Overview
 
@@ -252,10 +252,25 @@ Implement agent configuration and prompt system matching legacy system's structu
 
 **Reference**: [Feature Backlog Section 1.1](./legacy-system-feature-backlog.md#11-core-commands)
 
+#### 2.5: CLI Diagnostics Command (3-4h) ✅
+**Files**: 
+- `apps/cli/src/commands/doctor.rs` (new)
+
+- ✅ Added `rad doctor` command for environment validation
+- ✅ Check workspace structure and validity
+- ✅ Validate environment files (.env detection in CWD and home)
+- ✅ Check port availability (for future HTTP server)
+- ✅ Validate workspace directory structure
+- ✅ Provide actionable error messages
+- ✅ JSON output support
+
+**Reference**: Vibe-check-mcp-server `src/cli/doctor.ts`
+
 ### Deliverables
 
 - ✅ `rad status` command working
 - ✅ `rad clean` command working
+- ✅ `rad doctor` command working
 - ✅ All commands registered and implemented
 - ❌ **Tests for CLI commands (0% coverage - CRITICAL GAP)**
   - [ ] Integration tests for all commands using `assert_cmd`
@@ -268,6 +283,7 @@ Implement agent configuration and prompt system matching legacy system's structu
 - CLI structure matches legacy system
 - `rad status` shows workspace and engine status
 - `rad clean` removes artifacts safely
+- `rad doctor` validates environment and provides diagnostics
 - All commands registered without panics
 - **TESTING**: All CLI commands have integration tests with >90% coverage
 
@@ -342,12 +358,26 @@ Implement workflow behaviors (loop, trigger, checkpoint) matching legacy system'
 
 **Reference**: [Gemini CLI Enhancements](../features/gemini-cli-enhancements.md#policy-engine-for-tool-execution)
 
+#### 3.6: Phase-Aware Interrupt Integration (3-4h) ✅
+**Files**: 
+- `crates/radium-core/src/workflow/behaviors/vibe_check.rs` (extended)
+- `crates/radium-core/src/workflow/engine.rs` (extended)
+
+- ✅ Detect current workflow phase (planning/implementation/review)
+- ✅ Customize vibe_check prompts based on phase
+- ✅ Integrate with existing `PlanStatus` and `Iteration` tracking
+- ✅ Phase-specific oversight strategies
+
+**Reference**: Vibe-check-mcp-server `docs/agent-prompting.md`
+
 ### Deliverables
 
 - ✅ Workflow behaviors working
 - ✅ Template system functional
 - ✅ Resume from checkpoint working
-- ✅ Tests for all behaviors (27 behavior tests + 21 policy tests)
+- ✅ VibeCheck behavior integrated
+- ✅ Phase-aware oversight support
+- ✅ Tests for all behaviors (27 behavior tests + 21 policy tests + vibe_check tests)
 - ⚠️ **Workflow service tests (partial - 5 tests added, need more)**
   - [x] Basic workflow service tests (5 tests)
   - [ ] Workflow execution path tests
@@ -359,6 +389,7 @@ Implement workflow behaviors (loop, trigger, checkpoint) matching legacy system'
 - Loop behavior steps back correctly
 - Trigger behavior executes agents dynamically
 - Checkpoint behavior saves and resumes state
+- VibeCheck behavior triggers oversight at checkpoints
 - Behavior.json control file works
 - **TESTING**: Workflow service has >90% test coverage (currently ~70%)
 
@@ -366,6 +397,7 @@ Implement workflow behaviors (loop, trigger, checkpoint) matching legacy system'
 **Test Requirements**: See [TEST_COVERAGE_REPORT.md](./TEST_COVERAGE_REPORT.md#step-3-workflow-behaviors)
 - Policy engine controls tool execution based on rules
 - Approval modes work correctly
+- Session constitution rules enforced
 
 ---
 
@@ -482,11 +514,26 @@ Implement plan-scoped memory and context management for agent execution.
 
 **Reference**: [Gemini CLI Enhancements](../features/gemini-cli-enhancements.md#custom-commands-toml-based)
 
+#### 5.5: History Continuity and Summarization (4-5h) ✅
+**Files**: 
+- `crates/radium-core/src/context/manager.rs` (extended)
+- `crates/radium-core/src/context/history.rs` (new)
+
+- ✅ Added session-based conversation history tracking
+- ✅ Implemented history summarization (last 5 interactions)
+- ✅ Prevent context window bloat with smart truncation
+- ✅ Integrated with existing `ContextManager`
+- ✅ Support history retrieval by session ID
+- ✅ Automatic cleanup of old interactions (max 10 per session)
+
+**Reference**: Vibe-check-mcp-server `src/utils/state.ts`
+
 ### Deliverables
 
 - ✅ Memory system working
 - ✅ Context gathering functional
 - ✅ Input injection working
+- ✅ History continuity functional
 - ✅ Tests for memory operations
 
 ### Success Criteria
@@ -497,6 +544,8 @@ Implement plan-scoped memory and context management for agent execution.
 - Memory persists across agent executions
 - Can define and use custom TOML commands
 - Shell and file injection syntax works correctly
+- Can track conversation history per session
+- History summaries prevent context window bloat
 
 ---
 
@@ -649,6 +698,144 @@ Implement sandboxing support for safe agent execution, especially for shell comm
 - Can execute agents with macOS Seatbelt restrictions
 - Sandbox profiles work correctly
 - Network and file system access properly controlled
+
+---
+
+## Step 6.6: Metacognitive Oversight System
+
+**Status**: ✅ Complete  
+**Priority**: 🟡 High  
+**Est. Time**: 20-25 hours (Completed)  
+**Dependencies**: Step 3 (Workflow Behaviors), Step 5 (Memory & Context)
+
+### Objectives
+
+Implement Chain-Pattern Interrupt (CPI) system for agent oversight, preventing reasoning lock-in and improving alignment. Research shows +27% success rate and -41% harmful actions.
+
+### Tasks
+
+#### 6.6.1: VibeCheck Behavior Implementation (6-8h) ✅
+**Files**: 
+- `crates/radium-core/src/workflow/behaviors/vibe_check.rs`
+- `crates/radium-core/src/workflow/behaviors/types.rs` (extended)
+
+- ✅ Added `VibeCheck` to `BehaviorActionType` enum
+- ✅ Implemented `VibeCheckEvaluator` trait
+- ✅ Created `VibeCheckDecision` struct with risk scores and advice
+- ✅ Integrated with existing behavior.json system
+- ✅ Support for automatic triggers at workflow checkpoints
+- ✅ Phase-aware context support (planning/implementation/review)
+
+**Reference**: Vibe-check-mcp-server `src/tools/vibeCheck.ts`
+
+#### 6.6.2: Metacognitive LLM Service (5-6h) ✅
+**Files**: 
+- `crates/radium-core/src/oversight/mod.rs`
+- `crates/radium-core/src/oversight/metacognitive.rs`
+
+- ✅ Created oversight service that uses second LLM for meta-feedback
+- ✅ Implemented phase-aware prompts (planning/implementation/review)
+- ✅ Support for multiple LLM providers via Model trait
+- ✅ Generate structured output: `{ advice, risk_score, traits, uncertainties }`
+- ✅ Fallback to basic questions on API failure
+- ✅ Risk score estimation from advice content
+- ✅ Trait and uncertainty extraction
+
+**Reference**: Vibe-check-mcp-server `src/utils/llm.ts`, `src/tools/vibeCheck.ts`
+
+#### 6.6.3: Session Constitution System (4-5h) ✅
+**Files**: 
+- `crates/radium-core/src/policy/constitution.rs`
+- `crates/radium-core/src/policy/mod.rs` (extended)
+
+- ✅ Extended `PolicyEngine` module with session-scoped rules
+- ✅ Implemented `ConstitutionManager` with TTL-based cleanup
+- ✅ Added constitution tools: `update_constitution`, `reset_constitution`, `get_constitution`
+- ✅ Integration with workflow execution context
+- ✅ Support per-session rule limits (max 50 rules)
+- ✅ Automatic cleanup of stale sessions (1 hour TTL)
+
+**Reference**: Vibe-check-mcp-server `src/tools/constitution.ts`
+
+#### 6.6.4: Learning from Mistakes System + ACE Skillbook (20-27h) ✅ Complete
+**Files**: 
+- `crates/radium-core/src/learning/mod.rs` ✅
+- `crates/radium-core/src/learning/store.rs` ✅
+- `crates/radium-core/src/learning/updates.rs` ✅ (new)
+- `crates/radium-core/src/learning/skill_manager.rs` ✅ (new)
+
+**Phase 1: Basic Integration (4-5h)** ✅
+- ✅ Exported learning module from `lib.rs`
+- ✅ Integrated `LearningStore` with `ContextManager` for gathering learning context
+- ✅ Integrated learning context into `MetacognitiveService` oversight prompts
+- ✅ Added `gather_learning_context()` method to `ContextManager`
+
+**Phase 2: ACE Skillbook Features (6-8h)** ✅
+- ✅ Added `Skill` struct with helpful/harmful/neutral counts
+- ✅ Added skill sections: task_guidance, tool_usage, error_handling, code_patterns, communication, general
+- ✅ Extended `LearningStore` with skillbook methods:
+  - `add_skill()` - Add new strategies
+  - `tag_skill()` - Increment helpful/harmful/neutral counts
+  - `get_skills_by_section()` - Retrieve skills by category
+  - `as_context()` - Format skills for prompt injection
+- ✅ Created `UpdateOperation` enum and `UpdateBatch` struct for incremental updates
+- ✅ Implemented `apply_update()` method to prevent context collapse
+
+**Phase 3: SkillManager Component (4-5h)** ✅
+- ✅ Created `SkillManager` module that generates updates from `OversightResponse`
+- ✅ Analyzes helpful/harmful patterns from oversight feedback
+- ✅ Generates structured `UpdateBatch` with ADD/UPDATE/TAG/REMOVE operations
+- ✅ JSON parsing for skill curation responses
+
+**Phase 4: Enhanced Reflector Integration (2-3h)** ✅
+- ✅ Extended `OversightResponse` with `helpful_patterns` and `harmful_patterns` fields
+- ✅ Added pattern extraction methods to `MetacognitiveService`
+- ✅ Connected reflector output to SkillManager for skill extraction
+
+**Phase 5: Context Injection (2-3h)** ✅
+- ✅ Enhanced `ContextManager::build_context()` to inject skillbook strategies
+- ✅ Added `gather_skillbook_context()` method
+- ✅ Skills formatted with helpful/harmful counts for agent prompts
+
+**Phase 6: Workflow Integration Helper (2-3h)** ✅
+- ✅ Created `LearningIntegration` helper for workflow execution
+- ✅ `process_task_learning()` method automates the learning loop
+- ✅ Integrates MetacognitiveService, SkillManager, and LearningStore
+- ✅ Configurable learning (can be enabled/disabled)
+
+**Original Features (Still Supported)**:
+- ✅ `LearningStore` with categorized mistake tracking
+- ✅ `LearningEntry` with categories: "Complex Solution Bias", "Feature Creep", "Premature Implementation", "Misalignment", "Overtooling"
+- ✅ Similarity detection to prevent duplicate entries
+- ✅ File-based storage pattern
+- ✅ Learning types: mistake, preference, success
+- ✅ Category normalization and summaries
+
+**Status**: ✅ Complete - ACE learning integrated with existing mistake tracking system.
+
+**Reference**: 
+- Vibe-check-mcp-server `src/tools/vibeLearn.ts`, `src/utils/storage.ts`
+- ACE paper (arXiv:2510.04618) and implementation in `old/agentic-context-engine/`
+
+### Deliverables
+
+- ✅ VibeCheck workflow behavior working
+- ✅ Metacognitive oversight service operational
+- ✅ Session constitution system integrated with policy engine
+- ✅ Learning system exported, integrated, and enhanced with ACE skillbook
+- ✅ Tests for all oversight components
+
+### Success Criteria
+
+- ✅ Agents can trigger vibe_check at workflow checkpoints
+- ✅ Oversight LLM provides phase-aware feedback
+- ✅ Session rules enforced during workflow execution
+- ✅ Mistakes and skills are logged and fed into oversight prompts
+- ✅ Skillbook strategies injected into agent context
+- ✅ Risk scores can trigger automatic workflow behaviors
+- ✅ Learning loop complete: oversight → patterns → skillbook updates → context injection
+
+**Why Next**: Critical for agent safety and alignment. Research shows +27% success rate and -41% harmful actions. Fits naturally after workflow behaviors and memory systems are complete.
 
 ---
 
@@ -988,6 +1175,30 @@ Implement remaining legacy system features for complete parity.
 
 **Reference**: [Gemini CLI Enhancements](../features/gemini-cli-enhancements.md#hooks-system)
 
+#### 10.8: Agent Prompting Best Practices Documentation (2-3h)
+**Files**: 
+- `docs/guides/agent-oversight-guide.md` (new)
+- `docs/guides/agent-creation-guide.md` (extend)
+
+- Document system prompt patterns for effective oversight integration
+- Guidance on treating oversight as pattern interrupts
+- Dosage recommendations (10-20% of steps)
+- Examples of phase-aware prompting
+- Integration patterns for vibe_check tool
+
+**Reference**: Vibe-check-mcp-server `docs/agent-prompting.md`
+
+#### 10.9: Structured Output for Oversight (2-3h)
+**Files**: 
+- `crates/radium-core/src/oversight/metacognitive.rs` (extend)
+
+- Enhance vibe_check output to include structured JSON
+- Return `{ advice, risk_score, traits, uncertainties }` envelope
+- Enable programmatic decision-making in workflows
+- Preserve human-readable feedback
+
+**Reference**: Vibe-check-mcp-server roadmap (Priority 1)
+
 ### Deliverables
 
 - ✅ All remaining CLI commands
@@ -1004,6 +1215,8 @@ Implement remaining legacy system features for complete parity.
 - All CLI commands functional
 - Can install and use extensions
 - Hooks system allows behavior customization
+- Documentation available for oversight integration
+- Structured oversight output enables programmatic decisions
 
 ---
 
@@ -1013,19 +1226,20 @@ Implement remaining legacy system features for complete parity.
 |------|-------|-----------|----------|
 | 0 | Workspace System | 10-14h | 🔴 Critical |
 | 1 | Agent Configuration | 15-18h | 🔴 Critical |
-| 2 | Core CLI Commands | 8-10h | 🔴 Critical |
-| 3 | Workflow Behaviors | 18-22h | 🟡 High |
+| 2 | Core CLI Commands | 11-14h | 🔴 Critical |
+| 3 | Workflow Behaviors | 21-26h | 🟡 High |
 | 4 | Plan Generation & Execution | 15-20h | 🟡 High |
-| 5 | Memory & Context | 15-18h | 🟡 High |
+| 5 | Memory & Context | 19-23h | 🟡 High |
 | 6 | Monitoring & Telemetry | 18-22h | 🟡 High |
 | 6.5 | Sandboxing | 12-15h | 🟡 High |
+| 6.6 | Metacognitive Oversight | 20-25h | 🟡 High |
 | 7 | Engine Abstraction | 15-20h | 🟢 Medium |
 | 8 | Enhanced TUI | 15-20h | 🟢 Medium |
 | 9 | Agent Library | 30-40h | 🟢 Medium |
 | 10 | Advanced Features | 30-35h | 🟢 Low |
-| **Total** | | **232-298h** | |
+| **Total** | | **262-332h** | |
 
-**Timeline**: 5-8 weeks for complete feature parity (includes gemini-cli enhancements)
+**Timeline**: 6-9 weeks for complete feature parity (includes gemini-cli enhancements and oversight system)
 
 ---
 
@@ -1034,5 +1248,7 @@ Implement remaining legacy system features for complete parity.
 - **Now/Next/Later**: [02-now-next-later.md](./02-now-next-later.md)
 - **Feature Backlog**: [legacy-system-feature-backlog.md](./legacy-system-feature-backlog.md)
 - **Completed Work**: [01-completed.md](./01-completed.md)
+- **Feature Gaps**: [FEATURE_GAPS.md](./FEATURE_GAPS.md) - Track implemented but not integrated features
+- **Vibe-Check Integration**: [VIBE_CHECK_INTEGRATION.md](./VIBE_CHECK_INTEGRATION.md)
 - **Gemini CLI Enhancements**: [gemini-cli-enhancements.md](../features/gemini-cli-enhancements.md)
 

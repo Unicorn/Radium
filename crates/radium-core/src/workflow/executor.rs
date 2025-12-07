@@ -9,6 +9,7 @@ use tracing::{debug, error, info};
 use radium_orchestrator::{AgentExecutor, Orchestrator};
 
 use crate::models::{Workflow, WorkflowState};
+use crate::monitoring::{AgentRecord, AgentStatus, MonitoringService};
 use crate::storage::TaskRepository;
 
 use super::control_flow::{StepCondition, should_execute_step};
@@ -22,6 +23,8 @@ use chrono::Utc;
 pub struct WorkflowExecutor {
     /// Core workflow engine.
     engine: WorkflowEngine,
+    /// Monitoring service for agent lifecycle tracking (optional).
+    monitoring: Option<Arc<std::sync::Mutex<MonitoringService>>>,
 }
 
 impl WorkflowExecutor {
@@ -30,11 +33,19 @@ impl WorkflowExecutor {
     /// # Arguments
     /// * `orchestrator` - The agent orchestrator
     /// * `executor` - The agent executor
+    /// * `monitoring` - Optional monitoring service for agent lifecycle tracking
     ///
     /// # Returns
     /// A new `WorkflowExecutor` instance.
-    pub fn new(orchestrator: Arc<Orchestrator>, executor: Arc<AgentExecutor>) -> Self {
-        Self { engine: WorkflowEngine::new(orchestrator, executor) }
+    pub fn new(
+        orchestrator: Arc<Orchestrator>,
+        executor: Arc<AgentExecutor>,
+        monitoring: Option<Arc<std::sync::Mutex<MonitoringService>>>,
+    ) -> Self {
+        Self {
+            engine: WorkflowEngine::new(orchestrator, executor),
+            monitoring,
+        }
     }
 
     /// Executes a workflow sequentially.
@@ -163,6 +174,24 @@ impl WorkflowExecutor {
                         .map_err(|e| WorkflowEngineError::InvalidInput(e.to_string()))?,
                 };
 
+                // 2.5. Register agent with monitoring service (if available)
+                let agent_id = task.agent_id.clone();
+                if let Some(ref monitoring) = self.monitoring {
+                    let record = AgentRecord::new(agent_id.clone(), "workflow".to_string())
+                        .with_plan(context.workflow_id.clone());
+                    if let Ok(svc) = monitoring.lock() {
+                        if let Err(e) = svc.register_agent(&record) {
+                            debug!(
+                                agent_id = %agent_id,
+                                error = %e,
+                                "Failed to register agent with monitoring service"
+                            );
+                        } else {
+                            let _ = svc.update_status(&agent_id, AgentStatus::Running);
+                        }
+                    }
+                }
+
                 // 3. Execute Agent (Async, no DB lock)
                 let execution_result = self
                     .engine
@@ -172,6 +201,20 @@ impl WorkflowExecutor {
                     .map_err(|e| WorkflowEngineError::Execution(e.to_string()))?;
 
                 let completed_at = Utc::now();
+                
+                // 4. Update monitoring status based on execution result
+                if let Some(ref monitoring) = self.monitoring {
+                    if let Ok(svc) = monitoring.lock() {
+                        if execution_result.success {
+                            let _ = svc.complete_agent(&agent_id, 0);
+                        } else {
+                            let error_msg = execution_result.error.as_deref()
+                                .unwrap_or("Unknown error");
+                            let _ = svc.fail_agent(&agent_id, error_msg);
+                        }
+                    }
+                }
+                
                 // Convert output
                 if execution_result.success {
                     let output_value = match execution_result.output {

@@ -8,4 +8,3 @@ pub mod metacognitive;
 pub use metacognitive::{
     MetacognitiveError, MetacognitiveService, OversightRequest, OversightResponse, Result,
 };
-

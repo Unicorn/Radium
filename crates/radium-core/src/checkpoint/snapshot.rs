@@ -31,12 +31,14 @@ impl Checkpoint {
     }
 
     /// Sets the agent ID.
+    #[must_use]
     pub fn with_agent(mut self, agent_id: String) -> Self {
         self.agent_id = Some(agent_id);
         self
     }
 
     /// Sets the description.
+    #[must_use]
     pub fn with_description(mut self, description: String) -> Self {
         self.description = Some(description);
         self
@@ -128,7 +130,7 @@ impl CheckpointManager {
         let checkpoint_id = format!("checkpoint-{}", uuid.simple());
 
         // Create tag in shadow repo pointing to this commit
-        let tag_name = format!("refs/tags/{}", checkpoint_id);
+        let _tag_name = format!("refs/tags/{}", checkpoint_id);
         let output = Command::new("git")
             .args(["tag", &checkpoint_id, &commit_hash])
             .current_dir(&self.workspace_root)

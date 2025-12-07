@@ -53,14 +53,14 @@ impl SandboxFactory {
     ///
     /// # Errors
     /// Returns error if sandbox type is not available
-    pub fn create(config: SandboxConfig) -> Result<Box<dyn Sandbox>> {
+    pub fn create(config: &SandboxConfig) -> Result<Box<dyn Sandbox>> {
         match config.sandbox_type {
             SandboxType::None => Ok(Box::new(NoSandbox::new())),
             SandboxType::Docker => {
                 #[cfg(feature = "docker-sandbox")]
                 {
                     use super::docker::DockerSandbox;
-                    Ok(Box::new(DockerSandbox::new(config)?))
+                    Ok(Box::new(DockerSandbox::new(config.clone())?))
                 }
                 #[cfg(not(feature = "docker-sandbox"))]
                 {
@@ -71,7 +71,7 @@ impl SandboxFactory {
                 #[cfg(feature = "podman-sandbox")]
                 {
                     use super::podman::PodmanSandbox;
-                    Ok(Box::new(PodmanSandbox::new(config)?))
+                    Ok(Box::new(PodmanSandbox::new(config.clone())?))
                 }
                 #[cfg(not(feature = "podman-sandbox"))]
                 {
@@ -82,7 +82,7 @@ impl SandboxFactory {
                 #[cfg(all(target_os = "macos", feature = "seatbelt-sandbox"))]
                 {
                     use super::seatbelt::SeatbeltSandbox;
-                    Ok(Box::new(SeatbeltSandbox::new(config)?))
+                    Ok(Box::new(SeatbeltSandbox::new(config.clone())?))
                 }
                 #[cfg(not(all(target_os = "macos", feature = "seatbelt-sandbox")))]
                 {

@@ -2,9 +2,12 @@
 
 pub mod agents;
 pub mod auth;
+pub mod chat;
 pub mod clean;
 pub mod craft;
+pub mod doctor;
 pub mod init;
+pub mod monitor;
 pub mod plan;
 pub mod run;
 pub mod status;

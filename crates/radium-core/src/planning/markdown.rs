@@ -358,7 +358,6 @@ The plan is complete when:
 mod tests {
     use super::*;
     use crate::planning::parser::{ParsedIteration, ParsedPlan, ParsedTask};
-    use std::fs;
     use tempfile::TempDir;
 
     fn create_test_plan() -> ParsedPlan {

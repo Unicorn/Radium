@@ -142,12 +142,25 @@ pub struct OversightResponse {
     pub traits: Vec<String>,
     /// Uncertainties identified.
     pub uncertainties: Vec<String>,
+    /// Helpful patterns extracted for skillbook learning.
+    #[serde(default)]
+    pub helpful_patterns: Vec<String>,
+    /// Harmful patterns extracted for skillbook learning.
+    #[serde(default)]
+    pub harmful_patterns: Vec<String>,
 }
 
 impl OversightResponse {
     /// Creates a new oversight response.
     pub fn new(advice: String, risk_score: f64) -> Self {
-        Self { advice, risk_score, traits: vec![], uncertainties: vec![] }
+        Self {
+            advice,
+            risk_score,
+            traits: vec![],
+            uncertainties: vec![],
+            helpful_patterns: vec![],
+            harmful_patterns: vec![],
+        }
     }
 
     /// Adds a trait.
@@ -161,6 +174,20 @@ impl OversightResponse {
     #[must_use]
     pub fn with_uncertainty(mut self, uncertainty: impl Into<String>) -> Self {
         self.uncertainties.push(uncertainty.into());
+        self
+    }
+
+    /// Sets helpful patterns.
+    #[must_use]
+    pub fn with_helpful_patterns(mut self, patterns: Vec<String>) -> Self {
+        self.helpful_patterns = patterns;
+        self
+    }
+
+    /// Sets harmful patterns.
+    #[must_use]
+    pub fn with_harmful_patterns(mut self, patterns: Vec<String>) -> Self {
+        self.harmful_patterns = patterns;
         self
     }
 }
@@ -190,7 +217,10 @@ impl MetacognitiveService {
     ///
     /// # Errors
     /// Returns error if model call fails or response cannot be parsed
-    pub async fn generate_oversight(&self, request: &OversightRequest) -> Result<OversightResponse> {
+    pub async fn generate_oversight(
+        &self,
+        request: &OversightRequest,
+    ) -> Result<OversightResponse> {
         // Build system prompt based on phase
         let system_prompt = Self::build_system_prompt(&request.phase);
 
@@ -199,14 +229,8 @@ impl MetacognitiveService {
 
         // Create messages for chat completion
         let messages = vec![
-            ChatMessage {
-                role: "system".to_string(),
-                content: system_prompt,
-            },
-            ChatMessage {
-                role: "user".to_string(),
-                content: context_section,
-            },
+            ChatMessage { role: "system".to_string(), content: system_prompt },
+            ChatMessage { role: "user".to_string(), content: context_section },
         ];
 
         // Call model with lower temperature for more focused feedback
@@ -267,10 +291,10 @@ impl MetacognitiveService {
             context.push_str("Progress: None\n");
         }
 
-        if !request.uncertainties.is_empty() {
-            context.push_str(&format!("Uncertainties: {}\n", request.uncertainties.join(", ")));
-        } else {
+        if request.uncertainties.is_empty() {
             context.push_str("Uncertainties: None\n");
+        } else {
+            context.push_str(&format!("Uncertainties: {}\n", request.uncertainties.join(", ")));
         }
 
         if let Some(ref task_context) = request.task_context {
@@ -312,9 +336,15 @@ impl MetacognitiveService {
         // Extract uncertainties (look for question marks and uncertainty phrases)
         let uncertainties = Self::extract_uncertainties(&advice);
 
+        // Extract helpful and harmful patterns for skillbook learning
+        let helpful_patterns = Self::extract_helpful_patterns(&advice);
+        let harmful_patterns = Self::extract_harmful_patterns(&advice);
+
         Ok(OversightResponse::new(advice, risk_score)
             .with_trait(traits.join(", "))
-            .with_uncertainty(uncertainties.join(", ")))
+            .with_uncertainty(uncertainties.join(", "))
+            .with_helpful_patterns(helpful_patterns)
+            .with_harmful_patterns(harmful_patterns))
     }
 
     /// Estimates risk score from advice content.
@@ -375,19 +405,95 @@ impl MetacognitiveService {
     fn extract_uncertainties(advice: &str) -> Vec<String> {
         // Simple extraction: look for questions
         advice
-            .split(|c: char| c == '?' || c == '.')
+            .split(['?', '.'])
             .filter(|s| s.trim().starts_with(char::is_uppercase))
             .take(3)
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
             .collect()
     }
+
+    /// Extracts helpful patterns from advice content.
+    ///
+    /// Looks for positive patterns, successful strategies, and things that worked well.
+    fn extract_helpful_patterns(advice: &str) -> Vec<String> {
+        let lower = advice.to_lowercase();
+        let mut patterns = Vec::new();
+
+        // Look for positive indicators
+        let positive_phrases = vec![
+            "good approach",
+            "correct strategy",
+            "helpful to",
+            "should use",
+            "works well",
+            "effective",
+            "successful",
+            "recommend",
+        ];
+
+        for phrase in positive_phrases {
+            if lower.contains(phrase) {
+                // Extract the sentence containing the phrase
+                let sentences: Vec<&str> = advice.split(&['.', '!', '?'][..]).collect();
+                for sentence in sentences {
+                    if sentence.to_lowercase().contains(phrase) {
+                        let trimmed = sentence.trim().to_string();
+                        if !trimmed.is_empty() && trimmed.len() < 200 {
+                            patterns.push(trimmed);
+                            break; // Only add one per phrase
+                        }
+                    }
+                }
+            }
+        }
+
+        patterns.into_iter().take(5).collect()
+    }
+
+    /// Extracts harmful patterns from advice content.
+    ///
+    /// Looks for negative patterns, mistakes, and things to avoid.
+    fn extract_harmful_patterns(advice: &str) -> Vec<String> {
+        let lower = advice.to_lowercase();
+        let mut patterns = Vec::new();
+
+        // Look for negative indicators
+        let negative_phrases = vec![
+            "avoid",
+            "don't",
+            "should not",
+            "problematic",
+            "harmful",
+            "wrong",
+            "incorrect",
+            "mistake",
+            "issue",
+        ];
+
+        for phrase in negative_phrases {
+            if lower.contains(phrase) {
+                // Extract the sentence containing the phrase
+                let sentences: Vec<&str> = advice.split(&['.', '!', '?'][..]).collect();
+                for sentence in sentences {
+                    if sentence.to_lowercase().contains(phrase) {
+                        let trimmed = sentence.trim().to_string();
+                        if !trimmed.is_empty() && trimmed.len() < 200 {
+                            patterns.push(trimmed);
+                            break; // Only add one per phrase
+                        }
+                    }
+                }
+            }
+        }
+
+        patterns.into_iter().take(5).collect()
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use radium_abstraction::ModelResponse;
 
     #[test]
     fn test_oversight_request_new() {
@@ -457,5 +563,18 @@ mod tests {
         assert!(context.contains("Progress: Halfway done"));
         assert!(context.contains("User Prompt: Add login"));
     }
-}
 
+    #[test]
+    fn test_build_context_section_with_learning() {
+        let request = OversightRequest::new(
+            WorkflowPhase::Planning,
+            "Build app".to_string(),
+            "Use modern stack".to_string(),
+        )
+        .with_learning_context("Category: Complex Solution Bias (count: 2)\n- [2025-01-01] Mistake: Over-engineered solution");
+
+        let context = MetacognitiveService::build_context_section(&request);
+        assert!(context.contains("Learning Context:"));
+        assert!(context.contains("Complex Solution Bias"));
+    }
+}

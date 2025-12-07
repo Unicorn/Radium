@@ -114,7 +114,7 @@ impl LogManager {
                 // Skip ESC sequence
                 if chars.next() == Some('[') {
                     // Skip until 'm'
-                    while let Some(next) = chars.next() {
+                    for next in chars.by_ref() {
                         if next == 'm' {
                             break;
                         }
@@ -174,7 +174,7 @@ mod tests {
     #[test]
     fn test_log_manager_new() {
         let temp_dir = TempDir::new().unwrap();
-        let manager = LogManager::new(temp_dir.path()).unwrap();
+        let _manager = LogManager::new(temp_dir.path()).unwrap();
         assert!(temp_dir.path().exists());
     }
 

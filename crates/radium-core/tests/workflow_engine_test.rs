@@ -98,7 +98,7 @@ async fn test_workflow_executor_sequential_execution() {
     let db = setup_test_db();
     let orchestrator = Arc::new(Orchestrator::new());
     let executor = Arc::new(AgentExecutor::with_mock_model());
-    let workflow_executor = WorkflowExecutor::new(Arc::clone(&orchestrator), Arc::clone(&executor));
+    let workflow_executor = WorkflowExecutor::new(Arc::clone(&orchestrator), Arc::clone(&executor), None);
 
     // Register agent
     let agent = Arc::new(SimpleAgent::new("test-agent".to_string(), "Test agent".to_string()));
@@ -145,7 +145,7 @@ async fn test_workflow_executor_handles_missing_task() {
     let mut db = setup_test_db();
     let orchestrator = Arc::new(Orchestrator::new());
     let executor = Arc::new(AgentExecutor::with_mock_model());
-    let workflow_executor = WorkflowExecutor::new(Arc::clone(&orchestrator), Arc::clone(&executor));
+    let workflow_executor = WorkflowExecutor::new(Arc::clone(&orchestrator), Arc::clone(&executor), None);
 
     // Register agent
     let agent = Arc::new(SimpleAgent::new("test-agent".to_string(), "Test agent".to_string()));
@@ -179,7 +179,7 @@ async fn test_workflow_executor_handles_missing_agent() {
     let mut db = setup_test_db();
     let orchestrator = Arc::new(Orchestrator::new());
     let executor = Arc::new(AgentExecutor::with_mock_model());
-    let workflow_executor = WorkflowExecutor::new(Arc::clone(&orchestrator), Arc::clone(&executor));
+    let workflow_executor = WorkflowExecutor::new(Arc::clone(&orchestrator), Arc::clone(&executor), None);
 
     // Create task with non-existent agent
     let db = Arc::new(std::sync::Mutex::new(db));

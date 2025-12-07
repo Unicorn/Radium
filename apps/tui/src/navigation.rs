@@ -7,6 +7,7 @@ pub enum View {
     Agents,
     Workflows,
     Tasks,
+    Chat,
 }
 
 /// Navigation state
@@ -16,7 +17,7 @@ pub struct Navigation {
 
 impl Navigation {
     pub fn new() -> Self {
-        Self { current_view: View::Dashboard }
+        Self { current_view: View::Chat }
     }
 
     pub fn current_view(&self) -> View {

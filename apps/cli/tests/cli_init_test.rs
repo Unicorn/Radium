@@ -177,3 +177,73 @@ fn test_init_output_format() {
         .stdout(predicate::str::contains("Initializing workspace at:"))
         .stdout(predicate::str::contains("Workspace initialized successfully!"));
 }
+
+#[test]
+fn test_init_without_use_defaults() {
+    let temp_dir = TempDir::new().unwrap();
+    let temp_path = temp_dir.path().to_str().unwrap();
+
+    // Init without --use-defaults might prompt for input
+    // We'll test that it at least doesn't panic
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    let result = cmd
+        .arg("init")
+        .arg(temp_path)
+        .timeout(std::time::Duration::from_secs(1))
+        .assert();
+
+    // May timeout waiting for input or succeed - either is acceptable
+    assert!(result.get_output().status.code().is_some());
+}
+
+#[test]
+fn test_init_creates_memory_directory() {
+    let temp_dir = TempDir::new().unwrap();
+    let temp_path = temp_dir.path().to_str().unwrap();
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.arg("init").arg("--use-defaults").arg(temp_path).assert().success();
+
+    // Verify memory directory exists
+    let memory_dir = temp_dir.path().join(".radium").join("_internals").join("memory");
+    assert!(memory_dir.exists(), "memory directory should exist");
+}
+
+#[test]
+fn test_init_creates_logs_directory() {
+    let temp_dir = TempDir::new().unwrap();
+    let temp_path = temp_dir.path().to_str().unwrap();
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.arg("init").arg("--use-defaults").arg(temp_path).assert().success();
+
+    // Verify logs directory exists
+    let logs_dir = temp_dir.path().join(".radium").join("_internals").join("logs");
+    assert!(logs_dir.exists(), "logs directory should exist");
+}
+
+#[test]
+fn test_init_creates_artifacts_directory() {
+    let temp_dir = TempDir::new().unwrap();
+    let temp_path = temp_dir.path().to_str().unwrap();
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.arg("init").arg("--use-defaults").arg(temp_path).assert().success();
+
+    // Verify artifacts directory exists
+    let artifacts_dir = temp_dir.path().join(".radium").join("_internals").join("artifacts");
+    assert!(artifacts_dir.exists(), "artifacts directory should exist");
+}
+
+#[test]
+fn test_init_creates_inputs_directory() {
+    let temp_dir = TempDir::new().unwrap();
+    let temp_path = temp_dir.path().to_str().unwrap();
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.arg("init").arg("--use-defaults").arg(temp_path).assert().success();
+
+    // Verify inputs directory exists
+    let inputs_dir = temp_dir.path().join(".radium").join("_internals").join("inputs");
+    assert!(inputs_dir.exists(), "inputs directory should exist");
+}

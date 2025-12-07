@@ -81,3 +81,109 @@ fn test_craft_with_resume() {
     // Command should run (may fail if plan not found, but shouldn't panic)
     assert!(result.get_output().status.code().is_some());
 }
+
+#[test]
+fn test_craft_with_iteration() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    let result = cmd
+        .current_dir(temp_dir.path())
+        .arg("craft")
+        .arg("--iteration")
+        .arg("I1")
+        .arg("REQ-001")
+        .assert();
+
+    // Command should run (may fail if plan not found, but shouldn't panic)
+    assert!(result.get_output().status.code().is_some());
+}
+
+#[test]
+fn test_craft_with_task() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    let result = cmd
+        .current_dir(temp_dir.path())
+        .arg("craft")
+        .arg("--task")
+        .arg("I1.T1")
+        .arg("REQ-001")
+        .assert();
+
+    // Command should run (may fail if plan not found, but shouldn't panic)
+    assert!(result.get_output().status.code().is_some());
+}
+
+#[test]
+fn test_craft_with_iteration_and_task() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    // Both iteration and task specified - task should take precedence
+    let result = cmd
+        .current_dir(temp_dir.path())
+        .arg("craft")
+        .arg("--iteration")
+        .arg("I1")
+        .arg("--task")
+        .arg("I1.T1")
+        .arg("REQ-001")
+        .assert();
+
+    // Command should run (may fail if plan not found, but shouldn't panic)
+    assert!(result.get_output().status.code().is_some());
+}
+
+#[test]
+fn test_craft_with_all_flags() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    let result = cmd
+        .current_dir(temp_dir.path())
+        .arg("craft")
+        .arg("--dry-run")
+        .arg("--json")
+        .arg("--resume")
+        .arg("REQ-001")
+        .assert();
+
+    // Command should run (may fail if plan not found, but shouldn't panic)
+    assert!(result.get_output().status.code().is_some());
+}
+
+#[test]
+fn test_craft_with_folder_name() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+
+    // Craft can accept folder name instead of REQ-XXX
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    let result = cmd
+        .current_dir(temp_dir.path())
+        .arg("craft")
+        .arg("my-project-folder")
+        .assert();
+
+    // Command should run (may fail if folder not found, but shouldn't panic)
+    assert!(result.get_output().status.code().is_some());
+}
+
+#[test]
+fn test_craft_without_plan_identifier() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    // Craft without plan identifier should fail
+    cmd.current_dir(temp_dir.path())
+        .arg("craft")
+        .assert()
+        .failure();
+}

@@ -112,7 +112,7 @@ impl AgentRegistry {
             self.agents.write().map_err(|e| RegistryError::LockPoisoned(e.to_string()))?;
 
         if agents.contains_key(&agent.id) {
-            return Err(RegistryError::AlreadyRegistered(agent.id.clone()));
+            return Err(RegistryError::AlreadyRegistered(agent.id));
         }
 
         agents.insert(agent.id.clone(), agent);
@@ -253,7 +253,6 @@ impl Default for AgentRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agents::config::AgentConfigFile;
 
     fn create_test_agent(id: &str, name: &str) -> AgentConfig {
         use std::path::PathBuf;

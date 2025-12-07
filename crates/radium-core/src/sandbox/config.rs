@@ -6,8 +6,10 @@ use std::collections::HashMap;
 /// Sandbox type.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum SandboxType {
     /// No sandboxing (default).
+    #[default]
     None,
     /// Docker container sandboxing.
     Docker,
@@ -18,11 +20,6 @@ pub enum SandboxType {
     Seatbelt,
 }
 
-impl Default for SandboxType {
-    fn default() -> Self {
-        Self::None
-    }
-}
 
 impl std::fmt::Display for SandboxType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -38,8 +35,10 @@ impl std::fmt::Display for SandboxType {
 /// Sandbox network configuration.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum NetworkMode {
     /// Network fully open.
+    #[default]
     Open,
     /// Network fully closed.
     Closed,
@@ -47,17 +46,14 @@ pub enum NetworkMode {
     Proxied,
 }
 
-impl Default for NetworkMode {
-    fn default() -> Self {
-        Self::Open
-    }
-}
 
 /// Sandbox profile type.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum SandboxProfile {
     /// Permissive profile (minimal restrictions).
+    #[default]
     Permissive,
     /// Restrictive profile (maximum restrictions).
     Restrictive,
@@ -65,11 +61,6 @@ pub enum SandboxProfile {
     Custom(String),
 }
 
-impl Default for SandboxProfile {
-    fn default() -> Self {
-        Self::Permissive
-    }
-}
 
 /// Sandbox configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -129,42 +120,49 @@ impl SandboxConfig {
     }
 
     /// Sets the sandbox profile.
+    #[must_use]
     pub fn with_profile(mut self, profile: SandboxProfile) -> Self {
         self.profile = profile;
         self
     }
 
     /// Sets the network mode.
+    #[must_use]
     pub fn with_network(mut self, network: NetworkMode) -> Self {
         self.network = network;
         self
     }
 
     /// Adds custom flags.
+    #[must_use]
     pub fn with_flags(mut self, flags: Vec<String>) -> Self {
         self.custom_flags = flags;
         self
     }
 
     /// Adds environment variables.
+    #[must_use]
     pub fn with_env(mut self, env: HashMap<String, String>) -> Self {
         self.env = env;
         self
     }
 
     /// Sets the working directory.
+    #[must_use]
     pub fn with_working_dir(mut self, dir: String) -> Self {
         self.working_dir = Some(dir);
         self
     }
 
     /// Sets volumes to mount.
+    #[must_use]
     pub fn with_volumes(mut self, volumes: Vec<String>) -> Self {
         self.volumes = volumes;
         self
     }
 
     /// Sets the container image.
+    #[must_use]
     pub fn with_image(mut self, image: String) -> Self {
         self.image = Some(image);
         self

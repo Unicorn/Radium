@@ -53,19 +53,19 @@ impl CustomCommand {
         let mut rendered = self.template.clone();
 
         // Substitute arguments
-        rendered = self.substitute_args(&rendered, args)?;
+        rendered = Self::substitute_args(&rendered, args);
 
         // Execute shell commands (!{command})
-        rendered = self.execute_shell_commands(&rendered)?;
+        rendered = Self::execute_shell_commands(&rendered)?;
 
         // Inject file contents (@{file})
-        rendered = self.inject_files(&rendered, base_dir)?;
+        rendered = Self::inject_files(&rendered, base_dir)?;
 
         Ok(rendered)
     }
 
     /// Substitutes argument placeholders.
-    fn substitute_args(&self, template: &str, args: &[String]) -> Result<String> {
+    fn substitute_args(template: &str, args: &[String]) -> String {
         let mut result = template.to_string();
 
         // Substitute {{args}} with all arguments joined
@@ -80,11 +80,11 @@ impl CustomCommand {
             result = result.replace(&placeholder, arg);
         }
 
-        Ok(result)
+        result
     }
 
     /// Executes shell command injections.
-    fn execute_shell_commands(&self, template: &str) -> Result<String> {
+    fn execute_shell_commands(template: &str) -> Result<String> {
         let mut result = template.to_string();
 
         // Find all !{...} patterns
@@ -118,7 +118,7 @@ impl CustomCommand {
     }
 
     /// Injects file contents.
-    fn inject_files(&self, template: &str, base_dir: &Path) -> Result<String> {
+    fn inject_files(template: &str, base_dir: &Path) -> Result<String> {
         let mut result = template.to_string();
 
         // Find all @{...} patterns
@@ -166,12 +166,14 @@ impl CommandRegistry {
     }
 
     /// Sets the project commands directory.
+    #[must_use]
     pub fn with_project_dir(mut self, dir: impl AsRef<Path>) -> Self {
         self.project_dir = Some(dir.as_ref().to_path_buf());
         self
     }
 
     /// Sets the user commands directory.
+    #[must_use]
     pub fn with_user_dir(mut self, dir: impl AsRef<Path>) -> Self {
         self.user_dir = Some(dir.as_ref().to_path_buf());
         self

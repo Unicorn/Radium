@@ -160,7 +160,7 @@ impl VibeCheckEvaluator {
         &self,
         behavior_file: &Path,
         _output: &str,
-        context: &VibeCheckContext,
+        _context: &VibeCheckContext,
     ) -> Result<Option<VibeCheckDecision>, BehaviorError> {
         // Check for explicit vibe check action
         let Some(action) = BehaviorAction::read_from_file(behavior_file)? else {
@@ -207,9 +207,7 @@ impl BehaviorEvaluator for VibeCheckEvaluator {
     ) -> Result<Option<Self::Decision>, BehaviorError> {
         // Try to downcast context to VibeCheckContext
         let default_context = VibeCheckContext::new(WorkflowPhase::Implementation);
-        let vibe_context = context
-            .downcast_ref::<VibeCheckContext>()
-            .unwrap_or(&default_context);
+        let vibe_context = context.downcast_ref::<VibeCheckContext>().unwrap_or(&default_context);
 
         self.evaluate_vibe_check(behavior_file, output, vibe_context)
     }
@@ -365,4 +363,3 @@ mod tests {
         assert_eq!(WorkflowPhase::Review.to_string(), "review");
     }
 }
-

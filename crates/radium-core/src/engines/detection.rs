@@ -2,7 +2,6 @@
 
 use super::error::{EngineError, Result};
 use std::process::Command;
-use std::time::Duration;
 
 /// Binary detector for finding engine CLI tools.
 pub struct BinaryDetector;
@@ -34,7 +33,7 @@ impl BinaryDetector {
     /// # Arguments
     /// * `binary_name` - Name of the binary
     /// * `version_args` - Arguments to get version (e.g., ["--version"])
-    /// * `timeout_secs` - Timeout in seconds
+    /// * `_timeout_secs` - Timeout in seconds (currently unused)
     ///
     /// # Returns
     /// Version string if successful
@@ -44,7 +43,7 @@ impl BinaryDetector {
     pub fn get_version(
         binary_name: &str,
         version_args: &[&str],
-        timeout_secs: u64,
+        _timeout_secs: u64,
     ) -> Result<String> {
         if !Self::is_available(binary_name) {
             return Err(EngineError::BinaryNotFound(binary_name.to_string()));

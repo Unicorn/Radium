@@ -12,7 +12,9 @@ use tracing::{error, info};
 use radium_orchestrator::{AgentExecutor, Orchestrator};
 
 use crate::models::WorkflowState;
+use crate::monitoring::MonitoringService;
 use crate::storage::{Database, SqliteWorkflowRepository, StorageError, WorkflowRepository};
+use crate::workspace::Workspace;
 
 use super::engine::{ExecutionContext, WorkflowEngine, WorkflowEngineError};
 use super::executor::WorkflowExecutor;
@@ -72,6 +74,8 @@ pub struct WorkflowService {
     db: Arc<std::sync::Mutex<Database>>,
     /// Execution history (in-memory for now).
     execution_history: Arc<tokio::sync::Mutex<HashMap<String, WorkflowExecution>>>,
+    /// Monitoring service for agent lifecycle tracking.
+    monitoring: Option<Arc<std::sync::Mutex<MonitoringService>>>,
 }
 
 impl WorkflowService {
@@ -89,11 +93,22 @@ impl WorkflowService {
         executor: &Arc<AgentExecutor>,
         db: &Arc<std::sync::Mutex<Database>>,
     ) -> Self {
+        // Try to initialize monitoring service from workspace
+        let monitoring = Workspace::discover()
+            .ok()
+            .and_then(|ws| {
+                let monitoring_path = ws.radium_dir().join("monitoring.db");
+                MonitoringService::open(monitoring_path)
+                    .ok()
+                    .map(|svc| Arc::new(std::sync::Mutex::new(svc)))
+            });
+
         Self {
             orchestrator: Arc::clone(orchestrator),
             executor: Arc::clone(executor),
             db: Arc::clone(db),
             execution_history: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+            monitoring,
         }
     }
 
@@ -149,8 +164,11 @@ impl WorkflowService {
 
         // Execute workflow
         // Use the shared orchestrator which contains registered agents
-        let executor =
-            WorkflowExecutor::new(Arc::clone(&self.orchestrator), Arc::clone(&self.executor));
+        let executor = WorkflowExecutor::new(
+            Arc::clone(&self.orchestrator),
+            Arc::clone(&self.executor),
+            self.monitoring.clone(),
+        );
 
         // Use the new DB-aware execution method
         let context = executor.execute_workflow(&mut workflow, Arc::clone(&self.db)).await?;

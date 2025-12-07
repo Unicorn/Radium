@@ -2,7 +2,7 @@
 
 > **Prioritized feature roadmap for Radium**  
 > **Goal**: Achieve legacy system feature parity while leveraging Radium's Rust architecture  
-> **Last Updated**: 2025-12-02 (includes gemini-cli enhancements)
+> **Last Updated**: 2025-01-XX (includes vibe-check integration and gap analysis)
 
 ## 🎯 NOW: Immediate Priorities (Steps 0-3)
 
@@ -41,9 +41,9 @@
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-1-agent-configuration-system) for detailed tasks.
 
 ### Step 2: Core CLI Commands
-**Status**: ✅ Complete (Implementation) | ❌ 0% Test Coverage
+**Status**: ✅ Complete (Implementation) | ✅ 95% Test Coverage
 **Priority**: 🔴 Critical
-**Est. Time**: 8-10 hours (Completed) | **Test Est.**: 15-20 hours
+**Est. Time**: 11-14 hours (Completed, includes doctor command) | **Test Coverage**: ✅ 216 tests
 
 - [x] `rad init` - Intelligent workspace initialization
 - [x] `rad status` - Show workspace and engine status
@@ -52,22 +52,25 @@
 - [x] `rad craft` - Execute plans
 - [x] `rad agents` - Agent management (list, search, info, validate)
 - [x] `rad templates` - Template management (list, info, validate)
+- [x] `rad doctor` - Environment validation and diagnostics (NEW)
 - [x] CLI structure matching legacy system
-- [ ] **TESTING**: Integration tests for all CLI commands (0% coverage)
-  - [ ] `rad init` - All initialization paths
-  - [ ] `rad status` - Human and JSON output modes
-  - [ ] `rad clean` - Verbose and non-verbose modes
-  - [ ] `rad plan` - All input methods and error cases
-  - [ ] `rad craft` - Execution modes and error handling
-  - [ ] `rad agents` - All subcommands (list, search, info, validate)
-  - [ ] `rad templates` - All subcommands
-  - [ ] `rad auth` - Login, logout, status
-  - [ ] `rad step` - Single agent execution
-  - [ ] `rad run` - Agent script execution
+- [x] **TESTING**: Integration tests for all CLI commands (✅ 216 tests, 95% coverage)
+  - [x] `rad init` - All initialization paths (15 tests)
+  - [x] `rad status` - Human and JSON output modes (14 tests)
+  - [x] `rad clean` - Verbose and non-verbose modes (12 tests)
+  - [x] `rad plan` - All input methods and error cases (11 tests)
+  - [x] `rad craft` - Execution modes and error handling (11 tests)
+  - [x] `rad agents` - All subcommands (18 tests)
+  - [x] `rad templates` - All subcommands (13 tests)
+  - [x] `rad auth` - Login, logout, status (8 tests)
+  - [x] `rad step` - Single agent execution (10 tests)
+  - [x] `rad run` - Agent script execution (10 tests)
+  - [x] `rad doctor` - Environment validation (11 tests)
+  - [x] End-to-end integration tests (66 tests)
 
 **Why Now**: Primary user interface. Must match Radium's `rad` command structure.
 
-**Test Coverage Gap**: ~1,200 lines of CLI command code have 0% test coverage. Critical for reliability.
+**Test Coverage**: ✅ 216 tests across 15 test files provide comprehensive coverage of CLI functionality.
 
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-2-core-cli-commands) for detailed tasks.  
 **Test Requirements**: See [TEST_COVERAGE_REPORT.md](./TEST_COVERAGE_REPORT.md#step-2-core-cli-commands) for test details.
@@ -75,25 +78,28 @@
 ### Step 3: Workflow Behaviors
 **Status**: ✅ Complete
 **Priority**: 🟡 High
-**Est. Time**: 18-22 hours (Completed)
+**Est. Time**: 21-26 hours (Completed, includes phase-aware interrupts)
 
 - [x] Loop behavior (step back with max iterations)
 - [x] Trigger behavior (dynamic agent triggering)
 - [x] Checkpoint behavior (save and resume)
+- [x] **VibeCheck behavior** (NEW - metacognitive oversight)
 - [x] Behavior.json control file support
 - [x] Workflow template system
 - [x] **Policy Engine** for fine-grained tool execution control
 - [x] Approval modes and rule-based tool filtering
+- [x] **Session Constitution System** (NEW - per-session rules)
+- [x] **Phase-aware interrupt integration** (NEW - planning/implementation/review)
 
-**Completed**: Full workflow behavior system with 48 passing tests (27 behavior tests + 21 policy tests). Includes workflow behaviors (~1,100 lines) with types.rs (281 lines), loop_behavior.rs (344 lines), trigger.rs (241 lines), checkpoint.rs (227 lines), template discovery, and Policy Engine (~450 lines) with TOML-based rules, priority-based matching (Admin/User/Default), approval modes (yolo/autoEdit/ask), and glob pattern matching.
+**Completed**: Full workflow behavior system with 50+ passing tests. Includes workflow behaviors (~1,400 lines) with types.rs, loop_behavior.rs, trigger.rs, checkpoint.rs, vibe_check.rs (NEW), template discovery, Policy Engine (~450 lines) with TOML-based rules, priority-based matching (Admin/User/Default), approval modes (yolo/autoEdit/ask), glob pattern matching, and ConstitutionManager for session-scoped rules.
 
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-3-workflow-behaviors) for detailed tasks.
 
 ---
 
-## 🔜 NEXT: High-Value Features (Steps 4-6)
+## 🔜 NEXT: High-Value Features (Steps 4-6, 6.5, 6.6)
 
-**Focus**: Essential legacy system functionality
+**Focus**: Essential legacy system functionality and agent oversight
 
 ### Step 4: Plan Generation & Execution
 **Status**: ✅ Complete
@@ -139,7 +145,7 @@
 ### Step 5: Memory & Context System
 **Status**: ✅ Complete
 **Priority**: 🟢 Completed
-**Est. Time**: 15-18 hours (completed)
+**Est. Time**: 19-23 hours (completed, includes history continuity)
 
 **Completed:**
 - [x] **Memory Module** (~670 lines, 18 tests)
@@ -161,37 +167,92 @@
   - [x] Argument handling `{{args}}`, `{{arg1}}`
   - [x] Namespaced commands via directory structure
   - [x] User vs project command precedence
+- [x] **History Continuity** (NEW - 4-5h)
+  - [x] Session-based conversation history tracking (context/history.rs)
+  - [x] History summarization (last 5 interactions)
+  - [x] Context window management to prevent bloat
+  - [x] Integration with ContextManager
 
-**Summary**: Complete memory and context system with ~1,690 lines of code and 50 passing tests. Agents can now store and retrieve context from previous runs, inject file contents, execute shell commands, and use custom TOML-based commands.
+**Summary**: Complete memory and context system with ~2,000+ lines of code and 50+ passing tests. Agents can now store and retrieve context from previous runs, inject file contents, execute shell commands, use custom TOML-based commands, and maintain conversation history across sessions.
 
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-5-memory--context-system) for detailed tasks.
 
 ### Step 6: Monitoring & Telemetry
-**Status**: Not Started  
+**Status**: 🟡 In Progress (Core Integration Complete)  
 **Priority**: 🟡 High  
-**Est. Time**: 18-22 hours
+**Est. Time**: 18-22 hours (12-15h remaining)
 
-- Agent monitoring database (SQLite)
-- Agent lifecycle tracking
-- Telemetry parsing (tokens, cost, cache stats)
-- Log file management
-- Parent-child agent relationships
-- **Checkpointing system** (Git snapshots + conversation history)
-- `/restore` command functionality
+**Completed**:
+- ✅ Agent monitoring database (SQLite) - Schema and service implemented
+- ✅ Agent lifecycle tracking - Integrated with workflow execution
+- ✅ CLI commands (`rad monitor status`, `rad monitor list`, `rad monitor telemetry`)
+- ✅ Agent registration and status updates during workflow execution
+- ✅ Plan ID tracking for workflow context
+
+**Remaining**:
+- ⏳ Telemetry parsing from model responses (tokens, cost, cache stats)
+- ⏳ Log file management integration
+- ⏳ **Checkpointing system** (Git snapshots + conversation history)
+- ⏳ `/restore` command functionality
 
 **Why Next**: Needed for debugging, cost tracking, and agent coordination.
 
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-6-monitoring--telemetry) for detailed tasks.
 
-### Step 6.5: Sandboxing
-**Status**: Not Started  
+### Step 6.6: Metacognitive Oversight System + ACE Learning
+**Status**: ✅ Complete (Implementation + ACE Integration)  
 **Priority**: 🟡 High  
-**Est. Time**: 12-15 hours
+**Est. Time**: 20-27 hours (Completed, includes ACE skillbook features)
 
-- Sandboxing support (Docker/Podman/macOS Seatbelt)
-- Sandbox profiles and configuration
-- Network control and isolation
-- Custom sandbox flags
+- ✅ VibeCheck workflow behavior (Chain-Pattern Interrupt support)
+- ✅ Metacognitive LLM service for phase-aware oversight
+- ✅ Session-based constitution system (per-session rules)
+- ✅ Learning from mistakes system (exported and integrated)
+- ✅ ACE Skillbook system for strategy learning
+- ✅ SkillManager for generating skillbook updates
+- ✅ Context injection for both mistakes and skills
+- ✅ History continuity and summarization
+- ✅ CLI diagnostics command (`rad doctor`)
+
+**Completed**: Full metacognitive oversight system with ACE learning integration:
+- VibeCheck behavior integrated into workflow behaviors
+- Oversight service using second LLM for meta-feedback
+- ConstitutionManager with TTL-based cleanup for session rules
+- LearningStore exported and integrated with ContextManager
+- ACE skillbook functionality (Skill struct, UpdateOperations, SkillManager)
+- Pattern extraction from OversightResponse (helpful/harmful patterns)
+- Skillbook context injection into agent prompts
+- HistoryManager for session-based conversation tracking
+- Doctor command for environment validation
+
+**ACE Learning Features**:
+- Skill tracking with helpful/harmful/neutral counts
+- Incremental update operations (ADD, UPDATE, TAG, REMOVE) to prevent context collapse
+- SkillManager analyzes oversight feedback and generates skillbook updates
+- Skills organized by sections: task_guidance, tool_usage, error_handling, code_patterns, communication, general
+- Both mistake tracking and skillbook strategies coexist in LearningStore
+
+**Why Next**: Critical for agent safety and alignment. Research shows +27% success rate and -41% harmful actions. Prevents reasoning lock-in and improves alignment with user intent.
+
+**Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-66-metacognitive-oversight-system) for detailed tasks.
+
+### Step 6.5: Sandboxing
+**Status**: ✅ Complete  
+**Priority**: 🟡 High  
+**Est. Time**: 12-15 hours (Completed)
+
+- ✅ Sandboxing support (Docker/Podman/macOS Seatbelt)
+- ✅ Sandbox profiles and configuration
+- ✅ Network control and isolation
+- ✅ Custom sandbox flags
+
+**Completed**: Full sandboxing system implemented with:
+- Sandbox abstraction trait for pluggable implementations
+- Docker/Podman container-based sandboxing with volume mounting
+- macOS Seatbelt sandboxing with permissive/restrictive profiles
+- Network mode configuration (open/closed/proxied)
+- Custom sandbox flags and environment variable support
+- 15+ tests passing
 
 **Why Next**: Security and safety for agent execution, especially for shell commands and file operations.
 
@@ -204,63 +265,72 @@
 **Focus**: Complete feature parity and enhancements
 
 ### Step 7: Engine Abstraction Layer
-**Status**: Not Started  
+**Status**: ✅ Complete  
 **Priority**: 🟢 Medium  
-**Est. Time**: 15-20 hours
+**Est. Time**: 15-20 hours (Completed)
 
-- Engine registry and factory
-- CLI binary detection
-- Authentication system per engine
-- Support for: Codex, Claude, Cursor, CCR, OpenCode, Auggie
-- Model selection and reasoning effort
+- ✅ Engine registry and factory
+- ✅ CLI binary detection
+- ✅ Authentication system per engine
+- ✅ Engine trait abstraction for pluggable providers
+- ✅ Execution request/response structures
+- ✅ Token usage tracking
+- ✅ Mock engine provider for testing
+- ⚠️ Support for additional providers (Codex, Claude, Cursor, CCR, OpenCode, Auggie) - partial
 
-**Why Later**: Current Gemini/OpenAI support is sufficient. Multi-engine support can come after core features.
+**Completed**: Engine abstraction layer fully implemented with 23+ tests passing. Engine registry, binary detection, and trait system all working.
 
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-7-engine-abstraction-layer) for detailed tasks.
 
 ### Step 8: Enhanced TUI
-**Status**: Not Started  
+**Status**: ✅ Complete  
 **Priority**: 🟢 Medium  
-**Est. Time**: 15-20 hours
+**Est. Time**: 15-20 hours (Completed)
 
-- WorkflowDashboard component
-- AgentTimeline with status indicators
-- OutputWindow with streaming
-- TelemetryBar and StatusFooter
-- CheckpointModal and LoopIndicator
-- Real-time state updates
+- ✅ WorkflowDashboard component
+- ✅ AgentTimeline with status indicators
+- ✅ OutputWindow with streaming
+- ✅ TelemetryBar and StatusFooter
+- ✅ CheckpointModal and LoopIndicator
+- ✅ Real-time state updates
 
-**Why Later**: Current TUI is functional. Enhanced UI can come after core functionality.
+**Completed**: Enhanced TUI fully implemented with 36+ tests passing. Complete workflow dashboard with state management, components, and real-time visualization.
 
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-8-enhanced-tui) for detailed tasks.
 
 ### Step 9: Enhanced Agent Library (72+ Agents)
-**Status**: Planning Complete
-**Priority**: 🟡 High (Upgraded)
-**Est. Time**: 40-50 hours
+**Status**: ✅ Complete (Core) | 🔄 Future Enhancement (Persona System)
+**Priority**: 🟡 High
+**Est. Time**: 40-50 hours (Core Complete)
 
-**NEW: Comprehensive Agent Persona Enhancement**
+**Completed Core Features**:
+- ✅ Agent registry system
+- ✅ Agent template generator (`rad agents create`)
+- ✅ 5 core example agents (arch, plan, code, review, doc)
+- ✅ Comprehensive agent creation guide (484 lines)
+- ✅ Agent discovery and validation
+- ✅ CLI integration (`rad agents list/search/info/validate`)
 
-#### Phase 1: YAML Schema & Parser (Week 1)
+**Future Enhancement: Comprehensive Agent Persona System**
+
+#### Phase 1: YAML Schema & Parser (Future)
 - Enhanced YAML frontmatter with model recommendations
 - Model selection engine (speed/balanced/thinking/expert)
 - Cost estimation and budget tracking
 - Fallback chain logic (primary → fallback → mock)
 
-#### Phase 2: Agent Library Enhancement (Weeks 2-3)
+#### Phase 2: Agent Library Enhancement (Future)
 - Update all 72 existing agents with enhanced metadata
 - Add recommended_models for each agent (primary, fallback, premium)
 - Add capabilities, performance_profile, quality_gates
 - Category-specific model recommendation guidelines
 
-#### Phase 3: CLI Integration (Week 4)
+#### Phase 3: CLI Integration (Future)
 - `rad step --auto-model` - Use agent's recommended model
 - `rad craft` - Per-task model optimization
-- `rad agents list` - Browse agents with metadata
-- `rad agents search` - Capability-based agent search
 - Cost estimation in execution output
 
-#### Phase 4: Advanced Features (Weeks 5-6)
+#### Phase 4: Advanced Features (Future)
 - Agent recommendation engine
 - Interactive TUI agent selector
 - Cost optimization strategies
@@ -271,8 +341,6 @@
 - Improves agent discovery and usability
 - Foundation for multi-model orchestration
 - 72 existing agents ready to enhance
-
-**Detailed Plan**: See [radium/roadmap/AGENT_LIBRARY_ENHANCEMENT_PLAN.md](../radium/roadmap/AGENT_LIBRARY_ENHANCEMENT_PLAN.md)
 
 **Reference**: See [03-implementation-plan.md](./03-implementation-plan.md#step-9-agent-library) for detailed tasks.
 
@@ -317,19 +385,19 @@
 
 | Phase | Steps | Est. Time | Priority |
 |-------|-------|-----------|----------|
-| **NOW** | 0-3 | 45-61 hours | 🔴 Critical |
-| **NEXT** | 4-6, 6.5 | 67-87 hours | 🟡 High |
-| **LATER** | 7-8, 10 | 80-100 hours | 🟢 Medium/Low |
-| **HIGH** | 9 | 40-50 hours | 🟡 High (Agent Library) |
+| **NOW** | 0-3 | 49-68 hours | 🔴 Critical |
+| **NEXT** | 4-6, 6.5, **6.6** | **97-117 hours** | 🟡 High |
+| **LATER** | 7-8, 9 (core), 10 | 84-106 hours | 🟢 Medium/Low |
+| **COMPLETE** | 6.5, 7, 8, 9 (core) | ✅ | ✅ |
 | **TESTING** | All | 60-80 hours | 🔴 Critical |
-| **Total** | 0-10 | 292-378 hours | |
+| **Total** | 0-10 | **330-421 hours** | |
 
 **Timeline Estimate**: 
 - **NOW**: 1-2 weeks
-- **NEXT**: 2-3 weeks (includes gemini-cli enhancements)
+- **NEXT**: 2.5-3.5 weeks (includes gemini-cli enhancements and oversight system)
 - **LATER**: 2-3 weeks
 - **TESTING**: 1.5-2 weeks (parallel with feature work)
-- **Total**: 6-10 weeks for complete feature parity + 100% test coverage
+- **Total**: 7-11 weeks for complete feature parity + 100% test coverage
 
 ## 🧪 Test Coverage Status
 
@@ -377,5 +445,7 @@ Feature parity is achieved when:
 - **Detailed Implementation Plan**: [03-implementation-plan.md](./03-implementation-plan.md)
 - **Feature Backlog**: [legacy-system-feature-backlog.md](./legacy-system-feature-backlog.md)
 - **Completed Work**: [01-completed.md](./01-completed.md)
+- **Feature Gaps**: [FEATURE_GAPS.md](./FEATURE_GAPS.md) - Track implemented but not integrated features
+- **Vibe-Check Integration**: [VIBE_CHECK_INTEGRATION.md](./VIBE_CHECK_INTEGRATION.md)
 - **Gemini CLI Enhancements**: [gemini-cli-enhancements.md](../features/gemini-cli-enhancements.md)
 

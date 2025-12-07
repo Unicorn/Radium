@@ -9,7 +9,9 @@ use clap::{CommandFactory, Parser, Subcommand};
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
-use commands::{agents, auth, clean, craft, init, plan, run, status, step, templates};
+use commands::{
+    agents, auth, chat, clean, craft, doctor, init, monitor, plan, run, status, step, templates,
+};
 
 /// Radium CLI - Next-generation agentic orchestration tool
 ///
@@ -138,6 +140,27 @@ enum Command {
         reasoning: Option<String>,
     },
 
+    /// Interactive chat mode with an agent
+    ///
+    /// Start a conversational session with an agent, maintaining context
+    /// across multiple interactions. Sessions are automatically saved.
+    Chat {
+        /// Agent ID to chat with (not required when using --list)
+        agent_id: Option<String>,
+
+        /// Session name (defaults to timestamp)
+        #[arg(long)]
+        session: Option<String>,
+
+        /// Resume an existing session
+        #[arg(long)]
+        resume: bool,
+
+        /// List available sessions
+        #[arg(long)]
+        list: bool,
+    },
+
     /// Show status of workspace, engines, and authentication
     ///
     /// Displays workspace information, available engines/models,
@@ -175,6 +198,22 @@ enum Command {
     /// Agent management
     #[command(subcommand)]
     Agents(AgentsCommand),
+
+    /// Monitor agent execution and telemetry
+    ///
+    /// View agent status, execution history, and cost tracking.
+    #[command(subcommand)]
+    Monitor(monitor::MonitorCommand),
+
+    /// Validate environment and configuration
+    ///
+    /// Checks workspace setup, environment files, port availability,
+    /// and workspace structure to help diagnose configuration issues.
+    Doctor {
+        /// Output results as JSON
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 // Command types are now in commands::types module
@@ -229,6 +268,15 @@ async fn main() -> anyhow::Result<()> {
         Command::Step { id, prompt, model, engine, reasoning } => {
             step::execute(id, prompt, model, engine, reasoning).await?;
         }
+        Command::Chat { agent_id, session, resume, list } => {
+            if list {
+                chat::list_sessions().await?;
+            } else if let Some(id) = agent_id {
+                chat::execute(id, session, resume).await?;
+            } else {
+                anyhow::bail!("Agent ID is required when not using --list");
+            }
+        }
         Command::Status { json } => {
             status::execute(json).await?;
         }
@@ -243,6 +291,12 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Agents(cmd) => {
             agents::execute(cmd).await?;
+        }
+        Command::Monitor(cmd) => {
+            monitor::execute(cmd).await?;
+        }
+        Command::Doctor { json } => {
+            doctor::execute(json).await?;
         }
     }
 

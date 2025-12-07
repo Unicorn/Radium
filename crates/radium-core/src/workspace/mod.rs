@@ -328,7 +328,8 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let workspace_root = temp.path().join("new-workspace");
 
-        let config = WorkspaceConfig { root: Some(workspace_root.clone()), create_if_missing: true };
+        let config =
+            WorkspaceConfig { root: Some(workspace_root.clone()), create_if_missing: true };
 
         let workspace = Workspace::discover_with_config(&config).unwrap();
 
@@ -341,8 +342,7 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let workspace_root = temp.path().join("nonexistent");
 
-        let config =
-            WorkspaceConfig { root: Some(workspace_root), create_if_missing: false };
+        let config = WorkspaceConfig { root: Some(workspace_root), create_if_missing: false };
 
         let result = Workspace::discover_with_config(&config);
 
