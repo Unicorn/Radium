@@ -101,12 +101,11 @@ pub async fn execute(
     let model_id = std::env::var("RADIUM_MODEL").unwrap_or_else(|_| String::new());
     let model = ModelFactory::create_from_str(&engine, model_id)
         .context("Failed to create model for plan generation")?;
-    let model_arc: Arc<dyn radium_abstraction::Model> = Arc::new(model);
 
     // Generate plan using AI
     let generator = PlanGenerator::new();
     let parsed_plan = generator
-        .generate(&spec_content, model_arc)
+        .generate(&spec_content, model)
         .await
         .map_err(|e| anyhow::anyhow!("Failed to generate plan: {}", e))?;
 
