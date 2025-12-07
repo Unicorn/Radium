@@ -867,3 +867,61 @@ async fn manage_trusted_keys(action: &str, name: Option<&str>, key_file: Option<
 
     Ok(())
 }
+
+/// Publish an extension to the marketplace.
+async fn publish_extension(
+    path: &str,
+    api_key: Option<&str>,
+    sign_with_key: Option<&str>,
+) -> anyhow::Result<()> {
+    let extension_path = Path::new(path);
+    if !extension_path.exists() {
+        return Err(anyhow::anyhow!("Extension path does not exist: {}", path));
+    }
+
+    // Get API key
+    let api_key = api_key
+        .or_else(|| std::env::var("RADIUM_MARKETPLACE_API_KEY").ok().as_deref())
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "API key required. Provide --api-key or set RADIUM_MARKETPLACE_API_KEY environment variable"
+            )
+        })?;
+
+    // Load signing key if provided
+    let sign_key = if let Some(key_file) = sign_with_key {
+        Some(fs::read(key_file)?)
+    } else {
+        None
+    };
+
+    println!("{}", format!("Publishing extension: {}", path).yellow());
+    println!("{}", "Validating extension...".bright_black());
+
+    let publisher = ExtensionPublisher::new()
+        .map_err(|e| anyhow::anyhow!("Failed to create publisher: {}", e))?;
+
+    // Validate
+    publisher
+        .validate_for_publish(extension_path)
+        .map_err(|e| anyhow::anyhow!("Validation failed: {}", e))?;
+
+    println!("{}", "✓ Extension validation passed".green());
+    println!("{}", "Publishing to marketplace...".bright_black());
+
+    // Publish
+    let published = publisher
+        .publish(extension_path, api_key, sign_key.as_deref())
+        .map_err(|e| match e {
+            PublishingError::Validation(msg) => anyhow::anyhow!("Validation error: {}", msg),
+            PublishingError::Marketplace(e) => anyhow::anyhow!("Marketplace error: {}", e),
+            PublishingError::Signing(msg) => anyhow::anyhow!("Signing error: {}", msg),
+            e => anyhow::anyhow!("Publishing failed: {}", e),
+        })?;
+
+    println!("{}", format!("✓ Extension '{}' published successfully", published.name).green());
+    println!("  Version: {}", published.version.bright_black());
+    println!("  Download URL: {}", published.download_url);
+
+    Ok(())
+}
