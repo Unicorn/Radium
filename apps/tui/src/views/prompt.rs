@@ -289,9 +289,35 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
 
     // Show command menu popup if there are suggestions
     if !data.command_suggestions.is_empty() {
-        // Create a centered popup for command menu
+        const MAX_SUGGESTIONS_TO_SHOW: usize = 8;
+
+        let total_suggestions = data.command_suggestions.len();
+        let selected_idx = data.selected_suggestion_index;
+
+        // Calculate visible range (centered on selection when possible)
+        let (visible_start, visible_end) = if total_suggestions <= MAX_SUGGESTIONS_TO_SHOW {
+            (0, total_suggestions)
+        } else {
+            // Try to center the selection in the visible window
+            let half_window = MAX_SUGGESTIONS_TO_SHOW / 2;
+            let start = selected_idx.saturating_sub(half_window);
+            let end = (start + MAX_SUGGESTIONS_TO_SHOW).min(total_suggestions);
+            // Adjust start if we hit the end
+            let start = if end == total_suggestions {
+                total_suggestions.saturating_sub(MAX_SUGGESTIONS_TO_SHOW)
+            } else {
+                start
+            };
+            (start, end)
+        };
+
+        let visible_count = visible_end - visible_start;
+        let has_more_above = visible_start > 0;
+        let has_more_below = visible_end < total_suggestions;
+
+        // Create popup with dynamic height
         let popup_width = 60;
-        let popup_height = (data.command_suggestions.len() + 4).min(15) as u16;
+        let popup_height = (visible_count + 4) as u16; // suggestions + header + footer + spacing
 
         let popup_area = Rect {
             x: chunks[2].x + 2,
@@ -301,16 +327,36 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
         };
 
         // Build styled menu items
+        let title = if total_suggestions > MAX_SUGGESTIONS_TO_SHOW {
+            format!(
+                "{} Commands ({}/{})",
+                Icons::INFO,
+                selected_idx + 1,
+                total_suggestions
+            )
+        } else {
+            format!("{} Commands", Icons::INFO)
+        };
+
         let mut menu_lines = vec![
             ratatui::text::Line::from(Span::styled(
-                format!("{} Commands", Icons::INFO),
+                title,
                 Style::default().fg(THEME.primary()).add_modifier(Modifier::BOLD),
             )),
             ratatui::text::Line::from(""),
         ];
 
-        for (i, suggestion) in data.command_suggestions.iter().enumerate() {
-            let is_selected = i == data.selected_suggestion_index;
+        // Add scroll indicator at top if needed
+        if has_more_above {
+            menu_lines.push(ratatui::text::Line::from(Span::styled(
+                "  ▲ More above...",
+                Style::default().fg(THEME.text_dim()),
+            )));
+        }
+
+        // Show visible suggestions
+        for (i, suggestion) in data.command_suggestions.iter().enumerate().skip(visible_start).take(visible_count) {
+            let is_selected = i == selected_idx;
             let style = if is_selected {
                 Style::default().fg(THEME.bg_primary()).bg(THEME.primary()).add_modifier(Modifier::BOLD)
             } else {
@@ -321,6 +367,14 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
             menu_lines.push(ratatui::text::Line::from(Span::styled(
                 format!("{}{}", prefix, suggestion),
                 style,
+            )));
+        }
+
+        // Add scroll indicator at bottom if needed
+        if has_more_below {
+            menu_lines.push(ratatui::text::Line::from(Span::styled(
+                "  ▼ More below...",
+                Style::default().fg(THEME.text_dim()),
             )));
         }
 
