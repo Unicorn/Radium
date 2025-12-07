@@ -146,6 +146,16 @@ impl WorkspaceStructure {
         self.internals_dir().join(INTERNAL_AGENTS)
     }
 
+    /// Get the config directory (`.radium/config`).
+    pub fn config_dir(&self) -> PathBuf {
+        self.radium_root_dir().join("config")
+    }
+
+    /// Get the path to the orchestration configuration file.
+    pub fn orchestration_config_file(&self) -> PathBuf {
+        self.config_dir().join("orchestration.toml")
+    }
+
     /// Get all internal directories.
     pub fn internal_dirs(&self) -> Vec<PathBuf> {
         vec![
@@ -182,6 +192,9 @@ impl WorkspaceStructure {
         for dir in self.stage_dirs() {
             std::fs::create_dir_all(&dir)?;
         }
+
+        // Create config directory
+        std::fs::create_dir_all(self.config_dir())?;
 
         Ok(())
     }

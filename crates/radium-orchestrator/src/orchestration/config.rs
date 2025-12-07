@@ -169,6 +169,51 @@ impl OrchestrationConfig {
         path.push("orchestration.toml");
         path
     }
+
+    /// Load configuration from workspace
+    ///
+    /// Attempts to load configuration from `.radium/config/orchestration.toml` in the workspace.
+    /// Falls back to default config path if workspace is not found or file doesn't exist.
+    ///
+    /// # Returns
+    /// Configuration loaded from workspace, or default configuration if workspace not found
+    pub fn load_from_workspace() -> Self {
+        // Try to discover workspace
+        if let Ok(workspace) = radium_core::Workspace::discover() {
+            let config_path = workspace.structure().orchestration_config_file();
+            if config_path.exists() {
+                if let Ok(config) = Self::load_from_toml(&config_path) {
+                    return config;
+                }
+            }
+        }
+
+        // Fall back to default config path
+        Self::load_from_toml(Self::default_config_path()).unwrap_or_else(|_| Self::default())
+    }
+
+    /// Save configuration to workspace
+    ///
+    /// Attempts to save configuration to `.radium/config/orchestration.toml` in the workspace.
+    /// Falls back to default config path if workspace is not found.
+    ///
+    /// # Errors
+    /// Returns error if file cannot be written
+    pub fn save_to_workspace(&self) -> Result<(), String> {
+        // Try to discover workspace
+        if let Ok(workspace) = radium_core::Workspace::discover() {
+            // Ensure workspace structure exists (creates config dir if needed)
+            if let Err(e) = workspace.ensure_structure() {
+                // If structure creation fails, fall back to default path
+                return self.save_to_file(Self::default_config_path());
+            }
+            let config_path = workspace.structure().orchestration_config_file();
+            return self.save_to_file(&config_path);
+        }
+
+        // Fall back to default config path
+        self.save_to_file(Self::default_config_path())
+    }
 }
 
 /// Provider type

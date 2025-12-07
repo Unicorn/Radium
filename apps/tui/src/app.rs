@@ -129,16 +129,21 @@ impl App {
 
     /// Initialize orchestration service
     fn init_orchestration() -> (Option<Arc<OrchestrationService>>, bool) {
-        // Try to load config from file, fall back to defaults
-        let config = match OrchestrationConfig::load_from_toml(OrchestrationConfig::default_config_path()) {
-            Ok(cfg) => cfg,
-            Err(e) => {
-                // Log warning but continue with defaults
-                tracing::warn!("Failed to load orchestration config: {}. Using defaults.", e);
-                OrchestrationConfig::default()
-            }
-        };
+        // Try to load config from workspace, fall back to default path, then defaults
+        let config = OrchestrationConfig::load_from_workspace();
         let enabled = config.enabled;
+
+        // Log which config source was used
+        if let Ok(workspace) = radium_core::Workspace::discover() {
+            let workspace_config = workspace.structure().orchestration_config_file();
+            if workspace_config.exists() {
+                tracing::info!("Loaded orchestration config from workspace: {}", workspace_config.display());
+            } else {
+                tracing::info!("Using default orchestration config (workspace config not found)");
+            }
+        } else {
+            tracing::info!("Using default orchestration config (no workspace found)");
+        }
 
         // Return None for now - will be initialized asynchronously on first use
         (None, enabled)
@@ -147,18 +152,8 @@ impl App {
     /// Ensure orchestration service is initialized (lazy initialization)
     async fn ensure_orchestration_service(&mut self) -> Result<()> {
         if self.orchestration_service.is_none() && self.orchestration_enabled {
-            // Load config from file, fall back to defaults
-            let config = match OrchestrationConfig::load_from_toml(OrchestrationConfig::default_config_path()) {
-                Ok(cfg) => cfg,
-                Err(_) => {
-                    // Use defaults and create config file on first run
-                    let default_config = OrchestrationConfig::default();
-                    if let Err(e) = default_config.save_to_file(OrchestrationConfig::default_config_path()) {
-                        tracing::warn!("Failed to create default orchestration config: {}", e);
-                    }
-                    default_config
-                }
-            };
+            // Load config from workspace, fall back to defaults
+            let config = OrchestrationConfig::load_from_workspace();
             
             // Discover MCP tools if MCP integration is available
             let mcp_tools = if let Some(ref mcp_integration) = self.mcp_integration {
@@ -913,6 +908,21 @@ impl App {
                     // Calculate elapsed time
                     let elapsed = start_time.elapsed();
                     let elapsed_secs = elapsed.as_secs_f64();
+                    let elapsed_secs_u64 = elapsed.as_secs();
+
+                    // Show timeout warnings if operation took too long
+                    let max_history = self.config.performance.max_conversation_history;
+                    if elapsed_secs_u64 >= 90 {
+                        self.prompt_data.add_conversation_message(
+                            "⏱️  Operation took longer than expected (approaching 120s timeout limit)".to_string(),
+                            max_history
+                        );
+                    } else if elapsed_secs_u64 >= 30 {
+                        self.prompt_data.add_conversation_message(
+                            "⏰ Operation took longer than expected...".to_string(),
+                            max_history
+                        );
+                    }
 
                     // Show tool calls if any
                     if !result.tool_calls.is_empty() {
@@ -933,14 +943,42 @@ impl App {
                                     tool_call.name
                                 ), max_history);
                             }
+
+                            // Show tool parameters (formatted nicely)
+                            if let Some(args) = tool_call.arguments.as_object() {
+                                if !args.is_empty() {
+                                    let params_str = args.iter()
+                                        .map(|(k, v)| {
+                                            let v_str = if v.is_string() {
+                                                v.as_str().unwrap_or("")
+                                            } else {
+                                                &serde_json::to_string(v).unwrap_or_default()
+                                            };
+                                            format!("{}: {}", k, v_str)
+                                        })
+                                        .collect::<Vec<_>>()
+                                        .join(", ");
+                                    if !params_str.is_empty() {
+                                        self.prompt_data.add_conversation_message(
+                                            format!("   Parameters: {}", params_str),
+                                            max_history
+                                        );
+                                    }
+                                }
+                            }
                         }
                         let max_history = self.config.performance.max_conversation_history;
                         if tool_count > 1 {
                             self.prompt_data.add_conversation_message(format!(
-                                "Executing {} agent{}...",
+                                "⏳ Executing {} agent{}...",
                                 tool_count,
                                 if tool_count == 1 { "" } else { "s" }
                             ), max_history);
+                        } else {
+                            self.prompt_data.add_conversation_message(
+                                "⏳ Executing...".to_string(),
+                                max_history
+                            );
                         }
                     }
 
@@ -970,6 +1008,21 @@ impl App {
 
                     let elapsed = start_time.elapsed();
                     let elapsed_secs = elapsed.as_secs_f64();
+                    let elapsed_secs_u64 = elapsed.as_secs();
+
+                    // Show timeout warnings if operation took too long
+                    let max_history = self.config.performance.max_conversation_history;
+                    if elapsed_secs_u64 >= 90 {
+                        self.prompt_data.add_conversation_message(
+                            "⏱️  Operation took longer than expected (approaching 120s timeout limit)".to_string(),
+                            max_history
+                        );
+                    } else if elapsed_secs_u64 >= 30 {
+                        self.prompt_data.add_conversation_message(
+                            "⏰ Operation took longer than expected...".to_string(),
+                            max_history
+                        );
+                    }
 
                     let max_history = self.config.performance.max_conversation_history;
                     self.prompt_data.add_conversation_message(format!(
@@ -1013,13 +1066,10 @@ impl App {
             "toggle" => {
                 self.orchestration_enabled = !self.orchestration_enabled;
                 
-                // Save config state to file
-                let mut config = match OrchestrationConfig::load_from_toml(OrchestrationConfig::default_config_path()) {
-                    Ok(cfg) => cfg,
-                    Err(_) => OrchestrationConfig::default(),
-                };
+                // Save config state to workspace (or default path)
+                let mut config = OrchestrationConfig::load_from_workspace();
                 config.enabled = self.orchestration_enabled;
-                if let Err(e) = config.save_to_file(OrchestrationConfig::default_config_path()) {
+                if let Err(e) = config.save_to_workspace() {
                     self.prompt_data.add_output(format!(
                         "⚠️  Failed to save config: {}",
                         e
@@ -1087,9 +1137,14 @@ impl App {
 
         self.prompt_data.add_output("".to_string());
         self.prompt_data.add_output("Commands:".to_string());
+        self.prompt_data.add_output("  /orchestrator          - Show status".to_string());
         self.prompt_data.add_output("  /orchestrator toggle   - Enable/disable orchestration".to_string());
         self.prompt_data
             .add_output("  /orchestrator switch <provider>  - Switch AI provider".to_string());
+        self.prompt_data
+            .add_output("  /orchestrator config   - Show full configuration".to_string());
+        self.prompt_data
+            .add_output("  /orchestrator refresh  - Reload agent tool registry".to_string());
     }
 
     /// Switch orchestrator provider
@@ -1135,8 +1190,8 @@ impl App {
             Ok(service) => {
                 self.orchestration_service = Some(Arc::new(service));
                 
-                // Save config to file
-                if let Err(e) = config.save_to_file(OrchestrationConfig::default_config_path()) {
+                // Save config to workspace (or default path)
+                if let Err(e) = config.save_to_workspace() {
                     self.prompt_data.add_output(format!(
                         "⚠️  Switched provider but failed to save config: {}",
                         e
@@ -1196,6 +1251,107 @@ impl App {
                 self.prompt_data
                     .add_output("  • OpenAI:  OPENAI_API_KEY environment variable".to_string());
             }
+        }
+
+        Ok(())
+    }
+
+    /// Show full orchestrator configuration
+    fn show_orchestrator_config(&mut self) {
+        self.prompt_data.add_output("Orchestration Configuration:".to_string());
+        self.prompt_data.add_output("".to_string());
+
+        if let Some(ref service) = self.orchestration_service {
+            let config = service.config();
+            
+            // General settings
+            self.prompt_data.add_output("General:".to_string());
+            self.prompt_data.add_output(format!("  Enabled: {}", if config.enabled { "Yes" } else { "No" }));
+            self.prompt_data.add_output(format!("  Default Provider: {}", config.default_provider));
+            self.prompt_data.add_output("".to_string());
+
+            // Gemini configuration
+            self.prompt_data.add_output("Gemini Provider:".to_string());
+            self.prompt_data.add_output(format!("  Model: {}", config.gemini.model));
+            self.prompt_data.add_output(format!("  Temperature: {:.2}", config.gemini.temperature));
+            self.prompt_data.add_output(format!("  Max Tool Iterations: {}", config.gemini.max_tool_iterations));
+            if let Some(endpoint) = &config.gemini.api_endpoint {
+                self.prompt_data.add_output(format!("  API Endpoint: {}", endpoint));
+            }
+            self.prompt_data.add_output("".to_string());
+
+            // Claude configuration
+            self.prompt_data.add_output("Claude Provider:".to_string());
+            self.prompt_data.add_output(format!("  Model: {}", config.claude.model));
+            self.prompt_data.add_output(format!("  Temperature: {:.2}", config.claude.temperature));
+            self.prompt_data.add_output(format!("  Max Tool Iterations: {}", config.claude.max_tool_iterations));
+            self.prompt_data.add_output(format!("  Max Tokens: {}", config.claude.max_tokens));
+            if let Some(endpoint) = &config.claude.api_endpoint {
+                self.prompt_data.add_output(format!("  API Endpoint: {}", endpoint));
+            }
+            self.prompt_data.add_output("".to_string());
+
+            // OpenAI configuration
+            self.prompt_data.add_output("OpenAI Provider:".to_string());
+            self.prompt_data.add_output(format!("  Model: {}", config.openai.model));
+            self.prompt_data.add_output(format!("  Temperature: {:.2}", config.openai.temperature));
+            self.prompt_data.add_output(format!("  Max Tool Iterations: {}", config.openai.max_tool_iterations));
+            if let Some(endpoint) = &config.openai.api_endpoint {
+                self.prompt_data.add_output(format!("  API Endpoint: {}", endpoint));
+            }
+            self.prompt_data.add_output("".to_string());
+
+            // Prompt-based configuration
+            self.prompt_data.add_output("Prompt-Based Provider:".to_string());
+            self.prompt_data.add_output(format!("  Temperature: {:.2}", config.prompt_based.temperature));
+            self.prompt_data.add_output(format!("  Max Tool Iterations: {}", config.prompt_based.max_tool_iterations));
+            self.prompt_data.add_output("".to_string());
+
+            // Fallback configuration
+            self.prompt_data.add_output("Fallback:".to_string());
+            self.prompt_data.add_output(format!("  Enabled: {}", if config.fallback.enabled { "Yes" } else { "No" }));
+            if !config.fallback.chain.is_empty() {
+                let chain_str = config.fallback.chain.iter()
+                    .map(|p| p.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                self.prompt_data.add_output(format!("  Chain: {}", chain_str));
+            }
+            self.prompt_data.add_output(format!("  Max Retries: {}", config.fallback.max_retries));
+        } else {
+            self.prompt_data.add_output("  Service: Not initialized".to_string());
+            self.prompt_data.add_output("".to_string());
+            self.prompt_data.add_output("Use '/orchestrator toggle' to enable orchestration.".to_string());
+        }
+    }
+
+    /// Refresh orchestrator tool registry
+    async fn refresh_orchestrator_tools(&mut self) -> Result<()> {
+        self.prompt_data.add_output("🔄 Refreshing agent tool registry...".to_string());
+        
+        if let Some(ref service) = self.orchestration_service {
+            match service.refresh_tools().await {
+                Ok(()) => {
+                    // Get count of tools after refresh
+                    // Note: We can't easily get the count without exposing it from the service
+                    // For now, just show success
+                    self.prompt_data.add_output("✅ Agent tool registry refreshed successfully".to_string());
+                    self.prompt_data.add_output("".to_string());
+                    self.prompt_data.add_output("All available agents have been reloaded and are ready for use.".to_string());
+                }
+                Err(e) => {
+                    self.prompt_data.add_output(format!("❌ Failed to refresh tool registry: {}", e));
+                    self.prompt_data.add_output("".to_string());
+                    self.prompt_data.add_output("This could be due to:".to_string());
+                    self.prompt_data.add_output("  • Invalid agent configuration files".to_string());
+                    self.prompt_data.add_output("  • File system permission issues".to_string());
+                    self.prompt_data.add_output("  • Network issues (if loading from remote)".to_string());
+                }
+            }
+        } else {
+            self.prompt_data.add_output("⚠️  Orchestration service not initialized".to_string());
+            self.prompt_data.add_output("".to_string());
+            self.prompt_data.add_output("Use '/orchestrator toggle' to enable orchestration first.".to_string());
         }
 
         Ok(())
