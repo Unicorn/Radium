@@ -91,12 +91,18 @@ impl ContentHandler {
         let content_type = value
             .get("type")
             .and_then(|t| t.as_str())
-            .ok_or_else(|| McpError::Protocol("Content missing 'type' field".to_string()))?;
+            .ok_or_else(|| McpError::protocol(
+                "Content missing 'type' field",
+                "The content object is missing the required 'type' field. Valid types are: 'text', 'image', or 'audio'. Check the server response format.",
+            ))?;
 
         match content_type {
             "text" => {
                 let text = value.get("text").and_then(|t| t.as_str()).ok_or_else(|| {
-                    McpError::Protocol("Text content missing 'text' field".to_string())
+                    McpError::protocol(
+                        "Text content missing 'text' field",
+                        "Text content must include a 'text' field with the text content. Check the server response format.",
+                    )
                 })?;
                 Ok(McpContent::Text { text: text.to_string() })
             }
@@ -113,7 +119,10 @@ impl ContentHandler {
                         }
                     })
                     .ok_or_else(|| {
-                        McpError::Protocol("Image content missing 'data' field".to_string())
+                        McpError::protocol(
+                            "Image content missing 'data' field",
+                            "Image content must include a 'data' field with either a URL or base64-encoded image data. Check the server response format.",
+                        )
                     })?;
                 Ok(McpContent::Image { data, mime_type: mime_type.to_string() })
             }
@@ -130,11 +139,20 @@ impl ContentHandler {
                         }
                     })
                     .ok_or_else(|| {
-                        McpError::Protocol("Audio content missing 'data' field".to_string())
+                        McpError::protocol(
+                            "Audio content missing 'data' field",
+                            "Audio content must include a 'data' field with either a URL or base64-encoded audio data. Check the server response format.",
+                        )
                     })?;
                 Ok(McpContent::Audio { data, mime_type: mime_type.to_string() })
             }
-            _ => Err(McpError::Protocol(format!("Unknown content type: {}", content_type))),
+            _ => Err(McpError::protocol(
+                format!("Unknown content type: '{}'", content_type),
+                format!(
+                    "The content type '{}' is not supported. Valid types are: 'text', 'image', or 'audio'. Check the server response format.",
+                    content_type
+                ),
+            )),
         }
     }
 }

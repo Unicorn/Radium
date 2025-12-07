@@ -71,11 +71,17 @@ impl McpClient {
         let result = self.send_request("tools/list", None).await?;
 
         let tools_value = result.get("tools").ok_or_else(|| {
-            McpError::Protocol("tools/list response missing 'tools' field".to_string())
+            McpError::protocol(
+                "tools/list response missing 'tools' field",
+                "The MCP server did not return a 'tools' field in the tools/list response. This may indicate:\n  - Server protocol version mismatch\n  - Server implementation error\n\nCheck the server logs and ensure it supports the MCP tools/list method.",
+            )
         })?;
 
         let tools: Vec<McpTool> = serde_json::from_value(tools_value.clone())
-            .map_err(|e| McpError::Protocol(format!("Failed to parse tools: {}", e)))?;
+            .map_err(|e| McpError::protocol(
+                format!("Failed to parse tools: {}", e),
+                "The MCP server returned tools in an invalid format. This may indicate:\n  - Server protocol version mismatch\n  - Malformed server response\n\nCheck the server logs and verify it follows the MCP protocol specification.",
+            ))?;
 
         Ok(tools)
     }
@@ -95,7 +101,13 @@ impl McpClient {
 
         // Parse the result using ContentHandler for proper content type detection
         let content = result.get("content").and_then(|c| c.as_array()).ok_or_else(|| {
-            McpError::Protocol("tools/call response missing 'content' field".to_string())
+            McpError::protocol(
+                format!("tools/call response missing 'content' field for tool '{}'", tool_name),
+                format!(
+                    "The MCP server did not return a 'content' field in the tools/call response for tool '{}'. This may indicate:\n  - Server protocol version mismatch\n  - Server implementation error\n  - Tool execution failed\n\nCheck the server logs and verify the tool executed successfully.",
+                    tool_name
+                ),
+            )
         })?;
 
         let mut mcp_content = Vec::new();

@@ -55,7 +55,10 @@ impl SseTransport {
 impl McpTransport for SseTransport {
     async fn connect(&mut self) -> Result<()> {
         if self.connected {
-            return Err(McpError::Connection("Already connected".to_string()));
+            return Err(McpError::connection(
+                "Already connected",
+                "The SSE transport is already connected. Disconnect before reconnecting.",
+            ));
         }
 
         let mut request = self
@@ -72,14 +75,23 @@ impl McpTransport for SseTransport {
             .send()
             .await
             .map_err(|e| {
-                McpError::Transport(format!("Failed to connect to SSE endpoint: {}", e))
+                McpError::transport(
+                    format!("Failed to connect to SSE endpoint at {}: {}", self.url, e),
+                    format!(
+                        "Failed to connect to the SSE server. Common causes:\n  - Server is not running\n  - Network connectivity issue\n  - Invalid URL: {}\n  - Firewall blocking connection\n\nTry:\n  - Verify the server is running: curl {}\n  - Check network connectivity\n  - Verify the URL is correct",
+                        self.url, self.url
+                    ),
+                )
             })?;
 
         if !response.status().is_success() {
-            return Err(McpError::Transport(format!(
-                "SSE endpoint returned error: {}",
-                response.status()
-            )));
+            return Err(McpError::transport(
+                format!("SSE endpoint returned error: {}", response.status()),
+                format!(
+                    "The SSE server at {} returned an error status. Common causes:\n  - Authentication required (check OAuth token)\n  - Server error\n  - Endpoint not found\n\nCheck:\n  - OAuth token is valid: rad mcp auth status\n  - Server logs for errors\n  - URL is correct: {}",
+                    self.url, self.url
+                ),
+            ));
         }
 
         self.event_source = Some(Arc::new(Mutex::new(response)));
@@ -119,7 +131,10 @@ impl McpTransport for SseTransport {
 
     async fn send(&mut self, message: &[u8]) -> Result<()> {
         if !self.connected {
-            return Err(McpError::Connection("Not connected".to_string()));
+            return Err(McpError::connection(
+                "Not connected",
+                "The SSE transport is not connected. Call connect() before sending messages.",
+            ));
         }
 
         // SSE is typically one-way (server to client)
@@ -138,13 +153,21 @@ impl McpTransport for SseTransport {
             .body(message.to_vec())
             .send()
             .await
-            .map_err(|e| McpError::Transport(format!("Failed to send message via SSE: {}", e)))?;
+            .map_err(|e| McpError::transport(
+                format!("Failed to send message via SSE to {}: {}", self.url, e),
+                format!(
+                    "Failed to send message to the SSE server. Common causes:\n  - Network connectivity issue\n  - Server not responding\n  - Authentication token expired\n\nTry:\n  - Check network connectivity\n  - Verify OAuth token: rad mcp auth status\n  - Check server logs",
+                ),
+            ))?;
 
         if !response.status().is_success() {
-            return Err(McpError::Transport(format!(
-                "Failed to send message: {}",
-                response.status()
-            )));
+            return Err(McpError::transport(
+                format!("Failed to send message: {}", response.status()),
+                format!(
+                    "The SSE server at {} returned an error status. Common causes:\n  - Invalid message format\n  - Authentication required\n  - Server error\n\nCheck:\n  - Message format matches server expectations\n  - OAuth token is valid: rad mcp auth status\n  - Server logs for errors",
+                    self.url
+                ),
+            ));
         }
 
         Ok(())
@@ -152,12 +175,18 @@ impl McpTransport for SseTransport {
 
     async fn receive(&mut self) -> Result<Vec<u8>> {
         if !self.connected {
-            return Err(McpError::Connection("Not connected".to_string()));
+            return Err(McpError::connection(
+                "Not connected",
+                "The SSE transport is not connected. Call connect() before receiving messages.",
+            ));
         }
 
         let mut buffer = self.message_buffer.lock().await;
         if buffer.is_empty() {
-            return Err(McpError::Connection("No messages available".to_string()));
+            return Err(McpError::connection(
+                "No messages available",
+                "No messages are available in the SSE message buffer. This may indicate:\n  - Server is not sending events\n  - Connection was closed\n  - Event stream ended\n\nTry reconnecting or check server logs.",
+            ));
         }
 
         Ok(buffer.remove(0))

@@ -179,16 +179,25 @@ impl OAuthTokenManager {
         let token = self
             .get_token(server_name)
             .ok_or_else(|| {
-                McpError::Authentication(format!("No token found for server: {}", server_name))
+                McpError::authentication(
+                    format!("No token found for server: {}", server_name),
+                    format!(
+                        "No OAuth token is stored for server '{}'. Try:\n  - Connect to the server to obtain a token: rad mcp test {}\n  - Check OAuth configuration in .radium/mcp-servers.toml\n  - Verify the server has OAuth authentication configured",
+                        server_name, server_name
+                    ),
+                )
             })?
             .clone();
 
         // Get refresh token
         let refresh_token = token.refresh_token.clone().ok_or_else(|| {
-            McpError::Authentication(format!(
-                "No refresh token available for server: {}",
-                server_name
-            ))
+            McpError::authentication(
+                format!("No refresh token available for server: {}", server_name),
+                format!(
+                    "The stored token for server '{}' does not have a refresh token. You may need to:\n  - Re-authenticate with the server\n  - Check if the server supports refresh tokens\n  - Verify OAuth configuration includes refresh token support",
+                    server_name
+                ),
+            )
         })?;
 
         // Get OAuth token endpoint from auth config
@@ -196,8 +205,9 @@ impl OAuthTokenManager {
             .params
             .get("token_url")
             .ok_or_else(|| {
-                McpError::Authentication(
-                    "OAuth token_url not found in auth configuration".to_string(),
+                McpError::authentication(
+                    "OAuth token_url not found in auth configuration",
+                    "The OAuth configuration is missing the 'token_url' parameter. Add it to your server configuration:\n  [[servers]]\n  name = \"your-server\"\n  [servers.auth]\n  auth_type = \"oauth\"\n  token_url = \"https://example.com/oauth/token\"",
                 )
             })?
             .clone();
@@ -227,22 +237,33 @@ impl OAuthTokenManager {
             .send()
             .await
             .map_err(|e| {
-                McpError::Authentication(format!("Failed to send token refresh request: {}", e))
+                McpError::authentication(
+                    format!("Failed to send token refresh request to {}: {}", token_url, e),
+                    format!(
+                        "Failed to connect to the OAuth token endpoint. Common causes:\n  - Network connectivity issue\n  - Invalid token_url: {}\n  - Server is not responding\n\nTry:\n  - Check network connectivity\n  - Verify the token_url is correct\n  - Check server status",
+                        token_url
+                    ),
+                )
             })?;
 
         // Check response status
         if !response.status().is_success() {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(McpError::Authentication(format!(
-                "Token refresh failed with status {}: {}",
-                status, error_text
-            )));
+            return Err(McpError::authentication(
+                format!("Token refresh failed with status {}: {}", status, error_text),
+                format!(
+                    "The OAuth server rejected the token refresh request. Common causes:\n  - Refresh token expired or invalid\n  - Client credentials incorrect\n  - Server error\n\nTry:\n  - Re-authenticate with the server\n  - Check OAuth configuration (client_id, client_secret)\n  - Verify refresh token is still valid",
+                ),
+            ));
         }
 
         // Parse OAuth 2.0 token response
         let token_response: serde_json::Value = response.json().await.map_err(|e| {
-            McpError::Authentication(format!("Failed to parse token response: {}", e))
+            McpError::authentication(
+                format!("Failed to parse token response: {}", e),
+                "The OAuth server returned an invalid response format. This may indicate:\n  - Server protocol error\n  - Response format changed\n\nCheck the server logs and verify it follows OAuth 2.0 specification.",
+            )
         })?;
 
         // Extract token fields
@@ -250,7 +271,10 @@ impl OAuthTokenManager {
             .get("access_token")
             .and_then(|v| v.as_str())
             .ok_or_else(|| {
-                McpError::Authentication("Token response missing 'access_token' field".to_string())
+                McpError::authentication(
+                    "Token response missing 'access_token' field",
+                    "The OAuth server response is missing the required 'access_token' field. This may indicate:\n  - Server protocol error\n  - Response format changed\n\nCheck the server logs and verify it follows OAuth 2.0 specification.",
+                )
             })?
             .to_string();
 

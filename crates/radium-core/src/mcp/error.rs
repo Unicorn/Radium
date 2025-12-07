@@ -10,32 +10,53 @@ pub type Result<T> = std::result::Result<T, McpError>;
 #[derive(Debug, Error)]
 pub enum McpError {
     /// Connection error.
-    #[error("MCP connection error: {0}")]
-    Connection(String),
+    #[error("MCP connection error: {message}\n\n{suggestion}")]
+    Connection {
+        message: String,
+        suggestion: String,
+    },
 
     /// Transport error.
-    #[error("MCP transport error: {0}")]
-    Transport(String),
+    #[error("MCP transport error: {message}\n\n{suggestion}")]
+    Transport {
+        message: String,
+        suggestion: String,
+    },
 
     /// Protocol error.
-    #[error("MCP protocol error: {0}")]
-    Protocol(String),
+    #[error("MCP protocol error: {message}\n\n{suggestion}")]
+    Protocol {
+        message: String,
+        suggestion: String,
+    },
 
     /// Server not found.
-    #[error("MCP server not found: {0}")]
-    ServerNotFound(String),
+    #[error("MCP server not found: {server_name}\n\n{suggestion}")]
+    ServerNotFound {
+        server_name: String,
+        suggestion: String,
+    },
 
     /// Tool not found.
-    #[error("MCP tool not found: {0}")]
-    ToolNotFound(String),
+    #[error("MCP tool not found: {tool_name}\n\n{suggestion}")]
+    ToolNotFound {
+        tool_name: String,
+        suggestion: String,
+    },
 
     /// Authentication error.
-    #[error("MCP authentication error: {0}")]
-    Authentication(String),
+    #[error("MCP authentication error: {message}\n\n{suggestion}")]
+    Authentication {
+        message: String,
+        suggestion: String,
+    },
 
     /// Configuration error.
-    #[error("MCP configuration error: {0}")]
-    Config(String),
+    #[error("MCP configuration error: {message}\n\n{suggestion}")]
+    Config {
+        message: String,
+        suggestion: String,
+    },
 
     /// I/O error.
     #[error("I/O error: {0}")]
@@ -50,64 +71,129 @@ pub enum McpError {
     TomlParse(#[from] toml::de::Error),
 }
 
+impl McpError {
+    /// Create a connection error with a helpful suggestion.
+    pub fn connection(message: impl Into<String>, suggestion: impl Into<String>) -> Self {
+        Self::Connection {
+            message: message.into(),
+            suggestion: suggestion.into(),
+        }
+    }
+
+    /// Create a transport error with a helpful suggestion.
+    pub fn transport(message: impl Into<String>, suggestion: impl Into<String>) -> Self {
+        Self::Transport {
+            message: message.into(),
+            suggestion: suggestion.into(),
+        }
+    }
+
+    /// Create a protocol error with a helpful suggestion.
+    pub fn protocol(message: impl Into<String>, suggestion: impl Into<String>) -> Self {
+        Self::Protocol {
+            message: message.into(),
+            suggestion: suggestion.into(),
+        }
+    }
+
+    /// Create a server not found error with a helpful suggestion.
+    pub fn server_not_found(server_name: impl Into<String>, suggestion: impl Into<String>) -> Self {
+        Self::ServerNotFound {
+            server_name: server_name.into(),
+            suggestion: suggestion.into(),
+        }
+    }
+
+    /// Create a tool not found error with a helpful suggestion.
+    pub fn tool_not_found(tool_name: impl Into<String>, suggestion: impl Into<String>) -> Self {
+        Self::ToolNotFound {
+            tool_name: tool_name.into(),
+            suggestion: suggestion.into(),
+        }
+    }
+
+    /// Create an authentication error with a helpful suggestion.
+    pub fn authentication(message: impl Into<String>, suggestion: impl Into<String>) -> Self {
+        Self::Authentication {
+            message: message.into(),
+            suggestion: suggestion.into(),
+        }
+    }
+
+    /// Create a configuration error with a helpful suggestion.
+    pub fn config(message: impl Into<String>, suggestion: impl Into<String>) -> Self {
+        Self::Config {
+            message: message.into(),
+            suggestion: suggestion.into(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_mcp_error_connection_display() {
-        let err = McpError::Connection("test connection error".to_string());
+        let err = McpError::connection("test connection error", "test suggestion");
         let display = err.to_string();
         assert!(display.contains("connection error"));
         assert!(display.contains("test connection error"));
+        assert!(display.contains("test suggestion"));
     }
 
     #[test]
     fn test_mcp_error_transport_display() {
-        let err = McpError::Transport("transport failed".to_string());
+        let err = McpError::transport("transport failed", "test suggestion");
         let display = err.to_string();
         assert!(display.contains("transport error"));
         assert!(display.contains("transport failed"));
+        assert!(display.contains("test suggestion"));
     }
 
     #[test]
     fn test_mcp_error_protocol_display() {
-        let err = McpError::Protocol("invalid protocol".to_string());
+        let err = McpError::protocol("invalid protocol", "test suggestion");
         let display = err.to_string();
         assert!(display.contains("protocol error"));
         assert!(display.contains("invalid protocol"));
+        assert!(display.contains("test suggestion"));
     }
 
     #[test]
     fn test_mcp_error_server_not_found_display() {
-        let err = McpError::ServerNotFound("my-server".to_string());
+        let err = McpError::server_not_found("my-server", "test suggestion");
         let display = err.to_string();
         assert!(display.contains("server not found"));
         assert!(display.contains("my-server"));
+        assert!(display.contains("test suggestion"));
     }
 
     #[test]
     fn test_mcp_error_tool_not_found_display() {
-        let err = McpError::ToolNotFound("my-tool".to_string());
+        let err = McpError::tool_not_found("my-tool", "test suggestion");
         let display = err.to_string();
         assert!(display.contains("tool not found"));
         assert!(display.contains("my-tool"));
+        assert!(display.contains("test suggestion"));
     }
 
     #[test]
     fn test_mcp_error_authentication_display() {
-        let err = McpError::Authentication("auth failed".to_string());
+        let err = McpError::authentication("auth failed", "test suggestion");
         let display = err.to_string();
         assert!(display.contains("authentication error"));
         assert!(display.contains("auth failed"));
+        assert!(display.contains("test suggestion"));
     }
 
     #[test]
     fn test_mcp_error_config_display() {
-        let err = McpError::Config("invalid config".to_string());
+        let err = McpError::config("invalid config", "test suggestion");
         let display = err.to_string();
         assert!(display.contains("configuration error"));
         assert!(display.contains("invalid config"));
+        assert!(display.contains("test suggestion"));
     }
 
     #[test]
@@ -170,19 +256,20 @@ mod tests {
     fn test_all_error_variants() {
         // Test that all error variants can be created and displayed
         let variants = vec![
-            McpError::Connection("test".to_string()),
-            McpError::Transport("test".to_string()),
-            McpError::Protocol("test".to_string()),
-            McpError::ServerNotFound("test".to_string()),
-            McpError::ToolNotFound("test".to_string()),
-            McpError::Authentication("test".to_string()),
-            McpError::Config("test".to_string()),
+            McpError::connection("test", "suggestion"),
+            McpError::transport("test", "suggestion"),
+            McpError::protocol("test", "suggestion"),
+            McpError::server_not_found("test", "suggestion"),
+            McpError::tool_not_found("test", "suggestion"),
+            McpError::authentication("test", "suggestion"),
+            McpError::config("test", "suggestion"),
         ];
 
         for err in variants {
             let display = err.to_string();
             assert!(!display.is_empty());
             assert!(display.contains("test"));
+            assert!(display.contains("suggestion"));
         }
     }
 }

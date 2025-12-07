@@ -28,11 +28,15 @@
 //! # }
 //! ```
 
+pub mod conflict_resolution;
 pub mod constitution;
 mod rules;
 pub mod templates;
 mod types;
 
+pub use conflict_resolution::{
+    ConflictDetector, ConflictResolver, ConflictType, PolicyConflict, ResolutionStrategy,
+};
 pub use constitution::ConstitutionManager;
 pub use rules::{PolicyEngine, PolicyRule};
 pub use templates::{merge_template, PolicyTemplate, TemplateDiscovery};

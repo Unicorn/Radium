@@ -14,11 +14,17 @@ impl McpClient {
         let result = self.send_request("prompts/list", None).await?;
 
         let prompts_value = result.get("prompts").ok_or_else(|| {
-            McpError::Protocol("prompts/list response missing 'prompts' field".to_string())
+            McpError::protocol(
+                "prompts/list response missing 'prompts' field",
+                "The MCP server did not return a 'prompts' field in the prompts/list response. This may indicate:\n  - Server protocol version mismatch\n  - Server implementation error\n\nCheck the server logs and ensure it supports the MCP prompts/list method.",
+            )
         })?;
 
         let prompts: Vec<McpPrompt> = serde_json::from_value(prompts_value.clone())
-            .map_err(|e| McpError::Protocol(format!("Failed to parse prompts: {}", e)))?;
+            .map_err(|e| McpError::protocol(
+                format!("Failed to parse prompts: {}", e),
+                "The MCP server returned prompts in an invalid format. This may indicate:\n  - Server protocol version mismatch\n  - Malformed server response\n\nCheck the server logs and verify it follows the MCP protocol specification.",
+            ))?;
 
         Ok(prompts)
     }
@@ -33,7 +39,13 @@ impl McpClient {
         prompts
             .into_iter()
             .find(|p| p.name == prompt_name)
-            .ok_or_else(|| McpError::Protocol(format!("Prompt not found: {}", prompt_name)))
+            .ok_or_else(|| McpError::protocol(
+                format!("Prompt '{}' not found", prompt_name),
+                format!(
+                    "The prompt '{}' is not available from this MCP server. Try:\n  - List available prompts: rad mcp prompts\n  - Check the prompt name spelling\n  - Verify the server supports this prompt",
+                    prompt_name
+                ),
+            ))
     }
 
     /// Execute a prompt with arguments.

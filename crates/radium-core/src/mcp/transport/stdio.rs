@@ -33,7 +33,10 @@ impl StdioTransport {
 impl McpTransport for StdioTransport {
     async fn connect(&mut self) -> Result<()> {
         if self.connected {
-            return Err(McpError::Connection("Already connected".to_string()));
+            return Err(McpError::connection(
+                "Already connected",
+                "The stdio transport is already connected. Disconnect before reconnecting.",
+            ));
         }
 
         let mut cmd = Command::new(&self.command);
@@ -44,16 +47,28 @@ impl McpTransport for StdioTransport {
 
         let mut child = cmd
             .spawn()
-            .map_err(|e| McpError::Transport(format!("Failed to spawn process: {}", e)))?;
+            .map_err(|e| McpError::transport(
+                format!("Failed to spawn process '{}': {}", self.command, e),
+                format!(
+                    "Ensure the command '{}' is available in your PATH and executable.\n  - Check that the command exists: which {}\n  - Verify file permissions: ls -l $(which {})\n  - Try running the command manually to verify it works",
+                    self.command, self.command, self.command
+                ),
+            ))?;
 
         let stdin = child
             .stdin
             .take()
-            .ok_or_else(|| McpError::Transport("Failed to get stdin handle".to_string()))?;
+            .ok_or_else(|| McpError::transport(
+                "Failed to get stdin handle",
+                "This is an internal error. The process was spawned but stdin is not available. This may indicate a system resource issue.",
+            ))?;
         let stdout = child
             .stdout
             .take()
-            .ok_or_else(|| McpError::Transport("Failed to get stdout handle".to_string()))?;
+            .ok_or_else(|| McpError::transport(
+                "Failed to get stdout handle",
+                "This is an internal error. The process was spawned but stdout is not available. This may indicate a system resource issue.",
+            ))?;
 
         self.stdin = Some(Arc::new(Mutex::new(stdin)));
         self.stdout = Some(Arc::new(Mutex::new(BufReader::new(stdout))));
@@ -84,50 +99,81 @@ impl McpTransport for StdioTransport {
 
     async fn send(&mut self, message: &[u8]) -> Result<()> {
         if !self.connected {
-            return Err(McpError::Connection("Not connected".to_string()));
+            return Err(McpError::connection(
+                "Not connected",
+                "The stdio transport is not connected. Call connect() before sending messages.",
+            ));
         }
 
         let stdin = self
             .stdin
             .as_ref()
-            .ok_or_else(|| McpError::Transport("Stdin not available".to_string()))?;
+            .ok_or_else(|| McpError::transport(
+                "Stdin not available",
+                "The stdin handle is not available. The process may have terminated. Try reconnecting.",
+            ))?;
 
         let mut stdin = stdin.lock().await;
         stdin
             .write_all(message)
             .await
-            .map_err(|e| McpError::Transport(format!("Failed to write to stdin: {}", e)))?;
+            .map_err(|e| McpError::transport(
+                format!("Failed to write to stdin: {}", e),
+                format!(
+                    "Failed to write message to the MCP server process. Common causes:\n  - Process terminated unexpectedly\n  - Pipe closed\n  - System resource issue\n\nTry reconnecting to the server. Check server logs for errors.",
+                ),
+            ))?;
         stdin
             .write_all(b"\n")
             .await
-            .map_err(|e| McpError::Transport(format!("Failed to write newline: {}", e)))?;
+            .map_err(|e| McpError::transport(
+                format!("Failed to write newline: {}", e),
+                "Failed to write newline delimiter. The process may have terminated. Try reconnecting.",
+            ))?;
         stdin
             .flush()
             .await
-            .map_err(|e| McpError::Transport(format!("Failed to flush stdin: {}", e)))?;
+            .map_err(|e| McpError::transport(
+                format!("Failed to flush stdin: {}", e),
+                "Failed to flush the message buffer. The process may have terminated. Try reconnecting.",
+            ))?;
 
         Ok(())
     }
 
     async fn receive(&mut self) -> Result<Vec<u8>> {
         if !self.connected {
-            return Err(McpError::Connection("Not connected".to_string()));
+            return Err(McpError::connection(
+                "Not connected",
+                "The stdio transport is not connected. Call connect() before receiving messages.",
+            ));
         }
 
         let stdout = self
             .stdout
             .as_ref()
-            .ok_or_else(|| McpError::Transport("Stdout not available".to_string()))?;
+            .ok_or_else(|| McpError::transport(
+                "Stdout not available",
+                "The stdout handle is not available. The process may have terminated. Try reconnecting.",
+            ))?;
 
         let mut stdout = stdout.lock().await;
         let mut line = String::new();
         stdout
             .read_line(&mut line)
             .await
-            .map_err(|e| McpError::Transport(format!("Failed to read from stdout: {}", e)))?;
+            .map_err(|e| McpError::transport(
+                format!("Failed to read from stdout: {}", e),
+                format!(
+                    "Failed to read response from the MCP server process. Common causes:\n  - Process terminated unexpectedly\n  - Pipe closed\n  - Server not responding\n\nTry reconnecting to the server. Check server logs for errors.",
+                ),
+            ))?;
 
         if line.is_empty() {
-            return Err(McpError::Connection("Connection closed".to_string()));
+            return Err(McpError::connection(
+                "Connection closed",
+                "The MCP server process closed the connection. This may indicate:\n  - Server terminated unexpectedly\n  - Server sent EOF\n  - Process crashed\n\nCheck server logs and try reconnecting.",
+            ));
         }
 
         Ok(line.trim_end().as_bytes().to_vec())

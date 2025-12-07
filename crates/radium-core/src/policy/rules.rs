@@ -323,6 +323,53 @@ impl PolicyEngine {
         self.rules.len()
     }
 
+    /// Gets all loaded rules (immutable reference).
+    #[must_use]
+    pub fn rules(&self) -> &[PolicyRule] {
+        &self.rules
+    }
+
+    /// Detects conflicts in the current set of rules.
+    ///
+    /// # Returns
+    /// Vector of detected conflicts.
+    ///
+    /// # Errors
+    /// Returns error if pattern parsing fails.
+    pub fn detect_conflicts(&self) -> PolicyResult<Vec<super::conflict_resolution::PolicyConflict>> {
+        super::conflict_resolution::ConflictDetector::detect_conflicts(&self.rules)
+    }
+
+    /// Resolves conflicts using auto-resolution strategy.
+    ///
+    /// # Returns
+    /// Vector of rule names that were removed.
+    pub fn auto_resolve_conflicts(&mut self) -> PolicyResult<Vec<String>> {
+        let conflicts = self.detect_conflicts()?;
+        let removed = super::conflict_resolution::ConflictResolver::auto_resolve(&conflicts, &mut self.rules);
+        Ok(removed)
+    }
+
+    /// Resolves conflicts using a specified strategy.
+    ///
+    /// # Arguments
+    /// * `strategy` - Resolution strategy to apply
+    ///
+    /// # Returns
+    /// Vector of rule names that were removed.
+    pub fn resolve_conflicts(
+        &mut self,
+        strategy: super::conflict_resolution::ResolutionStrategy,
+    ) -> PolicyResult<Vec<String>> {
+        let conflicts = self.detect_conflicts()?;
+        let removed = super::conflict_resolution::ConflictResolver::resolve_conflicts(
+            &conflicts,
+            strategy,
+            &mut self.rules,
+        );
+        Ok(removed)
+    }
+
     /// Executes AfterTool hooks after tool execution.
     ///
     /// # Arguments

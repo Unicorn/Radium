@@ -94,7 +94,10 @@ impl McpMessage {
             return Ok(McpMessage::Response(response));
         }
 
-        Err(crate::mcp::McpError::Protocol("Invalid JSON-RPC message format".to_string()))
+        Err(crate::mcp::McpError::protocol(
+            "Invalid JSON-RPC message format",
+            "The message does not match the JSON-RPC 2.0 format. A valid message must be:\n  - A request: has 'method' and optionally 'id'\n  - A response: has 'result' or 'error' and 'id'\n  - A notification: has 'method' but no 'id'\n\nCheck that the message follows the JSON-RPC 2.0 specification.",
+        ))
     }
 
     /// Serialize the message to JSON bytes.

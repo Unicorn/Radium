@@ -65,7 +65,13 @@ impl McpClient {
         let transport: Box<dyn McpTransport> = match server_config.transport {
             TransportType::Stdio => {
                 let command = server_config.command.clone().ok_or_else(|| {
-                    McpError::Config("Stdio transport requires 'command' field".to_string())
+                    McpError::config(
+                        format!("Stdio transport requires 'command' field for server '{}'", server_config.name),
+                        format!(
+                            "Add a 'command' field to your server configuration. Example:\n  [[servers]]\n  name = \"{}\"\n  transport = \"stdio\"\n  command = \"mcp-server\"",
+                            server_config.name
+                        ),
+                    )
                 })?;
                 let args = server_config.args.clone().unwrap_or_default();
                 let mut stdio_transport = StdioTransport::new(command, args);
@@ -74,7 +80,13 @@ impl McpClient {
             }
             TransportType::Sse => {
                 let url = server_config.url.clone().ok_or_else(|| {
-                    McpError::Config("SSE transport requires 'url' field".to_string())
+                    McpError::config(
+                        format!("SSE transport requires 'url' field for server '{}'", server_config.name),
+                        format!(
+                            "Add a 'url' field to your server configuration. Example:\n  [[servers]]\n  name = \"{}\"\n  transport = \"sse\"\n  url = \"http://localhost:8080/sse\"",
+                            server_config.name
+                        ),
+                    )
                 })?;
                 // Get OAuth token for SSE transport
                 let auth_header = if let Some(ref token_mgr) = token_manager {
@@ -93,7 +105,13 @@ impl McpClient {
             }
             TransportType::Http => {
                 let url = server_config.url.clone().ok_or_else(|| {
-                    McpError::Config("HTTP transport requires 'url' field".to_string())
+                    McpError::config(
+                        format!("HTTP transport requires 'url' field for server '{}'", server_config.name),
+                        format!(
+                            "Add a 'url' field to your server configuration. Example:\n  [[servers]]\n  name = \"{}\"\n  transport = \"http\"\n  url = \"http://localhost:8080/mcp\"",
+                            server_config.name
+                        ),
+                    )
                 })?;
                 // Get OAuth token for HTTP transport
                 let auth_header = if let Some(ref token_mgr) = token_manager {
@@ -169,15 +187,20 @@ impl McpClient {
         let response: JsonRpcResponse = serde_json::from_slice(&response_bytes)?;
 
         if let Some(error) = response.error {
-            return Err(McpError::Protocol(format!(
-                "Initialize failed: {} (code: {})",
-                error.message, error.code
-            )));
+            return Err(McpError::protocol(
+                format!("Initialize failed: {} (code: {})", error.message, error.code),
+                format!(
+                    "The MCP server failed to initialize. Common causes:\n  - Server version incompatibility\n  - Missing required capabilities\n  - Server configuration error\n\nCheck the server logs for more details. Ensure your server supports MCP protocol version 2024-11-05."
+                ),
+            ));
         }
 
         let result = response
             .result
-            .ok_or_else(|| McpError::Protocol("Initialize response missing result".to_string()))?;
+            .ok_or_else(|| McpError::protocol(
+                "Initialize response missing result",
+                "The MCP server did not return a result in the initialize response. This may indicate a protocol version mismatch or server error. Check the server logs for more details.",
+            ))?;
 
         let init_result: InitializeResult = serde_json::from_value(result)?;
 
@@ -243,13 +266,22 @@ impl McpClient {
         let response: JsonRpcResponse = serde_json::from_slice(&response_bytes)?;
 
         if let Some(error) = response.error {
-            return Err(McpError::Protocol(format!(
-                "Request failed: {} (code: {})",
-                error.message, error.code
-            )));
+            return Err(McpError::protocol(
+                format!("Request '{}' failed: {} (code: {})", method, error.message, error.code),
+                format!(
+                    "The MCP server returned an error for method '{}'. Common causes:\n  - Invalid parameters\n  - Server-side error\n  - Resource not available\n\nCheck the error code and message above for details. Verify your request parameters match the server's expected format.",
+                    method
+                ),
+            ));
         }
 
-        response.result.ok_or_else(|| McpError::Protocol("Response missing result".to_string()))
+        response.result.ok_or_else(|| McpError::protocol(
+            format!("Response missing result for method '{}'", method),
+            format!(
+                "The MCP server did not return a result for method '{}'. This may indicate:\n  - Server protocol error\n  - Request was treated as a notification\n  - Server did not process the request\n\nCheck the server logs for more details.",
+                method
+            ),
+        ))
     }
 
     /// Get server information.
@@ -331,7 +363,10 @@ mod tests {
     impl McpTransport for MockTransport {
         async fn connect(&mut self) -> Result<()> {
             if self.should_fail_connect {
-                return Err(McpError::Connection("Mock connection failure".to_string()));
+                return Err(McpError::connection(
+                    "Mock connection failure",
+                    "This is a test error. In production, check network connectivity and server availability.",
+                ));
             }
             self.connected = true;
             Ok(())
@@ -344,10 +379,16 @@ mod tests {
 
         async fn send(&mut self, message: &[u8]) -> Result<()> {
             if !self.connected {
-                return Err(McpError::Connection("Not connected".to_string()));
+                return Err(McpError::connection(
+                    "Not connected",
+                    "The transport is not connected. Call connect() before sending messages.",
+                ));
             }
             if self.should_fail_send {
-                return Err(McpError::Transport("Mock send failure".to_string()));
+                return Err(McpError::transport(
+                    "Mock send failure",
+                    "This is a test error. In production, check network connectivity and server availability.",
+                ));
             }
             self.sent_messages.push(message.to_vec());
             Ok(())
@@ -355,13 +396,22 @@ mod tests {
 
         async fn receive(&mut self) -> Result<Vec<u8>> {
             if !self.connected {
-                return Err(McpError::Connection("Not connected".to_string()));
+                return Err(McpError::connection(
+                    "Not connected",
+                    "The transport is not connected. Call connect() before receiving messages.",
+                ));
             }
             if self.should_fail_receive {
-                return Err(McpError::Transport("Mock receive failure".to_string()));
+                return Err(McpError::transport(
+                    "Mock receive failure",
+                    "This is a test error. In production, check network connectivity and server availability.",
+                ));
             }
             if self.receive_queue.is_empty() {
-                return Err(McpError::Connection("No messages available".to_string()));
+                return Err(McpError::connection(
+                    "No messages available",
+                    "No messages are available in the receive queue. This may indicate the server is not sending responses or the connection was closed.",
+                ));
             }
             Ok(self.receive_queue.remove(0))
         }

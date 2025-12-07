@@ -1,7 +1,7 @@
 //! Policy management commands.
 
 use clap::Subcommand;
-use radium_core::policy::{ApprovalMode, PolicyEngine, merge_template, PolicyTemplate, TemplateDiscovery};
+use radium_core::policy::{ApprovalMode, ConflictDetector, ConflictResolver, PolicyEngine, ResolutionStrategy, merge_template, PolicyTemplate, TemplateDiscovery};
 use radium_core::workspace::Workspace;
 use std::path::PathBuf;
 
@@ -79,6 +79,28 @@ pub enum PolicyCommand {
         #[command(subcommand)]
         command: TemplateCommand,
     },
+
+    /// Detect conflicts in policy rules
+    Conflicts {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Resolve conflicts in policy rules
+    Resolve {
+        /// Resolution strategy (auto, higher-priority, more-specific, keep-first, keep-second, remove-both, rename)
+        #[arg(long, default_value = "auto")]
+        strategy: String,
+
+        /// Auto-apply resolution (don't ask for confirmation)
+        #[arg(long)]
+        yes: bool,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 /// Template management commands.
@@ -124,6 +146,8 @@ pub async fn execute_policy_command(command: PolicyCommand) -> anyhow::Result<()
         }
         PolicyCommand::Remove { name } => remove_policy(name).await,
         PolicyCommand::Templates { command } => execute_template_command(command).await,
+        PolicyCommand::Conflicts { json } => detect_conflicts(json).await,
+        PolicyCommand::Resolve { strategy, yes, json } => resolve_conflicts(strategy, yes, json).await,
     }
 }
 
@@ -682,6 +706,249 @@ async fn apply_template(
         println!("✓ Applied template '{}' (merged with existing rules)", name);
     }
     println!("  Policy file: {}", policy_file.display());
+
+    Ok(())
+}
+
+/// Detect conflicts in policy rules.
+async fn detect_conflicts(json: bool) -> anyhow::Result<()> {
+    let workspace = Workspace::discover()?;
+    let policy_file = workspace.root().join(".radium").join("policy.toml");
+
+    if !policy_file.exists() {
+        if json {
+            println!("{}", serde_json::json!({
+                "conflicts": [],
+                "conflict_count": 0,
+                "file_exists": false,
+            }));
+        } else {
+            println!("No policy file found: {}", policy_file.display());
+            println!("Run 'rad policy init' to create a default policy.toml file.");
+        }
+        return Ok(());
+    }
+
+    let engine = PolicyEngine::from_file(&policy_file).map_err(|e| {
+        anyhow::anyhow!("Failed to load policy file {}: {}", policy_file.display(), e)
+    })?;
+
+    let conflicts = engine.detect_conflicts().map_err(|e| {
+        anyhow::anyhow!("Failed to detect conflicts: {}", e)
+    })?;
+
+    if json {
+        let conflicts_json: Vec<serde_json::Value> = conflicts
+            .iter()
+            .map(|c| {
+                serde_json::json!({
+                    "type": format!("{:?}", c.conflict_type),
+                    "rule1": {
+                        "name": c.rule1.name,
+                        "tool_pattern": c.rule1.tool_pattern,
+                        "action": format!("{:?}", c.rule1.action),
+                        "priority": format!("{:?}", c.rule1.priority),
+                    },
+                    "rule2": {
+                        "name": c.rule2.name,
+                        "tool_pattern": c.rule2.tool_pattern,
+                        "action": format!("{:?}", c.rule2.action),
+                        "priority": format!("{:?}", c.rule2.priority),
+                    },
+                    "example_tool": c.example_tool,
+                    "description": c.conflict_type.description(),
+                })
+            })
+            .collect();
+
+        println!("{}", serde_json::json!({
+            "conflicts": conflicts_json,
+            "conflict_count": conflicts.len(),
+        }));
+    } else {
+        println!("Policy Conflict Detection");
+        println!("=========================");
+        println!();
+
+        if conflicts.is_empty() {
+            println!("✓ No conflicts detected. All policy rules are compatible.");
+        } else {
+            println!("⚠ Found {} conflict(s):", conflicts.len());
+            println!();
+
+            for (i, conflict) in conflicts.iter().enumerate() {
+                println!("Conflict {}:", i + 1);
+                println!("  Type: {} ({})", format!("{:?}", conflict.conflict_type), conflict.conflict_type.description());
+                println!("  Rule 1: {} (pattern: {}, action: {:?}, priority: {:?})", 
+                    conflict.rule1.name, 
+                    conflict.rule1.tool_pattern,
+                    conflict.rule1.action,
+                    conflict.rule1.priority);
+                println!("  Rule 2: {} (pattern: {}, action: {:?}, priority: {:?})", 
+                    conflict.rule2.name, 
+                    conflict.rule2.tool_pattern,
+                    conflict.rule2.action,
+                    conflict.rule2.priority);
+                println!("  Example tool: {}", conflict.example_tool);
+                println!();
+            }
+
+            println!("To resolve conflicts, run: rad policy resolve [--strategy <strategy>]");
+            println!("Available strategies: auto, higher-priority, more-specific, keep-first, keep-second, remove-both, rename");
+        }
+    }
+
+    Ok(())
+}
+
+/// Resolve conflicts in policy rules.
+async fn resolve_conflicts(strategy_str: String, yes: bool, json: bool) -> anyhow::Result<()> {
+    let workspace = Workspace::discover()?;
+    let policy_file = workspace.root().join(".radium").join("policy.toml");
+
+    if !policy_file.exists() {
+        anyhow::bail!("No policy file found: {}", policy_file.display());
+    }
+
+    let mut engine = PolicyEngine::from_file(&policy_file).map_err(|e| {
+        anyhow::anyhow!("Failed to load policy file {}: {}", policy_file.display(), e)
+    })?;
+
+    let conflicts = engine.detect_conflicts().map_err(|e| {
+        anyhow::anyhow!("Failed to detect conflicts: {}", e)
+    })?;
+
+    if conflicts.is_empty() {
+        if json {
+            println!("{}", serde_json::json!({
+                "resolved": false,
+                "removed_rules": [],
+                "conflict_count": 0,
+                "message": "No conflicts to resolve",
+            }));
+        } else {
+            println!("✓ No conflicts detected. Nothing to resolve.");
+        }
+        return Ok(());
+    }
+
+    let strategy = match strategy_str.as_str() {
+        "auto" => ResolutionStrategy::KeepHigherPriority, // Use auto_resolve which is smarter
+        "higher-priority" => ResolutionStrategy::KeepHigherPriority,
+        "more-specific" => ResolutionStrategy::KeepMoreSpecific,
+        "keep-first" => ResolutionStrategy::KeepFirst,
+        "keep-second" => ResolutionStrategy::KeepSecond,
+        "remove-both" => ResolutionStrategy::RemoveBoth,
+        "rename" => ResolutionStrategy::Rename,
+        _ => anyhow::bail!("Invalid strategy: {}. Valid strategies: auto, higher-priority, more-specific, keep-first, keep-second, remove-both, rename", strategy_str),
+    };
+
+    if !yes && !json {
+        println!("Found {} conflict(s) to resolve.", conflicts.len());
+        println!("Strategy: {}", strategy_str);
+        println!();
+        println!("Rules that will be removed:");
+        for conflict in &conflicts {
+            let to_remove = match strategy {
+                ResolutionStrategy::KeepHigherPriority => {
+                    if conflict.rule1.priority > conflict.rule2.priority {
+                        &conflict.rule2.name
+                    } else {
+                        &conflict.rule1.name
+                    }
+                }
+                ResolutionStrategy::KeepMoreSpecific => {
+                    if ConflictDetector::is_more_specific(&conflict.rule1.tool_pattern, &conflict.rule2.tool_pattern) {
+                        &conflict.rule2.name
+                    } else {
+                        &conflict.rule1.name
+                    }
+                }
+                ResolutionStrategy::KeepFirst => &conflict.rule2.name,
+                ResolutionStrategy::KeepSecond => &conflict.rule1.name,
+                ResolutionStrategy::RemoveBoth => {
+                    println!("  - {}", conflict.rule1.name);
+                    &conflict.rule2.name
+                }
+                ResolutionStrategy::Rename => {
+                    println!("  - {} (will be renamed)", conflict.rule2.name);
+                    continue;
+                }
+            };
+            println!("  - {}", to_remove);
+        }
+        println!();
+        println!("Proceed with resolution? [y/N]: ");
+        
+        use std::io::{self, BufRead};
+        let stdin = io::stdin();
+        let mut line = String::new();
+        stdin.lock().read_line(&mut line)?;
+        if !line.trim().eq_ignore_ascii_case("y") && !line.trim().eq_ignore_ascii_case("yes") {
+            println!("Resolution cancelled.");
+            return Ok(());
+        }
+    }
+
+    let removed = if strategy_str == "auto" {
+        engine.auto_resolve_conflicts().map_err(|e| {
+            anyhow::anyhow!("Failed to auto-resolve conflicts: {}", e)
+        })?
+    } else {
+        engine.resolve_conflicts(strategy).map_err(|e| {
+            anyhow::anyhow!("Failed to resolve conflicts: {}", e)
+        })?
+    };
+
+    // Save resolved policy back to file
+    use std::fs::File;
+    use std::io::Write;
+    use toml;
+
+    let mut config = toml::value::Table::new();
+    config.insert("approval_mode".to_string(), toml::Value::String(format!("{:?}", engine.approval_mode()).to_lowercase()));
+    
+    let rules_array: Vec<toml::Value> = engine.rules()
+        .iter()
+        .map(|rule| {
+            let mut rule_table = toml::value::Table::new();
+            rule_table.insert("name".to_string(), toml::Value::String(rule.name.clone()));
+            rule_table.insert("tool_pattern".to_string(), toml::Value::String(rule.tool_pattern.clone()));
+            rule_table.insert("action".to_string(), toml::Value::String(format!("{:?}", rule.action).to_lowercase()));
+            rule_table.insert("priority".to_string(), toml::Value::String(format!("{:?}", rule.priority).to_lowercase()));
+            if let Some(ref arg_pattern) = rule.arg_pattern {
+                rule_table.insert("arg_pattern".to_string(), toml::Value::String(arg_pattern.clone()));
+            }
+            if let Some(ref reason) = rule.reason {
+                rule_table.insert("reason".to_string(), toml::Value::String(reason.clone()));
+            }
+            toml::Value::Table(rule_table)
+        })
+        .collect();
+    config.insert("rules".to_string(), toml::Value::Array(rules_array));
+
+    let toml_string = toml::to_string_pretty(&config)?;
+    let mut file = File::create(&policy_file)?;
+    file.write_all(toml_string.as_bytes())?;
+
+    if json {
+        println!("{}", serde_json::json!({
+            "resolved": true,
+            "removed_rules": removed,
+            "conflict_count": conflicts.len(),
+            "remaining_rules": engine.rule_count(),
+        }));
+    } else {
+        println!("✓ Resolved {} conflict(s).", conflicts.len());
+        if !removed.is_empty() {
+            println!("Removed rules:");
+            for rule_name in &removed {
+                println!("  - {}", rule_name);
+            }
+        }
+        println!("Remaining rules: {}", engine.rule_count());
+        println!("Policy saved to: {}", policy_file.display());
+    }
 
     Ok(())
 }

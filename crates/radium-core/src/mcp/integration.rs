@@ -208,7 +208,13 @@ impl McpIntegration {
         let clients = self.clients.lock().await;
         let client = clients
             .get(server_name)
-            .ok_or_else(|| McpError::ServerNotFound(server_name.to_string()))?;
+            .ok_or_else(|| McpError::server_not_found(
+                server_name,
+                format!(
+                    "The MCP server '{}' is not connected. Try:\n  - List connected servers: rad mcp list\n  - Test connection: rad mcp test {}\n  - Check server configuration in .radium/mcp-servers.toml\n  - Verify the server is running and accessible",
+                    server_name, server_name
+                ),
+            ))?;
 
         let client = client.lock().await;
         client.execute_tool(tool_name, arguments).await
@@ -264,7 +270,13 @@ impl McpIntegration {
         let clients = self.clients.lock().await;
         let client = clients
             .get(server_name)
-            .ok_or_else(|| McpError::ServerNotFound(server_name.to_string()))?;
+            .ok_or_else(|| McpError::server_not_found(
+                server_name,
+                format!(
+                    "The MCP server '{}' is not connected. Try:\n  - List connected servers: rad mcp list\n  - Test connection: rad mcp test {}\n  - Check server configuration in .radium/mcp-servers.toml\n  - Verify the server is running and accessible",
+                    server_name, server_name
+                ),
+            ))?;
 
         let client = client.lock().await;
         client.execute_prompt(prompt_name, arguments).await

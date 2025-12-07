@@ -38,7 +38,12 @@ impl McpConfigManager {
         let content = std::fs::read_to_string(&self.config_path).map_err(|e| {
             McpError::Io(std::io::Error::new(
                 std::io::ErrorKind::Other,
-                format!("Failed to read MCP config file: {}", e),
+                format!(
+                    "Failed to read MCP config file at {}: {}\n\nSuggestion: Ensure the file exists and has read permissions. You can create a new config file using 'rad mcp setup' or by manually creating {}",
+                    self.config_path.display(),
+                    e,
+                    self.config_path.display()
+                ),
             ))
         })?;
 
@@ -73,13 +78,19 @@ impl McpConfigManager {
             .get("name")
             .and_then(|n| n.as_str())
             .ok_or_else(|| {
-                McpError::Config("Server configuration missing 'name' field".to_string())
+                McpError::config(
+                    "Server configuration missing 'name' field",
+                    "Add a 'name' field to your server configuration. Example:\n  [[servers]]\n  name = \"my-server\"\n  transport = \"stdio\"\n  command = \"mcp-server\"",
+                )
             })?
             .to_string();
 
         let transport_str =
             server_table.get("transport").and_then(|t| t.as_str()).ok_or_else(|| {
-                McpError::Config("Server configuration missing 'transport' field".to_string())
+                McpError::config(
+                    "Server configuration missing 'transport' field",
+                    "Add a 'transport' field to your server configuration. Valid values are: 'stdio', 'sse', or 'http'. Example:\n  [[servers]]\n  name = \"my-server\"\n  transport = \"stdio\"\n  command = \"mcp-server\"",
+                )
             })?;
 
         let transport = match transport_str {
@@ -87,7 +98,12 @@ impl McpConfigManager {
             "sse" => TransportType::Sse,
             "http" => TransportType::Http,
             _ => {
-                return Err(McpError::Config(format!("Invalid transport type: {}", transport_str)));
+                return Err(McpError::config(
+                    format!("Invalid transport type: '{}'", transport_str),
+                    format!(
+                        "Valid transport types are: 'stdio', 'sse', or 'http'.\n  - 'stdio': For local command-line MCP servers\n  - 'sse': For Server-Sent Events (SSE) endpoints\n  - 'http': For HTTP-based MCP servers\n\nExample:\n  transport = \"stdio\""
+                    ),
+                ));
             }
         };
 
@@ -104,17 +120,24 @@ impl McpConfigManager {
         match transport {
             TransportType::Stdio => {
                 if command.is_none() {
-                    return Err(McpError::Config(
-                        "Stdio transport requires 'command' field".to_string(),
+                    return Err(McpError::config(
+                        format!("Stdio transport requires 'command' field for server '{}'", name),
+                        format!(
+                            "Add a 'command' field specifying the executable to run. Example:\n  [[servers]]\n  name = \"{}\"\n  transport = \"stdio\"\n  command = \"mcp-server\"\n  args = [\"--config\", \"config.json\"]",
+                            name
+                        ),
                     ));
                 }
             }
             TransportType::Sse | TransportType::Http => {
                 if url.is_none() {
-                    return Err(McpError::Config(format!(
-                        "{} transport requires 'url' field",
-                        transport_str
-                    )));
+                    return Err(McpError::config(
+                        format!("{} transport requires 'url' field for server '{}'", transport_str, name),
+                        format!(
+                            "Add a 'url' field specifying the server endpoint. Example:\n  [[servers]]\n  name = \"{}\"\n  transport = \"{}\"\n  url = \"http://localhost:8080/mcp\"",
+                            name, transport_str
+                        ),
+                    ));
                 }
             }
         }
@@ -205,14 +228,24 @@ impl McpConfigManager {
         toml_table.insert("servers".to_string(), TomlValue::Array(servers_array));
 
         let content = toml::to_string_pretty(&toml_table)
-            .map_err(|e| McpError::Config(format!("Failed to serialize config: {}", e)))?;
+            .map_err(|e| McpError::config(
+                format!("Failed to serialize configuration: {}", e),
+                format!(
+                    "This is an internal error. Please check that your server configurations are valid.\nConfig path: {}\nIf the problem persists, try removing the config file and recreating it.",
+                    self.config_path.display()
+                ),
+            ))?;
 
         // Create parent directory if it doesn't exist
         if let Some(parent) = self.config_path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| {
                 McpError::Io(std::io::Error::new(
                     std::io::ErrorKind::Other,
-                    format!("Failed to create config directory: {}", e),
+                    format!(
+                        "Failed to create config directory at {}: {}\n\nSuggestion: Ensure you have write permissions for the parent directory. You may need to create the directory manually or run with appropriate permissions.",
+                        parent.display(),
+                        e
+                    ),
                 ))
             })?;
         }
@@ -220,7 +253,11 @@ impl McpConfigManager {
         std::fs::write(&self.config_path, content).map_err(|e| {
             McpError::Io(std::io::Error::new(
                 std::io::ErrorKind::Other,
-                format!("Failed to write config file: {}", e),
+                format!(
+                    "Failed to write config file at {}: {}\n\nSuggestion: Ensure you have write permissions for the config file location. Check that the file is not locked by another process.",
+                    self.config_path.display(),
+                    e
+                ),
             ))
         })?;
 
