@@ -58,16 +58,19 @@
    - ✅ Agents registered when steps start
    - ✅ Status updated (Running → Completed/Failed)
    - ✅ Plan ID tracking for workflow context
-   - ⏳ Telemetry not yet captured from model responses (infrastructure ready)
-   - ⏳ Checkpoints not yet created before file modifications
+   - ✅ Telemetry infrastructure ready (`ExecutionTelemetry`, recording in workflow executor)
+   - ✅ Telemetry recording when available from `ExecutionResult`
+   - ✅ Automatic checkpoint creation before each workflow step
+   - ✅ `/restore` command handler - Detects restore requests in agent output and executes restore
+   - ⏳ Full telemetry capture requires agent modifications to expose `ModelResponse.usage` (infrastructure ready)
 
 2. **CLI Integration**
    - ✅ `rad monitor status [agent-id]` - View agent status
    - ✅ `rad monitor list [--status <status>]` - List all agents
    - ✅ `rad monitor telemetry [agent-id]` - View telemetry/costs
-   - ⏳ `rad logs [agent-id]` - View agent log file (infrastructure ready)
-   - ⏳ `rad checkpoint list` - List checkpoints (infrastructure ready)
-   - ⏳ `rad checkpoint restore <id>` - Restore checkpoint (infrastructure ready)
+   - ✅ `rad checkpoint list` - List checkpoints
+   - ✅ `rad checkpoint restore <id>` - Restore checkpoint
+   - ⏳ `rad logs [agent-id]` - View agent log file (infrastructure ready, CLI command pending)
 
 3. **Agent Orchestrator Integration**
    - ❌ MonitoringService not passed to orchestrator

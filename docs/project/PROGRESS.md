@@ -188,28 +188,32 @@ Radium is a high-performance agent orchestration platform built with Rust. The p
     - Network mode configuration (open/closed/proxied)
     - Custom sandbox flags and environment variable support
     - No-op sandbox for direct execution
-- [x] **Step 6: Monitoring & Telemetry**: Core monitoring system implementation and integration
+- [x] **Step 6: Monitoring & Telemetry**: Complete monitoring system implementation and integration
   - **Completed:** 2025-12-03 (infrastructure), 2025-01-XX (integration)
-  - **Commits:** Multiple commits for monitoring modules + workflow integration
+  - **Commits:** Multiple commits for monitoring modules + workflow integration + telemetry + restore
   - **Files:** 
     - `src/monitoring/{schema,service,telemetry,logs}.rs` (infrastructure)
     - `src/checkpoint/{snapshot,error}.rs` (checkpointing)
     - `src/workflow/{service,executor}.rs` (integration)
-    - `apps/cli/src/commands/monitor.rs` (CLI commands)
+    - `apps/cli/src/commands/{monitor,checkpoint}.rs` (CLI commands)
+    - `crates/radium-orchestrator/src/executor.rs` (telemetry infrastructure)
   - **Tests:** 44 tests passing (29 monitoring + 15 checkpoint)
   - **Features:**
     - ✅ Database schema for agent lifecycle tracking
     - ✅ Agent monitoring service with parent-child relationships
     - ✅ Workflow integration - agents tracked during execution
     - ✅ CLI commands: `rad monitor status`, `rad monitor list`, `rad monitor telemetry`
+    - ✅ CLI commands: `rad checkpoint list`, `rad checkpoint restore`
+    - ✅ Automatic checkpoint creation before workflow steps
+    - ✅ `/restore` command handler in workflow executor (detects restore requests in agent output)
+    - ✅ Telemetry infrastructure (`ExecutionTelemetry`, `ExecutionResult.telemetry`)
+    - ✅ Telemetry recording in workflow executor (when available)
     - ✅ Multi-provider telemetry parsing (OpenAI, Anthropic, Gemini) - infrastructure ready
     - ✅ Token counting and cost calculation - infrastructure ready
     - ✅ Log file management with ANSI color stripping - infrastructure ready
-    - ✅ Git-based checkpoint system for agent work snapshots - infrastructure ready
-  - **Remaining:**
-    - ⏳ Telemetry parsing from actual model responses (requires model response structure)
-    - ⏳ Checkpointing integration with file modification operations
-    - ⏳ `/restore` command implementation
+    - ✅ Git-based checkpoint system for agent work snapshots - fully integrated
+  - **Remaining (Future Enhancement):**
+    - ⏳ Telemetry capture from actual model responses (infrastructure ready, requires agent modifications to expose ModelResponse usage)
 - [x] **RAD-040**: Write E2E tests for CLI
   - **Completed:** 2025-12-02
   - **Commit:** test(cli): add E2E tests for core commands [RAD-040]
