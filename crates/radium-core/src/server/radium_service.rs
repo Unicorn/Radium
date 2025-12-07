@@ -64,10 +64,36 @@ impl RadiumService {
         let message_bus = Arc::new(crate::collaboration::MessageBus::new(Arc::clone(&db_arc)));
         let lock_manager = Arc::new(crate::collaboration::ResourceLockManager::new());
         let progress_tracker = Arc::new(crate::collaboration::ProgressTracker::new(Arc::clone(&db_arc)));
+        
+        // Create worker executor wrapper for delegation manager
+        struct OrchestratorWorkerExecutor {
+            orchestrator: Arc<Orchestrator>,
+        }
+        impl crate::collaboration::delegation::WorkerExecutor for OrchestratorWorkerExecutor {
+            fn execute_worker(&self, worker_id: &str, task_input: &str) -> std::pin::Pin<Box<dyn std::future::Future<Output = std::result::Result<crate::collaboration::delegation::WorkerExecutionResult, String>> + Send>> {
+                let orchestrator = Arc::clone(&self.orchestrator);
+                let worker_id = worker_id.to_string();
+                let task_input = task_input.to_string();
+                Box::pin(async move {
+                    match orchestrator.execute_agent(&worker_id, &task_input).await {
+                        Ok(result) => Ok(crate::collaboration::delegation::WorkerExecutionResult {
+                            success: result.success,
+                            output: Some(format!("{:?}", result.output)),
+                            error: result.error,
+                        }),
+                        Err(e) => Err(e.to_string()),
+                    }
+                })
+            }
+        }
+        let worker_executor: Arc<dyn crate::collaboration::delegation::WorkerExecutor> = Arc::new(OrchestratorWorkerExecutor {
+            orchestrator: Arc::clone(&orchestrator),
+        });
+        
         let delegation_manager = Arc::new(crate::collaboration::DelegationManager::new(
             Arc::clone(&db_arc),
             Arc::clone(&message_bus),
-            Arc::clone(&orchestrator),
+            worker_executor,
         ));
 
         Self {
