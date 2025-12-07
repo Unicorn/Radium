@@ -2,6 +2,8 @@
 
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyModifiers};
+use fuzzy_matcher::FuzzyMatcher;
+use fuzzy_matcher::skim::SkimMatcherV2;
 use radium_core::auth::{CredentialStore, ProviderType};
 use radium_core::mcp::{McpIntegration, SlashCommandRegistry};
 use radium_core::workflow::RequirementExecutor;
@@ -946,29 +948,36 @@ impl App {
         let mut suggestions: Vec<String> = Vec::new();
 
         if parts.is_empty() || (parts.len() == 1 && !partial.ends_with(' ')) {
-            // Typing main command - show matching main commands
+            // Typing main command - show matching main commands with fuzzy search
             let query = parts.first().unwrap_or(&"");
 
-            // Filter built-in commands that match the partial input
-            suggestions.extend(
-                self.available_commands
-                    .iter()
-                    .filter(|(cmd, _desc)| cmd.starts_with(query))
-                    .map(|(cmd, desc)| format!("/{} - {}", cmd, desc))
-            );
+            // Use fuzzy matching for better UX
+            let matcher = SkimMatcherV2::default();
+            let mut scored_commands: Vec<(i64, String)> = Vec::new();
 
-            // Add MCP commands that match
+            // Score built-in commands with fuzzy matching
+            for (cmd, desc) in &self.available_commands {
+                if let Some(score) = matcher.fuzzy_match(cmd, query) {
+                    scored_commands.push((score, format!("/{} - {}", cmd, desc)));
+                }
+            }
+
+            // Score MCP commands with fuzzy matching
             for (cmd_name, prompt) in self.mcp_slash_registry.get_all_commands() {
                 let cmd_without_slash = &cmd_name[1..]; // Remove leading '/'
-                if cmd_without_slash.starts_with(query) {
+                if let Some(score) = matcher.fuzzy_match(cmd_without_slash, query) {
                     let desc = prompt
                         .description
                         .as_ref()
                         .map(|d| d.as_str())
                         .unwrap_or("MCP command");
-                    suggestions.push(format!("{} - {}", cmd_name, desc));
+                    scored_commands.push((score, format!("{} - {}", cmd_name, desc)));
                 }
             }
+
+            // Sort by score (highest first) and take suggestions
+            scored_commands.sort_by(|a, b| b.0.cmp(&a.0));
+            suggestions.extend(scored_commands.into_iter().map(|(_, cmd)| cmd));
         } else if parts.len() >= 1 {
             // Main command is complete - show subcommands or arguments
             let main_cmd = parts[0];
