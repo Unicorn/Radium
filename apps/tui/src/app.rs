@@ -130,20 +130,18 @@ impl App {
     /// Initialize orchestration service
     fn init_orchestration() -> (Option<Arc<OrchestrationService>>, bool) {
         // Try to load config from workspace, fall back to default path, then defaults
-        let config = OrchestrationConfig::load_from_workspace();
-        let enabled = config.enabled;
-
-        // Log which config source was used
-        if let Ok(workspace) = radium_core::Workspace::discover() {
-            let workspace_config = workspace.structure().orchestration_config_file();
-            if workspace_config.exists() {
-                tracing::info!("Loaded orchestration config from workspace: {}", workspace_config.display());
-            } else {
-                tracing::info!("Using default orchestration config (workspace config not found)");
+        let config = if let Ok(workspace) = radium_core::Workspace::discover() {
+            let workspace_config_path = workspace.structure().orchestration_config_file();
+            if workspace_config_path.exists() {
+                tracing::info!("Loading orchestration config from workspace: {}", workspace_config_path.display());
             }
+            OrchestrationConfig::load_from_workspace_path(workspace_config_path)
         } else {
             tracing::info!("Using default orchestration config (no workspace found)");
-        }
+            OrchestrationConfig::load_from_toml(OrchestrationConfig::default_config_path())
+                .unwrap_or_else(|_| OrchestrationConfig::default())
+        };
+        let enabled = config.enabled;
 
         // Return None for now - will be initialized asynchronously on first use
         (None, enabled)
@@ -153,7 +151,13 @@ impl App {
     async fn ensure_orchestration_service(&mut self) -> Result<()> {
         if self.orchestration_service.is_none() && self.orchestration_enabled {
             // Load config from workspace, fall back to defaults
-            let config = OrchestrationConfig::load_from_workspace();
+            let config = if let Ok(workspace) = radium_core::Workspace::discover() {
+                let workspace_config_path = workspace.structure().orchestration_config_file();
+                OrchestrationConfig::load_from_workspace_path(workspace_config_path)
+            } else {
+                OrchestrationConfig::load_from_toml(OrchestrationConfig::default_config_path())
+                    .unwrap_or_else(|_| OrchestrationConfig::default())
+            };
             
             // Discover MCP tools if MCP integration is available
             let mcp_tools = if let Some(ref mcp_integration) = self.mcp_integration {
@@ -1067,9 +1071,21 @@ impl App {
                 self.orchestration_enabled = !self.orchestration_enabled;
                 
                 // Save config state to workspace (or default path)
-                let mut config = OrchestrationConfig::load_from_workspace();
+                let mut config = if let Ok(workspace) = radium_core::Workspace::discover() {
+                    let workspace_config_path = workspace.structure().orchestration_config_file();
+                    OrchestrationConfig::load_from_workspace_path(workspace_config_path)
+                } else {
+                    OrchestrationConfig::load_from_toml(OrchestrationConfig::default_config_path())
+                        .unwrap_or_else(|_| OrchestrationConfig::default())
+                };
                 config.enabled = self.orchestration_enabled;
-                if let Err(e) = config.save_to_workspace() {
+                let save_result = if let Ok(workspace) = radium_core::Workspace::discover() {
+                    let workspace_config_path = workspace.structure().orchestration_config_file();
+                    config.save_to_workspace_path(workspace_config_path)
+                } else {
+                    config.save_to_file(OrchestrationConfig::default_config_path())
+                };
+                if let Err(e) = save_result {
                     self.prompt_data.add_output(format!(
                         "⚠️  Failed to save config: {}",
                         e
@@ -1191,7 +1207,13 @@ impl App {
                 self.orchestration_service = Some(Arc::new(service));
                 
                 // Save config to workspace (or default path)
-                if let Err(e) = config.save_to_workspace() {
+                let save_result = if let Ok(workspace) = radium_core::Workspace::discover() {
+                    let workspace_config_path = workspace.structure().orchestration_config_file();
+                    config.save_to_workspace_path(workspace_config_path)
+                } else {
+                    config.save_to_file(OrchestrationConfig::default_config_path())
+                };
+                if let Err(e) = save_result {
                     self.prompt_data.add_output(format!(
                         "⚠️  Switched provider but failed to save config: {}",
                         e

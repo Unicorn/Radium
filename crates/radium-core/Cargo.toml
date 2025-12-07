@@ -76,7 +76,7 @@ petgraph = "0.6"
 # Internal crates
 radium-abstraction.workspace = true
 radium-models.workspace = true
-radium-orchestrator.workspace = true  # TODO: Circular dependency - needs architectural refactoring
+# radium-orchestrator.workspace = true  # TEMPORARILY COMMENTED: Circular dependency - needs architectural refactoring
 
 [build-dependencies]
 tonic-build.workspace = true

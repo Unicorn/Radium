@@ -496,9 +496,78 @@ Step 3: "Review the implementation"
 
 ---
 
+## Example 8: Workspace-Based Configuration
+
+**Goal:** Configure orchestration for a specific project
+
+**Setup:**
+1. Navigate to your Radium workspace
+2. Configuration is automatically saved to `.radium/config/orchestration.toml`
+
+**View Configuration:**
+```
+/orchestrator config
+```
+
+**Switch Provider:**
+```
+/orchestrator switch claude
+```
+
+**Refresh Agents:**
+After adding new agents to `agents/` directory:
+```
+/orchestrator refresh
+```
+
+**Expected Output:**
+```
+🔄 Refreshing agent tool registry...
+✅ Agent tool registry refreshed successfully
+
+All available agents have been reloaded and are ready for use.
+```
+
+---
+
+## Example 9: Using Configuration Commands
+
+**Goal:** Manage orchestration settings via TUI commands
+
+**View Status:**
+```
+/orchestrator
+```
+
+**View Full Configuration:**
+```
+/orchestrator config
+```
+
+**Switch Provider:**
+```
+/orchestrator switch gemini
+```
+
+**Toggle Orchestration:**
+```
+/orchestrator toggle
+```
+
+**Refresh Agent Registry:**
+```
+/orchestrator refresh
+```
+
+All changes are automatically saved to your configuration file (workspace config preferred, home directory as fallback).
+
+---
+
 ## See Also
 
 - [Orchestration User Guide](../user-guide/orchestration.md) - Complete user guide
+- [Orchestration Configuration Guide](../user-guide/orchestration-configuration.md) - Configuration details
+- [Orchestration Troubleshooting Guide](../user-guide/orchestration-troubleshooting.md) - Common issues
 - [Agent Configuration](../user-guide/agent-configuration.md) - Agent setup
 - [Orchestration Testing Guide](../user-guide/orchestration-testing.md) - Testing procedures
 

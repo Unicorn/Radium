@@ -123,16 +123,37 @@ Available providers:
 
 Provider changes are automatically saved to your configuration file.
 
+### `/orchestrator config` - Show Full Configuration
+
+Display complete configuration details:
+
+```
+/orchestrator config
+```
+
+Shows all provider settings, model configurations, temperature, iteration limits, and fallback settings.
+
+### `/orchestrator refresh` - Reload Agent Registry
+
+Reload all agent tool definitions:
+
+```
+/orchestrator refresh
+```
+
+Use this after adding, modifying, or removing agent configuration files. The orchestrator will discover and use the updated agents.
+
 ## Configuration
 
-### Configuration File Location
+Orchestration configuration supports both workspace-based and home directory settings. See the [Configuration Guide](./orchestration-configuration.md) for complete details.
 
-Orchestration settings are stored in:
-```
-~/.radium/orchestration.toml
-```
+### Configuration File Locations
 
-### Configuration Format
+Orchestration settings are stored in (in priority order):
+1. **Workspace config:** `.radium/config/orchestration.toml` (preferred)
+2. **Home directory:** `~/.radium/orchestration.toml` (fallback)
+
+### Quick Configuration Reference
 
 ```toml
 [orchestration]
@@ -248,7 +269,9 @@ max_tool_iterations = 5
 
 ## Troubleshooting
 
-### Orchestration Not Working
+For detailed troubleshooting, see the [Troubleshooting Guide](./orchestration-troubleshooting.md).
+
+### Quick Troubleshooting
 
 **Symptoms:** Natural input doesn't trigger orchestration
 
@@ -359,8 +382,10 @@ Agent descriptions and capabilities are used by the orchestrator to route tasks.
 
 ## Related Documentation
 
-- [Orchestration Testing Guide](../user-guide/orchestration-testing.md) - Manual testing procedures
-- [Agent Configuration](../user-guide/agent-configuration.md) - Agent setup
+- [Orchestration Configuration Guide](./orchestration-configuration.md) - Complete configuration reference
+- [Orchestration Troubleshooting Guide](./orchestration-troubleshooting.md) - Common issues and solutions
+- [Orchestration Testing Guide](./orchestration-testing.md) - Manual testing procedures
+- [Agent Configuration](./agent-configuration.md) - Agent setup
 - [Orchestration Workflows](../examples/orchestration-workflows.md) - Example workflows
 - [Agent Creation Guide](../guides/agent-creation-guide.md) - Creating custom agents
 

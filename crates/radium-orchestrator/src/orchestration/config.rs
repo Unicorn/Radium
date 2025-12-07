@@ -170,21 +170,21 @@ impl OrchestrationConfig {
         path
     }
 
-    /// Load configuration from workspace
+    /// Load configuration from workspace config file
     ///
-    /// Attempts to load configuration from `.radium/config/orchestration.toml` in the workspace.
-    /// Falls back to default config path if workspace is not found or file doesn't exist.
+    /// Attempts to load configuration from the provided workspace config path.
+    /// Falls back to default config path if file doesn't exist.
+    ///
+    /// # Arguments
+    /// * `workspace_config_path` - Path to workspace config file (`.radium/config/orchestration.toml`)
     ///
     /// # Returns
-    /// Configuration loaded from workspace, or default configuration if workspace not found
-    pub fn load_from_workspace() -> Self {
-        // Try to discover workspace
-        if let Ok(workspace) = radium_core::Workspace::discover() {
-            let config_path = workspace.structure().orchestration_config_file();
-            if config_path.exists() {
-                if let Ok(config) = Self::load_from_toml(&config_path) {
-                    return config;
-                }
+    /// Configuration loaded from workspace, or default configuration if file not found
+    pub fn load_from_workspace_path(workspace_config_path: impl AsRef<std::path::Path>) -> Self {
+        let workspace_path = workspace_config_path.as_ref();
+        if workspace_path.exists() {
+            if let Ok(config) = Self::load_from_toml(workspace_path) {
+                return config;
             }
         }
 
@@ -192,27 +192,35 @@ impl OrchestrationConfig {
         Self::load_from_toml(Self::default_config_path()).unwrap_or_else(|_| Self::default())
     }
 
-    /// Save configuration to workspace
+    /// Save configuration to workspace config file
     ///
-    /// Attempts to save configuration to `.radium/config/orchestration.toml` in the workspace.
-    /// Falls back to default config path if workspace is not found.
+    /// Attempts to save configuration to the provided workspace config path.
+    /// Falls back to default config path if workspace path is invalid.
+    ///
+    /// # Arguments
+    /// * `workspace_config_path` - Path to workspace config file (`.radium/config/orchestration.toml`)
     ///
     /// # Errors
     /// Returns error if file cannot be written
-    pub fn save_to_workspace(&self) -> Result<(), String> {
-        // Try to discover workspace
-        if let Ok(workspace) = radium_core::Workspace::discover() {
-            // Ensure workspace structure exists (creates config dir if needed)
-            if let Err(e) = workspace.ensure_structure() {
-                // If structure creation fails, fall back to default path
+    pub fn save_to_workspace_path(&self, workspace_config_path: impl AsRef<std::path::Path>) -> Result<(), String> {
+        let workspace_path = workspace_config_path.as_ref();
+        
+        // Try workspace path first
+        if let Some(parent) = workspace_path.parent() {
+            // Create parent directory if needed
+            if let Err(e) = std::fs::create_dir_all(parent) {
+                // If directory creation fails, fall back to default path
                 return self.save_to_file(Self::default_config_path());
             }
-            let config_path = workspace.structure().orchestration_config_file();
-            return self.save_to_file(&config_path);
         }
-
-        // Fall back to default config path
-        self.save_to_file(Self::default_config_path())
+        
+        match self.save_to_file(workspace_path) {
+            Ok(()) => Ok(()),
+            Err(_) => {
+                // Fall back to default config path if workspace save fails
+                self.save_to_file(Self::default_config_path())
+            }
+        }
     }
 }
 
