@@ -19,7 +19,9 @@ use crate::workspace::{Workspace, WorkspaceStructure};
 
 use super::control_flow::{StepCondition, should_execute_step};
 use super::engine::{ExecutionContext, StepResult, WorkflowEngine, WorkflowEngineError};
+use super::failure::{FailureClassifier, FailureHistory, FailurePolicy};
 use chrono::Utc;
+use std::collections::HashMap;
 
 /// Executor for running workflows sequentially.
 ///
@@ -34,6 +36,12 @@ pub struct WorkflowExecutor {
     checkpoint_manager: Option<Arc<std::sync::Mutex<CheckpointManager>>>,
     /// Hook registry for workflow behavior hooks (optional).
     hook_registry: Option<Arc<HookRegistry>>,
+    /// Failure classifier for categorizing errors.
+    failure_classifier: FailureClassifier,
+    /// Failure histories per task/step.
+    failure_histories: std::sync::Mutex<HashMap<String, FailureHistory>>,
+    /// Failure policy for retry decisions.
+    failure_policy: FailurePolicy,
 }
 
 impl WorkflowExecutor {
@@ -64,6 +72,9 @@ impl WorkflowExecutor {
             monitoring,
             checkpoint_manager,
             hook_registry,
+            failure_classifier: FailureClassifier::new(),
+            failure_histories: std::sync::Mutex::new(HashMap::new()),
+            failure_policy: FailurePolicy::default(),
         }
     }
 
@@ -464,10 +475,23 @@ impl WorkflowExecutor {
                 let error_msg =
                     step_result.error.unwrap_or_else(|| "Step execution failed".to_string());
 
+                // Classify the failure
+                let failure_type = self.failure_classifier.classify_from_string(&error_msg);
+
+                // Record failure in history
+                {
+                    let mut histories = self.failure_histories.lock().unwrap();
+                    let history = histories
+                        .entry(step.id.clone())
+                        .or_insert_with(|| FailureHistory::new(step.id.clone()));
+                    history.add_failure(failure_type.clone(), error_msg.clone());
+                }
+
                 error!(
                     workflow_id = %workflow.id,
                     step_id = %step.id,
                     error = %error_msg,
+                    failure_type = %failure_type.description(),
                     "Workflow step failed, stopping execution"
                 );
 

@@ -5,7 +5,10 @@
 use anyhow::{Context, bail};
 use chrono::Utc;
 use colored::Colorize;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Instant;
+use tokio::signal;
 use radium_core::{
     analytics::{ReportFormatter, SessionAnalytics, SessionReport, SessionStorage},
     context::ContextFileLoader, ExecutionConfig, monitoring::MonitoringService, PlanDiscovery,
@@ -274,8 +277,16 @@ async fn execute_plan(
     // Execution loop with iteration tracking
     let mut execution_iteration = 0;
     const CONTINUOUS_SANITY_LIMIT: usize = 1000;
-    let mut abort_requested = false; // Will be used in Task 5 for SIGINT handling
+    let abort_requested = Arc::new(AtomicBool::new(false));
     let start_time = Instant::now();
+
+    // Register SIGINT handler for graceful shutdown
+    let abort_flag = abort_requested.clone();
+    tokio::spawn(async move {
+        if let Ok(()) = signal::ctrl_c().await {
+            abort_flag.store(true, Ordering::Relaxed);
+        }
+    });
 
     loop {
         execution_iteration += 1;
@@ -308,9 +319,12 @@ async fn execute_plan(
             break;
         }
 
-        // Check abort flag (for SIGINT handling in Task 5)
-        if abort_requested {
-            break;
+        // Check abort flag (for SIGINT handling)
+        if abort_requested.load(Ordering::Relaxed) {
+            println!("\n{}", "Execution aborted by user. Progress saved to plan_manifest.json".yellow());
+            // Save manifest before exiting
+            executor.save_manifest(manifest, manifest_path)?;
+            std::process::exit(130); // Standard exit code for SIGINT
         }
 
         // Execute each iteration
@@ -504,6 +518,13 @@ async fn execute_plan(
         // Re-evaluate manifest state after each execution cycle
         // Save manifest to persist progress
         executor.save_manifest(manifest, manifest_path)?;
+
+        // Check abort flag again (user might have pressed Ctrl+C during execution)
+        if abort_requested.load(Ordering::Relaxed) {
+            println!("\n{}", "Execution aborted by user. Progress saved to plan_manifest.json".yellow());
+            executor.save_manifest(manifest, manifest_path)?;
+            std::process::exit(130); // Standard exit code for SIGINT
+        }
 
         // Check again if we should continue (tasks might have been completed in this cycle)
         // The loop will check conditions at the start of the next iteration

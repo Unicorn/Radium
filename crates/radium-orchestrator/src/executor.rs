@@ -9,7 +9,6 @@ use crate::{
 };
 use radium_abstraction::ModelError;
 use radium_models::{ModelFactory, ModelType};
-use radium_core::auth::{CredentialStore, ProviderType};
 use serde_json::Value;
 use std::collections::HashSet;
 use std::fmt;
@@ -169,8 +168,6 @@ impl AgentExecutor {
             .unwrap_or(0);
 
         // Try providers in failover order starting from next after current
-        let credential_store = CredentialStore::new().ok()?;
-        
         for i in 0..failover_order.len() {
             let idx = (current_idx + 1 + i) % failover_order.len();
             let (provider_name, model_type, default_model_id) = &failover_order[idx];
@@ -186,14 +183,16 @@ impl AgentExecutor {
                 return Some((provider_name.to_string(), model_type.clone(), default_model_id.clone()));
             }
 
-            // For real providers, check credentials
-            let provider_type = match *provider_name {
-                "openai" => ProviderType::OpenAI,
-                "gemini" => ProviderType::Gemini,
-                _ => continue,
+            // For real providers, check environment variables for API keys
+            // Allow env::var for credential checking
+            #[allow(clippy::disallowed_methods)]
+            let has_credentials = match *provider_name {
+                "openai" => std::env::var("OPENAI_API_KEY").is_ok(),
+                "gemini" => std::env::var("GEMINI_API_KEY").is_ok() || std::env::var("GOOGLE_API_KEY").is_ok(),
+                _ => false,
             };
 
-            if credential_store.is_configured(provider_type) {
+            if has_credentials {
                 return Some((provider_name.to_string(), model_type.clone(), default_model_id.clone()));
             }
         }
