@@ -18,6 +18,7 @@ seatbelt-sandbox = []
 orchestrator-integration = []
 workflow = ["radium-orchestrator", "orchestrator-integration"]
 monitoring = []
+mcp-progress = ["indicatif"]
 
 [dependencies]
 # gRPC
@@ -69,6 +70,9 @@ tar = "0.4"
 
 # HTTP client for MCP transports
 reqwest = { version = "0.12", features = ["json", "stream", "blocking", "multipart"] }
+
+# Progress indicators (optional, for CLI usage)
+indicatif = { version = "0.17", optional = true }
 
 # URL encoding
 urlencoding = "2.1"

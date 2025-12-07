@@ -1,5 +1,6 @@
 //! Core types for workflow behaviors.
 
+use crate::monitoring::telemetry::TelemetryTracking;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};

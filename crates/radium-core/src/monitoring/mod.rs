@@ -26,9 +26,9 @@
 
 mod error;
 mod logs;
-mod schema;
-mod service;
-mod telemetry;
+pub(crate) mod schema;
+pub(crate) mod service;
+pub(crate) mod telemetry;
 
 pub use error::{MonitoringError, Result};
 pub use logs::LogManager;

@@ -1,10 +1,12 @@
 //! Hook registry for managing and executing hooks.
 
 use crate::hooks::error::Result;
+use crate::hooks::profiler::HookProfiler;
 use crate::hooks::types::{HookContext, HookPriority, HookResult as HookExecutionResult};
 use async_trait::async_trait;
 use std::collections::HashSet;
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::sync::RwLock;
 
 /// Type of hook.

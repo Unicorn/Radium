@@ -10,6 +10,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+#[cfg(feature = "mcp-progress")]
+use indicatif::{ProgressBar, ProgressStyle};
+
 /// MCP integration manager for connecting MCP servers and making tools available.
 pub struct McpIntegration {
     /// Connected MCP clients.
@@ -86,11 +89,38 @@ impl McpIntegration {
         let mut clients = self.clients.lock().await;
         let mut tool_registries = self.tool_registries.lock().await;
 
-        for server_config in all_servers {
-            match McpClient::connect(&server_config).await {
+        let total_servers = all_servers.len();
+        
+        #[cfg(feature = "mcp-progress")]
+        let progress_bar = if total_servers > 0 {
+            let pb = ProgressBar::new(total_servers as u64);
+            pb.set_style(
+                ProgressStyle::default_bar()
+                    .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} servers connected")
+                    .unwrap()
+                    .progress_chars("#>-"),
+            );
+            pb.set_message("Connecting to MCP servers...");
+            Some(pb)
+        } else {
+            None
+        };
+
+        for server_config in all_servers.iter() {
+            #[cfg(feature = "mcp-progress")]
+            if let Some(ref pb) = progress_bar {
+                pb.set_message(format!("Connecting to '{}'...", server_config.name));
+            }
+
+            match McpClient::connect(server_config).await {
                 Ok(client) => {
                     let client = Arc::new(Mutex::new(client));
                     clients.insert(server_config.name.clone(), client.clone());
+
+                    #[cfg(feature = "mcp-progress")]
+                    if let Some(ref pb) = progress_bar {
+                        pb.set_message(format!("Discovering tools from '{}'...", server_config.name));
+                    }
 
                     // Discover tools
                     let mut tool_registry = McpToolRegistry::new(server_config.name.clone());
@@ -100,6 +130,11 @@ impl McpIntegration {
                     }
 
                     tool_registries.insert(server_config.name.clone(), tool_registry);
+
+                    #[cfg(feature = "mcp-progress")]
+                    if let Some(ref pb) = progress_bar {
+                        pb.set_message(format!("Discovering prompts from '{}'...", server_config.name));
+                    }
 
                     // Discover prompts and register as slash commands
                     let mut slash_registry = self.slash_registry.lock().await;
@@ -111,6 +146,12 @@ impl McpIntegration {
                             );
                         }
                     }
+
+                    #[cfg(feature = "mcp-progress")]
+                    if let Some(ref pb) = progress_bar {
+                        pb.inc(1);
+                        pb.set_message(format!("✓ Connected to '{}'", server_config.name));
+                    }
                 }
                 Err(e) => {
                     // Log error but continue with other servers
@@ -119,7 +160,23 @@ impl McpIntegration {
                         server_config.name,
                         e
                     );
+
+                    #[cfg(feature = "mcp-progress")]
+                    if let Some(ref pb) = progress_bar {
+                        pb.inc(1);
+                        pb.set_message(format!("✗ Failed to connect to '{}'", server_config.name));
+                    }
                 }
+            }
+        }
+
+        #[cfg(feature = "mcp-progress")]
+        if let Some(pb) = progress_bar {
+            let connected_count = clients.len();
+            if connected_count > 0 {
+                pb.finish_with_message(format!("✓ Connected to {} server(s)", connected_count));
+            } else {
+                pb.finish_with_message("No servers connected");
             }
         }
 

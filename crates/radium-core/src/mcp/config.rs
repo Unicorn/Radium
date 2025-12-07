@@ -172,6 +172,11 @@ impl McpConfigManager {
         &self.servers
     }
 
+    /// Get mutable reference to all server configurations.
+    pub fn get_servers_mut(&mut self) -> &mut Vec<McpServerConfig> {
+        &mut self.servers
+    }
+
     /// Get a server configuration by name.
     pub fn get_server(&self, name: &str) -> Option<&McpServerConfig> {
         self.servers.iter().find(|s| s.name == name)
