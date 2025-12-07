@@ -4,7 +4,9 @@
 
 use anyhow::{Context, bail};
 use colored::Colorize;
-use radium_core::{AgentDiscovery, PromptContext, PromptTemplate, Workspace};
+use radium_core::{
+    context::ContextFileLoader, AgentDiscovery, PromptContext, PromptTemplate, Workspace,
+};
 use radium_models::ModelFactory;
 use std::fs;
 
@@ -22,7 +24,16 @@ pub async fn execute(
     println!();
 
     // Discover workspace (optional for step command)
-    let _workspace = Workspace::discover().ok();
+    let workspace = Workspace::discover().ok();
+    let workspace_root = workspace
+        .as_ref()
+        .map(|w| w.root().to_path_buf())
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")));
+
+    // Load context files if available
+    let loader = ContextFileLoader::new(&workspace_root);
+    let current_dir = std::env::current_dir().unwrap_or_else(|_| workspace_root.clone());
+    let context_files = loader.load_hierarchical(&current_dir).unwrap_or_default();
 
     // Discover all available agents
     println!("  {}", "Discovering agents...".dimmed());
@@ -86,6 +97,15 @@ pub async fn execute(
 
     let mut context = PromptContext::new();
     context.set("user_input", user_input.clone());
+
+    // Inject context files if available
+    if !context_files.is_empty() {
+        context.set("context_files", context_files.clone());
+        let context_file_paths = loader.get_context_file_paths(&current_dir);
+        if !context_file_paths.is_empty() {
+            println!("  {} Loaded context from {} file(s)", "✓".green(), context_file_paths.len());
+        }
+    }
 
     let template = PromptTemplate::from_string(prompt_content);
     let rendered = template.render(&context)?;
