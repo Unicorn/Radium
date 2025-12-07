@@ -239,7 +239,7 @@ impl PolicyEngine {
 
         // Write to temp file and use existing from_file method
         let temp_dir = TempDir::new().map_err(|e| {
-            PolicyError::InvalidConfiguration(format!("Failed to create temp dir: {}", e))
+            PolicyError::InvalidConfig(format!("Failed to create temp dir: {}", e))
         })?;
         let temp_file = temp_dir.path().join("policy.toml");
         fs::write(&temp_file, content).map_err(|e| {

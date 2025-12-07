@@ -4,19 +4,19 @@ pub mod agents;
 pub mod auth;
 pub mod autonomous;
 pub mod budget;
-// pub mod chat;  // DISABLED: depends on radium_core::mcp and analytics (disabled modules)
+pub mod chat;
 pub mod checkpoint;
 pub mod clean;
 pub mod complete;
 pub mod context;
 pub mod craft;
-// pub mod custom;  // DISABLED: depends on radium_core::commands (disabled)
+pub mod custom;
 pub mod doctor;
 pub mod engines;
 pub mod extension;
 pub mod hooks;
 pub mod init;
-// pub mod mcp;  // DISABLED: depends on radium_core::mcp (circular dependency)
+pub mod mcp;
 pub mod monitor;
 pub mod plan;
 pub mod policy;
@@ -34,8 +34,7 @@ pub mod vibecheck;
 
 // Re-export types for convenience
 pub use types::{AgentsCommand, AuthCommand, EnginesCommand, ExtensionCommand, HooksCommand};
-// pub use types::CustomCommand;  // DISABLED: commands disabled
-pub use types::TemplatesCommand;
+pub use types::{CustomCommand, TemplatesCommand};
 pub use context::ContextCommand;
 pub use budget::BudgetCommand;
 pub use policy::{execute_policy_command, PolicyCommand};

@@ -15,9 +15,8 @@ use tracing_subscriber::FmtSubscriber;
 use commands::{
     agents, auth, budget, checkpoint, clean, context, craft, doctor, engines, extension, hooks, init, learning, monitor, plan, policy, run,
     sandbox, stats, status, step, validate,
-    // Disabled commands (depend on disabled modules):
-    // chat, custom, mcp
-    templates, complete, autonomous, vibecheck,
+    // All commands enabled!
+    templates, complete, autonomous, vibecheck, chat, mcp, custom,
 };
 
 /// Radium CLI - Next-generation agentic orchestration tool
@@ -302,10 +301,9 @@ enum Command {
 
     /// MCP (Model Context Protocol) server management
     ///
-    // DISABLED: MCP command (depends on radium_core::mcp)
-    // /// List, test, and manage MCP servers and their tools.
-    // #[command(subcommand)]
-    // Mcp(mcp::McpCommand),
+    /// List, test, and manage MCP servers and their tools.
+    #[command(subcommand)]
+    Mcp(mcp::McpCommand),
 
     /// Extension management
     ///
@@ -349,13 +347,12 @@ enum Command {
     #[command(subcommand)]
     Learning(commands::learning::LearningCommand),
 
-    // DISABLED: Custom command (depends on radium_core::commands)
-    // /// Custom command management
-    // ///
-    // /// List, execute, create, and validate custom commands defined in TOML files.
-    // /// Custom commands support shell injection, file injection, and argument substitution.
-    // #[command(subcommand)]
-    // Custom(commands::CustomCommand),
+    /// Custom command management
+    ///
+    /// List, execute, create, and validate custom commands defined in TOML files.
+    /// Custom commands support shell injection, file injection, and argument substitution.
+    #[command(subcommand)]
+    Custom(commands::CustomCommand),
 
     /// Sandbox management
     ///
@@ -478,16 +475,15 @@ async fn main() -> anyhow::Result<()> {
         Command::Step { id, prompt, model, engine, reasoning } => {
             step::execute(id, prompt, model, engine, reasoning).await?;
         }
-        // DISABLED: Chat command
-        // Command::Chat { agent_id, session, resume, list } => {
-        //     if list {
-        //         chat::list_sessions().await?;
-        //     } else if let Some(id) = agent_id {
-        //         chat::execute(id, session, resume).await?;
-        //     } else {
-        //         anyhow::bail!("Agent ID is required when not using --list");
-        //     }
-        // }
+        Command::Chat { agent_id, session, resume, list } => {
+            if list {
+                chat::list_sessions().await?;
+            } else if let Some(id) = agent_id {
+                chat::execute(id, session, resume).await?;
+            } else {
+                anyhow::bail!("Agent ID is required when not using --list");
+            }
+        }
         Command::Status { json } => {
             status::execute(json).await?;
         }
@@ -521,10 +517,9 @@ async fn main() -> anyhow::Result<()> {
         Command::Doctor { json } => {
             doctor::execute(json).await?;
         }
-        // DISABLED: Mcp command
-        // Command::Mcp(cmd) => {
-        //     mcp::execute_mcp_command(cmd).await?;
-        // }
+        Command::Mcp(cmd) => {
+            mcp::execute_mcp_command(cmd).await?;
+        }
         Command::Extension(cmd) => {
             extension::execute(cmd).await?;
         }
@@ -543,10 +538,9 @@ async fn main() -> anyhow::Result<()> {
         Command::Learning(cmd) => {
             learning::execute(cmd).await?;
         }
-        // DISABLED: Custom command
-        // Command::Custom(cmd) => {
-        //     custom::execute(cmd).await?;
-        // }
+        Command::Custom(cmd) => {
+            custom::execute(cmd).await?;
+        }
         Command::Sandbox(cmd) => {
             sandbox::execute(cmd).await?;
         }

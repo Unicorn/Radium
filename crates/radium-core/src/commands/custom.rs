@@ -10,6 +10,7 @@
 //! - Sandboxed execution for safe command execution
 
 use super::error::{CommandError, Result};
+#[cfg(feature = "orchestrator-integration")]
 use crate::hooks::integration::OrchestratorHooks;
 use crate::hooks::registry::HookRegistry;
 use crate::sandbox::{Sandbox, SandboxConfig};
@@ -115,7 +116,9 @@ impl CustomCommand {
 
         // Execute tool selection hooks
         if let Some(registry) = &hook_registry {
+            #[cfg(feature = "orchestrator-integration")]
             let hooks = OrchestratorHooks::new(Arc::clone(registry));
+            #[cfg(feature = "orchestrator-integration")]
             match hooks.tool_selection(&tool_name, &tool_args_json).await {
                 Ok(approved) => {
                     if !approved {
@@ -139,7 +142,9 @@ impl CustomCommand {
         // Execute before tool hooks
         let mut effective_args = tool_args_json.clone();
         if let Some(registry) = &hook_registry {
+            #[cfg(feature = "orchestrator-integration")]
             let hooks = OrchestratorHooks::new(Arc::clone(registry));
+            #[cfg(feature = "orchestrator-integration")]
             match hooks.before_tool_execution(&tool_name, &effective_args).await {
                 Ok(modified_args) => {
                     effective_args = modified_args;
@@ -176,7 +181,9 @@ impl CustomCommand {
         // Execute after tool hooks
         let mut effective_result = result_json.clone();
         if let Some(registry) = &hook_registry {
+            #[cfg(feature = "orchestrator-integration")]
             let hooks = OrchestratorHooks::new(Arc::clone(registry));
+            #[cfg(feature = "orchestrator-integration")]
             match hooks.after_tool_execution(&tool_name, &effective_args, &effective_result).await {
                 Ok(modified_result) => {
                     effective_result = modified_result;

@@ -25,7 +25,7 @@ pub mod checkpoint;
 #[cfg(feature = "server")]
 pub mod client;
 // pub mod collaboration;  // TEMPORARILY DISABLED: depends on radium-orchestrator (circular dependency)
-// pub mod commands;  // TEMPORARILY DISABLED: depends on hooks/sandbox
+pub mod commands;
 pub mod config;
 pub mod context;
 pub mod engines;
@@ -64,7 +64,7 @@ pub use auth::{AuthError, AuthResult, CredentialStore, ProviderType};
 pub use checkpoint::{Checkpoint, CheckpointError, CheckpointManager, Result as CheckpointResult};
 #[cfg(feature = "server")]
 pub use client::ClientHelper;
-// pub use commands::{CommandError, CommandRegistry, CustomCommand, Result as CommandResult};  // DISABLED: commands module
+pub use commands::{CommandError, CommandRegistry, CustomCommand, Result as CommandResult};
 pub use config::{Config, cli_config::{CliConfig, CliConfigError, CliConfigResult}};
 pub use context::{
     ContextError, ContextInjector, ContextManager, InjectionDirective, Result as ContextResult,
