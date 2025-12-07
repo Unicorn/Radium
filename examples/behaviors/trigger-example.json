@@ -1,0 +1,6 @@
+{
+  "action": "trigger",
+  "triggerAgentId": "review-agent",
+  "reason": "Code changes detected. Need code review before proceeding with deployment."
+}
+

@@ -335,6 +335,42 @@ arg_pattern = "rm -rf *"
 - [Policy Best Practices](docs/security/policy-best-practices.md) - Security guidelines
 - [Example Configurations](examples/policy-examples.toml) - Example policy files
 
+## Workflow Behaviors
+
+Radium's workflow behavior system enables dynamic execution control, allowing agents to adapt to changing conditions, handle errors gracefully, and coordinate with other agents.
+
+### Quick Start
+
+Workflow behaviors are controlled via a `behavior.json` file placed at `.radium/memory/behavior.json`:
+
+```json
+{
+  "action": "loop",
+  "reason": "Tests failing, need to retry"
+}
+```
+
+### Available Behaviors
+
+- **Loop**: Repeat previous steps with max iterations and skip lists
+- **Trigger**: Dynamically trigger other agents during execution
+- **Checkpoint**: Pause workflow for manual review or approval
+- **VibeCheck**: Request metacognitive oversight to prevent reasoning lock-in
+
+### Key Features
+
+- **Dynamic Control**: Agents can write behavior.json files during execution
+- **Configurable Limits**: Max iterations, step back counts, skip lists
+- **Error Recovery**: Graceful handling of invalid behavior files
+- **Integration**: Automatically integrated with WorkflowExecutor
+
+### Documentation
+
+- [Workflow Behaviors Guide](docs/features/workflow-behaviors.md) - Complete feature documentation
+- [Constitution System Guide](docs/features/constitution-system.md) - Session-based rules
+- [Behavior Examples](examples/behaviors/) - Example behavior.json files
+- [Policy Templates](examples/policies/) - Example policy configurations
+
 ## Engine Management
 
 Radium supports multiple AI providers through a unified engine abstraction layer. You can list, configure, and switch between different engines seamlessly.

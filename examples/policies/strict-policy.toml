@@ -1,0 +1,45 @@
+# Strict Policy Configuration
+# Maximum security - requires approval for most operations
+
+approval_mode = "ask"
+
+# Only allow file reads
+[[rules]]
+name = "Allow read operations only"
+priority = "admin"
+action = "allow"
+tool_pattern = "read_*"
+reason = "Read operations are safe"
+
+# Deny all file writes
+[[rules]]
+name = "Deny all file writes"
+priority = "admin"
+action = "deny"
+tool_pattern = "write_*"
+reason = "File writes are disabled for security"
+
+# Deny all shell commands
+[[rules]]
+name = "Deny all shell commands"
+priority = "admin"
+action = "deny"
+tool_pattern = "run_terminal_cmd"
+reason = "Shell commands are disabled"
+
+# Deny all MCP tools
+[[rules]]
+name = "Deny all MCP tools"
+priority = "admin"
+action = "deny"
+tool_pattern = "mcp_*"
+reason = "MCP tools are disabled"
+
+# Require approval for everything else
+[[rules]]
+name = "Require approval for all other tools"
+priority = "default"
+action = "ask_user"
+tool_pattern = "*"
+reason = "Default: require approval for all tools"
+

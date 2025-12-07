@@ -1,0 +1,38 @@
+# Default Policy Configuration
+# Balanced security and usability for general development
+
+approval_mode = "ask"
+
+# Safe read operations are always allowed
+[[rules]]
+name = "Allow safe file operations"
+priority = "user"
+action = "allow"
+tool_pattern = "read_*"
+reason = "Safe read operations are always allowed"
+
+# File writes require approval
+[[rules]]
+name = "Allow file writes with approval"
+priority = "user"
+action = "ask_user"
+tool_pattern = "write_*"
+reason = "File writes require user approval"
+
+# Deny dangerous shell commands
+[[rules]]
+name = "Deny dangerous shell commands"
+priority = "admin"
+action = "deny"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "rm -rf *"
+reason = "Prevent accidental deletion"
+
+# MCP tools may have side effects
+[[rules]]
+name = "Require approval for MCP tools"
+priority = "user"
+action = "ask_user"
+tool_pattern = "mcp_*"
+reason = "MCP tools may have side effects"
+

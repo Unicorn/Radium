@@ -1,0 +1,5 @@
+{
+  "action": "checkpoint",
+  "reason": "About to perform database migration. Requires manual approval before proceeding."
+}
+
