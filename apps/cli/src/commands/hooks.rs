@@ -312,7 +312,7 @@ pub async fn execute_hooks_command(command: HooksCommand) -> anyhow::Result<()> 
         }
 
         HooksCommand::Profile { name, r#type, json, reset } => {
-            show_profiling_stats(&registry, name.as_deref(), r#type.as_deref(), *json, *reset).await?;
+            show_profiling_stats(&registry, name.as_deref(), r#type.as_deref(), json, reset).await?;
         }
     }
 

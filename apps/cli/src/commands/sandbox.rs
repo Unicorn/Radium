@@ -205,9 +205,9 @@ async fn test_sandbox(sandbox_type: Option<&str>, json_output: bool) -> anyhow::
 
     let config = match sandbox_type {
         SandboxType::Docker | SandboxType::Podman => {
-            SandboxConfig::new(sandbox_type).with_image("alpine:latest".to_string())
+            SandboxConfig::new(sandbox_type.clone()).with_image("alpine:latest".to_string())
         }
-        _ => SandboxConfig::new(sandbox_type),
+        _ => SandboxConfig::new(sandbox_type.clone()),
     };
 
     let start = Instant::now();
@@ -367,7 +367,7 @@ async fn show_config(json_output: bool) -> anyhow::Result<()> {
             "{}",
             serde_json::to_string_pretty(&json!({
                 "sandbox_type": config.sandbox_type.to_string(),
-                "network": config.network.to_string(),
+                "network": format!("{:?}", config.network),
                 "profile": match &config.profile {
                     SandboxProfile::Permissive => "permissive",
                     SandboxProfile::Restrictive => "restrictive",
@@ -385,7 +385,7 @@ async fn show_config(json_output: bool) -> anyhow::Result<()> {
         println!("{}", "Sandbox Configuration".bold().cyan());
         println!();
         println!("  Type: {}", config.sandbox_type.to_string().bold());
-        println!("  Network: {}", config.network.to_string());
+        println!("  Network: {:?}", config.network);
         println!(
             "  Profile: {}",
             match &config.profile {
@@ -604,18 +604,18 @@ async fn set_sandbox(
 
     // Build sandbox config
     let mut config = SandboxConfig::new(sandbox_type_enum)
-        .with_network(network_mode);
+        .with_network(network_mode.clone());
 
-    if let Some(img) = image {
+    if let Some(img) = image.clone() {
         config = config.with_image(img);
     }
 
-    if let Some(wd) = working_dir {
+    if let Some(wd) = working_dir.clone() {
         config = config.with_working_dir(wd);
     }
 
     if !volumes.is_empty() {
-        config = config.with_volumes(volumes);
+        config = config.with_volumes(volumes.clone());
     }
 
     // Discover workspace

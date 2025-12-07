@@ -7,7 +7,7 @@ use colored::Colorize;
 use radium_core::agents::analytics::AgentAnalyticsService;
 use radium_core::agents::config::{AgentConfig, AgentConfigFile, ReasoningEffort};
 use radium_core::agents::discovery::AgentDiscovery;
-use radium_core::agents::linter::{LintResult, PromptLinter};
+use radium_core::agents::linter::{AgentLinter, LintResult, PromptLinter};
 use radium_core::agents::registry::{
     AgentRegistry, FilterCriteria, LogicMode, SearchMode, SortField, SortOrder,
 };

@@ -57,7 +57,7 @@ pub async fn execute(source: String) -> anyhow::Result<()> {
     let spec_content = fetch_source_content(source_type)
         .await
         .map_err(|e| match e {
-            SourceFetchError::MissingCredentials(provider, cmd) => {
+            SourceFetchError::MissingCredentials(ref _provider, ref cmd) => {
                 anyhow::anyhow!("{} Please run `rad auth login {}` first.", e, cmd)
             }
             _ => anyhow::anyhow!("Failed to fetch content: {}", e)
@@ -255,6 +255,9 @@ async fn execute_plan_yolo(
         state_path: manifest_path.to_path_buf(),
         context_files,
         run_mode: RunMode::Continuous,
+        context_manager: None,
+        memory_store: None,
+        requirement_id: None,
     };
     let executor = PlanExecutor::with_config(config);
 

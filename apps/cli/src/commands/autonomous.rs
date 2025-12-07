@@ -36,13 +36,13 @@ pub async fn execute(goal: String) -> Result<()> {
         .context("Failed to discover agents")?);
 
     // Initialize model selector and get model
-    let mut model_selector = ModelSelector::new(workspace.radium_dir());
+    let mut model_selector = ModelSelector::new();
     let model = model_selector
         .select_model(&radium_core::models::selector::SelectionOptions {
             agent_metadata: None,
-            preferred_engine: None,
-            preferred_model: None,
-            budget: None,
+            estimated_prompt_tokens: None,
+            estimated_completion_tokens: None,
+            allow_premium_without_approval: false,
         })
         .context("Failed to select model")?
         .model;
