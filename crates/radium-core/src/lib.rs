@@ -38,7 +38,7 @@ pub mod models;
 pub mod monitoring;
 pub mod oversight;
 pub mod planning;
-// pub mod policy;  // TEMPORARILY DISABLED: depends on hooks
+pub mod policy;
 pub mod prompts;
 pub mod sandbox;
 // pub mod server;  // TEMPORARILY DISABLED: depends on radium-orchestrator (circular dependency)
@@ -111,10 +111,10 @@ pub use planning::{
     PlanExecutor, PlanGenerator, PlanGeneratorConfig, PlanParser, RunMode,
     TaskResult as PlanTaskResult,
 };
-// pub use policy::{  // DISABLED: policy module
-//     ApprovalMode, ConstitutionManager, PolicyAction, PolicyDecision, PolicyEngine, PolicyError,
-//     PolicyPriority, PolicyResult, PolicyRule,
-// };
+pub use policy::{
+    ApprovalMode, ConstitutionManager, PolicyAction, PolicyDecision, PolicyEngine, PolicyError,
+    PolicyPriority, PolicyResult, PolicyRule,
+};
 pub use prompts::{PromptContext, PromptError, PromptTemplate};
 pub use proto::radium_client;
 pub use proto::{PingRequest, PingResponse};
