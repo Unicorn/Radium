@@ -206,6 +206,12 @@ enum Command {
     #[command(subcommand)]
     Monitor(monitor::MonitorCommand),
 
+    /// Manage checkpoints for agent work snapshots
+    ///
+    /// List and restore git-based checkpoints created during workflow execution.
+    #[command(subcommand)]
+    Checkpoint(checkpoint::CheckpointCommand),
+
     /// Validate environment and configuration
     ///
     /// Checks workspace setup, environment files, port availability,
