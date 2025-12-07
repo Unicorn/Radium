@@ -114,7 +114,7 @@ Verified the following REQs in Braingrid:
 - REQ-1 already existed in Braingrid (meta-requirement for documentation organization)
 - All other REQs (REQ-002 through REQ-020) were already present in Braingrid and were updated
 - The sync script handles both creation and updates automatically
-- Future syncs can use the same script: `python3 scripts/sync-reqs-to-braingrid.py`
+- Future syncs can use the same script: `./scripts/sync-reqs-to-braingrid.sh to-braingrid`
 
 ## Future Syncs
 
