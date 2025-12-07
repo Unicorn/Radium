@@ -1,0 +1,9 @@
+[agent]
+id = "integration-test-agent"
+name = "Integration Test Generation Agent"
+description = "Generates integration tests for system components and workflows"
+prompt_path = "prompts/agents/testing/integration-test-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "high"
+

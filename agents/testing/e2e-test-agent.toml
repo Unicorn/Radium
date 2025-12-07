@@ -1,0 +1,9 @@
+[agent]
+id = "e2e-test-agent"
+name = "End-to-End Test Generation Agent"
+description = "Generates end-to-end tests for complete user workflows"
+prompt_path = "prompts/agents/testing/e2e-test-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "high"
+

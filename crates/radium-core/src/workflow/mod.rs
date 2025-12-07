@@ -5,6 +5,7 @@
 //! plus workflow behaviors (loop, trigger, checkpoint).
 
 pub mod behaviors;
+pub mod complete;
 pub mod control_flow;
 pub mod engine;
 pub mod executor;
@@ -25,6 +26,10 @@ pub use executor::WorkflowExecutor;
 pub use service::{WorkflowExecution, WorkflowService};
 pub use step_tracking::{StepRecord, StepStatus, StepTracker, StepTrackingError};
 pub use template_discovery::TemplateDiscovery;
+pub use complete::{
+    detect_source, fetch_source_content, SourceDetectionError, SourceDetectionResult,
+    SourceFetchError, SourceFetchResult, SourceType,
+};
 pub use templates::{
     ModuleBehavior, ModuleBehaviorAction, ModuleBehaviorType, WorkflowStep, WorkflowStepConfig,
     WorkflowStepType, WorkflowTemplate, WorkflowTemplateError,

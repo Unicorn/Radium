@@ -27,6 +27,7 @@ mod braingrid;
 mod http;
 mod jira;
 mod local;
+mod registry;
 mod traits;
 mod types;
 
@@ -34,5 +35,6 @@ pub use braingrid::BraingridReader;
 pub use http::HttpReader;
 pub use jira::JiraReader;
 pub use local::LocalFileReader;
+pub use registry::SourceRegistry;
 pub use traits::SourceReader;
 pub use types::{SourceError, SourceMetadata};

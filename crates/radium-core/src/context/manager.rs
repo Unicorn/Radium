@@ -6,6 +6,9 @@ use std::path::Path;
 use super::error::Result;
 use super::files::ContextFileLoader;
 use super::injection::{ContextInjector, InjectionDirective};
+use super::sources::{
+    BraingridReader, HttpReader, JiraReader, LocalFileReader, SourceRegistry,
+};
 use crate::learning::LearningStore;
 use crate::memory::MemoryStore;
 use crate::workspace::{PlanDiscovery, RequirementId, Workspace};
@@ -38,6 +41,9 @@ pub struct ContextManager {
     /// Cached context file content with modification times of all loaded files.
     /// Stores: (request_path, Vec<(file_path, mtime)>, content)
     context_file_cache: Option<(std::path::PathBuf, Vec<(std::path::PathBuf, std::time::SystemTime)>, String)>,
+
+    /// Source registry for reading from different source types.
+    source_registry: SourceRegistry,
 }
 
 impl ContextManager {
@@ -50,6 +56,13 @@ impl ContextManager {
         let injector = ContextInjector::new(&workspace_root);
         let context_file_loader = ContextFileLoader::new(&workspace_root);
 
+        // Initialize source registry with all readers
+        let mut source_registry = SourceRegistry::new();
+        source_registry.register(Box::new(LocalFileReader::with_base_dir(&workspace_root)));
+        source_registry.register(Box::new(HttpReader::new()));
+        source_registry.register(Box::new(JiraReader::new()));
+        source_registry.register(Box::new(BraingridReader::new()));
+
         Self {
             workspace_root,
             injector,
@@ -57,6 +70,7 @@ impl ContextManager {
             memory_store: None,
             learning_store: None,
             context_file_cache: None,
+            source_registry,
         }
     }
 
@@ -82,6 +96,13 @@ impl ContextManager {
         // Initialize learning store (optional - may fail if directory doesn't exist)
         let learning_store = LearningStore::new(&workspace_root).ok();
 
+        // Initialize source registry with all readers
+        let mut source_registry = SourceRegistry::new();
+        source_registry.register(Box::new(LocalFileReader::with_base_dir(&workspace_root)));
+        source_registry.register(Box::new(HttpReader::new()));
+        source_registry.register(Box::new(JiraReader::new()));
+        source_registry.register(Box::new(BraingridReader::new()));
+
         Ok(Self {
             workspace_root,
             injector,
@@ -89,6 +110,7 @@ impl ContextManager {
             memory_store: Some(memory_store),
             learning_store,
             context_file_cache: None,
+            source_registry,
         })
     }
 
@@ -405,6 +427,11 @@ impl ContextManager {
     /// Sets the learning store.
     pub fn set_learning_store(&mut self, learning_store: LearningStore) {
         self.learning_store = Some(learning_store);
+    }
+
+    /// Returns a reference to the source registry.
+    pub fn source_registry(&self) -> &SourceRegistry {
+        &self.source_registry
     }
 }
 

@@ -7,6 +7,8 @@
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
+use crate::context::{BraingridReader, JiraReader, LocalFileReader, SourceError, SourceReader};
+
 /// Source type detected from user input.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SourceType {
@@ -30,6 +32,51 @@ pub enum SourceDetectionError {
 
 /// Result type for source detection operations.
 pub type SourceDetectionResult<T> = std::result::Result<T, SourceDetectionError>;
+
+/// Checks if input matches Jira ticket pattern: ^[A-Z]+-\d+$
+fn is_jira_ticket(input: &str) -> bool {
+    // Must have at least one uppercase letter, a dash, and at least one digit
+    let parts: Vec<&str> = input.split('-').collect();
+    if parts.len() != 2 {
+        return false;
+    }
+
+    let prefix = parts[0];
+    let suffix = parts[1];
+
+    // Prefix must be all uppercase letters
+    if prefix.is_empty() || !prefix.chars().all(|c| c.is_ascii_uppercase()) {
+        return false;
+    }
+
+    // Suffix must be all digits
+    suffix.chars().all(|c| c.is_ascii_digit())
+}
+
+/// Checks if input matches Braingrid REQ pattern: ^REQ-\d{4}-\d{3,}$
+fn is_braingrid_req(input: &str) -> bool {
+    // Must start with "REQ-"
+    if !input.starts_with("REQ-") {
+        return false;
+    }
+
+    let rest = &input[4..];
+    let parts: Vec<&str> = rest.split('-').collect();
+    if parts.len() != 2 {
+        return false;
+    }
+
+    let year = parts[0];
+    let number = parts[1];
+
+    // Year must be exactly 4 digits
+    if year.len() != 4 || !year.chars().all(|c| c.is_ascii_digit()) {
+        return false;
+    }
+
+    // Number must be 3 or more digits
+    number.len() >= 3 && number.chars().all(|c| c.is_ascii_digit())
+}
 
 /// Detects the source type from user input.
 ///
@@ -57,23 +104,13 @@ pub fn detect_source(input: &str) -> SourceDetectionResult<SourceType> {
     }
 
     // 2. Check if it matches Jira ticket pattern: ^[A-Z]+-\d+$
-    if let Some(captures) = regex::Regex::new(r"^[A-Z]+-\d+$")
-        .unwrap()
-        .find(input)
-    {
-        if captures.as_str() == input {
-            return Ok(SourceType::JiraTicket(input.to_string()));
-        }
+    if is_jira_ticket(input) {
+        return Ok(SourceType::JiraTicket(input.to_string()));
     }
 
     // 3. Check if it matches Braingrid REQ pattern: ^REQ-\d{4}-\d{3,}$
-    if let Some(captures) = regex::Regex::new(r"^REQ-\d{4}-\d{3,}$")
-        .unwrap()
-        .find(input)
-    {
-        if captures.as_str() == input {
-            return Ok(SourceType::BraingridReq(input.to_string()));
-        }
+    if is_braingrid_req(input) {
+        return Ok(SourceType::BraingridReq(input.to_string()));
     }
 
     // 4. Invalid format
@@ -81,6 +118,105 @@ pub fn detect_source(input: &str) -> SourceDetectionResult<SourceType> {
         "Could not detect source type from: {}. Expected a file path, Jira ticket (e.g., RAD-42), or Braingrid REQ (e.g., REQ-2025-001).",
         input
     )))
+}
+
+/// Errors that can occur during source content fetching.
+#[derive(Debug, Error)]
+pub enum SourceFetchError {
+    /// Source not found.
+    #[error("Source not found: {0}")]
+    NotFound(String),
+
+    /// Missing credentials for authentication.
+    #[error("Missing {0} credentials. Please run `rad auth login {1}`.")]
+    MissingCredentials(String, String),
+
+    /// Network or other error.
+    #[error("Failed to fetch from {0}: {1}")]
+    FetchError(String, String),
+}
+
+impl From<SourceError> for SourceFetchError {
+    fn from(err: SourceError) -> Self {
+        match err {
+            SourceError::NotFound(msg) => SourceFetchError::NotFound(msg),
+            SourceError::Unauthorized(msg) => {
+                // Try to extract provider name from error message
+                let provider = if msg.contains("Jira") || msg.contains("JIRA") {
+                    ("Jira", "jira")
+                } else if msg.contains("Braingrid") || msg.contains("BRAINGRID") {
+                    ("Braingrid", "braingrid")
+                } else {
+                    ("credentials", "credentials")
+                };
+                SourceFetchError::MissingCredentials(provider.0.to_string(), provider.1.to_string())
+            }
+            SourceError::NetworkError(msg) => SourceFetchError::FetchError("network".to_string(), msg),
+            SourceError::IoError(e) => SourceFetchError::FetchError("I/O".to_string(), e.to_string()),
+            SourceError::InvalidUri(msg) => SourceFetchError::FetchError("invalid URI".to_string(), msg),
+            SourceError::Other(msg) => SourceFetchError::FetchError("source".to_string(), msg),
+        }
+    }
+}
+
+/// Result type for source content fetching operations.
+pub type SourceFetchResult<T> = std::result::Result<T, SourceFetchError>;
+
+/// Fetches content from a detected source.
+///
+/// # Arguments
+///
+/// * `source` - The detected source type
+///
+/// # Returns
+///
+/// Returns the content as a string, or an error if fetching fails.
+pub async fn fetch_source_content(source: SourceType) -> SourceFetchResult<String> {
+    match source {
+        SourceType::LocalFile(path) => {
+            // Convert path to file:// URI
+            let uri = if path.is_absolute() {
+                format!("file://{}", path.display())
+            } else {
+                format!("file://{}", path.display())
+            };
+
+            let reader = LocalFileReader::new();
+            reader.fetch(&uri).await.map_err(SourceFetchError::from)
+        }
+        SourceType::JiraTicket(ticket_id) => {
+            // Convert ticket ID to jira:// URI
+            let uri = format!("jira://{}", ticket_id);
+
+            let reader = JiraReader::new();
+            match reader.fetch(&uri).await {
+                Ok(content) => Ok(content),
+                Err(SourceError::Unauthorized(_)) => {
+                    Err(SourceFetchError::MissingCredentials("Jira".to_string(), "jira".to_string()))
+                }
+                Err(SourceError::NotFound(msg)) => Err(SourceFetchError::NotFound(msg)),
+                Err(e) => Err(SourceFetchError::from(e)),
+            }
+        }
+        SourceType::BraingridReq(req_id) => {
+            // Convert REQ ID to braingrid:// URI
+            let uri = format!("braingrid://{}", req_id);
+
+            let reader = BraingridReader::new();
+            match reader.fetch(&uri).await {
+                Ok(content) => Ok(content),
+                Err(SourceError::Unauthorized(_)) => {
+                    Err(SourceFetchError::MissingCredentials("Braingrid".to_string(), "braingrid".to_string()))
+                }
+                Err(SourceError::NotFound(msg)) => Err(SourceFetchError::NotFound(msg)),
+                Err(e) => Err(SourceFetchError::from(e)),
+            }
+        }
+        SourceType::Invalid => Err(SourceFetchError::FetchError(
+            "invalid source".to_string(),
+            "Source type is invalid".to_string(),
+        )),
+    }
 }
 
 #[cfg(test)]
@@ -138,8 +274,8 @@ mod tests {
     fn test_detect_nonexistent_file() {
         // Should not match as local file if it doesn't exist
         let result = detect_source("./nonexistent.md");
-        // Should try other patterns, likely fail or match something else
-        assert!(result.is_err() || matches!(result.unwrap(), SourceType::Invalid));
+        // Should try other patterns, likely fail
+        assert!(result.is_err());
     }
 
     #[test]
@@ -164,6 +300,49 @@ mod tests {
             detect_source("REQ-2025-1234").unwrap(),
             SourceType::BraingridReq(_)
         ));
+    }
+
+    #[test]
+    fn test_is_jira_ticket() {
+        assert!(is_jira_ticket("RAD-42"));
+        assert!(is_jira_ticket("PROJ-123"));
+        assert!(is_jira_ticket("ABC-999"));
+        assert!(!is_jira_ticket("rad-42")); // lowercase
+        assert!(!is_jira_ticket("RAD-42-EXTRA")); // too many parts
+        assert!(!is_jira_ticket("RAD")); // no dash
+    }
+
+    #[test]
+    fn test_is_braingrid_req() {
+        assert!(is_braingrid_req("REQ-2024-001"));
+        assert!(is_braingrid_req("REQ-2025-1234"));
+        assert!(!is_braingrid_req("REQ-24-001")); // year too short
+        assert!(!is_braingrid_req("REQ-2024-12")); // number too short
+        assert!(!is_braingrid_req("req-2024-001")); // lowercase
+    }
+
+    #[tokio::test]
+    async fn test_fetch_local_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("test.md");
+        let content = "Test specification content";
+        std::fs::write(&file_path, content).unwrap();
+
+        let source = SourceType::LocalFile(file_path);
+        let result = fetch_source_content(source).await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), content);
+    }
+
+    #[tokio::test]
+    async fn test_fetch_nonexistent_file() {
+        let source = SourceType::LocalFile(PathBuf::from("./nonexistent-file-12345.md"));
+        let result = fetch_source_content(source).await;
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            SourceFetchError::NotFound(_) => {}
+            _ => panic!("Expected NotFound error"),
+        }
     }
 }
 

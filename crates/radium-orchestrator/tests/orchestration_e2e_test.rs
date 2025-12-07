@@ -212,16 +212,19 @@ async fn test_conversation_history_tracking() {
     
     // First call
     let mut context1 = OrchestrationContext::new("session-1");
+    context1.add_user_message("First message");
     let _result1 = engine.execute("First message", &mut context1).await.unwrap();
     
     // Second call
     let mut context2 = OrchestrationContext::new("session-1");
     context2.conversation_history = context1.conversation_history.clone();
+    context2.add_user_message("Second message");
     let _result2 = engine.execute("Second message", &mut context2).await.unwrap();
     
     // Third call
     let mut context3 = OrchestrationContext::new("session-1");
     context3.conversation_history = context2.conversation_history.clone();
+    context3.add_user_message("Third message");
     let _result3 = engine.execute("Third message", &mut context3).await.unwrap();
 
     // Should have 6 messages: 3 user + 3 assistant
