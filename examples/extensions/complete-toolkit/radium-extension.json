@@ -1,0 +1,24 @@
+{
+  "name": "complete-toolkit",
+  "version": "1.0.0",
+  "description": "Full-featured extension demonstrating all component types and advanced patterns",
+  "author": "Radium Team",
+  "components": {
+    "prompts": [
+      "prompts/agents/*.md",
+      "prompts/frameworks/*.md"
+    ],
+    "mcp_servers": [
+      "mcp/*.json"
+    ],
+    "commands": [
+      "commands/*.toml",
+      "commands/deploy/*.toml"
+    ],
+    "hooks": [
+      "hooks/*.toml"
+    ]
+  },
+  "dependencies": ["hello-world"]
+}
+

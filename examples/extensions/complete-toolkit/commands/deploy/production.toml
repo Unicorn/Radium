@@ -1,0 +1,5 @@
+name = "deploy-production"
+description = "Deploy to production environment"
+command = "./scripts/deploy.sh"
+args = ["--env", "production"]
+

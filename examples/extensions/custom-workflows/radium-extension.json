@@ -1,0 +1,9 @@
+{
+  "name": "custom-workflows",
+  "version": "1.0.0",
+  "description": "Workflow templates for common development tasks",
+  "author": "Radium Team",
+  "components": {},
+  "dependencies": []
+}
+

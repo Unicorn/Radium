@@ -1,0 +1,31 @@
+{
+  "name": "code-review-workflow",
+  "description": "Automated code review workflow using specialized review agents",
+  "parameters": {
+    "language": {
+      "type": "string",
+      "description": "Programming language to review (rust, typescript, python)",
+      "required": true
+    },
+    "file_path": {
+      "type": "string",
+      "description": "Path to the file or directory to review",
+      "required": true
+    }
+  },
+  "steps": [
+    {
+      "id": "select-reviewer",
+      "type": "agent",
+      "agent_id": "${language}-reviewer",
+      "prompt": "Review the code at ${file_path} for best practices, potential issues, and improvements. Provide detailed feedback with severity levels."
+    },
+    {
+      "id": "generate-report",
+      "type": "agent",
+      "agent_id": "documentation-agent",
+      "prompt": "Format the code review results from the previous step into a structured markdown report with sections for Critical, High, Medium, and Low priority issues."
+    }
+  ]
+}
+

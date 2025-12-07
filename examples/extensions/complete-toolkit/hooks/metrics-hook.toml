@@ -1,0 +1,5 @@
+name = "metrics-hook"
+type = "native"
+library = "libmetrics.so"
+description = "Metrics collection hook for agent performance tracking"
+

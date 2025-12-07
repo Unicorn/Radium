@@ -1,0 +1,37 @@
+{
+  "name": "full-stack-workflow",
+  "description": "Complete full-stack development workflow",
+  "parameters": {
+    "feature": {
+      "type": "string",
+      "description": "Feature name to implement",
+      "required": true
+    }
+  },
+  "steps": [
+    {
+      "id": "plan",
+      "type": "agent",
+      "agent_id": "developer-agent",
+      "prompt": "Create a detailed plan for implementing ${feature}"
+    },
+    {
+      "id": "implement",
+      "type": "agent",
+      "agent_id": "developer-agent",
+      "prompt": "Implement ${feature} according to the plan"
+    },
+    {
+      "id": "test",
+      "type": "command",
+      "command": "npm",
+      "args": ["test"]
+    },
+    {
+      "id": "deploy",
+      "type": "command",
+      "command": "deploy-production"
+    }
+  ]
+}
+

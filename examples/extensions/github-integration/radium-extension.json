@@ -1,0 +1,16 @@
+{
+  "name": "github-integration",
+  "version": "2.0.1",
+  "description": "GitHub MCP servers and integration tools",
+  "author": "Community",
+  "components": {
+    "mcp_servers": [
+      "mcp/*.json"
+    ],
+    "prompts": [
+      "prompts/*.md"
+    ]
+  },
+  "dependencies": []
+}
+

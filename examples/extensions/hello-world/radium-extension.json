@@ -1,0 +1,11 @@
+{
+  "name": "hello-world",
+  "version": "1.0.0",
+  "description": "Minimal extension example demonstrating basic structure",
+  "author": "Radium Team",
+  "components": {
+    "prompts": ["prompts/*.md"]
+  },
+  "dependencies": []
+}
+

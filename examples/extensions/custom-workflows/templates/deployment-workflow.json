@@ -1,0 +1,46 @@
+{
+  "name": "deployment-workflow",
+  "description": "Standard deployment workflow with validation and rollback",
+  "parameters": {
+    "environment": {
+      "type": "string",
+      "description": "Deployment environment (staging, production)",
+      "required": true,
+      "default": "staging"
+    },
+    "version": {
+      "type": "string",
+      "description": "Version tag to deploy",
+      "required": true
+    }
+  },
+  "steps": [
+    {
+      "id": "validate-config",
+      "type": "agent",
+      "agent_id": "validation-agent",
+      "prompt": "Validate the deployment configuration for ${environment} environment. Check for required environment variables, secrets, and configuration files."
+    },
+    {
+      "id": "run-tests",
+      "type": "command",
+      "command": "npm",
+      "args": ["test"],
+      "continue_on_error": false
+    },
+    {
+      "id": "deploy",
+      "type": "command",
+      "command": "./scripts/deploy.sh",
+      "args": ["--env", "${environment}", "--version", "${version}"],
+      "continue_on_error": false
+    },
+    {
+      "id": "verify-deployment",
+      "type": "agent",
+      "agent_id": "monitoring-agent",
+      "prompt": "Verify the deployment to ${environment} was successful. Check health endpoints, logs, and metrics."
+    }
+  ]
+}
+

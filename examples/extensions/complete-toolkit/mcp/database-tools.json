@@ -1,0 +1,14 @@
+{
+  "name": "database-tools",
+  "description": "Database management MCP server",
+  "transport": "stdio",
+  "command": "npx",
+  "args": [
+    "-y",
+    "@modelcontextprotocol/server-database"
+  ],
+  "env": {
+    "DATABASE_URL": "${DATABASE_URL}"
+  }
+}
+
