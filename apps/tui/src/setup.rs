@@ -173,14 +173,15 @@ impl SetupWizard {
                 ];
 
                 // Check which providers are already configured
-                let (gemini_connected, openai_connected) = if let Ok(store) = CredentialStore::new()
+                let (gemini_connected, openai_connected, claude_connected) = if let Ok(store) = CredentialStore::new()
                 {
                     (
                         store.is_configured(ProviderType::Gemini),
                         store.is_configured(ProviderType::OpenAI),
+                        store.is_configured(ProviderType::Claude),
                     )
                 } else {
-                    (false, false)
+                    (false, false, false)
                 };
 
                 for (i, (provider_type, name, desc)) in providers.iter().enumerate() {
@@ -189,6 +190,7 @@ impl SetupWizard {
                     let is_connected = match provider_type {
                         ProviderType::Gemini => gemini_connected,
                         ProviderType::OpenAI => openai_connected,
+                        ProviderType::Claude => claude_connected,
                     };
 
                     let checkbox = if is_selected { "[x]" } else { "[ ]" };
@@ -209,6 +211,7 @@ impl SetupWizard {
                 let provider_name = match provider {
                     ProviderType::Gemini => "Gemini",
                     ProviderType::OpenAI => "OpenAI",
+                    ProviderType::Claude => "Claude",
                 };
 
                 lines.push(format!("{} Configure {}", Icons::AUTH, provider_name));
@@ -230,6 +233,10 @@ impl SetupWizard {
                     ProviderType::OpenAI => {
                         lines.push("Get your API key at:".to_string());
                         lines.push("https://platform.openai.com/api-keys".to_string());
+                    }
+                    ProviderType::Claude => {
+                        lines.push("Get your API key at:".to_string());
+                        lines.push("https://console.anthropic.com/settings/keys".to_string());
                     }
                 }
 
@@ -269,6 +276,7 @@ impl SetupWizard {
                     match provider {
                         ProviderType::Gemini => "Gemini",
                         ProviderType::OpenAI => "OpenAI",
+                        ProviderType::Claude => "Claude",
                     }
                 )
             }

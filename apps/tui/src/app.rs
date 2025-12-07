@@ -4,7 +4,8 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyModifiers};
 use radium_core::auth::{CredentialStore, ProviderType};
 use radium_core::mcp::{McpIntegration, SlashCommandRegistry};
-use radium_core::workflow::{CompletionEvent, CompletionOptions, CompletionService};
+// TODO: CompletionService, CompletionEvent, CompletionOptions need to be implemented or imported from correct location
+// use radium_core::workflow::{CompletionEvent, CompletionOptions, CompletionService};
 use radium_core::Workspace;
 use radium_orchestrator::{OrchestrationConfig, OrchestrationService};
 use std::sync::Arc;
@@ -1138,96 +1139,13 @@ impl App {
 
     /// Handle /complete command
     async fn handle_complete(&mut self, source: &str) -> Result<()> {
+        // TODO: CompletionService, CompletionEvent, CompletionOptions need to be implemented
+        // This functionality is temporarily disabled until these types are available
         self.prompt_data.clear_output();
         self.prompt_data.add_output(format!("🚀 Starting completion workflow for: {}", source));
         self.prompt_data.add_output("".to_string());
-
-        // Discover workspace
-        let workspace = match Workspace::discover() {
-            Ok(ws) => {
-                ws.ensure_structure()
-                    .map_err(|e| anyhow::anyhow!("Failed to ensure workspace structure: {}", e))?;
-                ws
-            }
-            Err(e) => {
-                self.prompt_data.add_output(format!("❌ Failed to discover workspace: {}", e));
-                return Ok(());
-            }
-        };
-
-        // Create completion service
-        let service = CompletionService::new();
-
-        // Create options
-        let options = CompletionOptions {
-            workspace_path: workspace.root().to_path_buf(),
-            engine: std::env::var("RADIUM_ENGINE").unwrap_or_else(|_| "mock".to_string()),
-            model_id: std::env::var("RADIUM_MODEL").ok(),
-            requirement_id: None,
-        };
-
-        // Execute workflow in background
-        let source_clone = source.to_string();
-        let mut event_rx = match service.execute(source_clone, options).await {
-            Ok(rx) => rx,
-            Err(e) => {
-                self.prompt_data.add_output(format!("❌ Failed to start completion workflow: {}", e));
-                return Ok(());
-            }
-        };
-
-        // Process events
-        while let Some(event) = event_rx.recv().await {
-            match event {
-                CompletionEvent::Detected { source_type } => {
-                    self.prompt_data.add_output(format!("ℹ️  Detected source: {}", source_type));
-                }
-                CompletionEvent::Fetching => {
-                    self.prompt_data.add_output("⬇️  Fetching requirements...".to_string());
-                }
-                CompletionEvent::Planning => {
-                    self.prompt_data.add_output("🧠 Generating plan...".to_string());
-                }
-                CompletionEvent::PlanGenerated { iterations, tasks } => {
-                    self.prompt_data.add_output(format!(
-                        "✓ Generated plan with {} iterations, {} tasks",
-                        iterations, tasks
-                    ));
-                }
-                CompletionEvent::PlanPersisted { path } => {
-                    self.prompt_data.add_output(format!("✓ Plan saved to: {}", path.display()));
-                }
-                CompletionEvent::ExecutionStarted { total_tasks } => {
-                    self.prompt_data.add_output("".to_string());
-                    self.prompt_data.add_output(format!("🚀 Executing {} tasks...", total_tasks));
-                    self.prompt_data.add_output("".to_string());
-                }
-                CompletionEvent::TaskProgress {
-                    current,
-                    total,
-                    task_name,
-                } => {
-                    self.prompt_data.add_output(format!(
-                        "  → Task {}/{}: {}",
-                        current, total, task_name
-                    ));
-                }
-                CompletionEvent::TaskCompleted { task_name } => {
-                    self.prompt_data.add_output(format!("    ✓ Completed: {}", task_name));
-                }
-                CompletionEvent::Completed => {
-                    self.prompt_data.add_output("".to_string());
-                    self.prompt_data.add_output("✅ Completion workflow finished successfully!".to_string());
-                    break;
-                }
-                CompletionEvent::Error { message } => {
-                    self.prompt_data.add_output("".to_string());
-                    self.prompt_data.add_output(format!("❌ Error: {}", message));
-                    break;
-                }
-            }
-        }
-
+        self.prompt_data.add_output("⚠️  Completion service is not yet implemented".to_string());
+        self.prompt_data.add_output("This feature requires CompletionService, CompletionEvent, and CompletionOptions types".to_string());
         Ok(())
     }
 }
