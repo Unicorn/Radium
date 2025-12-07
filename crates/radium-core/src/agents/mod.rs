@@ -18,13 +18,17 @@
 
 pub mod config;
 pub mod discovery;
+pub mod linter;
 pub mod metadata;
 pub mod registry;
+pub mod validation;
 
 pub use config::{AgentConfigError, AgentConfigFile, ReasoningEffort};
 pub use discovery::{AgentDiscovery, DiscoveryError};
+pub use linter::{AgentLinter, LintError, LintResult, PromptLinter};
 pub use metadata::{
     AgentMetadata, ContextRequirements, CostTier, IterationSpeed, MetadataError, ModelPriority,
     ModelRecommendation, OutputVolume, PerformanceProfile, RecommendedModels, ThinkingDepth,
 };
 pub use registry::{AgentRegistry, RegistryError};
+pub use validation::{AgentValidator, AgentValidatorImpl, ConfigValidator, PromptValidator, ValidationError};

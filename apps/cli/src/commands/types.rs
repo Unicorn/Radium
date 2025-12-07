@@ -101,6 +101,21 @@ pub enum AgentsCommand {
         /// Output results as JSON
         #[arg(short, long)]
         json: bool,
+        /// Use strict validation (treat warnings as errors)
+        #[arg(long)]
+        strict: bool,
+    },
+
+    /// Lint agent prompt templates
+    Lint {
+        /// Agent ID to lint (if not specified, lints all agents)
+        id: Option<String>,
+        /// Output results as JSON
+        #[arg(short, long)]
+        json: bool,
+        /// Use strict linting (treat warnings as errors)
+        #[arg(long)]
+        strict: bool,
     },
 
     /// Migrate agent configurations from legacy formats

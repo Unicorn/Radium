@@ -44,7 +44,10 @@ pub async fn execute(command: AgentsCommand) -> anyhow::Result<()> {
             .await
         }
         AgentsCommand::Info { id, json } => show_agent_info(&id, json).await,
-        AgentsCommand::Validate { verbose, json } => validate_agents(verbose, json).await,
+        AgentsCommand::Validate { verbose, json, strict } => {
+            validate_agents(verbose, json, strict).await
+        }
+        AgentsCommand::Lint { id, json, strict } => lint_agents(id.as_deref(), json, strict).await,
         AgentsCommand::Migrate { subcommand } => migrate_agents(subcommand).await,
         AgentsCommand::Create {
             id,
@@ -380,12 +383,13 @@ struct AgentValidationResult {
 }
 
 /// Validate all agent configurations.
-async fn validate_agents(verbose: bool, json_output: bool) -> anyhow::Result<()> {
+async fn validate_agents(verbose: bool, json_output: bool, strict: bool) -> anyhow::Result<()> {
     use radium_core::agents::metadata::AgentMetadata;
     use radium_core::prompts::templates::PromptTemplate;
 
     let discovery = AgentDiscovery::new();
     let agents = discovery.discover_all()?;
+    let validator = AgentValidatorImpl::new();
 
     let mut results = Vec::new();
 
@@ -400,19 +404,13 @@ async fn validate_agents(verbose: bool, json_output: bool) -> anyhow::Result<()>
 
         // Reload and validate the config file to get comprehensive validation
         if let Some(config_path) = &config.file_path {
-            match AgentConfigFile::load(config_path) {
-                Ok(config_file) => {
-                    // Validate using the config file's validate method
-                    if let Err(e) = config_file.validate() {
-                        validation_result.valid = false;
-                        let error_msg = e.to_string();
-                        let clean_msg = error_msg
-                            .strip_prefix("invalid configuration: ")
-                            .unwrap_or(&error_msg);
-                        validation_result.errors.push(clean_msg.to_string());
-                    } else {
-                        // Additional validations beyond what validate() does
-                        let agent = &config_file.agent;
+            // Use the new validation system
+            match validator.validate(&config, Some(config_path)) {
+                Ok(_) => {
+                    // Additional validations beyond basic validation
+                    match AgentConfigFile::load(config_path) {
+                        Ok(config_file) => {
+                            let agent = &config_file.agent;
 
                         // Validate agent ID format (kebab-case)
                         if !agent.id.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-') {
@@ -442,12 +440,12 @@ async fn validate_agents(verbose: bool, json_output: bool) -> anyhow::Result<()>
                             validation_result.valid = false;
                         } else {
                             // Try to load prompt template to verify it's valid
-                            let resolved_path = if prompt_path.is_absolute() {
-                                prompt_path.clone()
+                            let resolved_path = if agent.prompt_path.is_absolute() {
+                                agent.prompt_path.clone()
                             } else if let Some(config_dir) = config_path.parent() {
-                                config_dir.join(prompt_path)
+                                config_dir.join(&agent.prompt_path)
                             } else {
-                                prompt_path.clone()
+                                agent.prompt_path.clone()
                             };
 
                             if let Err(e) = PromptTemplate::load(&resolved_path) {
@@ -470,16 +468,23 @@ async fn validate_agents(verbose: bool, json_output: bool) -> anyhow::Result<()>
                                                 }
                                             }
                                             Err(e) => {
-                                                validation_result.warnings.push(format!(
-                                                    "YAML frontmatter parsing warning: {}",
-                                                    e
-                                                ));
+                                                if strict {
+                                                    validation_result.errors.push(format!(
+                                                        "YAML frontmatter parsing error: {}",
+                                                        e
+                                                    ));
+                                                    validation_result.valid = false;
+                                                } else {
+                                                    validation_result.warnings.push(format!(
+                                                        "YAML frontmatter parsing warning: {}",
+                                                        e
+                                                    ));
+                                                }
                                             }
                                         }
                                     }
                                 }
                             }
-                        }
 
                         // Validate loop behavior if present
                         if let Some(loop_behavior) = &agent.loop_behavior {
@@ -510,11 +515,7 @@ async fn validate_agents(verbose: bool, json_output: bool) -> anyhow::Result<()>
                 }
                 Err(e) => {
                     validation_result.valid = false;
-                    let error_msg = e.to_string();
-                    let clean_msg = error_msg
-                        .strip_prefix("invalid configuration: ")
-                        .unwrap_or(&error_msg);
-                    validation_result.errors.push(clean_msg.to_string());
+                    validation_result.errors.push(e.to_string());
                 }
             }
         } else {
@@ -599,6 +600,131 @@ async fn validate_agents(verbose: bool, json_output: bool) -> anyhow::Result<()>
                 }
             } else {
                 println!("Run with {} for details", "--verbose".cyan());
+            }
+        }
+        println!();
+    }
+
+    Ok(())
+}
+
+/// Lint agent prompt templates.
+async fn lint_agents(agent_id: Option<&str>, json_output: bool, strict: bool) -> anyhow::Result<()> {
+    let discovery = AgentDiscovery::new();
+    let linter = PromptLinter::new();
+    let mut results = Vec::new();
+
+    let agents = if let Some(id) = agent_id {
+        let agent = discovery
+            .find_by_id(id)?
+            .ok_or_else(|| anyhow::anyhow!("Agent '{}' not found", id))?;
+        vec![(id.to_string(), agent)]
+    } else {
+        discovery.discover_all()?
+    };
+
+    for (id, config) in &agents {
+        if let Some(config_path) = &config.file_path {
+            let prompt_path = if config.prompt_path.is_absolute() {
+                config.prompt_path.clone()
+            } else if let Some(config_dir) = config_path.parent() {
+                config_dir.join(&config.prompt_path)
+            } else {
+                config.prompt_path.clone()
+            };
+
+            if prompt_path.exists() {
+                match linter.lint(&prompt_path) {
+                    Ok(mut lint_result) => {
+                        // In strict mode, treat warnings as errors
+                        if strict && !lint_result.warnings.is_empty() {
+                            lint_result.valid = false;
+                            lint_result.errors.extend(lint_result.warnings.drain(..));
+                        }
+                        results.push((id.clone(), Some(config_path.clone()), lint_result));
+                    }
+                    Err(e) => {
+                        let mut lint_result = LintResult::new();
+                        lint_result.valid = false;
+                        lint_result.errors.push(e.to_string());
+                        results.push((id.clone(), Some(config_path.clone()), lint_result));
+                    }
+                }
+            } else {
+                let mut lint_result = LintResult::new();
+                lint_result.valid = false;
+                lint_result.errors.push(format!(
+                    "Prompt file not found: {}",
+                    prompt_path.display()
+                ));
+                results.push((id.clone(), Some(config_path.clone()), lint_result));
+            }
+        }
+    }
+
+    let valid_count = results.iter().filter(|(_, _, r)| r.valid).count();
+    let error_count = results.len() - valid_count;
+
+    if json_output {
+        let json_results: Vec<serde_json::Value> = results
+            .iter()
+            .map(|(id, path, result)| {
+                json!({
+                    "id": id,
+                    "file_path": path.as_ref().map(|p| p.to_string_lossy().to_string()),
+                    "valid": result.valid,
+                    "errors": result.errors,
+                    "warnings": result.warnings,
+                })
+            })
+            .collect();
+
+        let output = json!({
+            "summary": {
+                "total": results.len(),
+                "valid": valid_count,
+                "invalid": error_count,
+            },
+            "results": json_results,
+        });
+
+        println!("{}", serde_json::to_string_pretty(&output)?);
+        
+        if error_count > 0 {
+            std::process::exit(1);
+        }
+    } else {
+        println!();
+        if error_count == 0 {
+            println!(
+                "{}",
+                format!("✅ All {} prompt templates linted successfully", results.len())
+                    .bold()
+                    .green()
+            );
+        } else {
+            println!(
+                "{}",
+                format!("⚠️  Linting: {} valid, {} with errors", valid_count, error_count)
+                    .bold()
+                    .yellow()
+            );
+            println!();
+
+            for (id, path, result) in &results {
+                if !result.valid || !result.errors.is_empty() || !result.warnings.is_empty() {
+                    println!("{}", format!("  {} {}:", "❌".red(), id.red()));
+                    if let Some(p) = path {
+                        println!("     {}", format!("File: {}", p.display()).dimmed());
+                    }
+                    for error in &result.errors {
+                        println!("     • {}", error.red());
+                    }
+                    for warning in &result.warnings {
+                        println!("     ⚠ {}", warning.yellow());
+                    }
+                    println!();
+                }
             }
         }
         println!();
