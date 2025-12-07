@@ -4,7 +4,9 @@
 
 use anyhow::{Context, bail};
 use colored::Colorize;
-use radium_core::{AgentDiscovery, PromptContext, PromptTemplate};
+use radium_core::{
+    context::ContextFileLoader, AgentDiscovery, PromptContext, PromptTemplate, Workspace,
+};
 use radium_models::ModelFactory;
 
 /// Execute the run command.
@@ -24,12 +26,28 @@ pub async fn execute(
     println!("{}", "rad run".bold().cyan());
     println!();
 
+    // Determine working directory
+    let working_dir = if let Some(dir_path) = &dir {
+        std::path::PathBuf::from(dir_path)
+    } else {
+        std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
+    };
+
     // Change to working directory if specified
-    if let Some(working_dir) = &dir {
-        std::env::set_current_dir(working_dir)
-            .context(format!("Failed to change to directory: {}", working_dir))?;
-        println!("  {} Working directory: {}", "•".dimmed(), working_dir.dimmed());
+    if let Some(dir_path) = &dir {
+        std::env::set_current_dir(dir_path)
+            .context(format!("Failed to change to directory: {}", dir_path))?;
+        println!("  {} Working directory: {}", "•".dimmed(), dir_path.dimmed());
     }
+
+    // Discover workspace and load context files
+    let workspace = Workspace::discover().ok();
+    let workspace_root = workspace
+        .as_ref()
+        .map(|w| w.root().to_path_buf())
+        .unwrap_or_else(|| working_dir.clone());
+    let loader = ContextFileLoader::new(&workspace_root);
+    let context_files = loader.load_hierarchical(&working_dir).unwrap_or_default();
 
     // Parse script - simple format: "agent-id prompt"
     let (agent_id, prompt_text) = parse_simple_script(&script)?;
@@ -52,6 +70,15 @@ pub async fn execute(
 
     let mut context = PromptContext::new();
     context.set("user_input", prompt_text.clone());
+
+    // Inject context files if available
+    if !context_files.is_empty() {
+        context.set("context_files", context_files);
+        let context_file_paths = loader.get_context_file_paths(&working_dir);
+        if !context_file_paths.is_empty() {
+            println!("  {} Loaded context from {} file(s)", "✓".green(), context_file_paths.len());
+        }
+    }
 
     let rendered = template.render(&context)?;
 
