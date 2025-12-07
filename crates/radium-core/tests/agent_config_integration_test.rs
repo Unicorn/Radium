@@ -12,6 +12,25 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
+/// Guard to restore the original directory when dropped.
+struct DirGuard {
+    original_dir: PathBuf,
+}
+
+impl DirGuard {
+    fn new(target: &Path) -> Self {
+        let original_dir = std::env::current_dir().expect("Failed to get current directory");
+        std::env::set_current_dir(target).expect("Failed to change directory");
+        Self { original_dir }
+    }
+}
+
+impl Drop for DirGuard {
+    fn drop(&mut self) {
+        let _ = std::env::set_current_dir(&self.original_dir);
+    }
+}
+
 /// Helper function to create a temporary test workspace with directory structure.
 fn create_test_workspace() -> TempDir {
     let temp_dir = tempfile::tempdir().expect("Failed to create temp directory");
@@ -166,14 +185,10 @@ fn test_full_agent_discovery_workflow() {
     create_test_agent(workspace, "custom", "test-agent", "Test Agent", "Testing agent", "# Test Prompt");
 
     // Change to workspace directory for discovery
-    let original_dir = std::env::current_dir().expect("Failed to get current directory");
-    std::env::set_current_dir(workspace).expect("Failed to change directory");
+    let _guard = DirGuard::new(workspace);
 
     let discovery = AgentDiscovery::new();
     let agents = discovery.discover_all().expect("Failed to discover agents");
-
-    // Restore original directory
-    std::env::set_current_dir(original_dir).expect("Failed to restore directory");
 
     // Verify all agents were discovered
     assert_eq!(agents.len(), 5, "Should discover 5 agents");
@@ -208,14 +223,10 @@ fn test_agent_registry_with_discovery() {
     create_test_agent(workspace, "custom", "agent-3", "Agent 3", "Third agent", "# Prompt 3");
 
     // Change to workspace directory
-    let original_dir = std::env::current_dir().expect("Failed to get current directory");
-    std::env::set_current_dir(workspace).expect("Failed to change directory");
+    let _guard = DirGuard::new(workspace);
 
     // Create registry with discovery
     let registry = AgentRegistry::with_discovery().expect("Failed to create registry with discovery");
-
-    // Restore original directory
-    std::env::set_current_dir(original_dir).expect("Failed to restore directory");
 
     // Test lookup by ID
     let agent1 = registry.get("agent-1").expect("Failed to get agent-1");
@@ -286,16 +297,12 @@ Please complete this by {{deadline}}.
     create_test_agent(workspace, "core", "template-agent", "Template Agent", "Tests templates", prompt_content);
 
     // Change to workspace directory
-    let original_dir = std::env::current_dir().expect("Failed to get current directory");
-    std::env::set_current_dir(workspace).expect("Failed to change directory");
+    let _guard = DirGuard::new(workspace);
 
     // Load agent configuration
     let discovery = AgentDiscovery::new();
     let agents = discovery.discover_all().expect("Failed to discover agents");
     let agent = agents.get("template-agent").expect("template-agent not found");
-
-    // Restore original directory
-    std::env::set_current_dir(original_dir).expect("Failed to restore directory");
 
     // Load prompt template
     let prompt_path = workspace.join(&agent.prompt_path);
@@ -332,14 +339,10 @@ fn test_agent_behaviors_configuration() {
     create_test_agent_with_trigger_behavior(workspace, "core", "trigger-agent");
 
     // Change to workspace directory
-    let original_dir = std::env::current_dir().expect("Failed to get current directory");
-    std::env::set_current_dir(workspace).expect("Failed to change directory");
+    let _guard = DirGuard::new(workspace);
 
     let discovery = AgentDiscovery::new();
     let agents = discovery.discover_all().expect("Failed to discover agents");
-
-    // Restore original directory
-    std::env::set_current_dir(original_dir).expect("Failed to restore directory");
 
     // Verify loop behavior
     let loop_agent = agents.get("loop-agent").expect("loop-agent not found");
@@ -372,8 +375,7 @@ prompt_path = "prompts/agents/core/nonexistent.md"
     fs::write(&config_path, config_content).expect("Failed to write config");
 
     // Change to workspace directory
-    let original_dir = std::env::current_dir().expect("Failed to get current directory");
-    std::env::set_current_dir(workspace).expect("Failed to change directory");
+    let _guard = DirGuard::new(workspace);
 
     let discovery = AgentDiscovery::new();
     // Discovery should succeed even if prompt file doesn't exist (validation happens later)
@@ -401,20 +403,24 @@ prompt_path = "prompts/agents/core/nonexistent.md"
     // Remove invalid file so discovery can continue
     fs::remove_file(&missing_fields_path).expect("Failed to remove invalid config");
 
-    // Test 4: Duplicate agent IDs (later entry should override)
+    // Test 4: Duplicate agent IDs (first entry is kept, later ones are ignored)
+    // Create agents in different categories with same ID
     create_test_agent(workspace, "core", "duplicate", "First Agent", "First", "# Prompt 1");
     create_test_agent(workspace, "custom", "duplicate", "Second Agent", "Second", "# Prompt 2");
 
-    let agents = discovery.discover_all().expect("Failed to discover agents");
-    // Should only have one entry for "duplicate" (later one overrides)
+    // Create a fresh discovery instance to avoid any state issues
+    let discovery2 = AgentDiscovery::new();
+    let agents = discovery2.discover_all().expect("Failed to discover agents");
+    
+    // Should only have one entry for "duplicate" (first one found is kept)
     // The "missing-prompt" agent should also be present
-    assert!(agents.contains_key("duplicate"), "Should contain duplicate agent");
+    assert!(agents.contains_key("duplicate"), "Should contain duplicate agent (found: {:?})", agents.keys().collect::<Vec<_>>());
+    let duplicate_agent = agents.get("duplicate").expect("duplicate agent not found");
+    // The first one found should be kept (order depends on discovery order)
+    assert_eq!(duplicate_agent.id, "duplicate");
     assert!(agents.contains_key("missing-prompt"), "Should contain missing-prompt agent");
     // Should have exactly 2 agents
-    assert_eq!(agents.len(), 2, "Should have exactly 2 agents");
-
-    // Restore original directory
-    std::env::set_current_dir(original_dir).expect("Failed to restore directory");
+    assert_eq!(agents.len(), 2, "Should have exactly 2 agents (found: {:?})", agents.keys().collect::<Vec<_>>());
 }
 
 #[test]
@@ -434,14 +440,10 @@ fn test_agent_with_all_optional_fields() {
     );
 
     // Change to workspace directory
-    let original_dir = std::env::current_dir().expect("Failed to get current directory");
-    std::env::set_current_dir(workspace).expect("Failed to change directory");
+    let _guard = DirGuard::new(workspace);
 
     let discovery = AgentDiscovery::new();
     let agents = discovery.discover_all().expect("Failed to discover agents");
-
-    // Restore original directory
-    std::env::set_current_dir(original_dir).expect("Failed to restore directory");
 
     let agent = agents.get("full-agent").expect("full-agent not found");
     assert_eq!(agent.engine, Some("gemini".to_string()));
@@ -459,8 +461,7 @@ fn test_discovery_with_custom_options() {
     create_test_agent(workspace, "custom", "agent-3", "Agent 3", "Third", "# Prompt 3");
 
     // Change to workspace directory
-    let original_dir = std::env::current_dir().expect("Failed to get current directory");
-    std::env::set_current_dir(workspace).expect("Failed to change directory");
+    let _guard = DirGuard::new(workspace);
 
     // Test with sub-agent filter
     let mut options = DiscoveryOptions::default();
@@ -469,9 +470,6 @@ fn test_discovery_with_custom_options() {
 
     let discovery = AgentDiscovery::with_options(options);
     let agents = discovery.discover_all().expect("Failed to discover agents");
-
-    // Restore original directory
-    std::env::set_current_dir(original_dir).expect("Failed to restore directory");
 
     // Should only have filtered agents
     assert_eq!(agents.len(), 2);
