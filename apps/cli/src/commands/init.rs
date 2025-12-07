@@ -6,11 +6,12 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use radium_core::Workspace;
 use std::env;
+use std::fs;
 use std::path::PathBuf;
 
 /// Execute the init command.
 
-pub async fn execute(path: Option<String>, use_defaults: bool) -> Result<()> {
+pub async fn execute(path: Option<String>, use_defaults: bool, with_context: bool) -> Result<()> {
     println!("{}", "rad init".bold().cyan());
 
     println!();
@@ -93,17 +94,67 @@ pub async fn execute(path: Option<String>, use_defaults: bool) -> Result<()> {
         }
     }
 
-    // TODO: Generate default config file if needed
-    // let config_path = target_path.join(".radium").join("config.toml");
-    // ...
+    // Create context file if requested
+    if with_context {
+        let context_file_path = target_path.join("GEMINI.md");
+        
+        // Try to find template file in various locations
+        let template_content = find_template_content()?;
+        
+        match fs::write(&context_file_path, template_content) {
+            Ok(_) => {
+                println!("  ✓ Created GEMINI.md context file");
+            }
+            Err(e) => {
+                println!("  {} Failed to create GEMINI.md: {}", "!".yellow(), e);
+            }
+        }
+    }
 
     println!();
     println!("{}", "Workspace initialized successfully!".green().bold());
     println!();
-    println!("Next steps:");
-    println!("  1. Create a plan: {}", "rad plan <spec-file>".cyan());
-    println!("  2. Execute a plan: {}", "rad craft <plan-id>".cyan());
+    
+    if with_context {
+        println!("{}", "Next steps:".bold());
+        println!("  1. Customize {} with your project guidelines", "GEMINI.md".cyan());
+        println!("  2. Create a plan: {}", "rad plan <spec-file>".cyan());
+        println!("  3. Execute a plan: {}", "rad craft <plan-id>".cyan());
+    } else {
+        println!("{}", "Next steps:".bold());
+        println!("  1. Create a plan: {}", "rad plan <spec-file>".cyan());
+        println!("  2. Execute a plan: {}", "rad craft <plan-id>".cyan());
+        println!();
+        println!("  {} Tip: Add a {} file for persistent agent instructions", "•".dimmed(), "GEMINI.md".cyan());
+    }
     println!();
 
     Ok(())
+}
+
+/// Find template content from various possible locations.
+fn find_template_content() -> Result<String> {
+    // Try to find template file in common locations
+    
+    // 1. Try relative to current directory (for development/running from repo)
+    let current_dir = env::current_dir().ok();
+    if let Some(dir) = &current_dir {
+        let template_path = dir.join("templates").join("GEMINI.md.template");
+        if template_path.exists() {
+            return Ok(fs::read_to_string(&template_path)?);
+        }
+    }
+    
+    // 2. Try relative to workspace root if we're in a workspace
+    if let Ok(workspace) = Workspace::discover() {
+        let template_path = workspace.root().join("templates").join("GEMINI.md.template");
+        if template_path.exists() {
+            return Ok(fs::read_to_string(&template_path)?);
+        }
+    }
+    
+    // 3. Fallback to embedded template content (embedded at compile time)
+    // Path is relative to this source file: apps/cli/src/commands/init.rs
+    // Going up: commands -> src -> cli -> apps -> root, then templates/
+    Ok(include_str!("../../../../templates/GEMINI.md.template").to_string())
 }

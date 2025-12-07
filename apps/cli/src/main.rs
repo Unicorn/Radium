@@ -52,6 +52,10 @@ enum Command {
         /// Use default values without prompting
         #[arg(long)]
         use_defaults: bool,
+
+        /// Create a starter GEMINI.md context file
+        #[arg(long)]
+        with_context: bool,
     },
 
     /// Generate a plan from a specification file
@@ -294,8 +298,8 @@ async fn main() -> anyhow::Result<()> {
 
     // Execute command
     match command {
-        Command::Init { path, use_defaults } => {
-            init::execute(path, use_defaults).await?;
+        Command::Init { path, use_defaults, with_context } => {
+            init::execute(path, use_defaults, with_context).await?;
         }
         Command::Plan { input, id, name } => {
             plan::execute(input, id, name).await?;
