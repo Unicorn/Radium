@@ -53,6 +53,8 @@ pub struct App {
     pub show_shortcuts: bool,
     /// TUI configuration
     pub config: TuiConfig,
+    /// Whether orchestration is currently running (for cancellation support)
+    pub orchestration_running: bool,
 }
 
 impl App {
@@ -114,6 +116,7 @@ impl App {
             theme,
             show_shortcuts: false,
             config,
+            orchestration_running: false,
         };
 
         // Show setup wizard if not configured, otherwise start chat
@@ -288,12 +291,32 @@ impl App {
                 self.show_shortcuts = true;
                 return Ok(());
             }
-            // Quit
+            // Quit or cancel orchestration
             KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => {
-                self.should_quit = true;
+                if self.orchestration_running {
+                    // Cancel orchestration if running
+                    self.orchestration_running = false;
+                    let max_history = self.config.performance.max_conversation_history;
+                    self.prompt_data.add_conversation_message(
+                        "⚠️  Cancellation requested. Current operation will complete due to timeout protection.".to_string(),
+                        max_history
+                    );
+                } else {
+                    self.should_quit = true;
+                }
             }
             KeyCode::Char('d') if modifiers.contains(KeyModifiers::CONTROL) => {
-                self.should_quit = true;
+                if self.orchestration_running {
+                    // Cancel orchestration if running
+                    self.orchestration_running = false;
+                    let max_history = self.config.performance.max_conversation_history;
+                    self.prompt_data.add_conversation_message(
+                        "⚠️  Cancellation requested. Current operation will complete due to timeout protection.".to_string(),
+                        max_history
+                    );
+                } else {
+                    self.should_quit = true;
+                }
             }
 
             // Arrow keys for command menu navigation
@@ -521,6 +544,10 @@ impl App {
         ));
         self.prompt_data.add_output("".to_string());
         self.prompt_data.add_output("When in a chat, type normally to send messages.".to_string());
+        self.prompt_data.add_output("".to_string());
+        self.prompt_data.add_output("💡 Tips:".to_string());
+        self.prompt_data.add_output("   Press Ctrl+C during orchestration to request cancellation".to_string());
+        self.prompt_data.add_output("   (Note: Current operation will complete due to timeout protection)".to_string());
     }
 
     /// Show MCP commands
@@ -902,6 +929,9 @@ impl App {
         // Record start time for elapsed time calculation
         let start_time = std::time::Instant::now();
 
+        // Mark orchestration as running
+        self.orchestration_running = true;
+
         // Execute orchestration
         if let Some(ref service) = self.orchestration_service {
             match service.handle_input(&session_id, &input).await {
@@ -1051,6 +1081,9 @@ impl App {
                 "💡 Tip: Use '/orchestrator toggle' to enable orchestration or check your API keys.".to_string()
             );
         }
+
+        // Mark orchestration as complete
+        self.orchestration_running = false;
 
         Ok(())
     }
