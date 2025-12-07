@@ -8,6 +8,13 @@ target/
 **/*.rs.bk
 *.pdb
 
+# Coverage
+target/llvm-cov/
+*.profraw
+*.profdata
+lcov.info
+cobertura.xml
+
 # compiled output
 dist
 tmp

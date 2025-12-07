@@ -2023,6 +2023,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "chrono",
+ "criterion",
  "futures",
  "radium-abstraction",
  "radium-models",

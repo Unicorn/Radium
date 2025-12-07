@@ -167,6 +167,26 @@ npm run tui
 npm run desktop
 ```
 
+### Testing & Coverage
+
+Radium uses `cargo-llvm-cov` for code coverage reporting.
+
+```bash
+# Install coverage tools (one-time setup)
+cargo install cargo-llvm-cov
+
+# Generate HTML coverage report
+cargo llvm-cov --workspace --html
+
+# Generate LCOV coverage report (for CI)
+cargo llvm-cov --workspace --lcov --output-path lcov.info
+
+# View HTML report (opens in browser)
+open target/llvm-cov/html/index.html
+```
+
+See [Testing Documentation](docs/TESTING.md) for comprehensive testing guidelines (coming soon).
+
 ## Contributing
 
 We welcome contributions! Please see our contributing guidelines and development rules:
