@@ -66,7 +66,7 @@ fn test_context_files_with_imports_integration() {
 #[test]
 fn test_context_manager_with_context_files() {
     let temp_dir = TempDir::new().unwrap();
-    let _workspace = Workspace::create(temp_dir.path()).unwrap();
+    let workspace = Workspace::create(temp_dir.path()).unwrap();
 
     // Create context file
     let context_file = temp_dir.path().join("GEMINI.md");
@@ -84,7 +84,7 @@ fn test_context_manager_with_context_files() {
 #[test]
 fn test_context_files_missing_handling() {
     let temp_dir = TempDir::new().unwrap();
-    let _workspace = Workspace::create(temp_dir.path()).unwrap();
+    let workspace = Workspace::create(temp_dir.path()).unwrap();
 
     // No context files exist
     let loader = ContextFileLoader::new(temp_dir.path());
@@ -147,7 +147,7 @@ fn test_nested_imports_integration() {
 #[test]
 fn test_context_files_in_build_context() {
     let temp_dir = TempDir::new().unwrap();
-    let _workspace = Workspace::create(temp_dir.path()).unwrap();
+    let workspace = Workspace::create(temp_dir.path()).unwrap();
 
     // Create context file
     let context_file = temp_dir.path().join("GEMINI.md");
@@ -201,7 +201,7 @@ fn test_performance_cache_repeated_loads() {
     // First load (no cache)
     let start1 = std::time::Instant::now();
     let _content1 = manager.load_context_files(temp_dir.path()).unwrap();
-    let duration1 = start1.elapsed();
+    let _duration1 = start1.elapsed();
 
     // Second load (cached)
     let start2 = std::time::Instant::now();
@@ -243,21 +243,21 @@ fn test_performance_deep_import_chain() {
     let loader = ContextFileLoader::new(temp_dir.path());
 
     // Create deep import chain (10 levels)
-    let mut prev_file = None;
-    for i in (1..=10).rev() {
+    // Build from level1 (no imports) to level10 (imports level9)
+    for i in 1..=10 {
         let file = temp_dir.path().join(format!("level{}.md", i));
-        let content = if let Some(ref prev) = prev_file {
+        let content = if i > 1 {
+            let prev_file = format!("level{}.md", i - 1);
             format!(
                 "# Level {}\n\n@{}\n\nContent level {}.",
                 i,
-                prev.file_name().unwrap().to_string_lossy(),
+                prev_file,
                 i
             )
         } else {
             format!("# Level {}\n\nContent level {}.", i, i)
         };
         fs::write(&file, content).unwrap();
-        prev_file = Some(file);
     }
 
     // Load the top level file
