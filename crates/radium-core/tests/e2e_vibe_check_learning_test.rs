@@ -303,7 +303,8 @@ async fn test_learning_context_injection() {
 
     // Setup context manager with learning store
     let mut context_manager = ContextManager::new(&workspace);
-    context_manager.set_learning_store(learning_store);
+    let store_for_context = LearningStore::new(workspace.root()).unwrap();
+    context_manager.set_learning_store(store_for_context);
 
     // Generate learning context
     let learning_context = context_manager.gather_learning_context(3);
@@ -346,9 +347,7 @@ async fn test_skillbook_updates_from_oversight() {
 
     // Apply updates to learning store
     let mut store = learning_store.lock().unwrap();
-    for operation in &batch.operations {
-        store.apply_update(operation).unwrap();
-    }
+    store.apply_update(&batch).unwrap();
 
     // Verify skill was added
     let skills = store.get_skills_by_section("task_guidance", false);
