@@ -140,7 +140,6 @@ impl App {
                 discover_mcp_tools_for_orchestration(Arc::clone(mcp_integration))
                     .await
                     .ok()
-                    .flatten()
             } else {
                 None
             };
@@ -967,7 +966,6 @@ impl App {
             discover_mcp_tools_for_orchestration(Arc::clone(mcp_integration))
                 .await
                 .ok()
-                .flatten()
         } else {
             None
         };
