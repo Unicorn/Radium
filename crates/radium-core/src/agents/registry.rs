@@ -644,6 +644,140 @@ mod tests {
     }
 
     #[test]
+    fn test_concurrent_reads() {
+        use std::sync::Arc;
+        use std::thread;
+
+        let registry = Arc::new(AgentRegistry::new());
+        
+        // Register some agents
+        registry.register(create_test_agent("agent-1", "Agent 1")).unwrap();
+        registry.register(create_test_agent("agent-2", "Agent 2")).unwrap();
+        registry.register(create_test_agent("agent-3", "Agent 3")).unwrap();
+
+        // Spawn multiple threads that read concurrently
+        let mut handles = vec![];
+        for _ in 0..10 {
+            let reg = registry.clone();
+            let handle = thread::spawn(move || {
+                for _ in 0..100 {
+                    let _ = reg.get("agent-1").unwrap();
+                    let _ = reg.count().unwrap();
+                    let _ = reg.list_all().unwrap();
+                }
+            });
+            handles.push(handle);
+        }
+
+        // Wait for all threads
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        // Verify registry is still intact
+        assert_eq!(registry.count().unwrap(), 3);
+    }
+
+    #[test]
+    fn test_concurrent_register_and_get() {
+        use std::sync::Arc;
+        use std::thread;
+
+        let registry = Arc::new(AgentRegistry::new());
+
+        // Spawn threads that register and read concurrently
+        let mut handles = vec![];
+        for i in 0..5 {
+            let reg = registry.clone();
+            let handle = thread::spawn(move || {
+                let agent_id = format!("agent-{}", i);
+                let agent = create_test_agent(&agent_id, &format!("Agent {}", i));
+                reg.register(agent).unwrap();
+                
+                // Try to get immediately after registering
+                for _ in 0..10 {
+                    let _ = reg.get(&agent_id).unwrap();
+                }
+            });
+            handles.push(handle);
+        }
+
+        // Wait for all threads
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        // Verify all agents were registered
+        assert_eq!(registry.count().unwrap(), 5);
+    }
+
+    #[test]
+    fn test_concurrent_filter_operations() {
+        use std::sync::Arc;
+        use std::thread;
+
+        let registry = Arc::new(AgentRegistry::new());
+        
+        // Register agents
+        for i in 0..10 {
+            let agent = create_test_agent(&format!("agent-{}", i), &format!("Agent {}", i))
+                .with_category(if i % 2 == 0 { "core" } else { "test" });
+            registry.register(agent).unwrap();
+        }
+
+        // Spawn threads that filter concurrently
+        let mut handles = vec![];
+        for _ in 0..5 {
+            let reg = registry.clone();
+            let handle = thread::spawn(move || {
+                for _ in 0..20 {
+                    let _ = reg.filter(|a| a.category.as_ref().map_or(false, |c| c == "core")).unwrap();
+                    let _ = reg.filter_by_category("core").unwrap();
+                }
+            });
+            handles.push(handle);
+        }
+
+        // Wait for all threads
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        // Verify registry is still intact
+        assert_eq!(registry.count().unwrap(), 10);
+    }
+
+    #[test]
+    fn test_concurrent_write_contention() {
+        use std::sync::Arc;
+        use std::thread;
+        use std::time::Duration;
+
+        let registry = Arc::new(AgentRegistry::new());
+
+        // Spawn threads that write concurrently
+        let mut handles = vec![];
+        for i in 0..10 {
+            let reg = registry.clone();
+            let handle = thread::spawn(move || {
+                // Small delay to increase contention
+                thread::sleep(Duration::from_millis(1));
+                let agent = create_test_agent(&format!("agent-{}", i), &format!("Agent {}", i));
+                reg.register(agent).unwrap();
+            });
+            handles.push(handle);
+        }
+
+        // Wait for all threads
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        // Verify all agents were registered (some may have been replaced)
+        assert_eq!(registry.count().unwrap(), 10);
+    }
+
+    #[test]
     fn test_filter_by_model() {
         let registry = AgentRegistry::new();
 

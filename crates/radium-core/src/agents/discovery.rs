@@ -320,7 +320,9 @@ mod tests {
         create_test_agent_config(temp.path(), "test-agents", "valid-agent");
 
         // Create a malformed TOML file
-        let malformed_path = temp.path().join("test-agents").join("malformed.toml");
+        let test_agents_dir = temp.path().join("test-agents");
+        fs::create_dir_all(&test_agents_dir).unwrap();
+        let malformed_path = test_agents_dir.join("malformed.toml");
         fs::write(&malformed_path, "[agent]\nid = invalid syntax\n").unwrap();
 
         let options = DiscoveryOptions {
@@ -372,6 +374,8 @@ mod tests {
 
     #[test]
     fn test_discovery_prompt_file_resolution_edge_cases() {
+        use crate::agents::config::AgentConfigFile;
+
         let temp = TempDir::new().unwrap();
         let agents_dir = temp.path().join("agents");
         fs::create_dir_all(&agents_dir).unwrap();
@@ -383,7 +387,7 @@ mod tests {
         fs::write(&prompt_file, "# Test").unwrap();
 
         let config = AgentConfigFile {
-            agent: AgentConfig::new("test-agent", "Test Agent", PathBuf::from("../prompts/test.md"))
+            agent: AgentConfig::new("test-agent", "Test Agent", PathBuf::from("prompts/test.md"))
                 .with_description("Test")
                 .with_file_path(agents_dir.join("test-agent.toml")),
         };

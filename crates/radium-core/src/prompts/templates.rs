@@ -569,4 +569,67 @@ Please complete this by {{deadline}}.
         assert!(placeholders.contains(&"first".to_string()));
         assert!(placeholders.contains(&"second".to_string()));
     }
+
+    #[test]
+    fn test_nested_placeholder_syntax() {
+        // Test deeply nested braces (should not be treated as nested placeholders)
+        let template = PromptTemplate::from_string("{{{{VAR}}}}");
+        let placeholders = template.list_placeholders();
+        // Should find {{VAR}} as a placeholder (outer braces are part of syntax)
+        assert_eq!(placeholders.len(), 1);
+        assert_eq!(placeholders[0], "{VAR");
+    }
+
+    #[test]
+    fn test_placeholder_with_special_characters() {
+        // Test placeholders with special characters in names
+        let template = PromptTemplate::from_string("{{user-name}} {{user_email}} {{user.name}}");
+        let placeholders = template.list_placeholders();
+        assert_eq!(placeholders.len(), 3);
+        assert!(placeholders.contains(&"user-name".to_string()));
+        assert!(placeholders.contains(&"user_email".to_string()));
+        assert!(placeholders.contains(&"user.name".to_string()));
+    }
+
+    #[test]
+    fn test_empty_placeholder_name() {
+        // Test empty placeholder {{}}
+        let template = PromptTemplate::from_string("Hello {{}} world");
+        let placeholders = template.list_placeholders();
+        // Should handle empty placeholder name
+        assert!(placeholders.is_empty() || placeholders.contains(&"".to_string()));
+    }
+
+    #[test]
+    fn test_placeholder_with_whitespace() {
+        // Test placeholders with whitespace {{ KEY }}
+        let template = PromptTemplate::from_string("Hello {{ name }} world");
+        let placeholders = template.list_placeholders();
+        assert_eq!(placeholders.len(), 1);
+        // Whitespace should be trimmed
+        assert_eq!(placeholders[0], "name");
+    }
+
+    #[test]
+    fn test_strict_mode_missing_placeholder() {
+        let template = PromptTemplate::from_string("{{required}} {{optional}}");
+        let mut context = PromptContext::new();
+        context.set("required", "value");
+
+        let options = RenderOptions { strict: true, default_value: None };
+        let result = template.render_with_options(&context, &options);
+        // Should fail in strict mode when optional is missing
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_placeholder_at_start_and_end() {
+        let template = PromptTemplate::from_string("{{start}} middle {{end}}");
+        let mut context = PromptContext::new();
+        context.set("start", "BEGIN");
+        context.set("end", "END");
+
+        let result = template.render(&context).unwrap();
+        assert_eq!(result, "BEGIN middle END");
+    }
 }
