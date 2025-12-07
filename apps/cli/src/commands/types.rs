@@ -1,6 +1,6 @@
 //! Command type definitions shared between main.rs and tests.
 
-use clap::Subcommand;
+use clap::{Args, Subcommand};
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum AuthCommand {
@@ -134,5 +134,59 @@ pub enum TemplatesCommand {
         /// Show detailed validation errors
         #[arg(short, long)]
         verbose: bool,
+    },
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum ExtensionCommand {
+    /// Install an extension from a local path or URL
+    Install {
+        /// Path to extension package directory or URL
+        source: String,
+
+        /// Overwrite existing installation
+        #[arg(long)]
+        overwrite: bool,
+
+        /// Install dependencies automatically
+        #[arg(long)]
+        install_deps: bool,
+    },
+
+    /// Uninstall an extension
+    Uninstall {
+        /// Extension name
+        name: String,
+    },
+
+    /// List all installed extensions
+    List {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+
+        /// Show detailed information
+        #[arg(short, long)]
+        verbose: bool,
+    },
+
+    /// Show detailed information about a specific extension
+    Info {
+        /// Extension name
+        name: String,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Search for extensions by name or description
+    Search {
+        /// Search query
+        query: String,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
     },
 }

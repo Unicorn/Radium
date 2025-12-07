@@ -21,6 +21,7 @@ pub mod manifest;
 pub mod structure;
 pub mod discovery;
 pub mod installer;
+pub mod integration;
 
 pub use manifest::{ExtensionManifest, ExtensionManifestError};
 pub use structure::{
@@ -32,6 +33,10 @@ pub use discovery::{
 };
 pub use installer::{
     ExtensionManager, ExtensionInstallerError, InstallOptions,
+};
+pub use integration::{
+    get_all_extensions, get_extension_command_dirs, get_extension_mcp_configs,
+    get_extension_prompt_dirs,
 };
 
 /// Unified error type for extension operations.

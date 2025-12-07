@@ -1,0 +1,5 @@
+name = "example"
+description = "Example custom command from extension"
+template = "This is an example command template from an extension. Args: {{args}}"
+args = ["example_arg"]
+

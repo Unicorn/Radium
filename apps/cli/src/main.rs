@@ -10,7 +10,7 @@ use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 use commands::{
-    agents, auth, chat, checkpoint, clean, craft, doctor, init, mcp, monitor, plan, run, stats,
+    agents, auth, chat, checkpoint, clean, craft, doctor, extension, init, mcp, monitor, plan, run, stats,
     status, step, templates,
 };
 
@@ -234,10 +234,17 @@ enum Command {
     /// List, test, and manage MCP servers and their tools.
     #[command(subcommand)]
     Mcp(mcp::McpCommand),
+
+    /// Extension management
+    ///
+    /// Install, uninstall, and manage extension packages that bundle
+    /// prompts, MCP servers, and custom commands.
+    #[command(subcommand)]
+    Extension(ExtensionCommand),
 }
 
 // Command types are now in commands::types module
-use commands::{AgentsCommand, AuthCommand, TemplatesCommand};
+use commands::{AgentsCommand, AuthCommand, ExtensionCommand, TemplatesCommand};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -326,6 +333,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Mcp(cmd) => {
             mcp::execute_mcp_command(cmd).await?;
+        }
+        Command::Extension(cmd) => {
+            extension::execute(cmd).await?;
         }
     }
 

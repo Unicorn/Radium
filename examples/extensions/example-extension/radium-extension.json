@@ -1,0 +1,13 @@
+{
+  "name": "example-extension",
+  "version": "1.0.0",
+  "description": "Example Radium extension demonstrating prompts, commands, and MCP servers",
+  "author": "Radium Team",
+  "components": {
+    "prompts": ["prompts/*.md"],
+    "mcp_servers": ["mcp/*.json"],
+    "commands": ["commands/*.toml"]
+  },
+  "dependencies": []
+}
+

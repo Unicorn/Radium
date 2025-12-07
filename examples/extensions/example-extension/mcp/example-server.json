@@ -1,0 +1,7 @@
+{
+  "name": "example-mcp-server",
+  "transport": "stdio",
+  "command": "example-mcp-server",
+  "args": ["--config", "config.json"]
+}
+
