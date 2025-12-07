@@ -1,0 +1,21 @@
+# Agent Configuration Using MCP Tools
+#
+# This example shows an agent that can use MCP tools.
+# MCP tools are automatically available - no special configuration needed.
+
+{
+  "id": "data-agent",
+  "name": "Data Analysis Agent",
+  "description": "Agent that uses MCP database tools for data analysis",
+  "prompt": "prompts/data-analysis.md",
+  "model": "gemini-1.5-flash",
+  "engine": "gemini"
+}
+
+# The agent can use MCP tools like:
+# - database-server:query
+# - database-server:insert
+# - api-server:call_endpoint
+#
+# Tools are discovered automatically from configured MCP servers.
+

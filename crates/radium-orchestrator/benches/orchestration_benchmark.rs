@@ -316,7 +316,6 @@ fn benchmark_full_orchestration_overhead(c: &mut Criterion) {
     
     // Add a benchmark with tool execution to measure overhead with tool calls
     let tool = create_test_tools(1);
-    let provider_with_tools: Arc<dyn OrchestrationProvider> = Arc::new(MockBenchmarkProvider::new(0));
     
     c.bench_function("orchestration_full_flow_with_tool_call", |b| {
         b.iter(|| {

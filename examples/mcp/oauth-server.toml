@@ -1,0 +1,19 @@
+# OAuth-Protected MCP Server Configuration
+#
+# This example shows how to configure an MCP server with OAuth authentication.
+
+[[servers]]
+name = "oauth-api-server"
+transport = "http"
+url = "https://api.example.com/mcp"
+
+[auth]
+auth_type = "oauth"
+token_url = "https://api.example.com/oauth/token"
+client_id = "your-client-id-here"
+client_secret = "your-client-secret-here"
+
+# Optional: Additional OAuth parameters
+# scope = "read write"
+# grant_type = "client_credentials"
+

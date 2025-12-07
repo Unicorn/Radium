@@ -1,0 +1,13 @@
+# Basic MCP Server Configuration
+#
+# This example shows a simple stdio-based MCP server configuration.
+
+[[servers]]
+name = "example-server"
+transport = "stdio"
+command = "mcp-example-server"
+args = ["--config", "server-config.json"]
+
+# Optional: Add description
+# description = "Example MCP server for demonstration"
+
