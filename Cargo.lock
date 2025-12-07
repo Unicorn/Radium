@@ -1784,6 +1784,7 @@ dependencies = [
  "chrono",
  "clap",
  "crossterm 0.28.1",
+ "radium-abstraction",
  "radium-core",
  "radium-models",
  "ratatui",

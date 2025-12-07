@@ -17,7 +17,9 @@ use tokio::sync::mpsc;
 use tracing::{debug, error, warn};
 
 pub use agents::{ChatAgent, SimpleAgent};
-pub use executor::{AgentExecutor, ExecutionResult, QueueProcessor, QueueProcessorConfig};
+pub use executor::{
+    AgentExecutor, ExecutionResult, ExecutionTelemetry, QueueProcessor, QueueProcessorConfig,
+};
 pub use lifecycle::{AgentLifecycle, AgentState};
 pub use plugin::{InMemoryPlugin, Plugin, PluginLoader, PluginMetadata};
 pub use queue::{ExecutionQueue, ExecutionTask, Priority, QueueMetrics};

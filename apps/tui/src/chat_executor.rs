@@ -54,17 +54,23 @@ pub async fn execute_chat_message(
                     success: true,
                     error: None,
                 },
-                Err(e) => ChatExecutionResult {
-                    response: String::new(),
-                    success: false,
-                    error: Some(format!("Model execution failed: {}", e)),
+                Err(e) => {
+                    let error_msg = format_model_error(&e, engine);
+                    ChatExecutionResult {
+                        response: String::new(),
+                        success: false,
+                        error: Some(error_msg),
+                    }
                 },
             }
         }
-        Err(e) => ChatExecutionResult {
-            response: String::new(),
-            success: false,
-            error: Some(format!("Failed to create model: {}", e)),
+        Err(e) => {
+            let error_msg = format_creation_error(&e, engine);
+            ChatExecutionResult {
+                response: String::new(),
+                success: false,
+                error: Some(error_msg),
+            }
         },
     };
 
@@ -128,4 +134,95 @@ pub fn get_available_agents() -> Result<Vec<(String, String)>> {
         .into_iter()
         .map(|(id, config)| (id, config.name))
         .collect())
+}
+
+/// Format model creation errors with helpful guidance.
+fn format_creation_error(error: &radium_abstraction::ModelError, engine: &str) -> String {
+    let error_str = error.to_string();
+
+    // Check for authentication errors
+    if error_str.contains("API_KEY") || error_str.contains("environment variable not set") {
+        let provider = engine.to_uppercase();
+        return format!(
+            "⚠️  Authentication Required\n\n\
+            No {} API key found. You need to authenticate before chatting.\n\n\
+            Quick fix:\n\
+            rad auth login {}\n\n\
+            Or set environment variable:\n\
+            export {}_API_KEY='your-key-here'\n\n\
+            Press 'a' to authenticate, or restart after setting up auth.",
+            provider, engine, provider
+        );
+    }
+
+    // Check for unsupported provider
+    if error_str.contains("Unsupported Model Provider") {
+        return format!(
+            "⚠️  Unsupported Provider\n\n\
+            The '{}' provider is not supported or not configured.\n\n\
+            Supported providers:\n\
+            • gemini (Google Gemini)\n\
+            • openai (OpenAI GPT)\n\n\
+            Try:\n\
+            rad auth login gemini\n\
+            rad auth login openai",
+            engine
+        );
+    }
+
+    // Generic error
+    format!(
+        "❌ Model Creation Failed\n\n\
+        {}\n\n\
+        This could be due to:\n\
+        • Missing or invalid API key\n\
+        • Network connectivity issues\n\
+        • Unsupported model configuration\n\n\
+        Try: rad auth status",
+        error_str
+    )
+}
+
+/// Format model execution errors with helpful guidance.
+fn format_model_error(error: &radium_abstraction::ModelError, engine: &str) -> String {
+    let error_str = error.to_string();
+
+    // Check for rate limiting
+    if error_str.contains("429") || error_str.contains("rate limit") {
+        return format!(
+            "⏳ Rate Limit Exceeded\n\n\
+            You've hit the API rate limit for {}.\n\n\
+            Please wait a moment and try again.",
+            engine
+        );
+    }
+
+    // Check for invalid API key
+    if error_str.contains("401") || error_str.contains("403") || error_str.contains("unauthorized") {
+        return format!(
+            "🔑 Authentication Failed\n\n\
+            Your {} API key appears to be invalid.\n\n\
+            Update your credentials:\n\
+            rad auth login {}",
+            engine, engine
+        );
+    }
+
+    // Check for network errors
+    if error_str.contains("network") || error_str.contains("connection") || error_str.contains("timeout") {
+        return format!(
+            "🌐 Network Error\n\n\
+            Failed to connect to {} API.\n\n\
+            Please check your internet connection and try again.",
+            engine
+        );
+    }
+
+    // Generic execution error
+    format!(
+        "❌ Model Execution Failed\n\n\
+        {}\n\n\
+        The agent encountered an error while processing your message.",
+        error_str
+    )
 }

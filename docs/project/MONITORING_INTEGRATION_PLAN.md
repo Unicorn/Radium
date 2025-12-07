@@ -1,10 +1,17 @@
 # Monitoring & Telemetry Integration Plan
 
 **Date**: 2025-01-XX  
-**Status**: Core integration complete, advanced features pending  
+**Status**: ✅ Core integration complete, telemetry capture infrastructure ready  
 **Priority**: 🟡 High
 
 **Last Updated**: 2025-01-XX
+
+**Completion Status**: 
+- ✅ Workflow integration complete
+- ✅ CLI commands complete  
+- ✅ Checkpointing integration complete
+- ✅ `/restore` command handler implemented
+- ⏳ Telemetry capture from model responses (infrastructure ready, requires agent modifications)
 
 ## Current Status
 

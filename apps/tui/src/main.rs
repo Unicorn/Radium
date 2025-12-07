@@ -15,7 +15,7 @@ use ratatui::prelude::*;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use radium_tui::app::App;
-use radium_tui::views::render_prompt;
+use radium_tui::views::{render_prompt, render_setup_wizard};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -52,7 +52,13 @@ async fn main() -> Result<()> {
         // Draw UI
         terminal.draw(|frame| {
             let area = frame.area();
-            render_prompt(frame, area, &app.prompt_data);
+
+            // Render setup wizard if active, otherwise render normal prompt
+            if let Some(wizard) = &app.setup_wizard {
+                render_setup_wizard(frame, area, wizard);
+            } else {
+                render_prompt(frame, area, &app.prompt_data);
+            }
         })?;
 
         // Handle events with timeout

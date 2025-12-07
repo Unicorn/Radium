@@ -242,9 +242,43 @@ impl WorkflowExecutor {
 
                 let completed_at = Utc::now();
                 
-                // 4. Update monitoring status based on execution result
+                // 4. Record telemetry if available
                 if let Some(ref monitoring) = self.monitoring {
-                    if let Ok(svc) = monitoring.lock() {
+                    if let Ok(mut svc) = monitoring.lock() {
+                        if let Some(ref telemetry) = execution_result.telemetry {
+                            use crate::monitoring::{TelemetryRecord, TelemetryTracking};
+                            let mut record = TelemetryRecord::new(agent_id.clone())
+                                .with_tokens(telemetry.input_tokens, telemetry.output_tokens);
+                            
+                            if let Some(ref model_id) = telemetry.model_id {
+                                // Try to determine provider from model ID
+                                let provider = if model_id.contains("gpt") {
+                                    "openai"
+                                } else if model_id.contains("claude") {
+                                    "anthropic"
+                                } else if model_id.contains("gemini") {
+                                    "google"
+                                } else {
+                                    "unknown"
+                                };
+                                record = record.with_model(model_id.clone(), provider.to_string());
+                            }
+                            
+                            record.calculate_cost();
+                            if let Err(e) = svc.record_telemetry(&record) {
+                                debug!(
+                                    agent_id = %agent_id,
+                                    error = %e,
+                                    "Failed to record telemetry"
+                                );
+                            }
+                        }
+                    }
+                }
+                
+                // 5. Update monitoring status based on execution result
+                if let Some(ref monitoring) = self.monitoring {
+                    if let Ok(mut svc) = monitoring.lock() {
                         if execution_result.success {
                             let _ = svc.complete_agent(&agent_id, 0);
                         } else {
@@ -255,11 +289,88 @@ impl WorkflowExecutor {
                     }
                 }
                 
+                // 6. Check for /restore command in agent output
+                let mut restore_requested = false;
+                let mut restore_checkpoint_id: Option<String> = None;
+                
+                if execution_result.success {
+                    // Check if output contains /restore command
+                    let output_text = match &execution_result.output {
+                        radium_orchestrator::AgentOutput::Text(text) => Some(text.as_str()),
+                        _ => None,
+                    };
+                    
+                    if let Some(text) = output_text {
+                        // Look for /restore command pattern
+                        // Format: /restore <checkpoint-id> or /restore
+                        if text.contains("/restore") {
+                            restore_requested = true;
+                            
+                            // Try to extract checkpoint ID from text
+                            // Pattern: /restore checkpoint-xxxxx or /restore <id>
+                            // Simple string parsing instead of regex to avoid dependency
+                            if let Some(restore_pos) = text.find("/restore") {
+                                let after_restore = &text[restore_pos + "/restore".len()..];
+                                let trimmed = after_restore.trim_start();
+                                if !trimmed.is_empty() {
+                                    // Extract first word after /restore
+                                    let id = trimmed.split_whitespace().next().unwrap_or("").to_string();
+                                    if !id.is_empty() {
+                                        restore_checkpoint_id = Some(id);
+                                    }
+                                }
+                            }
+                            
+                            // If no checkpoint ID specified, use the one created before this step
+                            if restore_checkpoint_id.is_none() {
+                                restore_checkpoint_id = checkpoint_id.clone();
+                            }
+                            
+                            // Perform restore if checkpoint ID is available
+                            if let Some(ref cp_id) = restore_checkpoint_id {
+                                if let Some(ref checkpoint_mgr) = self.checkpoint_manager {
+                                    if let Ok(mut cm) = checkpoint_mgr.lock() {
+                                        match cm.restore_checkpoint(cp_id) {
+                                            Ok(_) => {
+                                                info!(
+                                                    workflow_id = %context.workflow_id,
+                                                    step_id = %step.id,
+                                                    checkpoint_id = %cp_id,
+                                                    "Restored checkpoint per agent request"
+                                                );
+                                            }
+                                            Err(e) => {
+                                                error!(
+                                                    workflow_id = %context.workflow_id,
+                                                    step_id = %step.id,
+                                                    checkpoint_id = %cp_id,
+                                                    error = %e,
+                                                    "Failed to restore checkpoint"
+                                                );
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
                 // Convert output
                 if execution_result.success {
                     let output_value = match execution_result.output {
                         radium_orchestrator::AgentOutput::Text(text) => {
-                            serde_json::Value::String(text)
+                            // If restore was requested, add note to output
+                            if restore_requested {
+                                let restore_note = if restore_checkpoint_id.is_some() {
+                                    format!("\n\n[Checkpoint restored. You may need to re-propose tool calls.]")
+                                } else {
+                                    format!("\n\n[Restore requested but no checkpoint ID found.]")
+                                };
+                                serde_json::Value::String(format!("{}{}", text, restore_note))
+                            } else {
+                                serde_json::Value::String(text)
+                            }
                         }
                         radium_orchestrator::AgentOutput::StructuredData(data) => data,
                         radium_orchestrator::AgentOutput::ToolCall { name, args } => {

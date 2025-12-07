@@ -8,6 +8,9 @@ use ratatui::{
 };
 
 use crate::commands::DisplayContext;
+use crate::icons::Icons;
+use crate::setup::SetupWizard;
+use crate::theme::THEME;
 
 /// Unified prompt data.
 pub struct PromptData {
@@ -91,11 +94,13 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
         ])
         .split(area);
 
-    // Title with current context
-    let title = Paragraph::new(format!("Radium - {}", data.context.title()))
-        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+    // Title with current context - using theme colors
+    let title = Paragraph::new(format!("{} Radium - {}", Icons::ROCKET, data.context.title()))
+        .style(Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD))
         .alignment(Alignment::Center)
-        .block(Block::default().borders(Borders::ALL));
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(THEME.border)));
     frame.render_widget(title, chunks[0]);
 
     // Main display area - content depends on context
@@ -141,7 +146,10 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
 
     let main_widget = Paragraph::new(main_content)
         .wrap(Wrap { trim: true })
-        .block(Block::default().borders(Borders::ALL))
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(THEME.border)))
+        .style(Style::default().fg(THEME.text))
         .scroll((0, 0));
     frame.render_widget(main_widget, chunks[1]);
 
@@ -159,14 +167,59 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
 
     let prompt_text = prompt_lines.join("\n");
     let prompt = Paragraph::new(prompt_text)
-        .style(Style::default().fg(Color::Yellow))
-        .block(Block::default().borders(Borders::ALL).title(" Input "));
+        .style(Style::default().fg(THEME.primary))  // Cyan for input
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(THEME.border_active))
+            .title(" Input "));
     frame.render_widget(prompt, chunks[2]);
 
     // Help line
     let help_text = "Type /help for commands | Ctrl+C to quit | Enter to send";
     let help = Paragraph::new(help_text)
-        .style(Style::default().fg(Color::DarkGray))
+        .style(Style::default().fg(THEME.text_muted))
         .alignment(Alignment::Center);
     frame.render_widget(help, chunks[3]);
+}
+
+/// Render the setup wizard interface.
+pub fn render_setup_wizard(frame: &mut Frame, area: Rect, wizard: &SetupWizard) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3),  // Title
+            Constraint::Min(10),    // Main wizard content
+            Constraint::Length(2),  // Help line
+        ])
+        .split(area);
+
+    // Title with wizard state
+    let title = Paragraph::new(format!("{} Radium - {}", Icons::ROCKET, wizard.title()))
+        .style(Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD))
+        .alignment(Alignment::Center)
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(THEME.border)));
+    frame.render_widget(title, chunks[0]);
+
+    // Main wizard content
+    let wizard_lines = wizard.display_lines();
+    let content = wizard_lines.join("\n");
+
+    let main_widget = Paragraph::new(content)
+        .wrap(Wrap { trim: true })
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(THEME.border_active))
+            .title(" Setup Wizard "))
+        .style(Style::default().fg(THEME.text))
+        .alignment(Alignment::Left);
+    frame.render_widget(main_widget, chunks[1]);
+
+    // Help line
+    let help_text = "Follow the instructions above | Ctrl+C to quit";
+    let help = Paragraph::new(help_text)
+        .style(Style::default().fg(THEME.text_muted))
+        .alignment(Alignment::Center);
+    frame.render_widget(help, chunks[2]);
 }

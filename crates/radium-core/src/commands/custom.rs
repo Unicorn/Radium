@@ -208,7 +208,7 @@ impl CommandRegistry {
     }
 
     /// Discovers commands in a directory.
-    fn discover_in_directory(&mut self, dir: &Path, namespace: Option<String>) -> Result<()> {
+    fn discover_in_directory(&mut self, dir: &Path, namespace: Option<&String>) -> Result<()> {
         for entry in fs::read_dir(dir)? {
             let entry = entry?;
             let path = entry.path();
@@ -219,7 +219,11 @@ impl CommandRegistry {
                 let mut command: CustomCommand = toml::from_str(&content)?;
 
                 // Set namespace
-                command.namespace = namespace.clone();
+                if let Some(ns) = namespace {
+                    command.namespace.clone_from(&Some(ns.clone()));
+                } else {
+                    command.namespace = None;
+                }
 
                 // Register command
                 let name = if let Some(ref ns) = namespace {
@@ -237,7 +241,7 @@ impl CommandRegistry {
                 } else {
                     dir_name
                 };
-                self.discover_in_directory(&path, Some(new_namespace))?;
+                self.discover_in_directory(&path, Some(&new_namespace))?;
             }
         }
 
@@ -289,7 +293,7 @@ mod tests {
         };
 
         let args = vec!["Alice".to_string(), "Bob".to_string()];
-        let result = command.substitute_args(&command.template, &args).unwrap();
+        let result = CustomCommand::substitute_args(&command.template, &args);
         assert_eq!(result, "Hello Alice and Bob!");
     }
 
@@ -304,7 +308,7 @@ mod tests {
         };
 
         let args = vec!["one".to_string(), "two".to_string(), "three".to_string()];
-        let result = command.substitute_args(&command.template, &args).unwrap();
+        let result = CustomCommand::substitute_args(&command.template, &args);
         assert_eq!(result, "Args: one two three");
     }
 
@@ -325,7 +329,7 @@ mod tests {
             namespace: None,
         };
 
-        let result = command.inject_files(&command.template, temp_dir.path()).unwrap();
+        let result = CustomCommand::inject_files(&command.template, temp_dir.path()).unwrap();
         assert_eq!(result, "Content: Hello from file!");
     }
 
@@ -339,7 +343,7 @@ mod tests {
             namespace: None,
         };
 
-        let result = command.execute_shell_commands(&command.template).unwrap();
+        let result = CustomCommand::execute_shell_commands(&command.template).unwrap();
         assert!(result.starts_with("Date: 20")); // Year starts with 20
     }
 

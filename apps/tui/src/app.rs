@@ -2,8 +2,10 @@
 
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyModifiers};
+use radium_core::auth::{CredentialStore, ProviderType};
 
 use crate::commands::{Command, DisplayContext};
+use crate::setup::SetupWizard;
 use crate::views::PromptData;
 
 /// Main application with unified prompt interface.
@@ -20,17 +22,18 @@ pub struct App {
     pub setup_complete: bool,
     /// Available commands for autocomplete
     pub available_commands: Vec<(&'static str, &'static str)>,
+    /// Setup wizard (if running)
+    pub setup_wizard: Option<SetupWizard>,
 }
 
 impl App {
     pub fn new() -> Self {
-        // Check if any auth is configured
-        let gemini_auth =
-            std::env::var("GEMINI_API_KEY").is_ok() || std::env::var("GOOGLE_API_KEY").is_ok();
-        let openai_auth = std::env::var("OPENAI_API_KEY").is_ok();
-        let anthropic_auth = std::env::var("ANTHROPIC_API_KEY").is_ok();
-
-        let setup_complete = gemini_auth || openai_auth || anthropic_auth;
+        // Check if any auth is configured using CredentialStore
+        let setup_complete = if let Ok(store) = CredentialStore::new() {
+            store.is_configured(ProviderType::Gemini) || store.is_configured(ProviderType::OpenAI)
+        } else {
+            false
+        };
 
         let available_commands = vec![
             ("help", "Show all available commands"),
@@ -47,11 +50,12 @@ impl App {
             current_session: None,
             setup_complete,
             available_commands,
+            setup_wizard: None,
         };
 
-        // Show setup instructions if not configured
+        // Show setup wizard if not configured, otherwise start chat
         if !setup_complete {
-            app.show_setup_instructions();
+            app.setup_wizard = Some(SetupWizard::new());
         } else {
             // Start in direct chat mode with default agent
             app.start_default_chat();
@@ -67,18 +71,19 @@ impl App {
         self.prompt_data.add_output("".to_string());
         self.prompt_data.add_output("⚠️  No AI providers configured yet.".to_string());
         self.prompt_data.add_output("".to_string());
-        self.prompt_data.add_output("To get started, set up at least one API key:".to_string());
+        self.prompt_data.add_output("To get started, authenticate with an AI provider:".to_string());
         self.prompt_data.add_output("".to_string());
-        self.prompt_data.add_output("  For Gemini:".to_string());
+        self.prompt_data.add_output("  Using the CLI (recommended):".to_string());
+        self.prompt_data.add_output("    rad auth login gemini".to_string());
+        self.prompt_data.add_output("    rad auth login openai".to_string());
+        self.prompt_data.add_output("".to_string());
+        self.prompt_data.add_output("  Or use environment variables:".to_string());
         self.prompt_data.add_output("    export GEMINI_API_KEY='your-key-here'".to_string());
-        self.prompt_data.add_output("".to_string());
-        self.prompt_data.add_output("  For OpenAI:".to_string());
         self.prompt_data.add_output("    export OPENAI_API_KEY='your-key-here'".to_string());
         self.prompt_data.add_output("".to_string());
-        self.prompt_data.add_output("  For Anthropic:".to_string());
-        self.prompt_data.add_output("    export ANTHROPIC_API_KEY='your-key-here'".to_string());
+        self.prompt_data.add_output("Credentials are stored in: ~/.radium/auth/credentials.json".to_string());
         self.prompt_data.add_output("".to_string());
-        self.prompt_data.add_output("After setting your key, restart the TUI.".to_string());
+        self.prompt_data.add_output("After authenticating, restart the TUI.".to_string());
         self.prompt_data.add_output("".to_string());
         self.prompt_data.add_output("Type /help to see available commands.".to_string());
     }
@@ -106,6 +111,19 @@ impl App {
     }
 
     pub async fn handle_key(&mut self, key: KeyCode, modifiers: KeyModifiers) -> Result<()> {
+        // If setup wizard is active, delegate to it
+        if let Some(wizard) = &mut self.setup_wizard {
+            let done = wizard.handle_key(key, modifiers).await?;
+            if done {
+                // Setup complete or skipped
+                self.setup_wizard = None;
+                self.setup_complete = true;
+                self.start_default_chat();
+            }
+            return Ok(());
+        }
+
+        // Normal key handling
         match key {
             // Quit
             KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => {
@@ -225,26 +243,28 @@ impl App {
         self.prompt_data
             .add_output(format!("Agents: {}", self.prompt_data.agents.len()));
 
-        // Check auth status
-        let gemini_auth =
-            std::env::var("GEMINI_API_KEY").is_ok() || std::env::var("GOOGLE_API_KEY").is_ok();
-        let openai_auth = std::env::var("OPENAI_API_KEY").is_ok();
-        let anthropic_auth = std::env::var("ANTHROPIC_API_KEY").is_ok();
+        // Check auth status using CredentialStore
+        let (gemini_auth, openai_auth) = if let Ok(store) = CredentialStore::new() {
+            (
+                store.is_configured(ProviderType::Gemini),
+                store.is_configured(ProviderType::OpenAI),
+            )
+        } else {
+            (false, false)
+        };
 
         self.prompt_data.add_output("".to_string());
         self.prompt_data.add_output("Authentication:".to_string());
         self.prompt_data.add_output(format!(
             "  Gemini: {}",
-            if gemini_auth { "✓" } else { "✗ (export GEMINI_API_KEY=...)" }
+            if gemini_auth { "✓ Configured" } else { "✗ Not configured (run: rad auth login gemini)" }
         ));
         self.prompt_data.add_output(format!(
             "  OpenAI: {}",
-            if openai_auth { "✓" } else { "✗ (export OPENAI_API_KEY=...)" }
+            if openai_auth { "✓ Configured" } else { "✗ Not configured (run: rad auth login openai)" }
         ));
-        self.prompt_data.add_output(format!(
-            "  Anthropic: {}",
-            if anthropic_auth { "✓" } else { "✗ (export ANTHROPIC_API_KEY=...)" }
-        ));
+        self.prompt_data.add_output("".to_string());
+        self.prompt_data.add_output("Credentials stored in: ~/.radium/auth/credentials.json".to_string());
 
         Ok(())
     }

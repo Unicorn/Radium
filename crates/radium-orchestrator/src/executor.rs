@@ -16,6 +16,31 @@ use tokio::sync::{Semaphore, mpsc};
 use tokio::time;
 use tracing::{debug, error, info, warn};
 
+/// Telemetry information from model execution.
+#[derive(Debug, Clone)]
+pub struct ExecutionTelemetry {
+    /// Input/prompt tokens.
+    pub input_tokens: u64,
+    /// Output/completion tokens.
+    pub output_tokens: u64,
+    /// Total tokens.
+    pub total_tokens: u64,
+    /// Model ID used.
+    pub model_id: Option<String>,
+}
+
+impl ExecutionTelemetry {
+    /// Creates telemetry from ModelUsage.
+    pub fn from_usage(usage: &radium_abstraction::ModelUsage, model_id: Option<String>) -> Self {
+        Self {
+            input_tokens: usage.prompt_tokens as u64,
+            output_tokens: usage.completion_tokens as u64,
+            total_tokens: usage.total_tokens as u64,
+            model_id,
+        }
+    }
+}
+
 /// Execution result for an agent.
 #[derive(Debug, Clone)]
 pub struct ExecutionResult {
@@ -25,6 +50,8 @@ pub struct ExecutionResult {
     pub success: bool,
     /// Optional error message if execution failed.
     pub error: Option<String>,
+    /// Optional telemetry information from model execution.
+    pub telemetry: Option<ExecutionTelemetry>,
 }
 
 /// Executor for running agents.
@@ -83,10 +110,17 @@ impl AgentExecutor {
         let context = AgentContext { model: model.as_ref() };
 
         // Execute the agent
+        // Note: Telemetry capture requires modifying agents to return ModelResponse
+        // For now, telemetry is None - will be captured when agents are updated
         match agent.execute(input, context).await {
             Ok(output) => {
                 info!(agent_id = %agent_id, output_type = ?output, "Agent execution completed successfully");
-                ExecutionResult { output, success: true, error: None }
+                ExecutionResult {
+                    output,
+                    success: true,
+                    error: None,
+                    telemetry: None, // Will be populated when agents capture ModelResponse
+                }
             }
             Err(e) => {
                 error!(agent_id = %agent_id, error = %e, "Agent execution failed");
@@ -94,6 +128,7 @@ impl AgentExecutor {
                     output: AgentOutput::Text(format!("Execution error: {}", e)),
                     success: false,
                     error: Some(e.to_string()),
+                    telemetry: None,
                 }
             }
         }
