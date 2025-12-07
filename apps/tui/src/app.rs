@@ -18,6 +18,9 @@ use crate::theme::RadiumTheme;
 use crate::views::PromptData;
 use crate::workspace::WorkspaceStatus;
 
+/// Default maximum conversation history if config is unavailable
+const DEFAULT_MAX_CONVERSATION_HISTORY: usize = 500;
+
 /// Main application with unified prompt interface.
 pub struct App {
     /// Whether to quit
@@ -48,6 +51,8 @@ pub struct App {
     pub theme: RadiumTheme,
     /// Whether to show keyboard shortcuts overlay
     pub show_shortcuts: bool,
+    /// TUI configuration
+    pub config: TuiConfig,
 }
 
 impl App {
@@ -89,8 +94,9 @@ impl App {
             }
         });
 
-        // Load theme from config
+        // Load theme and config
         let theme = RadiumTheme::from_config();
+        let config = TuiConfig::load().unwrap_or_default();
 
         let mut app = Self {
             should_quit: false,
@@ -107,6 +113,7 @@ impl App {
             mcp_slash_registry: SlashCommandRegistry::new(),
             theme,
             show_shortcuts: false,
+            config,
         };
 
         // Show setup wizard if not configured, otherwise start chat
@@ -744,10 +751,12 @@ impl App {
             DisplayContext::Chat { agent_id: agent_id.to_string(), session_id: session_id.clone() };
 
         self.prompt_data.conversation.clear();
-        self.prompt_data
-            .conversation
-            .push(format!("Started new chat with {} (session: {})", agent_id, session_id));
-        self.prompt_data.conversation.push("Type your message below.".to_string());
+        let max_history = self.config.performance.max_conversation_history;
+        self.prompt_data.add_conversation_message(
+            format!("Started new chat with {} (session: {})", agent_id, session_id),
+            max_history,
+        );
+        self.prompt_data.add_conversation_message("Type your message below.".to_string(), max_history);
 
         Ok(())
     }
@@ -763,8 +772,9 @@ impl App {
             }
         };
 
-        // Add user message to conversation
-        self.prompt_data.conversation.push(format!("You: {}", message));
+        // Add user message to conversation with limit
+        let max_history = self.config.performance.max_conversation_history;
+        self.prompt_data.add_conversation_message(format!("You: {}", message), max_history);
 
         // Save session update
         let workspace_root = self.workspace_status.as_ref().and_then(|s| s.root.clone());
@@ -777,7 +787,8 @@ impl App {
             Ok(result) => {
                 if result.success {
                     let response = result.response.clone();
-                    self.prompt_data.conversation.push(format!("Agent: {}", response));
+                    let max_history = self.config.performance.max_conversation_history;
+                    self.prompt_data.add_conversation_message(format!("Agent: {}", response), max_history);
 
                     // Save agent response to session
                     let workspace_root_clone =
@@ -789,7 +800,8 @@ impl App {
                     }
                 } else {
                     let error_msg = result.error.unwrap_or_else(|| "Unknown error".to_string());
-                    self.prompt_data.conversation.push(format!("Error: {}", error_msg));
+                    let max_history = self.config.performance.max_conversation_history;
+                    self.prompt_data.add_conversation_message(format!("Error: {}", error_msg), max_history);
                 }
             }
             Err(e) => {
@@ -881,10 +893,12 @@ impl App {
         });
 
         // Add user message to conversation
-        self.prompt_data.conversation.push(format!("You: {}", input));
+        let max_history = self.config.performance.max_conversation_history;
+        self.prompt_data.add_conversation_message(format!("You: {}", input), max_history);
 
         // Show thinking indicator
-        self.prompt_data.conversation.push("🤔 Analyzing...".to_string());
+        let max_history = self.config.performance.max_conversation_history;
+        self.prompt_data.add_conversation_message("🤔 Analyzing...".to_string(), max_history);
 
         // Record start time for elapsed time calculation
         let start_time = std::time::Instant::now();
@@ -904,47 +918,50 @@ impl App {
                     if !result.tool_calls.is_empty() {
                         let tool_count = result.tool_calls.len();
                         for (index, tool_call) in result.tool_calls.iter().enumerate() {
+                            let max_history = self.config.performance.max_conversation_history;
                             if tool_count > 1 {
                                 // Multi-agent workflow - show numbered steps
-                                self.prompt_data.conversation.push(format!(
+                                self.prompt_data.add_conversation_message(format!(
                                     "{}. 📋 Invoking: {}",
                                     index + 1,
                                     tool_call.name
-                                ));
+                                ), max_history);
                             } else {
                                 // Single agent - simple format
-                                self.prompt_data.conversation.push(format!(
+                                self.prompt_data.add_conversation_message(format!(
                                     "📋 Invoking: {}",
                                     tool_call.name
-                                ));
+                                ), max_history);
                             }
                         }
+                        let max_history = self.config.performance.max_conversation_history;
                         if tool_count > 1 {
-                            self.prompt_data.conversation.push(format!(
+                            self.prompt_data.add_conversation_message(format!(
                                 "Executing {} agent{}...",
                                 tool_count,
                                 if tool_count == 1 { "" } else { "s" }
-                            ));
+                            ), max_history);
                         }
                     }
 
+                    let max_history = self.config.performance.max_conversation_history;
                     // Add response
                     if !result.response.is_empty() {
-                        self.prompt_data.conversation.push(format!("Assistant: {}", result.response));
+                        self.prompt_data.add_conversation_message(format!("Assistant: {}", result.response), max_history);
                     }
 
                     // Show completion status
                     if result.is_success() {
-                        self.prompt_data.conversation.push(format!(
+                        self.prompt_data.add_conversation_message(format!(
                             "✅ Complete ({}s)",
                             format!("{:.2}", elapsed_secs)
-                        ));
+                        ), max_history);
                     } else {
-                        self.prompt_data.conversation.push(format!(
+                        self.prompt_data.add_conversation_message(format!(
                             "⚠️  Finished with: {} ({}s)",
                             result.finish_reason,
                             format!("{:.2}", elapsed_secs)
-                        ));
+                        ), max_history);
                     }
                 }
                 Err(e) => {
@@ -954,13 +971,15 @@ impl App {
                     let elapsed = start_time.elapsed();
                     let elapsed_secs = elapsed.as_secs_f64();
 
-                    self.prompt_data.conversation.push(format!(
+                    let max_history = self.config.performance.max_conversation_history;
+                    self.prompt_data.add_conversation_message(format!(
                         "❌ Orchestration error: {} ({}s)",
                         e,
                         format!("{:.2}", elapsed_secs)
-                    ));
-                    self.prompt_data.conversation.push(
-                        "💡 Tip: Use '/orchestrator toggle' to disable orchestration or '/orchestrator switch <provider>' to try a different provider.".to_string()
+                    ), max_history);
+                    self.prompt_data.add_conversation_message(
+                        "💡 Tip: Use '/orchestrator toggle' to disable orchestration or '/orchestrator switch <provider>' to try a different provider.".to_string(),
+                        max_history
                     );
                 }
             }
@@ -1190,7 +1209,7 @@ impl App {
         self.prompt_data.add_output("🔄 Reloading configuration...".to_string());
         self.prompt_data.add_output("".to_string());
 
-        match TuiConfig::reload() {
+                match TuiConfig::reload() {
             Ok(config) => {
                 // Reload theme from config
                 let new_theme = RadiumTheme::from_config();
@@ -1199,11 +1218,15 @@ impl App {
                 // Update global theme for views
                 crate::theme::update_theme(new_theme);
                 
+                // Update config
+                self.config = config.clone();
+                
                 self.prompt_data.add_output("✅ Configuration reloaded successfully!".to_string());
                 self.prompt_data.add_output(format!("   Theme preset: {}", config.theme.preset));
                 if config.theme.preset == "custom" {
                     self.prompt_data.add_output("   Using custom colors".to_string());
                 }
+                self.prompt_data.add_output(format!("   Max conversation history: {}", config.performance.max_conversation_history));
                 self.prompt_data.add_output("   Theme updated (changes visible immediately)".to_string());
             }
             Err(e) => {

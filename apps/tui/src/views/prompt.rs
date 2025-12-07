@@ -92,6 +92,41 @@ impl PromptData {
     pub fn clear_output(&mut self) {
         self.output.clear();
     }
+
+    /// Add a message to conversation history with automatic limiting.
+    /// 
+    /// If the conversation exceeds the limit, oldest messages are removed.
+    pub fn add_conversation_message(&mut self, message: String, max_history: usize) {
+        self.conversation.push(message);
+        // Keep only last max_history messages
+        if self.conversation.len() > max_history {
+            self.conversation.remove(0);
+            // Adjust scrollback offset if needed
+            if self.scrollback_offset > 0 {
+                self.scrollback_offset = self.scrollback_offset.saturating_sub(1);
+            }
+        }
+    }
+
+    /// Get visible conversation lines for viewport culling.
+    /// 
+    /// Returns only the lines that should be rendered based on viewport size and scroll position.
+    pub fn get_visible_conversation(&self, viewport_height: usize) -> Vec<String> {
+        let total_lines = self.conversation.len();
+        if total_lines == 0 {
+            return Vec::new();
+        }
+
+        // Calculate visible range
+        let start = self.scrollback_offset.min(total_lines.saturating_sub(1));
+        let end = (start + viewport_height).min(total_lines);
+
+        if start >= total_lines {
+            return Vec::new();
+        }
+
+        self.conversation[start..end].to_vec()
+    }
 }
 
 /// Render the unified prompt interface.
@@ -192,12 +227,18 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
             }
         }
         DisplayContext::Chat { .. } => {
-            // Render chat with markdown support
+            // Render chat with markdown support and viewport culling
             let scroll_offset = data.scrollback_offset;
+            
+            // Calculate viewport height (subtract borders and padding)
+            let viewport_height = chunks[1].height.saturating_sub(2) as usize; // Subtract top/bottom borders
+            
+            // Get only visible conversation lines (viewport culling)
+            let visible_conversation = data.get_visible_conversation(viewport_height);
 
-            // Parse conversation lines as markdown
+            // Parse visible conversation lines as markdown
             let mut markdown_lines = Vec::new();
-            for line in &data.conversation {
+            for line in &visible_conversation {
                 let parsed = crate::views::markdown::render_markdown(line);
                 markdown_lines.extend(parsed);
                 markdown_lines.push(ratatui::text::Line::from("")); // Add spacing between messages
@@ -208,10 +249,10 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
                 .block(
                     Block::default()
                         .borders(Borders::ALL)
-                        .border_style(Style::default().fg(THEME.border)),
+                        .border_style(Style::default().fg(THEME.border()))
                 )
-                .style(Style::default().fg(THEME.text))
-                .scroll((scroll_offset as u16, 0));
+                .style(Style::default().fg(THEME.text()))
+                .scroll((0, 0)); // No scroll needed since we're already culling
             frame.render_widget(main_widget, chunks[1]);
         }
         _ => {
@@ -238,10 +279,10 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
 
     // Input prompt
     let prompt_text = format!("> {}_", data.input);
-    let prompt = Paragraph::new(prompt_text).style(Style::default().fg(THEME.primary)).block(
+    let prompt = Paragraph::new(prompt_text).style(Style::default().fg(THEME.primary())).block(
         Block::default()
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(THEME.border_active))
+            .border_style(Style::default().fg(THEME.border_active()))
             .title(" Input "),
     );
     frame.render_widget(prompt, chunks[2]);
@@ -263,7 +304,7 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
         let mut menu_lines = vec![
             ratatui::text::Line::from(Span::styled(
                 format!("{} Commands", Icons::INFO),
-                Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD),
+                Style::default().fg(THEME.primary()).add_modifier(Modifier::BOLD),
             )),
             ratatui::text::Line::from(""),
         ];
@@ -271,7 +312,7 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
         for (i, suggestion) in data.command_suggestions.iter().enumerate() {
             let is_selected = i == data.selected_suggestion_index;
             let style = if is_selected {
-                Style::default().fg(THEME.bg_primary).bg(THEME.primary).add_modifier(Modifier::BOLD)
+                Style::default().fg(THEME.bg_primary()).bg(THEME.primary()).add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(THEME.text)
             };
@@ -286,15 +327,15 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
         menu_lines.push(ratatui::text::Line::from(""));
         menu_lines.push(ratatui::text::Line::from(Span::styled(
             "↑↓ Navigate | Tab/Enter Select | Esc Cancel",
-            Style::default().fg(THEME.text_dim),
+            Style::default().fg(THEME.text_dim()),
         )));
 
         let menu_widget = Paragraph::new(menu_lines)
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .border_style(Style::default().fg(THEME.primary))
-                    .style(Style::default().bg(THEME.bg_panel)),
+                    .border_style(Style::default().fg(THEME.primary()))
+                    .style(Style::default().bg(THEME.bg_panel())),
             )
             .wrap(Wrap { trim: false });
 
@@ -304,7 +345,7 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
     // Help line
     let help_text = "Type /help for commands | Ctrl+C to quit | Enter to send";
     let help = Paragraph::new(help_text)
-        .style(Style::default().fg(THEME.text_muted))
+        .style(Style::default().fg(THEME.text_muted()))
         .alignment(Alignment::Center);
     frame.render_widget(help, chunks[3]);
 }
@@ -324,7 +365,7 @@ fn render_command_palette(frame: &mut Frame, area: Rect, data: &PromptData) {
     let mut lines = vec![
         Line::from(Span::styled(
             format!("{} Command Palette", Icons::SETTINGS),
-            Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD),
+            Style::default().fg(THEME.primary()).add_modifier(Modifier::BOLD),
         )),
         Line::from(""),
         Line::from(Span::styled(
@@ -337,13 +378,13 @@ fn render_command_palette(frame: &mut Frame, area: Rect, data: &PromptData) {
     if data.command_suggestions.is_empty() {
         lines.push(Line::from(Span::styled(
             "No matching commands",
-            Style::default().fg(THEME.text_muted),
+            Style::default().fg(THEME.text_muted()),
         )));
     } else {
         for (i, suggestion) in data.command_suggestions.iter().enumerate() {
             let is_selected = i == data.selected_suggestion_index;
             let style = if is_selected {
-                Style::default().fg(THEME.bg_primary).bg(THEME.primary).add_modifier(Modifier::BOLD)
+                Style::default().fg(THEME.bg_primary()).bg(THEME.primary()).add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(THEME.text)
             };
@@ -356,15 +397,15 @@ fn render_command_palette(frame: &mut Frame, area: Rect, data: &PromptData) {
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
         "↑↓ Navigate | Enter Select | Esc Cancel",
-        Style::default().fg(THEME.text_dim),
+        Style::default().fg(THEME.text_dim()),
     )));
 
     let palette = Paragraph::new(lines)
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(THEME.primary))
-                .style(Style::default().bg(THEME.bg_panel)),
+                .border_style(Style::default().fg(THEME.primary()))
+                .style(Style::default().bg(THEME.bg_panel())),
         )
         .wrap(Wrap { trim: false });
 
@@ -384,7 +425,7 @@ pub fn render_setup_wizard(frame: &mut Frame, area: Rect, wizard: &SetupWizard) 
 
     // Title with wizard state
     let title = Paragraph::new(format!("{} Radium - {}", Icons::ROCKET, wizard.title()))
-        .style(Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD))
+        .style(Style::default().fg(THEME.primary()).add_modifier(Modifier::BOLD))
         .alignment(Alignment::Center)
         .block(
             Block::default().borders(Borders::ALL).border_style(Style::default().fg(THEME.border)),
@@ -404,7 +445,7 @@ pub fn render_setup_wizard(frame: &mut Frame, area: Rect, wizard: &SetupWizard) 
                 if parts.len() == 2 {
                     ratatui::text::Line::from(vec![
                         Span::raw(parts[0]),
-                        Span::styled("✓ Connected", Style::default().fg(THEME.success)),
+                        Span::styled("✓ Connected", Style::default().fg(THEME.success())),
                         Span::raw(parts[1]),
                     ])
                 } else {
@@ -421,7 +462,7 @@ pub fn render_setup_wizard(frame: &mut Frame, area: Rect, wizard: &SetupWizard) 
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(THEME.border_active))
+                .border_style(Style::default().fg(THEME.border_active()))
                 .title(" Setup Wizard "),
         )
         .style(Style::default().fg(THEME.text))
@@ -431,7 +472,7 @@ pub fn render_setup_wizard(frame: &mut Frame, area: Rect, wizard: &SetupWizard) 
     // Help line
     let help_text = "Follow the instructions above | Ctrl+C to quit";
     let help = Paragraph::new(help_text)
-        .style(Style::default().fg(THEME.text_muted))
+        .style(Style::default().fg(THEME.text_muted()))
         .alignment(Alignment::Center);
     frame.render_widget(help, chunks[2]);
 }
