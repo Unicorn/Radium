@@ -1,5 +1,6 @@
 //! Tests for agent collaboration features.
 
+use radium_core::collaboration::lock_manager::{LockType, ResourceLockManager};
 use radium_core::collaboration::message_bus::{AgentMessage, MessageBus, MessageType};
 use radium_core::storage::database::Database;
 use std::sync::{Arc, Mutex};
@@ -103,5 +104,79 @@ async fn test_message_bus_nonexistent_recipient() {
     let messages = message_bus.get_messages("nonexistent", true).await.unwrap();
     assert_eq!(messages.len(), 1);
     assert!(!messages[0].delivered);
+}
+
+#[tokio::test]
+async fn test_lock_manager_shared_read_locks() {
+    let lock_manager = ResourceLockManager::new();
+
+    // Agent A acquires read lock
+    let lock_a = lock_manager
+        .request_read_lock("agent-a", "file.txt", None)
+        .await
+        .unwrap();
+
+    // Agent B should be able to acquire read lock on same resource
+    let lock_b = lock_manager
+        .request_read_lock("agent-b", "file.txt", None)
+        .await
+        .unwrap();
+
+    // Both locks should be held
+    let info = lock_manager.get_lock_info("file.txt").await;
+    assert!(info.is_some());
+
+    // Release locks
+    drop(lock_a);
+    drop(lock_b);
+}
+
+#[tokio::test]
+async fn test_lock_manager_exclusive_write_lock() {
+    let lock_manager = ResourceLockManager::new();
+
+    // Agent A acquires write lock
+    let lock_a = lock_manager
+        .request_write_lock("agent-a", "file.txt", None)
+        .await
+        .unwrap();
+
+    // Agent B should not be able to acquire write lock (timeout)
+    let result = timeout(
+        Duration::from_millis(500),
+        lock_manager.request_write_lock("agent-b", "file.txt", Some(1)),
+    )
+    .await;
+
+    assert!(result.is_ok());
+    assert!(result.unwrap().is_err());
+
+    // Release lock
+    drop(lock_a);
+}
+
+#[tokio::test]
+async fn test_lock_manager_lock_release() {
+    let lock_manager = ResourceLockManager::new();
+
+    // Acquire lock
+    let lock = lock_manager
+        .request_write_lock("agent-a", "file.txt", None)
+        .await
+        .unwrap();
+
+    // Verify lock exists
+    let info = lock_manager.get_lock_info("file.txt").await;
+    assert!(info.is_some());
+
+    // Release lock
+    drop(lock);
+
+    // Wait a bit for async cleanup
+    sleep(Duration::from_millis(50)).await;
+
+    // Verify lock is released
+    let info = lock_manager.get_lock_info("file.txt").await;
+    assert!(info.is_none());
 }
 
