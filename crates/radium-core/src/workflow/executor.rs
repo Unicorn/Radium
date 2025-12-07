@@ -14,6 +14,7 @@ use crate::hooks::registry::{HookRegistry, HookType};
 use crate::hooks::types::{HookContext, HookPriority};
 use crate::models::{Workflow, WorkflowState};
 use crate::monitoring::{AgentRecord, AgentStatus, MonitoringService};
+use crate::policy::{ApprovalMode, ConstitutionManager, PolicyEngine};
 use crate::storage::TaskRepository;
 use crate::workspace::{Workspace, WorkspaceStructure};
 
@@ -36,6 +37,10 @@ pub struct WorkflowExecutor {
     checkpoint_manager: Option<Arc<std::sync::Mutex<CheckpointManager>>>,
     /// Hook registry for workflow behavior hooks (optional).
     hook_registry: Option<Arc<HookRegistry>>,
+    /// Policy engine for tool execution control (optional).
+    policy_engine: Option<Arc<std::sync::Mutex<PolicyEngine>>>,
+    /// Constitution manager for session-based rules (optional).
+    constitution_manager: Option<Arc<ConstitutionManager>>,
     /// Failure classifier for categorizing errors.
     failure_classifier: FailureClassifier,
     /// Failure histories per task/step.
@@ -67,11 +72,46 @@ impl WorkflowExecutor {
         // Initialize hook registry (optional - hooks can be registered later)
         let hook_registry = Some(Arc::new(HookRegistry::new()));
 
+        // Try to initialize policy engine from workspace
+        let (policy_engine, constitution_manager) = if let Ok(ws) = Workspace::discover() {
+            let policy_file = ws.root().join(".radium").join("policy.toml");
+            let constitution = Some(Arc::new(ConstitutionManager::new()));
+            
+            // Try to load policy engine from file, fallback to default
+            let engine = if policy_file.exists() {
+                PolicyEngine::from_file(&policy_file)
+                    .map(|mut engine| {
+                        // Set hook registry if available
+                        if let Some(ref registry) = hook_registry {
+                            engine.set_hook_registry(Arc::clone(registry));
+                        }
+                        Arc::new(std::sync::Mutex::new(engine))
+                    })
+                    .ok()
+            } else {
+                // Create default policy engine with Ask mode
+                PolicyEngine::new(ApprovalMode::Ask)
+                    .map(|mut engine| {
+                        if let Some(ref registry) = hook_registry {
+                            engine.set_hook_registry(Arc::clone(registry));
+                        }
+                        Arc::new(std::sync::Mutex::new(engine))
+                    })
+                    .ok()
+            };
+            
+            (engine, constitution)
+        } else {
+            (None, None)
+        };
+
         Self {
             engine: WorkflowEngine::new(orchestrator, executor),
             monitoring,
             checkpoint_manager,
             hook_registry,
+            policy_engine,
+            constitution_manager,
             failure_classifier: FailureClassifier::new(),
             failure_histories: std::sync::Mutex::new(HashMap::new()),
             failure_policy: FailurePolicy::default(),
@@ -81,6 +121,16 @@ impl WorkflowExecutor {
     /// Get the hook registry for registering workflow behavior hooks.
     pub fn hook_registry(&self) -> Option<&Arc<HookRegistry>> {
         self.hook_registry.as_ref()
+    }
+
+    /// Get the policy engine for tool execution control.
+    pub fn policy_engine(&self) -> Option<&Arc<std::sync::Mutex<PolicyEngine>>> {
+        self.policy_engine.as_ref()
+    }
+
+    /// Get the constitution manager for session-based rules.
+    pub fn constitution_manager(&self) -> Option<&Arc<ConstitutionManager>> {
+        self.constitution_manager.as_ref()
     }
 
     /// Executes a workflow sequentially.
