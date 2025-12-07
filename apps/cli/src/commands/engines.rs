@@ -236,3 +236,121 @@ async fn set_default_engine(engine_id: &str) -> Result<()> {
     Ok(())
 }
 
+/// Check health of all engines.
+async fn health_engines(json_output: bool, timeout: u64) -> Result<()> {
+    let registry = init_registry();
+    let health_results = registry.check_health(timeout).await;
+
+    if json_output {
+        let health_list: Vec<_> = health_results
+            .iter()
+            .map(|health| {
+                let status_str = match &health.status {
+                    HealthStatus::Healthy => "healthy",
+                    HealthStatus::Warning(msg) => "warning",
+                    HealthStatus::Failed(msg) => "failed",
+                };
+                let status_msg = match &health.status {
+                    HealthStatus::Healthy => None,
+                    HealthStatus::Warning(msg) | HealthStatus::Failed(msg) => Some(msg.clone()),
+                };
+                json!({
+                    "id": health.engine_id,
+                    "name": health.engine_name,
+                    "status": status_str,
+                    "status_message": status_msg,
+                    "available": health.available,
+                    "authenticated": health.authenticated,
+                })
+            })
+            .collect();
+        println!("{}", serde_json::to_string_pretty(&health_list)?);
+    } else {
+        println!();
+        println!("{}", format!("Engine Health Check (timeout: {}s)", timeout).bold().green());
+        println!();
+
+        // Table header
+        println!("{:<15} {:<20} {:<15} {:<15} {:<30}", "ID", "Name", "Status", "Available", "Issue");
+        println!("{}", "─".repeat(95));
+
+        for health in &health_results {
+            let status_str = match &health.status {
+                HealthStatus::Healthy => "✓ Healthy".green(),
+                HealthStatus::Warning(msg) => format!("⚠ Warning: {}", msg).yellow(),
+                HealthStatus::Failed(msg) => format!("✗ Failed: {}", msg).red(),
+            };
+
+            let available_str = if health.available {
+                "✓".green()
+            } else {
+                "✗".red()
+            };
+
+            let authenticated_str = if health.authenticated {
+                "✓".green()
+            } else if !health.available {
+                "—".dimmed()
+            } else {
+                "✗".red()
+            };
+
+            // Generate troubleshooting hint
+            let issue_hint = match &health.status {
+                HealthStatus::Healthy => "—".dimmed(),
+                HealthStatus::Warning(msg) => {
+                    if msg.contains("Authentication") {
+                        format!("Run: rad auth login {}", health.engine_id).dimmed()
+                    } else {
+                        msg.clone().dimmed()
+                    }
+                }
+                HealthStatus::Failed(msg) => {
+                    if msg.contains("not authenticated") {
+                        format!("Run: rad auth login {}", health.engine_id).dimmed()
+                    } else if msg.contains("not available") {
+                        format!("Check API connectivity").dimmed()
+                    } else if msg.contains("timed out") {
+                        format!("Increase timeout or check network").dimmed()
+                    } else {
+                        msg.clone().dimmed()
+                    }
+                }
+            };
+
+            println!(
+                "{:<15} {:<20} {:<15} {:<15} {}",
+                health.engine_id.cyan(),
+                health.engine_name,
+                status_str,
+                format!("{} / {}", available_str, authenticated_str),
+                issue_hint
+            );
+        }
+
+        println!();
+
+        // Summary
+        let healthy_count = health_results.iter().filter(|h| matches!(h.status, HealthStatus::Healthy)).count();
+        let warning_count = health_results.iter().filter(|h| matches!(h.status, HealthStatus::Warning(_))).count();
+        let failed_count = health_results.iter().filter(|h| matches!(h.status, HealthStatus::Failed(_))).count();
+
+        if healthy_count == health_results.len() {
+            println!("{}", format!("✓ All engines are healthy ({})", healthy_count).green());
+        } else {
+            println!("{}", format!("Summary: {} healthy, {} warnings, {} failed", healthy_count, warning_count, failed_count).yellow());
+            if failed_count > 0 {
+                println!();
+                println!("{}", "Troubleshooting:".bold());
+                println!("  • Authentication issues: Run 'rad auth login <engine-id>'");
+                println!("  • Connectivity issues: Check your network connection and API endpoints");
+                println!("  • Timeout issues: Increase timeout with --timeout flag");
+            }
+        }
+
+        println!();
+    }
+
+    Ok(())
+}
+
