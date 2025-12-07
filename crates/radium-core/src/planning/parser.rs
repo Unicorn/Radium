@@ -697,4 +697,174 @@ Goal: Implement main features
         let task = &plan.iterations[0].tasks[0];
         assert_eq!(task.description, None);
     }
+
+    // JSON parsing tests
+    #[test]
+    fn test_parse_clean_json() {
+        let json = r#"{
+  "project_name": "JSON Test Project",
+  "description": "A project from JSON",
+  "tech_stack": ["Rust", "SQLite"],
+  "iterations": [
+    {
+      "number": 1,
+      "name": "Setup",
+      "goal": "Initialize project",
+      "description": "First iteration",
+      "tasks": [
+        {
+          "number": 1,
+          "title": "Create repo",
+          "description": "Initialize git repository",
+          "agent_id": "setup-agent",
+          "dependencies": [],
+          "acceptance_criteria": ["Git repo exists"]
+        }
+      ]
+    }
+  ]
+}"#;
+
+        let plan = PlanParser::parse(json).unwrap();
+        assert_eq!(plan.project_name, "JSON Test Project");
+        assert_eq!(plan.description, Some("A project from JSON".to_string()));
+        assert_eq!(plan.tech_stack, vec!["Rust", "SQLite"]);
+        assert_eq!(plan.iterations.len(), 1);
+        assert_eq!(plan.iterations[0].tasks.len(), 1);
+        assert_eq!(plan.iterations[0].tasks[0].title, "Create repo");
+    }
+
+    #[test]
+    fn test_parse_json_in_markdown_code_block() {
+        let response = r#"Here is the plan:
+
+```json
+{
+  "project_name": "Code Block Project",
+  "description": "JSON in code block",
+  "tech_stack": ["Python"],
+  "iterations": [
+    {
+      "number": 1,
+      "name": "Phase 1",
+      "goal": "Build foundation",
+      "description": null,
+      "tasks": [
+        {
+          "number": 1,
+          "title": "Setup",
+          "description": null,
+          "agent_id": null,
+          "dependencies": [],
+          "acceptance_criteria": []
+        }
+      ]
+    }
+  ]
+}
+```
+
+That's the plan!"#;
+
+        let plan = PlanParser::parse(response).unwrap();
+        assert_eq!(plan.project_name, "Code Block Project");
+        assert_eq!(plan.description, Some("JSON in code block".to_string()));
+        assert_eq!(plan.iterations.len(), 1);
+    }
+
+    #[test]
+    fn test_parse_json_in_generic_code_block() {
+        let response = r#"```
+{
+  "project_name": "Generic Block",
+  "description": null,
+  "tech_stack": [],
+  "iterations": [
+    {
+      "number": 1,
+      "name": "Iteration 1",
+      "goal": null,
+      "description": null,
+      "tasks": []
+    }
+  ]
+}
+```"#;
+
+        let plan = PlanParser::parse(response).unwrap();
+        assert_eq!(plan.project_name, "Generic Block");
+        assert_eq!(plan.iterations.len(), 1);
+    }
+
+    #[test]
+    fn test_parse_json_with_multiple_tasks() {
+        let json = r#"{
+  "project_name": "Multi-Task Project",
+  "description": null,
+  "tech_stack": [],
+  "iterations": [
+    {
+      "number": 1,
+      "name": "Iteration 1",
+      "goal": null,
+      "description": null,
+      "tasks": [
+        {
+          "number": 1,
+          "title": "Task 1",
+          "description": null,
+          "agent_id": "agent-1",
+          "dependencies": [],
+          "acceptance_criteria": ["Criterion 1", "Criterion 2"]
+        },
+        {
+          "number": 2,
+          "title": "Task 2",
+          "description": "Second task",
+          "agent_id": "agent-2",
+          "dependencies": ["I1.T1"],
+          "acceptance_criteria": ["Done"]
+        }
+      ]
+    }
+  ]
+}"#;
+
+        let plan = PlanParser::parse(json).unwrap();
+        assert_eq!(plan.iterations[0].tasks.len(), 2);
+        assert_eq!(plan.iterations[0].tasks[1].dependencies, vec!["I1.T1"]);
+        assert_eq!(plan.iterations[0].tasks[0].acceptance_criteria.len(), 2);
+    }
+
+    #[test]
+    fn test_parse_invalid_json() {
+        // Invalid JSON in a code block should fail with JSON parsing error
+        let invalid_json = r#"```json
+{
+  "project_name": "Invalid"
+  "missing_comma": true
+}
+```"#;
+
+        let result = PlanParser::parse(invalid_json);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("JSON parsing failed"));
+    }
+
+    #[test]
+    fn test_parse_fallback_to_markdown_when_json_fails() {
+        // This is markdown that starts with { but isn't valid JSON
+        let response = r"# My Project
+
+{Note: This is not JSON, just markdown with braces}
+
+## Iteration 1: Test
+
+1. **Task** - Description
+";
+
+        let plan = PlanParser::parse(response).unwrap();
+        assert_eq!(plan.project_name, "My Project");
+        assert_eq!(plan.iterations[0].tasks[0].title, "Task");
+    }
 }
