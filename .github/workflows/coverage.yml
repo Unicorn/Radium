@@ -1,0 +1,60 @@
+name: Test Coverage
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  coverage:
+    name: Generate Coverage Report
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Generate coverage report
+        run: |
+          cd crates/radium-core
+          cargo llvm-cov --locked --workspace --lcov --output-path ../../coverage.lcov --tests
+          cargo llvm-cov --locked --workspace --html --output-path ../../coverage-html --tests
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.lcov
+          flags: hooks
+          name: hooks-coverage
+          fail_ci_if_error: false
+
+      - name: Generate hooks module coverage
+        run: |
+          cd crates/radium-core
+          cargo llvm-cov --locked --workspace --summary --tests --lib --hooks > ../../hooks-coverage-summary.txt
+          cat ../../hooks-coverage-summary.txt
+
+      - name: Check coverage threshold
+        run: |
+          # Extract coverage percentage from summary
+          COVERAGE=$(grep -oP '\d+\.\d+%' hooks-coverage-summary.txt | head -1 | sed 's/%//')
+          THRESHOLD=80
+          echo "Coverage: ${COVERAGE}%"
+          echo "Threshold: ${THRESHOLD}%"
+          if (( $(echo "$COVERAGE < $THRESHOLD" | bc -l) )); then
+            echo "❌ Coverage ${COVERAGE}% is below threshold ${THRESHOLD}%"
+            exit 1
+          else
+            echo "✅ Coverage ${COVERAGE}% meets threshold ${THRESHOLD}%"
+          fi
+

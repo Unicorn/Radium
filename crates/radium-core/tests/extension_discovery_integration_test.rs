@@ -1,5 +1,7 @@
 //! Integration tests for extension discovery with AgentDiscovery, TemplateDiscovery, and CommandRegistry.
 
+#![allow(unsafe_code)]
+
 use radium_core::agents::discovery::AgentDiscovery;
 use radium_core::commands::CommandRegistry;
 use radium_core::extensions::manifest::{ExtensionComponents, ExtensionManifest};
@@ -90,7 +92,9 @@ fn test_agent_discovery_from_extensions() {
 
     // Set HOME to temp_dir so default paths work
     let original_home = std::env::var("HOME").ok();
-    std::env::set_var("HOME", temp_dir.path().to_string_lossy().to_string());
+    unsafe {
+        std::env::set_var("HOME", temp_dir.path().to_string_lossy().to_string());
+    }
 
     // Create extension with agent
     let package_path = create_test_extension_package(&temp_dir, "test-ext", true, false, false);
@@ -117,7 +121,9 @@ fn test_agent_discovery_from_extensions() {
     // Restore
     std::env::set_current_dir(original_cwd).unwrap();
     if let Some(home) = original_home {
-        std::env::set_var("HOME", home);
+        unsafe {
+            std::env::set_var("HOME", home);
+        }
     }
 }
 
@@ -129,7 +135,9 @@ fn test_template_discovery_from_extensions() {
 
     // Set HOME to temp_dir so default paths work
     let original_home = std::env::var("HOME").ok();
-    std::env::set_var("HOME", temp_dir.path().to_string_lossy().to_string());
+    unsafe {
+        std::env::set_var("HOME", temp_dir.path().to_string_lossy().to_string());
+    }
 
     // Create extension with template
     let package_path = create_test_extension_package(&temp_dir, "test-ext", false, true, false);
@@ -155,7 +163,9 @@ fn test_template_discovery_from_extensions() {
     // Restore
     std::env::set_current_dir(original_cwd).unwrap();
     if let Some(home) = original_home {
-        std::env::set_var("HOME", home);
+        unsafe {
+            std::env::set_var("HOME", home);
+        }
     }
 }
 
@@ -167,7 +177,9 @@ fn test_command_discovery_from_extensions() {
 
     // Set HOME to temp_dir so default paths work
     let original_home = std::env::var("HOME").ok();
-    std::env::set_var("HOME", temp_dir.path().to_string_lossy().to_string());
+    unsafe {
+        std::env::set_var("HOME", temp_dir.path().to_string_lossy().to_string());
+    }
 
     // Create extension with command
     let package_path = create_test_extension_package(&temp_dir, "test-ext", false, false, true);
@@ -183,15 +195,16 @@ fn test_command_discovery_from_extensions() {
 
     // Should find the extension command with namespace
     let command_opt = registry.get("test-ext:test-command");
-    assert!(command_opt.is_some(), "Command not found. Available commands: {:?}", 
-        registry.list_commands().iter().map(|c| c.as_str()).collect::<Vec<_>>());
+    assert!(command_opt.is_some(), "Command not found");
     let command = command_opt.unwrap();
     assert_eq!(command.name, "test-command");
     assert_eq!(command.namespace, Some("test-ext".to_string()));
 
     // Restore
     if let Some(home) = original_home {
-        std::env::set_var("HOME", home);
+        unsafe {
+            std::env::set_var("HOME", home);
+        }
     }
 }
 
@@ -203,7 +216,9 @@ fn test_search_path_priority_project_over_extension() {
 
     // Set HOME to temp_dir so default paths work
     let original_home = std::env::var("HOME").ok();
-    std::env::set_var("HOME", temp_dir.path().to_string_lossy().to_string());
+    unsafe {
+        std::env::set_var("HOME", temp_dir.path().to_string_lossy().to_string());
+    }
 
     // Create extension with agent
     let package_path = create_test_extension_package(&temp_dir, "test-ext", true, false, false);
@@ -245,15 +260,23 @@ prompt_path = "prompts/project-agent.md"
     // Restore
     std::env::set_current_dir(original_cwd).unwrap();
     if let Some(home) = original_home {
-        std::env::set_var("HOME", home);
+        unsafe {
+            std::env::set_var("HOME", home);
+        }
     }
 }
 
 #[test]
 fn test_command_namespace_from_extension() {
     let temp_dir = TempDir::new().unwrap();
-    let extensions_dir = temp_dir.path().join("extensions");
+    let extensions_dir = temp_dir.path().join(".radium").join("extensions");
     fs::create_dir_all(&extensions_dir).unwrap();
+
+    // Set HOME to temp_dir so default paths work
+    let original_home = std::env::var("HOME").ok();
+    unsafe {
+        std::env::set_var("HOME", temp_dir.path().to_string_lossy().to_string());
+    }
 
     // Create extension with command
     let package_path = create_test_extension_package(&temp_dir, "my-extension", false, false, true);
@@ -268,8 +291,16 @@ fn test_command_namespace_from_extension() {
     registry.discover().unwrap();
 
     // Command should be namespaced with extension name
-    assert!(registry.get("my-extension:test-command").is_some());
-    let command = registry.get("my-extension:test-command").unwrap();
+    let command_opt = registry.get("my-extension:test-command");
+    assert!(command_opt.is_some(), "Command not found");
+    let command = command_opt.unwrap();
     assert_eq!(command.namespace, Some("my-extension".to_string()));
+
+    // Restore
+    if let Some(home) = original_home {
+        unsafe {
+            std::env::set_var("HOME", home);
+        }
+    }
 }
 
