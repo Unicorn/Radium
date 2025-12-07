@@ -408,8 +408,10 @@ prompt_path = "prompts/agents/core/nonexistent.md"
     create_test_agent(workspace, "core", "duplicate", "First Agent", "First", "# Prompt 1");
     create_test_agent(workspace, "custom", "duplicate", "Second Agent", "Second", "# Prompt 2");
 
-    // Create a fresh discovery instance to avoid any state issues
-    let discovery2 = AgentDiscovery::new();
+    // Create a fresh discovery instance with custom options to only search the test workspace
+    let mut options = DiscoveryOptions::default();
+    options.search_paths = vec![workspace.join("agents")];
+    let discovery2 = AgentDiscovery::with_options(options);
     let agents = discovery2.discover_all().expect("Failed to discover agents");
     
     // Should only have one entry for "duplicate" (first one found is kept)
