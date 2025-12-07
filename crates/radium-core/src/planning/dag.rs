@@ -1,7 +1,63 @@
 //! Dependency graph construction and validation for plan execution.
 //!
-//! Provides DAG (Directed Acyclic Graph) functionality for task dependencies,
-//! including cycle detection, topological sorting, and execution level calculation.
+//! This module provides a DAG (Directed Acyclic Graph) system for managing task dependencies
+//! in plans. It enables cycle detection, topological sorting for execution order, and
+//! execution level calculation for parallel scheduling.
+//!
+//! # Overview
+//!
+//! The DAG system ensures that task dependencies are valid and executable:
+//!
+//! - **Cycle Detection**: Prevents circular dependencies that would block execution
+//! - **Topological Sort**: Determines the correct execution order of tasks
+//! - **Execution Levels**: Calculates which tasks can run in parallel
+//! - **Dependency Validation**: Ensures all referenced dependencies exist
+//!
+//! # Why DAGs Matter
+//!
+//! Task dependencies form a directed graph. If this graph contains cycles, tasks cannot
+//! be executed because they depend on each other in a circular way. A DAG (Directed
+//! Acyclic Graph) ensures there are no cycles, making execution possible.
+//!
+//! # Two-Pass Construction
+//!
+//! The graph is built in two passes for efficiency and correctness:
+//!
+//! 1. **First Pass**: Create nodes for all tasks
+//! 2. **Second Pass**: Create edges for dependencies and validate references
+//!
+//! This approach ensures all nodes exist before creating edges, preventing invalid
+//! references and enabling better error messages.
+//!
+//! # Example
+//!
+//! ```rust,no_run
+//! use radium_core::planning::dag::DependencyGraph;
+//! use radium_core::models::PlanManifest;
+//!
+//! # fn example(manifest: &PlanManifest) -> Result<(), Box<dyn std::error::Error>> {
+//! // Build dependency graph
+//! let dag = DependencyGraph::from_manifest(manifest)?;
+//!
+//! // Check for cycles
+//! dag.detect_cycles()?;
+//!
+//! // Get execution order
+//! let execution_order = dag.topological_sort()?;
+//!
+//! // Calculate parallel execution levels
+//! let levels = dag.calculate_execution_levels();
+//! // Tasks at level 0 can run in parallel
+//! // Tasks at level N+1 depend on tasks at level N
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! # See Also
+//!
+//! - [User Guide](../../../docs/features/dag-dependencies.md) - Complete user documentation
+//! - [Autonomous Planning](autonomous) - Uses DAG for plan validation
+//! - [Plan Executor](executor) - Uses DAG for execution ordering
 
 use crate::models::{PlanManifest, PlanTask};
 use petgraph::algo::{is_cyclic_directed, toposort};
@@ -11,21 +67,62 @@ use std::collections::{HashMap, HashSet};
 use thiserror::Error;
 
 /// Errors that can occur during DAG operations.
+///
+/// # Error Types
+///
+/// - **CycleDetected**: A circular dependency was found. The error message includes
+///   the cycle path (e.g., "I1.T1 -> I1.T2 -> I1.T3 -> I1.T1")
+/// - **DependencyNotFound**: A task references a dependency that doesn't exist
+/// - **InvalidTaskId**: A task ID has an invalid format (should be "I{N}.T{N}")
+/// - **TopologicalSortFailed**: Topological sort failed (should not happen if cycle
+///   detection passed, but handled for safety)
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use radium_core::planning::dag::{DependencyGraph, DagError};
+///
+/// # fn example() -> Result<(), DagError> {
+/// let dag = DependencyGraph::from_manifest(&manifest)?;
+///
+/// match dag.detect_cycles() {
+///     Ok(()) => println!("No cycles detected"),
+///     Err(DagError::CycleDetected(path)) => {
+///         println!("Cycle found: {}", path);
+///         // Fix the cycle by removing or reordering dependencies
+///     }
+///     Err(e) => return Err(e),
+/// }
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Debug, Error)]
 pub enum DagError {
     /// Circular dependency detected.
+    ///
+    /// The error message contains the cycle path showing which tasks form the cycle.
+    /// Example: "I1.T1 -> I1.T2 -> I1.T3 -> I1.T1"
     #[error("circular dependency detected: {0}")]
     CycleDetected(String),
 
     /// Dependency reference not found.
+    ///
+    /// A task references a dependency that doesn't exist in the plan manifest.
+    /// The error message includes the missing dependency ID.
     #[error("dependency task not found: {0}")]
     DependencyNotFound(String),
 
     /// Invalid task ID format.
+    ///
+    /// Task IDs must follow the format "I{N}.T{N}" where N is a number.
+    /// Example: "I1.T1", "I2.T3"
     #[error("invalid task ID format: {0}")]
     InvalidTaskId(String),
 
     /// Topological sort failed (should not happen if cycle detection works).
+    ///
+    /// This error should not occur if cycle detection passed, but is handled
+    /// for safety. Indicates an internal graph structure issue.
     #[error("topological sort failed: {0}")]
     TopologicalSortFailed(String),
 }
@@ -37,6 +134,39 @@ pub type Result<T> = std::result::Result<T, DagError>;
 ///
 /// Builds a directed graph from plan manifest task dependencies and provides
 /// algorithms for cycle detection, topological sorting, and execution level calculation.
+///
+/// # Construction
+///
+/// The graph is built in two passes:
+/// 1. **Nodes**: Create a node for each task
+/// 2. **Edges**: Create edges for dependencies (from dependency to dependent)
+///
+/// # Graph Structure
+///
+/// - **Nodes**: Represent tasks (task IDs)
+/// - **Edges**: Represent dependencies (edge from dependency to dependent)
+/// - **Direction**: Edges point from dependencies to dependents
+///
+/// This means: if Task B depends on Task A, there's an edge A → B
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use radium_core::planning::dag::DependencyGraph;
+/// use radium_core::models::PlanManifest;
+///
+/// # fn example(manifest: &PlanManifest) -> Result<(), Box<dyn std::error::Error>> {
+/// // Build graph from manifest
+/// let dag = DependencyGraph::from_manifest(manifest)?;
+///
+/// // Get execution order
+/// let order = dag.topological_sort()?;
+///
+/// // Get tasks that can run in parallel at level 0
+/// let parallel_tasks = dag.get_tasks_at_level(0);
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Debug, Clone)]
 pub struct DependencyGraph {
     /// The underlying graph structure.
@@ -177,9 +307,28 @@ impl DependencyGraph {
     /// Performs topological sort to get execution order.
     ///
     /// Returns tasks in an order where all dependencies come before dependents.
+    /// This ensures tasks are executed in the correct order, with dependencies
+    /// completing before their dependents.
+    ///
+    /// # Returns
+    ///
+    /// A vector of task IDs in execution order. Tasks with no dependencies come first,
+    /// followed by tasks whose dependencies have been completed.
     ///
     /// # Errors
+    ///
     /// Returns error if topological sort fails (should not happen if cycle detection passed).
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use radium_core::planning::dag::DependencyGraph;
+    /// # fn example(dag: &DependencyGraph) -> Result<(), Box<dyn std::error::Error>> {
+    /// let order = dag.topological_sort()?;
+    /// // If T2 depends on T1, order will be [T1, T2, ...]
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn topological_sort(&self) -> Result<Vec<String>> {
         match toposort(&self.graph, None) {
             Ok(sorted_indices) => {
@@ -221,8 +370,25 @@ impl DependencyGraph {
     /// Tasks with no dependencies are at level 0.
     /// Tasks depending on level N tasks are at level N+1.
     ///
+    /// This enables parallel execution: all tasks at the same level can run
+    /// concurrently since they have no dependencies on each other.
+    ///
     /// # Returns
-    /// A map from task ID to execution level.
+    ///
+    /// A map from task ID to execution level. Tasks at level 0 can start immediately.
+    /// Tasks at level N+1 can start after all tasks at level N complete.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use radium_core::planning::dag::DependencyGraph;
+    /// # fn example(dag: &DependencyGraph) {
+    /// let levels = dag.calculate_execution_levels();
+    /// // Tasks at level 0: no dependencies, can run in parallel
+    /// // Tasks at level 1: depend on level 0 tasks
+    /// // Tasks at level 2: depend on level 1 tasks, etc.
+    /// # }
+    /// ```
     pub fn calculate_execution_levels(&self) -> HashMap<String, u32> {
         let mut levels = HashMap::new();
         let mut visited = HashSet::new();
