@@ -75,7 +75,10 @@ mod tests {
         let agent = SimpleAgent::new("test-simple".to_string(), "Test simple agent".to_string());
         let model = ModelFactory::create_from_str("mock", "mock-model".to_string()).unwrap();
 
-        let context = AgentContext { model: model.as_ref() };
+        let context = AgentContext {
+            model: model.as_ref(),
+            collaboration: None,
+        };
         let result = agent.execute("Hello, world!", context).await;
 
         assert!(result.is_ok());

@@ -332,7 +332,10 @@ impl AgentExecutor {
         // Retry loop with provider failover
         loop {
             // Create agent context with current model
-            let context = AgentContext { model: current_model.as_ref() };
+            let context = AgentContext {
+                model: current_model.as_ref(),
+                collaboration: None, // Will be set by orchestrator if collaboration is enabled
+            };
 
             // Execute the agent
             // Note: Telemetry capture requires modifying agents to return ModelResponse

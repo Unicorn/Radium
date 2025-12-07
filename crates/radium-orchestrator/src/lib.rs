@@ -39,11 +39,13 @@ pub use registry::{AgentMetadata, AgentRegistry};
 pub use error::OrchestrationError;
 
 /// Represents the context provided to an agent during its execution.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct AgentContext<'a> {
     /// The model to use for generation.
     pub model: &'a (dyn Model + Send + Sync),
-    // Future additions: access to tools, memory, other agents, etc.
+    /// Optional collaboration context for multi-agent features.
+    /// None for agents that don't need collaboration features.
+    pub collaboration: Option<std::sync::Arc<radium_core::collaboration::agent_extensions::CollaborationContext>>,
 }
 
 /// Represents the output produced by an agent.

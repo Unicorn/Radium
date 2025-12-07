@@ -137,13 +137,19 @@ mod tests {
         let model = ModelFactory::create_from_str("mock", "mock-model".to_string()).unwrap();
 
         // First message
-        let context1 = AgentContext { model: model.as_ref() };
+        let context1 = AgentContext {
+            model: model.as_ref(),
+            collaboration: None,
+        };
         let result1 = agent.execute("Hello!", context1).await;
         assert!(result1.is_ok());
         assert_eq!(agent.history_len().await, 2); // user + assistant
 
         // Second message (should have context)
-        let context2 = AgentContext { model: model.as_ref() };
+        let context2 = AgentContext {
+            model: model.as_ref(),
+            collaboration: None,
+        };
         let result2 = agent.execute("What did I say?", context2).await;
         assert!(result2.is_ok());
         assert_eq!(agent.history_len().await, 4); // 2 previous + 2 new
@@ -154,7 +160,10 @@ mod tests {
         let agent = ChatAgent::new("test-chat".to_string(), "Test chat agent".to_string());
         let model = ModelFactory::create_from_str("mock", "mock-model".to_string()).unwrap();
 
-        let context = AgentContext { model: model.as_ref() };
+        let context = AgentContext {
+            model: model.as_ref(),
+            collaboration: None,
+        };
         agent.execute("Hello!", context).await.unwrap();
         assert_eq!(agent.history_len().await, 2);
 
@@ -173,7 +182,10 @@ mod tests {
 
         // Send multiple messages to exceed max_history
         for i in 0..5 {
-            let context = AgentContext { model: model.as_ref() };
+            let context = AgentContext {
+            model: model.as_ref(),
+            collaboration: None,
+        };
             agent.execute(&format!("Message {}", i), context).await.unwrap();
         }
 
