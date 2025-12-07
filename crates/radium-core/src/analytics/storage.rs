@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 /// Lightweight session metadata for efficient listing.
@@ -109,6 +110,10 @@ impl SessionStorage {
     /// For backward compatibility, this method loads all reports.
     /// For better performance with large numbers of sessions, use `list_reports_paginated()`.
     pub fn list_reports(&self) -> Result<Vec<SessionReport>> {
+        if !self.sessions_dir.exists() {
+            debug!("Sessions directory not found: {}", self.sessions_dir.display());
+            return Ok(Vec::new());
+        }
         self.list_reports_paginated(None, None)
     }
 
@@ -128,6 +133,7 @@ impl SessionStorage {
         let mut reports = Vec::new();
 
         if !self.sessions_dir.exists() {
+            debug!("Sessions directory not found: {}", self.sessions_dir.display());
             return Ok(reports);
         }
 
@@ -142,14 +148,21 @@ impl SessionStorage {
                 // Try to read just enough to get generated_at timestamp
                 if let Ok(content) = fs::read_to_string(&path) {
                     // Use a lightweight JSON parser to extract just generated_at
-                    if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&content) {
-                        if let Some(gen_at_str) = json_value.get("generated_at").and_then(|v| v.as_str()) {
-                            if let Ok(generated_at) = gen_at_str.parse::<DateTime<Utc>>() {
-                                metadata_list.push((path, generated_at));
+                    match serde_json::from_str::<serde_json::Value>(&content) {
+                        Ok(json_value) => {
+                            if let Some(gen_at_str) = json_value.get("generated_at").and_then(|v| v.as_str()) {
+                                if let Ok(generated_at) = gen_at_str.parse::<DateTime<Utc>>() {
+                                    metadata_list.push((path, generated_at));
+                                }
                             }
+                        }
+                        Err(e) => {
+                            warn!("Failed to parse session file {}: {}", path.display(), e);
                         }
                     }
                 }
+            } else {
+                debug!("Skipping non-JSON file: {}", path.display());
             }
         }
 
@@ -169,14 +182,23 @@ impl SessionStorage {
         // Now load only the paginated reports
         for path in paginated_paths {
             if let Ok(content) = fs::read_to_string(&path) {
-                if let Ok(report) = serde_json::from_str::<SessionReport>(&content) {
-                    reports.push(report);
+                match serde_json::from_str::<SessionReport>(&content) {
+                    Ok(report) => {
+                        reports.push(report);
+                    }
+                    Err(e) => {
+                        warn!("Failed to parse session file {}: {}", path.display(), e);
+                    }
                 }
             }
         }
 
         // Ensure final sort (in case of any issues)
         reports.sort_by(|a, b| b.generated_at.cmp(&a.generated_at));
+
+        if !reports.is_empty() {
+            info!("Loaded {} session reports from {}", reports.len(), self.sessions_dir.display());
+        }
 
         Ok(reports)
     }
@@ -189,6 +211,7 @@ impl SessionStorage {
         let mut metadata = Vec::new();
 
         if !self.sessions_dir.exists() {
+            debug!("Sessions directory not found: {}", self.sessions_dir.display());
             return Ok(metadata);
         }
 
@@ -198,45 +221,52 @@ impl SessionStorage {
 
             if path.extension().and_then(|s| s.to_str()) == Some("json") {
                 if let Ok(content) = fs::read_to_string(&path) {
-                    if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&content) {
-                        if let (Some(metrics), Some(gen_at_str)) = (
-                            json_value.get("metrics"),
-                            json_value.get("generated_at").and_then(|v| v.as_str()),
-                        ) {
-                            if let Ok(generated_at) = gen_at_str.parse::<DateTime<Utc>>() {
-                                let session_id = metrics
-                                    .get("session_id")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("")
-                                    .to_string();
-                                let tool_calls = metrics
-                                    .get("tool_calls")
-                                    .and_then(|v| v.as_u64())
-                                    .unwrap_or(0);
-                                
-                                // Calculate duration from wall_time if available
-                                // Duration serializes as { "secs": u64, "nanos": u32 }
-                                let duration = if let Some(wall_time_obj) = metrics.get("wall_time") {
-                                    if let Some(secs) = wall_time_obj.get("secs").and_then(|v| v.as_u64()) {
-                                        let nanos = wall_time_obj.get("nanos").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-                                        Duration::new(secs, nanos)
+                    match serde_json::from_str::<serde_json::Value>(&content) {
+                        Ok(json_value) => {
+                            if let (Some(metrics), Some(gen_at_str)) = (
+                                json_value.get("metrics"),
+                                json_value.get("generated_at").and_then(|v| v.as_str()),
+                            ) {
+                                if let Ok(generated_at) = gen_at_str.parse::<DateTime<Utc>>() {
+                                    let session_id = metrics
+                                        .get("session_id")
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or("")
+                                        .to_string();
+                                    let tool_calls = metrics
+                                        .get("tool_calls")
+                                        .and_then(|v| v.as_u64())
+                                        .unwrap_or(0);
+                                    
+                                    // Calculate duration from wall_time if available
+                                    // Duration serializes as { "secs": u64, "nanos": u32 }
+                                    let duration = if let Some(wall_time_obj) = metrics.get("wall_time") {
+                                        if let Some(secs) = wall_time_obj.get("secs").and_then(|v| v.as_u64()) {
+                                            let nanos = wall_time_obj.get("nanos").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+                                            Duration::new(secs, nanos)
+                                        } else {
+                                            Duration::ZERO
+                                        }
                                     } else {
                                         Duration::ZERO
-                                    }
-                                } else {
-                                    Duration::ZERO
-                                };
+                                    };
 
-                                metadata.push(SessionMetadata {
-                                    session_id,
-                                    generated_at,
-                                    duration,
-                                    tool_calls,
-                                });
+                                    metadata.push(SessionMetadata {
+                                        session_id,
+                                        generated_at,
+                                        duration,
+                                        tool_calls,
+                                    });
+                                }
                             }
+                        }
+                        Err(e) => {
+                            warn!("Failed to parse session file {}: {}", path.display(), e);
                         }
                     }
                 }
+            } else {
+                debug!("Skipping non-JSON file: {}", path.display());
             }
         }
 
