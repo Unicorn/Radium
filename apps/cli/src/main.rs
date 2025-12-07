@@ -10,7 +10,7 @@ use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 use commands::{
-    agents, auth, chat, checkpoint, clean, context, craft, doctor, extension, hooks, init, mcp, monitor, plan, run,
+    agents, auth, chat, checkpoint, clean, complete, context, craft, doctor, extension, hooks, init, mcp, monitor, plan, run,
     stats, status, step, templates,
 };
 
@@ -102,6 +102,15 @@ enum Command {
         /// Output results as JSON
         #[arg(long)]
         json: bool,
+    },
+
+    /// Complete a requirement from source to execution
+    ///
+    /// Automatically detects source type (file, Jira ticket, Braingrid REQ),
+    /// fetches content, generates a plan, and executes it without user intervention.
+    Complete {
+        /// Source (file path, Jira ticket ID, or Braingrid REQ ID)
+        source: String,
     },
 
     /// Run agent(s) with enhanced syntax
@@ -306,6 +315,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Craft { plan_identifier, iteration, task, resume, dry_run, json } => {
             craft::execute(plan_identifier, iteration, task, resume, dry_run, json).await?;
+        }
+        Command::Complete { source } => {
+            complete::execute(source).await?;
         }
         Command::Run { script, model, dir } => {
             run::execute(script, model, dir).await?;

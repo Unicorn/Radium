@@ -12,7 +12,7 @@ use crate::context::{BraingridReader, JiraReader, LocalFileReader, SourceError, 
 use crate::planning::{PlanExecutor, PlanGenerator, ExecutionConfig};
 use crate::workspace::{RequirementId, Workspace};
 use crate::models::plan::{Plan, PlanManifest, Iteration, PlanTask};
-use crate::planning::parser::ParsedPlan;
+use crate::planning::ParsedPlan;
 use radium_abstraction::Model;
 use radium_models::ModelFactory;
 use tokio::sync::mpsc;

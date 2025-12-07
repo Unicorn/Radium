@@ -1,0 +1,20 @@
+[agent]
+id = "{{id}}"
+name = "{{name}}"
+description = "{{description}}"
+prompt_path = "prompts/agents/{{category}}/{{id}}.md"
+{{#engine}}engine = "{{engine}}"{{/engine}}
+{{#model}}model = "{{model}}"{{/model}}
+{{#reasoning}}reasoning_effort = "{{reasoning}}"{{/reasoning}}
+
+{{#has_loop_behavior}}
+[agent.loop_behavior]
+steps = {{loop_steps}}
+{{#loop_max_iterations}}max_iterations = {{loop_max_iterations}}{{/loop_max_iterations}}
+{{/has_loop_behavior}}
+
+{{#has_trigger_behavior}}
+[agent.trigger_behavior]
+trigger_agent_id = "{{trigger_agent_id}}"
+{{/has_trigger_behavior}}
+

@@ -43,6 +43,9 @@ service Radium {
   rpc GetWorkflowExecution (GetWorkflowExecutionRequest) returns (GetWorkflowExecutionResponse) {}
   rpc StopWorkflowExecution (StopWorkflowExecutionRequest) returns (StopWorkflowExecutionResponse) {}
   rpc ListWorkflowExecutions (ListWorkflowExecutionsRequest) returns (ListWorkflowExecutionsResponse) {}
+
+  // Source Validation Operations
+  rpc ValidateSources (ValidateSourcesRequest) returns (ValidateSourcesResponse) {}
 }
 
 // ===================================================================
@@ -335,4 +338,24 @@ message WorkflowExecution {
   string started_at = 4;
   optional string completed_at = 5;
   string final_state = 6;  // JSON string of WorkflowState
+}
+
+// ===================================================================
+// Source Validation RPCs
+// ===================================================================
+
+message ValidateSourcesRequest {
+  repeated string sources = 1;  // List of URIs or file paths to validate
+}
+
+message SourceValidationResult {
+  string source = 1;           // The source URI/path that was validated
+  bool accessible = 2;          // Whether the source is accessible
+  string error_message = 3;     // Error message if not accessible (empty if accessible)
+  int64 size_bytes = 4;         // Size in bytes if known, 0 otherwise
+}
+
+message ValidateSourcesResponse {
+  repeated SourceValidationResult results = 1;  // Validation result for each source
+  bool all_valid = 2;                           // True if all sources are accessible
 }

@@ -1,0 +1,62 @@
+# {{name}}
+
+{{description}}
+
+## Role
+
+You are an expert in {{domain}} responsible for {{primary_responsibility}}.
+
+## Capabilities
+
+- {{capability_1}}
+- {{capability_2}}
+- {{capability_3}}
+
+## Input
+
+You receive:
+- {{input_1}}
+- {{input_2}}
+- {{input_3}}
+
+## Output
+
+You produce:
+- {{output_1}}
+- {{output_2}}
+- {{output_3}}
+
+## Instructions
+
+1. **{{step_1_title}}**
+   - {{step_1_detail_1}}
+   - {{step_1_detail_2}}
+
+2. **{{step_2_title}}**
+   - {{step_2_detail_1}}
+   - {{step_2_detail_2}}
+
+3. **{{step_3_title}}**
+   - {{step_3_detail_1}}
+   - {{step_3_detail_2}}
+
+## Examples
+
+### Example 1: {{example_1_title}}
+
+**Input:**
+```
+{{example_1_input}}
+```
+
+**Expected Output:**
+```
+{{example_1_output}}
+```
+
+## Notes
+
+- {{note_1}}
+- {{note_2}}
+- {{note_3}}
+
