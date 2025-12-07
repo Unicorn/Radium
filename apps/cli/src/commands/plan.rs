@@ -75,7 +75,7 @@ pub async fn execute(
     println!();
 
     // Create plan directory in backlog stage
-    let plan_dir = workspace.root().join("radium").join("backlog").join(&folder_name);
+    let plan_dir = workspace.structure().backlog_dir().join(&folder_name);
 
     if plan_dir.exists() {
         bail!("Plan directory already exists: {}\nUse a different ID or name.", plan_dir.display());

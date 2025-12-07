@@ -179,3 +179,68 @@ fn test_plan_with_very_long_specification() {
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
     cmd.current_dir(temp_dir.path()).arg("plan").arg(&long_spec).assert().success();
 }
+
+#[test]
+fn test_plan_generates_all_files() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+
+    let spec_file = temp_dir.path().join("spec.md");
+    fs::write(
+        &spec_file,
+        r#"# Test Project
+
+Build a test application.
+
+## Iteration 1: Setup
+Goal: Set up the project
+
+1. **Initialize project** - Create basic structure
+   - Agent: setup-agent
+   - Acceptance: Project structure created
+"#,
+    )
+    .unwrap();
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("plan")
+        .arg("--id")
+        .arg("REQ-001")
+        .arg(spec_file.to_str().unwrap())
+        .assert()
+        .success();
+
+    // Verify all files were created
+    let backlog_dir = temp_dir.path().join(".radium/plan/backlog");
+    let plan_dirs: Vec<_> = fs::read_dir(&backlog_dir)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().is_dir() && e.file_name().to_string_lossy().starts_with("REQ-001"))
+        .collect();
+
+    assert!(!plan_dirs.is_empty(), "Plan directory should be created");
+
+    let plan_dir = &plan_dirs[0].path();
+    assert!(plan_dir.join("plan.json").exists(), "plan.json should exist");
+    assert!(
+        plan_dir.join("plan/plan_manifest.json").exists(),
+        "plan_manifest.json should exist"
+    );
+    assert!(
+        plan_dir.join("plan/01_Plan_Overview_and_Setup.md").exists(),
+        "Overview markdown should exist"
+    );
+    assert!(
+        plan_dir.join("plan/03_Verification_and_Glossary.md").exists(),
+        "Verification markdown should exist"
+    );
+    assert!(
+        plan_dir.join("plan/coordinator-prompt.md").exists(),
+        "Coordinator prompt should exist"
+    );
+    assert!(
+        plan_dir.join("specifications.md").exists(),
+        "Specifications file should be copied"
+    );
+}

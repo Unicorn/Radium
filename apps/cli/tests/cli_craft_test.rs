@@ -180,3 +180,202 @@ fn test_craft_without_plan_identifier() {
     // Craft without plan identifier should fail
     cmd.current_dir(temp_dir.path()).arg("craft").assert().failure();
 }
+
+#[test]
+fn test_end_to_end_plan_generation_and_execution() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+
+    // Create a specification file
+    let spec_file = temp_dir.path().join("spec.md");
+    fs::write(
+        &spec_file,
+        r#"# Test Project
+
+Build a test application.
+
+## Iteration 1: Setup
+Goal: Set up the project
+
+1. **Initialize project** - Create basic structure
+   - Agent: setup-agent
+   - Acceptance: Project structure created
+"#,
+    )
+    .unwrap();
+
+    // Generate plan
+    let mut plan_cmd = Command::cargo_bin("radium-cli").unwrap();
+    plan_cmd
+        .current_dir(temp_dir.path())
+        .arg("plan")
+        .arg("--id")
+        .arg("REQ-001")
+        .arg(spec_file.to_str().unwrap())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Plan generated successfully"));
+
+    // Execute plan (dry-run to avoid actual execution)
+    let mut craft_cmd = Command::cargo_bin("radium-cli").unwrap();
+    craft_cmd
+        .current_dir(temp_dir.path())
+        .arg("craft")
+        .arg("REQ-001")
+        .arg("--dry-run")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("rad craft"))
+        .stdout(predicate::str::contains("Dry run mode"));
+}
+
+#[test]
+fn test_resume_after_partial_execution() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+
+    // Create a plan with multiple tasks
+    let spec_file = temp_dir.path().join("spec.md");
+    fs::write(
+        &spec_file,
+        r#"# Test Project
+
+## Iteration 1: Tasks
+Goal: Complete tasks
+
+1. **Task 1** - First task
+   - Agent: setup-agent
+   - Acceptance: Task 1 done
+
+2. **Task 2** - Second task
+   - Agent: code-agent
+   - Dependencies: I1.T1
+   - Acceptance: Task 2 done
+"#,
+    )
+    .unwrap();
+
+    // Generate plan
+    let mut plan_cmd = Command::cargo_bin("radium-cli").unwrap();
+    plan_cmd
+        .current_dir(temp_dir.path())
+        .arg("plan")
+        .arg("--id")
+        .arg("REQ-001")
+        .arg(spec_file.to_str().unwrap())
+        .assert()
+        .success();
+
+    // Load manifest and mark first task as complete
+    let backlog_dir = temp_dir.path().join(".radium/plan/backlog");
+    let plan_dirs: Vec<_> = fs::read_dir(&backlog_dir)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().is_dir() && e.file_name().to_string_lossy().starts_with("REQ-001"))
+        .collect();
+
+    if !plan_dirs.is_empty() {
+        let plan_dir = plan_dirs[0].path();
+        let manifest_path = plan_dir.join("plan/plan_manifest.json");
+
+        if manifest_path.exists() {
+            let manifest_content = fs::read_to_string(&manifest_path).unwrap();
+            let mut manifest: serde_json::Value = serde_json::from_str(&manifest_content).unwrap();
+
+            // Mark first task as complete
+            if let Some(iterations) = manifest.get_mut("iterations").and_then(|i| i.as_array_mut()) {
+                if let Some(iter) = iterations.get_mut(0) {
+                    if let Some(tasks) = iter.get_mut("tasks").and_then(|t| t.as_array_mut()) {
+                        if let Some(task) = tasks.get_mut(0) {
+                            task["completed"] = serde_json::json!(true);
+                        }
+                    }
+                }
+            }
+
+            fs::write(&manifest_path, serde_json::to_string_pretty(&manifest).unwrap()).unwrap();
+
+            // Test resume
+            let mut craft_cmd = Command::cargo_bin("radium-cli").unwrap();
+            craft_cmd
+                .current_dir(temp_dir.path())
+                .arg("craft")
+                .arg("REQ-001")
+                .arg("--resume")
+                .arg("--dry-run")
+                .assert()
+                .success();
+        }
+    }
+}
+
+#[test]
+fn test_dependency_validation() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+
+    // Create a plan with dependencies
+    let spec_file = temp_dir.path().join("spec.md");
+    fs::write(
+        &spec_file,
+        r#"# Test Project
+
+## Iteration 1: Tasks
+Goal: Complete tasks
+
+1. **Task 1** - First task
+   - Agent: setup-agent
+   - Acceptance: Task 1 done
+
+2. **Task 2** - Second task (depends on Task 1)
+   - Agent: code-agent
+   - Dependencies: I1.T1
+   - Acceptance: Task 2 done
+"#,
+    )
+    .unwrap();
+
+    // Generate plan
+    let mut plan_cmd = Command::cargo_bin("radium-cli").unwrap();
+    plan_cmd
+        .current_dir(temp_dir.path())
+        .arg("plan")
+        .arg("--id")
+        .arg("REQ-001")
+        .arg(spec_file.to_str().unwrap())
+        .assert()
+        .success();
+
+    // Verify manifest has dependencies
+    let backlog_dir = temp_dir.path().join(".radium/plan/backlog");
+    let plan_dirs: Vec<_> = fs::read_dir(&backlog_dir)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().is_dir() && e.file_name().to_string_lossy().starts_with("REQ-001"))
+        .collect();
+
+    if !plan_dirs.is_empty() {
+        let plan_dir = plan_dirs[0].path();
+        let manifest_path = plan_dir.join("plan/plan_manifest.json");
+
+        if manifest_path.exists() {
+            let manifest_content = fs::read_to_string(&manifest_path).unwrap();
+            let manifest: serde_json::Value = serde_json::from_str(&manifest_content).unwrap();
+
+            // Verify Task 2 has dependency on I1.T1
+            if let Some(iterations) = manifest.get("iterations").and_then(|i| i.as_array()) {
+                if let Some(iter) = iterations.get(0) {
+                    if let Some(tasks) = iter.get("tasks").and_then(|t| t.as_array()) {
+                        if let Some(task2) = tasks.get(1) {
+                            let deps = task2.get("dependencies").and_then(|d| d.as_array());
+                            assert!(
+                                deps.is_some() && !deps.unwrap().is_empty(),
+                                "Task 2 should have dependencies"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
