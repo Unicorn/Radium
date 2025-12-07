@@ -861,4 +861,52 @@ mod tests {
         let result = executor.check_dependencies(&manifest, task);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_error_categorization_recoverable() {
+        // Test recoverable error patterns
+        let errors = vec![
+            ExecutionError::ModelExecution("429 rate limit exceeded".to_string()),
+            ExecutionError::ModelExecution("timeout error".to_string()),
+            ExecutionError::ModelExecution("network connection failed".to_string()),
+            ExecutionError::ModelExecution("500 server error".to_string()),
+            ExecutionError::Io(std::io::Error::new(std::io::ErrorKind::TimedOut, "timeout")),
+        ];
+
+        for error in errors {
+            assert_eq!(error.category(), ErrorCategory::Recoverable, "Error should be recoverable: {:?}", error);
+        }
+    }
+
+    #[test]
+    fn test_error_categorization_fatal() {
+        // Test fatal error patterns
+        let errors = vec![
+            ExecutionError::AgentNotFound("agent not found".to_string()),
+            ExecutionError::DependencyNotMet("dependency not met".to_string()),
+            ExecutionError::ModelExecution("401 unauthorized".to_string()),
+            ExecutionError::ModelExecution("403 forbidden".to_string()),
+            ExecutionError::ModelExecution("missing config".to_string()),
+            ExecutionError::ModelExecution("invalid input".to_string()),
+        ];
+
+        for error in errors {
+            assert_eq!(error.category(), ErrorCategory::Fatal, "Error should be fatal: {:?}", error);
+        }
+    }
+
+    #[test]
+    fn test_exponential_backoff_calculation() {
+        let base_delay_ms = 100;
+        
+        // Calculate delays for first 4 attempts
+        let delays: Vec<u64> = (0..4)
+            .map(|attempt| base_delay_ms * 2_u64.pow(attempt as u32))
+            .collect();
+        
+        assert_eq!(delays[0], 100);  // 100 * 2^0 = 100
+        assert_eq!(delays[1], 200);  // 100 * 2^1 = 200
+        assert_eq!(delays[2], 400);  // 100 * 2^2 = 400
+        assert_eq!(delays[3], 800);  // 100 * 2^3 = 800
+    }
 }

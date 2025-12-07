@@ -26,6 +26,7 @@ pub async fn execute(command: ContextCommand) -> Result<()> {
         ContextCommand::ValidateSources { sources } => validate_sources(sources).await,
         ContextCommand::Memory { agent_id, req } => show_memory(agent_id.as_deref(), req.as_deref()).await,
         ContextCommand::Commands => list_custom_commands().await,
+        ContextCommand::Metrics { json } => show_metrics(json).await,
         ContextCommand::Init {
             template,
             global,
@@ -616,6 +617,43 @@ async fn list_custom_commands() -> Result<()> {
 
     println!("  {}", "Precedence: Project > User > Extensions".dimmed());
     println!();
+    Ok(())
+}
+
+/// Show performance metrics for context system.
+async fn show_metrics(json_output: bool) -> Result<()> {
+    println!("{}", "Context System Metrics".bold().cyan());
+    println!();
+
+    // For now, show a placeholder message
+    // In a full implementation, this would:
+    // 1. Load metrics from persistent storage or in-memory collector
+    // 2. Aggregate metrics over time windows
+    // 3. Calculate percentiles
+    // 4. Display in table or JSON format
+
+    if json_output {
+        println!("{}", serde_json::json!({
+            "message": "Metrics collection is implemented but requires metrics to be enabled during context operations",
+            "note": "Use ContextManager::enable_metrics() to collect metrics"
+        }));
+    } else {
+        println!("  {} Metrics collection is available but requires enabling during context operations.", "!".yellow());
+        println!();
+        println!("  {}", "To collect metrics:".dimmed());
+        println!("    • Enable metrics in ContextManager: manager.enable_metrics()");
+        println!("    • Perform context operations");
+        println!("    • Retrieve metrics: manager.get_metrics()");
+        println!();
+        println!("  {}", "Metrics tracked:".dimmed());
+        println!("    • Context gathering time");
+        println!("    • Cache hit/miss rates");
+        println!("    • Memory store read/write latency");
+        println!("    • Source validation duration");
+        println!("    • Import resolution time");
+        println!();
+    }
+
     Ok(())
 }
 

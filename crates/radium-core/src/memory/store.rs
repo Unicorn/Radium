@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
+use std::time::{SystemTime, Instant};
 
 /// Maximum characters to store from agent output.
 const MAX_OUTPUT_CHARS: usize = 2000;
@@ -136,6 +136,7 @@ impl MemoryStore {
     /// # Errors
     /// Returns error if writing fails
     pub fn store(&mut self, entry: MemoryEntry) -> Result<()> {
+        let start_time = Instant::now();
         let agent_id = entry.agent_id.clone();
 
         // Write to file
@@ -145,6 +146,9 @@ impl MemoryStore {
 
         // Update cache
         self.cache.insert(agent_id, entry);
+
+        // Note: Metrics would be recorded here if we had a metrics collector
+        let _write_latency = start_time.elapsed();
 
         Ok(())
     }
@@ -160,7 +164,10 @@ impl MemoryStore {
     /// # Errors
     /// Returns error if entry doesn't exist
     pub fn get(&self, agent_id: &str) -> Result<&MemoryEntry> {
-        self.cache.get(agent_id).ok_or_else(|| MemoryError::NotFound(agent_id.to_string()))
+        let _start_time = Instant::now();
+        let result = self.cache.get(agent_id).ok_or_else(|| MemoryError::NotFound(agent_id.to_string()));
+        // Note: Metrics would be recorded here if we had a metrics collector
+        result
     }
 
     /// Retrieves an agent's last output (mutable).

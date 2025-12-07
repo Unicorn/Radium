@@ -2,10 +2,12 @@
 
 use std::fmt::Write;
 use std::path::Path;
+use std::time::Instant;
 
 use super::error::Result;
 use super::files::ContextFileLoader;
 use super::injection::{ContextInjector, InjectionDirective};
+use super::metrics::ContextMetrics;
 use super::sources::{
     BraingridReader, HttpReader, JiraReader, LocalFileReader, SourceRegistry,
 };
@@ -44,6 +46,9 @@ pub struct ContextManager {
 
     /// Source registry for reading from different source types.
     source_registry: SourceRegistry,
+
+    /// Optional metrics collector (enabled when metrics are needed).
+    metrics: Option<ContextMetrics>,
 }
 
 impl ContextManager {
@@ -71,6 +76,7 @@ impl ContextManager {
             learning_store: None,
             context_file_cache: None,
             source_registry,
+            metrics: None,
         }
     }
 
@@ -111,6 +117,7 @@ impl ContextManager {
             learning_store,
             context_file_cache: None,
             source_registry,
+            metrics: None,
         })
     }
 
@@ -346,6 +353,7 @@ impl ContextManager {
         invocation: &str,
         requirement_id: Option<RequirementId>,
     ) -> Result<String> {
+        let start_time = Instant::now();
         let (agent_name, directives) = InjectionDirective::extract_directives(invocation)?;
 
         let mut context = String::new();
@@ -394,6 +402,12 @@ impl ContextManager {
         if !directives.is_empty() {
             let injected = self.process_directives(&directives)?;
             context.push_str(&injected);
+        }
+
+        // Record metrics if enabled
+        if let Some(ref mut metrics) = self.metrics {
+            let total_time = start_time.elapsed();
+            metrics.total_time_ms = total_time.as_millis() as u64;
         }
 
         Ok(context)
