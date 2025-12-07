@@ -5,11 +5,15 @@
 //! Extends with ACE (Agentic Context Engineering) skillbook functionality.
 
 pub mod integration;
+pub mod recovery_learning;
 pub mod skill_manager;
 pub mod store;
 pub mod updates;
 
 pub use integration::{LearningConfig, LearningIntegration};
+pub use recovery_learning::{
+    RecoveryLearning, RecoveryLearningError, RecoveryPattern, Result as RecoveryLearningResult,
+};
 pub use skill_manager::{Result as SkillManagerResult, SkillManager, SkillManagerError};
 pub use store::{
     CategorySummary, LearningEntry, LearningError, LearningStore, LearningType, Result,
