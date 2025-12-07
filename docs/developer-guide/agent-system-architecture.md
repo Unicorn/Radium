@@ -56,6 +56,8 @@ pub struct AgentConfig {
     pub reasoning_effort: Option<ReasoningEffort>, // Optional: reasoning level
     pub loop_behavior: Option<AgentLoopBehavior>,  // Optional: loop config
     pub trigger_behavior: Option<AgentTriggerBehavior>, // Optional: trigger config
+    pub capabilities: AgentCapabilities, // Optional: model class, cost tier, concurrency
+    pub sandbox: Option<SandboxConfig>,  // Optional: sandbox configuration
     pub category: Option<String>,       // Derived from path (not in TOML)
     pub file_path: Option<PathBuf>,    // Set during loading (not in TOML)
 }

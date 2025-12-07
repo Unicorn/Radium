@@ -219,6 +219,79 @@ prompt_path = "prompts/agents/core/coordinator.md"
 trigger_agent_id = "worker-agent"
 ```
 
+#### Capabilities
+
+Configure agent capabilities for dynamic model selection and concurrency control.
+
+```toml
+[agent.capabilities]
+model_class = "fast"        # Options: "fast", "balanced", "reasoning"
+cost_tier = "low"           # Options: "low", "medium", "high"
+max_concurrent_tasks = 10   # Maximum concurrent tasks (default: 5)
+```
+
+**Fields:**
+- `model_class` (required): Model category - `"fast"` (speed-optimized), `"balanced"` (balanced speed/quality), or `"reasoning"` (deep reasoning)
+- `cost_tier` (required): Cost tier - `"low"`, `"medium"`, or `"high"`
+- `max_concurrent_tasks` (optional): Maximum number of concurrent tasks (default: 5)
+
+**Use Cases:**
+- Fast agents for quick iterations (model_class: "fast", cost_tier: "low")
+- Balanced agents for general tasks (model_class: "balanced", cost_tier: "medium")
+- Reasoning agents for complex problems (model_class: "reasoning", cost_tier: "high")
+
+**Example:**
+```toml
+[agent]
+id = "fast-code-gen"
+name = "Fast Code Generator"
+description = "Generates code quickly"
+prompt_path = "prompts/agents/core/fast-code-gen.md"
+
+[agent.capabilities]
+model_class = "fast"
+cost_tier = "low"
+max_concurrent_tasks = 20
+```
+
+#### Sandbox Configuration
+
+Configure sandboxing for safe command execution in isolated environments.
+
+```toml
+[agent.sandbox]
+type = "docker"                    # Options: "docker", "podman", "seatbelt", "none"
+image = "rust:latest"              # Docker/Podman image (required for docker/podman)
+profile = "restricted"              # Sandbox profile (optional)
+network_mode = "isolated"           # Network mode (optional)
+```
+
+**Fields:**
+- `type` (required): Sandbox type - `"docker"`, `"podman"`, `"seatbelt"` (macOS only), or `"none"`
+- `image` (optional): Container image for Docker/Podman sandboxes
+- `profile` (optional): Sandbox profile (e.g., "restricted", "permissive")
+- `network_mode` (optional): Network isolation mode - `"isolated"`, `"bridged"`, or `"host"`
+
+**Use Cases:**
+- Agents that execute untrusted code
+- Agents that need to run in specific environments
+- Agents that require network isolation
+
+**Example:**
+```toml
+[agent]
+id = "safe-exec"
+name = "Safe Execution Agent"
+description = "Executes commands in sandbox"
+prompt_path = "prompts/agents/core/safe-exec.md"
+
+[agent.sandbox]
+type = "docker"
+image = "ubuntu:latest"
+profile = "restricted"
+network_mode = "isolated"
+```
+
 ### Complete Configuration Example
 
 ```toml
@@ -234,6 +307,11 @@ reasoning_effort = "high"
 [agent.loop_behavior]
 steps = 1
 max_iterations = 3
+
+[agent.capabilities]
+model_class = "reasoning"
+cost_tier = "high"
+max_concurrent_tasks = 3
 ```
 
 ## Prompt Template Structure
@@ -872,6 +950,27 @@ rad agents info arch-agent
 2. Check workspace root: Verify current working directory
 3. Use relative paths from workspace: Ensure paths are relative to project root
 4. Check directory structure: Verify prompt files are in expected locations
+
+### Invalid Capabilities Configuration
+
+**Problem**: Validation error with capabilities section
+
+**Solutions:**
+1. Verify `model_class` is one of: "fast", "balanced", "reasoning"
+2. Verify `cost_tier` is one of: "low", "medium", "high"
+3. Ensure `max_concurrent_tasks` is a positive integer
+4. Check TOML syntax for the `[agent.capabilities]` section
+
+### Sandbox Configuration Issues
+
+**Problem**: Sandbox not working or validation errors
+
+**Solutions:**
+1. Verify sandbox type is supported on your platform (seatbelt is macOS-only)
+2. For Docker/Podman: Ensure the container runtime is installed and running
+3. Check that the specified image exists and is accessible
+4. Verify network_mode is valid: "isolated", "bridged", or "host"
+5. Test sandbox configuration with a simple command first
 
 ## Additional Resources
 
