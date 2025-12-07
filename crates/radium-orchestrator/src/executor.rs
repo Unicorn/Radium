@@ -12,6 +12,8 @@ use radium_models::{ModelFactory, ModelType};
 use serde_json::Value;
 use std::collections::HashSet;
 use std::fmt;
+use std::path::Path;
+use std::process::Command;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{Semaphore, mpsc};
@@ -118,6 +120,75 @@ impl AgentExecutor {
     #[must_use]
     pub fn with_mock_model() -> Self {
         Self::new(ModelType::Mock, "mock-model".to_string())
+    }
+
+    /// Creates a checkpoint when all providers are exhausted.
+    ///
+    /// This is a simplified checkpoint creation that uses git directly
+    /// to avoid circular dependency with radium-core.
+    ///
+    /// # Arguments
+    /// * `workspace_root` - Root directory of the workspace
+    /// * `description` - Optional description for the checkpoint
+    ///
+    /// # Returns
+    /// Returns the checkpoint ID/hash if successful, or None if checkpoint creation failed.
+    fn create_checkpoint_on_exhaustion(
+        workspace_root: &Path,
+        description: Option<&str>,
+    ) -> Option<String> {
+        // Check if workspace is a git repository
+        if !workspace_root.join(".git").exists() {
+            warn!("Workspace is not a git repository, skipping checkpoint creation");
+            return None;
+        }
+
+        // Get current commit hash
+        let output = Command::new("git")
+            .args(["rev-parse", "HEAD"])
+            .current_dir(workspace_root)
+            .output();
+
+        let commit_hash = match output {
+            Ok(output) if output.status.success() => {
+                String::from_utf8_lossy(&output.stdout).trim().to_string()
+            }
+            _ => {
+                warn!("Failed to get current commit hash, skipping checkpoint creation");
+                return None;
+            }
+        };
+
+        // Generate checkpoint ID
+        let checkpoint_id = format!("checkpoint-exhaustion-{}", &commit_hash[..8]);
+
+        // Create git tag for checkpoint
+        let mut tag_args = vec!["tag", "-a", &checkpoint_id, "-m"];
+        let tag_message = description
+            .unwrap_or("Provider exhaustion checkpoint")
+            .to_string();
+        tag_args.push(&tag_message);
+
+        let tag_output = Command::new("git")
+            .args(&tag_args)
+            .current_dir(workspace_root)
+            .output();
+
+        match tag_output {
+            Ok(output) if output.status.success() => {
+                info!(
+                    checkpoint_id = %checkpoint_id,
+                    commit_hash = %commit_hash,
+                    "Workspace checkpoint created"
+                );
+                Some(checkpoint_id)
+            }
+            _ => {
+                warn!("Failed to create checkpoint tag, but commit hash is: {}", commit_hash);
+                // Return commit hash as fallback
+                Some(commit_hash)
+            }
+        }
     }
 
     /// Infers the provider name from a model instance.
@@ -326,17 +397,50 @@ impl AgentExecutor {
                                 }
                             }
                         } else {
-                            // All providers exhausted
+                            // All providers exhausted - create checkpoint before stopping
                             error!(
                                 agent_id = %agent_id,
                                 "All configured providers are exhausted"
                             );
+                            
+                            // Try to create checkpoint
+                            // Discover workspace root by checking current directory and parent directories
+                            let workspace_root = std::env::current_dir()
+                                .ok()
+                                .and_then(|mut path| {
+                                    loop {
+                                        if path.join(".radium").exists() || path.join(".git").exists() {
+                                            return Some(path);
+                                        }
+                                        if !path.pop() {
+                                            return None;
+                                        }
+                                    }
+                                });
+                            
+                            let checkpoint_id = if let Some(root) = &workspace_root {
+                                Self::create_checkpoint_on_exhaustion(
+                                    root,
+                                    Some("Provider exhaustion - all providers returned quota errors"),
+                                )
+                            } else {
+                                warn!("Could not discover workspace root, skipping checkpoint creation");
+                                None
+                            };
+                            
+                            let error_message = if let Some(checkpoint_id) = checkpoint_id {
+                                format!(
+                                    "All configured providers are exhausted. Execution paused. Workspace checkpoint created: {}",
+                                    checkpoint_id
+                                )
+                            } else {
+                                "All configured providers are exhausted. Execution paused.".to_string()
+                            };
+                            
                             return ExecutionResult {
-                                output: AgentOutput::Text(
-                                    "All configured providers are exhausted. Execution paused.".to_string()
-                                ),
+                                output: AgentOutput::Text(error_message.clone()),
                                 success: false,
-                                error: Some("All configured providers are exhausted. Execution paused.".to_string()),
+                                error: Some(error_message),
                                 telemetry: None,
                             };
                         }

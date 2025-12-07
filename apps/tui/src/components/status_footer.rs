@@ -72,13 +72,28 @@ impl StatusFooter {
         step: usize,
         total_steps: usize,
     ) {
+        Self::render_extended_with_provider(frame, area, status, status_message, elapsed, step, total_steps, None)
+    }
+
+    /// Renders an extended status footer with provider information.
+    pub fn render_extended_with_provider(
+        frame: &mut Frame,
+        area: Rect,
+        status: WorkflowStatus,
+        status_message: &str,
+        elapsed: f64,
+        step: usize,
+        total_steps: usize,
+        provider: Option<&str>,
+    ) {
         let chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Percentage(25), // Status
-                Constraint::Percentage(25), // Step info
-                Constraint::Percentage(25), // Time
-                Constraint::Percentage(25), // Help
+                Constraint::Percentage(20), // Status
+                Constraint::Percentage(20), // Step info
+                Constraint::Percentage(20), // Time
+                Constraint::Percentage(20), // Provider
+                Constraint::Percentage(20), // Help
             ])
             .split(area);
 
@@ -106,12 +121,20 @@ impl StatusFooter {
             .block(Block::default().borders(Borders::ALL).title(" Elapsed "));
         frame.render_widget(time_widget, chunks[2]);
 
+        // Provider
+        let provider_text = provider.unwrap_or("N/A");
+        let provider_widget = Paragraph::new(provider_text)
+            .style(Style::default().fg(Color::Magenta))
+            .alignment(Alignment::Center)
+            .block(Block::default().borders(Borders::ALL).title(" Provider "));
+        frame.render_widget(provider_widget, chunks[3]);
+
         // Help
         let help_widget = Paragraph::new(status_message)
             .style(Style::default().fg(Color::DarkGray))
             .alignment(Alignment::Center)
             .block(Block::default().borders(Borders::ALL).title(" Keys "));
-        frame.render_widget(help_widget, chunks[3]);
+        frame.render_widget(help_widget, chunks[4]);
     }
 }
 

@@ -19,6 +19,7 @@
 
 pub mod agents;
 pub mod analytics;
+pub mod autonomous;
 pub mod auth;
 pub mod checkpoint;
 pub mod client;

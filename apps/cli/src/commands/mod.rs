@@ -2,6 +2,7 @@
 
 pub mod agents;
 pub mod auth;
+pub mod autonomous;
 pub mod chat;
 pub mod checkpoint;
 pub mod clean;

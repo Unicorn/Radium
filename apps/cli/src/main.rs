@@ -11,7 +11,7 @@ use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 use commands::{
-    agents, auth, chat, checkpoint, clean, complete, context, craft, custom, doctor, extension, hooks, init, mcp, monitor, plan, run,
+    agents, auth, autonomous, chat, checkpoint, clean, complete, context, craft, custom, doctor, extension, hooks, init, mcp, monitor, plan, run,
     stats, status, step, templates,
 };
 
@@ -280,6 +280,15 @@ enum Command {
     /// Custom commands support shell injection, file injection, and argument substitution.
     #[command(subcommand)]
     Custom(commands::CustomCommand),
+
+    /// Autonomous execution from high-level goals
+    ///
+    /// Decomposes a high-level goal into an executable workflow and executes it
+    /// autonomously with automatic failure recovery, agent reassignment, and learning.
+    Autonomous {
+        /// High-level goal description
+        goal: String,
+    },
 }
 
 // Command types are now in commands::types module
@@ -387,6 +396,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Custom(cmd) => {
             custom::execute(cmd).await?;
+        }
+        Command::Autonomous { goal } => {
+            autonomous::execute(goal).await?;
         }
     }
 
