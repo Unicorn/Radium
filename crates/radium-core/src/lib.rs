@@ -27,6 +27,7 @@ pub mod config;
 pub mod context;
 pub mod engines;
 pub mod error;
+pub mod extensions;
 pub mod learning;
 pub mod mcp;
 pub mod memory;
@@ -66,6 +67,10 @@ pub use engines::{
     ExecutionResponse, Result as EngineResult, TokenUsage,
 };
 pub use error::{RadiumError, Result};
+pub use extensions::{
+    Extension, ExtensionDiscovery, ExtensionError, ExtensionManager, ExtensionManifest,
+    ExtensionManifestError, ExtensionStructureError, InstallOptions, Result as ExtensionResult,
+};
 pub use learning::{
     CategorySummary, LearningEntry, LearningError, LearningStore, LearningType, Skill, SkillStatus,
     UpdateBatch, UpdateOperation, UpdateOperationType, Result as LearningResult, STANDARD_CATEGORIES,

@@ -22,29 +22,17 @@ pub struct Message {
 impl Message {
     /// Create a new user message
     pub fn user(content: impl Into<String>) -> Self {
-        Self {
-            role: "user".to_string(),
-            content: content.into(),
-            timestamp: Utc::now(),
-        }
+        Self { role: "user".to_string(), content: content.into(), timestamp: Utc::now() }
     }
 
     /// Create a new assistant message
     pub fn assistant(content: impl Into<String>) -> Self {
-        Self {
-            role: "assistant".to_string(),
-            content: content.into(),
-            timestamp: Utc::now(),
-        }
+        Self { role: "assistant".to_string(), content: content.into(), timestamp: Utc::now() }
     }
 
     /// Create a new system message
     pub fn system(content: impl Into<String>) -> Self {
-        Self {
-            role: "system".to_string(),
-            content: content.into(),
-            timestamp: Utc::now(),
-        }
+        Self { role: "system".to_string(), content: content.into(), timestamp: Utc::now() }
     }
 }
 
@@ -83,24 +71,28 @@ impl UserPreferences {
     }
 
     /// Set preferred provider
+    #[must_use]
     pub fn with_provider(mut self, provider: impl Into<String>) -> Self {
         self.preferred_provider = Some(provider.into());
         self
     }
 
     /// Set max tool iterations
+    #[must_use]
     pub fn with_max_iterations(mut self, max: u32) -> Self {
         self.max_tool_iterations = max;
         self
     }
 
     /// Set temperature
+    #[must_use]
     pub fn with_temperature(mut self, temp: f32) -> Self {
         self.temperature = temp;
         self
     }
 
     /// Set custom preference
+    #[must_use]
     pub fn with_custom(mut self, key: impl Into<String>, value: Value) -> Self {
         self.custom.insert(key.into(), value);
         self
@@ -206,7 +198,7 @@ mod tests {
 
         assert_eq!(prefs.preferred_provider, Some("gemini".to_string()));
         assert_eq!(prefs.max_tool_iterations, 10);
-        assert_eq!(prefs.temperature, 0.8);
+        assert!((prefs.temperature - 0.8).abs() < f32::EPSILON);
         assert_eq!(prefs.custom.get("key"), Some(&serde_json::json!("value")));
     }
 

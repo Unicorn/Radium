@@ -51,14 +51,11 @@ pub struct ToolParameters {
 impl ToolParameters {
     /// Create a new tool parameters schema
     pub fn new() -> Self {
-        Self {
-            param_type: "object".to_string(),
-            properties: HashMap::new(),
-            required: Vec::new(),
-        }
+        Self { param_type: "object".to_string(), properties: HashMap::new(), required: Vec::new() }
     }
 
     /// Add a property to the schema
+    #[must_use]
     pub fn add_property(
         mut self,
         name: impl Into<String>,
@@ -112,7 +109,7 @@ impl ToolArguments {
 
     /// Get argument as string
     pub fn get_string(&self, key: &str) -> Option<String> {
-        self.args.get(key)?.as_str().map(|s| s.to_string())
+        self.args.get(key)?.as_str().map(str::to_string)
     }
 
     /// Get argument as i64
@@ -146,23 +143,16 @@ pub struct ToolResult {
 impl ToolResult {
     /// Create a successful result
     pub fn success(output: impl Into<String>) -> Self {
-        Self {
-            success: true,
-            output: output.into(),
-            metadata: HashMap::new(),
-        }
+        Self { success: true, output: output.into(), metadata: HashMap::new() }
     }
 
     /// Create an error result
     pub fn error(output: impl Into<String>) -> Self {
-        Self {
-            success: false,
-            output: output.into(),
-            metadata: HashMap::new(),
-        }
+        Self { success: false, output: output.into(), metadata: HashMap::new() }
     }
 
     /// Add metadata to the result
+    #[must_use]
     pub fn with_metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.metadata.insert(key.into(), value.into());
         self
@@ -263,8 +253,7 @@ mod tests {
 
     #[test]
     fn test_tool_result_success() {
-        let result = ToolResult::success("Task completed")
-            .with_metadata("duration", "1.5s");
+        let result = ToolResult::success("Task completed").with_metadata("duration", "1.5s");
 
         assert!(result.success);
         assert_eq!(result.output, "Task completed");

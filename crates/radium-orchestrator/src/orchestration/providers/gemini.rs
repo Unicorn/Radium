@@ -10,9 +10,9 @@ use serde_json::Value;
 
 use crate::error::{OrchestrationError, Result};
 use crate::orchestration::{
+    FinishReason, OrchestrationProvider, OrchestrationResult,
     context::OrchestrationContext,
     tool::{Tool, ToolCall},
-    FinishReason, OrchestrationProvider, OrchestrationResult,
 };
 
 /// Gemini function declaration (tool definition)
@@ -123,19 +123,21 @@ impl GeminiOrchestrator {
     }
 
     /// Set temperature
+    #[must_use]
     pub fn with_temperature(mut self, temperature: f32) -> Self {
         self.temperature = temperature;
         self
     }
 
     /// Set max iterations
+    #[must_use]
     pub fn with_max_iterations(mut self, max_iterations: u32) -> Self {
         self.max_iterations = max_iterations;
         self
     }
 
     /// Convert tools to Gemini function declarations
-    fn tools_to_gemini(&self, tools: &[Tool]) -> Vec<GeminiFunctionDeclaration> {
+    fn tools_to_gemini(tools: &[Tool]) -> Vec<GeminiFunctionDeclaration> {
         tools
             .iter()
             .map(|tool| GeminiFunctionDeclaration {
@@ -147,7 +149,7 @@ impl GeminiOrchestrator {
     }
 
     /// Parse function calls from Gemini response
-    fn parse_function_calls(&self, content: &GeminiContent) -> Vec<ToolCall> {
+    fn parse_function_calls(content: &GeminiContent) -> Vec<ToolCall> {
         let mut tool_calls = Vec::new();
 
         for (i, part) in content.parts.iter().enumerate() {
@@ -164,28 +166,22 @@ impl GeminiOrchestrator {
     }
 
     /// Extract text response from Gemini content
-    fn extract_text(&self, content: &GeminiContent) -> String {
+    fn extract_text(content: &GeminiContent) -> String {
         content
             .parts
             .iter()
             .filter_map(|part| {
-                if let GeminiPart::Text { text } = part {
-                    Some(text.clone())
-                } else {
-                    None
-                }
+                if let GeminiPart::Text { text } = part { Some(text.clone()) } else { None }
             })
             .collect::<Vec<_>>()
             .join("\n")
     }
 
     /// Convert finish reason
-    fn convert_finish_reason(&self, reason: Option<&str>) -> FinishReason {
+    fn convert_finish_reason(reason: Option<&str>) -> FinishReason {
         match reason {
-            Some("STOP") => FinishReason::Stop,
             Some("MAX_TOKENS") => FinishReason::MaxIterations,
-            Some("SAFETY") => FinishReason::Error,
-            Some("RECITATION") => FinishReason::Error,
+            Some("SAFETY" | "RECITATION") => FinishReason::Error,
             _ => FinishReason::Stop,
         }
     }
@@ -206,14 +202,8 @@ impl GeminiOrchestrator {
             .map_err(|e| OrchestrationError::Other(format!("Network error: {}", e)))?;
 
         if !response.status().is_success() {
-            let error_text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(OrchestrationError::Other(format!(
-                "Gemini API error: {}",
-                error_text
-            )));
+            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            return Err(OrchestrationError::Other(format!("Gemini API error: {}", error_text)));
         }
 
         let gemini_response: GeminiResponse = response
@@ -234,11 +224,11 @@ impl OrchestrationProvider for GeminiOrchestrator {
         context: &OrchestrationContext,
     ) -> Result<OrchestrationResult> {
         // Convert tools to Gemini format
-        let function_declarations = self.tools_to_gemini(tools);
-        let gemini_tools = if !function_declarations.is_empty() {
-            Some(vec![GeminiTools { function_declarations }])
-        } else {
+        let function_declarations = Self::tools_to_gemini(tools);
+        let gemini_tools = if function_declarations.is_empty() {
             None
+        } else {
+            Some(vec![GeminiTools { function_declarations }])
         };
 
         // Build initial message history
@@ -259,72 +249,48 @@ impl OrchestrationProvider for GeminiOrchestrator {
             parts: vec![GeminiPart::Text { text: input.to_string() }],
         });
 
-        // Execute multi-turn loop
-        let iterations = 0;
-        let max_iterations = context.user_preferences.max_tool_iterations;
+        // Build request
+        let request = GeminiRequest {
+            contents: contents.clone(),
+            tools: gemini_tools.clone(),
+            generation_config: Some(GeminiGenerationConfig {
+                temperature: Some(context.user_preferences.temperature),
+                top_p: None,
+                max_output_tokens: None,
+            }),
+        };
 
-        loop {
-            if iterations >= max_iterations {
-                return Ok(OrchestrationResult::new(
-                    "Maximum tool iterations reached".to_string(),
-                    vec![],
-                    FinishReason::MaxIterations,
-                ));
-            }
+        // Call Gemini
+        let response = self.call_gemini(&request).await?;
 
-            // Build request
-            let request = GeminiRequest {
-                contents: contents.clone(),
-                tools: gemini_tools.clone(),
-                generation_config: Some(GeminiGenerationConfig {
-                    temperature: Some(context.user_preferences.temperature),
-                    top_p: None,
-                    max_output_tokens: None,
-                }),
-            };
+        // Get first candidate
+        let candidate = response
+            .candidates
+            .first()
+            .ok_or_else(|| OrchestrationError::Other("No candidates in response".to_string()))?;
 
-            // Call Gemini
-            let response = self.call_gemini(&request).await?;
+        // Parse function calls
+        let tool_calls = Self::parse_function_calls(&candidate.content);
 
-            // Get first candidate
-            let candidate = response.candidates.first().ok_or_else(|| {
-                OrchestrationError::Other("No candidates in response".to_string())
-            })?;
+        // Extract text response
+        let text_response = Self::extract_text(&candidate.content);
 
-            // Parse function calls
-            let tool_calls = self.parse_function_calls(&candidate.content);
-
-            // Extract text response
-            let text_response = self.extract_text(&candidate.content);
-
-            // Add assistant response to history
-            contents.push(candidate.content.clone());
-
-            // Check if we have function calls
-            if !tool_calls.is_empty() {
-                // Return tool calls for execution
-                return Ok(OrchestrationResult::new(
-                    text_response,
-                    tool_calls,
-                    FinishReason::Stop,
-                ));
-            }
-
-            // No more function calls, return final response
-            let finish_reason = self.convert_finish_reason(candidate.finish_reason.as_deref());
-            return Ok(OrchestrationResult::new(
-                text_response,
-                vec![],
-                finish_reason,
-            ));
+        // Check if we have function calls
+        if !tool_calls.is_empty() {
+            // Return tool calls for execution
+            return Ok(OrchestrationResult::new(text_response, tool_calls, FinishReason::Stop));
         }
+
+        // No function calls, return final response
+        let finish_reason = Self::convert_finish_reason(candidate.finish_reason.as_deref());
+        Ok(OrchestrationResult::new(text_response, vec![], finish_reason))
     }
 
     fn supports_function_calling(&self) -> bool {
         true
     }
 
-    fn provider_name(&self) -> &str {
+    fn provider_name(&self) -> &'static str {
         "gemini"
     }
 }
@@ -338,21 +304,21 @@ mod tests {
         let orchestrator = GeminiOrchestrator::new("gemini-2.0-flash-exp", "test-key");
         assert_eq!(orchestrator.model_id, "gemini-2.0-flash-exp");
         assert_eq!(orchestrator.api_key, "test-key");
-        assert_eq!(orchestrator.temperature, 0.7);
+        assert!((orchestrator.temperature - 0.7).abs() < f32::EPSILON);
         assert_eq!(orchestrator.max_iterations, 5);
     }
 
     #[test]
     fn test_with_temperature() {
-        let orchestrator = GeminiOrchestrator::new("gemini-2.0-flash-exp", "test-key")
-            .with_temperature(0.9);
-        assert_eq!(orchestrator.temperature, 0.9);
+        let orchestrator =
+            GeminiOrchestrator::new("gemini-2.0-flash-exp", "test-key").with_temperature(0.9);
+        assert!((orchestrator.temperature - 0.9).abs() < f32::EPSILON);
     }
 
     #[test]
     fn test_with_max_iterations() {
-        let orchestrator = GeminiOrchestrator::new("gemini-2.0-flash-exp", "test-key")
-            .with_max_iterations(10);
+        let orchestrator =
+            GeminiOrchestrator::new("gemini-2.0-flash-exp", "test-key").with_max_iterations(10);
         assert_eq!(orchestrator.max_iterations, 10);
     }
 
@@ -370,14 +336,10 @@ mod tests {
 
     #[test]
     fn test_parse_function_calls() {
-        let orchestrator = GeminiOrchestrator::new("gemini-2.0-flash-exp", "test-key");
-
         let content = GeminiContent {
             role: "model".to_string(),
             parts: vec![
-                GeminiPart::Text {
-                    text: "Calling tool".to_string(),
-                },
+                GeminiPart::Text { text: "Calling tool".to_string() },
                 GeminiPart::FunctionCall {
                     function_call: GeminiFunctionCall {
                         name: "test_agent".to_string(),
@@ -387,50 +349,33 @@ mod tests {
             ],
         };
 
-        let calls = orchestrator.parse_function_calls(&content);
+        let calls = GeminiOrchestrator::parse_function_calls(&content);
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].name, "test_agent");
     }
 
     #[test]
     fn test_extract_text() {
-        let orchestrator = GeminiOrchestrator::new("gemini-2.0-flash-exp", "test-key");
-
         let content = GeminiContent {
             role: "model".to_string(),
             parts: vec![
-                GeminiPart::Text {
-                    text: "Part 1".to_string(),
-                },
-                GeminiPart::Text {
-                    text: "Part 2".to_string(),
-                },
+                GeminiPart::Text { text: "Part 1".to_string() },
+                GeminiPart::Text { text: "Part 2".to_string() },
             ],
         };
 
-        let text = orchestrator.extract_text(&content);
+        let text = GeminiOrchestrator::extract_text(&content);
         assert_eq!(text, "Part 1\nPart 2");
     }
 
     #[test]
     fn test_convert_finish_reason() {
-        let orchestrator = GeminiOrchestrator::new("gemini-2.0-flash-exp", "test-key");
-
+        assert_eq!(GeminiOrchestrator::convert_finish_reason(Some("STOP")), FinishReason::Stop);
         assert_eq!(
-            orchestrator.convert_finish_reason(Some("STOP")),
-            FinishReason::Stop
-        );
-        assert_eq!(
-            orchestrator.convert_finish_reason(Some("MAX_TOKENS")),
+            GeminiOrchestrator::convert_finish_reason(Some("MAX_TOKENS")),
             FinishReason::MaxIterations
         );
-        assert_eq!(
-            orchestrator.convert_finish_reason(Some("SAFETY")),
-            FinishReason::Error
-        );
-        assert_eq!(
-            orchestrator.convert_finish_reason(None),
-            FinishReason::Stop
-        );
+        assert_eq!(GeminiOrchestrator::convert_finish_reason(Some("SAFETY")), FinishReason::Error);
+        assert_eq!(GeminiOrchestrator::convert_finish_reason(None), FinishReason::Stop);
     }
 }

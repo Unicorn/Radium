@@ -3,18 +3,18 @@
 // This module provides abstractions for intelligent task routing and agent coordination
 // across different AI providers (Gemini, Claude, OpenAI, and prompt-based fallback).
 
-pub mod tool;
-pub mod context;
 pub mod agent_tools;
+pub mod context;
 pub mod providers;
+pub mod tool;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-use crate::error::Result;
 use self::context::OrchestrationContext;
 use self::tool::{Tool, ToolCall};
+use crate::error::Result;
 
 /// Reasons why orchestration finished
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -57,11 +57,7 @@ pub struct OrchestrationResult {
 impl OrchestrationResult {
     /// Create a new orchestration result
     pub fn new(response: String, tool_calls: Vec<ToolCall>, finish_reason: FinishReason) -> Self {
-        Self {
-            response,
-            tool_calls,
-            finish_reason,
-        }
+        Self { response, tool_calls, finish_reason }
     }
 
     /// Check if orchestration completed successfully
@@ -108,7 +104,7 @@ pub trait OrchestrationProvider: Send + Sync {
     fn supports_function_calling(&self) -> bool;
 
     /// Get provider name for logging/debugging
-    fn provider_name(&self) -> &str;
+    fn provider_name(&self) -> &'static str;
 }
 
 #[cfg(test)]
@@ -126,28 +122,16 @@ mod tests {
 
     #[test]
     fn test_orchestration_result_is_success() {
-        let success = OrchestrationResult::new(
-            "Done".to_string(),
-            vec![],
-            FinishReason::Stop,
-        );
+        let success = OrchestrationResult::new("Done".to_string(), vec![], FinishReason::Stop);
         assert!(success.is_success());
 
-        let error = OrchestrationResult::new(
-            "Error".to_string(),
-            vec![],
-            FinishReason::Error,
-        );
+        let error = OrchestrationResult::new("Error".to_string(), vec![], FinishReason::Error);
         assert!(!error.is_success());
     }
 
     #[test]
     fn test_orchestration_result_has_tool_calls() {
-        let no_tools = OrchestrationResult::new(
-            "Done".to_string(),
-            vec![],
-            FinishReason::Stop,
-        );
+        let no_tools = OrchestrationResult::new("Done".to_string(), vec![], FinishReason::Stop);
         assert!(!no_tools.has_tool_calls());
 
         let with_tools = OrchestrationResult::new(

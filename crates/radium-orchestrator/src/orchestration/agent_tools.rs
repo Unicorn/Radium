@@ -3,14 +3,14 @@
 // This module loads agent configurations and converts them into tool definitions
 // that orchestrators can invoke.
 
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use async_trait::async_trait;
 
-use super::tool::{Tool, ToolHandler, ToolArguments, ToolParameters, ToolResult};
+use super::tool::{Tool, ToolArguments, ToolHandler, ToolParameters, ToolResult};
 use crate::error::Result;
 
 /// Agent metadata from JSON config files
@@ -47,10 +47,7 @@ pub struct AgentToolRegistry {
 impl AgentToolRegistry {
     /// Create a new empty registry
     pub fn new() -> Self {
-        Self {
-            agents: HashMap::new(),
-            tools: Vec::new(),
-        }
+        Self { agents: HashMap::new(), tools: Vec::new() }
     }
 
     /// Load agents from default directories
@@ -143,27 +140,15 @@ impl AgentToolRegistry {
     /// Convert an agent metadata to a tool definition
     fn agent_to_tool(id: &str, agent: &AgentMetadata) -> Tool {
         let parameters = ToolParameters::new()
-            .add_property(
-                "task",
-                "string",
-                "The task for the agent to perform",
-                true,
-            )
-            .add_property(
-                "context",
-                "string",
-                "Additional context for the task (optional)",
-                false,
-            );
+            .add_property("task", "string", "The task for the agent to perform", true)
+            .add_property("context", "string", "Additional context for the task (optional)", false);
 
-        let handler = Arc::new(AgentToolHandler {
-            agent_id: id.to_string(),
-            agent_name: agent.name.clone(),
-        });
+        let handler =
+            Arc::new(AgentToolHandler { agent_id: id.to_string(), agent_name: agent.name.clone() });
 
         Tool::new(
             format!("agent_{}", id),
-            agent.name.replace(" ", "_").to_lowercase(),
+            agent.name.replace(' ', "_").to_lowercase(),
             format!("{}: {}", agent.name, agent.description),
             parameters,
             handler,
@@ -208,20 +193,19 @@ struct AgentToolHandler {
 impl ToolHandler for AgentToolHandler {
     async fn execute(&self, args: &ToolArguments) -> Result<ToolResult> {
         // Extract task from arguments
-        let task = args.get_string("task")
-            .ok_or_else(|| crate::error::OrchestrationError::InvalidToolArguments {
+        let task = args.get_string("task").ok_or_else(|| {
+            crate::error::OrchestrationError::InvalidToolArguments {
                 tool: self.agent_name.clone(),
                 reason: "Missing required 'task' argument".to_string(),
-            })?;
+            }
+        })?;
 
         let context = args.get_string("context").unwrap_or_default();
 
         // TODO: Actually execute the agent
         // For now, return a placeholder result
-        let output = format!(
-            "[Agent: {}] Task received: {}\nContext: {}",
-            self.agent_name, task, context
-        );
+        let output =
+            format!("[Agent: {}] Task received: {}\nContext: {}", self.agent_name, task, context);
 
         Ok(ToolResult::success(output)
             .with_metadata("agent_id", &self.agent_id)
@@ -261,12 +245,7 @@ mod tests {
             "Senior Developer",
             "Premium implementation specialist",
         );
-        create_test_agent_json(
-            temp.path(),
-            "architect",
-            "Architect",
-            "System architecture expert",
-        );
+        create_test_agent_json(temp.path(), "architect", "Architect", "System architecture expert");
 
         let mut registry = AgentToolRegistry::new();
         registry.load_agents_from_directory(temp.path()).unwrap();
@@ -289,6 +268,7 @@ mod tests {
 
         let mut registry = AgentToolRegistry::new();
         registry.load_agents_from_directory(temp.path()).unwrap();
+        registry.build_tools();
 
         let tools = registry.get_tools();
         assert_eq!(tools.len(), 1);
