@@ -58,11 +58,20 @@ pub fn render_model_selector(
     area: Rect,
     models: &[ModelInfo],
     selected_index: usize,
+    filter: Option<&crate::app::ModelFilter>,
 ) {
+    // Apply filters if provided
+    let filtered_models: Vec<&ModelInfo> = if let Some(f) = filter {
+        models.iter().filter(|m| f.matches(&m.capabilities)).collect()
+    } else {
+        models.iter().collect()
+    };
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(3), // Title
+            Constraint::Length(1), // Filter indicator
             Constraint::Min(10),   // Model list
             Constraint::Length(2), // Help
         ])
@@ -77,8 +86,27 @@ pub fn render_model_selector(
         );
     frame.render_widget(title, chunks[0]);
 
+    // Filter indicator
+    let filter_text = if let Some(f) = filter {
+        if f.is_active() {
+            let mut filters = Vec::new();
+            if f.vision { filters.push("👁️"); }
+            if f.tools { filters.push("🔧"); }
+            if f.reasoning { filters.push("🧠"); }
+            format!("Filters: {}", filters.join(" "))
+        } else {
+            "Filters: None".to_string()
+        }
+    } else {
+        "Filters: None".to_string()
+    };
+    let filter_widget = Paragraph::new(filter_text)
+        .style(Style::default().fg(THEME.text_muted()))
+        .alignment(Alignment::Center);
+    frame.render_widget(filter_widget, chunks[1]);
+
     // Build model table items
-    let table_items: Vec<Vec<String>> = models
+    let table_items: Vec<Vec<String>> = filtered_models
         .iter()
         .map(|model| {
             let status = if model.is_selected { "✓" } else { " " };
@@ -99,7 +127,15 @@ pub fn render_model_selector(
         .collect();
 
     if table_items.is_empty() {
-        let empty_text = "No models available";
+        let empty_text = if let Some(f) = filter {
+            if f.is_active() {
+                "No models match the active filters"
+            } else {
+                "No models available"
+            }
+        } else {
+            "No models available"
+        };
         let empty_widget = Paragraph::new(empty_text)
             .style(Style::default().fg(THEME.text_muted()))
             .alignment(Alignment::Center)
@@ -109,7 +145,7 @@ pub fn render_model_selector(
                     .border_style(Style::default().fg(THEME.border()))
                     .title(" Available Models "),
             );
-        frame.render_widget(empty_widget, chunks[1]);
+        frame.render_widget(empty_widget, chunks[2]);
     } else {
         let mut table = InteractiveTable::new(
             vec!["".to_string(), "Name".to_string(), "Provider".to_string(), "Description".to_string()],
@@ -123,11 +159,11 @@ pub fn render_model_selector(
         let items_len = table_items.len();
         table.set_items(table_items);
         table.set_selected(Some(selected_index.min(items_len.saturating_sub(1))));
-        table.render(frame, chunks[1], Some(" Available Models "));
+        table.render(frame, chunks[2], Some(" Available Models "));
     }
 
     // Help line
-    let help_text = "Press number to select | Enter to confirm | Esc to cancel";
+    let help_text = "v=Vision | t=Tools | r=Reasoning | a=All | Enter=Select | Esc=Cancel";
     let help = Paragraph::new(help_text)
         .style(Style::default().fg(THEME.text_muted()))
         .alignment(Alignment::Center);

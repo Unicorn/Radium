@@ -288,7 +288,7 @@ mod tests {
 
 /// Render the unified prompt interface.
 /// Note: Input prompt is now rendered in the status bar, not here.
-pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
+pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData, model_filter: Option<&crate::app::ModelFilter>) {
     // Main display area - content depends on context
     let main_content = match &data.context {
         DisplayContext::Chat { agent_id, .. } => {
@@ -384,6 +384,7 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
                     area,
                     &models,
                     data.selected_index,
+                    model_filter,
                 );
             }
         }

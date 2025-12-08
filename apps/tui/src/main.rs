@@ -440,7 +440,7 @@ async fn main() -> Result<()> {
                     }
                     _ => {
                         // Prompt mode: unified prompt interface (without input - that's in status bar)
-                        render_prompt(frame, main_area, &app.prompt_data);
+                        render_prompt(frame, main_area, &app.prompt_data, Some(&app.model_filter));
                     }
                 }
             }

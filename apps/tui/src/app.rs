@@ -128,6 +128,46 @@ pub struct App {
     pub budget_analytics_view: Option<crate::views::BudgetAnalyticsView>,
     /// Current model ID being used
     pub current_model_id: Option<String>,
+    /// Model filter state for capability filtering
+    pub model_filter: ModelFilter,
+}
+
+/// Model filter for capability-based filtering
+#[derive(Debug, Clone, Default)]
+pub struct ModelFilter {
+    pub vision: bool,
+    pub tools: bool,
+    pub reasoning: bool,
+}
+
+impl ModelFilter {
+    pub fn is_active(&self) -> bool {
+        self.vision || self.tools || self.reasoning
+    }
+    
+    pub fn matches(&self, capabilities: &[String]) -> bool {
+        if !self.is_active() {
+            return true; // No filters = show all
+        }
+        
+        let mut matches = true;
+        if self.vision {
+            matches = matches && capabilities.contains(&"vision".to_string());
+        }
+        if self.tools {
+            matches = matches && capabilities.contains(&"tools".to_string());
+        }
+        if self.reasoning {
+            matches = matches && capabilities.contains(&"reasoning".to_string());
+        }
+        matches
+    }
+    
+    pub fn clear(&mut self) {
+        self.vision = false;
+        self.tools = false;
+        self.reasoning = false;
+    }
 }
 
 impl App {
@@ -257,6 +297,7 @@ impl App {
             cost_dashboard_state: None,
             budget_analytics_view: None,
             current_model_id,
+            model_filter: ModelFilter::default(),
         };
 
         // Show setup wizard if not configured, otherwise start chat
@@ -750,26 +791,53 @@ impl App {
 
             // Escape to close model selector
             KeyCode::Esc if matches!(self.prompt_data.context, DisplayContext::ModelSelector) => {
+                self.model_filter.clear();
                 self.prompt_data.context = DisplayContext::Dashboard;
+                return Ok(());
+            }
+
+            // Filter hotkeys for model selector
+            KeyCode::Char('v') if matches!(self.prompt_data.context, DisplayContext::ModelSelector) => {
+                self.model_filter.vision = !self.model_filter.vision;
+                return Ok(());
+            }
+            KeyCode::Char('t') if matches!(self.prompt_data.context, DisplayContext::ModelSelector) => {
+                self.model_filter.tools = !self.model_filter.tools;
+                return Ok(());
+            }
+            KeyCode::Char('r') if matches!(self.prompt_data.context, DisplayContext::ModelSelector) => {
+                self.model_filter.reasoning = !self.model_filter.reasoning;
+                return Ok(());
+            }
+            KeyCode::Char('a') if matches!(self.prompt_data.context, DisplayContext::ModelSelector) => {
+                self.model_filter.clear();
                 return Ok(());
             }
 
             // Arrow keys for model selector navigation
             KeyCode::Up if matches!(self.prompt_data.context, DisplayContext::ModelSelector) => {
                 if let Ok(models) = crate::commands::models::get_available_models() {
-                    if !models.is_empty() {
+                    // Apply filter to get filtered count
+                    let filtered_count = models.iter()
+                        .filter(|m| self.model_filter.matches(&m.capabilities))
+                        .count();
+                    if filtered_count > 0 {
                         self.prompt_data.selected_index = self.prompt_data.selected_index
                             .saturating_sub(1)
-                            .min(models.len().saturating_sub(1));
+                            .min(filtered_count.saturating_sub(1));
                     }
                 }
                 return Ok(());
             }
             KeyCode::Down if matches!(self.prompt_data.context, DisplayContext::ModelSelector) => {
                 if let Ok(models) = crate::commands::models::get_available_models() {
-                    if !models.is_empty() {
+                    // Apply filter to get filtered count
+                    let filtered_count = models.iter()
+                        .filter(|m| self.model_filter.matches(&m.capabilities))
+                        .count();
+                    if filtered_count > 0 {
                         self.prompt_data.selected_index = (self.prompt_data.selected_index + 1)
-                            .min(models.len().saturating_sub(1));
+                            .min(filtered_count.saturating_sub(1));
                     }
                 }
                 return Ok(());
@@ -778,8 +846,13 @@ impl App {
             // Enter to confirm model selection
             KeyCode::Enter if matches!(self.prompt_data.context, DisplayContext::ModelSelector) => {
                 if let Ok(models) = crate::commands::models::get_available_models() {
-                    if let Some(model) = models.get(self.prompt_data.selected_index) {
+                    // Apply filter and get selected model
+                    let filtered_models: Vec<_> = models.iter()
+                        .filter(|m| self.model_filter.matches(&m.capabilities))
+                        .collect();
+                    if let Some(model) = filtered_models.get(self.prompt_data.selected_index) {
                         self.switch_to_model(&model.id).await?;
+                        self.model_filter.clear();
                         self.prompt_data.context = DisplayContext::Dashboard;
                     }
                 }
