@@ -5,7 +5,6 @@ use crate::monitoring::{MonitoringService, Result as MonitoringResult};
 use chrono::{DateTime, Utc};
 use rusqlite::params;
 use std::collections::HashMap;
-use std::sync::Arc;
 
 /// Service for querying cost data from telemetry.
 pub struct CostQueryService<'a> {
@@ -268,33 +267,21 @@ mod tests {
     use std::path::PathBuf;
     use tempfile::TempDir;
 
-    async fn setup_test_service() -> (CostQueryService, TempDir) {
+    async fn setup_test_service() -> (MonitoringService, TempDir) {
         let temp_dir = TempDir::new().unwrap();
         let db_path = temp_dir.path().join("test.db");
         let monitoring = MonitoringService::open(&db_path).unwrap();
-        let service = CostQueryService::new(Arc::new(monitoring));
-        (service, temp_dir)
+        (monitoring, temp_dir)
     }
 
     #[tokio::test]
     async fn test_query_no_filters() {
-        let (service, _temp) = setup_test_service().await;
-        let monitoring = service.monitoring.clone();
+        let (monitoring, _temp) = setup_test_service().await;
+        let service = CostQueryService::new(&monitoring);
 
         // Create agent with plan_id
-        let agent = AgentRecord {
-            id: "agent-1".to_string(),
-            parent_id: None,
-            plan_id: Some("REQ-123".to_string()),
-            agent_type: "test".to_string(),
-            status: AgentStatus::Running,
-            process_id: None,
-            start_time: Utc::now().timestamp() as u64,
-            end_time: None,
-            exit_code: None,
-            error_message: None,
-            log_file: None,
-        };
+        let mut agent = AgentRecord::new("agent-1".to_string(), "test".to_string());
+        agent.plan_id = Some("REQ-123".to_string());
         monitoring.register_agent(&agent).unwrap();
 
         // Create telemetry
@@ -320,36 +307,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_query_with_plan_filter() {
-        let (service, _temp) = setup_test_service().await;
-        let monitoring = service.monitoring.clone();
+        let (monitoring, _temp) = setup_test_service().await;
+        let service = CostQueryService::new(&monitoring);
 
         // Create agents with different plan_ids
-        let agent1 = AgentRecord {
-            id: "agent-1".to_string(),
-            parent_id: None,
-            plan_id: Some("REQ-123".to_string()),
-            agent_type: "test".to_string(),
-            status: AgentStatus::Running,
-            process_id: None,
-            start_time: Utc::now().timestamp() as u64,
-            end_time: None,
-            exit_code: None,
-            error_message: None,
-            log_file: None,
-        };
-        let agent2 = AgentRecord {
-            id: "agent-2".to_string(),
-            parent_id: None,
-            plan_id: Some("REQ-124".to_string()),
-            agent_type: "test".to_string(),
-            status: AgentStatus::Running,
-            process_id: None,
-            start_time: Utc::now().timestamp() as u64,
-            end_time: None,
-            exit_code: None,
-            error_message: None,
-            log_file: None,
-        };
+        let mut agent1 = AgentRecord::new("agent-1".to_string(), "test".to_string());
+        agent1.plan_id = Some("REQ-123".to_string());
+        let mut agent2 = AgentRecord::new("agent-2".to_string(), "test".to_string());
+        agent2.plan_id = Some("REQ-124".to_string());
         monitoring.register_agent(&agent1).unwrap();
         monitoring.register_agent(&agent2).unwrap();
 
@@ -379,7 +344,8 @@ mod tests {
 
     #[test]
     fn test_generate_summary_empty() {
-        let (service, _temp) = futures::executor::block_on(setup_test_service());
+        let (monitoring, _temp) = futures::executor::block_on(setup_test_service());
+        let service = CostQueryService::new(&monitoring);
         let summary = service.generate_summary(&[]);
         assert_eq!(summary.total_cost, 0.0);
         assert_eq!(summary.total_tokens, 0);
@@ -387,7 +353,8 @@ mod tests {
 
     #[test]
     fn test_generate_summary() {
-        let (service, _temp) = futures::executor::block_on(setup_test_service());
+        let (monitoring, _temp) = futures::executor::block_on(setup_test_service());
+        let service = CostQueryService::new(&monitoring);
         let records = vec![
             CostRecord {
                 timestamp: Utc::now(),

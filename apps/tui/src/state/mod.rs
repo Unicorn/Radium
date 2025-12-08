@@ -98,6 +98,9 @@ impl OutputBuffer {
 }
 
 #[cfg(test)]
+mod command_suggestions_test;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 

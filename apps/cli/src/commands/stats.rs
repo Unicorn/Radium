@@ -482,31 +482,8 @@ async fn export_command(
         output_path: output_path.clone(),
     };
 
-    // Query cost data - create a new Arc from the reference
-    // Note: We need to ensure the monitoring service stays alive
-    // Since we can't clone MonitoringService, we'll work with the reference directly
-    // But CostQueryService needs Arc, so we need a different approach
-    // For now, we'll create the service with the monitoring reference
-    // This is a limitation - we may need to refactor CostQueryService to take &MonitoringService
-    // But for now, let's use unsafe or restructure
-    
-    // Actually, let's check if we can restructure - MonitoringService has conn() method now
-    // We can pass the monitoring service directly if we change CostQueryService
-    // But that's a bigger change. Let's use a workaround for now.
-    
-    // Since we can't easily clone, let's restructure CostQueryService to take &MonitoringService
-    // Actually wait - we already have conn() method, so we can work with &MonitoringService
-    // But CostQueryService stores Arc<MonitoringService>. Let's change it to &MonitoringService
-    
-    // For now, let's just pass the monitoring service reference
-    // We need to change CostQueryService to take &MonitoringService instead of Arc
-    // But that's a breaking change. Let's use a workaround:
-    
-    // Actually, the simplest solution is to change CostQueryService::new to take &MonitoringService
-    // and store it as Arc internally. But we can't do that easily.
-    
-    // Let me check the actual error first
-    let cost_service = CostQueryService::new(Arc::new(monitoring.clone()));
+    // Query cost data
+    let cost_service = CostQueryService::new(monitoring);
     let records = cost_service.query_records(&options)
         .context("Failed to query cost data from database")?;
 
