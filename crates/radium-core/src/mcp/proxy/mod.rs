@@ -82,9 +82,11 @@
 //! # }
 //! ```
 
+pub mod config;
 pub mod types;
 
 // Re-export public types
+pub use config::ProxyConfigManager;
 pub use types::{
     ConflictStrategy, ConnectionState, McpProxyServer, ProxyConfig, ProxyTransport,
     SecurityConfig, ToolCatalog, ToolRouter, UpstreamConfig,
