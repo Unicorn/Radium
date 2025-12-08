@@ -84,6 +84,7 @@
 
 pub mod config;
 pub mod types;
+pub mod upstream_pool;
 
 // Re-export public types
 pub use config::ProxyConfigManager;
@@ -91,12 +92,7 @@ pub use types::{
     ConflictStrategy, ConnectionState, McpProxyServer, ProxyConfig, ProxyTransport,
     SecurityConfig, ToolCatalog, ToolRouter, UpstreamConfig,
 };
-
-// Forward declarations for components that will be implemented in later tasks
-// These will be uncommented as the components are implemented
-
-// pub mod upstream_pool;
-// pub use upstream_pool::UpstreamPool;
+pub use upstream_pool::UpstreamPool;
 
 // pub mod router;
 // pub use router::DefaultToolRouter;
