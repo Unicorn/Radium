@@ -9,27 +9,41 @@ use ratatui::{
 
 use crate::theme::THEME;
 
+use radium_core::syntax::{SyntaxHighlighter, StyledLine, StyledSpan};
+
 /// Render markdown text into styled spans.
 ///
 /// Supports:
 /// - **bold** text
 /// - *italic* text
 /// - `code` inline code
-/// - Code blocks (```code```)
+/// - Code blocks (```code```) with syntax highlighting
 /// - Lists (- item)
 pub fn render_markdown(text: &str) -> Vec<Line<'_>> {
     let mut lines = Vec::new();
     let mut in_code_block = false;
     let mut code_block_lang = String::new();
+    let mut code_block_content = String::new();
+
+    let highlighter = SyntaxHighlighter::new();
 
     for line in text.lines() {
         // Handle code blocks
         if line.trim().starts_with("```") {
             if in_code_block {
+                // End of code block - apply syntax highlighting
                 in_code_block = false;
+                let lang = code_block_lang.clone();
                 code_block_lang.clear();
-                // Don't add the closing ``` line
+                
+                // Apply syntax highlighting
+                let highlighted_lines = highlighter.highlight_code(&code_block_content, &lang);
+                for styled_line in highlighted_lines {
+                    lines.push(convert_styled_line_to_ratatui(&styled_line));
+                }
+                code_block_content.clear();
             } else {
+                // Start of code block
                 in_code_block = true;
                 // Extract language if present
                 let lang = line.trim().strip_prefix("```").unwrap_or("");
@@ -46,18 +60,58 @@ pub fn render_markdown(text: &str) -> Vec<Line<'_>> {
         }
 
         if in_code_block {
-            // Render code block line
-            lines.push(Line::from(Span::styled(
-                format!("  {}", line),
-                Style::default().fg(THEME.text()).bg(THEME.bg_element()).add_modifier(Modifier::ITALIC),
-            )));
+            // Collect code block content
+            if !code_block_content.is_empty() {
+                code_block_content.push('\n');
+            }
+            code_block_content.push_str(line);
         } else {
             // Parse markdown in regular line
             lines.push(parse_markdown_line(line));
         }
     }
 
+    // Handle unclosed code block
+    if in_code_block && !code_block_content.is_empty() {
+        let highlighted_lines = highlighter.highlight_code(&code_block_content, &code_block_lang);
+        for styled_line in highlighted_lines {
+            lines.push(convert_styled_line_to_ratatui(&styled_line));
+        }
+    }
+
     lines
+}
+
+/// Convert StyledLine from syntax highlighter to ratatui Line.
+fn convert_styled_line_to_ratatui(styled_line: &StyledLine) -> Line<'static> {
+    let mut spans = Vec::new();
+    
+    for styled_span in &styled_line.spans {
+        let mut style = Style::default()
+            .fg(Color::Rgb(styled_span.foreground.0, styled_span.foreground.1, styled_span.foreground.2));
+        
+        if let Some(bg) = styled_span.background {
+            style = style.bg(Color::Rgb(bg.0, bg.1, bg.2));
+        }
+        
+        if styled_span.bold {
+            style = style.add_modifier(Modifier::BOLD);
+        }
+        if styled_span.italic {
+            style = style.add_modifier(Modifier::ITALIC);
+        }
+        if styled_span.underline {
+            style = style.add_modifier(Modifier::UNDERLINED);
+        }
+        
+        spans.push(Span::styled(styled_span.text.clone(), style));
+    }
+    
+    if spans.is_empty() {
+        Line::from(Span::raw(""))
+    } else {
+        Line::from(spans)
+    }
 }
 
 /// Parse a single line of markdown into styled spans.
