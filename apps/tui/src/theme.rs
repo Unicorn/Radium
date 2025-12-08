@@ -70,6 +70,11 @@ impl RadiumTheme {
             Ok(config) => {
                 match config.theme.preset.as_str() {
                     "light" => Self::light(),
+                    "github" => Self::github(),
+                    "monokai" => Self::monokai(),
+                    "onedark" => Self::onedark(),
+                    "solarized-dark" => Self::solarized(),
+                    "dracula" => Self::dracula(),
                     "custom" => {
                         if let Some(ref colors) = config.theme.colors {
                             Self::from_custom_colors(colors).unwrap_or_else(|e| {
@@ -202,6 +207,171 @@ impl RadiumTheme {
             border: Color::Rgb(184, 184, 184),
             border_active: Color::Rgb(160, 160, 160),
             border_subtle: Color::Rgb(212, 212, 212),
+        }
+    }
+
+    /// Creates GitHub theme (light theme with blue accents).
+    pub fn github() -> Self {
+        Self {
+            // Primary: GitHub blue (#0366d6)
+            primary: Color::Rgb(3, 102, 214),
+            // Secondary: Purple (#6f42c1)
+            secondary: Color::Rgb(111, 66, 193),
+            // Purple accent
+            purple: Color::Rgb(111, 66, 193),
+
+            // Status colors
+            success: Color::Rgb(34, 134, 58),   // Green
+            warning: Color::Rgb(251, 188, 5),   // Yellow
+            error: Color::Rgb(179, 29, 40),      // Red
+            info: Color::Rgb(3, 102, 214),      // Blue
+
+            // Text colors
+            text: Color::Rgb(36, 41, 46),       // Dark gray
+            text_muted: Color::Rgb(88, 96, 105), // Medium gray
+            text_dim: Color::Rgb(106, 115, 125), // Light gray
+
+            // Background colors (light)
+            bg_primary: Color::Rgb(255, 255, 255), // White
+            bg_panel: Color::Rgb(246, 248, 250),   // Light gray
+            bg_element: Color::Rgb(250, 251, 252),  // Very light gray
+
+            // Border colors
+            border: Color::Rgb(209, 213, 218),      // Light border
+            border_active: Color::Rgb(3, 102, 214),  // Blue border
+            border_subtle: Color::Rgb(225, 228, 232), // Subtle border
+        }
+    }
+
+    /// Creates Monokai theme (classic dark theme with vibrant colors).
+    pub fn monokai() -> Self {
+        Self {
+            // Primary: Monokai orange (#FD971F)
+            primary: Color::Rgb(253, 151, 31),
+            // Secondary: Monokai purple (#AE81FF)
+            secondary: Color::Rgb(174, 129, 255),
+            // Purple accent
+            purple: Color::Rgb(174, 129, 255),
+
+            // Status colors
+            success: Color::Rgb(166, 226, 46),  // Green
+            warning: Color::Rgb(253, 151, 31),  // Orange
+            error: Color::Rgb(249, 38, 114),    // Pink/Red
+            info: Color::Rgb(102, 217, 239),    // Cyan
+
+            // Text colors
+            text: Color::Rgb(248, 248, 242),    // Off-white
+            text_muted: Color::Rgb(117, 113, 94), // Gray
+            text_dim: Color::Rgb(73, 72, 62),   // Dark gray
+
+            // Background colors (dark)
+            bg_primary: Color::Rgb(39, 40, 34),  // Dark brown-gray
+            bg_panel: Color::Rgb(46, 46, 40),    // Slightly lighter
+            bg_element: Color::Rgb(55, 56, 48),  // Element background
+
+            // Border colors
+            border: Color::Rgb(73, 72, 62),      // Dark border
+            border_active: Color::Rgb(253, 151, 31), // Orange border
+            border_subtle: Color::Rgb(65, 64, 54),  // Subtle border
+        }
+    }
+
+    /// Creates OneDark theme (Atom's dark theme with blue-green accents).
+    pub fn onedark() -> Self {
+        Self {
+            // Primary: OneDark cyan (#56B6C2)
+            primary: Color::Rgb(86, 182, 194),
+            // Secondary: OneDark purple (#C678DD)
+            secondary: Color::Rgb(198, 120, 221),
+            // Purple accent
+            purple: Color::Rgb(198, 120, 221),
+
+            // Status colors
+            success: Color::Rgb(152, 195, 121),  // Green
+            warning: Color::Rgb(229, 192, 123),  // Yellow
+            error: Color::Rgb(224, 108, 117),    // Red
+            info: Color::Rgb(97, 175, 239),      // Blue
+
+            // Text colors
+            text: Color::Rgb(171, 178, 191),     // Light gray
+            text_muted: Color::Rgb(101, 108, 124), // Medium gray
+            text_dim: Color::Rgb(92, 99, 112),   // Dark gray
+
+            // Background colors (dark)
+            bg_primary: Color::Rgb(40, 44, 52),   // Dark blue-gray
+            bg_panel: Color::Rgb(35, 38, 46),     // Darker
+            bg_element: Color::Rgb(50, 54, 62),   // Element background
+
+            // Border colors
+            border: Color::Rgb(92, 99, 112),      // Gray border
+            border_active: Color::Rgb(86, 182, 194), // Cyan border
+            border_subtle: Color::Rgb(75, 81, 94),   // Subtle border
+        }
+    }
+
+    /// Creates Solarized Dark theme (Ethan Schoonover's balanced palette).
+    pub fn solarized() -> Self {
+        Self {
+            // Primary: Solarized cyan (#2AA198)
+            primary: Color::Rgb(42, 161, 152),
+            // Secondary: Solarized violet (#6C71C4)
+            secondary: Color::Rgb(108, 113, 196),
+            // Purple accent
+            purple: Color::Rgb(108, 113, 196),
+
+            // Status colors
+            success: Color::Rgb(133, 153, 0),     // Green
+            warning: Color::Rgb(181, 137, 0),    // Yellow
+            error: Color::Rgb(220, 50, 47),      // Red
+            info: Color::Rgb(38, 139, 210),      // Blue
+
+            // Text colors
+            text: Color::Rgb(131, 148, 150),     // Base0
+            text_muted: Color::Rgb(88, 110, 117), // Base1
+            text_dim: Color::Rgb(101, 123, 131),  // Base00
+
+            // Background colors (dark)
+            bg_primary: Color::Rgb(0, 43, 54),    // Base03 (darkest)
+            bg_panel: Color::Rgb(7, 54, 66),      // Base02
+            bg_element: Color::Rgb(0, 43, 54),    // Base03
+
+            // Border colors
+            border: Color::Rgb(7, 54, 66),        // Base02
+            border_active: Color::Rgb(42, 161, 152), // Cyan
+            border_subtle: Color::Rgb(0, 43, 54),   // Base03
+        }
+    }
+
+    /// Creates Dracula theme (purple/pink dark theme).
+    pub fn dracula() -> Self {
+        Self {
+            // Primary: Dracula cyan (#8BE9FD)
+            primary: Color::Rgb(139, 233, 253),
+            // Secondary: Dracula purple (#BD93F9)
+            secondary: Color::Rgb(189, 147, 249),
+            // Purple accent
+            purple: Color::Rgb(189, 147, 249),
+
+            // Status colors
+            success: Color::Rgb(80, 250, 123),    // Green
+            warning: Color::Rgb(255, 184, 108),  // Orange
+            error: Color::Rgb(255, 85, 85),      // Red
+            info: Color::Rgb(139, 233, 253),    // Cyan
+
+            // Text colors
+            text: Color::Rgb(248, 248, 242),      // Foreground
+            text_muted: Color::Rgb(189, 147, 249), // Purple
+            text_dim: Color::Rgb(139, 233, 253),  // Cyan
+
+            // Background colors (dark)
+            bg_primary: Color::Rgb(40, 42, 54),   // Background
+            bg_panel: Color::Rgb(68, 71, 90),    // Selection
+            bg_element: Color::Rgb(50, 52, 68),   // Current line
+
+            // Border colors
+            border: Color::Rgb(68, 71, 90),       // Selection
+            border_active: Color::Rgb(189, 147, 249), // Purple
+            border_subtle: Color::Rgb(50, 52, 68),   // Current line
         }
     }
 }

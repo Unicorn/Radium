@@ -238,7 +238,7 @@ impl TuiConfig {
         toml.push_str("# Radium TUI Configuration\n");
         toml.push_str("# This file allows you to customize the TUI appearance\n\n");
         toml.push_str("[theme]\n");
-        toml.push_str("# Theme preset: \"dark\" (default), \"light\", or \"custom\"\n");
+        toml.push_str("# Theme preset: \"dark\" (default), \"light\", \"github\", \"monokai\", \"onedark\", \"solarized-dark\", \"dracula\", or \"custom\"\n");
         toml.push_str(&format!("preset = \"{}\"\n\n", self.theme.preset));
 
         toml.push_str("[performance]\n");
