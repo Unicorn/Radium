@@ -44,6 +44,7 @@ pub mod policy;
 pub mod prompts;
 pub mod sandbox;
 // pub mod server;  // TEMPORARILY DISABLED: depends on radium-orchestrator (circular dependency)
+pub mod security;
 pub mod storage;
 #[cfg(feature = "workflow")]
 pub mod workflow;
@@ -128,6 +129,7 @@ pub use sandbox::{
 };
 #[cfg(feature = "orchestrator-integration")]
 pub use sandbox::AgentSandboxManager;
+pub use security::{PrivacyError, Result as PrivacyResult};
 pub use storage::{
     AgentRepository, Database, SqliteAgentRepository, SqliteTaskRepository,
     SqliteWorkflowRepository, StorageError, TaskRepository, WorkflowRepository,

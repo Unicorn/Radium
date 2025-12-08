@@ -403,3 +403,98 @@ async fn search_playbooks(
     Ok(())
 }
 
+/// Sync playbooks between local and Braingrid.
+async fn sync_playbooks(project_id: Option<String>, upload: bool) -> anyhow::Result<()> {
+    let project_id = project_id
+        .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok())
+        .ok_or_else(|| anyhow::anyhow!("Project ID required. Use --project-id or set BRAINGRID_PROJECT_ID"))?;
+
+    println!("Syncing playbooks with Braingrid (Project: {})...", project_id.bright_blue());
+    println!();
+
+    // Discover local playbooks
+    let discovery = PlaybookDiscovery::new()
+        .map_err(|e| anyhow::anyhow!("Failed to initialize playbook discovery: {}", e))?;
+    let local_playbooks = discovery.discover_all()?;
+
+    println!("  {} Local playbooks: {}", "✓".green(), local_playbooks.len());
+
+    // Discover remote playbooks
+    let remote_playbooks = PlaybookDiscovery::discover_from_braingrid(&project_id)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to discover playbooks from Braingrid: {}", e))?;
+
+    println!("  {} Remote playbooks: {}", "✓".green(), remote_playbooks.len());
+    println!();
+
+    // Find missing playbooks
+    let remote_vec: Vec<_> = remote_playbooks.values().cloned().collect();
+    let local_vec: Vec<_> = local_playbooks.values().cloned().collect();
+
+    let missing_local: Vec<_> = remote_vec
+        .iter()
+        .filter(|r| !local_playbooks.contains_key(&r.uri))
+        .collect();
+
+    let missing_remote: Vec<_> = local_vec
+        .iter()
+        .filter(|l| !remote_playbooks.contains_key(&l.uri))
+        .collect();
+
+    if missing_local.is_empty() && missing_remote.is_empty() {
+        println!("{} Playbooks are in sync!", "✓".green());
+        return Ok(());
+    }
+
+    // Download missing local playbooks
+    if !missing_local.is_empty() {
+        println!("Downloading {} playbook(s) from Braingrid...", missing_local.len());
+        let playbooks_dir = PlaybookDiscovery::default_playbooks_dir()
+            .map_err(|e| anyhow::anyhow!("Failed to get playbooks directory: {}", e))?;
+        std::fs::create_dir_all(&playbooks_dir)
+            .map_err(|e| anyhow::anyhow!("Failed to create playbooks directory: {}", e))?;
+
+        for playbook in missing_local {
+            let filename = playbook.uri
+                .strip_prefix("radium://")
+                .and_then(|s| s.split('/').last())
+                .unwrap_or("playbook.md");
+            let target_path = playbooks_dir.join(filename);
+
+            PlaybookStorage::save(&playbook, &target_path)
+                .map_err(|e| anyhow::anyhow!("Failed to save playbook {}: {}", playbook.uri, e))?;
+
+            println!("  {} Downloaded: {}", "✓".green(), playbook.uri.bright_blue());
+        }
+        println!();
+    }
+
+    // Upload missing remote playbooks (if requested)
+    if upload && !missing_remote.is_empty() {
+        println!("Uploading {} playbook(s) to Braingrid...", missing_remote.len());
+        use crate::playbooks::braingrid_storage::BraingridPlaybookStorage;
+        let storage = BraingridPlaybookStorage::new(&project_id);
+
+        for playbook in missing_remote {
+            match storage.save_playbook(playbook).await {
+                Ok(_) => {
+                    println!("  {} Uploaded: {}", "✓".green(), playbook.uri.bright_blue());
+                }
+                Err(e) => {
+                    println!("  {} Failed to upload {}: {}", "✗".red(), playbook.uri, e);
+                }
+            }
+        }
+        println!();
+    } else if !missing_remote.is_empty() {
+        println!("{} playbook(s) available locally but not in Braingrid:", missing_remote.len());
+        for playbook in missing_remote {
+            println!("  - {}", playbook.uri.bright_blue());
+        }
+        println!();
+        println!("Use {} to upload them.", "--upload".bright_blue());
+    }
+
+    println!("{} Sync complete!", "✓".green());
+    Ok(())
+}

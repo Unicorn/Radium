@@ -28,6 +28,8 @@ pub mod textarea;
 pub mod telemetry_bar;
 pub mod title_bar;
 pub mod toast;
+pub mod playbook_browser;
+pub mod playbook_status;
 
 pub use agent_timeline::AgentTimeline;
 pub use checkpoint_modal::CheckpointModal;
@@ -53,3 +55,5 @@ pub use task_list_panel::TaskListPanel;
 pub use telemetry_bar::TelemetryBar;
 pub use title_bar::render_title_bar;
 pub use toast::{Toast, ToastManager, ToastVariant, render_toasts, render_toasts_with_areas};
+pub use playbook_browser::PlaybookBrowser;
+pub use playbook_status::PlaybookStatus;
