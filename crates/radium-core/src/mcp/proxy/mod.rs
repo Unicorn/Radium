@@ -86,6 +86,7 @@ pub mod catalog;
 pub mod config;
 pub mod health;
 pub mod router;
+pub mod security;
 pub mod types;
 pub mod upstream_pool;
 
@@ -94,6 +95,7 @@ pub use catalog::DefaultToolCatalog;
 pub use config::ProxyConfigManager;
 pub use health::HealthChecker;
 pub use router::DefaultToolRouter;
+pub use security::DefaultSecurityLayer;
 pub use types::{
     ConflictStrategy, ConnectionState, McpProxyServer, ProxyConfig, ProxyTransport,
     SecurityConfig, ToolCatalog, ToolRouter, UpstreamConfig,
