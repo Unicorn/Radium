@@ -81,5 +81,56 @@ pub fn get_available_models() -> Result<Vec<crate::views::model_selector::ModelI
         });
     }
 
+    // Get Claude models (if configured)
+    let claude_configured =
+        store.as_ref().map(|s| s.is_configured(ProviderType::Claude)).unwrap_or(false);
+
+    if claude_configured {
+        models.push(crate::views::model_selector::ModelInfo {
+            id: "claude-3-5-sonnet-20241022".to_string(),
+            name: "claude-3-5-sonnet-20241022".to_string(),
+            provider: "Claude".to_string(),
+            description: Some("Latest, most capable".to_string()),
+            is_selected: "claude-3-5-sonnet-20241022" == default_model_id,
+            input_cost_per_million: Some(3.00),
+            output_cost_per_million: Some(15.00),
+            context_window: Some(200_000),
+            capabilities: vec!["vision".to_string(), "tools".to_string()],
+        });
+        models.push(crate::views::model_selector::ModelInfo {
+            id: "claude-3-opus-20240229".to_string(),
+            name: "claude-3-opus-20240229".to_string(),
+            provider: "Claude".to_string(),
+            description: Some("Most intelligent".to_string()),
+            is_selected: "claude-3-opus-20240229" == default_model_id,
+            input_cost_per_million: Some(15.00),
+            output_cost_per_million: Some(75.00),
+            context_window: Some(200_000),
+            capabilities: vec!["vision".to_string(), "tools".to_string()],
+        });
+        models.push(crate::views::model_selector::ModelInfo {
+            id: "claude-3-sonnet-20240229".to_string(),
+            name: "claude-3-sonnet-20240229".to_string(),
+            provider: "Claude".to_string(),
+            description: Some("Balanced performance".to_string()),
+            is_selected: "claude-3-sonnet-20240229" == default_model_id,
+            input_cost_per_million: Some(3.00),
+            output_cost_per_million: Some(15.00),
+            context_window: Some(200_000),
+            capabilities: vec!["vision".to_string(), "tools".to_string()],
+        });
+        models.push(crate::views::model_selector::ModelInfo {
+            id: "claude-3-haiku-20240307".to_string(),
+            name: "claude-3-haiku-20240307".to_string(),
+            provider: "Claude".to_string(),
+            description: Some("Fastest, efficient".to_string()),
+            is_selected: "claude-3-haiku-20240307" == default_model_id,
+            input_cost_per_million: Some(0.25),
+            output_cost_per_million: Some(1.25),
+            context_window: Some(200_000),
+            capabilities: vec!["vision".to_string()],
+        });
+    }
+
     Ok(models)
 }
