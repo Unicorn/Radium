@@ -155,24 +155,86 @@ async fn main() -> Result<()> {
                     // Update active requirement progress state
                     active_req_progress.update(message.clone());
 
+                    // Track execution history
+                    let req_id = active_req_progress.req_id.clone();
+                    use radium_tui::state::ExecutionStatus;
+
                     // Use toast notifications for key events
                     match &message {
-                        radium_tui::progress_channel::ProgressMessage::StatusChange { task_title, status, .. } => {
+                        radium_tui::progress_channel::ProgressMessage::StatusChange { task_id, task_title, status } => {
                             let status_symbol = status.symbol();
                             app.toast_manager.info(format!("{} {}", status_symbol, task_title));
+
+                            // Create or update execution record
+                            let engine = "unknown".to_string(); // TODO: Get from app state/config
+                            let model = "unknown".to_string(); // TODO: Get from app state/config
+                            
+                            let record = app.execution_history.get_or_create_active_record(
+                                task_id.clone(),
+                                task_title.clone(),
+                                req_id.clone(),
+                                engine,
+                                model,
+                                0, // retry_attempt - TODO: Track this
+                                1, // cycle_number - TODO: Track this
+                            );
+
+                            match status {
+                                radium_tui::progress_channel::TaskStatus::Running => {
+                                    record.mark_running();
+                                }
+                                _ => {}
+                            }
                         }
-                        radium_tui::progress_channel::ProgressMessage::TokenUpdate { tokens_in, tokens_out, .. } => {
-                            // Update silently, tokens are shown in status message
-                            // Could add a toast here if desired: app.toast_manager.info(format!("Tokens: {} in, {} out", tokens_in, tokens_out));
+                        radium_tui::progress_channel::ProgressMessage::TokenUpdate { task_id, tokens_in, tokens_out } => {
+                            // Update tokens for active record
+                            if let Some(record) = app.execution_history.get_active_record_mut(task_id) {
+                                record.update_tokens(*tokens_in, *tokens_out, 0); // cached tokens not available
+                            }
                         }
                         radium_tui::progress_channel::ProgressMessage::DurationUpdate { elapsed, .. } => {
                             // Update silently, duration is shown in status message
+                            // Duration is calculated automatically when record is finalized
                         }
-                        radium_tui::progress_channel::ProgressMessage::TaskComplete { task_id, result } => {
-                            app.toast_manager.success(format!("{} Task completed: {}", radium_tui::progress_channel::TaskStatus::Completed.symbol(), result));
+                        radium_tui::progress_channel::ProgressMessage::TaskComplete { task_id, result: _ } => {
+                            app.toast_manager.success(format!("{} Task completed: {}", radium_tui::progress_channel::TaskStatus::Completed.symbol(), task_id));
+                            
+                            // Mark record as completed and finalize
+                            if let Some(record) = app.execution_history.get_active_record_mut(task_id) {
+                                record.mark_completed();
+                                let record_clone = record.clone();
+                                app.execution_history.finalize_active_record(task_id);
+                                
+                                // Save to disk
+                                if let Some(ref ws) = app.workspace_status {
+                                    if let Some(ref root) = ws.root {
+                                        let history_path = radium_tui::state::ExecutionHistory::default_history_path(root);
+                                        let _ = app.execution_history.append_to_file(&history_path, &record_clone);
+                                    }
+                                }
+                            } else {
+                                app.execution_history.finalize_active_record(task_id);
+                            }
                         }
                         radium_tui::progress_channel::ProgressMessage::TaskFailed { task_id, error } => {
                             app.toast_manager.error(format!("{} Task failed: {}", radium_tui::progress_channel::TaskStatus::Failed.symbol(), error));
+                            
+                            // Mark record as failed and finalize
+                            if let Some(record) = app.execution_history.get_active_record_mut(task_id) {
+                                record.mark_failed(error.clone());
+                                let record_clone = record.clone();
+                                app.execution_history.finalize_active_record(task_id);
+                                
+                                // Save to disk
+                                if let Some(ref ws) = app.workspace_status {
+                                    if let Some(ref root) = ws.root {
+                                        let history_path = radium_tui::state::ExecutionHistory::default_history_path(root);
+                                        let _ = app.execution_history.append_to_file(&history_path, &record_clone);
+                                    }
+                                }
+                            } else {
+                                app.execution_history.finalize_active_record(task_id);
+                            }
                         }
                         radium_tui::progress_channel::ProgressMessage::RequirementComplete { requirement_id, result } => {
                             if result.tasks_failed == 0 {

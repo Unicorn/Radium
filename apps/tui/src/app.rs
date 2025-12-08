@@ -15,20 +15,33 @@ use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
 use crate::commands::{Command, DisplayContext};
-use crate::components::{DialogManager, ToastManager};
+use crate::components::{DialogManager, ExecutionDetailView, ExecutionHistoryView, SummaryView, ToastManager};
 use crate::config::TuiConfig;
 use crate::effects::AppEffectManager;
 use crate::requirement_progress::{ActiveRequirement, ActiveRequirementProgress};
 use crate::requirement_executor::RequirementExecutor as TuiRequirementExecutor;
 use crate::progress_channel::ExecutionResult;
 use crate::setup::SetupWizard;
-use crate::state::WorkflowUIState;
+use crate::state::{ExecutionHistory, ExecutionRecord, WorkflowUIState};
 use crate::theme::RadiumTheme;
 use crate::views::PromptData;
 use crate::workspace::WorkspaceStatus;
 
 /// Default maximum conversation history if config is unavailable
 const _DEFAULT_MAX_CONVERSATION_HISTORY: usize = 500;
+
+/// Execution view mode
+#[derive(Debug, Clone)]
+pub enum ExecutionView {
+    /// No execution view active
+    None,
+    /// History view showing all executions
+    History(ExecutionHistoryView),
+    /// Detail view for a specific execution
+    Detail(ExecutionDetailView),
+    /// Summary view with aggregate statistics
+    Summary(SummaryView),
+}
 
 /// Main application with unified prompt interface.
 pub struct App {
@@ -90,6 +103,10 @@ pub struct App {
     pub previous_toast_count: usize,
     /// Frame counter for spinner animations (increments on each render)
     pub spinner_frame: usize,
+    /// Execution history tracking
+    pub execution_history: ExecutionHistory,
+    /// Active execution view (History, Detail, or Summary)
+    pub active_execution_view: ExecutionView,
 }
 
 impl App {
@@ -133,6 +150,19 @@ impl App {
 
         // Initialize workspace
         let workspace_status = crate::workspace::initialize_workspace().ok();
+
+        // Load execution history from disk
+        let execution_history = if let Some(ref ws) = workspace_status {
+            if let Some(ref root) = ws.root {
+                crate::state::ExecutionHistory::load_from_file(
+                    &crate::state::ExecutionHistory::default_history_path(root)
+                )
+            } else {
+                crate::state::ExecutionHistory::new()
+            }
+        } else {
+            crate::state::ExecutionHistory::new()
+        };
 
         // Initialize orchestration service
         let (orchestration_service, orchestration_enabled) = Self::init_orchestration();
@@ -191,6 +221,8 @@ impl App {
             previous_context: None,
             previous_dialog_open: false,
             previous_toast_count: 0,
+            execution_history,
+            active_execution_view: ExecutionView::None,
         };
 
         // Show setup wizard if not configured, otherwise start chat
@@ -370,6 +402,95 @@ impl App {
                 self.start_default_chat();
             }
             return Ok(());
+        }
+
+        // Handle execution view keyboard input
+        match &mut self.active_execution_view {
+            ExecutionView::History(view) => {
+                if let Some(action) = view.handle_key(crossterm::event::KeyEvent {
+                    code: key,
+                    modifiers,
+                    kind: crossterm::event::KeyEventKind::Press,
+                    state: crossterm::event::KeyEventState::NONE,
+                }) {
+                    match action {
+                        crate::components::ExecutionHistoryAction::ViewDetail => {
+                            if let Some(record) = view.get_selected_record() {
+                                let detail_view = ExecutionDetailView::new(record.clone());
+                                self.active_execution_view = ExecutionView::Detail(detail_view);
+                            }
+                        }
+                    }
+                    return Ok(());
+                }
+                // If Esc pressed, close view
+                if key == KeyCode::Esc {
+                    self.active_execution_view = ExecutionView::None;
+                    return Ok(());
+                }
+            }
+            ExecutionView::Detail(view) => {
+                if let Some(action) = view.handle_key(crossterm::event::KeyEvent {
+                    code: key,
+                    modifiers,
+                    kind: crossterm::event::KeyEventKind::Press,
+                    state: crossterm::event::KeyEventState::NONE,
+                }) {
+                    match action {
+                        crate::components::ExecutionDetailAction::Close => {
+                            self.active_execution_view = ExecutionView::None;
+                        }
+                    }
+                    return Ok(());
+                }
+            }
+            ExecutionView::Summary(view) => {
+                if let Some(action) = view.handle_key(crossterm::event::KeyEvent {
+                    code: key,
+                    modifiers,
+                    kind: crossterm::event::KeyEventKind::Press,
+                    state: crossterm::event::KeyEventState::NONE,
+                }) {
+                    match action {
+                        crate::components::SummaryAction::Close => {
+                            self.active_execution_view = ExecutionView::None;
+                        }
+                        crate::components::SummaryAction::Refresh => {
+                            // Refresh will be handled by re-rendering with updated stats
+                            // For now, just close and reopen if needed
+                        }
+                    }
+                    return Ok(());
+                }
+            }
+            ExecutionView::None => {
+                // Handle execution view shortcuts when no view is active
+                match key {
+                    KeyCode::Char('h') | KeyCode::F(2) => {
+                        // Toggle history view
+                        if let Some(req_id) = self.get_current_requirement_id() {
+                            let records: Vec<ExecutionRecord> = self.execution_history
+                                .get_records_for_requirement(req_id)
+                                .into_iter()
+                                .cloned()
+                                .collect();
+                            let history_view = ExecutionHistoryView::new(records);
+                            self.active_execution_view = ExecutionView::History(history_view);
+                        }
+                        return Ok(());
+                    }
+                    KeyCode::Char('s') => {
+                        // Show summary view
+                        if let Some(req_id) = self.get_current_requirement_id() {
+                            let stats = self.execution_history.get_aggregate_stats(req_id);
+                            let summary_view = SummaryView::new(stats, req_id.to_string());
+                            self.active_execution_view = ExecutionView::Summary(summary_view);
+                        }
+                        return Ok(());
+                    }
+                    _ => {}
+                }
+            }
         }
 
         // Normal key handling
@@ -2008,6 +2129,13 @@ impl App {
         }
 
         Ok(())
+    }
+
+    /// Gets the current requirement ID from active requirement progress.
+    fn get_current_requirement_id(&self) -> Option<&str> {
+        self.active_requirement_progress
+            .as_ref()
+            .map(|p| p.requirement_id.as_str())
     }
 }
 

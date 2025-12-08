@@ -47,6 +47,8 @@ pub enum DisplayContext {
     Help,
     /// Viewing model selector
     ModelSelector,
+    /// Checkpoint/interrupt moment requiring user action
+    Checkpoint { checkpoint_id: String, reason: String, agent_id: Option<String> },
 }
 
 impl Default for DisplayContext {
@@ -65,6 +67,7 @@ impl DisplayContext {
             Self::Dashboard => "Dashboard".to_string(),
             Self::Help => "Help".to_string(),
             Self::ModelSelector => "Model Selection".to_string(),
+            Self::Checkpoint { reason, .. } => format!("Checkpoint: {}", reason),
         }
     }
 }
@@ -88,5 +91,15 @@ mod tests {
     #[test]
     fn test_parse_empty() {
         assert!(Command::parse("/").is_none());
+    }
+
+    #[test]
+    fn test_checkpoint_display_context_title() {
+        let ctx = DisplayContext::Checkpoint {
+            checkpoint_id: "cp-1".to_string(),
+            reason: "Manual review required".to_string(),
+            agent_id: Some("agent-1".to_string()),
+        };
+        assert_eq!(ctx.title(), "Checkpoint: Manual review required");
     }
 }

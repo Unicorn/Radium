@@ -5,11 +5,15 @@
 
 mod agent_state;
 mod checkpoint_state;
+mod checkpoint_interrupt_state;
+mod execution_history;
 mod telemetry_state;
 mod workflow_state;
 
 pub use agent_state::{AgentState, AgentStatus, SubAgentState};
 pub use checkpoint_state::{CheckpointInfo, CheckpointState};
+pub use checkpoint_interrupt_state::{CheckpointInterruptState, InterruptAction, InterruptTrigger};
+pub use execution_history::{AggregateStats, ExecutionHistory, ExecutionRecord, ExecutionStatus};
 pub use telemetry_state::{TelemetryState, TokenMetrics};
 pub use workflow_state::{WorkflowStatus, WorkflowUIState};
 
