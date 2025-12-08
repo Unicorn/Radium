@@ -16,7 +16,7 @@ use crate::config::Config;
 use crate::learning::LearningStore;
 use crate::memory::MemoryStore;
 use crate::playbooks::registry::PlaybookRegistry;
-use crate::security::{PatternLibrary, PrivacyFilter, RedactionStyle};
+use crate::security::{PatternLibrary, PrivacyFilter, RedactionStyle, SecretFilter};
 use crate::workspace::{PlanDiscovery, RequirementId, Workspace};
 use std::sync::Arc;
 
@@ -60,6 +60,9 @@ pub struct ContextManager {
 
     /// Optional privacy filter for redacting sensitive data.
     privacy_filter: Option<Arc<PrivacyFilter>>,
+
+    /// Optional secret filter for redacting credentials.
+    secret_filter: Option<Arc<SecretFilter>>,
 }
 
 impl ContextManager {
@@ -111,6 +114,7 @@ impl ContextManager {
             metrics: None,
             playbook_registry: None,
             privacy_filter,
+            secret_filter: None,
         }
     }
 
@@ -505,7 +509,7 @@ impl ContextManager {
         }
 
         // Apply privacy filter if enabled
-        let final_context = if let Some(ref filter) = self.privacy_filter {
+        let mut final_context = if let Some(ref filter) = self.privacy_filter {
             let (redacted, stats) = filter.redact(&context).map_err(|e| {
                 super::error::ContextError::Other(format!("Privacy redaction failed: {}", e))
             })?;
@@ -516,6 +520,13 @@ impl ContextManager {
         } else {
             context
         };
+
+        // Apply secret filter if enabled (after privacy filter)
+        if let Some(ref filter) = self.secret_filter {
+            final_context = filter.redact_secrets(&final_context).map_err(|e| {
+                super::error::ContextError::Other(format!("Secret redaction failed: {}", e))
+            })?;
+        }
 
         // Record metrics if enabled
         if let Some(ref mut metrics) = self.metrics {
@@ -559,6 +570,18 @@ impl ContextManager {
     /// Sets the playbook registry.
     pub fn with_playbook_registry(mut self, registry: Arc<PlaybookRegistry>) -> Self {
         self.playbook_registry = Some(registry);
+        self
+    }
+
+    /// Sets the secret filter for credential redaction.
+    ///
+    /// # Arguments
+    /// * `filter` - Secret filter to use for redacting credentials
+    ///
+    /// # Returns
+    /// Self for method chaining
+    pub fn with_secret_filter(mut self, filter: Arc<SecretFilter>) -> Self {
+        self.secret_filter = Some(filter);
         self
     }
 
