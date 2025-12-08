@@ -4,11 +4,11 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"dev": "tauri dev",
-		"build": "tauri build",
-		"tauri": "tauri",
+		"dev": "bunx @tauri-apps/cli dev",
+		"build": "bunx @tauri-apps/cli build",
+		"tauri": "bunx @tauri-apps/cli",
 		"type-check": "tsc --noEmit",
-		"icon:generate": "cp ../../../images/logo-apple.png app-icon.png && cp app-icon.png src-tauri/app-icon.png && bun run tauri icon",
+		"icon:generate": "cp ../../../images/logo-apple.png app-icon.png && cp app-icon.png src-tauri/app-icon.png && bunx @tauri-apps/cli icon",
 		"test:e2e": "playwright test"
 	},
 	"devDependencies": {
