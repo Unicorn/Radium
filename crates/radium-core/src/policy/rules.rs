@@ -6,6 +6,7 @@ use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 
+use super::alerts::AlertManager;
 use super::dry_run::generate_preview;
 use super::types::{
     ApprovalMode, PolicyAction, PolicyDecision, PolicyError, PolicyPriority, PolicyResult,
@@ -133,6 +134,8 @@ pub struct PolicyEngine {
     rules: Vec<PolicyRule>,
     /// Optional hook registry for tool execution interception.
     hook_registry: Option<Arc<HookRegistry>>,
+    /// Optional alert manager for violation notifications.
+    alert_manager: Option<Arc<AlertManager>>,
 }
 
 impl PolicyEngine {
@@ -145,7 +148,12 @@ impl PolicyEngine {
     /// # Returns
     /// A new `PolicyEngine` with no custom rules.
     pub fn new(approval_mode: ApprovalMode) -> PolicyResult<Self> {
-        Ok(Self { approval_mode, rules: Vec::new(), hook_registry: None })
+        Ok(Self {
+            approval_mode,
+            rules: Vec::new(),
+            hook_registry: None,
+            alert_manager: None,
+        })
     }
 
     /// Creates a new policy engine with hook registry.
@@ -157,7 +165,12 @@ impl PolicyEngine {
     /// # Returns
     /// A new `PolicyEngine` with no custom rules.
     pub fn with_hooks(approval_mode: ApprovalMode, hook_registry: Arc<HookRegistry>) -> PolicyResult<Self> {
-        Ok(Self { approval_mode, rules: Vec::new(), hook_registry: Some(hook_registry) })
+        Ok(Self {
+            approval_mode,
+            rules: Vec::new(),
+            hook_registry: Some(hook_registry),
+            alert_manager: None,
+        })
     }
 
     /// Creates a policy engine by loading rules from a TOML file.
@@ -182,6 +195,7 @@ impl PolicyEngine {
             approval_mode: config.approval_mode,
             rules: config.rules,
             hook_registry: None,
+            alert_manager: None,
         };
 
         // Sort rules by priority (highest first)
@@ -193,6 +207,11 @@ impl PolicyEngine {
     /// Sets the hook registry for this policy engine.
     pub fn set_hook_registry(&mut self, hook_registry: Arc<HookRegistry>) {
         self.hook_registry = Some(hook_registry);
+    }
+
+    /// Sets the alert manager for this policy engine.
+    pub fn set_alert_manager(&mut self, alert_manager: Arc<AlertManager>) {
+        self.alert_manager = Some(alert_manager);
     }
 
     /// Adds a policy rule to this engine.
@@ -281,6 +300,14 @@ impl PolicyEngine {
                     decision = decision.with_preview(preview);
                 }
 
+                // Send alert for violations (non-allow actions)
+                if let Some(ref alert_manager) = self.alert_manager {
+                    if decision.action != PolicyAction::Allow {
+                        let args_str: Vec<&str> = args_refs.iter().copied().collect();
+                        alert_manager.send_alert(&decision, &effective_tool_name, &args_str, None).await;
+                    }
+                }
+
                 return Ok(decision);
             }
         }
@@ -299,7 +326,7 @@ impl PolicyEngine {
             ApprovalMode::Ask => PolicyAction::AskUser,
         };
 
-        Ok(PolicyDecision::new(action).with_reason(format!(
+        let decision = PolicyDecision::new(action).with_reason(format!(
             "Default {} mode: {}",
             match self.approval_mode {
                 ApprovalMode::Yolo => "yolo",
@@ -312,7 +339,17 @@ impl PolicyEngine {
                 PolicyAction::AskUser => "requires approval",
                 PolicyAction::DryRunFirst => "requires dry-run preview",
             }
-        )))
+        ));
+
+        // Send alert for violations (non-allow actions)
+        if let Some(ref alert_manager) = self.alert_manager {
+            if decision.action != PolicyAction::Allow {
+                let args_str: Vec<&str> = args_refs.iter().copied().collect();
+                alert_manager.send_alert(&decision, &effective_tool_name, &args_str, None).await;
+            }
+        }
+
+        Ok(decision)
     }
 
     /// Checks if a tool name represents an edit operation.
@@ -750,5 +787,28 @@ reason = "Terraform apply requires dry-run preview"
         assert!(decision.requires_dry_run());
         assert!(decision.preview.is_some());
         assert_eq!(decision.matched_rule.as_deref(), Some("terraform-dry-run"));
+    }
+
+    #[tokio::test]
+    async fn test_policy_engine_with_alert_manager() {
+        use super::alerts::{AlertConfig, AlertManager, WebhookConfig};
+        
+        let alert_config = AlertConfig {
+            enabled: false, // Disable for testing
+            webhooks: vec![],
+            rate_limit_per_minute: 10,
+        };
+        let alert_manager = Arc::new(AlertManager::new(alert_config));
+        
+        let mut engine = PolicyEngine::new(ApprovalMode::Ask).unwrap();
+        engine.set_alert_manager(Arc::clone(&alert_manager));
+        engine.add_rule(
+            PolicyRule::new("deny-rm", "run_terminal_cmd", PolicyAction::Deny)
+                .with_arg_pattern("*rm*")
+                .with_reason("Dangerous command"),
+        );
+
+        let decision = engine.evaluate_tool("run_terminal_cmd", &["rm", "-rf", "/tmp"]).await.unwrap();
+        assert!(decision.is_denied());
     }
 }
