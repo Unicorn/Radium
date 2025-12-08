@@ -576,6 +576,57 @@ impl App {
             }
         }
 
+        // Handle dual-pane focus switching and scrolling for Chat context
+        if matches!(self.prompt_data.context, DisplayContext::Chat { .. }) {
+            // Focus switching shortcuts (only when not in command state or command palette)
+            if !self.prompt_data.command_state.is_active && !self.prompt_data.command_palette_active {
+                // Tab or Ctrl+W: Toggle focus between panes
+                if matches!(key, KeyCode::Tab) && !modifiers.contains(KeyModifiers::CONTROL) {
+                    self.prompt_data.toggle_focus();
+                    return Ok(());
+                }
+                if modifiers.contains(KeyModifiers::CONTROL) && matches!(key, KeyCode::Char('w')) {
+                    self.prompt_data.toggle_focus();
+                    return Ok(());
+                }
+
+                // Enter in chat history switches to prompt editor
+                if self.prompt_data.is_chat_focused() && matches!(key, KeyCode::Enter) && !modifiers.contains(KeyModifiers::META) && !modifiers.contains(KeyModifiers::CONTROL) {
+                    self.prompt_data.toggle_focus();
+                    return Ok(());
+                }
+
+                // Escape in prompt editor switches to chat history
+                if self.prompt_data.is_prompt_focused() && matches!(key, KeyCode::Esc) {
+                    self.prompt_data.toggle_focus();
+                    return Ok(());
+                }
+
+                // Scroll routing when chat history focused
+                if self.prompt_data.is_chat_focused() {
+                    match key {
+                        KeyCode::Up => {
+                            self.prompt_data.scroll_chat_up(1);
+                            return Ok(());
+                        }
+                        KeyCode::Down => {
+                            self.prompt_data.scroll_chat_down(1);
+                            return Ok(());
+                        }
+                        KeyCode::PageUp => {
+                            self.prompt_data.scroll_chat_up(10);
+                            return Ok(());
+                        }
+                        KeyCode::PageDown => {
+                            self.prompt_data.scroll_chat_down(10);
+                            return Ok(());
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
         // Normal key handling
         match key {
             // Show shortcuts overlay
@@ -695,32 +746,45 @@ impl App {
 
             // Enter - handle Cmd+Enter for submission, plain Enter for newline
             KeyCode::Enter if !self.prompt_data.command_palette_active => {
-                // Check for Cmd/Ctrl+Enter for submission
-                // On macOS: META (Cmd), on others: CONTROL (Ctrl)
-                let is_submit = modifiers.contains(KeyModifiers::META) 
-                    || modifiers.contains(KeyModifiers::CONTROL);
+                // Only process Enter for prompt input when prompt editor is focused
+                // (Chat context focus switching is handled above)
+                let should_handle_prompt = !matches!(self.prompt_data.context, DisplayContext::Chat { .. }) 
+                    || self.prompt_data.is_prompt_focused();
                 
-                if is_submit {
-                    // Submit the input
-                    if self.prompt_data.command_state.is_active && !self.prompt_data.command_state.suggestions.is_empty() {
-                        // Autocomplete selected suggestion
-                        self.autocomplete_selected_command();
-                        // Then execute it
-                        self.handle_enter().await?;
+                if should_handle_prompt {
+                    // Check for Cmd/Ctrl+Enter for submission
+                    // On macOS: META (Cmd), on others: CONTROL (Ctrl)
+                    let is_submit = modifiers.contains(KeyModifiers::META) 
+                        || modifiers.contains(KeyModifiers::CONTROL);
+                    
+                    if is_submit {
+                        // Submit the input
+                        if self.prompt_data.command_state.is_active && !self.prompt_data.command_state.suggestions.is_empty() {
+                            // Autocomplete selected suggestion
+                            self.autocomplete_selected_command();
+                            // Then execute it
+                            self.handle_enter().await?;
+                        } else {
+                            self.handle_enter().await?;
+                        }
                     } else {
-                        self.handle_enter().await?;
+                        // Plain Enter - insert newline via TextArea
+                        self.prompt_data.input.handle_key(key, modifiers);
+                        self.update_command_suggestions();
                     }
-                } else {
-                    // Plain Enter - insert newline via TextArea
-                    self.prompt_data.input.handle_key(key, modifiers);
-                    self.update_command_suggestions();
                 }
             }
 
             // Backspace (unless in command palette) - delegate to TextArea
             KeyCode::Backspace if !self.prompt_data.command_palette_active => {
-                self.prompt_data.input.handle_key(key, modifiers);
-                self.update_command_suggestions();
+                // Only process Backspace for prompt input when prompt editor is focused
+                let should_handle_prompt = !matches!(self.prompt_data.context, DisplayContext::Chat { .. }) 
+                    || self.prompt_data.is_prompt_focused();
+                
+                if should_handle_prompt {
+                    self.prompt_data.input.handle_key(key, modifiers);
+                    self.update_command_suggestions();
+                }
             }
 
             // Panel navigation (when orchestration is running)
@@ -832,19 +896,35 @@ impl App {
                     self.prompt_data.command_palette_query.push(c);
                     self.update_command_palette();
                 } else {
-                    // Delegate to TextArea for text input
-                    self.prompt_data.input.handle_key(key, modifiers);
-                    self.update_command_suggestions();
+                    // Only process text input when prompt editor is focused (or not in Chat context)
+                    let should_handle_prompt = !matches!(self.prompt_data.context, DisplayContext::Chat { .. }) 
+                        || self.prompt_data.is_prompt_focused();
+                    
+                    if should_handle_prompt {
+                        // Delegate to TextArea for text input
+                        self.prompt_data.input.handle_key(key, modifiers);
+                        self.update_command_suggestions();
+                    }
                 }
             }
 
             // Delegate other navigation/editing keys to TextArea when not in special modes
-            KeyCode::Left | KeyCode::Right | KeyCode::Up | KeyCode::Down
-            | KeyCode::Delete | KeyCode::Tab
+            // Only when prompt editor is focused (or not in Chat context)
+            KeyCode::Left | KeyCode::Right | KeyCode::Delete | KeyCode::Tab
             if !self.prompt_data.command_palette_active 
                 && !self.dialog_manager.is_open()
                 && self.prompt_data.command_state.suggestions.is_empty() => {
-                self.prompt_data.input.handle_key(key, modifiers);
+                let should_handle_prompt = !matches!(self.prompt_data.context, DisplayContext::Chat { .. }) 
+                    || self.prompt_data.is_prompt_focused();
+                
+                if should_handle_prompt {
+                    // For Up/Down in Chat context, only handle if prompt is focused
+                    // (Chat history scrolling is handled above)
+                    if !matches!(self.prompt_data.context, DisplayContext::Chat { .. }) || 
+                       (matches!(key, KeyCode::Left | KeyCode::Right | KeyCode::Delete | KeyCode::Tab)) {
+                        self.prompt_data.input.handle_key(key, modifiers);
+                    }
+                }
             }
 
             _ => {}
