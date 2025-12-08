@@ -21,7 +21,7 @@ pub use layout::GlobalLayout;
 pub use loading::{LoadingState, render_loading};
 pub use markdown::render_markdown;
 pub use model_selector::{ModelInfo, render_model_selector};
-pub use orchestrator_view::render_orchestrator_view;
+pub use orchestrator_view::{render_orchestrator_view, PanelFocus};
 pub use prompt::{PromptData, render_prompt, render_setup_wizard};
 pub use sessions::render_sessions;
 pub use shortcuts::render_shortcuts;

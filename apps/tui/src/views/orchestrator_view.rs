@@ -1,6 +1,7 @@
 //! Orchestrator view with split-panel layout.
 //!
-//! Shows chat log on the left and active agents on the right when orchestrator is running.
+//! Shows chat log (60%), task list (20%), and orchestrator thinking (20%) when orchestrator is running.
+//! Responsive layout: stacks vertically on narrow terminals.
 
 use ratatui::{
     prelude::*,
@@ -8,36 +9,294 @@ use ratatui::{
     layout::Constraint,
 };
 
-use crate::components::InteractiveTable;
+use crate::components::{InteractiveTable, TaskListPanel, OrchestratorThinkingPanel};
+use crate::state::TaskListState;
 use crate::views::prompt::PromptData;
 
-/// Renders the orchestrator view with split panels
+/// Panel focus for keyboard navigation
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PanelFocus {
+    /// Chat panel is focused
+    Chat,
+    /// Task list panel is focused
+    TaskList,
+    /// Orchestrator thinking panel is focused
+    Orchestrator,
+}
+
+/// Renders the orchestrator view with three-panel split layout
 pub fn render_orchestrator_view(
     frame: &mut Frame,
     area: Rect,
     prompt_data: &PromptData,
     active_agents: &[(String, String, String)], // (agent_id, agent_name, status)
+    task_state: Option<&TaskListState>,
+    orchestrator_panel: &mut OrchestratorThinkingPanel,
+    panel_visibility: (bool, bool), // (task_panel_visible, orchestrator_panel_visible)
+    focused_panel: PanelFocus,
 ) {
     let theme = crate::theme::get_theme();
+    let (task_panel_visible, orchestrator_panel_visible) = panel_visibility;
 
-    // Split main area horizontally: chat log (left) and agents (right)
+    // Determine layout based on terminal width
+    if area.width >= 100 {
+        // Wide terminal: 60/20/20 horizontal split
+        render_wide_layout(
+            frame,
+            area,
+            prompt_data,
+            active_agents,
+            task_state,
+            orchestrator_panel,
+            task_panel_visible,
+            orchestrator_panel_visible,
+            focused_panel,
+            &theme,
+        );
+    } else if area.width >= 60 {
+        // Narrow terminal: vertical stack (chat 60% top, task/orchestrator 40% bottom split)
+        render_narrow_layout(
+            frame,
+            area,
+            prompt_data,
+            active_agents,
+            task_state,
+            orchestrator_panel,
+            task_panel_visible,
+            orchestrator_panel_visible,
+            focused_panel,
+            &theme,
+        );
+    } else {
+        // Very narrow terminal: chat only with toggle indicators
+        render_very_narrow_layout(
+            frame,
+            area,
+            prompt_data,
+            task_panel_visible,
+            orchestrator_panel_visible,
+            &theme,
+        );
+    }
+}
+
+/// Renders wide layout (≥100 cols): 60/20/20 horizontal split
+fn render_wide_layout(
+    frame: &mut Frame,
+    area: Rect,
+    prompt_data: &PromptData,
+    active_agents: &[(String, String, String)],
+    task_state: Option<&TaskListState>,
+    orchestrator_panel: &mut OrchestratorThinkingPanel,
+    task_panel_visible: bool,
+    orchestrator_panel_visible: bool,
+    focused_panel: PanelFocus,
+    theme: &crate::theme::RadiumTheme,
+) {
+    // Calculate constraints based on panel visibility
+    let constraints = if task_panel_visible && orchestrator_panel_visible {
+        vec![
+            Constraint::Percentage(60), // Chat
+            Constraint::Percentage(20),  // Task list
+            Constraint::Percentage(20),  // Orchestrator thinking
+        ]
+    } else if task_panel_visible {
+        vec![
+            Constraint::Percentage(75), // Chat
+            Constraint::Percentage(25), // Task list
+        ]
+    } else if orchestrator_panel_visible {
+        vec![
+            Constraint::Percentage(75), // Chat
+            Constraint::Percentage(25), // Orchestrator thinking
+        ]
+    } else {
+        vec![Constraint::Percentage(100)] // Chat only
+    };
+
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
+        .constraints(constraints)
+        .split(area);
+
+    let mut chunk_idx = 0;
+
+    // Always render chat log
+    render_chat_log(
+        frame,
+        chunks[chunk_idx],
+        prompt_data,
+        theme,
+        focused_panel == PanelFocus::Chat,
+    );
+    chunk_idx += 1;
+
+    // Render task list if visible
+    if task_panel_visible {
+        if let Some(ref task_state) = task_state {
+            let mut task_panel = TaskListPanel::new();
+            task_panel.render(
+                frame,
+                chunks[chunk_idx],
+                task_state,
+                focused_panel == PanelFocus::TaskList,
+            );
+        } else {
+            render_empty_panel(frame, chunks[chunk_idx], "Task List", "No active workflow", theme);
+        }
+        chunk_idx += 1;
+    }
+
+    // Render orchestrator thinking if visible
+    if orchestrator_panel_visible {
+        orchestrator_panel.render(
+            frame,
+            chunks[chunk_idx],
+            focused_panel == PanelFocus::Orchestrator,
+        );
+    }
+}
+
+/// Renders narrow layout (60-99 cols): vertical stack
+fn render_narrow_layout(
+    frame: &mut Frame,
+    area: Rect,
+    prompt_data: &PromptData,
+    active_agents: &[(String, String, String)],
+    task_state: Option<&TaskListState>,
+    orchestrator_panel: &mut OrchestratorThinkingPanel,
+    task_panel_visible: bool,
+    orchestrator_panel_visible: bool,
+    focused_panel: PanelFocus,
+    theme: &crate::theme::RadiumTheme,
+) {
+    // Split vertically: chat 60% top, task/orchestrator 40% bottom
+    let vertical_chunks = Layout::default()
+        .direction(Direction::Vertical)
         .constraints([
-            Constraint::Fill(1), // Chat log (50%)
-            Constraint::Fill(1), // Active agents (50%)
+            Constraint::Percentage(60), // Chat top
+            Constraint::Percentage(40), // Task/orchestrator bottom
         ])
         .split(area);
 
-    // Left panel: Chat log
-    render_chat_log(frame, chunks[0], prompt_data, &theme);
+    // Render chat log in top area
+    render_chat_log(
+        frame,
+        vertical_chunks[0],
+        prompt_data,
+        theme,
+        focused_panel == PanelFocus::Chat,
+    );
 
-    // Right panel: Active agents
-    render_active_agents(frame, chunks[1], active_agents, &theme);
+    // Split bottom area horizontally for task/orchestrator
+    if task_panel_visible && orchestrator_panel_visible {
+        let bottom_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage(50), // Task list
+                Constraint::Percentage(50), // Orchestrator thinking
+            ])
+            .split(vertical_chunks[1]);
+
+        if let Some(ref task_state) = task_state {
+            let mut task_panel = TaskListPanel::new();
+            task_panel.render(
+                frame,
+                bottom_chunks[0],
+                task_state,
+                focused_panel == PanelFocus::TaskList,
+            );
+        } else {
+            render_empty_panel(frame, bottom_chunks[0], "Task List", "No active workflow", theme);
+        }
+
+        orchestrator_panel.render(
+            frame,
+            bottom_chunks[1],
+            focused_panel == PanelFocus::Orchestrator,
+        );
+    } else if task_panel_visible {
+        if let Some(ref task_state) = task_state {
+            let mut task_panel = TaskListPanel::new();
+            task_panel.render(
+                frame,
+                vertical_chunks[1],
+                task_state,
+                focused_panel == PanelFocus::TaskList,
+            );
+        } else {
+            render_empty_panel(frame, vertical_chunks[1], "Task List", "No active workflow", theme);
+        }
+    } else if orchestrator_panel_visible {
+        orchestrator_panel.render(
+            frame,
+            vertical_chunks[1],
+            focused_panel == PanelFocus::Orchestrator,
+        );
+    }
+}
+
+/// Renders very narrow layout (<60 cols): chat only with toggle indicators
+fn render_very_narrow_layout(
+    frame: &mut Frame,
+    area: Rect,
+    prompt_data: &PromptData,
+    task_panel_visible: bool,
+    orchestrator_panel_visible: bool,
+    theme: &crate::theme::RadiumTheme,
+) {
+    // Render chat with toggle indicators in title
+    let mut title = " Chat Log ".to_string();
+    if !task_panel_visible || !orchestrator_panel_visible {
+        title.push_str(" [Ctrl+T: Tasks]");
+    }
+    if !orchestrator_panel_visible {
+        title.push_str(" [Ctrl+O: Orchestrator]");
+    }
+
+    let viewport_height = area.height.saturating_sub(2) as usize;
+    let visible_conversation = prompt_data.get_visible_conversation(viewport_height);
+
+    let mut styled_lines = Vec::new();
+    for line in &visible_conversation {
+        let styled_line = if line.starts_with("You: ") {
+            Line::from(Span::styled(line.clone(), Style::default().fg(theme.primary)))
+        } else if line.starts_with("Agent: ") || line.starts_with("Assistant: ") {
+            Line::from(Span::styled(line.clone(), Style::default().fg(theme.info)))
+        } else if line.starts_with("Error: ") || line.starts_with("❌") {
+            Line::from(Span::styled(line.clone(), Style::default().fg(theme.error)))
+        } else if line.starts_with("⚠️") || line.starts_with("⏰") || line.starts_with("⏱️") {
+            Line::from(Span::styled(line.clone(), Style::default().fg(theme.warning)))
+        } else if line.starts_with("📋") || line.starts_with("⏳") || line.starts_with("✅") {
+            Line::from(Span::styled(line.clone(), Style::default().fg(theme.text_muted)))
+        } else {
+            Line::from(Span::styled(line.clone(), Style::default().fg(theme.text)))
+        };
+        styled_lines.push(styled_line);
+        styled_lines.push(Line::from(""));
+    }
+
+    let chat_widget = Paragraph::new(styled_lines)
+        .wrap(Wrap { trim: true })
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme.border))
+                .title(title),
+        )
+        .style(Style::default().fg(theme.text));
+
+    frame.render_widget(chat_widget, area);
 }
 
 /// Renders the chat log panel
-fn render_chat_log(frame: &mut Frame, area: Rect, prompt_data: &PromptData, theme: &crate::theme::RadiumTheme) {
+fn render_chat_log(
+    frame: &mut Frame,
+    area: Rect,
+    prompt_data: &PromptData,
+    theme: &crate::theme::RadiumTheme,
+    focused: bool,
+) {
     // Calculate viewport height
     let viewport_height = area.height.saturating_sub(2) as usize;
     
@@ -93,7 +352,11 @@ fn render_chat_log(frame: &mut Frame, area: Rect, prompt_data: &PromptData, them
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.border))
+                .border_style(if focused {
+                    Style::default().fg(theme.border_active)
+                } else {
+                    Style::default().fg(theme.border)
+                })
                 .title(" Chat Log "),
         )
         .style(Style::default().fg(theme.text));
@@ -101,7 +364,28 @@ fn render_chat_log(frame: &mut Frame, area: Rect, prompt_data: &PromptData, them
     frame.render_widget(chat_widget, area);
 }
 
-/// Renders the active agents panel
+/// Renders an empty panel with a message
+fn render_empty_panel(
+    frame: &mut Frame,
+    area: Rect,
+    title: &str,
+    message: &str,
+    theme: &crate::theme::RadiumTheme,
+) {
+    let empty_widget = Paragraph::new(message)
+        .style(Style::default().fg(theme.text_muted))
+        .alignment(Alignment::Center)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme.border))
+                .title(format!(" {} ", title)),
+        );
+    frame.render_widget(empty_widget, area);
+}
+
+/// Renders the active agents panel (kept for backward compatibility, but not used in new layout)
+#[allow(dead_code)]
 fn render_active_agents(
     frame: &mut Frame,
     area: Rect,
@@ -147,4 +431,3 @@ fn render_active_agents(
     table.set_selected(Some(0));
     table.render(frame, area, Some(" Active Agents "));
 }
-

@@ -377,10 +377,19 @@ async fn main() -> Result<()> {
                     app.config.animations.reduced_motion,
                 );
             } else if app.orchestration_running {
-                // Orchestrator running: show split view with chat log and active agents
+                // Orchestrator running: show split view with chat log, task list, and orchestrator thinking
                 // Get active agents from orchestration service (simplified for now)
                 let active_agents: Vec<(String, String, String)> = vec![]; // TODO: Get from orchestration service
-                render_orchestrator_view(frame, main_area, &app.prompt_data, &active_agents);
+                render_orchestrator_view(
+                    frame,
+                    main_area,
+                    &app.prompt_data,
+                    &active_agents,
+                    app.task_list_state.as_ref(),
+                    &mut app.orchestrator_panel,
+                    (app.task_panel_visible, app.orchestrator_panel_visible),
+                    app.panel_focus,
+                );
             } else {
                 // Check if we should show start page (Help context) or regular prompt
                 match app.prompt_data.context {

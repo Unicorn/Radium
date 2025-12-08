@@ -117,6 +117,12 @@ pub struct App {
     pub last_task_poll: Instant,
     /// Last time orchestrator logs were polled
     pub last_log_poll: Instant,
+    /// Whether task panel is visible
+    pub task_panel_visible: bool,
+    /// Whether orchestrator panel is visible
+    pub orchestrator_panel_visible: bool,
+    /// Currently focused panel
+    pub panel_focus: crate::views::orchestrator_view::PanelFocus,
 }
 
 impl App {
@@ -238,6 +244,9 @@ impl App {
             orchestrator_panel: OrchestratorThinkingPanel::new(),
             last_task_poll: Instant::now(),
             last_log_poll: Instant::now(),
+            task_panel_visible: true,
+            orchestrator_panel_visible: true,
+            panel_focus: crate::views::orchestrator_view::PanelFocus::Chat,
         };
 
         // Show setup wizard if not configured, otherwise start chat
@@ -1150,14 +1159,27 @@ impl App {
         }
 
         let partial = &input[1..]; // Remove the '/'
+        let trigger_mode = self.config.completion.trigger_mode_enum();
+        let min_chars = self.config.completion.min_chars;
 
-        // REQ-198: Only show suggestions after 2+ characters (excluding the '/')
-        if partial.len() < 2 {
-            self.prompt_data.command_state.clear();
-            return;
+        // Check trigger mode
+        match trigger_mode {
+            TriggerMode::Auto => {
+                // Auto mode: trigger if input length >= min_chars
+                if partial.len() < min_chars {
+                    self.prompt_data.command_state.clear();
+                    return;
+                }
+            }
+            TriggerMode::Manual => {
+                // Manual mode: only update if manually triggered
+                if !self.prompt_data.command_state.triggered_manually {
+                    return;
+                }
+            }
         }
 
-        // Mark auto-completion as active (user has typed 2+ characters)
+        // Mark auto-completion as active
         self.prompt_data.command_state.is_active = true;
 
         // Parse input to detect main command vs subcommand
