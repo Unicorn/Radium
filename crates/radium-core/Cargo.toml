@@ -21,6 +21,7 @@ monitoring = []
 mcp-progress = ["indicatif"]
 server = []
 http = []
+syntax = []  # Syntax highlighting support
 
 [dependencies]
 # gRPC
@@ -118,6 +119,9 @@ walkdir = "2.4"
 
 # Clipboard operations (cross-platform)
 arboard = "3.3"
+
+# Syntax highlighting
+syntect = "5.3"
 
 # Internal crates
 radium-abstraction.workspace = true

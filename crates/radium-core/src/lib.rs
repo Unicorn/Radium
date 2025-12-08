@@ -46,6 +46,8 @@ pub mod prompts;
 pub mod sandbox;
 // pub mod server;  // TEMPORARILY DISABLED: depends on radium-orchestrator (circular dependency)
 pub mod security;
+#[cfg(feature = "syntax")]
+pub mod syntax;
 pub mod storage;
 #[cfg(feature = "workflow")]
 pub mod workflow;
