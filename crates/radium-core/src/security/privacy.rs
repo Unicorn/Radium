@@ -116,6 +116,11 @@ impl PrivacyFilter {
         let allowlist = self.allowlist.read().unwrap();
         let matches = pattern_library.find_matches(text);
 
+        // Early return if no matches
+        if matches.is_empty() {
+            return Ok((text.to_string(), RedactionStats::default()));
+        }
+
         let mut stats = RedactionStats::default();
         let mut redacted = text.to_string();
 
@@ -128,9 +133,9 @@ impl PrivacyFilter {
                     continue;
                 }
 
-                // Find all occurrences of this value in the text
+                // Find all occurrences of this value in the text (use original text for positions)
                 let mut start = 0;
-                while let Some(pos) = redacted[start..].find(value) {
+                while let Some(pos) = text[start..].find(value) {
                     let actual_pos = start + pos;
                     let end = actual_pos + value.len();
                     all_matches.push((actual_pos, end, pattern_name.clone(), value.clone()));
