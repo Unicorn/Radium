@@ -167,18 +167,80 @@ impl Default for PrivacyConfig {
     }
 }
 
+/// Secret management configuration.
+#[derive(Debug, Clone, Deserialize)]
+pub struct SecretManagementConfig {
+    /// Enable secret redaction before sending to LLMs.
+    #[serde(default = "default_true")]
+    pub enable_secret_redaction: bool,
+    /// Enable secret injection before tool execution.
+    #[serde(default = "default_true")]
+    pub enable_secret_injection: bool,
+    /// Enable audit logging of secret operations.
+    #[serde(default = "default_true")]
+    pub enable_audit_logging: bool,
+    /// Warn when hardcoded secrets are detected in workspace.
+    #[serde(default = "default_true")]
+    pub warn_on_hardcoded_secrets: bool,
+    /// Path to the secret vault file.
+    #[serde(default = "default_vault_path")]
+    pub secret_vault_path: String,
+    /// Path to the audit log file.
+    #[serde(default = "default_audit_log_path")]
+    pub audit_log_path: String,
+    /// Minimum master password length.
+    #[serde(default = "default_min_password_length")]
+    pub master_password_min_length: usize,
+}
+
+fn default_vault_path() -> String {
+    #[allow(clippy::disallowed_methods)]
+    std::env::var("HOME")
+        .map(|home| format!("{}/.radium/auth/secrets.vault", home))
+        .unwrap_or_else(|_| "~/.radium/auth/secrets.vault".to_string())
+}
+
+fn default_audit_log_path() -> String {
+    #[allow(clippy::disallowed_methods)]
+    std::env::var("HOME")
+        .map(|home| format!("{}/.radium/auth/audit.log", home))
+        .unwrap_or_else(|_| "~/.radium/auth/audit.log".to_string())
+}
+
+fn default_min_password_length() -> usize {
+    12
+}
+
+impl Default for SecretManagementConfig {
+    fn default() -> Self {
+        Self {
+            enable_secret_redaction: true,
+            enable_secret_injection: true,
+            enable_audit_logging: true,
+            warn_on_hardcoded_secrets: true,
+            secret_vault_path: default_vault_path(),
+            audit_log_path: default_audit_log_path(),
+            master_password_min_length: 12,
+        }
+    }
+}
+
 /// Security configuration.
 #[derive(Debug, Clone, Deserialize)]
 pub struct SecurityConfig {
     /// Privacy configuration.
     #[serde(default)]
     pub privacy: PrivacyConfig,
+    /// Secret management configuration.
+    #[serde(default)]
+    pub secrets: SecretManagementConfig,
 }
 
 impl Default for SecurityConfig {
     fn default() -> Self {
         Self {
             privacy: PrivacyConfig::default(),
+            secrets: SecretManagementConfig::default(),
         }
     }
 }
