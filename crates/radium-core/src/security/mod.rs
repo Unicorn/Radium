@@ -7,18 +7,20 @@
 
 mod error;
 mod patterns;
-// mod secret_manager;  // TODO: Implement secret manager
+mod secret_manager;
 
 pub use error::{SecurityError, SecurityResult};
-// pub use secret_manager::SecretManager;
+pub use secret_manager::SecretManager;
 
 // Privacy module exports
 pub mod privacy {
     pub use super::patterns::{Pattern, PatternLibrary, validate_luhn};
     pub use super::privacy_error::{PrivacyError, Result};
+    pub use super::privacy_filter::{PrivacyFilter, RedactionStyle, RedactionStats};
 }
 
 mod privacy_error;
+mod privacy_filter;
 
-pub use privacy::{PrivacyError, Result as PrivacyResult};
+pub use privacy::{PrivacyError, Result as PrivacyResult, PrivacyFilter, RedactionStyle, RedactionStats};
 pub use patterns::{Pattern, PatternLibrary, validate_luhn};
