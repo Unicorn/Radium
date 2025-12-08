@@ -744,6 +744,44 @@ impl App {
                 self.prompt_data.command_state.triggered_manually = false;
             }
 
+            // Escape to close model selector
+            KeyCode::Esc if matches!(self.prompt_data.context, DisplayContext::ModelSelector) => {
+                self.prompt_data.context = DisplayContext::Dashboard;
+                return Ok(());
+            }
+
+            // Arrow keys for model selector navigation
+            KeyCode::Up if matches!(self.prompt_data.context, DisplayContext::ModelSelector) => {
+                if let Ok(models) = crate::commands::models::get_available_models() {
+                    if !models.is_empty() {
+                        self.prompt_data.selected_index = self.prompt_data.selected_index
+                            .saturating_sub(1)
+                            .min(models.len().saturating_sub(1));
+                    }
+                }
+                return Ok(());
+            }
+            KeyCode::Down if matches!(self.prompt_data.context, DisplayContext::ModelSelector) => {
+                if let Ok(models) = crate::commands::models::get_available_models() {
+                    if !models.is_empty() {
+                        self.prompt_data.selected_index = (self.prompt_data.selected_index + 1)
+                            .min(models.len().saturating_sub(1));
+                    }
+                }
+                return Ok(());
+            }
+
+            // Enter to confirm model selection
+            KeyCode::Enter if matches!(self.prompt_data.context, DisplayContext::ModelSelector) => {
+                if let Ok(models) = crate::commands::models::get_available_models() {
+                    if let Some(model) = models.get(self.prompt_data.selected_index) {
+                        self.switch_to_model(&model.id).await?;
+                        self.prompt_data.context = DisplayContext::Dashboard;
+                    }
+                }
+                return Ok(());
+            }
+
             // Enter - handle Cmd+Enter for submission, plain Enter for newline
             KeyCode::Enter if !self.prompt_data.command_palette_active => {
                 // Only process Enter for prompt input when prompt editor is focused
@@ -1353,6 +1391,7 @@ impl App {
 
     async fn show_models(&mut self) -> Result<()> {
         self.prompt_data.context = DisplayContext::ModelSelector;
+        self.prompt_data.selected_index = 0;
         // Model selection will be handled in render
         Ok(())
     }
@@ -2255,6 +2294,100 @@ impl App {
                     .add_output("  • Claude:  ANTHROPIC_API_KEY environment variable".to_string());
                 self.prompt_data
                     .add_output("  • OpenAI:  OPENAI_API_KEY environment variable".to_string());
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Switch to a specific model by model ID
+    async fn switch_to_model(&mut self, model_id: &str) -> Result<()> {
+        use radium_orchestrator::ProviderType;
+
+        // Determine provider from model ID
+        let (provider_type, provider_name) = if model_id.starts_with("gemini-") {
+            (ProviderType::Gemini, "gemini")
+        } else if model_id.starts_with("gpt-") || model_id.starts_with("o1-") {
+            (ProviderType::OpenAI, "openai")
+        } else if model_id.starts_with("claude-") {
+            (ProviderType::Claude, "claude")
+        } else {
+            self.prompt_data.add_output(format!("❌ Unknown model ID: {}", model_id));
+            return Ok(());
+        };
+
+        // Create new configuration with selected provider and model
+        let mut config = OrchestrationConfig::default().with_provider(provider_type);
+        
+        // Set the specific model ID for the provider
+        match provider_type {
+            ProviderType::Gemini => {
+                config.gemini.model = model_id.to_string();
+            }
+            ProviderType::Claude => {
+                config.claude.model = model_id.to_string();
+            }
+            ProviderType::OpenAI => {
+                config.openai.model = model_id.to_string();
+            }
+            ProviderType::PromptBased => {
+                // Not supported for model switching
+            }
+        }
+
+        // Reinitialize service with new provider and model
+        self.prompt_data.add_output(format!("🔄 Switching to {} ({})...", model_id, provider_name));
+
+        // Discover MCP tools if available
+        let mcp_tools = if let Some(ref mcp_integration) = self.mcp_integration {
+            use radium_core::mcp::orchestration_bridge::discover_mcp_tools_for_orchestration;
+            discover_mcp_tools_for_orchestration(Arc::clone(mcp_integration))
+                .await
+                .ok()
+        } else {
+            None
+        };
+
+        match OrchestrationService::initialize(config.clone(), mcp_tools).await {
+            Ok(service) => {
+                self.orchestration_service = Some(Arc::new(service));
+                
+                // Save orchestration config to workspace (or default path)
+                let save_result = if let Ok(workspace) = radium_core::Workspace::discover() {
+                    let workspace_config_path = workspace.structure().orchestration_config_file();
+                    config.save_to_workspace_path(workspace_config_path)
+                } else {
+                    config.save_to_file(OrchestrationConfig::default_config_path())
+                };
+                if let Err(e) = save_result {
+                    self.prompt_data.add_output(format!(
+                        "⚠️  Switched model but failed to save orchestration config: {}",
+                        e
+                    ));
+                }
+                
+                // Update TuiConfig with selected model
+                self.config.model.default_model_id = model_id.to_string();
+                if let Err(e) = self.config.save() {
+                    self.prompt_data.add_output(format!(
+                        "⚠️  Switched model but failed to save TUI config: {}",
+                        e
+                    ));
+                }
+                
+                self.prompt_data.add_output(format!(
+                    "✅ Switched to {} successfully",
+                    model_id
+                ));
+            }
+            Err(e) => {
+                self.prompt_data.add_output(format!("❌ Failed to switch to model {}: {}", model_id, e));
+                self.prompt_data.add_output("".to_string());
+                self.prompt_data
+                    .add_output("This could be due to:".to_string());
+                self.prompt_data.add_output("  • Missing API key for the provider".to_string());
+                self.prompt_data.add_output("  • Network connectivity issues".to_string());
+                self.prompt_data.add_output("  • Invalid model ID".to_string());
             }
         }
 

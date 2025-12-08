@@ -20,6 +20,9 @@ pub struct TuiConfig {
     /// Completion configuration
     #[serde(default)]
     pub completion: CompletionConfig,
+    /// Model configuration
+    #[serde(default)]
+    pub model: ModelConfig,
 }
 
 /// Performance configuration.
@@ -116,6 +119,26 @@ impl CompletionConfig {
     }
 }
 
+/// Model configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModelConfig {
+    /// Default model ID to use (default: "gemini-2.0-flash-thinking")
+    #[serde(default = "default_model_id")]
+    pub default_model_id: String,
+}
+
+fn default_model_id() -> String {
+    "gemini-2.0-flash-thinking".to_string()
+}
+
+impl Default for ModelConfig {
+    fn default() -> Self {
+        Self {
+            default_model_id: default_model_id(),
+        }
+    }
+}
+
 /// Theme configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ThemeConfig {
@@ -167,6 +190,7 @@ impl Default for TuiConfig {
             performance: PerformanceConfig::default(),
             animations: AnimationConfig::default(),
             completion: CompletionConfig::default(),
+            model: ModelConfig::default(),
         }
     }
 }
@@ -234,6 +258,10 @@ impl TuiConfig {
         toml.push_str(&format!("trigger_mode = \"{}\"\n", self.completion.trigger_mode));
         toml.push_str("# Minimum characters before triggering auto-completion (default: 2)\n");
         toml.push_str(&format!("min_chars = {}\n\n", self.completion.min_chars));
+
+        toml.push_str("[model]\n");
+        toml.push_str("# Default model to use (default: gemini-2.0-flash-thinking)\n");
+        toml.push_str(&format!("default_model_id = \"{}\"\n\n", self.model.default_model_id));
 
         if let Some(ref colors) = self.theme.colors {
             toml.push_str("# Custom colors (only used if preset = \"custom\")\n");

@@ -8,6 +8,10 @@ pub fn get_available_models() -> Result<Vec<crate::views::model_selector::ModelI
     let mut models = Vec::new();
     let store = CredentialStore::new().ok();
 
+    // Load config to get default model
+    let config = crate::config::TuiConfig::load().unwrap_or_default();
+    let default_model_id = config.model.default_model_id;
+
     // Get Gemini models (if configured)
     let gemini_configured =
         store.as_ref().map(|s| s.is_configured(ProviderType::Gemini)).unwrap_or(false);
@@ -18,21 +22,21 @@ pub fn get_available_models() -> Result<Vec<crate::views::model_selector::ModelI
             name: "gemini-2.0-flash-thinking".to_string(),
             provider: "Gemini".to_string(),
             description: Some("Default - Reasoning optimized".to_string()),
-            is_selected: true, // TODO: Load from config
+            is_selected: "gemini-2.0-flash-thinking" == default_model_id,
         });
         models.push(crate::views::model_selector::ModelInfo {
             id: "gemini-2.0-flash-exp".to_string(),
             name: "gemini-2.0-flash-exp".to_string(),
             provider: "Gemini".to_string(),
             description: Some("Fast, experimental".to_string()),
-            is_selected: false,
+            is_selected: "gemini-2.0-flash-exp" == default_model_id,
         });
         models.push(crate::views::model_selector::ModelInfo {
             id: "gemini-1.5-pro".to_string(),
             name: "gemini-1.5-pro".to_string(),
             provider: "Gemini".to_string(),
             description: Some("Most capable".to_string()),
-            is_selected: false,
+            is_selected: "gemini-1.5-pro" == default_model_id,
         });
     }
 
@@ -46,14 +50,14 @@ pub fn get_available_models() -> Result<Vec<crate::views::model_selector::ModelI
             name: "gpt-4o".to_string(),
             provider: "OpenAI".to_string(),
             description: Some("Multimodal".to_string()),
-            is_selected: false,
+            is_selected: "gpt-4o" == default_model_id,
         });
         models.push(crate::views::model_selector::ModelInfo {
             id: "gpt-4o-mini".to_string(),
             name: "gpt-4o-mini".to_string(),
             provider: "OpenAI".to_string(),
             description: Some("Fast, efficient".to_string()),
-            is_selected: false,
+            is_selected: "gpt-4o-mini" == default_model_id,
         });
     }
 
