@@ -1,5 +1,7 @@
 //! Agent monitoring service for lifecycle tracking.
 
+use crate::config::Config;
+use crate::security::{PatternLibrary, PrivacyFilter, RedactionStyle};
 use super::error::{MonitoringError, Result};
 use super::schema::initialize_schema;
 use crate::hooks::registry::HookRegistry;
@@ -165,6 +167,8 @@ pub struct MonitoringService {
     pub(super) conn: Connection,
     /// Optional hook registry for telemetry interception.
     hook_registry: Option<Arc<HookRegistry>>,
+    /// Optional privacy filter for redacting sensitive data.
+    privacy_filter: Option<Arc<PrivacyFilter>>,
 }
 
 impl MonitoringService {
@@ -181,9 +185,33 @@ impl MonitoringService {
     /// # Errors
     /// Returns error if database initialization fails
     pub fn new() -> Result<Self> {
+        Self::new_with_config(None)
+    }
+
+    /// Creates a new monitoring service with optional privacy configuration.
+    ///
+    /// # Arguments
+    /// * `config` - Optional configuration for privacy filtering
+    ///
+    /// # Errors
+    /// Returns error if database initialization fails
+    pub fn new_with_config(config: Option<&Config>) -> Result<Self> {
         let conn = Connection::open_in_memory()?;
         initialize_schema(&conn)?;
-        Ok(Self { conn, hook_registry: None })
+
+        // Initialize privacy filter if enabled in config
+        let privacy_filter = config
+            .and_then(|c| {
+                if c.security.privacy.enable {
+                    let style = parse_redaction_style(&c.security.privacy.redaction_style);
+                    let patterns = PatternLibrary::default();
+                    Some(Arc::new(PrivacyFilter::new(style, patterns)))
+                } else {
+                    None
+                }
+            });
+
+        Ok(Self { conn, hook_registry: None, privacy_filter })
     }
 
     /// Creates a new monitoring service with hook registry.
@@ -196,7 +224,7 @@ impl MonitoringService {
     pub fn with_hooks(hook_registry: Arc<HookRegistry>) -> Result<Self> {
         let conn = Connection::open_in_memory()?;
         initialize_schema(&conn)?;
-        Ok(Self { conn, hook_registry: Some(hook_registry) })
+        Ok(Self { conn, hook_registry: Some(hook_registry), privacy_filter: None })
     }
 
     /// Opens a monitoring service with a database file.
@@ -207,9 +235,34 @@ impl MonitoringService {
     /// # Errors
     /// Returns error if database opening or initialization fails
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
+        Self::open_with_config(path, None)
+    }
+
+    /// Opens a monitoring service with a database file and optional privacy configuration.
+    ///
+    /// # Arguments
+    /// * `path` - Path to database file
+    /// * `config` - Optional configuration for privacy filtering
+    ///
+    /// # Errors
+    /// Returns error if database opening or initialization fails
+    pub fn open_with_config(path: impl AsRef<Path>, config: Option<&Config>) -> Result<Self> {
         let conn = Connection::open(path)?;
         initialize_schema(&conn)?;
-        Ok(Self { conn, hook_registry: None })
+
+        // Initialize privacy filter if enabled in config
+        let privacy_filter = config
+            .and_then(|c| {
+                if c.security.privacy.enable {
+                    let style = parse_redaction_style(&c.security.privacy.redaction_style);
+                    let patterns = PatternLibrary::default();
+                    Some(Arc::new(PrivacyFilter::new(style, patterns)))
+                } else {
+                    None
+                }
+            });
+
+        Ok(Self { conn, hook_registry: None, privacy_filter })
     }
 
     /// Opens a monitoring service with a database file and hook registry.
@@ -223,7 +276,7 @@ impl MonitoringService {
     pub fn open_with_hooks(path: impl AsRef<Path>, hook_registry: Arc<HookRegistry>) -> Result<Self> {
         let conn = Connection::open(path)?;
         initialize_schema(&conn)?;
-        Ok(Self { conn, hook_registry: Some(hook_registry) })
+        Ok(Self { conn, hook_registry: Some(hook_registry), privacy_filter: None })
     }
 
     /// Sets the hook registry for this monitoring service.
@@ -336,6 +389,17 @@ impl MonitoringService {
     /// Returns error if insertion fails
     pub fn register_agent(&self, record: &AgentRecord) -> Result<()> {
         self.conn.execute(
+            // Apply privacy redaction to log_file if enabled
+            let redacted_log_file = if let Some(ref filter) = self.privacy_filter {
+                record.log_file.as_ref().map(|log_file| {
+                    filter.redact(log_file).map_err(|e| {
+                        MonitoringError::Other(format!("Privacy redaction failed: {}", e))
+                    }).map(|(redacted, _)| redacted)
+                }).transpose()?
+            } else {
+                record.log_file.clone()
+            };
+
             "INSERT INTO agents (id, parent_id, plan_id, agent_type, status, process_id, start_time, log_file)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             params![
@@ -346,7 +410,7 @@ impl MonitoringService {
                 record.status.as_str(),
                 record.process_id,
                 record.start_time,
-                record.log_file,
+                redacted_log_file,
             ],
         )?;
         Ok(())
@@ -485,9 +549,18 @@ impl MonitoringService {
     pub fn fail_agent(&self, agent_id: &str, error_message: &str) -> Result<()> {
         let end_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
 
+        // Apply privacy redaction to error message if enabled
+        let redacted_error = if let Some(ref filter) = self.privacy_filter {
+            filter.redact(error_message).map_err(|e| {
+                MonitoringError::Other(format!("Privacy redaction failed: {}", e))
+            })?.0
+        } else {
+            error_message.to_string()
+        };
+
         let rows_affected = self.conn.execute(
             "UPDATE agents SET status = ?1, end_time = ?2, error_message = ?3 WHERE id = ?4",
-            params![AgentStatus::Failed.as_str(), end_time, error_message, agent_id],
+            params![AgentStatus::Failed.as_str(), end_time, redacted_error, agent_id],
         )?;
 
         if rows_affected == 0 {
@@ -1207,5 +1280,15 @@ mod tests {
         assert_eq!(deserialized.log_file, record.log_file);
         assert_eq!(deserialized.status, record.status);
         assert_eq!(deserialized.start_time, record.start_time);
+    }
+}
+
+/// Parses redaction style from string configuration.
+fn parse_redaction_style(style: &str) -> RedactionStyle {
+    match style.to_lowercase().as_str() {
+        "full" => RedactionStyle::Full,
+        "partial" => RedactionStyle::Partial,
+        "hash" => RedactionStyle::Hash,
+        _ => RedactionStyle::Partial, // Default to partial
     }
 }
