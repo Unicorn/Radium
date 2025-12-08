@@ -37,6 +37,9 @@ pub struct ContextMetrics {
     /// Template rendering time in milliseconds.
     pub template_rendering_time_ms: Option<u64>,
     
+    /// Number of redactions performed during context building.
+    pub redaction_count: usize,
+    
     /// Timestamp when metrics were collected.
     pub timestamp: SystemTime,
 }
@@ -55,6 +58,7 @@ impl ContextMetrics {
             validation_duration_ms: None,
             import_resolution_time_ms: None,
             template_rendering_time_ms: None,
+            redaction_count: 0,
             timestamp: SystemTime::now(),
         }
     }

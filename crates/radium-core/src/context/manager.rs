@@ -12,9 +12,11 @@ use super::playbook_loader::PlaybookLoader;
 use super::sources::{
     BraingridReader, HttpReader, JiraReader, LocalFileReader, SourceRegistry,
 };
+use crate::config::Config;
 use crate::learning::LearningStore;
 use crate::memory::MemoryStore;
 use crate::playbooks::registry::PlaybookRegistry;
+use crate::security::{PatternLibrary, PrivacyFilter, RedactionStyle};
 use crate::workspace::{PlanDiscovery, RequirementId, Workspace};
 use std::sync::Arc;
 
@@ -55,6 +57,9 @@ pub struct ContextManager {
 
     /// Optional playbook registry for organizational knowledge.
     playbook_registry: Option<Arc<PlaybookRegistry>>,
+
+    /// Optional privacy filter for redacting sensitive data.
+    privacy_filter: Option<Arc<PrivacyFilter>>,
 }
 
 impl ContextManager {
@@ -63,6 +68,15 @@ impl ContextManager {
     /// # Arguments
     /// * `workspace` - The workspace to gather context from
     pub fn new(workspace: &Workspace) -> Self {
+        Self::new_with_config(workspace, None)
+    }
+
+    /// Creates a new context manager with optional privacy configuration.
+    ///
+    /// # Arguments
+    /// * `workspace` - The workspace to gather context from
+    /// * `config` - Optional configuration for privacy filtering
+    pub fn new_with_config(workspace: &Workspace, config: Option<&Config>) -> Self {
         let workspace_root = workspace.root().to_path_buf();
         let injector = ContextInjector::new(&workspace_root);
         let context_file_loader = ContextFileLoader::new(&workspace_root);
@@ -74,6 +88,18 @@ impl ContextManager {
         source_registry.register(Box::new(JiraReader::new()));
         source_registry.register(Box::new(BraingridReader::new()));
 
+        // Initialize privacy filter if enabled in config
+        let privacy_filter = config
+            .and_then(|c| {
+                if c.security.privacy.enable {
+                    let style = parse_redaction_style(&c.security.privacy.redaction_style);
+                    let patterns = PatternLibrary::default();
+                    Some(Arc::new(PrivacyFilter::new(style, patterns)))
+                } else {
+                    None
+                }
+            });
+
         Self {
             workspace_root,
             injector,
@@ -84,6 +110,7 @@ impl ContextManager {
             source_registry,
             metrics: None,
             playbook_registry: None,
+            privacy_filter,
         }
     }
 
@@ -99,6 +126,22 @@ impl ContextManager {
     /// # Errors
     /// Returns error if memory store initialization fails
     pub fn for_plan(workspace: &Workspace, requirement_id: RequirementId) -> Result<Self> {
+        Self::for_plan_with_config(workspace, requirement_id, None)
+    }
+
+    /// Creates a context manager for a specific plan with optional privacy configuration.
+    ///
+    /// # Arguments
+    /// * `workspace` - The workspace to gather context from
+    /// * `requirement_id` - The plan's requirement ID
+    /// * `config` - Optional configuration for privacy filtering
+    ///
+    /// # Returns
+    /// A context manager with memory store initialized
+    ///
+    /// # Errors
+    /// Returns error if memory store initialization fails
+    pub fn for_plan_with_config(workspace: &Workspace, requirement_id: RequirementId, config: Option<&Config>) -> Result<Self> {
         let workspace_root = workspace.root().to_path_buf();
         let injector = ContextInjector::new(&workspace_root);
         let context_file_loader = ContextFileLoader::new(&workspace_root);
@@ -116,6 +159,18 @@ impl ContextManager {
         source_registry.register(Box::new(JiraReader::new()));
         source_registry.register(Box::new(BraingridReader::new()));
 
+        // Initialize privacy filter if enabled in config
+        let privacy_filter = config
+            .and_then(|c| {
+                if c.security.privacy.enable {
+                    let style = parse_redaction_style(&c.security.privacy.redaction_style);
+                    let patterns = PatternLibrary::default();
+                    Some(Arc::new(PrivacyFilter::new(style, patterns)))
+                } else {
+                    None
+                }
+            });
+
         Ok(Self {
             workspace_root,
             injector,
@@ -126,6 +181,7 @@ impl ContextManager {
             source_registry,
             metrics: None,
             playbook_registry: None,
+            privacy_filter,
         })
     }
 
@@ -448,13 +504,26 @@ impl ContextManager {
             context.push_str(&injected);
         }
 
+        // Apply privacy filter if enabled
+        let final_context = if let Some(ref filter) = self.privacy_filter {
+            let (redacted, stats) = filter.redact(&context).map_err(|e| {
+                super::error::ContextError::Other(format!("Privacy redaction failed: {}", e))
+            })?;
+            if let Some(ref mut metrics) = self.metrics {
+                metrics.redaction_count = stats.count;
+            }
+            redacted
+        } else {
+            context
+        };
+
         // Record metrics if enabled
         if let Some(ref mut metrics) = self.metrics {
             let total_time = start_time.elapsed();
             metrics.total_time_ms = total_time.as_millis() as u64;
         }
 
-        Ok(context)
+        Ok(final_context)
     }
 
     /// Returns the workspace root path.
@@ -501,6 +570,16 @@ impl ContextManager {
     /// Returns a reference to the source registry.
     pub fn source_registry(&self) -> &SourceRegistry {
         &self.source_registry
+    }
+}
+
+/// Parses redaction style from string configuration.
+fn parse_redaction_style(style: &str) -> RedactionStyle {
+    match style.to_lowercase().as_str() {
+        "full" => RedactionStyle::Full,
+        "partial" => RedactionStyle::Partial,
+        "hash" => RedactionStyle::Hash,
+        _ => RedactionStyle::Partial, // Default to partial
     }
 }
 
