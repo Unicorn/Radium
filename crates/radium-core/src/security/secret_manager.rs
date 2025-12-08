@@ -19,7 +19,9 @@ use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
+use super::audit::{AuditLogger, AuditOperation};
 use super::error::{SecurityError, SecurityResult};
+use std::sync::Arc;
 
 /// Current version of the vault file format.
 const VAULT_VERSION: &str = "1.0";
@@ -103,6 +105,8 @@ pub struct SecretManager {
     /// Derived encryption key (zeroized on drop).
     #[allow(dead_code)]
     encryption_key: EncryptionKey,
+    /// Optional audit logger for recording operations.
+    audit_logger: Option<Arc<AuditLogger>>,
 }
 
 /// Encryption key wrapper that zeroizes on drop.
@@ -131,8 +135,9 @@ impl SecretManager {
         let encryption_key = Self::derive_key(master_password, None)?;
 
         let manager = Self {
-            vault_path,
+            vault_path: vault_path.clone(),
             encryption_key,
+            audit_logger: None,
         };
 
         // Ensure vault directory exists with proper permissions
@@ -167,7 +172,22 @@ impl SecretManager {
         Ok(Self {
             vault_path,
             encryption_key,
+            audit_logger: None,
         })
+    }
+
+    /// Sets the audit logger for recording operations.
+    ///
+    /// # Arguments
+    ///
+    /// * `logger` - Audit logger to use
+    ///
+    /// # Returns
+    ///
+    /// Self for method chaining
+    pub fn with_audit_logger(mut self, logger: Arc<AuditLogger>) -> Self {
+        self.audit_logger = Some(logger);
+        self
     }
 
     /// Validates that the master password meets security requirements.
@@ -384,6 +404,11 @@ impl SecretManager {
         vault.secrets.insert(name.to_string(), entry);
         self.save_vault(&vault)?;
 
+        // Log operation
+        if let Some(ref logger) = self.audit_logger {
+            let _ = logger.log_operation(AuditOperation::Store, name, true, None);
+        }
+
         Ok(())
     }
 
@@ -406,9 +431,39 @@ impl SecretManager {
         let entry = vault
             .secrets
             .get(name)
-            .ok_or_else(|| SecurityError::SecretNotFound(name.to_string()))?;
+            .ok_or_else(|| {
+                // Log failed operation
+                if let Some(ref logger) = self.audit_logger {
+                    let _ = logger.log_operation(
+                        AuditOperation::Get,
+                        name,
+                        false,
+                        Some("Secret not found"),
+                    );
+                }
+                SecurityError::SecretNotFound(name.to_string())
+            })?;
 
-        self.decrypt(&entry.encrypted_value, &entry.nonce)
+        let result = self.decrypt(&entry.encrypted_value, &entry.nonce);
+
+        // Log operation
+        if let Some(ref logger) = self.audit_logger {
+            match &result {
+                Ok(_) => {
+                    let _ = logger.log_operation(AuditOperation::Get, name, true, None);
+                }
+                Err(e) => {
+                    let _ = logger.log_operation(
+                        AuditOperation::Get,
+                        name,
+                        false,
+                        Some(&e.to_string()),
+                    );
+                }
+            }
+        }
+
+        result
     }
 
     /// Lists all secret names in the vault.
@@ -422,7 +477,14 @@ impl SecretManager {
     /// Returns an error if the vault cannot be loaded.
     pub fn list_secrets(&self) -> SecurityResult<Vec<String>> {
         let vault = Self::load_vault(&self.vault_path)?;
-        Ok(vault.secrets.keys().cloned().collect())
+        let names = vault.secrets.keys().cloned().collect();
+
+        // Log operation
+        if let Some(ref logger) = self.audit_logger {
+            let _ = logger.log_operation(AuditOperation::List, "all", true, None);
+        }
+
+        Ok(names)
     }
 
     /// Rotates a secret by storing a new value and incrementing the version.
@@ -440,7 +502,26 @@ impl SecretManager {
         self.get_secret(name)?;
 
         // Store new value (will increment version)
-        self.store_secret(name, new_value)
+        let result = self.store_secret(name, new_value);
+
+        // Log rotation operation (store_secret already logs Store, but we want Rotate)
+        if let Some(ref logger) = self.audit_logger {
+            match &result {
+                Ok(_) => {
+                    let _ = logger.log_operation(AuditOperation::Rotate, name, true, None);
+                }
+                Err(e) => {
+                    let _ = logger.log_operation(
+                        AuditOperation::Rotate,
+                        name,
+                        false,
+                        Some(&e.to_string()),
+                    );
+                }
+            }
+        }
+
+        result
     }
 
     /// Removes a secret from the vault.
@@ -456,10 +537,38 @@ impl SecretManager {
         let mut vault = Self::load_vault(&self.vault_path)?;
 
         if vault.secrets.remove(name).is_none() {
+            // Log failed operation
+            if let Some(ref logger) = self.audit_logger {
+                let _ = logger.log_operation(
+                    AuditOperation::Remove,
+                    name,
+                    false,
+                    Some("Secret not found"),
+                );
+            }
             return Err(SecurityError::SecretNotFound(name.to_string()));
         }
 
-        self.save_vault(&vault)
+        let result = self.save_vault(&vault);
+
+        // Log operation
+        if let Some(ref logger) = self.audit_logger {
+            match &result {
+                Ok(_) => {
+                    let _ = logger.log_operation(AuditOperation::Remove, name, true, None);
+                }
+                Err(e) => {
+                    let _ = logger.log_operation(
+                        AuditOperation::Remove,
+                        name,
+                        false,
+                        Some(&e.to_string()),
+                    );
+                }
+            }
+        }
+
+        result
     }
 }
 

@@ -5,6 +5,7 @@
 //! - Privacy filtering with sensitive data redaction
 //! - Pattern-based detection of sensitive information
 
+mod audit;
 mod error;
 mod filter;
 mod injector;
@@ -13,6 +14,7 @@ mod patterns;
 mod scanner;
 mod secret_manager;
 
+pub use audit::{AuditEntry, AuditFilter, AuditLogger, AuditOperation};
 pub use error::{SecurityError, SecurityResult};
 pub use filter::{CredentialMatch, SecretFilter};
 pub use injector::SecretInjector;
@@ -33,4 +35,4 @@ mod audit;
 
 pub use privacy::{PrivacyError, Result as PrivacyResult, PrivacyFilter, RedactionStyle, RedactionStats};
 pub use patterns::{Pattern, PatternLibrary, validate_luhn};
-pub use audit::{AuditEntry, AuditLogger};
+pub use audit::{AuditEntry, AuditFilter, AuditLogger, AuditOperation};
