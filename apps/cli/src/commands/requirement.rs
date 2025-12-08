@@ -505,3 +505,81 @@ pub async fn list(project_id: Option<String>) -> anyhow::Result<()> {
 
     Ok(())
 }
+
+/// Resume an interrupted requirement execution.
+///
+/// Loads persisted execution state and continues from where it left off,
+/// skipping completed tasks.
+///
+/// # Arguments
+/// * `req_id` - Braingrid requirement ID to resume
+/// * `project_id` - Optional project ID
+/// * `from_checkpoint` - Optional checkpoint ID to restore to before resuming
+async fn resume_command(
+    req_id: String,
+    project_id: Option<String>,
+    from_checkpoint: Option<String>,
+) -> anyhow::Result<()> {
+    println!("{}", format!("rad requirement resume {}", req_id).bold().cyan());
+    println!();
+
+    // Validate requirement ID format
+    if !req_id.starts_with("REQ-") {
+        bail!("Invalid requirement ID format. Expected format: REQ-XXX (e.g., REQ-173)");
+    }
+
+    // Get workspace
+    let workspace = Workspace::discover()
+        .context("No Radium workspace found. Run 'rad init' to create one.")?;
+
+    // Load persisted execution state
+    let state_persistence = StatePersistence::new(workspace.root());
+    let persisted_state = state_persistence
+        .load_state(&req_id)
+        .context("Failed to load execution state")?;
+
+    let persisted_state = match persisted_state {
+        Some(state) => state,
+        None => {
+            bail!("No resumable execution found for {}. Use 'rad requirement execute {}' to start execution.", req_id, req_id);
+        }
+    };
+
+    // Display resume summary
+    println!("{}", "Resume Summary".bold());
+    println!("{}", "─".repeat(60));
+    println!("Requirement: {} - {}", req_id, persisted_state.requirement_title);
+    println!("Completed tasks: {}", persisted_state.completed_tasks.len());
+    println!("Remaining tasks: {}", persisted_state.next_tasks.len());
+    println!("Last checkpoint: {}", persisted_state.last_checkpoint_at.format("%Y-%m-%d %H:%M:%S UTC"));
+    println!();
+
+    // Restore checkpoint if specified
+    if let Some(checkpoint_id) = from_checkpoint {
+        println!("Restoring to checkpoint: {}...", checkpoint_id);
+        let checkpoint_manager = CheckpointManager::new(workspace.root())
+            .context("Workspace is not a git repository. Checkpoints require git.")?;
+        checkpoint_manager
+            .restore_checkpoint(&checkpoint_id)
+            .context(format!("Failed to restore checkpoint: {}", checkpoint_id))?;
+        println!("✓ Checkpoint restored");
+        println!();
+    }
+
+    // Get project ID
+    let project_id = project_id
+        .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok())
+        .unwrap_or_else(|| {
+            println!("{}", "Warning: No project ID specified, using default PROJ-14".yellow());
+            "PROJ-14".to_string()
+        });
+
+    // Continue with normal execution (it will use the persisted state via resume flag)
+    println!("Resuming execution...");
+    println!();
+
+    // Call execute with resume=true - it should handle the persisted state
+    execute(req_id, Some(project_id), 3, false, true, false).await?;
+
+    Ok(())
+}
