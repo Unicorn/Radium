@@ -76,6 +76,15 @@ pub struct Provider {
     /// Last update timestamp in RFC 3339 format.
     #[serde(with = "time::serde::rfc3339")]
     pub last_updated: time::OffsetDateTime,
+    /// Team name for cost attribution (optional).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub team_name: Option<String>,
+    /// Project name for cost attribution (optional).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_name: Option<String>,
+    /// Cost center for chargeback (optional).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cost_center: Option<String>,
 }
 
 #[cfg(test)]

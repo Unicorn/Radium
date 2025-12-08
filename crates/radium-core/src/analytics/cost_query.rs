@@ -27,7 +27,7 @@ impl CostQueryService {
     /// # Returns
     /// Vector of cost records matching the filters
     pub fn query_records(&self, options: &ExportOptions) -> MonitoringResult<Vec<CostRecord>> {
-        let conn = &self.monitoring.conn;
+        let conn = self.monitoring.conn();
 
         // Build query with JOIN to agents table for plan_id
         // Use a simpler approach: build query string and use params! macro with conditional values

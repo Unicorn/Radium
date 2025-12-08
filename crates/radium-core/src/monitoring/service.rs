@@ -167,6 +167,14 @@ pub struct MonitoringService {
 }
 
 impl MonitoringService {
+    /// Get a reference to the database connection.
+    /// This is used by cost query service for complex queries.
+    pub fn conn(&self) -> &Connection {
+        &self.conn
+    }
+}
+
+impl MonitoringService {
     /// Creates a new monitoring service with an in-memory database.
     ///
     /// # Errors

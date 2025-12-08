@@ -7,6 +7,8 @@ pub mod code_changes;
 #[cfg(feature = "monitoring")]
 pub mod comparison;
 #[cfg(feature = "monitoring")]
+pub mod cost_query;
+#[cfg(feature = "monitoring")]
 pub mod export;
 #[cfg(feature = "monitoring")]
 pub mod exporters;
@@ -18,6 +20,8 @@ pub mod storage;
 
 #[cfg(feature = "monitoring")]
 pub use comparison::{ComparisonFormatter, SessionComparison};
+#[cfg(feature = "monitoring")]
+pub use cost_query::CostQueryService;
 #[cfg(feature = "monitoring")]
 pub use export::{CostRecord, CostSummary, ExportError, ExportFormat, ExportOptions, Exporter};
 #[cfg(feature = "monitoring")]
