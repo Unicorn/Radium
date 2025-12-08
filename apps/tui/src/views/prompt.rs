@@ -424,15 +424,21 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
 
         // Build styled menu items
         const MAX_SUGGESTIONS_TO_SHOW: usize = 8;
+        let trigger_indicator = if data.command_state.triggered_manually {
+            " [Manual]"
+        } else {
+            ""
+        };
         let title = if total_suggestions > MAX_SUGGESTIONS_TO_SHOW {
             format!(
-                "{} Commands ({}/{})",
+                "{} Commands ({}/{}){}",
                 Icons::INFO,
                 selected_idx + 1,
-                total_suggestions
+                total_suggestions,
+                trigger_indicator
             )
         } else {
-            format!("{} Commands", Icons::INFO)
+            format!("{} Commands{}", Icons::INFO, trigger_indicator)
         };
 
         let mut menu_lines = vec![

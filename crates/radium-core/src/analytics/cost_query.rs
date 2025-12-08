@@ -30,6 +30,7 @@ impl CostQueryService {
         let conn = &self.monitoring.conn;
 
         // Build query with JOIN to agents table for plan_id
+        // Use a simpler approach: build query string and use params! macro with conditional values
         let mut query = String::from(
             "SELECT t.agent_id, t.timestamp, t.input_tokens, t.output_tokens, t.cached_tokens,
                     t.total_tokens, t.estimated_cost, t.model, t.provider, a.plan_id
@@ -38,61 +39,152 @@ impl CostQueryService {
              WHERE 1=1",
         );
 
-        let mut query_params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+        // Build parameters based on filters
+        let start_ts = options.start_date.map(|d| d.timestamp() as i64);
+        let end_ts = options.end_date.map(|d| d.timestamp() as i64);
 
-        // Add date range filters
-        if let Some(start_date) = options.start_date {
-            query.push_str(" AND t.timestamp >= ?");
-            query_params.push(Box::new(start_date.timestamp() as i64));
+        // Add filters to query
+        if start_ts.is_some() {
+            query.push_str(" AND t.timestamp >= ?1");
         }
-
-        if let Some(end_date) = options.end_date {
-            query.push_str(" AND t.timestamp <= ?");
-            query_params.push(Box::new(end_date.timestamp() as i64));
+        if end_ts.is_some() {
+            let param_num = if start_ts.is_some() { "?2" } else { "?1" };
+            query.push_str(&format!(" AND t.timestamp <= {}", param_num));
         }
-
-        // Add plan_id filter
-        if let Some(plan_id) = &options.plan_id {
-            query.push_str(" AND a.plan_id = ?");
-            query_params.push(Box::new(plan_id.clone()));
+        if options.plan_id.is_some() {
+            let param_num = match (start_ts.is_some(), end_ts.is_some()) {
+                (true, true) => "?3",
+                (true, false) | (false, true) => "?2",
+                _ => "?1",
+            };
+            query.push_str(&format!(" AND a.plan_id = {}", param_num));
         }
-
-        // Add provider filter
-        if let Some(provider) = &options.provider {
-            query.push_str(" AND t.provider = ?");
-            query_params.push(Box::new(provider.clone()));
+        if options.provider.is_some() {
+            let param_num = match (
+                start_ts.is_some(),
+                end_ts.is_some(),
+                options.plan_id.is_some(),
+            ) {
+                (true, true, true) => "?4",
+                (true, true, false) | (true, false, true) | (false, true, true) => "?3",
+                (true, false, false) | (false, true, false) | (false, false, true) => "?2",
+                _ => "?1",
+            };
+            query.push_str(&format!(" AND t.provider = {}", param_num));
         }
 
         query.push_str(" ORDER BY t.timestamp DESC");
 
-        // Execute query
-        let mut stmt = conn.prepare(&query)?;
-
-        // Convert params to rusqlite::Params
-        let params_slice: Vec<&dyn rusqlite::ToSql> = query_params.iter().map(|p| p.as_ref()).collect();
-
-        let records = stmt
-            .query_map(rusqlite::params_from_iter(params_slice.iter()), |row| {
-                let timestamp_secs: i64 = row.get(1)?;
-                let timestamp = DateTime::<Utc>::from_timestamp(timestamp_secs, 0)
-                    .unwrap_or_else(|| Utc::now());
-
-                Ok(CostRecord {
-                    timestamp,
-                    agent_id: row.get(0)?,
-                    plan_id: row.get(9)?,
-                    model: row.get(7)?,
-                    provider: row.get(8)?,
-                    input_tokens: row.get(2)?,
-                    output_tokens: row.get(3)?,
-                    cached_tokens: row.get(4)?,
-                    total_tokens: row.get(5)?,
-                    estimated_cost: row.get(6)?,
-                })
-            })?
-            .collect::<std::result::Result<Vec<_>, _>>()?;
+        // Execute query with appropriate params
+        let records = match (
+            start_ts,
+            end_ts,
+            &options.plan_id,
+            &options.provider,
+        ) {
+            (Some(s), Some(e), Some(p), Some(pr)) => {
+                let mut stmt = conn.prepare(&query)?;
+                stmt.query_map(params![s, e, p, pr], |row| self.row_to_record(row))?
+                    .collect::<std::result::Result<Vec<_>, _>>()?
+            }
+            (Some(s), Some(e), Some(p), None) => {
+                let mut stmt = conn.prepare(&query)?;
+                stmt.query_map(params![s, e, p], |row| self.row_to_record(row))?
+                    .collect::<std::result::Result<Vec<_>, _>>()?
+            }
+            (Some(s), Some(e), None, Some(pr)) => {
+                let mut stmt = conn.prepare(&query)?;
+                stmt.query_map(params![s, e, pr], |row| self.row_to_record(row))?
+                    .collect::<std::result::Result<Vec<_>, _>>()?
+            }
+            (Some(s), Some(e), None, None) => {
+                let mut stmt = conn.prepare(&query)?;
+                stmt.query_map(params![s, e], |row| self.row_to_record(row))?
+                    .collect::<std::result::Result<Vec<_>, _>>()?
+            }
+            (Some(s), None, Some(p), Some(pr)) => {
+                let mut stmt = conn.prepare(&query)?;
+                stmt.query_map(params![s, p, pr], |row| self.row_to_record(row))?
+                    .collect::<std::result::Result<Vec<_>, _>>()?
+            }
+            (Some(s), None, Some(p), None) => {
+                let mut stmt = conn.prepare(&query)?;
+                stmt.query_map(params![s, p], |row| self.row_to_record(row))?
+                    .collect::<std::result::Result<Vec<_>, _>>()?
+            }
+            (Some(s), None, None, Some(pr)) => {
+                let mut stmt = conn.prepare(&query)?;
+                stmt.query_map(params![s, pr], |row| self.row_to_record(row))?
+                    .collect::<std::result::Result<Vec<_>, _>>()?
+            }
+            (Some(s), None, None, None) => {
+                let mut stmt = conn.prepare(&query)?;
+                stmt.query_map(params![s], |row| self.row_to_record(row))?
+                    .collect::<std::result::Result<Vec<_>, _>>()?
+            }
+            (None, Some(e), Some(p), Some(pr)) => {
+                let mut stmt = conn.prepare(&query)?;
+                stmt.query_map(params![e, p, pr], |row| self.row_to_record(row))?
+                    .collect::<std::result::Result<Vec<_>, _>>()?
+            }
+            (None, Some(e), Some(p), None) => {
+                let mut stmt = conn.prepare(&query)?;
+                stmt.query_map(params![e, p], |row| self.row_to_record(row))?
+                    .collect::<std::result::Result<Vec<_>, _>>()?
+            }
+            (None, Some(e), None, Some(pr)) => {
+                let mut stmt = conn.prepare(&query)?;
+                stmt.query_map(params![e, pr], |row| self.row_to_record(row))?
+                    .collect::<std::result::Result<Vec<_>, _>>()?
+            }
+            (None, Some(e), None, None) => {
+                let mut stmt = conn.prepare(&query)?;
+                stmt.query_map(params![e], |row| self.row_to_record(row))?
+                    .collect::<std::result::Result<Vec<_>, _>>()?
+            }
+            (None, None, Some(p), Some(pr)) => {
+                let mut stmt = conn.prepare(&query)?;
+                stmt.query_map(params![p, pr], |row| self.row_to_record(row))?
+                    .collect::<std::result::Result<Vec<_>, _>>()?
+            }
+            (None, None, Some(p), None) => {
+                let mut stmt = conn.prepare(&query)?;
+                stmt.query_map(params![p], |row| self.row_to_record(row))?
+                    .collect::<std::result::Result<Vec<_>, _>>()?
+            }
+            (None, None, None, Some(pr)) => {
+                let mut stmt = conn.prepare(&query)?;
+                stmt.query_map(params![pr], |row| self.row_to_record(row))?
+                    .collect::<std::result::Result<Vec<_>, _>>()?
+            }
+            (None, None, None, None) => {
+                let mut stmt = conn.prepare(&query)?;
+                stmt.query_map(params![], |row| self.row_to_record(row))?
+                    .collect::<std::result::Result<Vec<_>, _>>()?
+            }
+        };
 
         Ok(records)
+    }
+
+    /// Transform database row to CostRecord.
+    fn row_to_record(&self, row: &rusqlite::Row) -> rusqlite::Result<CostRecord> {
+        let timestamp_secs: i64 = row.get(1)?;
+        let timestamp = DateTime::<Utc>::from_timestamp(timestamp_secs, 0)
+            .unwrap_or_else(|| Utc::now());
+
+        Ok(CostRecord {
+            timestamp,
+            agent_id: row.get(0)?,
+            plan_id: row.get(9)?,
+            model: row.get(7)?,
+            provider: row.get(8)?,
+            input_tokens: row.get(2)?,
+            output_tokens: row.get(3)?,
+            cached_tokens: row.get(4)?,
+            total_tokens: row.get(5)?,
+            estimated_cost: row.get(6)?,
+        })
     }
 
     /// Generate cost summary from records.

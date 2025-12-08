@@ -557,11 +557,46 @@ impl App {
                 }
             }
 
-            // Arrow keys for command menu navigation
-            KeyCode::Up if self.prompt_data.command_state.is_active && !self.prompt_data.command_state.suggestions.is_empty() => {
+            // Panel navigation (only when orchestration is running and not in command state)
+            KeyCode::Tab if self.orchestration_running && !self.prompt_data.command_state.is_active => {
+                self.cycle_panel_focus();
+            }
+            KeyCode::Char('t') if modifiers.contains(KeyModifiers::CONTROL) && self.orchestration_running => {
+                self.task_panel_visible = !self.task_panel_visible;
+                // If hiding focused panel, move focus to next visible panel
+                if !self.task_panel_visible && self.panel_focus == crate::views::orchestrator_view::PanelFocus::TaskList {
+                    self.cycle_panel_focus();
+                }
+            }
+            KeyCode::Char('o') if modifiers.contains(KeyModifiers::CONTROL) && self.orchestration_running => {
+                self.orchestrator_panel_visible = !self.orchestrator_panel_visible;
+                // If hiding focused panel, move focus to next visible panel
+                if !self.orchestrator_panel_visible && self.panel_focus == crate::views::orchestrator_view::PanelFocus::Orchestrator {
+                    self.cycle_panel_focus();
+                }
+            }
+            // Panel scrolling (only when orchestration is running and not in command state)
+            KeyCode::Up if self.orchestration_running && !self.prompt_data.command_state.is_active && !self.prompt_data.command_state.suggestions.is_empty() => {
+                // If command suggestions are active, handle command menu navigation
                 self.prompt_data.command_state.select_previous();
             }
-            KeyCode::Down if self.prompt_data.command_state.is_active && !self.prompt_data.command_state.suggestions.is_empty() => {
+            KeyCode::Up if self.orchestration_running && !self.prompt_data.command_state.is_active && self.prompt_data.command_state.suggestions.is_empty() => {
+                // Panel scrolling
+                self.handle_panel_scroll(1, true);
+            }
+            KeyCode::Down if self.orchestration_running && !self.prompt_data.command_state.is_active && !self.prompt_data.command_state.suggestions.is_empty() => {
+                // If command suggestions are active, handle command menu navigation
+                self.prompt_data.command_state.select_next();
+            }
+            KeyCode::Down if self.orchestration_running && !self.prompt_data.command_state.is_active && self.prompt_data.command_state.suggestions.is_empty() => {
+                // Panel scrolling
+                self.handle_panel_scroll(1, false);
+            }
+            // Arrow keys for command menu navigation (when not in orchestration or command state active)
+            KeyCode::Up if !self.orchestration_running && self.prompt_data.command_state.is_active && !self.prompt_data.command_state.suggestions.is_empty() => {
+                self.prompt_data.command_state.select_previous();
+            }
+            KeyCode::Down if !self.orchestration_running && self.prompt_data.command_state.is_active && !self.prompt_data.command_state.suggestions.is_empty() => {
                 self.prompt_data.command_state.select_next();
             }
 
