@@ -33,6 +33,7 @@ pub mod analytics;
 pub mod conflict_resolution;
 pub mod constitution;
 mod dry_run;
+pub mod reload;
 mod rules;
 mod storage;
 #[cfg(feature = "monitoring")]
@@ -40,6 +41,7 @@ pub mod suggestions;
 pub mod templates;
 mod types;
 
+pub use reload::PolicyReloader;
 pub use rules::{PolicyEngine, PolicyRule};
 pub use templates::{merge_template, PolicyTemplate, TemplateDiscovery};
 pub use alerts::{AlertConfig, AlertManager, AlertPayload, AlertSeverity, WebhookConfig};
