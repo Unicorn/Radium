@@ -9,6 +9,7 @@ use serde::Serialize;
 use std::fs;
 use std::io::{self, Write};
 use std::path::PathBuf;
+use uuid::Uuid;
 
 /// Session management subcommands
 #[derive(Subcommand, Debug)]
@@ -263,9 +264,136 @@ async fn export_command(
     format: Option<&str>,
     include_analytics: bool,
 ) -> Result<()> {
-    // Stub implementation - will be implemented in Task 3
-    println!("Export command: session_id={}, format={:?}, include_analytics={}", 
-        session_id, format, include_analytics);
+    let workspace = Workspace::discover()
+        .context("No Radium workspace found. Run 'rad init' to create one.")?;
+
+    // Initialize history manager
+    let history_dir = workspace.root().join(".radium/_internals/history");
+    let history = HistoryManager::new(&history_dir)?;
+
+    // Get interactions for this session
+    let interactions = history.get_interactions(Some(session_id));
+    if interactions.is_empty() {
+        return Err(anyhow::anyhow!("Session '{}' not found", session_id));
+    }
+
+    // Load analytics if requested
+    let analytics = if include_analytics {
+        let storage = SessionStorage::new(workspace.root())?;
+        storage.load_report(session_id).ok()
+    } else {
+        None
+    };
+
+    // Determine output format (default: json)
+    let output_format = format.unwrap_or("json").to_lowercase();
+    if output_format != "json" && output_format != "markdown" {
+        return Err(anyhow::anyhow!(
+            "Invalid format: {}. Use 'json' or 'markdown'",
+            output_format
+        ));
+    }
+
+    // Generate output content
+    let content = if output_format == "json" {
+        // JSON format
+        #[derive(Serialize)]
+        struct ExportData {
+            session_id: String,
+            interactions: Vec<InteractionExport>,
+            analytics: Option<SessionReport>,
+        }
+
+        #[derive(Serialize)]
+        struct InteractionExport {
+            goal: String,
+            plan: String,
+            output: String,
+            timestamp: String,
+        }
+
+        let export_data = ExportData {
+            session_id: session_id.to_string(),
+            interactions: interactions
+                .iter()
+                .map(|i| InteractionExport {
+                    goal: i.goal.clone(),
+                    plan: i.plan.clone(),
+                    output: i.output.clone(),
+                    timestamp: i.timestamp.to_rfc3339(),
+                })
+                .collect(),
+            analytics: analytics,
+        };
+
+        serde_json::to_string_pretty(&export_data)?
+    } else {
+        // Markdown format
+        let mut md = String::new();
+        md.push_str(&format!("# Session: {}\n\n", session_id));
+        md.push_str(&format!("**Generated:** {}\n\n", chrono::Utc::now().to_rfc3339()));
+        md.push_str("---\n\n");
+
+        // Interactions
+        md.push_str("## Interactions\n\n");
+        for (i, interaction) in interactions.iter().enumerate() {
+            md.push_str(&format!("### Interaction {}\n\n", i + 1));
+            md.push_str(&format!("**Timestamp:** {}\n\n", interaction.timestamp.to_rfc3339()));
+            md.push_str(&format!("**Goal:** {}\n\n", interaction.goal));
+            md.push_str(&format!("**Plan:** {}\n\n", interaction.plan));
+            md.push_str(&format!("**Output:**\n\n{}\n\n", interaction.output));
+            md.push_str("---\n\n");
+        }
+
+        // Analytics section if included
+        if let Some(ref report) = analytics {
+            md.push_str("## Analytics\n\n");
+            md.push_str(&format!("**Session ID:** {}\n\n", report.metrics.session_id));
+            md.push_str(&format!("**Start Time:** {}\n\n", report.metrics.start_time.to_rfc3339()));
+            if let Some(end_time) = report.metrics.end_time {
+                md.push_str(&format!("**End Time:** {}\n\n", end_time.to_rfc3339()));
+            }
+            md.push_str(&format!("**Wall Time:** {:.2}s\n\n", report.metrics.wall_time.as_secs_f64()));
+            md.push_str(&format!("**Tool Calls:** {}\n\n", report.metrics.tool_calls));
+            md.push_str(&format!("**Success Rate:** {:.1}%\n\n", report.metrics.success_rate()));
+            md.push_str(&format!("**Total Cost:** ${:.4}\n\n", report.metrics.total_cost));
+            
+            if !report.metrics.model_usage.is_empty() {
+                md.push_str("### Model Usage\n\n");
+                md.push_str("| Model | Requests | Input Tokens | Output Tokens | Cost |\n");
+                md.push_str("|-------|----------|--------------|---------------|------|\n");
+                for (model, stats) in &report.metrics.model_usage {
+                    md.push_str(&format!(
+                        "| {} | {} | {} | {} | ${:.4} |\n",
+                        model, stats.requests, stats.input_tokens, stats.output_tokens, stats.estimated_cost
+                    ));
+                }
+                md.push_str("\n");
+            }
+        }
+
+        md
+    };
+
+    // Write to file using atomic write pattern
+    let filename = format!("{}.{}", session_id, output_format);
+    let file_path = std::env::current_dir()?.join(&filename);
+
+    // Atomic write: write to temp file, then rename
+    let temp_filename = format!("{}.tmp.{}", session_id, uuid::Uuid::new_v4());
+    let temp_path = std::env::current_dir()?.join(&temp_filename);
+    
+    fs::write(&temp_path, content)
+        .context("Failed to write export file")?;
+    
+    fs::rename(&temp_path, &file_path)
+        .context("Failed to rename temp file to final destination")?;
+
+    println!("Exported session '{}' to {}", session_id, file_path.display());
+    if include_analytics {
+        println!("Analytics data included in export.");
+    }
+
     Ok(())
 }
 
