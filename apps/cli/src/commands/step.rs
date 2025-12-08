@@ -11,6 +11,8 @@ use radium_core::{
     PromptTemplate, Workspace,
     engines::{EngineRegistry, ExecutionRequest},
     engines::providers::{ClaudeEngine, GeminiEngine, MockEngine, OpenAIEngine},
+    syntax::SyntaxHighlighter,
+    terminal::{TerminalCapabilities, ColorSupport, rgb_to_terminal_color},
 };
 use std::sync::Arc;
 use std::fs;
@@ -386,6 +388,103 @@ fn load_prompt(prompt_path: &std::path::Path) -> anyhow::Result<String> {
     bail!("Prompt file not found: {}", prompt_path.display())
 }
 
+/// Print output with syntax highlighting for code blocks.
+fn print_highlighted_output(text: &str) {
+    use radium_core::syntax::StyledLine;
+    
+    let highlighter = SyntaxHighlighter::new();
+    let capabilities = TerminalCapabilities::color_support();
+    
+    let mut in_code_block = false;
+    let mut code_block_lang = String::new();
+    let mut code_block_content = String::new();
+    
+    for line in text.lines() {
+        if line.trim().starts_with("```") {
+            if in_code_block {
+                // End of code block
+                in_code_block = false;
+                let lang = code_block_lang.clone();
+                code_block_lang.clear();
+                
+                // Apply syntax highlighting
+                let highlighted_lines = highlighter.highlight_code(&code_block_content, &lang);
+                for styled_line in highlighted_lines {
+                    print_styled_line(&styled_line, capabilities);
+                }
+                code_block_content.clear();
+            } else {
+                // Start of code block
+                in_code_block = true;
+                let lang = line.trim().strip_prefix("```").unwrap_or("");
+                code_block_lang = lang.trim().to_string();
+            }
+            continue;
+        }
+        
+        if in_code_block {
+            if !code_block_content.is_empty() {
+                code_block_content.push('\n');
+            }
+            code_block_content.push_str(line);
+        } else {
+            // Regular text - print as-is
+            println!("{}", line);
+        }
+    }
+    
+    // Handle unclosed code block
+    if in_code_block && !code_block_content.is_empty() {
+        let highlighted_lines = highlighter.highlight_code(&code_block_content, &code_block_lang);
+        for styled_line in highlighted_lines {
+            print_styled_line(&styled_line, capabilities);
+        }
+    }
+}
+
+/// Print a styled line with ANSI color codes.
+fn print_styled_line(styled_line: &radium_core::syntax::StyledLine, capabilities: ColorSupport) {
+    use radium_core::syntax::StyledSpan;
+    
+    for span in &styled_line.spans {
+        let (r, g, b) = span.foreground;
+        let color_code = rgb_to_terminal_color(r, g, b, capabilities);
+        print!("{}", color_code);
+        
+        if let Some((br, bg, bb)) = span.background {
+            let bg_code = match capabilities {
+                ColorSupport::Truecolor => format!("\x1b[48;2;{};{};{}m", br, bg, bb),
+                ColorSupport::Color256 => {
+                    let index = radium_core::terminal::rgb_to_256(br, bg, bb);
+                    format!("\x1b[48;5;{}m", index)
+                }
+                ColorSupport::Color16 => {
+                    let index = radium_core::terminal::rgb_to_16(br, bg, bb);
+                    format!("\x1b[{}m", if index < 8 { 40 + index } else { 100 + (index - 8) })
+                }
+            };
+            print!("{}", bg_code);
+        }
+        
+        if span.bold {
+            print!("\x1b[1m");
+        }
+        if span.italic {
+            print!("\x1b[3m");
+        }
+        if span.underline {
+            print!("\x1b[4m");
+        }
+        
+        print!("{}", span.text);
+        
+        // Reset all attributes
+        print!("\x1b[0m");
+    }
+    
+    println!();
+}
+
 /// Execute the agent with the engine registry.
 /// Returns the execution response for telemetry tracking.
 async fn execute_agent_with_engine(
@@ -433,7 +532,7 @@ async fn execute_agent_with_engine(
         Ok(response) => {
             println!("{}", "Response:".bold().green());
             println!("{}", "─".repeat(60).dimmed());
-            println!("{}", response.content);
+            print_highlighted_output(&response.content);
             println!("{}", "─".repeat(60).dimmed());
 
             if let Some(usage) = &response.usage {
