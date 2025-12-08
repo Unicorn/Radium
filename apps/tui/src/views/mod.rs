@@ -1,5 +1,7 @@
 //! TUI view modules
 
+pub mod budget_analytics;
+pub mod cost_dashboard;
 pub mod header;
 pub mod history;
 pub mod layout;
@@ -15,6 +17,8 @@ pub mod split;
 pub mod start;
 pub mod workflow;
 
+pub use cost_dashboard::{handle_cost_dashboard_key, render_cost_dashboard};
+pub use budget_analytics::{AnalyticsTab, BudgetAnalyticsView};
 pub use header::{HeaderInfo, render_header};
 pub use history::{HistoryEntry, render_history, render_history_with_log};
 pub use layout::GlobalLayout;

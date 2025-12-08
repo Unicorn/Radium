@@ -52,6 +52,8 @@ pub struct PromptData {
     pub previous_selected_index: usize,
     /// Whether chat history pane has focus (false = prompt editor focused)
     pub chat_history_focused: bool,
+    /// Scroll offset for chat history pane (independent from scrollback_offset)
+    pub chat_scroll_offset: usize,
 }
 
 impl PromptData {
@@ -83,6 +85,7 @@ impl PromptData {
             command_palette_query: String::new(),
             previous_selected_index: 0,
             chat_history_focused: false, // Prompt editor focused by default
+            chat_scroll_offset: 0, // Start at top of conversation
         }
     }
 

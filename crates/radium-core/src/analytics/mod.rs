@@ -5,7 +5,11 @@
 
 pub mod code_changes;
 #[cfg(feature = "monitoring")]
+pub mod budget;
+#[cfg(feature = "monitoring")]
 pub mod comparison;
+#[cfg(feature = "monitoring")]
+pub mod cost_history;
 #[cfg(feature = "monitoring")]
 pub mod cost_query;
 #[cfg(feature = "monitoring")]
@@ -19,7 +23,17 @@ pub mod session;
 pub mod storage;
 
 #[cfg(feature = "monitoring")]
+pub use budget::{
+    AnalyticsCache, AnomalyCategory, AnomalyDetector, AnomalySeverity, BudgetForecaster,
+    CostAnomaly, CostStatistics, DailySpendAggregator, DailySpendSummary, ForecastResult,
+    ScenarioResult,
+};
+#[cfg(feature = "monitoring")]
 pub use comparison::{ComparisonFormatter, SessionComparison};
+#[cfg(feature = "monitoring")]
+pub use cost_history::{
+    CostAnalytics, CostBreakdown, CostEvent, CostSummary, DateRange, TimePeriod,
+};
 #[cfg(feature = "monitoring")]
 pub use cost_query::CostQueryService;
 #[cfg(feature = "monitoring")]

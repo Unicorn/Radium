@@ -123,6 +123,9 @@ pub struct App {
     pub orchestrator_panel_visible: bool,
     /// Currently focused panel
     pub panel_focus: crate::views::orchestrator_view::PanelFocus,
+    /// Cost dashboard state (when viewing cost dashboard)
+    pub cost_dashboard_state: Option<crate::state::CostDashboardState>,
+    pub budget_analytics_view: Option<crate::views::BudgetAnalyticsView>,
 }
 
 impl App {
@@ -141,6 +144,7 @@ impl App {
             ("chat", "Start chat with an agent"),
             ("sessions", "Show your chat sessions"),
             ("dashboard", "Show system dashboard"),
+            ("costs", "Show cost analytics dashboard"),
             ("models", "Select AI model"),
             ("orchestrator", "Manage orchestration settings"),
             ("requirement", "Execute a Braingrid requirement autonomously"),
@@ -247,6 +251,8 @@ impl App {
             task_panel_visible: true,
             orchestrator_panel_visible: true,
             panel_focus: crate::views::orchestrator_view::PanelFocus::Chat,
+            cost_dashboard_state: None,
+            budget_analytics_view: None,
         };
 
         // Show setup wizard if not configured, otherwise start chat
@@ -493,6 +499,37 @@ impl App {
                 }
             }
             ExecutionView::None => {
+                // Handle cost dashboard keyboard input
+                if matches!(self.prompt_data.context, DisplayContext::CostDashboard) {
+                    if let Some(ref mut state) = self.cost_dashboard_state {
+                        // Get workspace and monitoring service
+                        if let Ok(workspace) = radium_core::Workspace::discover() {
+                            let monitoring_path = workspace.radium_dir().join("monitoring.db");
+                            if let Ok(monitoring) = radium_core::monitoring::MonitoringService::open(monitoring_path) {
+                                let analytics = radium_core::analytics::CostAnalytics::new(&monitoring);
+                                
+                                // Handle ESC to exit
+                                if key == KeyCode::Esc {
+                                    self.prompt_data.context = DisplayContext::Help;
+                                    return Ok(());
+                                }
+                                
+                                // Handle dashboard keys
+                                if let Err(e) = crate::views::handle_cost_dashboard_key(state, key, &analytics) {
+                                    state.error = Some(e);
+                                }
+                                return Ok(());
+                            }
+                        }
+                    }
+                }
+                
+                // Handle Ctrl+$ to open cost dashboard
+                if key == KeyCode::Char('$') && modifiers.contains(KeyModifiers::CONTROL) {
+                    self.show_costs_dashboard().await?;
+                    return Ok(());
+                }
+                
                 // Handle execution view shortcuts when no view is active
                 match key {
                     KeyCode::Char('h') | KeyCode::F(2) => {
@@ -931,6 +968,8 @@ impl App {
             "agents" => self.show_agents().await?,
             "sessions" => self.show_sessions().await?,
             "dashboard" => self.show_dashboard().await?,
+            "costs" => self.show_costs_dashboard().await?,
+            "budget" => self.show_budget_analytics().await?,
             "models" => self.show_models().await?,
             "chat" => {
                 if cmd.args.is_empty() {
@@ -1218,6 +1257,54 @@ impl App {
     async fn show_models(&mut self) -> Result<()> {
         self.prompt_data.context = DisplayContext::ModelSelector;
         // Model selection will be handled in render
+        Ok(())
+    }
+
+    async fn show_costs_dashboard(&mut self) -> Result<()> {
+        // Get workspace to find monitoring database
+        let workspace = match radium_core::Workspace::discover() {
+            Ok(ws) => ws,
+            Err(_) => {
+                self.prompt_data.add_output("Error: No Radium workspace found. Run 'rad init' to create one.".to_string());
+                return Ok(());
+            }
+        };
+
+        // Open monitoring service
+        let monitoring_path = workspace.radium_dir().join("monitoring.db");
+        let monitoring = match radium_core::monitoring::MonitoringService::open(monitoring_path) {
+            Ok(mon) => mon,
+            Err(e) => {
+                self.prompt_data.add_output(format!("Error: Failed to open monitoring database: {}", e));
+                return Ok(());
+            }
+        };
+
+        // Create cost analytics
+        let analytics = radium_core::analytics::CostAnalytics::new(&monitoring);
+
+        // Initialize or get cost dashboard state
+        let mut state = self.cost_dashboard_state.take()
+            .unwrap_or_else(|| crate::state::CostDashboardState::new());
+
+        // Load initial data
+        if let Err(e) = state.refresh_data(&analytics) {
+            self.prompt_data.add_output(format!("Error loading cost data: {}", e));
+            return Ok(());
+        }
+
+        // Store state and switch context
+        self.cost_dashboard_state = Some(state);
+        self.prompt_data.context = DisplayContext::CostDashboard;
+        Ok(())
+    }
+
+    async fn show_budget_analytics(&mut self) -> Result<()> {
+        let mut view = self.budget_analytics_view.take()
+            .unwrap_or_else(|| crate::views::BudgetAnalyticsView::new());
+
+        self.budget_analytics_view = Some(view);
+        self.prompt_data.context = DisplayContext::BudgetAnalytics;
         Ok(())
     }
 

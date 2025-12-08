@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
+use tracing::warn;
 
 /// Agent status.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -272,6 +273,52 @@ impl MonitoringService {
                 record.cost_center,
             ],
         )?;
+
+        // Also persist to cost_events table for analytics
+        if let Err(e) = self.insert_cost_event(record) {
+            // Log error but don't fail the telemetry recording
+            warn!("Failed to insert cost event: {}", e);
+        }
+
+        Ok(())
+    }
+
+    /// Inserts a cost event into the cost_events table for analytics.
+    ///
+    /// # Arguments
+    /// * `record` - Telemetry record to extract cost data from
+    ///
+    /// # Errors
+    /// Returns error if insertion fails
+    fn insert_cost_event(&self, record: &crate::monitoring::telemetry::TelemetryRecord) -> Result<()> {
+        // Look up agent's plan_id to get requirement_id
+        let requirement_id: Option<String> = self.conn
+            .query_row(
+                "SELECT plan_id FROM agents WHERE id = ?1",
+                params![record.agent_id],
+                |row| row.get(0),
+            )
+            .ok();
+
+        // Generate session_id from agent_id (using agent_id as session identifier)
+        // This groups all telemetry from the same agent execution together
+        let session_id = record.agent_id.clone();
+
+        self.conn.execute(
+            "INSERT INTO cost_events (timestamp, requirement_id, model, provider, tokens_input, tokens_output, cost_usd, session_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![
+                record.timestamp,
+                requirement_id,
+                record.model,
+                record.provider,
+                record.input_tokens,
+                record.output_tokens,
+                record.estimated_cost,
+                session_id,
+            ],
+        )?;
+
         Ok(())
     }
 

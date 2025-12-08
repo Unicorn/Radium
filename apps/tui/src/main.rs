@@ -393,6 +393,47 @@ async fn main() -> Result<()> {
             } else {
                 // Check if we should show start page (Help context) or regular prompt
                 match app.prompt_data.context {
+                    DisplayContext::CostDashboard => {
+                        // Cost dashboard mode
+                        if let Some(ref mut state) = app.cost_dashboard_state {
+                            // Get workspace and monitoring service
+                            if let Ok(workspace) = radium_core::Workspace::discover() {
+                                let monitoring_path = workspace.radium_dir().join("monitoring.db");
+                                if let Ok(monitoring) = radium_core::monitoring::MonitoringService::open(monitoring_path) {
+                                    let analytics = radium_core::analytics::CostAnalytics::new(&monitoring);
+                                    crate::views::render_cost_dashboard(frame, main_area, state, &analytics);
+                                } else {
+                                    // Error: show message
+                                    let error_text = "Error: Failed to open monitoring database";
+                                    let widget = ratatui::widgets::Paragraph::new(error_text)
+                                        .style(ratatui::style::Style::default().fg(ratatui::style::Color::Red))
+                                        .alignment(ratatui::prelude::Alignment::Center)
+                                        .block(ratatui::widgets::Block::default()
+                                            .borders(ratatui::widgets::Borders::ALL)
+                                            .title(" Error "));
+                                    frame.render_widget(widget, main_area);
+                                }
+                            } else {
+                                // Error: show message
+                                let error_text = "Error: No Radium workspace found";
+                                let widget = ratatui::widgets::Paragraph::new(error_text)
+                                    .style(ratatui::style::Style::default().fg(ratatui::style::Color::Red))
+                                    .alignment(ratatui::prelude::Alignment::Center)
+                                    .block(ratatui::widgets::Block::default()
+                                        .borders(ratatui::widgets::Borders::ALL)
+                                        .title(" Error "));
+                                frame.render_widget(widget, main_area);
+                            }
+                        } else {
+                            // No state: show loading or error
+                            let widget = ratatui::widgets::Paragraph::new("Loading cost dashboard...")
+                                .alignment(ratatui::prelude::Alignment::Center)
+                                .block(ratatui::widgets::Block::default()
+                                    .borders(ratatui::widgets::Borders::ALL)
+                                    .title(" Loading "));
+                            frame.render_widget(widget, main_area);
+                        }
+                    }
                     DisplayContext::Help => {
                         // Start page mode: codemachine-style start page
                         render_start_page(frame, main_area, &app.prompt_data);

@@ -3,6 +3,9 @@
 //! This module provides budget tracking, pre-execution cost checks, and budget warnings
 //! to prevent cost overruns during agent execution.
 
+use crate::analytics::budget::{AnomalyDetector, BudgetForecaster, CostAnomaly, ForecastResult};
+use crate::monitoring::{MonitoringService, Result as MonitoringResult};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 
@@ -70,6 +73,23 @@ pub enum BudgetError {
         limit: f64,
         percentage: f64,
     },
+    /// Velocity spike detected (spending rate increased significantly).
+    VelocitySpike {
+        current_rate: f64,
+        previous_rate: f64,
+        increase_pct: f64,
+    },
+    /// Budget will be exhausted soon based on forecast.
+    ProjectedExhaustion {
+        days_remaining: u32,
+        exhaustion_date: DateTime<Utc>,
+    },
+    /// Pre-requirement warning (single requirement will consume significant portion).
+    PreRequirementWarning {
+        requirement_id: String,
+        estimated_cost: f64,
+        percentage_of_remaining: f64,
+    },
 }
 
 impl std::fmt::Display for BudgetError {
@@ -87,6 +107,28 @@ impl std::fmt::Display for BudgetError {
                     f,
                     "Budget warning: ${:.2} spent of ${:.2} limit ({:.1}% used)",
                     spent, limit, percentage
+                )
+            }
+            BudgetError::VelocitySpike { current_rate, previous_rate, increase_pct } => {
+                write!(
+                    f,
+                    "Velocity spike: Spending rate increased {:.1}% (${:.2}/day vs ${:.2}/day)",
+                    increase_pct, current_rate, previous_rate
+                )
+            }
+            BudgetError::ProjectedExhaustion { days_remaining, exhaustion_date } => {
+                write!(
+                    f,
+                    "Projected exhaustion: Budget will run out in {} days (on {})",
+                    days_remaining,
+                    exhaustion_date.format("%Y-%m-%d")
+                )
+            }
+            BudgetError::PreRequirementWarning { requirement_id, estimated_cost, percentage_of_remaining } => {
+                write!(
+                    f,
+                    "Pre-requirement warning: {} will consume ${:.2} ({:.1}% of remaining budget)",
+                    requirement_id, estimated_cost, percentage_of_remaining
                 )
             }
         }
@@ -175,11 +217,65 @@ pub struct ProviderComparison {
     pub potential_savings: f64,
 }
 
-/// Budget manager for tracking costs and enforcing limits.
+/// Daily spend data point for trend analysis.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DailySpend {
+    /// Date in YYYY-MM-DD format.
+    pub date: String,
+    /// Amount spent on this day.
+    pub amount: f64,
+}
+
+/// Budget warning configuration with configurable thresholds.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BudgetWarningConfig {
+    /// Velocity spike threshold (e.g., 1.5 = 50% increase).
+    pub velocity_spike_threshold: f64,
+    /// Days remaining threshold for exhaustion warning.
+    pub projected_days_warning: u32,
+    /// Percentage of remaining budget threshold for pre-requirement warning.
+    pub requirement_percentage_warning: f64,
+    /// Standard deviation threshold for anomaly detection.
+    pub anomaly_std_dev_threshold: f64,
+}
+
+impl Default for BudgetWarningConfig {
+    fn default() -> Self {
+        Self {
+            velocity_spike_threshold: 1.5, // 50% increase
+            projected_days_warning: 7,
+            requirement_percentage_warning: 0.20, // 20%
+            anomaly_std_dev_threshold: 2.0,
+        }
+    }
+}
+
+/// Comprehensive budget analytics aggregating forecast, anomalies, and warnings.
 #[derive(Debug, Clone)]
+pub struct BudgetAnalytics {
+    /// Daily spend trend data (last 30 days).
+    pub trend_data: Vec<DailySpend>,
+    /// Forecast result with exhaustion projection.
+    pub forecast: Option<ForecastResult>,
+    /// Detected cost anomalies.
+    pub anomalies: Vec<CostAnomaly>,
+    /// Active budget warnings.
+    pub warnings: Vec<BudgetError>,
+}
+
+/// Budget manager for tracking costs and enforcing limits.
+#[derive(Clone)]
 pub struct BudgetManager {
     config: BudgetConfig,
     spent_amount: Arc<Mutex<f64>>,
+    /// Optional telemetry store for reading spent from database.
+    telemetry_store: Option<Arc<MonitoringService>>,
+    /// Optional budget forecaster for analytics.
+    forecaster: Option<Arc<BudgetForecaster>>,
+    /// Optional anomaly detector for cost analysis.
+    anomaly_detector: Option<Arc<AnomalyDetector>>,
+    /// Warning configuration.
+    warning_config: BudgetWarningConfig,
 }
 
 impl BudgetManager {
@@ -189,6 +285,10 @@ impl BudgetManager {
         Self {
             config,
             spent_amount: Arc::new(Mutex::new(0.0)),
+            telemetry_store: None,
+            forecaster: None,
+            anomaly_detector: None,
+            warning_config: BudgetWarningConfig::default(),
         }
     }
 
@@ -198,13 +298,43 @@ impl BudgetManager {
         Self::new(BudgetConfig::new(Some(max_budget)))
     }
 
+    /// Creates a budget manager with analytics capabilities.
+    ///
+    /// # Arguments
+    /// * `config` - Budget configuration
+    /// * `telemetry_store` - Monitoring service for database access
+    /// * `forecaster` - Budget forecaster for projections
+    /// * `anomaly_detector` - Anomaly detector for cost analysis
+    /// * `warning_config` - Warning configuration (uses defaults if None)
+    ///
+    /// # Returns
+    /// BudgetManager with analytics enabled
+    pub fn with_analytics(
+        config: BudgetConfig,
+        telemetry_store: Arc<MonitoringService>,
+        forecaster: Arc<BudgetForecaster>,
+        anomaly_detector: Arc<AnomalyDetector>,
+        warning_config: Option<BudgetWarningConfig>,
+    ) -> Self {
+        Self {
+            config,
+            spent_amount: Arc::new(Mutex::new(0.0)),
+            telemetry_store: Some(telemetry_store),
+            forecaster: Some(forecaster),
+            anomaly_detector: Some(anomaly_detector),
+            warning_config: warning_config.unwrap_or_default(),
+        }
+    }
+
     /// Checks if the estimated cost is within budget.
+    ///
+    /// Also checks for proactive warnings (non-blocking, logged only).
     ///
     /// # Errors
     /// Returns `BudgetError::BudgetExceeded` if the estimated cost would exceed the budget.
     /// Returns `BudgetError::BudgetWarning` if a warning threshold is reached.
     pub fn check_budget_available(&self, estimated_cost: f64) -> Result<(), BudgetError> {
-        let spent = *self.spent_amount.lock().unwrap();
+        let spent = self.get_spent_from_source();
 
         if let Some(limit) = self.config.max_budget {
             // Check if budget would be exceeded
@@ -229,6 +359,13 @@ impl BudgetManager {
             }
         }
 
+        // Check proactive warnings (non-blocking, log only)
+        let warnings = self.check_proactive_warnings(estimated_cost, None);
+        for warning in warnings {
+            // Log warning but don't block execution
+            tracing::warn!("Budget warning: {}", warning);
+        }
+
         Ok(())
     }
 
@@ -238,10 +375,25 @@ impl BudgetManager {
         *spent += actual_cost;
     }
 
+    /// Gets the current spent amount, reading from telemetry if available.
+    fn get_spent_from_source(&self) -> f64 {
+        // Try to read from telemetry database first
+        if let Some(ref store) = self.telemetry_store {
+            let conn = store.conn();
+            if let Ok(mut stmt) = conn.prepare("SELECT SUM(estimated_cost) FROM telemetry") {
+                if let Ok(Some(spent)) = stmt.query_row([], |row| row.get(0)) {
+                    return spent;
+                }
+            }
+        }
+        // Fallback to in-memory tracking
+        *self.spent_amount.lock().unwrap()
+    }
+
     /// Gets the current budget status.
     #[must_use]
     pub fn get_budget_status(&self) -> BudgetStatus {
-        let spent = *self.spent_amount.lock().unwrap();
+        let spent = self.get_spent_from_source();
 
         if let Some(limit) = self.config.max_budget {
             let remaining = (limit - spent).max(0.0);
@@ -266,7 +418,190 @@ impl BudgetManager {
     /// Gets the current spent amount.
     #[must_use]
     pub fn get_spent(&self) -> f64 {
-        *self.spent_amount.lock().unwrap()
+        self.get_spent_from_source()
+    }
+
+    /// Gets comprehensive budget analytics including forecast, anomalies, and warnings.
+    ///
+    /// # Returns
+    /// BudgetAnalytics with all analytics data
+    ///
+    /// # Errors
+    /// Returns error if analytics components are not available or queries fail
+    pub fn get_analytics(&self) -> MonitoringResult<BudgetAnalytics> {
+        // Get trend data (last 30 days)
+        let trend_data = self.get_trend_data(30)?;
+
+        // Get forecast if forecaster is available
+        let forecast = if let (Some(ref forecaster), Some(limit)) = (&self.forecaster, self.config.max_budget) {
+            let spent = self.get_spent_from_source();
+            let remaining = (limit - spent).max(0.0);
+            forecaster.forecast_exhaustion(remaining).ok()
+        } else {
+            None
+        };
+
+        // Get anomalies if detector is available
+        let anomalies = if let Some(ref detector) = self.anomaly_detector {
+            detector.detect_anomalies(30).unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+
+        // Generate warnings
+        let warnings = self.generate_warnings(&forecast)?;
+
+        Ok(BudgetAnalytics {
+            trend_data,
+            forecast,
+            anomalies,
+            warnings,
+        })
+    }
+
+    /// Gets daily spend trend data for the last N days.
+    ///
+    /// # Arguments
+    /// * `days` - Number of days to retrieve
+    ///
+    /// # Returns
+    /// Vector of daily spend data points
+    fn get_trend_data(&self, days: u32) -> MonitoringResult<Vec<DailySpend>> {
+        if let Some(ref store) = self.telemetry_store {
+            let conn = store.conn();
+            let now = Utc::now().timestamp() as i64;
+            let start_timestamp = now - (days as i64 * 86400);
+
+            // Try to use daily summaries first
+            let mut stmt = conn.prepare(
+                "SELECT date, total_cost FROM daily_spend_summary
+                 WHERE date >= date('now', '-' || ?1 || ' days')
+                 ORDER BY date"
+            );
+
+            if let Ok(mut stmt) = stmt {
+                let summaries: Result<Vec<DailySpend>, _> = stmt
+                    .query_map(params![days], |row| {
+                        Ok(DailySpend {
+                            date: row.get(0)?,
+                            amount: row.get(1)?,
+                        })
+                    })?
+                    .collect();
+                if let Ok(summaries) = summaries {
+                    if !summaries.is_empty() {
+                        return Ok(summaries);
+                    }
+                }
+            }
+
+            // Fallback to raw telemetry aggregation
+            let mut stmt = conn.prepare(
+                "SELECT date(timestamp, 'unixepoch') as day, SUM(estimated_cost) as daily_cost
+                 FROM telemetry
+                 WHERE timestamp >= ?1 AND timestamp <= ?2
+                 GROUP BY day
+                 ORDER BY day"
+            )?;
+
+            let trend: Vec<DailySpend> = stmt
+                .query_map(params![start_timestamp, now], |row| {
+                    Ok(DailySpend {
+                        date: row.get(0)?,
+                        amount: row.get(1)?,
+                    })
+                })?
+                .collect::<std::result::Result<Vec<_>, rusqlite::Error>>()?;
+
+            Ok(trend)
+        } else {
+            // No telemetry store - return empty
+            Ok(Vec::new())
+        }
+    }
+
+    /// Generates proactive warnings based on analytics.
+    ///
+    /// # Arguments
+    /// * `forecast` - Optional forecast result
+    ///
+    /// # Returns
+    /// Vector of budget warnings
+    fn generate_warnings(&self, forecast: &Option<ForecastResult>) -> MonitoringResult<Vec<BudgetError>> {
+        let mut warnings = Vec::new();
+
+        // Check velocity spike
+        if let Some(ref forecaster) = self.forecaster {
+            let current_velocity = forecaster.calculate_spend_velocity(7)?; // Last 7 days
+            let previous_velocity = forecaster.calculate_spend_velocity(14)? - current_velocity; // Previous 7 days
+            let previous_7_day_velocity = if previous_velocity > 0.0 {
+                previous_velocity
+            } else {
+                current_velocity * 0.5 // Fallback estimate
+            };
+
+            if previous_7_day_velocity > 0.0 {
+                let increase_ratio = current_velocity / previous_7_day_velocity;
+                if increase_ratio >= self.warning_config.velocity_spike_threshold {
+                    warnings.push(BudgetError::VelocitySpike {
+                        current_rate: current_velocity,
+                        previous_rate: previous_7_day_velocity,
+                        increase_pct: (increase_ratio - 1.0) * 100.0,
+                    });
+                }
+            }
+        }
+
+        // Check projected exhaustion
+        if let Some(ref forecast_result) = forecast {
+            if forecast_result.days_remaining <= self.warning_config.projected_days_warning {
+                warnings.push(BudgetError::ProjectedExhaustion {
+                    days_remaining: forecast_result.days_remaining,
+                    exhaustion_date: forecast_result.exhaustion_date,
+                });
+            }
+        }
+
+        Ok(warnings)
+    }
+
+    /// Checks for proactive warnings before executing a requirement.
+    ///
+    /// # Arguments
+    /// * `estimated_cost` - Estimated cost of the requirement
+    /// * `requirement_id` - Optional requirement ID for context
+    ///
+    /// # Returns
+    /// Vector of warnings (non-blocking, advisory only)
+    pub fn check_proactive_warnings(
+        &self,
+        estimated_cost: f64,
+        requirement_id: Option<&str>,
+    ) -> Vec<BudgetError> {
+        let mut warnings = Vec::new();
+
+        // Check pre-requirement warning
+        if let Some(limit) = self.config.max_budget {
+            let spent = self.get_spent_from_source();
+            let remaining = (limit - spent).max(0.0);
+            if remaining > 0.0 {
+                let percentage = estimated_cost / remaining;
+                if percentage >= self.warning_config.requirement_percentage_warning {
+                    warnings.push(BudgetError::PreRequirementWarning {
+                        requirement_id: requirement_id.unwrap_or("unknown").to_string(),
+                        estimated_cost,
+                        percentage_of_remaining: percentage * 100.0,
+                    });
+                }
+            }
+        }
+
+        // Get forecast-based warnings
+        if let Ok(analytics) = self.get_analytics() {
+            warnings.extend(analytics.warnings);
+        }
+
+        warnings
     }
 
     /// Resets the spent amount to zero.

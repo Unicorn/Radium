@@ -47,6 +47,10 @@ pub enum DisplayContext {
     Help,
     /// Viewing model selector
     ModelSelector,
+    /// Viewing cost analytics dashboard
+    CostDashboard,
+    /// Viewing budget analytics
+    BudgetAnalytics,
     /// Checkpoint/interrupt moment requiring user action
     Checkpoint { checkpoint_id: String, reason: String, agent_id: Option<String> },
 }
@@ -67,6 +71,7 @@ impl DisplayContext {
             Self::Dashboard => "Dashboard".to_string(),
             Self::Help => "Help".to_string(),
             Self::ModelSelector => "Model Selection".to_string(),
+            Self::CostDashboard => "Cost Analytics Dashboard".to_string(),
             Self::Checkpoint { reason, .. } => format!("Checkpoint: {}", reason),
         }
     }

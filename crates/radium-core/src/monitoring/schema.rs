@@ -166,6 +166,54 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
         [],
     )?;
 
+    // Cost events table for cost analytics and historical tracking
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS cost_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp INTEGER NOT NULL,
+            requirement_id TEXT,
+            model TEXT,
+            provider TEXT,
+            tokens_input INTEGER NOT NULL DEFAULT 0,
+            tokens_output INTEGER NOT NULL DEFAULT 0,
+            cost_usd REAL NOT NULL DEFAULT 0.0,
+            session_id TEXT
+        )",
+        [],
+    )?;
+
+    // Indexes for cost_events queries
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_cost_events_timestamp
+         ON cost_events(timestamp)",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_cost_events_requirement_id
+         ON cost_events(requirement_id)",
+        [],
+    )?;
+
+    // Daily spend summary table for pre-aggregated analytics
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS daily_spend_summary (
+            date TEXT PRIMARY KEY,
+            total_cost REAL NOT NULL,
+            total_tokens INTEGER NOT NULL,
+            requirement_count INTEGER NOT NULL,
+            avg_cost_per_requirement REAL NOT NULL,
+            created_at INTEGER NOT NULL
+        )",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_daily_spend_date
+         ON daily_spend_summary(date)",
+        [],
+    )?;
+
     Ok(())
 }
 
@@ -192,6 +240,13 @@ mod tests {
             .unwrap();
         let exists: bool = stmt.exists([]).unwrap();
         assert!(exists);
+
+        // Verify cost_events table exists
+        let mut stmt = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='cost_events'")
+            .unwrap();
+        let exists: bool = stmt.exists([]).unwrap();
+        assert!(exists);
     }
 
     #[test]
@@ -208,6 +263,8 @@ mod tests {
         assert!(indexes.iter().any(|name| name.contains("idx_agents_plan")));
         assert!(indexes.iter().any(|name| name.contains("idx_agents_status")));
         assert!(indexes.iter().any(|name| name.contains("idx_telemetry_agent")));
+        assert!(indexes.iter().any(|name| name.contains("idx_cost_events_timestamp")));
+        assert!(indexes.iter().any(|name| name.contains("idx_cost_events_requirement_id")));
     }
 
     #[test]
@@ -261,6 +318,31 @@ mod tests {
         // Verify telemetry exists
         let mut stmt =
             conn.prepare("SELECT COUNT(*) FROM telemetry WHERE agent_id = 'agent-1'").unwrap();
+        let count: i32 = stmt.query_row([], |row| row.get(0)).unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_cost_events_table() {
+        let conn = Connection::open_in_memory().unwrap();
+        initialize_schema(&conn).unwrap();
+
+        // Verify cost_events table exists
+        let mut stmt = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='cost_events'")
+            .unwrap();
+        let exists: bool = stmt.exists([]).unwrap();
+        assert!(exists);
+
+        // Insert a test cost event
+        conn.execute(
+            "INSERT INTO cost_events (timestamp, requirement_id, model, provider, tokens_input, tokens_output, cost_usd, session_id)
+             VALUES (2000, 'REQ-197', 'gpt-4', 'openai', 100, 200, 0.05, 'session-1')",
+            [],
+        ).unwrap();
+
+        // Verify cost event exists
+        let mut stmt = conn.prepare("SELECT COUNT(*) FROM cost_events WHERE requirement_id = 'REQ-197'").unwrap();
         let count: i32 = stmt.query_row([], |row| row.get(0)).unwrap();
         assert_eq!(count, 1);
     }
