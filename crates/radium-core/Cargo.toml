@@ -77,6 +77,10 @@ tar = "0.4"
 # HTTP client for MCP transports
 reqwest = { version = "0.12", features = ["json", "stream", "blocking", "multipart"] }
 
+# HTTP utilities for proxy server
+http-body-util = "0.1"
+hyper-util = { version = "0.1", features = ["full"] }
+
 # Progress indicators (optional, for CLI usage)
 indicatif = { version = "0.17", optional = true }
 

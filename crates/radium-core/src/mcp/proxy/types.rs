@@ -265,29 +265,21 @@ impl Default for ConflictStrategy {
 
 /// MCP Proxy Server main struct.
 ///
-/// This struct will manage the proxy server lifecycle, connections,
-/// and coordinate between all proxy components. The actual implementation
-/// will be added in Task 8 (MCP protocol server implementation).
+/// This is a wrapper that coordinates the ProxyServer with upstream pool
+/// and health checking. The actual server implementation is in proxy::server.
 ///
-/// # Fields
+/// # Note
 ///
-/// All fields are placeholders that will be implemented in subsequent tasks:
-/// - `config`: Proxy configuration
-/// - `upstream_pool`: Manages connections to upstream servers (Task 3)
-/// - `router`: Routes tool calls (Task 5)
-/// - `security`: Security layer (Task 7)
-/// - `catalog`: Tool catalog aggregator (Task 6)
-/// - `shutdown_tx`: Broadcast channel for graceful shutdown
+/// This struct will be fully implemented in Task 9 when integrating with CLI.
+/// For now, it's a placeholder that will be replaced with the full implementation.
 #[derive(Debug)]
 pub struct McpProxyServer {
     /// Proxy server configuration.
     pub config: ProxyConfig,
-    // Fields below will be implemented in later tasks:
-    // pub upstream_pool: Arc<Mutex<UpstreamPool>>,  // Task 3
-    // pub router: Arc<dyn ToolRouter>,              // Task 5
-    // pub security: Arc<dyn SecurityLayer>,         // Task 7
-    // pub catalog: Arc<Mutex<ToolCatalog>>,         // Task 6
-    // pub shutdown_tx: Option<tokio::sync::broadcast::Sender<()>>,
+    // Full implementation in Task 9 will include:
+    // pub server: ProxyServer,
+    // pub pool: Arc<UpstreamPool>,
+    // pub health_checker: HealthChecker,
 }
 
 impl McpProxyServer {
@@ -299,13 +291,12 @@ impl McpProxyServer {
     ///
     /// # Note
     ///
-    /// This is a placeholder implementation. Full implementation will be
-    /// provided in Task 8 (MCP protocol server implementation).
+    /// Full implementation will be provided in Task 9 (CLI integration).
     pub async fn new(_config: ProxyConfig) -> Result<Self> {
         use crate::mcp::McpError;
         Err(McpError::config(
-            "McpProxyServer::new not yet implemented (Task 8)",
-            "The proxy server implementation will be completed in Task 8. See REQ-195 for details.",
+            "McpProxyServer::new not yet implemented (Task 9)",
+            "The proxy server integration will be completed in Task 9. See REQ-195 for details.",
         ))
     }
 
@@ -319,13 +310,12 @@ impl McpProxyServer {
     ///
     /// # Note
     ///
-    /// This is a placeholder implementation. Full implementation will be
-    /// provided in Task 8 (MCP protocol server implementation).
+    /// Full implementation will be provided in Task 9 (CLI integration).
     pub async fn start(&mut self) -> Result<()> {
         use crate::mcp::McpError;
         Err(McpError::config(
-            "McpProxyServer::start not yet implemented (Task 8)",
-            "The proxy server implementation will be completed in Task 8. See REQ-195 for details.",
+            "McpProxyServer::start not yet implemented (Task 9)",
+            "The proxy server integration will be completed in Task 9. See REQ-195 for details.",
         ))
     }
 
@@ -339,13 +329,12 @@ impl McpProxyServer {
     ///
     /// # Note
     ///
-    /// This is a placeholder implementation. Full implementation will be
-    /// provided in Task 8 (MCP protocol server implementation).
+    /// Full implementation will be provided in Task 9 (CLI integration).
     pub async fn stop(&mut self) -> Result<()> {
         use crate::mcp::McpError;
         Err(McpError::config(
-            "McpProxyServer::stop not yet implemented (Task 8)",
-            "The proxy server implementation will be completed in Task 8. See REQ-195 for details.",
+            "McpProxyServer::stop not yet implemented (Task 9)",
+            "The proxy server integration will be completed in Task 9. See REQ-195 for details.",
         ))
     }
 }
