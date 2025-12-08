@@ -144,34 +144,8 @@ enum Command {
     /// Fetches requirement tree, triggers task breakdown if needed,
     /// executes each task autonomously with real-time status updates,
     /// and sets requirement to REVIEW when complete.
-    Requirement {
-        /// Braingrid requirement ID (e.g., "REQ-173")
-        req_id: Option<String>,
-
-        /// Braingrid project ID (defaults to BRAINGRID_PROJECT_ID env var or PROJ-14)
-        #[arg(long)]
-        project: Option<String>,
-
-        /// List all requirements for the project
-        #[arg(long)]
-        ls: bool,
-
-        /// Maximum number of concurrent task executions (default: 3)
-        #[arg(long, default_value = "3")]
-        parallel: usize,
-
-        /// Show execution plan without running tasks
-        #[arg(long)]
-        dry_run: bool,
-
-        /// Resume from last checkpoint if execution was interrupted
-        #[arg(long)]
-        resume: bool,
-
-        /// Fail if no tasks exist instead of triggering breakdown
-        #[arg(long)]
-        skip_breakdown: bool,
-    },
+    #[command(subcommand)]
+    Requirement(RequirementCommand),
 
     /// Braingrid operations
     ///
@@ -541,14 +515,8 @@ async fn main() -> anyhow::Result<()> {
         Command::Complete { source } => {
             complete::execute(source).await?;
         }
-        Command::Requirement { req_id, project, ls } => {
-            if ls {
-                requirement::list(project).await?;
-            } else if let Some(id) = req_id {
-                requirement::execute(id, project).await?;
-            } else {
-                anyhow::bail!("Requirement ID is required when not using --ls");
-            }
+        Command::Requirement(cmd) => {
+            requirement::execute_command(cmd).await?;
         }
         Command::Braingrid(cmd) => {
             match cmd {

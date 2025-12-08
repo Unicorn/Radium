@@ -4,8 +4,10 @@
 //! and real-time status synchronization.
 
 use anyhow::{Context, bail};
+use clap::Subcommand;
 use colored::Colorize;
 use radium_core::{
+    checkpoint::CheckpointManager,
     context::braingrid_client::BraingridClient,
     planning::dag::DependencyGraph,
     workflow::{
@@ -21,6 +23,72 @@ use std::sync::Arc;
 use std::time::Instant;
 use std::process::Command;
 use serde::Deserialize;
+
+/// Requirement command subcommands.
+#[derive(Subcommand, Debug)]
+pub enum RequirementCommand {
+    /// Execute a requirement (default if no subcommand)
+    Execute {
+        /// Braingrid requirement ID (e.g., "REQ-173")
+        req_id: Option<String>,
+
+        /// Braingrid project ID (defaults to BRAINGRID_PROJECT_ID env var or PROJ-14)
+        #[arg(long)]
+        project: Option<String>,
+
+        /// List all requirements for the project
+        #[arg(long)]
+        ls: bool,
+
+        /// Maximum number of concurrent task executions (default: 3)
+        #[arg(long, default_value = "3")]
+        parallel: usize,
+
+        /// Show execution plan without running tasks
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Resume from last checkpoint if execution was interrupted
+        #[arg(long)]
+        resume: bool,
+
+        /// Fail if no tasks exist instead of triggering breakdown
+        #[arg(long)]
+        skip_breakdown: bool,
+    },
+    /// Resume an interrupted requirement execution
+    Resume {
+        /// Braingrid requirement ID (e.g., "REQ-173")
+        req_id: String,
+
+        /// Braingrid project ID (defaults to BRAINGRID_PROJECT_ID env var or PROJ-14)
+        #[arg(long)]
+        project: Option<String>,
+
+        /// Restore to a specific checkpoint before resuming
+        #[arg(long)]
+        from_checkpoint: Option<String>,
+    },
+}
+
+/// Execute requirement command (dispatches to subcommands).
+pub async fn execute_command(cmd: RequirementCommand) -> anyhow::Result<()> {
+    match cmd {
+        RequirementCommand::Execute { req_id, project, ls, parallel, dry_run, resume, skip_breakdown } => {
+            if ls {
+                list(project).await?;
+            } else if let Some(id) = req_id {
+                execute(id, project, parallel, dry_run, resume, skip_breakdown).await?;
+            } else {
+                anyhow::bail!("Requirement ID is required when not using --ls");
+            }
+        }
+        RequirementCommand::Resume { req_id, project, from_checkpoint } => {
+            resume_command(req_id, project, from_checkpoint).await?;
+        }
+    }
+    Ok(())
+}
 
 /// Braingrid requirement list response
 #[derive(Debug, Deserialize)]
@@ -75,7 +143,7 @@ struct Pagination {
 /// * `dry_run` - Show execution plan without running
 /// * `resume` - Resume from last checkpoint
 /// * `skip_breakdown` - Fail if no tasks instead of triggering breakdown
-pub async fn execute(
+async fn execute(
     req_id: String,
     project_id: Option<String>,
     max_parallel: usize,
