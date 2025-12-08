@@ -2,9 +2,12 @@
 
 use super::config::{SandboxConfig, SandboxType};
 use super::error::{Result, SandboxError};
+use crate::security::SecretInjector;
 use async_trait::async_trait;
+use std::collections::HashMap;
 use std::path::Path;
 use std::process::Output;
+use std::sync::Arc;
 
 /// Sandbox trait for executing commands in isolated environments.
 #[async_trait]
@@ -94,12 +97,24 @@ impl SandboxFactory {
 }
 
 /// No-op sandbox (executes commands directly without sandboxing).
-pub struct NoSandbox;
+pub struct NoSandbox {
+    /// Optional secret injector for credential injection.
+    secret_injector: Option<Arc<SecretInjector>>,
+}
 
 impl NoSandbox {
     /// Creates a new no-op sandbox.
     pub fn new() -> Self {
-        Self
+        Self {
+            secret_injector: None,
+        }
+    }
+
+    /// Creates a new no-op sandbox with secret injector.
+    pub fn with_secret_injector(injector: Arc<SecretInjector>) -> Self {
+        Self {
+            secret_injector: Some(injector),
+        }
     }
 }
 
@@ -118,11 +133,46 @@ impl Sandbox for NoSandbox {
     async fn execute(&self, command: &str, args: &[String], cwd: Option<&Path>) -> Result<Output> {
         use tokio::process::Command;
 
-        let mut cmd = Command::new(command);
-        cmd.args(args);
+        // Inject secrets if injector is available
+        let (injected_command, injected_args) = if let Some(ref injector) = self.secret_injector {
+            let injected_cmd = injector.inject_secrets(command)
+                .map_err(|e| SandboxError::ExecutionFailed(format!("Secret injection failed: {}", e)))?;
+            
+            let injected_args: Vec<String> = args.iter()
+                .map(|arg| {
+                    injector.inject_secrets(arg)
+                        .unwrap_or_else(|_| arg.clone())
+                })
+                .collect();
+            
+            (injected_cmd, injected_args)
+        } else {
+            (command.to_string(), args.to_vec())
+        };
+
+        let mut cmd = Command::new(&injected_command);
+        cmd.args(&injected_args);
 
         if let Some(dir) = cwd {
             cmd.current_dir(dir);
+        }
+
+        // Inject secrets into environment variables
+        if let Some(ref injector) = self.secret_injector {
+            let mut env_vars = HashMap::new();
+            // Get current environment
+            for (key, value) in std::env::vars() {
+                env_vars.insert(key, value);
+            }
+            
+            // Inject secrets into environment
+            injector.inject_env_vars(&mut env_vars)
+                .map_err(|e| SandboxError::ExecutionFailed(format!("Environment injection failed: {}", e)))?;
+            
+            // Set all environment variables
+            for (key, value) in env_vars {
+                cmd.env(key, value);
+            }
         }
 
         let output = cmd.output().await?;
