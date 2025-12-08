@@ -13,6 +13,7 @@ pub mod plugin;
 pub mod progress;
 pub mod queue;
 pub mod registry;
+pub mod routing;
 pub mod selector;
 
 use async_trait::async_trait;
@@ -46,6 +47,10 @@ pub use orchestration::{
 pub use plugin::{InMemoryPlugin, Plugin, PluginLoader, PluginMetadata};
 pub use queue::{ExecutionQueue, ExecutionTask, Priority, QueueMetrics};
 pub use registry::{AgentMetadata, AgentRegistry};
+pub use routing::{
+    ComplexityEstimator, ComplexityScore, ComplexityWeights, DecisionType, ModelRouter,
+    RoutingDecision, RoutingTier, TaskType,
+};
 pub use selector::{AgentSelector, ModelClass, SelectionCriteria, SelectionError};
 
 // Re-export orchestration error separately to avoid conflicts
