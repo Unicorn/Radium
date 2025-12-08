@@ -25,6 +25,14 @@ pub struct Checkpoint {
     pub task_id: Option<String>,
     /// Workflow ID associated with this checkpoint (for recovery).
     pub workflow_id: Option<String>,
+    /// Execution duration from workflow start to checkpoint (seconds).
+    pub execution_duration_secs: Option<u64>,
+    /// Memory usage at checkpoint time (MB).
+    pub memory_usage_mb: Option<f64>,
+    /// CPU time consumed up to checkpoint (seconds).
+    pub cpu_time_secs: Option<f64>,
+    /// Total tokens used up to checkpoint time.
+    pub tokens_used: Option<u64>,
 }
 
 /// Represents changes between two checkpoints.
@@ -82,6 +90,10 @@ impl Checkpoint {
             description: None,
             task_id: None,
             workflow_id: None,
+            execution_duration_secs: None,
+            memory_usage_mb: None,
+            cpu_time_secs: None,
+            tokens_used: None,
         }
     }
 
@@ -112,6 +124,34 @@ impl Checkpoint {
         self.workflow_id = Some(workflow_id);
         self
     }
+
+    /// Sets execution duration.
+    #[must_use]
+    pub fn with_execution_duration(mut self, duration_secs: u64) -> Self {
+        self.execution_duration_secs = Some(duration_secs);
+        self
+    }
+
+    /// Sets memory usage.
+    #[must_use]
+    pub fn with_memory_usage(mut self, memory_mb: f64) -> Self {
+        self.memory_usage_mb = Some(memory_mb);
+        self
+    }
+
+    /// Sets CPU time.
+    #[must_use]
+    pub fn with_cpu_time(mut self, cpu_secs: f64) -> Self {
+        self.cpu_time_secs = Some(cpu_secs);
+        self
+    }
+
+    /// Sets token usage.
+    #[must_use]
+    pub fn with_tokens_used(mut self, tokens: u64) -> Self {
+        self.tokens_used = Some(tokens);
+        self
+    }
 }
 
 /// Checkpoint manager for git snapshots.
@@ -131,6 +171,10 @@ impl CheckpointManager {
             "task_id": checkpoint.task_id,
             "workflow_id": checkpoint.workflow_id,
             "timestamp": checkpoint.timestamp,
+            "execution_duration_secs": checkpoint.execution_duration_secs,
+            "memory_usage_mb": checkpoint.memory_usage_mb,
+            "cpu_time_secs": checkpoint.cpu_time_secs,
+            "tokens_used": checkpoint.tokens_used,
         })
         .to_string()
     }
@@ -155,6 +199,18 @@ impl CheckpointManager {
             }
             if let Some(timestamp) = json.get("timestamp").and_then(|v| v.as_u64()) {
                 checkpoint.timestamp = timestamp;
+            }
+            if let Some(duration) = json.get("execution_duration_secs").and_then(|v| v.as_u64()) {
+                checkpoint.execution_duration_secs = Some(duration);
+            }
+            if let Some(memory) = json.get("memory_usage_mb").and_then(|v| v.as_f64()) {
+                checkpoint.memory_usage_mb = Some(memory);
+            }
+            if let Some(cpu) = json.get("cpu_time_secs").and_then(|v| v.as_f64()) {
+                checkpoint.cpu_time_secs = Some(cpu);
+            }
+            if let Some(tokens) = json.get("tokens_used").and_then(|v| v.as_u64()) {
+                checkpoint.tokens_used = Some(tokens);
             }
         }
         
@@ -209,13 +265,39 @@ impl CheckpointManager {
     ///
     /// # Arguments
     /// * `description` - Optional description for the checkpoint
+    /// * `execution_start_time` - Optional execution start time for duration calculation
+    /// * `tokens_used` - Optional total tokens used up to checkpoint
     ///
     /// # Returns
     /// The created checkpoint
     ///
     /// # Errors
     /// Returns error if git operations fail
-    pub fn create_checkpoint(&self, description: Option<String>) -> Result<Checkpoint> {
+    pub fn create_checkpoint(
+        &self,
+        description: Option<String>,
+    ) -> Result<Checkpoint> {
+        self.create_checkpoint_with_metrics(description, None, None)
+    }
+
+    /// Creates a checkpoint with resource metrics.
+    ///
+    /// # Arguments
+    /// * `description` - Optional description for the checkpoint
+    /// * `execution_start_time` - Optional execution start time (SystemTime) for duration calculation
+    /// * `tokens_used` - Optional total tokens used up to checkpoint
+    ///
+    /// # Returns
+    /// The created checkpoint
+    ///
+    /// # Errors
+    /// Returns error if git operations fail
+    pub fn create_checkpoint_with_metrics(
+        &self,
+        description: Option<String>,
+        execution_start_time: Option<SystemTime>,
+        tokens_used: Option<u64>,
+    ) -> Result<Checkpoint> {
         // Ensure shadow repo is initialized
         self.initialize_shadow_repo()?;
 
@@ -240,6 +322,18 @@ impl CheckpointManager {
         let mut checkpoint = Checkpoint::new(checkpoint_id.clone(), commit_hash.clone());
         if let Some(desc) = description {
             checkpoint = checkpoint.with_description(desc);
+        }
+
+        // Add resource metrics if provided
+        if let Some(start_time) = execution_start_time {
+            let duration = SystemTime::now()
+                .duration_since(start_time)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            checkpoint = checkpoint.with_execution_duration(duration);
+        }
+        if let Some(tokens) = tokens_used {
+            checkpoint = checkpoint.with_tokens_used(tokens);
         }
 
         // Serialize metadata to JSON for tag annotation

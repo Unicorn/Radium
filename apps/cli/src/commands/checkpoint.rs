@@ -79,6 +79,10 @@ async fn list_command(checkpoint_manager: &CheckpointManager, json: bool) -> Res
                     "agent_id": c.agent_id,
                     "timestamp": c.timestamp,
                     "description": c.description,
+                    "execution_duration_secs": c.execution_duration_secs,
+                    "memory_usage_mb": c.memory_usage_mb,
+                    "cpu_time_secs": c.cpu_time_secs,
+                    "tokens_used": c.tokens_used,
                 })
             })
             .collect();
@@ -87,22 +91,96 @@ async fn list_command(checkpoint_manager: &CheckpointManager, json: bool) -> Res
         if checkpoints.is_empty() {
             println!("No checkpoints found.");
         } else {
-            println!("{:<40} {:<15} {:<30} {:<20}", "ID", "Commit", "Description", "Timestamp");
-            println!("{}", "-".repeat(105));
-            for checkpoint in checkpoints {
-                let timestamp = chrono::DateTime::from_timestamp(checkpoint.timestamp as i64, 0)
-                    .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
-                    .unwrap_or_else(|| checkpoint.timestamp.to_string());
-                let description = checkpoint.description.as_deref().unwrap_or("-");
-                let commit_short =
-                    &checkpoint.commit_hash[..std::cmp::min(12, checkpoint.commit_hash.len())];
-                println!(
-                    "{:<40} {:<15} {:<30} {:<20}",
-                    checkpoint.id, commit_short, description, timestamp
-                );
+            // Check if any checkpoint has resource metadata
+            let has_metadata = checkpoints.iter().any(|c| {
+                c.execution_duration_secs.is_some()
+                    || c.memory_usage_mb.is_some()
+                    || c.cpu_time_secs.is_some()
+                    || c.tokens_used.is_some()
+            });
+            
+            if has_metadata {
+                // Extended format with resource metadata
+                println!("{:<40} {:<15} {:<25} {:<12} {:<12} {:<12} {:<15}", 
+                    "ID", "Commit", "Description", "Duration", "Memory", "Tokens", "Timestamp");
+                println!("{}", "-".repeat(131));
+                for checkpoint in checkpoints {
+                    let timestamp = chrono::DateTime::from_timestamp(checkpoint.timestamp as i64, 0)
+                        .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+                        .unwrap_or_else(|| checkpoint.timestamp.to_string());
+                    let description = checkpoint.description.as_deref().unwrap_or("-");
+                    let description_short = if description.len() > 23 {
+                        &description[..20]
+                    } else {
+                        description
+                    };
+                    let commit_short =
+                        &checkpoint.commit_hash[..std::cmp::min(12, checkpoint.commit_hash.len())];
+                    let duration = checkpoint.execution_duration_secs
+                        .map(|s| format_duration(s))
+                        .unwrap_or_else(|| "-".to_string());
+                    let memory = checkpoint.memory_usage_mb
+                        .map(|m| format!("{:.1} MB", m))
+                        .unwrap_or_else(|| "-".to_string());
+                    let tokens = checkpoint.tokens_used
+                        .map(|t| format_number(t))
+                        .unwrap_or_else(|| "-".to_string());
+                    println!(
+                        "{:<40} {:<15} {:<25} {:<12} {:<12} {:<12} {:<15}",
+                        checkpoint.id, commit_short, description_short, duration, memory, tokens, timestamp
+                    );
+                }
+            } else {
+                // Simple format (no metadata)
+                println!("{:<40} {:<15} {:<30} {:<20}", "ID", "Commit", "Description", "Timestamp");
+                println!("{}", "-".repeat(105));
+                for checkpoint in checkpoints {
+                    let timestamp = chrono::DateTime::from_timestamp(checkpoint.timestamp as i64, 0)
+                        .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+                        .unwrap_or_else(|| checkpoint.timestamp.to_string());
+                    let description = checkpoint.description.as_deref().unwrap_or("-");
+                    let commit_short =
+                        &checkpoint.commit_hash[..std::cmp::min(12, checkpoint.commit_hash.len())];
+                    println!(
+                        "{:<40} {:<15} {:<30} {:<20}",
+                        checkpoint.id, commit_short, description, timestamp
+                    );
+                }
             }
         }
     }
+    Ok(())
+}
+
+/// Formats duration in seconds to human-readable string.
+fn format_duration(secs: u64) -> String {
+    if secs < 60 {
+        format!("{}s", secs)
+    } else if secs < 3600 {
+        let mins = secs / 60;
+        let secs = secs % 60;
+        format!("{}m {}s", mins, secs)
+    } else {
+        let hours = secs / 3600;
+        let mins = (secs % 3600) / 60;
+        let secs = secs % 60;
+        format!("{}h {}m {}s", hours, mins, secs)
+    }
+}
+
+/// Formats number with thousand separators.
+fn format_number(n: u64) -> String {
+    let s = n.to_string();
+    let mut result = String::new();
+    let mut count = 0;
+    for ch in s.chars().rev() {
+        if count > 0 && count % 3 == 0 {
+            result.push(',');
+        }
+        result.push(ch);
+        count += 1;
+    }
+    result.chars().rev().collect()
     Ok(())
 }
 
