@@ -1,0 +1,24 @@
+approval_mode = "ask"
+
+[[rules]]
+name = "Allow read operations"
+priority = "user"
+action = "allow"
+tool_pattern = "read_*"
+reason = "Read operations are safe"
+
+[[rules]]
+name = "Deny dangerous commands"
+priority = "admin"
+action = "deny"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "rm -rf *"
+reason = "Prevent accidental deletion"
+
+[[rules]]
+name = "Require approval for writes"
+priority = "user"
+action = "ask_user"
+tool_pattern = "write_*"
+reason = "File writes require approval"
+
