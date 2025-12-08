@@ -1,14 +1,19 @@
 //! Log file management for agent execution.
 
+use crate::config::Config;
+use crate::security::{PatternLibrary, PrivacyFilter, RedactionStyle};
 use super::error::Result;
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 /// Log manager for agent execution logs.
 pub struct LogManager {
     /// Root directory for logs.
     logs_dir: PathBuf,
+    /// Optional privacy filter for redacting sensitive data.
+    privacy_filter: Option<Arc<PrivacyFilter>>,
 }
 
 impl LogManager {
@@ -20,9 +25,34 @@ impl LogManager {
     /// # Errors
     /// Returns error if directory creation fails
     pub fn new(logs_dir: impl AsRef<Path>) -> Result<Self> {
+        Self::new_with_config(logs_dir, None)
+    }
+
+    /// Creates a new log manager with optional privacy configuration.
+    ///
+    /// # Arguments
+    /// * `logs_dir` - Directory for log files
+    /// * `config` - Optional configuration for privacy filtering
+    ///
+    /// # Errors
+    /// Returns error if directory creation fails
+    pub fn new_with_config(logs_dir: impl AsRef<Path>, config: Option<&Config>) -> Result<Self> {
         let logs_dir = logs_dir.as_ref().to_path_buf();
         fs::create_dir_all(&logs_dir)?;
-        Ok(Self { logs_dir })
+
+        // Initialize privacy filter if enabled in config
+        let privacy_filter = config
+            .and_then(|c| {
+                if c.security.privacy.enable {
+                    let style = parse_redaction_style(&c.security.privacy.redaction_style);
+                    let patterns = PatternLibrary::default();
+                    Some(Arc::new(PrivacyFilter::new(style, patterns)))
+                } else {
+                    None
+                }
+            });
+
+        Ok(Self { logs_dir, privacy_filter })
     }
 
     /// Gets the log file path for an agent.
@@ -64,7 +94,19 @@ impl LogManager {
         let path = self.log_path(agent_id);
         let mut file = OpenOptions::new().create(true).append(true).open(path)?;
 
-        writeln!(file, "{}", Self::strip_color_codes(line))?;
+        // Strip ANSI codes first
+        let stripped = Self::strip_color_codes(line);
+
+        // Apply privacy redaction if enabled
+        let final_line = if let Some(ref filter) = self.privacy_filter {
+            filter.redact(&stripped).map_err(|e| {
+                super::error::MonitoringError::Other(format!("Privacy redaction failed: {}", e))
+            })?.0
+        } else {
+            stripped
+        };
+
+        writeln!(file, "{}", final_line)?;
         Ok(())
     }
 
@@ -259,5 +301,15 @@ mod tests {
 
         manager.delete_log("agent-1").unwrap();
         assert!(!manager.log_path("agent-1").exists());
+    }
+}
+
+/// Parses redaction style from string configuration.
+fn parse_redaction_style(style: &str) -> RedactionStyle {
+    match style.to_lowercase().as_str() {
+        "full" => RedactionStyle::Full,
+        "partial" => RedactionStyle::Partial,
+        "hash" => RedactionStyle::Hash,
+        _ => RedactionStyle::Partial, // Default to partial
     }
 }
