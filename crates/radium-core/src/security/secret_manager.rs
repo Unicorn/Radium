@@ -12,6 +12,7 @@ use aes_gcm::{
     aead::{Aead, AeadCore, KeyInit, OsRng},
     Aes256Gcm, Key, Nonce,
 };
+use base64::Engine;
 use chrono::Utc;
 use pbkdf2::pbkdf2_hmac;
 use serde::{Deserialize, Serialize};
@@ -33,7 +34,7 @@ const PBKDF2_ITERATIONS: u32 = 100_000;
 const SALT_LENGTH: usize = 32;
 
 /// Nonce length for AES-GCM.
-const NONCE_LENGTH: usize = 12;
+const _NONCE_LENGTH: usize = 12;
 
 /// Encrypted secret entry in the vault.
 #[derive(Debug, Clone, Serialize, Deserialize)]
