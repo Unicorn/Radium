@@ -4,6 +4,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use crate::state::TriggerMode;
 
 /// TUI configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -16,6 +17,9 @@ pub struct TuiConfig {
     /// Animation configuration
     #[serde(default)]
     pub animations: AnimationConfig,
+    /// Completion configuration
+    #[serde(default)]
+    pub completion: CompletionConfig,
 }
 
 /// Performance configuration.
@@ -74,6 +78,44 @@ impl Default for AnimationConfig {
     }
 }
 
+/// Completion configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompletionConfig {
+    /// Trigger mode for auto-completion (default: Auto)
+    #[serde(default = "default_trigger_mode")]
+    pub trigger_mode: String,
+    /// Minimum characters before triggering auto-completion (default: 2)
+    #[serde(default = "default_min_chars")]
+    pub min_chars: usize,
+}
+
+fn default_trigger_mode() -> String {
+    "auto".to_string()
+}
+
+fn default_min_chars() -> usize {
+    2
+}
+
+impl Default for CompletionConfig {
+    fn default() -> Self {
+        Self {
+            trigger_mode: "auto".to_string(),
+            min_chars: 2,
+        }
+    }
+}
+
+impl CompletionConfig {
+    /// Get the trigger mode as an enum.
+    pub fn trigger_mode_enum(&self) -> TriggerMode {
+        match self.trigger_mode.to_lowercase().as_str() {
+            "manual" => TriggerMode::Manual,
+            _ => TriggerMode::Auto,
+        }
+    }
+}
+
 /// Theme configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ThemeConfig {
@@ -124,6 +166,7 @@ impl Default for TuiConfig {
             theme: ThemeConfig::default(),
             performance: PerformanceConfig::default(),
             animations: AnimationConfig::default(),
+            completion: CompletionConfig::default(),
         }
     }
 }
@@ -185,6 +228,12 @@ impl TuiConfig {
         toml.push_str(&format!("duration_multiplier = {}\n", self.animations.duration_multiplier));
         toml.push_str("# Whether to use reduced motion (default: false)\n");
         toml.push_str(&format!("reduced_motion = {}\n\n", self.animations.reduced_motion));
+
+        toml.push_str("[completion]\n");
+        toml.push_str("# Trigger mode: \"auto\" (default) or \"manual\"\n");
+        toml.push_str(&format!("trigger_mode = \"{}\"\n", self.completion.trigger_mode));
+        toml.push_str("# Minimum characters before triggering auto-completion (default: 2)\n");
+        toml.push_str(&format!("min_chars = {}\n\n", self.completion.min_chars));
 
         if let Some(ref colors) = self.theme.colors {
             toml.push_str("# Custom colors (only used if preset = \"custom\")\n");

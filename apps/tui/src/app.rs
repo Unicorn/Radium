@@ -584,6 +584,17 @@ impl App {
             // Tab to autocomplete selected command
             KeyCode::Tab if self.prompt_data.command_state.is_active && !self.prompt_data.command_state.suggestions.is_empty() => {
                 self.autocomplete_selected_command();
+                // Reset manual trigger after completion
+                self.prompt_data.command_state.triggered_manually = false;
+            }
+
+            // Ctrl+Space for manual trigger (works in both Auto and Manual modes)
+            KeyCode::Char(' ') if modifiers.contains(KeyModifiers::CONTROL) => {
+                let input = self.prompt_data.input.text();
+                if input.starts_with('/') {
+                    self.prompt_data.command_state.triggered_manually = true;
+                    self.update_command_suggestions();
+                }
             }
 
             // Escape to cancel command menu
