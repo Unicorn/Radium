@@ -137,6 +137,8 @@ pub struct PolicyEngine {
     hook_registry: Option<Arc<HookRegistry>>,
     /// Optional alert manager for violation notifications.
     alert_manager: Option<Arc<AlertManager>>,
+    /// Optional analytics manager for tracking policy events.
+    analytics: Option<Arc<PolicyAnalytics>>,
 }
 
 impl PolicyEngine {
@@ -154,6 +156,7 @@ impl PolicyEngine {
             rules: Vec::new(),
             hook_registry: None,
             alert_manager: None,
+            analytics: None,
         })
     }
 
@@ -171,6 +174,7 @@ impl PolicyEngine {
             rules: Vec::new(),
             hook_registry: Some(hook_registry),
             alert_manager: None,
+            analytics: None,
         })
     }
 
@@ -197,6 +201,7 @@ impl PolicyEngine {
             rules: config.rules,
             hook_registry: None,
             alert_manager: None,
+            analytics: None,
         };
 
         // Sort rules by priority (highest first)
@@ -213,6 +218,11 @@ impl PolicyEngine {
     /// Sets the alert manager for this policy engine.
     pub fn set_alert_manager(&mut self, alert_manager: Arc<AlertManager>) {
         self.alert_manager = Some(alert_manager);
+    }
+
+    /// Sets the analytics manager for this policy engine.
+    pub fn set_analytics(&mut self, analytics: Arc<PolicyAnalytics>) {
+        self.analytics = Some(analytics);
     }
 
     /// Adds a policy rule to this engine.
@@ -309,6 +319,12 @@ impl PolicyEngine {
                     }
                 }
 
+                // Record analytics event
+                if let Some(ref analytics) = self.analytics {
+                    let args_str: Vec<&str> = args_refs.iter().copied().collect();
+                    analytics.record_event(&decision, &effective_tool_name, &args_str, None);
+                }
+
                 return Ok(decision);
             }
         }
@@ -348,6 +364,12 @@ impl PolicyEngine {
                 let args_str: Vec<&str> = args_refs.iter().copied().collect();
                 alert_manager.send_alert(&decision, &effective_tool_name, &args_str, None).await;
             }
+        }
+
+        // Record analytics event
+        if let Some(ref analytics) = self.analytics {
+            let args_str: Vec<&str> = args_refs.iter().copied().collect();
+            analytics.record_event(&decision, &effective_tool_name, &args_str, None);
         }
 
         Ok(decision)

@@ -8,9 +8,6 @@ use radium_core::workspace::Workspace;
 use std::path::PathBuf;
 use policy_learn::execute_learn_command;
 
-mod policy_learn;
-use policy_learn::execute_learn_command;
-
 /// Policy command options.
 #[derive(Subcommand, Debug)]
 pub enum PolicyCommand {
