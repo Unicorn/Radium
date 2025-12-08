@@ -128,20 +128,34 @@ impl PromptData {
             if self.scrollback_offset > 0 {
                 self.scrollback_offset = self.scrollback_offset.saturating_sub(1);
             }
+            // Adjust chat scroll offset if needed
+            if self.chat_scroll_offset > 0 {
+                self.chat_scroll_offset = self.chat_scroll_offset.saturating_sub(1);
+            }
         }
+        // Auto-scroll chat history to bottom when new message is added
+        self.scroll_chat_to_bottom();
     }
 
     /// Get visible conversation lines for viewport culling.
     /// 
     /// Returns only the lines that should be rendered based on viewport size and scroll position.
+    /// Uses `chat_scroll_offset` for chat context (split-pane view), `scrollback_offset` for other contexts.
     pub fn get_visible_conversation(&self, viewport_height: usize) -> Vec<String> {
         let total_lines = self.conversation.len();
         if total_lines == 0 {
             return Vec::new();
         }
 
+        // Use chat_scroll_offset for chat context (split-pane view), scrollback_offset for other contexts
+        let scroll_offset = if matches!(self.context, DisplayContext::Chat { .. }) {
+            self.chat_scroll_offset
+        } else {
+            self.scrollback_offset
+        };
+
         // Calculate visible range
-        let start = self.scrollback_offset.min(total_lines.saturating_sub(1));
+        let start = scroll_offset.min(total_lines.saturating_sub(1));
         let end = (start + viewport_height).min(total_lines);
 
         if start >= total_lines {
@@ -164,6 +178,31 @@ impl PromptData {
     /// Check if prompt editor pane has focus.
     pub fn is_prompt_focused(&self) -> bool {
         !self.chat_history_focused
+    }
+
+    /// Scroll chat history up by the specified amount.
+    pub fn scroll_chat_up(&mut self, amount: usize) {
+        self.chat_scroll_offset = self.chat_scroll_offset.saturating_sub(amount);
+    }
+
+    /// Scroll chat history down by the specified amount.
+    pub fn scroll_chat_down(&mut self, amount: usize) {
+        let total_lines = self.conversation.len();
+        if total_lines == 0 {
+            return;
+        }
+        let max_scroll = total_lines.saturating_sub(1);
+        self.chat_scroll_offset = (self.chat_scroll_offset + amount).min(max_scroll);
+    }
+
+    /// Scroll chat history to the bottom.
+    pub fn scroll_chat_to_bottom(&mut self) {
+        let total_lines = self.conversation.len();
+        if total_lines == 0 {
+            self.chat_scroll_offset = 0;
+        } else {
+            self.chat_scroll_offset = total_lines.saturating_sub(1);
+        }
     }
 }
 
