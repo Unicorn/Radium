@@ -2,9 +2,11 @@
 
 use ratatui::{
     prelude::*,
-    widgets::{Block, Borders, List, ListItem, Paragraph},
+    widgets::{Block, Borders, Paragraph},
+    layout::Constraint,
 };
 
+use crate::components::InteractiveTable;
 use crate::icons::Icons;
 use crate::session_manager::ChatSession;
 use crate::theme::THEME;
@@ -35,58 +37,53 @@ pub fn render_sessions(
         );
     frame.render_widget(title, chunks[0]);
 
-    // Build session list items
-    let mut items = Vec::new();
-    let mut current_index = 0;
+    // Build session table items
+    let mut table_items = Vec::new();
 
     // Sort dates (most recent first)
     let mut sorted_dates: Vec<_> = sessions_by_date.keys().collect();
     sorted_dates.sort_by(|a, b| b.cmp(a));
 
     for date in sorted_dates {
-        // Add date header
-        let date_label = format_date_label(date);
-        items.push(ListItem::new(Line::from(Span::styled(
-            date_label,
-            Style::default().fg(THEME.text_muted()).add_modifier(Modifier::BOLD),
-        ))));
-
         // Add sessions for this date
         for session in &sessions_by_date[date] {
-            let is_selected = current_index == selected_index;
-            let style = if is_selected {
-                Style::default().fg(THEME.bg_primary()).bg(THEME.primary()).add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(THEME.text())
-            };
-
-            let session_text = format!(
-                "  {} {} ({}) - {} messages",
-                if is_selected { "▶" } else { " " },
-                session.agent_id,
-                session.session_id,
-                session.message_count
-            );
-
-            items.push(ListItem::new(Line::from(Span::styled(session_text, style))));
-            current_index += 1;
+            let date_label = format_date_label(date);
+            table_items.push(vec![
+                session.agent_id.clone(),
+                session.session_id.clone(),
+                format!("{}", session.message_count),
+                date_label,
+            ]);
         }
     }
 
-    if items.is_empty() {
-        items.push(ListItem::new(Line::from(Span::styled(
-            "No sessions found. Use /chat <agent> to start a new session.",
-            Style::default().fg(THEME.text_muted()),
-        ))));
+    if table_items.is_empty() {
+        let empty_text = "No sessions found. Use /chat <agent> to start a new session.";
+        let empty_widget = Paragraph::new(empty_text)
+            .style(Style::default().fg(THEME.text_muted()))
+            .alignment(Alignment::Center)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(THEME.border()))
+                    .title(" Recent Sessions "),
+            );
+        frame.render_widget(empty_widget, chunks[1]);
+    } else {
+        let mut table = InteractiveTable::new(
+            vec!["Agent".to_string(), "Session ID".to_string(), "Messages".to_string(), "Date".to_string()],
+            vec![
+                Constraint::Percentage(20),
+                Constraint::Percentage(35),
+                Constraint::Percentage(15),
+                Constraint::Percentage(30),
+            ],
+        );
+        let items_len = table_items.len();
+        table.set_items(table_items);
+        table.set_selected(Some(selected_index.min(items_len.saturating_sub(1))));
+        table.render(frame, chunks[1], Some(" Recent Sessions "));
     }
-
-    let list = List::new(items)
-        .block(
-            Block::default().borders(Borders::ALL).border_style(Style::default().fg(THEME.border())),
-        )
-        .style(Style::default().fg(THEME.text()));
-
-    frame.render_widget(list, chunks[1]);
 
     // Help line
     let help_text = "Press number to resume | 'd' to delete | '/' for commands";

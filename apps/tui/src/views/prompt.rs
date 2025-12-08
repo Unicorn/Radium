@@ -8,10 +8,11 @@ use ratatui::{
 };
 
 use crate::commands::DisplayContext;
+use crate::components::InteractiveTable;
 use crate::icons::Icons;
 use crate::setup::SetupWizard;
 use crate::theme::THEME;
-use crate::views::header::{HeaderInfo, render_header};
+use ratatui::layout::Constraint;
 
 /// Unified prompt data.
 pub struct PromptData {
@@ -130,35 +131,8 @@ impl PromptData {
 }
 
 /// Render the unified prompt interface.
+/// Note: Input prompt is now rendered in the status bar, not here.
 pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(1), // Header
-            Constraint::Min(10),   // Main display area
-            Constraint::Length(3), // Input prompt
-            Constraint::Length(2), // Help line
-        ])
-        .split(area);
-
-    // Branded header
-    let header_info = HeaderInfo::new()
-        .with_agent(
-            match &data.context {
-                DisplayContext::Chat { agent_id, .. } => Some(agent_id.clone()),
-                _ => None,
-            }
-            .unwrap_or_default(),
-        )
-        .with_session(
-            match &data.context {
-                DisplayContext::Chat { session_id, .. } => Some(session_id.clone()),
-                _ => None,
-            }
-            .unwrap_or_default(),
-        );
-    render_header(frame, chunks[0], &header_info);
-
     // Main display area - content depends on context
     let main_content = match &data.context {
         DisplayContext::Chat { agent_id, .. } => {
@@ -200,6 +174,36 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
 
     // Render context-specific views
     match &data.context {
+        DisplayContext::AgentList => {
+            // Render agent list with interactive table
+            if data.agents.is_empty() {
+                let empty_text = "No agents found.\n\nPlace agent configs in ./agents/ or ~/.radium/agents/";
+                let empty_widget = Paragraph::new(empty_text)
+                    .wrap(Wrap { trim: true })
+                    .block(
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .border_style(Style::default().fg(THEME.border()))
+                            .title(" Available Agents "),
+                    )
+                    .style(Style::default().fg(THEME.text()));
+                frame.render_widget(empty_widget, area);
+            } else {
+                let mut table = InteractiveTable::new(
+                    vec!["ID".to_string(), "Name".to_string()],
+                    vec![Constraint::Percentage(30), Constraint::Percentage(70)],
+                );
+                
+                let items: Vec<Vec<String>> = data.agents
+                    .iter()
+                    .map(|(id, name)| vec![id.clone(), name.clone()])
+                    .collect();
+                
+                table.set_items(items);
+                table.set_selected(Some(data.selected_index.min(data.agents.len().saturating_sub(1))));
+                table.render(frame, area, Some(" Available Agents "));
+            }
+        }
         DisplayContext::SessionList => {
             // Load and render sessions
             let workspace_root = None; // TODO: Get from app state
@@ -208,7 +212,7 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
                 if let Ok(sessions_by_date) = session_manager.load_sessions() {
                     crate::views::sessions::render_sessions(
                         frame,
-                        chunks[1],
+                        area,
                         &sessions_by_date,
                         data.selected_index,
                     );
@@ -220,7 +224,7 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
             if let Ok(models) = crate::commands::models::get_available_models() {
                 crate::views::model_selector::render_model_selector(
                     frame,
-                    chunks[1],
+                    area,
                     &models,
                     data.selected_index,
                 );
@@ -231,7 +235,7 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
             // Note: scrollback_offset is used in get_visible_conversation()
             
             // Calculate viewport height (subtract borders and padding)
-            let viewport_height = chunks[1].height.saturating_sub(2) as usize; // Subtract top/bottom borders
+            let viewport_height = area.height.saturating_sub(2) as usize; // Subtract top/bottom borders
             
             // Get only visible conversation lines (viewport culling)
             let visible_conversation = data.get_visible_conversation(viewport_height);
@@ -253,7 +257,7 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
                 )
                 .style(Style::default().fg(THEME.text()))
                 .scroll((0, 0)); // No scroll needed since we're already culling
-            frame.render_widget(main_widget, chunks[1]);
+            frame.render_widget(main_widget, area);
         }
         _ => {
             // Apply scrollback offset for other contexts
@@ -268,7 +272,7 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
                 )
                 .style(Style::default().fg(THEME.text()))
                 .scroll((scroll_offset as u16, 0));
-            frame.render_widget(main_widget, chunks[1]);
+            frame.render_widget(main_widget, area);
         }
     }
 
@@ -277,15 +281,7 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
         render_command_palette(frame, area, data);
     }
 
-    // Input prompt
-    let prompt_text = format!("> {}_", data.input);
-    let prompt = Paragraph::new(prompt_text).style(Style::default().fg(THEME.primary())).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(THEME.border_active()))
-            .title(" Input "),
-    );
-    frame.render_widget(prompt, chunks[2]);
+    // Note: Input prompt is now rendered in the status bar (not here)
 
     // Show command menu popup if there are suggestions
     if !data.command_suggestions.is_empty() {
@@ -320,9 +316,9 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
         let popup_height = (visible_count + 4) as u16; // suggestions + header + footer + spacing
 
         let popup_area = Rect {
-            x: chunks[2].x + 2,
-            y: chunks[2].y.saturating_sub(popup_height),
-            width: popup_width.min(chunks[2].width.saturating_sub(4)),
+            x: area.x + 2,
+            y: area.y.saturating_sub(popup_height),
+            width: popup_width.min(area.width.saturating_sub(4)),
             height: popup_height,
         };
 
@@ -395,13 +391,6 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
 
         frame.render_widget(menu_widget, popup_area);
     }
-
-    // Help line
-    let help_text = "Type /help for commands | Ctrl+C to quit | Enter to send";
-    let help = Paragraph::new(help_text)
-        .style(Style::default().fg(THEME.text_muted()))
-        .alignment(Alignment::Center);
-    frame.render_widget(help, chunks[3]);
 }
 
 /// Render command palette overlay.

@@ -2,8 +2,6 @@
 
 use crate::hooks::error::{HookError, Result as HookResult};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::time::Duration;
 
 /// Marketplace hook metadata.
 #[derive(Debug, Clone, Serialize, Deserialize)]

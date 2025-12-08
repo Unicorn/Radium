@@ -13,6 +13,7 @@ pub struct RadiumTheme {
     // Primary brand colors
     pub primary: Color,
     pub secondary: Color,
+    pub purple: Color,
 
     // Status colors
     pub success: Color,
@@ -100,6 +101,7 @@ impl RadiumTheme {
         if let Some(ref hex) = colors.secondary {
             theme.secondary = Self::parse_hex_color(hex)?;
         }
+        // Note: purple not in config yet, but can be added later
         if let Some(ref hex) = colors.success {
             theme.success = Self::parse_hex_color(hex)?;
         }
@@ -146,10 +148,12 @@ impl RadiumTheme {
     /// Creates the default dark theme.
     pub fn dark() -> Self {
         Self {
-            // Primary: Cyan (#00D9FF)
+            // Primary: Cyan (#00D9FF) - matches codemachine
             primary: Color::Rgb(0, 217, 255),
             // Secondary: Purple (#A78BFA)
             secondary: Color::Rgb(167, 139, 250),
+            // Purple: (#6250d0) - for logo accents, matches codemachine
+            purple: Color::Rgb(98, 80, 208),
 
             // Status colors
             success: Color::Rgb(16, 185, 129), // Green
@@ -157,14 +161,14 @@ impl RadiumTheme {
             error: Color::Rgb(239, 68, 68),    // Red
             info: Color::Rgb(6, 182, 212),     // Blue
 
-            // Text colors
-            text: Color::Rgb(238, 238, 238),       // White
-            text_muted: Color::Rgb(128, 128, 128), // Gray
+            // Text colors - matches codemachine
+            text: Color::Rgb(238, 238, 238),       // #eeeeee (darkStep12)
+            text_muted: Color::Rgb(128, 128, 128), // #808080 (darkStep11)
             text_dim: Color::Rgb(96, 96, 96),      // Dark Gray
 
-            // Background colors
-            bg_primary: Color::Rgb(24, 29, 39), // Dark blue-gray
-            bg_panel: Color::Rgb(20, 20, 20),   // Very dark
+            // Background colors - matches codemachine
+            bg_primary: Color::Rgb(24, 29, 39), // #181D27 (darkStep1)
+            bg_panel: Color::Rgb(20, 20, 20),   // #141414 (darkStep2)
             bg_element: Color::Rgb(30, 30, 30), // Dark gray
 
             // Border colors
@@ -180,6 +184,7 @@ impl RadiumTheme {
         Self {
             primary: Color::Rgb(8, 145, 178),
             secondary: Color::Rgb(124, 58, 237),
+            purple: Color::Rgb(98, 80, 208),
 
             success: Color::Rgb(5, 150, 105),
             warning: Color::Rgb(217, 119, 6),
@@ -253,6 +258,10 @@ impl ThemeAccessor {
     pub fn secondary(&self) -> Color {
         Self::theme().secondary
     }
+    /// Purple color
+    pub fn purple(&self) -> Color {
+        Self::theme().purple
+    }
     /// Success color
     pub fn success(&self) -> Color {
         Self::theme().success
@@ -304,6 +313,22 @@ impl ThemeAccessor {
     /// Subtle border color
     pub fn border_subtle(&self) -> Color {
         Self::theme().border_subtle
+    }
+    /// Color for user-typed text/input
+    pub fn user_input_color(&self) -> Color {
+        Self::theme().primary
+    }
+    /// Color for AI/agent responses
+    pub fn machine_output_color(&self) -> Color {
+        Self::theme().info
+    }
+    /// Color for system messages/logs
+    pub fn system_message_color(&self) -> Color {
+        Self::theme().text_muted
+    }
+    /// Color for prompts/questions
+    pub fn question_color(&self) -> Color {
+        Self::theme().warning
     }
 }
 

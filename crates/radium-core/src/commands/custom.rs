@@ -13,7 +13,7 @@ use super::error::{CommandError, Result};
 #[cfg(feature = "orchestrator-integration")]
 use crate::hooks::integration::OrchestratorHooks;
 use crate::hooks::registry::HookRegistry;
-use crate::sandbox::{Sandbox, SandboxConfig};
+use crate::sandbox::Sandbox;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;

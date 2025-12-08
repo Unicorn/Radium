@@ -4,7 +4,6 @@
 
 use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection};
-use std::time::Duration;
 use thiserror::Error;
 
 /// Analytics errors.

@@ -5,7 +5,7 @@
 //! and security checks.
 
 use crate::extensions::manifest::ExtensionManifest;
-use crate::extensions::structure::{Extension, ExtensionStructureError};
+use crate::extensions::structure::ExtensionStructureError;
 use std::path::Path;
 use thiserror::Error;
 

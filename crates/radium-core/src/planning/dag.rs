@@ -59,7 +59,7 @@
 //! - [Autonomous Planning](autonomous) - Uses DAG for plan validation
 //! - [Plan Executor](executor) - Uses DAG for execution ordering
 
-use crate::models::{PlanManifest, PlanTask};
+use crate::models::PlanManifest;
 use petgraph::algo::{is_cyclic_directed, toposort};
 use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::Direction;

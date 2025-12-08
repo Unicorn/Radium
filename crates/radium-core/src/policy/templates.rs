@@ -1,7 +1,6 @@
 //! Policy rule templates for common security scenarios.
 
 use crate::policy::{PolicyEngine, PolicyError, PolicyResult};
-use crate::workspace::Workspace;
 use std::path::{Path, PathBuf};
 use std::fs;
 use std::collections::HashMap;

@@ -2,9 +2,11 @@
 
 use ratatui::{
     prelude::*,
-    widgets::{Block, Borders, List, ListItem, Paragraph},
+    widgets::{Block, Borders, Paragraph},
+    layout::Constraint,
 };
 
+use crate::components::InteractiveTable;
 use crate::icons::Icons;
 use crate::theme::THEME;
 
@@ -43,47 +45,47 @@ pub fn render_model_selector(
         );
     frame.render_widget(title, chunks[0]);
 
-    // Build model list items
-    let items: Vec<ListItem> = models
+    // Build model table items
+    let table_items: Vec<Vec<String>> = models
         .iter()
-        .enumerate()
-        .map(|(i, model)| {
-            let is_selected = i == selected_index;
-            let is_current = model.is_selected;
-
-            let style = if is_selected {
-                Style::default().fg(THEME.bg_primary()).bg(THEME.primary()).add_modifier(Modifier::BOLD)
-            } else if is_current {
-                Style::default().fg(THEME.success()).add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(THEME.text())
-            };
-
-            let prefix = if is_current {
-                "[x]"
-            } else if is_selected {
-                "[▶]"
-            } else {
-                "[ ]"
-            };
-
-            let model_text = if let Some(desc) = &model.description {
-                format!("{} {} ({}) - {}", prefix, model.name, model.provider, desc)
-            } else {
-                format!("{} {} ({})", prefix, model.name, model.provider)
-            };
-
-            ListItem::new(Line::from(Span::styled(model_text, style)))
+        .map(|model| {
+            let status = if model.is_selected { "✓" } else { " " };
+            vec![
+                status.to_string(),
+                model.name.clone(),
+                model.provider.clone(),
+                model.description.clone().unwrap_or_else(|| "N/A".to_string()),
+            ]
         })
         .collect();
 
-    let list = List::new(items)
-        .block(
-            Block::default().borders(Borders::ALL).border_style(Style::default().fg(THEME.border())),
-        )
-        .style(Style::default().fg(THEME.text()));
-
-    frame.render_widget(list, chunks[1]);
+    if table_items.is_empty() {
+        let empty_text = "No models available";
+        let empty_widget = Paragraph::new(empty_text)
+            .style(Style::default().fg(THEME.text_muted()))
+            .alignment(Alignment::Center)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(THEME.border()))
+                    .title(" Available Models "),
+            );
+        frame.render_widget(empty_widget, chunks[1]);
+    } else {
+        let mut table = InteractiveTable::new(
+            vec!["".to_string(), "Name".to_string(), "Provider".to_string(), "Description".to_string()],
+            vec![
+                Constraint::Length(3),  // Status
+                Constraint::Percentage(25), // Name
+                Constraint::Percentage(20), // Provider
+                Constraint::Percentage(52), // Description
+            ],
+        );
+        let items_len = table_items.len();
+        table.set_items(table_items);
+        table.set_selected(Some(selected_index.min(items_len.saturating_sub(1))));
+        table.render(frame, chunks[1], Some(" Available Models "));
+    }
 
     // Help line
     let help_text = "Press number to select | Enter to confirm | Esc to cancel";

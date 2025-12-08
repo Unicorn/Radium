@@ -2,7 +2,7 @@
 //!
 //! Selects appropriate models based on agent persona, availability, and cost constraints.
 
-use crate::agents::persona::{ModelPricing, ModelPricingDB, PerformanceProfile, PersonaConfig, SimpleModelRecommendation};
+use crate::agents::persona::{ModelPricingDB, PerformanceProfile, PersonaConfig, SimpleModelRecommendation};
 use thiserror::Error;
 
 /// Model selection errors.

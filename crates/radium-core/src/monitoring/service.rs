@@ -2,8 +2,7 @@
 
 use super::error::{MonitoringError, Result};
 use super::schema::initialize_schema;
-use crate::hooks::registry::{HookRegistry, HookType};
-use crate::hooks::types::HookContext;
+use crate::hooks::registry::HookRegistry;
 use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -230,7 +229,7 @@ impl MonitoringService {
 
     /// Records telemetry synchronously (internal method, hooks should be executed before calling this).
     pub fn record_telemetry_sync(&self, record: &crate::monitoring::telemetry::TelemetryRecord) -> Result<()> {
-        use crate::monitoring::telemetry::TelemetryRecord;
+        
         self.conn.execute(
             "INSERT INTO telemetry (agent_id, timestamp, input_tokens, output_tokens, cached_tokens,
                                     cache_creation_tokens, cache_read_tokens, total_tokens,

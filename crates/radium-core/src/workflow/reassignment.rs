@@ -4,7 +4,6 @@
 //! when agent-specific failures occur.
 
 use crate::agents::registry::AgentRegistry;
-use crate::agents::config::AgentConfig;
 use crate::workflow::failure::FailureType;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};

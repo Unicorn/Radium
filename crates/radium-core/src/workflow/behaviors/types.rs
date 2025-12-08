@@ -294,7 +294,7 @@ impl BehaviorFileWatcher {
         // Spawn background task for debouncing and reloading
         let behavior_state_clone = Arc::clone(&behavior_state);
         let file_path_clone = self.file_path.clone();
-        let (mut tx_watch, mut rx_watch) = watch::channel(());
+        let (tx_watch, mut rx_watch) = watch::channel(());
         
         // Spawn task to forward file system events to tokio
         let watcher_tx = tx_watch.clone();
@@ -440,7 +440,7 @@ pub async fn record_behavior_metrics(
         let record = TelemetryRecord::new(agent_id)
             .with_behavior_metrics(behavior_type, invocation_count, duration_ms, outcome);
         
-        if let Ok(mut service) = monitoring.lock() {
+        if let Ok(service) = monitoring.lock() {
             let _ = service.record_telemetry(&record).await;
         }
     }

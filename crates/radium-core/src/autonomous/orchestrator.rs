@@ -7,7 +7,7 @@ use crate::agents::registry::AgentRegistry;
 use crate::checkpoint::CheckpointManager;
 use crate::learning::store::LearningStore;
 use crate::learning::recovery_learning::RecoveryLearning;
-use crate::planning::{AutonomousPlan, AutonomousPlanner, PlanningError};
+use crate::planning::{AutonomousPlanner, PlanningError};
 use crate::workflow::engine::ExecutionContext;
 use crate::workflow::executor::WorkflowExecutor;
 use crate::workflow::failure::FailurePolicy;
@@ -345,7 +345,7 @@ impl AutonomousOrchestrator {
             })?;
 
             // Create tasks
-            let mut task_repo = crate::storage::SqliteTaskRepository::new(&mut *db_guard);
+            let task_repo = crate::storage::SqliteTaskRepository::new(&mut *db_guard);
             for step in &workflow.steps {
                 // Task should already be created by convert_template_to_workflow
                 // but verify it exists
@@ -647,7 +647,7 @@ impl AutonomousOrchestrator {
         reassignment: &AgentReassignment,
         db: Arc<std::sync::Mutex<crate::storage::Database>>,
     ) -> Result<ExecutionContext> {
-        use crate::storage::{SqliteTaskRepository, TaskRepository};
+        
         use tracing::{info, warn};
 
         info!(

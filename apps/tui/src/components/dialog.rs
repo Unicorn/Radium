@@ -192,16 +192,16 @@ pub fn render_dialog(frame: &mut Frame, area: Rect, dialog: &Dialog) {
         ])
         .split(dialog_area);
 
-    // Message
-    let message_widget = Paragraph::new(dialog.message.clone())
-        .style(Style::default().fg(theme.text))
-        .alignment(Alignment::Center)
+    // Message with codemachine-style prefix
+    let message_text = format!("◆ {}", dialog.message);
+    let message_widget = Paragraph::new(message_text)
+        .style(Style::default().fg(theme.primary))
+        .alignment(Alignment::Left)
         .wrap(ratatui::widgets::Wrap { trim: true })
         .block(
             Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.primary))
-                .style(Style::default().bg(theme.bg_panel)),
+                .borders(Borders::NONE)
+                .padding(ratatui::widgets::Padding::new(1, 1, 0, 1)),
         );
     frame.render_widget(message_widget, chunks[0]);
 
@@ -221,39 +221,43 @@ pub fn render_dialog(frame: &mut Frame, area: Rect, dialog: &Dialog) {
                 Style::default().fg(theme.text)
             };
 
-            // Build content with title and optional description
+            // Build content with title and optional description (codemachine style)
+            let prefix = if is_selected { "● " } else { "○ " };
             let content = if let Some(ref desc) = choice.description {
-                format!("{} - {}", choice.title, desc)
+                format!("{}{} - {}", prefix, choice.title, desc)
             } else {
-                choice.title.clone()
+                format!("{}{}", prefix, choice.title)
             };
-
-            let prefix = if is_selected { "▶ " } else { "  " };
-            ListItem::new(format!("{}{}", prefix, content)).style(style)
+            ListItem::new(content).style(style)
         })
         .collect();
 
     let list = List::new(items)
         .block(
             Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.primary))
-                .style(Style::default().bg(theme.bg_panel)),
+                .borders(Borders::NONE)
+                .padding(ratatui::widgets::Padding::new(0, 1, 0, 1)),
         );
     frame.render_widget(list, chunks[1]);
 
-    // Help text
-    let help_text = "↑↓ Navigate | Enter Select | Esc Cancel";
+    // Help text (codemachine style)
+    let help_text = "↑/↓ Navigate • Enter to select • Esc to cancel";
     let help = Paragraph::new(help_text)
         .style(Style::default().fg(theme.text_muted))
-        .alignment(Alignment::Center)
+        .alignment(Alignment::Left)
         .block(
             Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.primary))
-                .style(Style::default().bg(theme.bg_panel)),
+                .borders(Borders::NONE)
+                .padding(ratatui::widgets::Padding::new(1, 1, 1, 1)),
         );
     frame.render_widget(help, chunks[2]);
+    
+    // Render border around entire dialog
+    let dialog_border = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.primary))
+        .style(Style::default().bg(theme.bg_panel));
+    frame.render_widget(dialog_border, dialog_area);
 }
 
 #[cfg(test)]

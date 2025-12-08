@@ -11,12 +11,11 @@ use radium_core::{
     storage::Database,
     Workspace,
 };
-use radium_models::ModelFactory;
 use radium_orchestrator::{AgentExecutor, Orchestrator};
 use std::sync::Arc;
 use std::time::Instant;
 use std::process::Command;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 /// Braingrid requirement list response
 #[derive(Debug, Deserialize)]

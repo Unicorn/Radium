@@ -15,8 +15,9 @@ use ratatui::prelude::*;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use radium_tui::app::App;
-use radium_tui::components::{render_dialog, render_toasts};
-use radium_tui::views::{render_prompt, render_setup_wizard, render_shortcuts, render_splash, render_workflow};
+use radium_tui::commands::DisplayContext;
+use radium_tui::components::{render_dialog, render_title_bar, render_toasts, AppMode, StatusFooter};
+use radium_tui::views::{render_orchestrator_view, render_prompt, render_setup_wizard, render_shortcuts, render_splash, render_start_page, render_workflow, GlobalLayout};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -144,18 +145,90 @@ async fn main() -> Result<()> {
         terminal.draw(|frame| {
             let area = frame.area();
 
-            // Render shortcuts overlay if active (on top of everything)
+            // Add padding around the edges
+            let padding = 1;
+            let padded_area = Rect {
+                x: area.x + padding,
+                y: area.y + padding,
+                width: area.width.saturating_sub(padding * 2),
+                height: area.height.saturating_sub(padding * 2),
+            };
+
+            // Create global layout structure
+            let [title_area, main_area, status_area] = GlobalLayout::create(padded_area);
+
+            // Render title bar (always visible)
+            let version = env!("CARGO_PKG_VERSION");
+            let model_info = None; // TODO: Get from app state
+            let orchestration_status = if app.orchestration_enabled {
+                Some("enabled")
+            } else {
+                Some("disabled")
+            };
+            
+            // Get auth status
+            let auth_status = {
+                use radium_core::auth::{CredentialStore, ProviderType};
+                if let Ok(store) = CredentialStore::new() {
+                    let gemini = store.is_configured(ProviderType::Gemini);
+                    let openai = store.is_configured(ProviderType::OpenAI);
+                    let mut providers = Vec::new();
+                    if gemini { providers.push("Gemini"); }
+                    if openai { providers.push("OpenAI"); }
+                    if providers.is_empty() {
+                        Some("Auth: None".to_string())
+                    } else {
+                        Some(format!("Auth: {}", providers.join(", ")))
+                    }
+                } else {
+                    Some("Auth: Unknown".to_string())
+                }
+            };
+            
+            render_title_bar(frame, title_area, version, model_info, orchestration_status, auth_status.as_deref());
+
+            // Render main content area (context-aware)
             if app.show_shortcuts {
-                render_shortcuts(frame, area);
+                render_shortcuts(frame, main_area);
             } else if let Some(wizard) = &app.setup_wizard {
-                render_setup_wizard(frame, area, wizard);
+                render_setup_wizard(frame, main_area, wizard);
             } else if let Some(ref workflow_state) = app.workflow_state {
                 // Workflow mode: split-panel layout
-                render_workflow(frame, area, workflow_state, app.selected_agent_id.as_deref());
+                render_workflow(frame, main_area, workflow_state, app.selected_agent_id.as_deref());
+            } else if app.orchestration_running {
+                // Orchestrator running: show split view with chat log and active agents
+                // Get active agents from orchestration service (simplified for now)
+                let active_agents: Vec<(String, String, String)> = vec![]; // TODO: Get from orchestration service
+                render_orchestrator_view(frame, main_area, &app.prompt_data, &active_agents);
             } else {
-                // Prompt mode: unified prompt interface
-                render_prompt(frame, area, &app.prompt_data);
+                // Check if we should show start page (Help context) or regular prompt
+                match app.prompt_data.context {
+                    DisplayContext::Help => {
+                        // Start page mode: codemachine-style start page
+                        render_start_page(frame, main_area, &app.prompt_data);
+                    }
+                    _ => {
+                        // Prompt mode: unified prompt interface (without input - that's in status bar)
+                        render_prompt(frame, main_area, &app.prompt_data);
+                    }
+                }
             }
+
+            // Render status bar with input prompt (always visible)
+            let mode = if app.orchestration_running {
+                AppMode::Chat
+            } else if app.workflow_state.is_some() {
+                AppMode::Workflow
+            } else {
+                AppMode::Prompt
+            };
+            StatusFooter::render_with_input(
+                frame,
+                status_area,
+                &app.prompt_data.input,
+                mode,
+                Some(&app.prompt_data.context),
+            );
 
             // Render dialogs (on top of everything except shortcuts)
             if !app.show_shortcuts {

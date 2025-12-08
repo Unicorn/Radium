@@ -185,6 +185,64 @@ impl StatusFooter {
         Self::render_extended_with_provider(frame, area, status, status_message, elapsed, step, total_steps, None)
     }
 
+    /// Renders a codemachine-style footer with branding, version, CWD, and template.
+    pub fn render_codemachine_style(
+        frame: &mut Frame,
+        area: Rect,
+        version: &str,
+        cwd: Option<&str>,
+        template_name: Option<&str>,
+    ) {
+        let theme = crate::theme::get_theme();
+        
+        // Background for entire footer
+        let footer_bg = Paragraph::new("")
+            .style(Style::default().bg(theme.bg_panel));
+        frame.render_widget(footer_bg, area);
+        
+        let chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Min(1),    // Left: Branding + Version + CWD
+                Constraint::Length(25), // Right: Template
+            ])
+            .split(area);
+
+        // Left side: Branding + Version + CWD
+        let mut left_parts = vec![
+            Span::styled("Radium", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+            Span::raw(format!(" v{}", version)),
+        ];
+        
+        if let Some(cwd) = cwd {
+            left_parts.push(Span::raw(" "));
+            left_parts.push(Span::styled(cwd, Style::default().fg(theme.text_muted)));
+        }
+        
+        let left_widget = Paragraph::new(Line::from(left_parts))
+            .style(Style::default().bg(theme.bg_panel))
+            .block(Block::default().borders(Borders::NONE).padding(ratatui::widgets::Padding::new(0, 1, 0, 1)));
+        frame.render_widget(left_widget, chunks[0]);
+
+        // Right side: Template
+        if let Some(template) = template_name {
+            let template_text = format!("Template: {}", template.to_uppercase());
+            let right_widget = Paragraph::new(template_text)
+                .style(Style::default().fg(theme.text_muted))
+                .alignment(Alignment::Right)
+                .block(Block::default().borders(Borders::NONE).padding(ratatui::widgets::Padding::new(0, 1, 0, 1)));
+            frame.render_widget(right_widget, chunks[1]);
+        } else {
+            // Show "Template: DEFAULT" or similar
+            let template_text = "Template: DEFAULT";
+            let right_widget = Paragraph::new(template_text)
+                .style(Style::default().fg(theme.text_muted))
+                .alignment(Alignment::Right)
+                .block(Block::default().borders(Borders::NONE).padding(ratatui::widgets::Padding::new(0, 1, 0, 1)));
+            frame.render_widget(right_widget, chunks[1]);
+        }
+    }
+
     /// Renders an extended status footer with provider information.
     pub fn render_extended_with_provider(
         frame: &mut Frame,
@@ -245,6 +303,82 @@ impl StatusFooter {
             .alignment(Alignment::Center)
             .block(Block::default().borders(Borders::ALL).title(" Keys "));
         frame.render_widget(help_widget, chunks[4]);
+    }
+
+    /// Renders the status bar with fixed input prompt.
+    /// This is the new universal status bar that always includes the input prompt.
+    pub fn render_with_input(
+        frame: &mut Frame,
+        area: Rect,
+        input: &str,
+        mode: AppMode,
+        context: Option<&DisplayContext>,
+    ) {
+        let theme = crate::theme::get_theme();
+        
+        // Split into three sections: context info, input prompt, shortcuts
+        let chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Min(15),        // Context info
+                Constraint::Fill(1),       // Input prompt (flexible, centered)
+                Constraint::Min(30),       // Keyboard shortcuts
+            ])
+            .split(area);
+
+        // Left: Context info
+        let context_text = if let Some(ctx) = context {
+            match ctx {
+                DisplayContext::Chat { agent_id, session_id } => {
+                    format!("Agent: {} | Session: {}", agent_id, session_id)
+                }
+                DisplayContext::AgentList => "Select an agent".to_string(),
+                DisplayContext::SessionList => "Select a session".to_string(),
+                DisplayContext::ModelSelector => "Select a model".to_string(),
+                DisplayContext::Dashboard => "Dashboard".to_string(),
+                DisplayContext::Help => "Help".to_string(),
+            }
+        } else {
+            format!("Mode: {}", mode.as_str())
+        };
+
+        let context_widget = Paragraph::new(context_text)
+            .style(Style::default().fg(theme.text_muted))
+            .block(
+                Block::default()
+                    .borders(Borders::NONE)
+                    .padding(ratatui::widgets::Padding::new(0, 1, 0, 0)),
+            );
+        frame.render_widget(context_widget, chunks[0]);
+
+        // Center: Input prompt (always visible, fixed position)
+        let prompt_text = if input.is_empty() {
+            format!("> _")
+        } else {
+            format!("> {}_", input)
+        };
+        
+        let prompt_widget = Paragraph::new(prompt_text)
+            .style(Style::default().fg(theme.primary))
+            .alignment(Alignment::Left)
+            .block(
+                Block::default()
+                    .borders(Borders::NONE)
+                    .padding(ratatui::widgets::Padding::new(0, 1, 0, 1)),
+            );
+        frame.render_widget(prompt_widget, chunks[1]);
+
+        // Right: Keyboard shortcuts
+        let shortcuts_text = mode.shortcuts();
+        let shortcuts_widget = Paragraph::new(shortcuts_text)
+            .style(Style::default().fg(theme.text_dim))
+            .alignment(Alignment::Right)
+            .block(
+                Block::default()
+                    .borders(Borders::NONE)
+                    .padding(ratatui::widgets::Padding::new(0, 0, 0, 1)),
+            );
+        frame.render_widget(shortcuts_widget, chunks[2]);
     }
 }
 

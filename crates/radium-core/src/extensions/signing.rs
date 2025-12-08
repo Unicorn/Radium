@@ -3,7 +3,6 @@
 //! Provides functionality for cryptographically signing extensions
 //! and verifying their authenticity using Ed25519 signatures.
 
-use crate::extensions::manifest::ExtensionManifest;
 use crate::extensions::structure::MANIFEST_FILE;
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use rand::rngs::OsRng;

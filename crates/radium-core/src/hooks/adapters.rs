@@ -10,7 +10,7 @@
 use crate::hooks::error::Result;
 use crate::hooks::registry::{Hook, HookRegistry, HookType};
 use crate::hooks::types::{HookContext, HookPriority, HookResult as HookExecutionResult};
-use crate::workflow::behaviors::{BehaviorEvaluator, BehaviorError};
+use crate::workflow::behaviors::BehaviorEvaluator;
 use async_trait::async_trait;
 use std::path::Path;
 use std::sync::Arc;

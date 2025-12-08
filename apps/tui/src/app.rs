@@ -819,7 +819,8 @@ impl App {
         self.prompt_data.context = DisplayContext::Dashboard;
         self.prompt_data.clear_output();
 
-        // Show basic stats
+        // Show basic stats (centered)
+        self.prompt_data.add_output("".to_string());
         self.prompt_data.add_output("Radium Dashboard".to_string());
         self.prompt_data.add_output("".to_string());
         self.prompt_data.add_output(format!("Agents: {}", self.prompt_data.agents.len()));

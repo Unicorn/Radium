@@ -6,7 +6,6 @@
 use crate::extensions::structure::Extension;
 use semver::{Version, VersionReq};
 use std::cmp::Ordering;
-use std::path::Path;
 use thiserror::Error;
 
 /// Versioning errors.

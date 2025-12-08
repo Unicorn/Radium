@@ -1,9 +1,9 @@
 //! Policy rule conflict detection and resolution.
 
 use super::rules::PolicyRule;
-use super::types::{PolicyAction, PolicyError, PolicyPriority, PolicyResult};
+use super::types::{PolicyError, PolicyResult};
 use glob::Pattern;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 /// Represents a conflict between two policy rules.
 #[derive(Debug, Clone)]

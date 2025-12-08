@@ -8,7 +8,7 @@ use thiserror::Error;
 use tracing::{error, info};
 
 use crate::context::braingrid_client::{
-    BraingridClient, BraingridRequirement, RequirementStatus, TaskStatus,
+    BraingridClient, RequirementStatus, TaskStatus,
 };
 use crate::autonomous::orchestrator::{AutonomousOrchestrator, AutonomousConfig};
 use crate::agents::registry::AgentRegistry;

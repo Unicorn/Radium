@@ -11,7 +11,7 @@ use radium_orchestrator::{AgentExecutor, Orchestrator};
 use crate::checkpoint::CheckpointManager;
 use crate::hooks::integration::OrchestratorHooks;
 use crate::hooks::registry::{HookRegistry, HookType};
-use crate::hooks::types::{HookContext, HookPriority};
+use crate::hooks::types::HookContext;
 use crate::models::{Workflow, WorkflowState};
 use crate::monitoring::{AgentRecord, AgentStatus, MonitoringService};
 use crate::policy::{ApprovalMode, ConstitutionManager, PolicyEngine};
@@ -331,7 +331,7 @@ impl WorkflowExecutor {
                 // 4. Record telemetry if available
                 if let Some(ref monitoring) = self.monitoring {
                     if let Some(ref telemetry) = execution_result.telemetry {
-                        use crate::monitoring::{TelemetryRecord, TelemetryTracking};
+                        use crate::monitoring::TelemetryRecord;
                         let mut record = TelemetryRecord::new(agent_id.clone())
                             .with_tokens(telemetry.input_tokens, telemetry.output_tokens);
                         
@@ -651,7 +651,7 @@ impl WorkflowExecutor {
                 let behavior_file = ws_structure.memory_dir().join("behavior.json");
                 
                 if behavior_file.exists() {
-                    use crate::workflow::behaviors::vibe_check::{VibeCheckContext, VibeCheckEvaluator, WorkflowPhase};
+                    
                     use crate::workflow::behaviors::types::BehaviorAction;
                     
                     // Try to read behavior action

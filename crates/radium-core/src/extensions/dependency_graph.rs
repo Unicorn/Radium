@@ -3,7 +3,6 @@
 //! Provides functionality for building and visualizing extension dependency graphs.
 
 use crate::extensions::structure::Extension;
-use crate::extensions::manifest::ExtensionManifest;
 use std::collections::{HashMap, HashSet};
 use thiserror::Error;
 

@@ -3,8 +3,7 @@
 use crate::extensions::integration::get_extension_hook_paths;
 use crate::hooks::config::{HookConfig, HookDefinition};
 use crate::hooks::error::{HookError, Result};
-use crate::hooks::registry::{Hook, HookRegistry, HookType};
-use crate::hooks::types::HookPriority;
+use crate::hooks::registry::{Hook, HookRegistry};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
@@ -23,7 +22,7 @@ pub struct HookLoader {
 impl HookLoader {
     /// Create a new hook loader with default factories.
     pub fn new() -> Self {
-        let mut factories = HashMap::new();
+        let factories = HashMap::new();
         
         // Register built-in hook factories
         // These can be extended by users to support custom hooks

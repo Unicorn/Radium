@@ -13,7 +13,7 @@ use crate::extensions::structure::{
 };
 use crate::extensions::signing::{SignatureVerifier, TrustedKeysManager};
 use crate::extensions::validator::{ExtensionValidator, ExtensionValidationError};
-use crate::extensions::versioning::{UpdateChecker, VersionComparator};
+use crate::extensions::versioning::UpdateChecker;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 

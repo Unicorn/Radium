@@ -4,10 +4,8 @@
 //! and non-recoverable types, enabling intelligent recovery strategies.
 
 use chrono::{DateTime, Utc};
-use std::collections::HashMap;
 use std::error::Error;
 use std::time::Duration;
-use thiserror::Error;
 
 /// Types of failures that can occur during workflow execution.
 #[derive(Debug, Clone, PartialEq, Eq)]

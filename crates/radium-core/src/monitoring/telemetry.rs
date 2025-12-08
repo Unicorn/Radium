@@ -2,12 +2,11 @@
 
 use super::error::{MonitoringError, Result};
 use super::service::MonitoringService;
-use crate::hooks::registry::{HookRegistry, HookType};
+use crate::hooks::registry::HookType;
 use crate::hooks::types::HookContext;
 use async_trait::async_trait;
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Telemetry record for token usage and costs.

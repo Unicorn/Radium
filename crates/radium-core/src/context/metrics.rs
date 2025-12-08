@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::time::{Duration, SystemTime};
+use std::time::SystemTime;
 
 /// Metrics for context gathering operations.
 #[derive(Debug, Clone, Serialize, Deserialize)]
