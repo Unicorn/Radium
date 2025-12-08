@@ -49,6 +49,7 @@ pub mod security;
 #[cfg(feature = "syntax")]
 pub mod syntax;
 pub mod storage;
+pub mod terminal;
 #[cfg(feature = "workflow")]
 pub mod workflow;
 pub mod workspace;
