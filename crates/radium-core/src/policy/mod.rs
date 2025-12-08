@@ -29,23 +29,25 @@
 //! ```
 
 pub mod alerts;
+pub mod analytics;
 pub mod conflict_resolution;
 pub mod constitution;
 mod dry_run;
 mod rules;
+mod storage;
 #[cfg(feature = "monitoring")]
 pub mod suggestions;
 pub mod templates;
 mod types;
 
-pub use conflict_resolution::{
-    ConflictDetector, ConflictResolver, ConflictType, PolicyConflict, ResolutionStrategy,
-};
-pub use constitution::ConstitutionManager;
 pub use rules::{PolicyEngine, PolicyRule};
 pub use templates::{merge_template, PolicyTemplate, TemplateDiscovery};
 pub use alerts::{AlertConfig, AlertManager, AlertPayload, AlertSeverity, WebhookConfig};
 pub use analytics::PolicyAnalytics;
+pub use conflict_resolution::{
+    ConflictDetector, ConflictResolver, ConflictType, PolicyConflict, ResolutionStrategy,
+};
+pub use constitution::ConstitutionManager;
 pub use dry_run::{format_preview, generate_preview};
 pub use types::{
     ApprovalMode, DryRunPreview, PolicyAction, PolicyDecision, PolicyError, PolicyPriority,
