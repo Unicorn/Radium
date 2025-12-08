@@ -22,6 +22,9 @@ pub struct ChatSession {
     pub message_count: usize,
     /// Last message preview
     pub last_message: Option<String>,
+    /// Model ID used for this session
+    #[serde(default)]
+    pub model_id: Option<String>,
 }
 
 /// Session manager for loading and saving chat sessions.
@@ -95,7 +98,7 @@ impl SessionManager {
     }
 
     /// Update session with new message.
-    pub fn update_session(&self, session_id: &str, agent_id: &str, message: &str) -> Result<()> {
+    pub fn update_session(&self, session_id: &str, agent_id: &str, message: &str, model_id: Option<String>) -> Result<()> {
         let file_path = self.sessions_dir.join(format!("{}.json", session_id));
 
         let mut session = if file_path.exists() {
@@ -109,12 +112,18 @@ impl SessionManager {
                 updated_at: Utc::now(),
                 message_count: 0,
                 last_message: None,
+                model_id: None,
             }
         };
 
         session.updated_at = Utc::now();
         session.message_count += 1;
         session.last_message = Some(message.to_string());
+        
+        // Update model_id if provided
+        if let Some(model) = model_id {
+            session.model_id = Some(model);
+        }
 
         self.save_session(&session)
     }

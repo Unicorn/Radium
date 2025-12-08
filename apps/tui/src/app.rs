@@ -1500,6 +1500,9 @@ impl App {
         self.prompt_data.context =
             DisplayContext::Chat { agent_id: agent_id.to_string(), session_id: session_id.clone() };
 
+        // Load session model preference if session exists
+        self.load_session_model(&session_id).await?;
+
         self.prompt_data.conversation.clear();
         let max_history = self.config.performance.max_conversation_history;
         self.prompt_data.add_conversation_message(
@@ -1529,7 +1532,7 @@ impl App {
         // Save session update
         let workspace_root = self.workspace_status.as_ref().and_then(|s| s.root.clone());
         if let Ok(session_manager) = crate::session_manager::SessionManager::new(workspace_root) {
-            let _ = session_manager.update_session(&session_id, &agent_id, &message);
+            let _ = session_manager.update_session(&session_id, &agent_id, &message, self.current_model_id.clone());
         }
 
         // Execute agent
@@ -1546,7 +1549,7 @@ impl App {
                     if let Ok(session_manager) =
                         crate::session_manager::SessionManager::new(workspace_root_clone)
                     {
-                        let _ = session_manager.update_session(&session_id, &agent_id, &response);
+                        let _ = session_manager.update_session(&session_id, &agent_id, &response, self.current_model_id.clone());
                     }
                 } else {
                     let error_msg = result.error.unwrap_or_else(|| "Unknown error".to_string());
@@ -2382,6 +2385,19 @@ impl App {
                 // Update current model ID
                 self.current_model_id = Some(model_id.to_string());
                 
+                // Update session model if in active chat session
+                if let DisplayContext::Chat { agent_id, session_id } = &self.prompt_data.context {
+                    let workspace_root = self.workspace_status.as_ref().and_then(|s| s.root.clone());
+                    if let Ok(session_manager) = crate::session_manager::SessionManager::new(workspace_root) {
+                        let _ = session_manager.update_session(
+                            session_id,
+                            agent_id,
+                            "", // No new message, just updating model
+                            Some(model_id.to_string()),
+                        );
+                    }
+                }
+                
                 self.prompt_data.add_output(format!(
                     "✅ Switched to {} successfully",
                     model_id
@@ -2398,6 +2414,35 @@ impl App {
             }
         }
 
+        Ok(())
+    }
+
+    /// Load session model preference and switch to it if different
+    async fn load_session_model(&mut self, session_id: &str) -> Result<()> {
+        let workspace_root = self.workspace_status.as_ref().and_then(|s| s.root.clone());
+        let session_manager = crate::session_manager::SessionManager::new(workspace_root)?;
+        
+        // Load session from file
+        let sessions_dir = if let Some(root) = workspace_root {
+            root.join(".radium").join("sessions")
+        } else {
+            dirs::home_dir()
+                .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?
+                .join(".radium")
+                .join("sessions")
+        };
+        
+        let session_path = sessions_dir.join(format!("{}.json", session_id));
+        if let Ok(content) = std::fs::read_to_string(&session_path) {
+            if let Ok(session) = serde_json::from_str::<crate::session_manager::ChatSession>(&content) {
+                if let Some(model_id) = session.model_id {
+                    // Switch to session's model if different from current
+                    if self.current_model_id.as_ref() != Some(&model_id) {
+                        self.switch_to_model(&model_id).await?;
+                    }
+                }
+            }
+        }
         Ok(())
     }
 
