@@ -179,8 +179,8 @@ impl Exporter for MarkdownExporter {
             let mut provider_vec: Vec<_> = summary.breakdown_by_provider.iter().collect();
             provider_vec.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap_or(std::cmp::Ordering::Equal));
             let chart_data: Vec<(String, f64)> = provider_vec
-                .iter()
-                .map(|(k, v)| (k.clone(), *v))
+                .into_iter()
+                .map(|(k, v)| (k.clone(), v))
                 .take(10)
                 .collect();
             writeln!(output, "{}", Self::generate_bar_chart(&chart_data, 50))?;
@@ -194,8 +194,8 @@ impl Exporter for MarkdownExporter {
             let mut model_vec: Vec<_> = summary.breakdown_by_model.iter().collect();
             model_vec.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap_or(std::cmp::Ordering::Equal));
             let chart_data: Vec<(String, f64)> = model_vec
-                .iter()
-                .map(|(k, v)| (k.clone(), **v))
+                .into_iter()
+                .map(|(k, v)| (k.clone(), v))
                 .take(10)
                 .collect();
             writeln!(output, "{}", Self::generate_bar_chart(&chart_data, 50))?;

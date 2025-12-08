@@ -556,6 +556,22 @@ impl App {
                 self.prompt_data.command_state.select_next();
             }
 
+            // PageUp/PageDown for faster navigation
+            KeyCode::PageUp if self.prompt_data.command_state.is_active && !self.prompt_data.command_state.suggestions.is_empty() => {
+                self.prompt_data.command_state.select_page_up();
+            }
+            KeyCode::PageDown if self.prompt_data.command_state.is_active && !self.prompt_data.command_state.suggestions.is_empty() => {
+                self.prompt_data.command_state.select_page_down();
+            }
+
+            // Home/End to jump to first/last
+            KeyCode::Home if self.prompt_data.command_state.is_active && !self.prompt_data.command_state.suggestions.is_empty() => {
+                self.prompt_data.command_state.select_first();
+            }
+            KeyCode::End if self.prompt_data.command_state.is_active && !self.prompt_data.command_state.suggestions.is_empty() => {
+                self.prompt_data.command_state.select_last();
+            }
+
             // Tab to autocomplete selected command
             KeyCode::Tab if self.prompt_data.command_state.is_active && !self.prompt_data.command_state.suggestions.is_empty() => {
                 self.autocomplete_selected_command();
