@@ -635,6 +635,8 @@ impl App {
             // Escape to cancel command menu
             KeyCode::Esc if self.prompt_data.command_state.is_active => {
                 self.prompt_data.command_state.clear();
+                // Reset manual trigger state
+                self.prompt_data.command_state.triggered_manually = false;
             }
 
             // Enter - handle Cmd+Enter for submission, plain Enter for newline
@@ -667,19 +669,57 @@ impl App {
                 self.update_command_suggestions();
             }
 
-            // Scrollback navigation
-            KeyCode::PageUp => {
+            // Panel navigation (when orchestration is running)
+            KeyCode::Tab if self.orchestration_running && !self.prompt_data.command_state.is_active => {
+                self.cycle_panel_focus();
+            }
+            KeyCode::Char('t') if modifiers.contains(KeyModifiers::CONTROL) && self.orchestration_running => {
+                self.task_panel_visible = !self.task_panel_visible;
+                // If hiding focused panel, move focus to next visible panel
+                if !self.task_panel_visible && self.panel_focus == crate::views::orchestrator_view::PanelFocus::TaskList {
+                    self.cycle_panel_focus();
+                }
+            }
+            KeyCode::Char('o') if modifiers.contains(KeyModifiers::CONTROL) && self.orchestration_running => {
+                self.orchestrator_panel_visible = !self.orchestrator_panel_visible;
+                // If hiding focused panel, move focus to next visible panel
+                if !self.orchestrator_panel_visible && self.panel_focus == crate::views::orchestrator_view::PanelFocus::Orchestrator {
+                    self.cycle_panel_focus();
+                }
+            }
+            // Panel scrolling (when orchestration is running and not in command state)
+            KeyCode::Up if self.orchestration_running && !self.prompt_data.command_state.is_active => {
+                self.handle_panel_scroll(1, true);
+            }
+            KeyCode::Down if self.orchestration_running && !self.prompt_data.command_state.is_active => {
+                self.handle_panel_scroll(1, false);
+            }
+            KeyCode::PageUp if self.orchestration_running && !self.prompt_data.command_state.is_active => {
+                self.handle_panel_scroll(10, true);
+            }
+            KeyCode::PageDown if self.orchestration_running && !self.prompt_data.command_state.is_active => {
+                self.handle_panel_scroll(10, false);
+            }
+            KeyCode::Home if self.orchestration_running && !self.prompt_data.command_state.is_active => {
+                self.handle_panel_scroll_to_top();
+            }
+            KeyCode::End if self.orchestration_running && !self.prompt_data.command_state.is_active => {
+                self.handle_panel_scroll_to_bottom();
+            }
+
+            // Scrollback navigation (when not in orchestration mode)
+            KeyCode::PageUp if !self.orchestration_running => {
                 self.prompt_data.scrollback_offset = (self.prompt_data.scrollback_offset + 10)
                     .min(self.prompt_data.conversation.len().saturating_sub(1));
             }
-            KeyCode::PageDown => {
+            KeyCode::PageDown if !self.orchestration_running => {
                 self.prompt_data.scrollback_offset =
                     self.prompt_data.scrollback_offset.saturating_sub(10);
             }
-            KeyCode::Home => {
+            KeyCode::Home if !self.orchestration_running => {
                 self.prompt_data.scrollback_offset = 0;
             }
-            KeyCode::End => {
+            KeyCode::End if !self.orchestration_running => {
                 self.prompt_data.scrollback_offset = self.prompt_data.conversation.len();
             }
 
