@@ -17,8 +17,9 @@ use crate::workflow::service::WorkflowService;
 use crate::workflow::templates::WorkflowTemplate;
 use crate::workspace::Workspace;
 use radium_abstraction::Model;
-use radium_orchestrator::{AgentExecutor, Orchestrator};
+use radium_orchestrator::{AgentExecutor, Orchestrator, TaskDispatcher, TaskDispatcherConfig};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use thiserror::Error;
 
 /// Errors that can occur during autonomous execution.
@@ -65,6 +66,10 @@ pub struct AutonomousConfig {
     pub enable_learning: bool,
     /// Checkpoint frequency.
     pub checkpoint_frequency: CheckpointFrequency,
+    /// Maximum concurrent tasks per agent for dispatcher.
+    pub max_concurrent_per_agent: usize,
+    /// Poll interval for dispatcher (milliseconds).
+    pub dispatcher_poll_interval_ms: u64,
 }
 
 impl Default for AutonomousConfig {
@@ -75,6 +80,8 @@ impl Default for AutonomousConfig {
             enable_reassignment: true,
             enable_learning: true,
             checkpoint_frequency: CheckpointFrequency::EveryStep,
+            max_concurrent_per_agent: 10,
+            dispatcher_poll_interval_ms: 100,
         }
     }
 }
@@ -183,6 +190,8 @@ pub struct AutonomousOrchestrator {
     config: AutonomousConfig,
     /// Execution monitor.
     monitor: Arc<Mutex<ExecutionMonitor>>,
+    /// Task dispatcher for autonomous execution.
+    dispatcher: Option<Arc<Mutex<TaskDispatcher>>>,
 }
 
 impl AutonomousOrchestrator {
@@ -257,13 +266,26 @@ impl AutonomousOrchestrator {
         };
 
         // Initialize planner
-        let planner = AutonomousPlanner::new(agent_registry);
+        let planner = AutonomousPlanner::new(agent_registry.clone());
 
         // Initialize monitor
         let monitor = Arc::new(Mutex::new(ExecutionMonitor::new(
             "pending".to_string(),
             0,
         )));
+
+        // Initialize task dispatcher
+        let dispatcher_config = TaskDispatcherConfig {
+            poll_interval: Duration::from_millis(config.dispatcher_poll_interval_ms),
+            max_concurrent_per_agent: config.max_concurrent_per_agent,
+        };
+        let dispatcher = TaskDispatcher::new(
+            orchestrator.registry(),
+            orchestrator.queue(),
+            orchestrator.executor(),
+            dispatcher_config,
+        );
+        let dispatcher = Some(Arc::new(Mutex::new(dispatcher)));
 
         Ok(Self {
             planner,
@@ -275,6 +297,7 @@ impl AutonomousOrchestrator {
             learning,
             config,
             monitor,
+            dispatcher,
         })
     }
 
@@ -380,7 +403,45 @@ impl AutonomousOrchestrator {
             "Workflow created, starting execution"
         );
 
-        // Step 5: Execute workflow with monitoring
+        // Step 5: Start task dispatcher
+        if let Some(ref dispatcher) = self.dispatcher {
+            let mut dispatcher_guard = dispatcher.lock().unwrap();
+            if let Err(e) = dispatcher_guard.start() {
+                error!(
+                    workflow_id = %workflow_id,
+                    error = %e,
+                    "Failed to start task dispatcher"
+                );
+                return Err(AutonomousError::WorkflowExecution(
+                    format!("Failed to start task dispatcher: {}", e)
+                ));
+            }
+            info!("Task dispatcher started");
+
+            // Set up progress reporting bridge
+            let progress_reporter = dispatcher_guard.progress_reporter();
+            let monitor_clone = Arc::clone(&self.monitor);
+            let workflow_id_clone = workflow_id.clone();
+            let mut progress_rx = progress_reporter.subscribe();
+
+            // Spawn task to bridge progress events to ExecutionMonitor
+            tokio::spawn(async move {
+                while let Ok(event) = progress_rx.recv().await {
+                    let mut monitor = monitor_clone.lock().unwrap();
+                    match event {
+                        radium_orchestrator::ProgressEvent::TaskCompleted { .. } => {
+                            monitor.completed_steps += 1;
+                        }
+                        radium_orchestrator::ProgressEvent::TaskFailed { .. } => {
+                            monitor.failed_steps += 1;
+                        }
+                        _ => {}
+                    }
+                }
+            });
+        }
+
+        // Step 6: Execute workflow with monitoring
         let mut steps_completed = 0;
         let mut steps_failed = 0;
         let mut recoveries_performed = 0;
@@ -480,6 +541,32 @@ impl AutonomousOrchestrator {
             monitor.recovered_steps = recoveries_performed;
         }
 
+        // Step 7: Stop task dispatcher
+        if let Some(ref dispatcher) = self.dispatcher {
+            let mut dispatcher_guard = dispatcher.lock().unwrap();
+            if let Err(e) = dispatcher_guard.stop() {
+                warn!(
+                    workflow_id = %workflow_id,
+                    error = %e,
+                    "Failed to stop task dispatcher"
+                );
+            } else {
+                info!("Task dispatcher stopped");
+            }
+
+            // Check for critical errors
+            if let Some(critical_error) = dispatcher_guard.last_error() {
+                error!(
+                    workflow_id = %workflow_id,
+                    error = %critical_error,
+                    "Critical error detected in dispatcher"
+                );
+                return Err(AutonomousError::WorkflowExecution(
+                    format!("Critical error: {}", critical_error)
+                ));
+            }
+        }
+
         info!(
             workflow_id = %workflow_id,
             steps_completed,
@@ -504,6 +591,14 @@ impl AutonomousOrchestrator {
     /// Gets the current execution monitor.
     pub fn get_monitor(&self) -> ExecutionMonitor {
         self.monitor.lock().unwrap().clone()
+    }
+
+    /// Gets the task dispatcher for external access.
+    ///
+    /// # Returns
+    /// Returns `Some(Arc<Mutex<TaskDispatcher>>)` if dispatcher is available, `None` otherwise.
+    pub fn get_dispatcher(&self) -> Option<Arc<Mutex<TaskDispatcher>>> {
+        self.dispatcher.as_ref().map(Arc::clone)
     }
 
     /// Converts a WorkflowTemplate to an executable Workflow model.

@@ -352,6 +352,30 @@ impl Orchestrator {
         self.queue.metrics().await
     }
 
+    /// Returns a reference to the execution queue.
+    ///
+    /// # Returns
+    /// A reference to the execution queue.
+    pub fn queue(&self) -> Arc<ExecutionQueue> {
+        Arc::clone(&self.queue)
+    }
+
+    /// Returns a reference to the agent registry.
+    ///
+    /// # Returns
+    /// A reference to the agent registry.
+    pub fn registry(&self) -> Arc<AgentRegistry> {
+        Arc::clone(&self.registry)
+    }
+
+    /// Returns a reference to the agent executor.
+    ///
+    /// # Returns
+    /// A reference to the agent executor.
+    pub fn executor(&self) -> Arc<AgentExecutor> {
+        Arc::clone(&self.executor)
+    }
+
     /// Executes an agent with the given input.
     ///
     /// # Arguments
