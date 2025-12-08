@@ -265,7 +265,7 @@ pub struct GeminiConfig {
 impl Default for GeminiConfig {
     fn default() -> Self {
         Self {
-            model: "gemini-2.0-flash-thinking-exp".to_string(),
+            model: "gemini-2.0-flash-exp".to_string(),
             temperature: 0.7,
             max_tool_iterations: 5,
             api_endpoint: None,
@@ -462,7 +462,7 @@ mod tests {
         let config = OrchestrationConfig::default();
         assert!(config.enabled);
         assert_eq!(config.default_provider, ProviderType::Gemini);
-        assert_eq!(config.gemini.model, "gemini-2.0-flash-thinking-exp");
+        assert_eq!(config.gemini.model, "gemini-2.0-flash-exp");
         assert_eq!(config.claude.model, "claude-3-5-sonnet-20241022");
         assert_eq!(config.openai.model, "gpt-4-turbo-preview");
     }
@@ -512,7 +512,7 @@ mod tests {
     #[test]
     fn test_gemini_config_defaults() {
         let config = GeminiConfig::default();
-        assert_eq!(config.model, "gemini-2.0-flash-thinking-exp");
+        assert_eq!(config.model, "gemini-2.0-flash-exp");
         assert!((config.temperature - 0.7).abs() < f32::EPSILON);
         assert_eq!(config.max_tool_iterations, 5);
         assert!(config.api_endpoint.is_none());
