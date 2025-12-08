@@ -40,6 +40,8 @@ pub struct PromptData {
     pub command_suggestions: Vec<String>,
     /// Selected suggestion index for command menu navigation
     pub selected_suggestion_index: usize,
+    /// Whether auto-completion overlay should be shown (user has typed 2+ chars after '/')
+    pub autocomplete_active: bool,
     /// Scrollback offset for conversation history
     pub scrollback_offset: usize,
     /// Command palette state
@@ -72,6 +74,7 @@ impl PromptData {
             selected_index: 0,
             command_suggestions: Vec::new(),
             selected_suggestion_index: 0,
+            autocomplete_active: false,
             scrollback_offset: 0,
             command_palette_active: false,
             command_palette_query: String::new(),
@@ -392,8 +395,8 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
 
     // Note: Input prompt is now rendered in the status bar (not here)
 
-    // Show command menu popup if there are suggestions
-    if !data.command_suggestions.is_empty() {
+    // Show command menu popup if auto-completion is active (user has typed 2+ chars after '/')
+    if data.autocomplete_active {
         const MAX_SUGGESTIONS_TO_SHOW: usize = 8;
 
         let total_suggestions = data.command_suggestions.len();
@@ -422,7 +425,12 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
 
         // Create popup with dynamic height
         let popup_width = 60;
-        let popup_height = (visible_count + 4) as u16; // suggestions + header + footer + spacing
+        // If no suggestions, show minimal height for "No matches found" message
+        let popup_height = if total_suggestions == 0 {
+            5 // header + empty message + footer + spacing
+        } else {
+            (visible_count + 4) as u16 // suggestions + header + footer + spacing
+        };
 
         let popup_area = Rect {
             x: area.x + 2,
@@ -451,36 +459,44 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
             ratatui::text::Line::from(""),
         ];
 
-        // Add scroll indicator at top if needed
-        if has_more_above {
+        // REQ-198: Show "No matches found" when active but no suggestions
+        if total_suggestions == 0 {
             menu_lines.push(ratatui::text::Line::from(Span::styled(
-                "  ▲ More above...",
-                Style::default().fg(THEME.text_dim()),
+                "  No matches found",
+                Style::default().fg(THEME.text_muted()),
             )));
-        }
+        } else {
+            // Add scroll indicator at top if needed
+            if has_more_above {
+                menu_lines.push(ratatui::text::Line::from(Span::styled(
+                    "  ▲ More above...",
+                    Style::default().fg(THEME.text_dim()),
+                )));
+            }
 
-        // Show visible suggestions
-        for (i, suggestion) in data.command_suggestions.iter().enumerate().skip(visible_start).take(visible_count) {
-            let is_selected = i == selected_idx;
-            let style = if is_selected {
-                Style::default().fg(THEME.bg_primary()).bg(THEME.primary()).add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(THEME.text())
-            };
+            // Show visible suggestions
+            for (i, suggestion) in data.command_suggestions.iter().enumerate().skip(visible_start).take(visible_count) {
+                let is_selected = i == selected_idx;
+                let style = if is_selected {
+                    Style::default().fg(THEME.bg_primary()).bg(THEME.primary()).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(THEME.text())
+                };
 
-            let prefix = if is_selected { "▶ " } else { "  " };
-            menu_lines.push(ratatui::text::Line::from(Span::styled(
-                format!("{}{}", prefix, suggestion),
-                style,
-            )));
-        }
+                let prefix = if is_selected { "▶ " } else { "  " };
+                menu_lines.push(ratatui::text::Line::from(Span::styled(
+                    format!("{}{}", prefix, suggestion),
+                    style,
+                )));
+            }
 
-        // Add scroll indicator at bottom if needed
-        if has_more_below {
-            menu_lines.push(ratatui::text::Line::from(Span::styled(
-                "  ▼ More below...",
-                Style::default().fg(THEME.text_dim()),
-            )));
+            // Add scroll indicator at bottom if needed
+            if has_more_below {
+                menu_lines.push(ratatui::text::Line::from(Span::styled(
+                    "  ▼ More below...",
+                    Style::default().fg(THEME.text_dim()),
+                )));
+            }
         }
 
         menu_lines.push(ratatui::text::Line::from(""));

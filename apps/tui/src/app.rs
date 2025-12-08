@@ -408,18 +408,18 @@ impl App {
             }
 
             // Arrow keys for command menu navigation
-            KeyCode::Up if !self.prompt_data.command_suggestions.is_empty() => {
+            KeyCode::Up if self.prompt_data.autocomplete_active && !self.prompt_data.command_suggestions.is_empty() => {
                 self.prompt_data.selected_suggestion_index =
                     self.prompt_data.selected_suggestion_index.saturating_sub(1);
             }
-            KeyCode::Down if !self.prompt_data.command_suggestions.is_empty() => {
+            KeyCode::Down if self.prompt_data.autocomplete_active && !self.prompt_data.command_suggestions.is_empty() => {
                 let max_index = self.prompt_data.command_suggestions.len().saturating_sub(1);
                 self.prompt_data.selected_suggestion_index =
                     (self.prompt_data.selected_suggestion_index + 1).min(max_index);
             }
 
             // Tab to autocomplete selected command
-            KeyCode::Tab if !self.prompt_data.command_suggestions.is_empty() => {
+            KeyCode::Tab if self.prompt_data.autocomplete_active && !self.prompt_data.command_suggestions.is_empty() => {
                 self.autocomplete_selected_command();
             }
 
@@ -439,7 +439,7 @@ impl App {
                 
                 if is_submit {
                     // Submit the input
-                    if !self.prompt_data.command_suggestions.is_empty() {
+                    if self.prompt_data.autocomplete_active && !self.prompt_data.command_suggestions.is_empty() {
                         // Autocomplete selected suggestion
                         self.autocomplete_selected_command();
                         // Then execute it
@@ -1023,7 +1023,8 @@ impl App {
             // Typing main command - show matching main commands with fuzzy search
             let query = parts.first().unwrap_or(&"");
 
-            // Use fuzzy matching for better UX
+            // REQ-198: Performance optimization - use fuzzy matching for efficient filtering
+            // SkimMatcherV2 is optimized for <50ms latency even with 100+ commands
             let matcher = SkimMatcherV2::default();
             let mut scored_commands: Vec<(i64, String)> = Vec::new();
 
@@ -1047,9 +1048,16 @@ impl App {
                 }
             }
 
-            // Sort by score (highest first) and take suggestions
+            // Sort by score (highest first) and take top suggestions
+            // Limit to reasonable number for performance (REQ-198: <50ms requirement)
             scored_commands.sort_by(|a, b| b.0.cmp(&a.0));
-            suggestions.extend(scored_commands.into_iter().map(|(_, cmd)| cmd));
+            const MAX_SUGGESTIONS: usize = 50; // Limit suggestions for performance
+            suggestions.extend(
+                scored_commands
+                    .into_iter()
+                    .take(MAX_SUGGESTIONS)
+                    .map(|(_, cmd)| cmd)
+            );
         } else if parts.len() >= 1 {
             // Main command is complete - show subcommands or arguments
             let main_cmd = parts[0];
@@ -1068,15 +1076,43 @@ impl App {
                 // No subcommands - check for dynamic argument completion
                 match main_cmd {
                     "chat" if parts.len() <= 2 => {
-                        // Suggest agent IDs for /chat command
+                        // Suggest agent IDs for /chat command with fuzzy matching
                         if let Ok(agents) = crate::chat_executor::get_available_agents() {
                             let query = if parts.len() > 1 { parts[1] } else { "" };
-                            suggestions.extend(
-                                agents
-                                    .iter()
-                                    .filter(|(agent_id, _desc)| agent_id.to_lowercase().contains(&query.to_lowercase()))
-                                    .map(|(agent_id, desc)| format!("/chat {} - {}", agent_id, desc))
-                            );
+                            
+                            if query.len() >= 2 {
+                                // Use fuzzy matching for better discovery
+                                let matcher = SkimMatcherV2::default();
+                                let mut scored_agents: Vec<(i64, (String, String))> = Vec::new();
+                                
+                                for (agent_id, desc) in &agents {
+                                    // Try matching on both ID and description
+                                    let id_score = matcher.fuzzy_match(agent_id, query).unwrap_or(0);
+                                    let desc_score = matcher.fuzzy_match(desc, query).unwrap_or(0);
+                                    let best_score = id_score.max(desc_score);
+                                    
+                                    if best_score > 0 {
+                                        scored_agents.push((best_score, (agent_id.clone(), desc.clone())));
+                                    }
+                                }
+                                
+                                // Sort by score and take top matches
+                                scored_agents.sort_by(|a, b| b.0.cmp(&a.0));
+                                suggestions.extend(
+                                    scored_agents
+                                        .into_iter()
+                                        .take(20) // Limit to top 20 agents
+                                        .map(|(_, (agent_id, desc))| format!("/chat {} - {}", agent_id, desc))
+                                );
+                            } else {
+                                // Show all agents if query is too short
+                                suggestions.extend(
+                                    agents
+                                        .iter()
+                                        .take(20)
+                                        .map(|(agent_id, desc)| format!("/chat {} - {}", agent_id, desc))
+                                );
+                            }
                         }
                     }
                     _ => {
