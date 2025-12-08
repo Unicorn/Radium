@@ -7,7 +7,7 @@ use radium_core::analytics::{
     JsonExporter, MarkdownExporter, ReportFormatter, SessionAnalytics, SessionComparison,
     SessionReport, SessionStorage,
 };
-use radium_core::monitoring::MonitoringService;
+use radium_core::monitoring::{MonitoringService, ProviderCostBreakdown, TeamCostBreakdown, BudgetManager};
 use radium_core::workspace::Workspace;
 use chrono::{DateTime, Utc};
 use std::fs;
@@ -83,6 +83,18 @@ pub enum StatsCommand {
         #[arg(long)]
         json: bool,
     },
+    /// Show provider cost breakdown
+    Providers {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Show team cost attribution
+    Teams {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 /// Execute stats command
@@ -131,6 +143,12 @@ pub async fn execute(cmd: StatsCommand) -> Result<()> {
         }
         StatsCommand::Compare { session_a, session_b, json } => {
             compare_command(&analytics, &session_a, &session_b, json).await
+        }
+        StatsCommand::Providers { json } => {
+            providers_command(&monitoring, json).await
+        }
+        StatsCommand::Teams { json } => {
+            teams_command(&monitoring, json).await
         }
     }
 }
@@ -603,4 +621,115 @@ fn get_latest_session_id() -> Option<String> {
     let reports = storage.list_reports().ok()?;
 
     reports.first().map(|r| r.metrics.session_id.clone())
+}
+
+async fn providers_command(monitoring: &MonitoringService, json: bool) -> Result<()> {
+    let breakdowns = BudgetManager::get_provider_breakdown(monitoring)
+        .context("Failed to query provider costs")?;
+
+    if json {
+        let json_data: Vec<serde_json::Value> = breakdowns
+            .iter()
+            .map(|b| {
+                serde_json::json!({
+                    "provider": b.provider,
+                    "total_cost": b.total_cost,
+                    "percentage": b.percentage,
+                    "execution_count": b.execution_count,
+                })
+            })
+            .collect();
+        println!("{}", serde_json::to_string_pretty(&json_data)?);
+    } else {
+        println!("Provider Cost Breakdown\n");
+        if breakdowns.is_empty() {
+            println!("No provider cost data available.");
+        } else {
+            println!(
+                "{:<20} {:<15} {:<12} {:<15}",
+                "Provider", "Total Cost", "Percentage", "Executions"
+            );
+            println!("{}", "-".repeat(65));
+            
+            for breakdown in &breakdowns {
+                println!(
+                    "{:<20} ${:<14.4} {:<11.1}% {:<15}",
+                    breakdown.provider,
+                    breakdown.total_cost,
+                    breakdown.percentage,
+                    breakdown.execution_count
+                );
+            }
+            
+            // Print total
+            let total_cost: f64 = breakdowns.iter().map(|b| b.total_cost).sum();
+            let total_executions: u64 = breakdowns.iter().map(|b| b.execution_count).sum();
+            println!("{}", "-".repeat(65));
+            println!(
+                "{:<20} ${:<14.4} {:<11} {:<15}",
+                "TOTAL",
+                total_cost,
+                "100.0%",
+                total_executions
+            );
+        }
+    }
+
+    Ok(())
+}
+
+async fn teams_command(monitoring: &MonitoringService, json: bool) -> Result<()> {
+    let breakdowns = BudgetManager::get_team_breakdown(monitoring)
+        .context("Failed to query team costs")?;
+
+    if json {
+        let json_data: Vec<serde_json::Value> = breakdowns
+            .iter()
+            .map(|b| {
+                serde_json::json!({
+                    "team_name": b.team_name,
+                    "project_name": b.project_name,
+                    "total_cost": b.total_cost,
+                    "execution_count": b.execution_count,
+                })
+            })
+            .collect();
+        println!("{}", serde_json::to_string_pretty(&json_data)?);
+    } else {
+        println!("Team Cost Attribution\n");
+        if breakdowns.is_empty() {
+            println!("No team attribution data available.");
+        } else {
+            println!(
+                "{:<25} {:<25} {:<15} {:<15}",
+                "Team", "Project", "Total Cost", "Executions"
+            );
+            println!("{}", "-".repeat(80));
+            
+            for breakdown in &breakdowns {
+                let project = breakdown.project_name.as_deref().unwrap_or("N/A");
+                println!(
+                    "{:<25} {:<25} ${:<14.4} {:<15}",
+                    breakdown.team_name,
+                    project,
+                    breakdown.total_cost,
+                    breakdown.execution_count
+                );
+            }
+            
+            // Print total
+            let total_cost: f64 = breakdowns.iter().map(|b| b.total_cost).sum();
+            let total_executions: u64 = breakdowns.iter().map(|b| b.execution_count).sum();
+            println!("{}", "-".repeat(80));
+            println!(
+                "{:<25} {:<25} ${:<14.4} {:<15}",
+                "TOTAL",
+                "",
+                total_cost,
+                total_executions
+            );
+        }
+    }
+
+    Ok(())
 }
