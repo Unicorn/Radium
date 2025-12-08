@@ -50,6 +50,8 @@ pub struct PromptData {
     pub command_palette_query: String,
     /// Previous selected index (for table animation detection)
     pub previous_selected_index: usize,
+    /// Whether chat history pane has focus (false = prompt editor focused)
+    pub chat_history_focused: bool,
 }
 
 impl PromptData {
@@ -80,6 +82,7 @@ impl PromptData {
             command_palette_active: false,
             command_palette_query: String::new(),
             previous_selected_index: 0,
+            chat_history_focused: false, // Prompt editor focused by default
         }
     }
 
@@ -143,6 +146,21 @@ impl PromptData {
         }
 
         self.conversation[start..end].to_vec()
+    }
+
+    /// Toggle focus between chat history and prompt editor panes.
+    pub fn toggle_focus(&mut self) {
+        self.chat_history_focused = !self.chat_history_focused;
+    }
+
+    /// Check if chat history pane has focus.
+    pub fn is_chat_focused(&self) -> bool {
+        self.chat_history_focused
+    }
+
+    /// Check if prompt editor pane has focus.
+    pub fn is_prompt_focused(&self) -> bool {
+        !self.chat_history_focused
     }
 }
 
