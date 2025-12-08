@@ -24,6 +24,7 @@
 //! # }
 //! ```
 
+mod attribution;
 mod budget;
 mod error;
 mod logs;
@@ -31,6 +32,7 @@ pub(crate) mod schema;
 pub(crate) mod service;
 pub(crate) mod telemetry;
 
+pub use attribution::{AttributionMetadata, generate_api_key_id};
 pub use budget::{BudgetConfig, BudgetError, BudgetManager, BudgetStatus};
 pub use error::{MonitoringError, Result};
 pub use logs::LogManager;

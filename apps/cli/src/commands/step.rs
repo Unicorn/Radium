@@ -215,7 +215,9 @@ pub async fn execute(
     // Record telemetry if execution was successful
     if let Ok(ref response) = execution_result {
         if let Some(monitoring) = monitoring.as_ref() {
-            use radium_core::monitoring::{TelemetryRecord, TelemetryTracking};
+            use radium_core::monitoring::{TelemetryRecord, TelemetryTracking, AttributionMetadata};
+            use radium_core::auth::ProviderType;
+            
             let mut telemetry = TelemetryRecord::new(tracked_agent_id.clone())
                 .with_engine_id(selected_engine.to_string());
             
@@ -229,6 +231,33 @@ pub async fn execute(
             // Set token usage from response
             if let Some(ref usage) = response.usage {
                 telemetry = telemetry.with_tokens(usage.input_tokens, usage.output_tokens);
+            }
+            
+            // Try to add attribution metadata based on provider type
+            if let Some(provider_type) = match selected_engine {
+                "openai" => Some(ProviderType::OpenAI),
+                "claude" | "anthropic" => Some(ProviderType::Claude),
+                "gemini" => Some(ProviderType::Gemini),
+                _ => None,
+            } {
+                // Try to load API key and generate attribution
+                use radium_core::auth::CredentialStore;
+                if let Ok(store) = CredentialStore::new() {
+                    if let Ok(api_key) = store.get(provider_type) {
+                        if let Some(attribution) = AttributionMetadata::from_api_key(&api_key, provider_type) {
+                            telemetry = telemetry.with_attribution(
+                                Some(attribution.api_key_id),
+                                attribution.team_name,
+                                attribution.project_name,
+                                attribution.cost_center,
+                            );
+                        } else {
+                            // Fallback: generate api_key_id only
+                            let api_key_id = radium_core::monitoring::generate_api_key_id(&api_key);
+                            telemetry = telemetry.with_attribution(Some(api_key_id), None, None, None);
+                        }
+                    }
+                }
             }
             
             telemetry.calculate_cost();

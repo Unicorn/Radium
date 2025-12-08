@@ -89,6 +89,9 @@ semver = "1.0"
 ed25519-dalek = { version = "2.1", features = ["rand_core"] }
 rand = "0.8"
 
+# Hashing for API key IDs
+sha2 = "0.10"
+
 # Temporary files
 tempfile = "3.8"
 
