@@ -71,6 +71,18 @@ pub struct TelemetryRecord {
     
     /// Behavior outcome (e.g., "triggered", "skipped", "failed").
     pub behavior_outcome: Option<String>,
+    
+    /// API key identifier (hash of API key used for this execution).
+    pub api_key_id: Option<String>,
+    
+    /// Team name for cost attribution (derived from API key metadata).
+    pub team_name: Option<String>,
+    
+    /// Project name for cost attribution (derived from API key metadata).
+    pub project_name: Option<String>,
+    
+    /// Cost center for chargeback (derived from API key metadata).
+    pub cost_center: Option<String>,
 }
 
 impl TelemetryRecord {
@@ -99,6 +111,10 @@ impl TelemetryRecord {
             behavior_invocation_count: None,
             behavior_duration_ms: None,
             behavior_outcome: None,
+            api_key_id: None,
+            team_name: None,
+            project_name: None,
+            cost_center: None,
         }
     }
 

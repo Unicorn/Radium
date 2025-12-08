@@ -101,7 +101,7 @@ impl OutputBuffer {
 mod command_suggestions_test;
 
 #[cfg(test)]
-mod tests {
+mod output_buffer_tests {
     use super::*;
 
     #[test]
