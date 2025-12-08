@@ -678,6 +678,94 @@ impl MonitoringService {
         })
     }
 
+    /// Gets cost breakdown by provider.
+    ///
+    /// Aggregates costs from telemetry records grouped by provider.
+    ///
+    /// # Returns
+    /// Vector of ProviderCostBreakdown sorted by total_cost descending
+    ///
+    /// # Errors
+    /// Returns error if query fails
+    pub fn get_costs_by_provider(&self) -> Result<Vec<crate::monitoring::budget::ProviderCostBreakdown>> {
+        use crate::monitoring::budget::ProviderCostBreakdown;
+        
+        // First get total cost across all providers
+        let mut total_stmt = self.conn.prepare("SELECT SUM(estimated_cost) FROM telemetry WHERE provider IS NOT NULL")?;
+        let total_cost: f64 = total_stmt.query_row([], |row| {
+            Ok(row.get::<_, Option<f64>>(0)?.unwrap_or(0.0))
+        })?;
+
+        // Get breakdown by provider
+        let mut stmt = self.conn.prepare(
+            "SELECT provider, SUM(estimated_cost) as total_cost, COUNT(*) as execution_count
+             FROM telemetry
+             WHERE provider IS NOT NULL
+             GROUP BY provider
+             ORDER BY total_cost DESC"
+        )?;
+
+        let breakdowns = stmt.query_map([], |row| {
+            let provider: String = row.get(0)?;
+            let cost: f64 = row.get::<_, Option<f64>>(1)?.unwrap_or(0.0);
+            let count: i64 = row.get(2)?;
+            
+            let percentage = if total_cost > 0.0 {
+                (cost / total_cost) * 100.0
+            } else {
+                0.0
+            };
+
+            Ok(ProviderCostBreakdown {
+                provider,
+                total_cost: cost,
+                percentage,
+                execution_count: count as u64,
+            })
+        })?
+        .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        Ok(breakdowns)
+    }
+
+    /// Gets cost breakdown by team.
+    ///
+    /// Aggregates costs from telemetry records grouped by team name.
+    ///
+    /// # Returns
+    /// Vector of TeamCostBreakdown sorted by total_cost descending
+    ///
+    /// # Errors
+    /// Returns error if query fails
+    pub fn get_costs_by_team(&self) -> Result<Vec<crate::monitoring::budget::TeamCostBreakdown>> {
+        use crate::monitoring::budget::TeamCostBreakdown;
+        
+        let mut stmt = self.conn.prepare(
+            "SELECT team_name, project_name, SUM(estimated_cost) as total_cost, COUNT(*) as execution_count
+             FROM telemetry
+             WHERE team_name IS NOT NULL
+             GROUP BY team_name, project_name
+             ORDER BY total_cost DESC"
+        )?;
+
+        let breakdowns = stmt.query_map([], |row| {
+            let team_name: String = row.get(0)?;
+            let project_name: Option<String> = row.get(1)?;
+            let cost: f64 = row.get::<_, Option<f64>>(2)?.unwrap_or(0.0);
+            let count: i64 = row.get(3)?;
+
+            Ok(TeamCostBreakdown {
+                team_name,
+                project_name,
+                total_cost: cost,
+                execution_count: count as u64,
+            })
+        })?
+        .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        Ok(breakdowns)
+    }
+
     /// Lists agent usage statistics with optional filtering.
     ///
     /// # Arguments

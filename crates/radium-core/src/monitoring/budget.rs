@@ -95,6 +95,32 @@ impl std::fmt::Display for BudgetError {
 
 impl std::error::Error for BudgetError {}
 
+/// Provider cost breakdown for multi-provider aggregation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderCostBreakdown {
+    /// Provider name (e.g., "openai", "anthropic", "gemini").
+    pub provider: String,
+    /// Total cost for this provider.
+    pub total_cost: f64,
+    /// Percentage of total cost.
+    pub percentage: f64,
+    /// Number of executions.
+    pub execution_count: u64,
+}
+
+/// Team cost breakdown for attribution.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TeamCostBreakdown {
+    /// Team name.
+    pub team_name: String,
+    /// Project name (if available).
+    pub project_name: Option<String>,
+    /// Total cost for this team.
+    pub total_cost: f64,
+    /// Number of executions.
+    pub execution_count: u64,
+}
+
 /// Budget manager for tracking costs and enforcing limits.
 #[derive(Debug, Clone)]
 pub struct BudgetManager {
@@ -193,6 +219,38 @@ impl BudgetManager {
     pub fn reset(&self) {
         let mut spent = self.spent_amount.lock().unwrap();
         *spent = 0.0;
+    }
+
+    /// Gets provider cost breakdown from monitoring service.
+    ///
+    /// # Arguments
+    /// * `monitoring` - MonitoringService instance to query
+    ///
+    /// # Returns
+    /// Vector of ProviderCostBreakdown sorted by cost descending
+    ///
+    /// # Errors
+    /// Returns error if query fails
+    pub fn get_provider_breakdown(
+        monitoring: &crate::monitoring::MonitoringService,
+    ) -> crate::monitoring::Result<Vec<ProviderCostBreakdown>> {
+        monitoring.get_costs_by_provider()
+    }
+
+    /// Gets team cost breakdown from monitoring service.
+    ///
+    /// # Arguments
+    /// * `monitoring` - MonitoringService instance to query
+    ///
+    /// # Returns
+    /// Vector of TeamCostBreakdown sorted by cost descending
+    ///
+    /// # Errors
+    /// Returns error if query fails
+    pub fn get_team_breakdown(
+        monitoring: &crate::monitoring::MonitoringService,
+    ) -> crate::monitoring::Result<Vec<TeamCostBreakdown>> {
+        monitoring.get_costs_by_team()
     }
 }
 
