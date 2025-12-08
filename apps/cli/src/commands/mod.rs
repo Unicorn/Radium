@@ -38,6 +38,7 @@ pub mod playbook;
 pub mod types;
 pub mod validate;
 pub mod vibecheck;
+pub mod privacy;
 
 // Re-export types for convenience
 pub use types::{AgentsCommand, AuthCommand, EnginesCommand, ExtensionCommand};

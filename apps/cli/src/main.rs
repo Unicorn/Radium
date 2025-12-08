@@ -14,7 +14,7 @@ use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 use commands::{
-    agents, auth, budget, capability, checkpoint, clean, context, cost, craft, doctor, engines, extension, hooks, init, learning, monitor, plan, playbook, policy, requirement, run,
+    agents, auth, budget, capability, checkpoint, clean, context, cost, craft, doctor, engines, extension, hooks, init, learning, monitor, plan, playbook, policy, privacy, requirement, run,
     sandbox, secret, stats, status, step, validate,
     // All commands enabled!
     templates, complete, autonomous, vibecheck, chat, mcp, custom, braingrid,
@@ -443,6 +443,12 @@ enum Command {
     /// filtering by date range, plan, or workflow.
     #[command(subcommand)]
     Cost(commands::cost::CostCommand),
+
+    /// Privacy and sensitive data management
+    ///
+    /// Check files for sensitive data and test custom privacy patterns.
+    #[command(subcommand)]
+    Privacy(privacy::PrivacyCommand),
 }
 
 // Command types are now in commands::types module
@@ -663,6 +669,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Cost(cmd) => {
             cost::execute(cmd).await?;
+        }
+        Command::Privacy(cmd) => {
+            privacy::execute(cmd).await?;
         }
     }
 
