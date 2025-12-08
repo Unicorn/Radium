@@ -1,0 +1,12 @@
+[[hooks]]
+name = "editor-context"
+type = "before_tool"
+priority = 150
+enabled = true
+script = "hooks/editor-context.sh"
+
+[hooks.config]
+# Editor context injection configuration
+# Reads editor context from environment variables or stdin
+# Format: JSON with {file_path, language, selection, surrounding_lines}
+
