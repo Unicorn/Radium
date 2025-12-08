@@ -307,6 +307,7 @@ impl StatusFooter {
 
     /// Renders the status bar with fixed input prompt.
     /// This is the new universal status bar that always includes the input prompt.
+    /// When in Chat context, the TextArea is rendered in the split-pane view instead.
     pub fn render_with_input(
         frame: &mut Frame,
         area: Rect,
@@ -316,15 +317,30 @@ impl StatusFooter {
     ) {
         let theme = crate::theme::get_theme();
         
-        // Split into three sections: context info, input prompt, shortcuts
-        let chunks = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Min(15),        // Context info
-                Constraint::Fill(1),       // Input prompt (flexible, centered)
-                Constraint::Min(30),       // Keyboard shortcuts
-            ])
-            .split(area);
+        // Check if we're in Chat context - if so, don't render TextArea in status bar
+        let is_chat_context = matches!(context, Some(DisplayContext::Chat { .. }));
+        
+        // Adjust layout constraints based on whether we show the input
+        let chunks = if is_chat_context {
+            // In Chat context: only context info and shortcuts (no input)
+            Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([
+                    Constraint::Min(15),        // Context info
+                    Constraint::Min(30),       // Keyboard shortcuts
+                ])
+                .split(area)
+        } else {
+            // Other contexts: context info, input prompt, shortcuts
+            Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([
+                    Constraint::Min(15),        // Context info
+                    Constraint::Fill(1),       // Input prompt (flexible, centered)
+                    Constraint::Min(30),       // Keyboard shortcuts
+                ])
+                .split(area)
+        };
 
         // Left: Context info
         let context_text = if let Some(ctx) = context {
@@ -351,12 +367,15 @@ impl StatusFooter {
             );
         frame.render_widget(context_widget, chunks[0]);
 
-        // Center: Input prompt (always visible, fixed position)
-        // Render TextArea widget directly (it implements Widget)
-        frame.render_widget(input.clone(), chunks[1]);
+        // Center: Input prompt (only if not in Chat context)
+        if !is_chat_context {
+            // Render TextArea widget directly (it implements Widget)
+            frame.render_widget(input.clone(), chunks[1]);
+        }
 
         // Right: Keyboard shortcuts
         let shortcuts_text = mode.shortcuts();
+        let shortcuts_index = if is_chat_context { 1 } else { 2 };
         let shortcuts_widget = Paragraph::new(shortcuts_text)
             .style(Style::default().fg(theme.text_dim))
             .alignment(Alignment::Right)
@@ -365,7 +384,7 @@ impl StatusFooter {
                     .borders(Borders::NONE)
                     .padding(ratatui::widgets::Padding::new(0, 0, 0, 1)),
             );
-        frame.render_widget(shortcuts_widget, chunks[2]);
+        frame.render_widget(shortcuts_widget, chunks[shortcuts_index]);
     }
 }
 
