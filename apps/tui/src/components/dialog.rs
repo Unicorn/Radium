@@ -161,7 +161,7 @@ impl DialogManager {
 }
 
 /// Renders a dialog overlay.
-pub fn render_dialog(frame: &mut Frame, area: Rect, dialog: &Dialog) {
+pub fn render_dialog(frame: &mut Frame, area: Rect, dialog: &Dialog) -> (Rect, Rect) {
     let theme = crate::theme::get_theme();
 
     // Calculate dialog size
@@ -258,6 +258,8 @@ pub fn render_dialog(frame: &mut Frame, area: Rect, dialog: &Dialog) {
         .border_style(Style::default().fg(theme.primary))
         .style(Style::default().bg(theme.bg_panel));
     frame.render_widget(dialog_border, dialog_area);
+    
+    (area, dialog_area) // Return backdrop area and dialog area for animations
 }
 
 #[cfg(test)]

@@ -5,11 +5,10 @@
 pub mod client;
 
 use client::ClientManager;
-use radium_core::config::Config;
 use radium_core::extensions::{ExtensionDiscovery, ExtensionManager, InstallOptions};
-use radium_core::server::manager::EmbeddedServer;
-use radium_core::workflow::{CompletionEvent, CompletionOptions, CompletionService};
-use radium_core::Workspace;
+// Note: server and workflow modules require specific features
+// use radium_core::server::manager::EmbeddedServer;
+// use radium_core::workflow::{CompletionEvent, CompletionOptions, CompletionService};
 use radium_core::proto::{
     Agent, CreateAgentRequest, CreateTaskRequest, CreateWorkflowRequest, DeleteAgentRequest,
     DeleteWorkflowRequest, ExecuteAgentRequest, ExecuteWorkflowRequest, GetAgentRequest, GetTaskRequest,
@@ -22,7 +21,7 @@ use std::sync::Arc;
 use tauri::Manager;
 use tokio::sync::Mutex;
 use tonic::Request;
-use tracing::{error, info};
+use tracing::info;
 
 /// JSON-serializable agent representation
 #[derive(Debug, Serialize, Deserialize)]
@@ -153,7 +152,8 @@ impl From<RegisteredAgent> for RegisteredAgentJson {
 pub struct AppState {
     pub client_manager: Arc<Mutex<ClientManager>>,
     /// Embedded server instance (if running)
-    pub embedded_server: Arc<Mutex<Option<EmbeddedServer>>>,
+    /// Note: Requires 'server' feature in radium-core
+    // pub embedded_server: Arc<Mutex<Option<EmbeddedServer>>>,
     /// Extension manager instance (lazy initialized)
     pub extension_manager: Arc<Mutex<Option<ExtensionManager>>>,
 }
@@ -796,7 +796,7 @@ async fn get_extension_info(
 #[tauri::command]
 async fn search_extensions(
     query: String,
-    state: tauri::State<'_, AppState>,
+    _state: tauri::State<'_, AppState>,
 ) -> Result<String, String> {
     info!(query = %query, "Search extensions command received");
     
@@ -894,10 +894,11 @@ async fn execute_agent(
         .map_err(|e| format!("Failed to connect to server: {}", e))?;
     
     let request = Request::new(ExecuteAgentRequest {
-        agent_id: agent_id.clone(),
+        agent_id: Some(agent_id.clone()),
         input,
         model_type,
         model_id,
+        criteria: None, // Optional criteria field
     });
     
     let response = client
@@ -980,6 +981,8 @@ async fn stop_agent(
 }
 
 /// Complete a requirement from source
+/// Note: Disabled - requires 'workflow' feature in radium-core
+/*
 #[tauri::command]
 async fn complete_task(
     source: String,
@@ -1033,6 +1036,7 @@ async fn complete_task(
 
     Ok(last_event.unwrap_or_else(|| "{\"type\":\"unknown\"}".to_string()))
 }
+*/
 
 /// Get all registered agents
 #[tauri::command]
@@ -1053,48 +1057,9 @@ async fn get_registered_agents(state: tauri::State<'_, AppState>) -> Result<Stri
     
     let agents = response.into_inner().agents;
     info!(count = agents.len(), "Registered agents retrieved");
-    
+
     let agents_json: Vec<RegisteredAgentJson> = agents.into_iter().map(RegisteredAgentJson::from).collect();
     Ok(serde_json::to_string(&agents_json).map_err(|e| format!("JSON serialization failed: {}", e))?)
-}
-
-/// JSON-serializable extension representation
-#[derive(Debug, Serialize, Deserialize)]
-struct ExtensionJson {
-    name: String,
-    version: String,
-    description: String,
-    author: String,
-    install_path: String,
-    components: ExtensionComponentsJson,
-    dependencies: Vec<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct ExtensionComponentsJson {
-    prompts: Vec<String>,
-    mcp_servers: Vec<String>,
-    commands: Vec<String>,
-    hooks: Vec<String>,
-}
-
-impl From<radium_core::extensions::Extension> for ExtensionJson {
-    fn from(ext: radium_core::extensions::Extension) -> Self {
-        ExtensionJson {
-            name: ext.name,
-            version: ext.version,
-            description: ext.manifest.description,
-            author: ext.manifest.author,
-            install_path: ext.install_path.to_string_lossy().to_string(),
-            components: ExtensionComponentsJson {
-                prompts: ext.manifest.components.prompts,
-                mcp_servers: ext.manifest.components.mcp_servers,
-                commands: ext.manifest.components.commands,
-                hooks: ext.manifest.components.hooks,
-            },
-            dependencies: ext.manifest.dependencies,
-        }
-    }
 }
 
 /// Run the Tauri application.
@@ -1104,7 +1069,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .manage(AppState {
             client_manager: Arc::new(Mutex::new(ClientManager::new())),
-            embedded_server: Arc::new(Mutex::new(None)),
+            // embedded_server: Arc::new(Mutex::new(None)),  // Disabled - requires 'server' feature
             extension_manager: Arc::new(Mutex::new(None)),
         })
         .invoke_handler(tauri::generate_handler![
@@ -1128,7 +1093,7 @@ pub fn run() {
             start_agent,
             stop_agent,
             get_registered_agents,
-            complete_task,
+            // complete_task,  // Disabled - requires 'workflow' feature
             list_extensions,
             install_extension,
             uninstall_extension,
@@ -1138,21 +1103,24 @@ pub fn run() {
         .setup(|app| {
             info!("Radium Desktop starting up");
 
+            // Note: Embedded server disabled - requires 'server' feature
+            // The desktop app will connect to an external server instead
+            /*
             // Start embedded server in background
             let state = app.state::<AppState>();
             let server_state = state.embedded_server.clone();
-            
+
             tokio::spawn(async move {
                 let config = Config::default();
                 let mut server = EmbeddedServer::new(config);
-                
+
                 match server.start().await {
                     Ok(()) => {
                         info!("Embedded server started, waiting for readiness...");
                         match server.wait_for_ready(std::time::Duration::from_secs(10)).await {
                             Ok(()) => {
                                 info!("Embedded server is ready");
-                                
+
                                 // Store server in app state for later cleanup
                                 let mut server_guard = server_state.lock().await;
                                 *server_guard = Some(server);
@@ -1167,7 +1135,7 @@ pub fn run() {
                     }
                 }
             });
-            
+            */
 
             #[cfg(debug_assertions)]
             {

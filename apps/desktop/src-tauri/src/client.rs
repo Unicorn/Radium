@@ -4,7 +4,7 @@ use radium_core::radium_client::RadiumClient;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tonic::transport::{Channel, Endpoint};
-use tracing::info;
+use tracing::{debug, info};
 
 /// Default server address
 const DEFAULT_SERVER_ADDRESS: &str = "http://127.0.0.1:50051";

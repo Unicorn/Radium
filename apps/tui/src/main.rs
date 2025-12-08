@@ -68,8 +68,15 @@ async fn main() -> Result<()> {
     // Create app
     let mut app = App::new();
 
+    // Track frame timing for animations
+    let mut last_frame_time = std::time::Instant::now();
+
     // Main loop
     loop {
+        // Calculate delta time for animations
+        let current_time = std::time::Instant::now();
+        let delta_time = last_frame_time.elapsed();
+        last_frame_time = current_time;
         // Update toast manager (remove expired toasts)
         app.toast_manager.update();
 
@@ -166,26 +173,38 @@ async fn main() -> Result<()> {
                 Some("disabled")
             };
             
-            // Get auth status
-            let auth_status = {
+            // Get connected services
+            let connected_services = {
                 use radium_core::auth::{CredentialStore, ProviderType};
                 if let Ok(store) = CredentialStore::new() {
-                    let gemini = store.is_configured(ProviderType::Gemini);
-                    let openai = store.is_configured(ProviderType::OpenAI);
                     let mut providers = Vec::new();
-                    if gemini { providers.push("Gemini"); }
-                    if openai { providers.push("OpenAI"); }
-                    if providers.is_empty() {
-                        Some("Auth: None".to_string())
-                    } else {
-                        Some(format!("Auth: {}", providers.join(", ")))
+                    if store.is_configured(ProviderType::Gemini) {
+                        providers.push("Gemini".to_string());
                     }
+                    if store.is_configured(ProviderType::OpenAI) {
+                        providers.push("OpenAI".to_string());
+                    }
+                    providers
                 } else {
-                    Some("Auth: Unknown".to_string())
+                    Vec::new()
                 }
             };
             
-            render_title_bar(frame, title_area, version, model_info, orchestration_status, auth_status.as_deref());
+            render_title_bar(frame, title_area, version, model_info, orchestration_status, &connected_services);
+
+            // Detect view context changes for transitions
+            let context_changed = app.previous_context.as_ref()
+                .map(|prev| !crate::effects::view_transitions::contexts_equal(prev, &app.prompt_data.context))
+                .unwrap_or(true);
+
+            // Trigger view transition animation if context changed
+            if context_changed && app.previous_context.is_some() {
+                use crate::effects::view_transitions::create_dissolve_transition;
+                use tachyonfx::CellFilter;
+                let effect = create_dissolve_transition(400)
+                    .with_filter(CellFilter::Area(main_area));
+                app.effect_manager.add_effect(effect);
+            }
 
             // Render main content area (context-aware)
             if app.show_shortcuts {
@@ -231,15 +250,59 @@ async fn main() -> Result<()> {
             );
 
             // Render dialogs (on top of everything except shortcuts)
-            if !app.show_shortcuts {
+            let dialog_areas = if !app.show_shortcuts {
                 if let Some(dialog) = app.dialog_manager.current() {
-                    render_dialog(frame, area, dialog);
+                    let (backdrop_area, dialog_area) = render_dialog(frame, area, dialog);
+                    Some((backdrop_area, dialog_area))
+                } else {
+                    None
                 }
+            } else {
+                None
+            };
+
+            // Detect dialog state changes and trigger animations
+            let current_dialog_open = app.dialog_manager.is_open();
+            if current_dialog_open && !app.previous_dialog_open {
+                // Dialog just opened - animate it
+                if let Some((backdrop_area, dialog_area)) = dialog_areas {
+                    use crate::effects::dialog_animations::create_dialog_open_animation;
+                    let effect = create_dialog_open_animation(backdrop_area, dialog_area, 300);
+                    app.effect_manager.add_effect(effect);
+                }
+            } else if !current_dialog_open && app.previous_dialog_open {
+                // Dialog just closed - animate close (if we had the areas, but they're gone now)
+                // Note: Close animation would need to be triggered before dialog is removed
+                // For now, we'll handle this in the dialog manager if needed
             }
 
             // Render toasts (on top of everything)
-            render_toasts(frame, area, &app.toast_manager);
+            let toast_areas = render_toasts_with_areas(frame, area, &app.toast_manager);
+
+            // Detect toast changes and trigger animations
+            let current_toast_count = app.toast_manager.toasts().len();
+            if current_toast_count > app.previous_toast_count {
+                // New toasts appeared - animate them
+                use crate::effects::toast_animations::create_toast_show_animation;
+                use tachyonfx::CellFilter;
+                for (idx, toast_area) in toast_areas.iter().enumerate() {
+                    if idx < current_toast_count && idx >= app.previous_toast_count {
+                        // This is a new toast - animate it
+                        let effect = create_toast_show_animation(300)
+                            .with_filter(CellFilter::Area(*toast_area));
+                        app.effect_manager.add_effect(effect);
+                    }
+                }
+            }
+
+            // Process and apply effects after all rendering is complete
+            app.effect_manager.process_effects(delta_time, frame.buffer_mut(), area);
         })?;
+
+        // Update previous state for transition detection (after rendering)
+        app.previous_context = Some(app.prompt_data.context.clone());
+        app.previous_dialog_open = app.dialog_manager.is_open();
+        app.previous_toast_count = app.toast_manager.toasts().len();
 
         // Handle events with timeout
         if event::poll(Duration::from_millis(100))? {

@@ -180,9 +180,14 @@ impl ToastManager {
 
 /// Renders toast notifications in the top-right corner.
 pub fn render_toasts(frame: &mut Frame, area: Rect, manager: &ToastManager) {
+    let _areas = render_toasts_with_areas(frame, area, manager);
+}
+
+/// Renders toast notifications and returns their areas for animation targeting.
+pub fn render_toasts_with_areas(frame: &mut Frame, area: Rect, manager: &ToastManager) -> Vec<Rect> {
     let toasts = manager.toasts();
     if toasts.is_empty() {
-        return;
+        return Vec::new();
     }
 
     let theme = crate::theme::get_theme();
@@ -202,8 +207,9 @@ pub fn render_toasts(frame: &mut Frame, area: Rect, manager: &ToastManager) {
         height: total_height.min(area.height.saturating_sub(margin * 2)),
     };
 
-    // Render each toast
+    // Render each toast and collect areas
     let mut y_offset = 0u16;
+    let mut areas = Vec::new();
     for (_idx, toast) in toasts.iter().enumerate() {
         if y_offset >= toast_area.height {
             break;
@@ -217,8 +223,11 @@ pub fn render_toasts(frame: &mut Frame, area: Rect, manager: &ToastManager) {
         };
 
         render_single_toast(frame, toast_rect, toast, &theme);
+        areas.push(toast_rect);
         y_offset += toast_height + spacing;
     }
+    
+    areas
 }
 
 /// Renders a single toast notification.

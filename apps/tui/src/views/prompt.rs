@@ -39,6 +39,8 @@ pub struct PromptData {
     /// Command palette state
     pub command_palette_active: bool,
     pub command_palette_query: String,
+    /// Previous selected index (for table animation detection)
+    pub previous_selected_index: usize,
 }
 
 impl PromptData {
@@ -257,6 +259,22 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
                 )
                 .style(Style::default().fg(THEME.text()))
                 .scroll((0, 0)); // No scroll needed since we're already culling
+            frame.render_widget(main_widget, area);
+        }
+        DisplayContext::Dashboard => {
+            // Render dashboard with centered alignment
+            let scroll_offset = data.scrollback_offset;
+
+            let main_widget = Paragraph::new(main_content)
+                .wrap(Wrap { trim: true })
+                .alignment(Alignment::Center)
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_style(Style::default().fg(THEME.border())),
+                )
+                .style(Style::default().fg(THEME.text()))
+                .scroll((scroll_offset as u16, 0));
             frame.render_widget(main_widget, area);
         }
         _ => {

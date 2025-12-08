@@ -33,4 +33,4 @@ pub use requirement_progress_bar::{render_requirement_progress, render_inline_pr
 pub use status_footer::{AppMode, StatusFooter};
 pub use telemetry_bar::TelemetryBar;
 pub use title_bar::render_title_bar;
-pub use toast::{Toast, ToastManager, ToastVariant, render_toasts};
+pub use toast::{Toast, ToastManager, ToastVariant, render_toasts, render_toasts_with_areas};

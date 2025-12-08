@@ -17,6 +17,7 @@ use tokio::sync::Mutex;
 use crate::commands::{Command, DisplayContext};
 use crate::components::{DialogManager, ToastManager};
 use crate::config::TuiConfig;
+use crate::effects::AppEffectManager;
 use crate::requirement_progress::ActiveRequirement;
 use crate::setup::SetupWizard;
 use crate::state::WorkflowUIState;
@@ -73,6 +74,14 @@ pub struct App {
     pub selected_agent_id: Option<String>,
     /// Active requirement execution (for async progress tracking)
     pub active_requirement: Option<ActiveRequirement>,
+    /// Effect manager for animations
+    pub effect_manager: AppEffectManager,
+    /// Previous display context (for view transition detection)
+    pub previous_context: Option<DisplayContext>,
+    /// Previous dialog state (for dialog animation detection)
+    pub previous_dialog_open: bool,
+    /// Previous toast count (for toast animation detection)
+    pub previous_toast_count: usize,
 }
 
 impl App {
@@ -159,6 +168,10 @@ impl App {
             workflow_state: None,
             selected_agent_id: None,
             active_requirement: None,
+            effect_manager: AppEffectManager::new(),
+            previous_context: None,
+            previous_dialog_open: false,
+            previous_toast_count: 0,
         };
 
         // Show setup wizard if not configured, otherwise start chat
