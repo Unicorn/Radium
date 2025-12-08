@@ -83,11 +83,13 @@
 //! ```
 
 pub mod config;
+pub mod health;
 pub mod types;
 pub mod upstream_pool;
 
 // Re-export public types
 pub use config::ProxyConfigManager;
+pub use health::HealthChecker;
 pub use types::{
     ConflictStrategy, ConnectionState, McpProxyServer, ProxyConfig, ProxyTransport,
     SecurityConfig, ToolCatalog, ToolRouter, UpstreamConfig,
