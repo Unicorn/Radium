@@ -41,16 +41,18 @@ impl AgentStatus {
     }
 
     /// Returns an emoji/icon for the status.
+    /// Uses unified Icons constants for consistency.
     pub fn icon(&self) -> &'static str {
+        use crate::icons::Icons;
         match self {
-            Self::Idle => "⏸",
-            Self::Starting => "🔄",
-            Self::Running => "▶",
-            Self::Thinking => "💭",
-            Self::ExecutingTool => "🔧",
-            Self::Completed => "✓",
-            Self::Failed => "✗",
-            Self::Cancelled => "⊗",
+            Self::Idle => Icons::IDLE,
+            Self::Starting => Icons::STARTING,
+            Self::Running => Icons::RUNNING,
+            Self::Thinking => Icons::THINKING,
+            Self::ExecutingTool => Icons::EXECUTING,
+            Self::Completed => Icons::COMPLETED,
+            Self::Failed => Icons::FAILED,
+            Self::Cancelled => Icons::CANCELLED,
         }
     }
 
@@ -282,12 +284,27 @@ mod tests {
 
     #[test]
     fn test_agent_status() {
+        use crate::icons::Icons;
         assert_eq!(AgentStatus::Running.as_str(), "Running");
-        assert_eq!(AgentStatus::Running.icon(), "▶");
+        assert_eq!(AgentStatus::Running.icon(), Icons::RUNNING);
         assert!(AgentStatus::Running.is_active());
         assert!(!AgentStatus::Completed.is_active());
         assert!(AgentStatus::Completed.is_terminal());
         assert!(!AgentStatus::Running.is_terminal());
+    }
+
+    #[test]
+    fn test_agent_status_uses_icons() {
+        use crate::icons::Icons;
+        // Verify all statuses use Icons constants
+        assert_eq!(AgentStatus::Idle.icon(), Icons::IDLE);
+        assert_eq!(AgentStatus::Starting.icon(), Icons::STARTING);
+        assert_eq!(AgentStatus::Running.icon(), Icons::RUNNING);
+        assert_eq!(AgentStatus::Thinking.icon(), Icons::THINKING);
+        assert_eq!(AgentStatus::ExecutingTool.icon(), Icons::EXECUTING);
+        assert_eq!(AgentStatus::Completed.icon(), Icons::COMPLETED);
+        assert_eq!(AgentStatus::Failed.icon(), Icons::FAILED);
+        assert_eq!(AgentStatus::Cancelled.icon(), Icons::CANCELLED);
     }
 
     #[test]
