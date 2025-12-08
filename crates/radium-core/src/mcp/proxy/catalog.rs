@@ -3,7 +3,8 @@
 //! This module aggregates tool definitions from multiple upstream servers
 //! and handles name conflicts using configurable resolution strategies.
 
-use crate::mcp::proxy::types::{ConflictStrategy, ToolCatalog as ToolCatalogTrait, UpstreamPool};
+use crate::mcp::proxy::types::{ConflictStrategy, ToolCatalog as ToolCatalogTrait};
+use crate::mcp::proxy::upstream_pool::UpstreamPool;
 use crate::mcp::{McpTool, Result};
 use std::collections::HashMap;
 use std::sync::Arc;

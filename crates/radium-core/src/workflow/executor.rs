@@ -9,6 +9,7 @@ use tracing::{debug, error, info};
 use radium_orchestrator::{AgentExecutor, Orchestrator};
 
 use crate::checkpoint::CheckpointManager;
+use crate::config::Config;
 use crate::hooks::integration::OrchestratorHooks;
 use crate::hooks::registry::{HookRegistry, HookType};
 use crate::hooks::types::HookContext;
@@ -292,29 +293,42 @@ impl WorkflowExecutor {
                     }
                 }
 
-                // 2.6. Create checkpoint before step execution (if checkpoint manager available)
+                // 2.6. Create checkpoint before step execution (if checkpoint manager available and auto_create enabled)
                 // This creates a snapshot before any file modifications
                 if let Some(ref checkpoint_mgr) = self.checkpoint_manager {
-                    if let Ok(cm) = checkpoint_mgr.lock() {
-                        match cm.create_checkpoint(Some(format!("Before workflow step: {}", step.id))) {
-                            Ok(checkpoint) => {
-                                checkpoint_id = Some(checkpoint.id.clone());
-                                debug!(
-                                    workflow_id = %context.workflow_id,
-                                    step_id = %step.id,
-                                    checkpoint_id = %checkpoint.id,
-                                    "Created checkpoint before step execution"
-                                );
-                            }
-                            Err(e) => {
-                                debug!(
-                                    workflow_id = %context.workflow_id,
-                                    step_id = %step.id,
-                                    error = %e,
-                                    "Failed to create checkpoint (workspace may not be a git repo)"
-                                );
+                    // Check config to see if automatic checkpoint creation is enabled
+                    let should_create = Config::load()
+                        .map(|config| config.checkpoint.auto_create)
+                        .unwrap_or(true); // Default to true if config loading fails
+                    
+                    if should_create {
+                        if let Ok(cm) = checkpoint_mgr.lock() {
+                            match cm.create_checkpoint(Some(format!("Before workflow step: {}", step.id))) {
+                                Ok(checkpoint) => {
+                                    checkpoint_id = Some(checkpoint.id.clone());
+                                    debug!(
+                                        workflow_id = %context.workflow_id,
+                                        step_id = %step.id,
+                                        checkpoint_id = %checkpoint.id,
+                                        "Created checkpoint before step execution"
+                                    );
+                                }
+                                Err(e) => {
+                                    debug!(
+                                        workflow_id = %context.workflow_id,
+                                        step_id = %step.id,
+                                        error = %e,
+                                        "Failed to create checkpoint (workspace may not be a git repo)"
+                                    );
+                                }
                             }
                         }
+                    } else {
+                        debug!(
+                            workflow_id = %context.workflow_id,
+                            step_id = %step.id,
+                            "Skipping checkpoint creation (auto_create disabled in config)"
+                        );
                     }
                 }
 

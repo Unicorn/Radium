@@ -3,7 +3,8 @@
 //! This module provides centralized security policies including request/response
 //! logging with sensitive data redaction and rate limiting for tool execution.
 
-use crate::mcp::proxy::types::{McpToolResult, SecurityConfig, SecurityLayer as SecurityLayerTrait};
+use crate::mcp::proxy::types::{SecurityConfig, SecurityLayer as SecurityLayerTrait};
+use crate::mcp::McpToolResult;
 use crate::mcp::{McpError, Result};
 use regex::Regex;
 use serde_json::Value;

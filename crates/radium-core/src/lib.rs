@@ -39,6 +39,7 @@ pub mod models;
 pub mod monitoring;
 pub mod oversight;
 pub mod planning;
+pub mod playbooks;
 pub mod policy;
 pub mod prompts;
 pub mod sandbox;

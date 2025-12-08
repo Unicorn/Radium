@@ -100,6 +100,20 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
         "ALTER TABLE telemetry ADD COLUMN cost_center TEXT",
         [],
     );
+    
+    // Migrate existing tables to add routing metadata columns if they don't exist
+    let _ = conn.execute(
+        "ALTER TABLE telemetry ADD COLUMN model_tier TEXT",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE telemetry ADD COLUMN routing_decision TEXT",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE telemetry ADD COLUMN complexity_score REAL",
+        [],
+    );
 
     // Indexes for efficient queries
     conn.execute(

@@ -52,6 +52,69 @@ fn default_model_type() -> String {
     "mock".to_string()
 }
 
+/// Checkpoint configuration section in config file.
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+pub struct CheckpointConfig {
+    /// Enable automatic checkpoint creation during workflow execution and file operations.
+    #[serde(default = "default_auto_create")]
+    pub auto_create: bool,
+    /// Number of days to retain checkpoints before cleanup.
+    #[serde(default = "default_retention_days")]
+    pub retention_days: u32,
+    /// Maximum number of checkpoints to keep.
+    #[serde(default = "default_max_checkpoints")]
+    pub max_checkpoints: usize,
+    /// Maximum size of checkpoint repository in GB.
+    #[serde(default = "default_max_size_gb")]
+    pub max_size_gb: u64,
+}
+
+fn default_auto_create() -> bool {
+    true
+}
+
+fn default_retention_days() -> u32 {
+    7
+}
+
+fn default_max_checkpoints() -> usize {
+    50
+}
+
+fn default_max_size_gb() -> u64 {
+    5
+}
+
+impl Default for CheckpointConfig {
+    fn default() -> Self {
+        Self {
+            auto_create: default_auto_create(),
+            retention_days: default_retention_days(),
+            max_checkpoints: default_max_checkpoints(),
+            max_size_gb: default_max_size_gb(),
+        }
+    }
+}
+
+impl CheckpointConfig {
+    /// Validates the checkpoint configuration.
+    ///
+    /// # Errors
+    /// Returns an error if any configuration value is invalid.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.max_checkpoints == 0 {
+            return Err("max_checkpoints must be greater than 0".to_string());
+        }
+        if self.max_size_gb == 0 {
+            return Err("max_size_gb must be greater than 0".to_string());
+        }
+        if self.retention_days == 0 {
+            return Err("retention_days must be greater than 0".to_string());
+        }
+        Ok(())
+    }
+}
+
 /// Root configuration for Radium.
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct Config {
@@ -61,6 +124,9 @@ pub struct Config {
     /// Model configuration.
     #[serde(default)]
     pub model: Option<ModelConfigSection>,
+    /// Checkpoint configuration.
+    #[serde(default)]
+    pub checkpoint: CheckpointConfig,
 }
 
 impl Config {
@@ -176,5 +242,74 @@ mod tests {
         let config: Config = serde_json::from_str(json).unwrap();
         assert_eq!(config.server.address, "127.0.0.1:50051".parse().unwrap());
         assert_eq!(config.model, None);
+    }
+
+    #[test]
+    fn test_checkpoint_config_default() {
+        let config = CheckpointConfig::default();
+        assert!(config.auto_create);
+        assert_eq!(config.retention_days, 7);
+        assert_eq!(config.max_checkpoints, 50);
+        assert_eq!(config.max_size_gb, 5);
+    }
+
+    #[test]
+    fn test_checkpoint_config_deserialize() {
+        let json = r#"{
+            "auto_create": false,
+            "retention_days": 14,
+            "max_checkpoints": 100,
+            "max_size_gb": 10
+        }"#;
+        let config: CheckpointConfig = serde_json::from_str(json).unwrap();
+        assert!(!config.auto_create);
+        assert_eq!(config.retention_days, 14);
+        assert_eq!(config.max_checkpoints, 100);
+        assert_eq!(config.max_size_gb, 10);
+    }
+
+    #[test]
+    fn test_checkpoint_config_deserialize_partial() {
+        let json = r#"{"max_checkpoints": 25}"#;
+        let config: CheckpointConfig = serde_json::from_str(json).unwrap();
+        assert!(config.auto_create); // Should use default
+        assert_eq!(config.retention_days, 7); // Should use default
+        assert_eq!(config.max_checkpoints, 25); // Custom value
+        assert_eq!(config.max_size_gb, 5); // Should use default
+    }
+
+    #[test]
+    fn test_checkpoint_config_validation() {
+        let mut config = CheckpointConfig::default();
+        assert!(config.validate().is_ok());
+
+        config.max_checkpoints = 0;
+        assert!(config.validate().is_err());
+
+        config.max_checkpoints = 50;
+        config.max_size_gb = 0;
+        assert!(config.validate().is_err());
+
+        config.max_size_gb = 5;
+        config.retention_days = 0;
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_config_with_checkpoint() {
+        let json = r#"{
+            "server": {
+                "address": "127.0.0.1:50051"
+            },
+            "checkpoint": {
+                "auto_create": false,
+                "retention_days": 14
+            }
+        }"#;
+        let config: Config = serde_json::from_str(json).unwrap();
+        assert!(!config.checkpoint.auto_create);
+        assert_eq!(config.checkpoint.retention_days, 14);
+        assert_eq!(config.checkpoint.max_checkpoints, 50); // Default
+        assert_eq!(config.checkpoint.max_size_gb, 5); // Default
     }
 }

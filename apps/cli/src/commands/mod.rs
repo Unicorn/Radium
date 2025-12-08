@@ -10,6 +10,7 @@ pub mod checkpoint;
 pub mod clean;
 pub mod complete;
 pub mod context;
+pub mod cost;
 pub mod craft;
 pub mod custom;
 pub mod doctor;

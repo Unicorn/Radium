@@ -75,6 +75,8 @@ pub struct CostRecord {
     pub total_tokens: u64,
     /// Estimated cost in USD.
     pub estimated_cost: f64,
+    /// Model tier used ("smart" | "eco") if routing was used.
+    pub model_tier: Option<String>,
 }
 
 /// Aggregated cost summary with breakdowns.
@@ -94,6 +96,32 @@ pub struct CostSummary {
     pub breakdown_by_plan: HashMap<String, f64>,
     /// Top plans by cost (sorted descending).
     pub top_plans: Vec<(String, f64)>,
+    /// Tier breakdown with Smart/Eco metrics and savings.
+    pub tier_breakdown: Option<TierBreakdown>,
+}
+
+/// Breakdown of costs by model tier (Smart vs Eco).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TierBreakdown {
+    /// Smart tier metrics.
+    pub smart_tier: TierMetrics,
+    /// Eco tier metrics.
+    pub eco_tier: TierMetrics,
+    /// Estimated savings vs using all-Smart baseline.
+    pub estimated_savings: f64,
+}
+
+/// Metrics for a single tier.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TierMetrics {
+    /// Number of requests.
+    pub request_count: u64,
+    /// Total input tokens.
+    pub input_tokens: u64,
+    /// Total output tokens.
+    pub output_tokens: u64,
+    /// Total cost in USD.
+    pub cost: f64,
 }
 
 /// Options for cost data export.

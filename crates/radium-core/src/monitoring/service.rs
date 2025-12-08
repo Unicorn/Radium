@@ -244,8 +244,9 @@ impl MonitoringService {
                                     cache_creation_tokens, cache_read_tokens, total_tokens,
                                     estimated_cost, model, provider, tool_name, tool_args, tool_approved, tool_approval_type, engine_id,
                                     behavior_type, behavior_invocation_count, behavior_duration_ms, behavior_outcome,
-                                    api_key_id, team_name, project_name, cost_center)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24)",
+                                    api_key_id, team_name, project_name, cost_center,
+                                    model_tier, routing_decision, complexity_score)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27)",
             rusqlite::params![
                 record.agent_id,
                 record.timestamp,
@@ -271,6 +272,9 @@ impl MonitoringService {
                 record.team_name,
                 record.project_name,
                 record.cost_center,
+                record.model_tier,
+                record.routing_decision,
+                record.complexity_score,
             ],
         )?;
 

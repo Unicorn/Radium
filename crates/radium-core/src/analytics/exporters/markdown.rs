@@ -302,6 +302,7 @@ mod tests {
             cached_tokens: 200,
             total_tokens: 2300,
             estimated_cost: 0.0234,
+            model_tier: None,
         }
     }
 

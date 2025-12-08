@@ -30,6 +30,7 @@ pub async fn execute(
     json: bool,
     yolo: bool,
     engine: Option<String>,
+    model_tier: Option<String>,
 ) -> anyhow::Result<()> {
     println!("{}", "rad craft".bold().cyan());
     println!();

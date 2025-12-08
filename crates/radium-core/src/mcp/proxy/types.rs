@@ -4,9 +4,12 @@
 //! configuration structures, connection state, and trait definitions for
 //! pluggable components.
 
-use crate::mcp::{McpServerConfig, McpTool, McpToolResult, Result, TransportType};
+use crate::mcp::{McpServerConfig, McpTool, Result, TransportType};
+use crate::mcp::proxy::{DefaultSecurityLayer, DefaultToolCatalog, DefaultToolRouter, HealthChecker, ProxyServer, UpstreamPool};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::sync::Arc;
+use tokio::sync::broadcast;
 
 /// Proxy server configuration.
 ///
@@ -267,19 +270,20 @@ impl Default for ConflictStrategy {
 ///
 /// This is a wrapper that coordinates the ProxyServer with upstream pool
 /// and health checking. The actual server implementation is in proxy::server.
-///
-/// # Note
-///
-/// This struct will be fully implemented in Task 9 when integrating with CLI.
-/// For now, it's a placeholder that will be replaced with the full implementation.
 #[derive(Debug)]
 pub struct McpProxyServer {
     /// Proxy server configuration.
     pub config: ProxyConfig,
-    // Full implementation in Task 9 will include:
-    // pub server: ProxyServer,
-    // pub pool: Arc<UpstreamPool>,
-    // pub health_checker: HealthChecker,
+    /// The underlying proxy server.
+    pub server: Option<ProxyServer>,
+    /// Pool of upstream connections.
+    pub pool: Arc<UpstreamPool>,
+    /// Health checker for upstreams.
+    pub health_checker: Arc<HealthChecker>,
+    /// Shutdown signal sender.
+    shutdown_tx: broadcast::Sender<()>,
+    /// Shutdown signal receiver (kept to prevent channel from closing).
+    _shutdown_rx: broadcast::Receiver<()>,
 }
 
 impl McpProxyServer {
@@ -288,16 +292,52 @@ impl McpProxyServer {
     /// # Errors
     ///
     /// Returns an error if the proxy cannot be initialized.
-    ///
-    /// # Note
-    ///
-    /// Full implementation will be provided in Task 9 (CLI integration).
-    pub async fn new(_config: ProxyConfig) -> Result<Self> {
-        use crate::mcp::McpError;
-        Err(McpError::config(
-            "McpProxyServer::new not yet implemented (Task 9)",
-            "The proxy server integration will be completed in Task 9. See REQ-195 for details.",
-        ))
+    pub async fn new(config: ProxyConfig) -> Result<Self> {
+        let pool = Arc::new(UpstreamPool::new());
+
+        // Add upstreams to pool
+        for upstream_config in &config.upstreams {
+            if let Err(e) = pool.add_upstream(upstream_config.clone()).await {
+                tracing::warn!(
+                    upstream_name = %upstream_config.server.name,
+                    error = %e,
+                    "Failed to connect to upstream during proxy initialization"
+                );
+            }
+        }
+
+        // Build upstream priorities map for catalog
+        let mut priorities = std::collections::HashMap::new();
+        for upstream in &config.upstreams {
+            priorities.insert(upstream.server.name.clone(), upstream.priority);
+        }
+
+        let router: Arc<dyn ToolRouter> = Arc::new(DefaultToolRouter::new(Arc::clone(&pool)));
+        let catalog: Arc<dyn ToolCatalog> = Arc::new(DefaultToolCatalog::new(
+            config.security.conflict_strategy,
+            priorities,
+        ));
+        let security: Arc<dyn SecurityLayer> = Arc::new(DefaultSecurityLayer::new(config.security.clone())?);
+        let health_checker = Arc::new(HealthChecker::new(Arc::clone(&pool)));
+
+        // Rebuild catalog initially
+        if let Ok(default_catalog) = Arc::try_unwrap(catalog.clone()) {
+            default_catalog.rebuild_catalog(&pool).await?;
+        } else {
+            // Catalog is shared, need to use trait method or downcast
+            // For now, we'll skip initial rebuild - it will happen on first tools/list
+        }
+
+        let (shutdown_tx, shutdown_rx) = broadcast::channel(1);
+
+        Ok(Self {
+            config,
+            server: None,
+            pool,
+            health_checker,
+            shutdown_tx,
+            _shutdown_rx: shutdown_rx,
+        })
     }
 
     /// Start the proxy server.
@@ -307,16 +347,48 @@ impl McpProxyServer {
     /// # Errors
     ///
     /// Returns an error if the server cannot be started.
-    ///
-    /// # Note
-    ///
-    /// Full implementation will be provided in Task 9 (CLI integration).
     pub async fn start(&mut self) -> Result<()> {
-        use crate::mcp::McpError;
-        Err(McpError::config(
-            "McpProxyServer::start not yet implemented (Task 9)",
-            "The proxy server integration will be completed in Task 9. See REQ-195 for details.",
-        ))
+        if self.server.is_some() {
+            return Err(McpError::config(
+                "Proxy server already started",
+                "The proxy server is already running. Call stop() before starting again.",
+            ));
+        }
+
+        // Start health checks for all upstreams
+        for upstream_config in &self.config.upstreams {
+            self.health_checker
+                .start_health_check(
+                    upstream_config.server.name.clone(),
+                    upstream_config.health_check_interval,
+                )
+                .await;
+        }
+
+        // Build router and catalog for server
+        let mut priorities = std::collections::HashMap::new();
+        for upstream in &self.config.upstreams {
+            priorities.insert(upstream.server.name.clone(), upstream.priority);
+        }
+
+        let router: Arc<dyn ToolRouter> = Arc::new(DefaultToolRouter::new(Arc::clone(&self.pool)));
+        let catalog: Arc<dyn ToolCatalog> = Arc::new(DefaultToolCatalog::new(
+            self.config.security.conflict_strategy,
+            priorities,
+        ));
+        let security: Arc<dyn SecurityLayer> = Arc::new(DefaultSecurityLayer::new(self.config.security.clone())?);
+
+        let mut server = ProxyServer::new(
+            self.config.clone(),
+            router,
+            catalog,
+            security,
+        );
+
+        server.start().await?;
+        self.server = Some(server);
+
+        Ok(())
     }
 
     /// Stop the proxy server.
@@ -326,16 +398,38 @@ impl McpProxyServer {
     /// # Errors
     ///
     /// Returns an error if shutdown fails.
-    ///
-    /// # Note
-    ///
-    /// Full implementation will be provided in Task 9 (CLI integration).
     pub async fn stop(&mut self) -> Result<()> {
-        use crate::mcp::McpError;
-        Err(McpError::config(
-            "McpProxyServer::stop not yet implemented (Task 9)",
-            "The proxy server integration will be completed in Task 9. See REQ-195 for details.",
-        ))
+        if self.server.is_none() {
+            return Err(McpError::config(
+                "Proxy server not running",
+                "The proxy server is not running. Call start() before stopping.",
+            ));
+        }
+
+        // Send shutdown signal
+        let _ = self.shutdown_tx.send(());
+
+        // Stop server
+        if let Some(mut server) = self.server.take() {
+            server.stop().await?;
+        }
+
+        // Stop all health check tasks
+        self.health_checker.stop_all().await;
+
+        // Disconnect all upstreams
+        let upstream_names = self.pool.list_upstreams().await;
+        for name in upstream_names {
+            if let Err(e) = self.pool.remove_upstream(&name).await {
+                tracing::warn!(
+                    upstream_name = %name,
+                    error = %e,
+                    "Error disconnecting upstream during proxy shutdown"
+                );
+            }
+        }
+
+        Ok(())
     }
 }
 

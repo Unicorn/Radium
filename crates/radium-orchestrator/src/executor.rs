@@ -8,7 +8,7 @@ use crate::{
     Agent, AgentContext, AgentLifecycle, AgentOutput, AgentRegistry, AgentState, ExecutionQueue,
 };
 use radium_abstraction::ModelError;
-use radium_models::{ModelFactory, ModelType};
+use radium_models::{ModelConfig, ModelFactory, ModelType};
 use serde_json::Value;
 use std::collections::HashSet;
 use std::fmt;
@@ -87,6 +87,8 @@ pub struct ExecutionResult {
     pub error: Option<String>,
     /// Optional telemetry information from model execution.
     pub telemetry: Option<ExecutionTelemetry>,
+    /// Optional routing decision metadata (for Smart/Eco tier routing).
+    pub routing_decision: Option<crate::routing::RoutingDecision>,
 }
 
 /// Context tracking failover attempts for error messages.
@@ -152,6 +154,10 @@ pub struct AgentExecutor {
     sandbox_manager: Option<Arc<dyn SandboxManager>>,
     /// Optional budget manager for cost tracking and enforcement.
     budget_manager: Option<Arc<dyn BudgetManagerTrait>>,
+    /// Optional model router for Smart/Eco tier selection.
+    model_router: Option<Arc<crate::routing::ModelRouter>>,
+    /// Optional tier override for manual routing control.
+    tier_override: Option<crate::routing::RoutingTier>,
 }
 
 impl fmt::Debug for AgentExecutor {
@@ -161,6 +167,7 @@ impl fmt::Debug for AgentExecutor {
             .field("default_model_id", &self.default_model_id)
             .field("sandbox_manager", &if self.sandbox_manager.is_some() { "Some" } else { "None" })
             .field("budget_manager", &"<optional>")
+            .field("model_router", &if self.model_router.is_some() { "Some" } else { "None" })
             .finish()
     }
 }
@@ -179,6 +186,8 @@ impl AgentExecutor {
             sandbox_manager: None,
             #[allow(unused_mut)]
             budget_manager: None,
+            model_router: None,
+            tier_override: None,
         }
     }
 
@@ -200,6 +209,8 @@ impl AgentExecutor {
             sandbox_manager,
             #[allow(unused_mut)]
             budget_manager: None,
+            model_router: None,
+            tier_override: None,
         }
     }
 
@@ -223,6 +234,22 @@ impl AgentExecutor {
     #[must_use]
     pub fn with_mock_model() -> Self {
         Self::new(ModelType::Mock, "mock-model".to_string())
+    }
+
+    /// Sets the model router for automatic Smart/Eco tier selection.
+    ///
+    /// # Arguments
+    /// * `router` - The model router to use
+    pub fn set_model_router(&mut self, router: Arc<crate::routing::ModelRouter>) {
+        self.model_router = Some(router);
+    }
+
+    /// Sets a tier override for manual routing control.
+    ///
+    /// # Arguments
+    /// * `tier` - The tier to override with (Smart, Eco, or Auto for automatic)
+    pub fn set_tier_override(&mut self, tier: Option<crate::routing::RoutingTier>) {
+        self.tier_override = tier;
     }
 
 
@@ -510,6 +537,7 @@ impl AgentExecutor {
                                 success: false,
                                 error: Some(message),
                                 telemetry: None,
+                                routing_decision: None,
                             };
                         }
 
@@ -590,6 +618,7 @@ impl AgentExecutor {
                         success: true,
                         error: None,
                         telemetry: None, // Will be populated when agents capture ModelResponse
+                        routing_decision: None,
                     }
                 }
                 Err(e) => {
@@ -762,6 +791,7 @@ impl AgentExecutor {
                                 success: false,
                                 error: Some(final_error_message),
                                 telemetry: None,
+                                routing_decision: None,
                             };
                         }
                     }
@@ -815,6 +845,7 @@ impl AgentExecutor {
                         success: false,
                         error: Some(effective_error),
                         telemetry: None,
+                        routing_decision: None,
                     }
                 }
             };
@@ -837,6 +868,7 @@ impl AgentExecutor {
                                             success: execution_result.success,
                                             error: execution_result.error,
                                             telemetry: execution_result.telemetry,
+                                            routing_decision: execution_result.routing_decision,
                                         };
                                     }
                                 }
@@ -858,12 +890,12 @@ impl AgentExecutor {
         }
     }
 
-    /// Executes an agent using the default model configuration.
+    /// Executes an agent using the default model configuration or routed model.
     ///
     /// # Arguments
     /// * `agent` - The agent to execute
     /// * `input` - The input for the agent
-    /// * `hook_registry` - Optional hook registry for execution interception
+    /// * `hook_executor` - Optional hook executor for execution interception
     ///
     /// # Returns
     /// Returns `ExecutionResult` with the agent's output or error information.
@@ -876,17 +908,64 @@ impl AgentExecutor {
         input: &str,
         hook_executor: Option<&Arc<dyn HookExecutor>>,
     ) -> Result<ExecutionResult, ModelError> {
-        let model = ModelFactory::create_from_str(
-            match &self.default_model_type {
-                ModelType::Mock => "mock",
-                ModelType::Claude => "claude",
-                ModelType::Gemini => "gemini",
-                ModelType::OpenAI => "openai",
-            },
-            self.default_model_id.clone(),
-        )?;
+        // Use model router if available, otherwise use default model
+        let (model, routing_decision) = if let Some(ref router) = self.model_router {
+            // Route model based on complexity or override
+            let (model_config, decision) = router.select_model(
+                input,
+                Some(agent.id()),
+                self.tier_override,
+            );
+            
+            // Create model from routed config
+            let model = ModelFactory::create(ModelConfig::new(
+                model_config.model_type.clone(),
+                model_config.model_id.clone(),
+            ))?;
+            
+            (model, Some(decision))
+        } else {
+            // Fallback to default model
+            let model = ModelFactory::create_from_str(
+                match &self.default_model_type {
+                    ModelType::Mock => "mock",
+                    ModelType::Claude => "claude",
+                    ModelType::Gemini => "gemini",
+                    ModelType::OpenAI => "openai",
+                },
+                self.default_model_id.clone(),
+            )?;
+            (model, None)
+        };
 
-        Ok(self.execute_agent(agent, input, model, hook_executor).await)
+        // Execute agent
+        let mut result = self.execute_agent(agent.clone(), input, model.clone(), hook_executor).await;
+
+        // Track usage if router is available and execution succeeded
+        if let Some(ref router) = self.model_router {
+            if let Some(ref routing_decision) = routing_decision {
+                if let Some(ref telemetry) = result.telemetry {
+                    // Extract model usage from telemetry
+                    let usage = radium_abstraction::ModelUsage {
+                        prompt_tokens: telemetry.input_tokens as u32,
+                        completion_tokens: telemetry.output_tokens as u32,
+                        total_tokens: telemetry.total_tokens as u32,
+                    };
+                    
+                    // Track usage (non-blocking)
+                    router.track_usage(
+                        routing_decision.tier,
+                        &usage,
+                        &model.model_id(),
+                    );
+                }
+                
+                // Store routing decision in result for telemetry recording
+                result.routing_decision = Some(routing_decision.clone());
+            }
+        }
+
+        Ok(result)
     }
 
     /// Executes an agent with a custom model type and ID.
@@ -1536,5 +1615,75 @@ mod tests {
         assert_eq!(metrics.running, 0);
 
         processor.stop().unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_executor_with_model_router() {
+        use crate::routing::ModelRouter;
+        
+        let smart_config = ModelConfig::new(ModelType::Mock, "smart-model".to_string());
+        let eco_config = ModelConfig::new(ModelType::Mock, "eco-model".to_string());
+        let router = Arc::new(ModelRouter::new(smart_config, eco_config, Some(60.0)));
+        
+        let mut executor = AgentExecutor::with_mock_model();
+        executor.set_model_router(router);
+        
+        let agent = Arc::new(EchoAgent::new("test-agent".to_string(), "Test agent".to_string()));
+        
+        // Simple task should route to eco
+        let result = executor.execute_agent_with_default_model(
+            agent.clone(),
+            "format this JSON",
+            None as Option<&Arc<dyn HookExecutor>>,
+        )
+        .await
+        .unwrap();
+        
+        assert!(result.success);
+        // Routing decision should be present
+        assert!(result.routing_decision.is_some());
+        
+        // Complex task should route to smart
+        let result2 = executor.execute_agent_with_default_model(
+            agent.clone(),
+            "refactor this module with dependency injection and analyze architecture trade-offs",
+            None as Option<&Arc<dyn HookExecutor>>,
+        )
+        .await
+        .unwrap();
+        
+        assert!(result2.success);
+        assert!(result2.routing_decision.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_executor_with_manual_tier_override() {
+        use crate::routing::{ModelRouter, RoutingTier};
+        
+        let smart_config = ModelConfig::new(ModelType::Mock, "smart-model".to_string());
+        let eco_config = ModelConfig::new(ModelType::Mock, "eco-model".to_string());
+        let router = Arc::new(ModelRouter::new(smart_config, eco_config, Some(60.0)));
+        
+        let mut executor = AgentExecutor::with_mock_model();
+        executor.set_model_router(router);
+        executor.set_tier_override(Some(RoutingTier::Smart));
+        
+        let agent = Arc::new(EchoAgent::new("test-agent".to_string(), "Test agent".to_string()));
+        
+        // Even simple task should route to smart due to override
+        let result = executor.execute_agent_with_default_model(
+            agent,
+            "simple task",
+            None as Option<&Arc<dyn HookExecutor>>,
+        )
+        .await
+        .unwrap();
+        
+        assert!(result.success);
+        assert!(result.routing_decision.is_some());
+        if let Some(decision) = result.routing_decision {
+            assert_eq!(decision.tier, RoutingTier::Smart);
+            assert_eq!(decision.decision_type, crate::routing::DecisionType::Manual);
+        }
     }
 }

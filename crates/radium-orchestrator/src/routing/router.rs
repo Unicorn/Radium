@@ -1,8 +1,10 @@
 //! Model router for Smart/Eco tier selection.
 
 use super::complexity::ComplexityEstimator;
+use super::cost_tracker::CostTracker;
 use super::types::{ComplexityScore, RoutingTier};
 use radium_models::ModelConfig;
+use std::sync::Arc;
 use tracing::{debug, warn};
 
 /// Model router for selecting between Smart and Eco tiers.
@@ -17,6 +19,8 @@ pub struct ModelRouter {
     estimator: ComplexityEstimator,
     /// Whether auto-routing is enabled.
     auto_route: bool,
+    /// Cost tracker for per-tier usage tracking.
+    cost_tracker: Arc<CostTracker>,
 }
 
 impl ModelRouter {
@@ -37,6 +41,7 @@ impl ModelRouter {
             threshold: threshold.unwrap_or(60.0),
             estimator: ComplexityEstimator::new(),
             auto_route: true,
+            cost_tracker: Arc::new(CostTracker::new()),
         }
     }
 
@@ -54,6 +59,7 @@ impl ModelRouter {
             threshold: threshold.unwrap_or(60.0),
             estimator: ComplexityEstimator::with_weights(weights),
             auto_route: true,
+            cost_tracker: Arc::new(CostTracker::new()),
         }
     }
 
@@ -192,6 +198,45 @@ impl ModelRouter {
     pub fn set_auto_route(&mut self, enabled: bool) {
         self.auto_route = enabled;
         debug!(enabled = enabled, "Updated auto-routing setting");
+    }
+
+    /// Tracks usage for a routing decision (non-blocking).
+    ///
+    /// # Arguments
+    /// * `tier` - The tier that was used
+    /// * `usage` - Model usage statistics
+    /// * `model_id` - Model identifier for pricing lookup
+    pub fn track_usage(
+        &self,
+        tier: RoutingTier,
+        usage: &radium_abstraction::ModelUsage,
+        model_id: &str,
+    ) {
+        // Non-blocking: log errors but don't propagate
+        if let Err(e) = self.cost_tracker.track_usage(tier, usage, model_id) {
+            warn!(
+                tier = ?tier,
+                model_id = model_id,
+                error = %e,
+                "Failed to track usage (non-blocking)"
+            );
+        }
+    }
+
+    /// Gets current cost metrics.
+    ///
+    /// # Returns
+    /// CostMetrics if available, None on error
+    #[must_use]
+    pub fn get_cost_metrics(&self) -> Option<super::cost_tracker::CostMetrics> {
+        self.cost_tracker.get_metrics().ok()
+    }
+
+    /// Resets cost tracking metrics.
+    pub fn reset_cost_tracking(&self) {
+        if let Err(e) = self.cost_tracker.reset() {
+            warn!(error = %e, "Failed to reset cost tracking");
+        }
     }
 }
 

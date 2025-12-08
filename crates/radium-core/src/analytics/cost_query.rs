@@ -1,6 +1,6 @@
 //! Cost data query service for filtering and aggregating telemetry data.
 
-use crate::analytics::export::{CostRecord, CostSummary, ExportOptions};
+use crate::analytics::export::{CostRecord, CostSummary, ExportOptions, TierBreakdown, TierMetrics};
 use crate::monitoring::{MonitoringService, Result as MonitoringResult};
 use chrono::{DateTime, Utc};
 use rusqlite::params;
@@ -32,7 +32,7 @@ impl<'a> CostQueryService<'a> {
         // Use a simpler approach: build query string and use params! macro with conditional values
         let mut query = String::from(
             "SELECT t.agent_id, t.timestamp, t.input_tokens, t.output_tokens, t.cached_tokens,
-                    t.total_tokens, t.estimated_cost, t.model, t.provider, a.plan_id
+                    t.total_tokens, t.estimated_cost, t.model, t.provider, a.plan_id, t.model_tier
              FROM telemetry t
              LEFT JOIN agents a ON t.agent_id = a.id
              WHERE 1=1",
@@ -183,6 +183,7 @@ impl<'a> CostQueryService<'a> {
             cached_tokens: row.get(4)?,
             total_tokens: row.get(5)?,
             estimated_cost: row.get(6)?,
+            model_tier: row.get(10).ok(),
         })
     }
 
@@ -204,6 +205,7 @@ impl<'a> CostQueryService<'a> {
                 breakdown_by_model: HashMap::new(),
                 breakdown_by_plan: HashMap::new(),
                 top_plans: Vec::new(),
+                tier_breakdown: None,
             };
         }
 
@@ -246,6 +248,9 @@ impl<'a> CostQueryService<'a> {
         top_plans.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
         top_plans.truncate(10);
 
+        // Calculate tier breakdown if tier data is available
+        let tier_breakdown = self.calculate_tier_breakdown(records);
+
         CostSummary {
             period: (start, end),
             total_cost,
@@ -254,7 +259,83 @@ impl<'a> CostQueryService<'a> {
             breakdown_by_model,
             breakdown_by_plan,
             top_plans,
+            tier_breakdown,
         }
+    }
+
+    /// Calculates tier breakdown from cost records.
+    ///
+    /// Aggregates costs by model tier (Smart vs Eco) and calculates
+    /// estimated savings vs all-Smart baseline.
+    ///
+    /// # Arguments
+    /// * `records` - Cost records to analyze
+    ///
+    /// # Returns
+    /// TierBreakdown if tier data is available, None otherwise
+    fn calculate_tier_breakdown(&self, records: &[CostRecord]) -> Option<TierBreakdown> {
+        // Check if any records have tier data
+        let has_tier_data = records.iter().any(|r| r.model_tier.is_some());
+        if !has_tier_data {
+            return None;
+        }
+
+        let mut smart_tier = TierMetrics {
+            request_count: 0,
+            input_tokens: 0,
+            output_tokens: 0,
+            cost: 0.0,
+        };
+        let mut eco_tier = TierMetrics {
+            request_count: 0,
+            input_tokens: 0,
+            output_tokens: 0,
+            cost: 0.0,
+        };
+
+        // Aggregate by tier
+        for record in records {
+            if let Some(ref tier) = record.model_tier {
+                match tier.as_str() {
+                    "smart" => {
+                        smart_tier.request_count += 1;
+                        smart_tier.input_tokens += record.input_tokens;
+                        smart_tier.output_tokens += record.output_tokens;
+                        smart_tier.cost += record.estimated_cost;
+                    }
+                    "eco" => {
+                        eco_tier.request_count += 1;
+                        eco_tier.input_tokens += record.input_tokens;
+                        eco_tier.output_tokens += record.output_tokens;
+                        eco_tier.cost += record.estimated_cost;
+                    }
+                    _ => {
+                        // Unknown tier, skip
+                    }
+                }
+            }
+        }
+
+        // Calculate estimated savings vs all-Smart baseline
+        // Assume Smart tier pricing: $3/$15 per 1M tokens (input/output)
+        // This is a rough estimate; actual savings depend on specific model pricing
+        let smart_input_price = 3.0;
+        let smart_output_price = 15.0;
+        
+        let total_input_tokens = smart_tier.input_tokens + eco_tier.input_tokens;
+        let total_output_tokens = smart_tier.output_tokens + eco_tier.output_tokens;
+        
+        let all_smart_cost = (total_input_tokens as f64 / 1_000_000.0) * smart_input_price
+            + (total_output_tokens as f64 / 1_000_000.0) * smart_output_price;
+        
+        let actual_cost = smart_tier.cost + eco_tier.cost;
+        let estimated_savings = all_smart_cost - actual_cost;
+
+        Some(TierBreakdown {
+            smart_tier,
+            eco_tier,
+            estimated_savings,
+        })
     }
 }
 
@@ -367,6 +448,7 @@ mod tests {
                 cached_tokens: 0,
                 total_tokens: 1500,
                 estimated_cost: 10.0,
+                model_tier: None,
             },
             CostRecord {
                 timestamp: Utc::now(),
@@ -379,6 +461,7 @@ mod tests {
                 cached_tokens: 0,
                 total_tokens: 3000,
                 estimated_cost: 20.0,
+                model_tier: None,
             },
         ];
 
@@ -387,6 +470,85 @@ mod tests {
         assert_eq!(summary.total_tokens, 4500);
         assert_eq!(summary.breakdown_by_provider.get("anthropic"), Some(&30.0));
         assert_eq!(summary.breakdown_by_plan.get("REQ-123"), Some(&30.0));
+    }
+
+    #[test]
+    fn test_tier_breakdown_calculation() {
+        let (monitoring, _temp) = futures::executor::block_on(setup_test_service());
+        let service = CostQueryService::new(&monitoring);
+        
+        let records = vec![
+            CostRecord {
+                timestamp: Utc::now(),
+                agent_id: "agent-1".to_string(),
+                plan_id: Some("REQ-123".to_string()),
+                model: Some("claude-sonnet".to_string()),
+                provider: Some("anthropic".to_string()),
+                input_tokens: 1000,
+                output_tokens: 500,
+                cached_tokens: 0,
+                total_tokens: 1500,
+                estimated_cost: 0.021, // Smart tier cost
+                model_tier: Some("smart".to_string()),
+            },
+            CostRecord {
+                timestamp: Utc::now(),
+                agent_id: "agent-2".to_string(),
+                plan_id: Some("REQ-123".to_string()),
+                model: Some("claude-haiku".to_string()),
+                provider: Some("anthropic".to_string()),
+                input_tokens: 2000,
+                output_tokens: 1000,
+                cached_tokens: 0,
+                total_tokens: 3000,
+                estimated_cost: 0.003, // Eco tier cost
+                model_tier: Some("eco".to_string()),
+            },
+        ];
+
+        let summary = service.generate_summary(&records);
+        
+        // Should have tier breakdown
+        assert!(summary.tier_breakdown.is_some());
+        let tier_breakdown = summary.tier_breakdown.unwrap();
+        
+        assert_eq!(tier_breakdown.smart_tier.request_count, 1);
+        assert_eq!(tier_breakdown.smart_tier.input_tokens, 1000);
+        assert_eq!(tier_breakdown.smart_tier.output_tokens, 500);
+        
+        assert_eq!(tier_breakdown.eco_tier.request_count, 1);
+        assert_eq!(tier_breakdown.eco_tier.input_tokens, 2000);
+        assert_eq!(tier_breakdown.eco_tier.output_tokens, 1000);
+        
+        // Savings should be positive (eco tier is cheaper)
+        assert!(tier_breakdown.estimated_savings > 0.0);
+    }
+
+    #[test]
+    fn test_tier_breakdown_no_tier_data() {
+        let (monitoring, _temp) = futures::executor::block_on(setup_test_service());
+        let service = CostQueryService::new(&monitoring);
+        
+        let records = vec![
+            CostRecord {
+                timestamp: Utc::now(),
+                agent_id: "agent-1".to_string(),
+                plan_id: Some("REQ-123".to_string()),
+                model: Some("claude-sonnet".to_string()),
+                provider: Some("anthropic".to_string()),
+                input_tokens: 1000,
+                output_tokens: 500,
+                cached_tokens: 0,
+                total_tokens: 1500,
+                estimated_cost: 10.0,
+                model_tier: None, // No tier data
+            },
+        ];
+
+        let summary = service.generate_summary(&records);
+        
+        // Should not have tier breakdown when no tier data
+        assert!(summary.tier_breakdown.is_none());
     }
 }
 

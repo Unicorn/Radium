@@ -25,6 +25,7 @@ pub async fn execute(
     model: Option<String>,
     engine: Option<String>,
     reasoning: Option<String>,
+    model_tier: Option<String>,
 ) -> anyhow::Result<()> {
     println!("{}", "rad step".bold().cyan());
     println!();

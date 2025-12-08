@@ -3,7 +3,8 @@
 //! This module provides intelligent routing of tool calls to upstream servers
 //! with load balancing and automatic failover capabilities.
 
-use crate::mcp::proxy::types::{ToolRouter as ToolRouterTrait, UpstreamPool};
+use crate::mcp::proxy::types::ToolRouter as ToolRouterTrait;
+use crate::mcp::proxy::upstream_pool::UpstreamPool;
 use crate::mcp::{McpError, McpToolResult, Result};
 use serde_json::Value;
 use std::collections::HashMap;

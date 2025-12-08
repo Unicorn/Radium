@@ -116,6 +116,7 @@ mod tests {
             cached_tokens: 200,
             total_tokens: 2300,
             estimated_cost: 0.0234,
+            model_tier: None,
         }
     }
 
@@ -256,6 +257,7 @@ mod tests {
             cached_tokens: 0,
             total_tokens: 150,
             estimated_cost: 0.001,
+            model_tier: None,
         };
         let result = exporter.export(&[record], &options);
         assert!(result.is_ok());

@@ -83,6 +83,15 @@ pub struct TelemetryRecord {
     
     /// Cost center for chargeback (derived from API key metadata).
     pub cost_center: Option<String>,
+    
+    /// Model tier used ("smart" | "eco").
+    pub model_tier: Option<String>,
+    
+    /// Routing decision type ("auto" | "manual" | "override" | "fallback").
+    pub routing_decision: Option<String>,
+    
+    /// Complexity score (0-100) if routing was used.
+    pub complexity_score: Option<f64>,
 }
 
 impl TelemetryRecord {
@@ -115,6 +124,9 @@ impl TelemetryRecord {
             team_name: None,
             project_name: None,
             cost_center: None,
+            model_tier: None,
+            routing_decision: None,
+            complexity_score: None,
         }
     }
 
@@ -196,6 +208,27 @@ impl TelemetryRecord {
         self.team_name = team_name;
         self.project_name = project_name;
         self.cost_center = cost_center;
+        self
+    }
+
+    /// Sets model tier used for routing ("smart" | "eco").
+    #[must_use]
+    pub fn with_model_tier(mut self, tier: String) -> Self {
+        self.model_tier = Some(tier);
+        self
+    }
+
+    /// Sets routing decision type ("auto" | "manual" | "override" | "fallback").
+    #[must_use]
+    pub fn with_routing_decision(mut self, decision: String) -> Self {
+        self.routing_decision = Some(decision);
+        self
+    }
+
+    /// Sets complexity score (0-100) from routing decision.
+    #[must_use]
+    pub fn with_complexity_score(mut self, score: f64) -> Self {
+        self.complexity_score = Some(score);
         self
     }
 
@@ -442,7 +475,8 @@ impl TelemetryTracking for MonitoringService {
                     cache_creation_tokens, cache_read_tokens, total_tokens,
                     estimated_cost, model, provider, tool_name, tool_args, tool_approved, tool_approval_type, engine_id,
                     behavior_type, behavior_invocation_count, behavior_duration_ms, behavior_outcome,
-                    api_key_id, team_name, project_name, cost_center
+                    api_key_id, team_name, project_name, cost_center,
+                    model_tier, routing_decision, complexity_score
              FROM telemetry WHERE agent_id = ?1 ORDER BY timestamp DESC",
         )?;
 
@@ -473,6 +507,9 @@ impl TelemetryTracking for MonitoringService {
                     team_name: row.get(21).ok(),
                     project_name: row.get(22).ok(),
                     cost_center: row.get(23).ok(),
+                    model_tier: row.get(24).ok(),
+                    routing_decision: row.get(25).ok(),
+                    complexity_score: row.get(26).ok(),
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -540,14 +577,16 @@ impl TelemetryTracking for MonitoringService {
                     cache_creation_tokens, cache_read_tokens, total_tokens,
                     estimated_cost, model, provider, tool_name, tool_args, tool_approved, tool_approval_type, engine_id,
                     behavior_type, behavior_invocation_count, behavior_duration_ms, behavior_outcome,
-                    api_key_id, team_name, project_name, cost_center
+                    api_key_id, team_name, project_name, cost_center,
+                    model_tier, routing_decision, complexity_score
              FROM telemetry WHERE behavior_type IS NOT NULL ORDER BY timestamp DESC"
         } else {
             "SELECT agent_id, timestamp, input_tokens, output_tokens, cached_tokens,
                     cache_creation_tokens, cache_read_tokens, total_tokens,
                     estimated_cost, model, provider, tool_name, tool_args, tool_approved, tool_approval_type, engine_id,
                     behavior_type, behavior_invocation_count, behavior_duration_ms, behavior_outcome,
-                    api_key_id, team_name, project_name, cost_center
+                    api_key_id, team_name, project_name, cost_center,
+                    model_tier, routing_decision, complexity_score
              FROM telemetry WHERE behavior_type IS NOT NULL ORDER BY timestamp DESC"
         };
         
@@ -578,6 +617,9 @@ impl TelemetryTracking for MonitoringService {
                 team_name: row.get(21).ok(),
                 project_name: row.get(22).ok(),
                 cost_center: row.get(23).ok(),
+                model_tier: row.get(24).ok(),
+                routing_decision: row.get(25).ok(),
+                complexity_score: row.get(26).ok(),
             })
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -591,7 +633,8 @@ impl TelemetryTracking for MonitoringService {
                     cache_creation_tokens, cache_read_tokens, total_tokens,
                     estimated_cost, model, provider, tool_name, tool_args, tool_approved, tool_approval_type, engine_id,
                     behavior_type, behavior_invocation_count, behavior_duration_ms, behavior_outcome,
-                    api_key_id, team_name, project_name, cost_center
+                    api_key_id, team_name, project_name, cost_center,
+                    model_tier, routing_decision, complexity_score
              FROM telemetry WHERE behavior_type = ?1 ORDER BY timestamp DESC",
         )?;
         
@@ -621,6 +664,9 @@ impl TelemetryTracking for MonitoringService {
                 team_name: row.get(21).ok(),
                 project_name: row.get(22).ok(),
                 cost_center: row.get(23).ok(),
+                model_tier: row.get(24).ok(),
+                routing_decision: row.get(25).ok(),
+                complexity_score: row.get(26).ok(),
             })
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -942,5 +988,43 @@ mod tests {
         // Summary should be empty (no telemetry records)
         let summary = service.get_telemetry_summary().unwrap();
         assert_eq!(summary.len(), 0);
+    }
+
+    #[test]
+    fn test_telemetry_record_routing_fields() {
+        let record = TelemetryRecord::new("agent-1".to_string())
+            .with_model_tier("smart".to_string())
+            .with_routing_decision("auto".to_string())
+            .with_complexity_score(75.5);
+
+        assert_eq!(record.model_tier, Some("smart".to_string()));
+        assert_eq!(record.routing_decision, Some("auto".to_string()));
+        assert_eq!(record.complexity_score, Some(75.5));
+    }
+
+    #[tokio::test]
+    async fn test_telemetry_record_routing_fields_persistence() {
+        use super::super::service::AgentRecord;
+
+        let service = MonitoringService::new().unwrap();
+
+        // Register agent first
+        let agent = AgentRecord::new("agent-1".to_string(), "developer".to_string());
+        service.register_agent(&agent).unwrap();
+
+        let record = TelemetryRecord::new("agent-1".to_string())
+            .with_tokens(100, 50)
+            .with_model("claude-sonnet".to_string(), "anthropic".to_string())
+            .with_model_tier("smart".to_string())
+            .with_routing_decision("auto".to_string())
+            .with_complexity_score(65.0);
+
+        service.record_telemetry(&record).await.unwrap();
+
+        let retrieved = service.get_agent_telemetry("agent-1").unwrap();
+        assert_eq!(retrieved.len(), 1);
+        assert_eq!(retrieved[0].model_tier, Some("smart".to_string()));
+        assert_eq!(retrieved[0].routing_decision, Some("auto".to_string()));
+        assert_eq!(retrieved[0].complexity_score, Some(65.0));
     }
 }

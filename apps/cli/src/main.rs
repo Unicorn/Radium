@@ -13,7 +13,7 @@ use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 use commands::{
-    agents, auth, budget, checkpoint, clean, context, craft, doctor, engines, extension, hooks, init, learning, monitor, plan, policy, requirement, run,
+    agents, auth, budget, checkpoint, clean, context, cost, craft, doctor, engines, extension, hooks, init, learning, monitor, plan, policy, requirement, run,
     sandbox, stats, status, step, validate,
     // All commands enabled!
     templates, complete, autonomous, vibecheck, chat, mcp, custom, braingrid,
@@ -123,6 +123,10 @@ enum Command {
         /// Engine to use for execution (e.g., "claude", "openai", "gemini")
         #[arg(long)]
         engine: Option<String>,
+
+        /// Model tier override (smart, eco, auto)
+        #[arg(long)]
+        model_tier: Option<String>,
     },
 
     /// Complete a requirement from source to execution
@@ -189,6 +193,10 @@ enum Command {
         /// Working directory
         #[arg(short = 'd', long)]
         dir: Option<String>,
+
+        /// Model tier override (smart, eco, auto)
+        #[arg(long)]
+        model_tier: Option<String>,
     },
 
     /// Execute a single workflow step
@@ -213,6 +221,10 @@ enum Command {
         /// Reasoning effort level (low, medium, high)
         #[arg(long)]
         reasoning: Option<String>,
+
+        /// Model tier override (smart, eco, auto)
+        #[arg(long)]
+        model_tier: Option<String>,
     },
 
     /// Interactive chat mode with an agent
@@ -428,6 +440,13 @@ enum Command {
     /// Set, view, and manage budget limits for AI model costs.
     #[command(subcommand)]
     Budget(commands::BudgetCommand),
+
+    /// Cost reporting and analytics
+    ///
+    /// View cost reports with tier breakdown, savings analysis, and
+    /// filtering by date range, plan, or workflow.
+    #[command(subcommand)]
+    Cost(commands::cost::CostCommand),
 }
 
 // Command types are now in commands::types module
@@ -507,8 +526,8 @@ async fn main() -> anyhow::Result<()> {
         Command::Plan { input, id, name } => {
             plan::execute(input, id, name).await?;
         }
-        Command::Craft { plan_identifier, iteration, task, resume, dry_run, json, yolo, engine } => {
-            craft::execute(plan_identifier, iteration, task, resume, dry_run, json, yolo, engine).await?;
+        Command::Craft { plan_identifier, iteration, task, resume, dry_run, json, yolo, engine, model_tier } => {
+            craft::execute(plan_identifier, iteration, task, resume, dry_run, json, yolo, engine, model_tier).await?;
         }
         Command::Complete { source } => {
             complete::execute(source).await?;
@@ -551,11 +570,11 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
         }
-        Command::Run { script, model, dir } => {
-            run::execute(script, model, dir).await?;
+        Command::Run { script, model, dir, model_tier } => {
+            run::execute(script, model, dir, model_tier).await?;
         }
-        Command::Step { id, prompt, model, engine, reasoning } => {
-            step::execute(id, prompt, model, engine, reasoning).await?;
+        Command::Step { id, prompt, model, engine, reasoning, model_tier } => {
+            step::execute(id, prompt, model, engine, reasoning, model_tier).await?;
         }
         Command::Chat { agent_id, session, resume, list } => {
             if list {
@@ -634,6 +653,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Budget(cmd) => {
             budget::execute(cmd).await?;
+        }
+        Command::Cost(cmd) => {
+            cost::execute(cmd).await?;
         }
     }
 
