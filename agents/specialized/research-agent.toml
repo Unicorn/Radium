@@ -1,0 +1,24 @@
+# Research Agent Configuration
+# Specialized agent for read-only code exploration and documentation search
+# Security Tier: Read-only, sandboxed exploration
+
+[agent]
+id = "research-agent"
+name = "Research Agent"
+description = "Read-only code exploration and documentation search agent"
+prompt_path = "prompts/agents/specialized/research-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "low"
+
+# Fast model class for speed-optimized exploration
+# Low cost tier for economical bulk operations
+# High concurrency for parallel research tasks
+[agent.capabilities]
+model_class = "fast"
+cost_tier = "low"
+max_concurrent_tasks = 10
+
+# Research agents focus on exploration, not modification
+# No trigger behavior needed - read-only operations
+

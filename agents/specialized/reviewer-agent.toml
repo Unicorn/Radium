@@ -1,0 +1,24 @@
+# Reviewer Agent Configuration
+# Specialized agent for code review and audits
+# Security Tier: Read-only review, no modifications
+
+[agent]
+id = "reviewer-agent"
+name = "Reviewer Agent"
+description = "Code review and audit agent for pull requests and code quality"
+prompt_path = "prompts/agents/specialized/reviewer-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-thinking"
+reasoning_effort = "high"
+
+# Reasoning model class for thorough code review
+# Medium cost tier for review operations
+# Moderate concurrency for parallel reviews
+[agent.capabilities]
+model_class = "reasoning"
+cost_tier = "medium"
+max_concurrent_tasks = 5
+
+# Reviewer agents focus on review, not modification
+# No trigger behavior needed - read-only review operations
+

@@ -1,0 +1,25 @@
+# Executor Agent Configuration
+# Specialized agent for code generation and file modifications
+# Security Tier: Write access with approval, can delegate to error handlers
+
+[agent]
+id = "executor-agent"
+name = "Executor Agent"
+description = "Code generation and file modification agent with delegation capabilities"
+prompt_path = "prompts/agents/specialized/executor-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-thinking"
+reasoning_effort = "high"
+
+# Reasoning model class for deep analysis before execution
+# High cost tier for critical execution operations
+# Lower concurrency to ensure careful execution
+[agent.capabilities]
+model_class = "reasoning"
+cost_tier = "high"
+max_concurrent_tasks = 3
+
+# Executor agents can delegate to error handlers when issues arise
+[agent.trigger_behavior]
+trigger_agent_id = "error-handler"
+

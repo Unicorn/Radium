@@ -1,0 +1,24 @@
+# Analyzer Agent Configuration
+# Specialized agent for static analysis, code quality checks, and security scanning
+# Security Tier: Analysis only, no file writes
+
+[agent]
+id = "analyzer-agent"
+name = "Analyzer Agent"
+description = "Static analysis, code quality checks, and security scanning agent"
+prompt_path = "prompts/agents/specialized/analyzer-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+reasoning_effort = "medium"
+
+# Balanced model class for quality analysis
+# Medium cost tier for standard analysis operations
+# Moderate concurrency for analysis tasks
+[agent.capabilities]
+model_class = "balanced"
+cost_tier = "medium"
+max_concurrent_tasks = 5
+
+# Analyzer agents perform analysis, not modifications
+# No trigger behavior needed - analysis operations only
+
