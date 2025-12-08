@@ -14,6 +14,9 @@ pub enum PolicyAction {
     Deny,
     /// Ask the user for approval before executing.
     AskUser,
+    /// Show a preview of what would be executed without actually running.
+    #[serde(rename = "dry_run_first")]
+    DryRunFirst,
 }
 
 /// Priority level for policy rules.
@@ -71,12 +74,27 @@ pub struct PolicyDecision {
     pub reason: Option<String>,
     /// The rule that made this decision (if any).
     pub matched_rule: Option<String>,
+    /// Preview data for dry-run actions.
+    pub preview: Option<DryRunPreview>,
+}
+
+/// Preview information for dry-run operations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DryRunPreview {
+    /// The tool name that would be executed.
+    pub tool_name: String,
+    /// The arguments that would be passed.
+    pub arguments: Vec<String>,
+    /// Description of affected resources or changes.
+    pub affected_resources: Vec<String>,
+    /// Additional details about what would happen.
+    pub details: Option<String>,
 }
 
 impl PolicyDecision {
     /// Creates a new policy decision.
     pub fn new(action: PolicyAction) -> Self {
-        Self { action, reason: None, matched_rule: None }
+        Self { action, reason: None, matched_rule: None, preview: None }
     }
 
     /// Adds a reason to the decision.
@@ -109,6 +127,19 @@ impl PolicyDecision {
     #[must_use]
     pub fn requires_approval(&self) -> bool {
         self.action == PolicyAction::AskUser
+    }
+
+    /// Checks if the action is to show a dry-run preview.
+    #[must_use]
+    pub fn requires_dry_run(&self) -> bool {
+        self.action == PolicyAction::DryRunFirst
+    }
+
+    /// Sets the preview data for this decision.
+    #[must_use]
+    pub fn with_preview(mut self, preview: DryRunPreview) -> Self {
+        self.preview = Some(preview);
+        self
     }
 }
 
@@ -160,6 +191,10 @@ mod tests {
         let action = PolicyAction::AskUser;
         let json = serde_json::to_string(&action).unwrap();
         assert_eq!(json, "\"askuser\"");
+
+        let action = PolicyAction::DryRunFirst;
+        let json = serde_json::to_string(&action).unwrap();
+        assert_eq!(json, "\"dry_run_first\"");
     }
 
     #[test]
@@ -217,5 +252,27 @@ mod tests {
         assert!(decision.requires_approval());
         assert!(!decision.is_allowed());
         assert!(!decision.is_denied());
+    }
+
+    #[test]
+    fn test_policy_decision_dry_run() {
+        let decision = PolicyDecision::new(PolicyAction::DryRunFirst);
+        assert!(decision.requires_dry_run());
+        assert!(!decision.is_allowed());
+        assert!(!decision.is_denied());
+        assert!(!decision.requires_approval());
+    }
+
+    #[test]
+    fn test_policy_decision_with_preview() {
+        let preview = DryRunPreview {
+            tool_name: "run_terminal_cmd".to_string(),
+            arguments: vec!["terraform".to_string(), "apply".to_string()],
+            affected_resources: vec!["infrastructure.tf".to_string()],
+            details: Some("Would create 3 resources".to_string()),
+        };
+        let decision = PolicyDecision::new(PolicyAction::DryRunFirst).with_preview(preview.clone());
+        assert!(decision.requires_dry_run());
+        assert_eq!(decision.preview, Some(preview));
     }
 }

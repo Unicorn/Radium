@@ -6,6 +6,7 @@ use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 
+use super::dry_run::generate_preview;
 use super::types::{
     ApprovalMode, PolicyAction, PolicyDecision, PolicyError, PolicyPriority, PolicyResult,
 };
@@ -268,9 +269,19 @@ impl PolicyEngine {
         // Check rules in priority order
         for rule in &self.rules {
             if rule.matches(&effective_tool_name, &args_refs)? {
-                return Ok(PolicyDecision::new(rule.action).with_rule(&rule.name).with_reason(
-                    rule.reason.clone().unwrap_or_else(|| format!("Matched rule: {}", rule.name)),
-                ));
+                let mut decision = PolicyDecision::new(rule.action)
+                    .with_rule(&rule.name)
+                    .with_reason(
+                        rule.reason.clone().unwrap_or_else(|| format!("Matched rule: {}", rule.name)),
+                    );
+
+                // Generate preview for dry-run actions
+                if rule.action == PolicyAction::DryRunFirst {
+                    let preview = generate_preview(&effective_tool_name, &args_refs)?;
+                    decision = decision.with_preview(preview);
+                }
+
+                return Ok(decision);
             }
         }
 
@@ -299,6 +310,7 @@ impl PolicyEngine {
                 PolicyAction::Allow => "allowed",
                 PolicyAction::Deny => "denied",
                 PolicyAction::AskUser => "requires approval",
+                PolicyAction::DryRunFirst => "requires dry-run preview",
             }
         )))
     }
@@ -674,5 +686,69 @@ reason = "Shell commands disabled for security"
 
         let decision2 = engine.evaluate_tool("server1:read", &[]).await.unwrap();
         assert!(decision2.is_allowed());
+    }
+
+    #[tokio::test]
+    async fn test_policy_engine_dry_run_action() {
+        let mut engine = PolicyEngine::new(ApprovalMode::Ask).unwrap();
+        engine.add_rule(
+            PolicyRule::new("terraform-dry-run", "run_terminal_cmd", PolicyAction::DryRunFirst)
+                .with_arg_pattern("terraform apply *")
+                .with_reason("Terraform operations require dry-run preview"),
+        );
+
+        let decision = engine.evaluate_tool("run_terminal_cmd", &["terraform", "apply"]).await.unwrap();
+        assert!(decision.requires_dry_run());
+        assert!(decision.preview.is_some());
+        
+        let preview = decision.preview.unwrap();
+        assert_eq!(preview.tool_name, "run_terminal_cmd");
+        assert!(preview.arguments.contains(&"terraform".to_string()));
+        assert!(preview.affected_resources.iter().any(|r| r.contains("Terraform")));
+        assert!(preview.details.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_policy_engine_dry_run_file_operation() {
+        let mut engine = PolicyEngine::new(ApprovalMode::Ask).unwrap();
+        engine.add_rule(
+            PolicyRule::new("file-write-dry-run", "write_*", PolicyAction::DryRunFirst)
+                .with_reason("File writes require preview"),
+        );
+
+        let decision = engine.evaluate_tool("write_file", &["test.txt", "content"]).await.unwrap();
+        assert!(decision.requires_dry_run());
+        assert!(decision.preview.is_some());
+        
+        let preview = decision.preview.unwrap();
+        assert_eq!(preview.tool_name, "write_file");
+        assert!(!preview.affected_resources.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_policy_engine_dry_run_from_toml() {
+        let temp_dir = TempDir::new().unwrap();
+        let policy_file = temp_dir.path().join("policy.toml");
+
+        let toml_content = r#"
+approval_mode = "ask"
+
+[[rules]]
+name = "terraform-dry-run"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "terraform apply *"
+action = "dry_run_first"
+priority = "user"
+reason = "Terraform apply requires dry-run preview"
+"#;
+
+        fs::write(&policy_file, toml_content).unwrap();
+
+        let engine = PolicyEngine::from_file(&policy_file).unwrap();
+        let decision = engine.evaluate_tool("run_terminal_cmd", &["terraform", "apply", "main.tf"]).await.unwrap();
+        
+        assert!(decision.requires_dry_run());
+        assert!(decision.preview.is_some());
+        assert_eq!(decision.matched_rule.as_deref(), Some("terraform-dry-run"));
     }
 }

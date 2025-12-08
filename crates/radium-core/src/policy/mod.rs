@@ -30,6 +30,7 @@
 
 pub mod conflict_resolution;
 pub mod constitution;
+mod dry_run;
 mod rules;
 pub mod templates;
 mod types;
@@ -40,6 +41,8 @@ pub use conflict_resolution::{
 pub use constitution::ConstitutionManager;
 pub use rules::{PolicyEngine, PolicyRule};
 pub use templates::{merge_template, PolicyTemplate, TemplateDiscovery};
+pub use dry_run::{format_preview, generate_preview};
 pub use types::{
-    ApprovalMode, PolicyAction, PolicyDecision, PolicyError, PolicyPriority, PolicyResult,
+    ApprovalMode, DryRunPreview, PolicyAction, PolicyDecision, PolicyError, PolicyPriority,
+    PolicyResult,
 };
