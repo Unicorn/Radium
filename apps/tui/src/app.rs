@@ -799,6 +799,108 @@ impl App {
         Ok(())
     }
 
+    /// Cycles panel focus between Chat, TaskList, and Orchestrator panels.
+    fn cycle_panel_focus(&mut self) {
+        use crate::views::orchestrator_view::PanelFocus;
+        
+        loop {
+            self.panel_focus = match self.panel_focus {
+                PanelFocus::Chat => {
+                    if self.task_panel_visible {
+                        PanelFocus::TaskList
+                    } else if self.orchestrator_panel_visible {
+                        PanelFocus::Orchestrator
+                    } else {
+                        PanelFocus::Chat // Stay on chat if no other panels visible
+                    }
+                }
+                PanelFocus::TaskList => {
+                    if self.orchestrator_panel_visible {
+                        PanelFocus::Orchestrator
+                    } else {
+                        PanelFocus::Chat
+                    }
+                }
+                PanelFocus::Orchestrator => PanelFocus::Chat,
+            };
+            
+            // If we're on a visible panel, we're done
+            match self.panel_focus {
+                PanelFocus::Chat => break,
+                PanelFocus::TaskList if self.task_panel_visible => break,
+                PanelFocus::Orchestrator if self.orchestrator_panel_visible => break,
+                _ => continue, // Keep cycling if panel is hidden
+            }
+        }
+    }
+
+    /// Handles scrolling in the focused panel.
+    fn handle_panel_scroll(&mut self, amount: usize, up: bool) {
+        use crate::views::orchestrator_view::PanelFocus;
+        
+        match self.panel_focus {
+            PanelFocus::TaskList => {
+                // Task list panel scrolling would be handled here if we had a scroll state
+                // For now, the panel doesn't maintain scroll state between renders
+                // This would need to be added to TaskListPanel if needed
+            }
+            PanelFocus::Orchestrator => {
+                if up {
+                    self.orchestrator_panel.scroll_up(amount);
+                } else {
+                    let max_items = self.orchestrator_panel.len();
+                    self.orchestrator_panel.scroll_down(amount, max_items);
+                }
+            }
+            PanelFocus::Chat => {
+                // Chat scrolling is handled by prompt_data.scrollback_offset
+                if up {
+                    self.prompt_data.scrollback_offset = self.prompt_data.scrollback_offset
+                        .saturating_add(amount)
+                        .min(self.prompt_data.conversation.len().saturating_sub(1));
+                } else {
+                    self.prompt_data.scrollback_offset = self.prompt_data.scrollback_offset
+                        .saturating_sub(amount);
+                }
+            }
+        }
+    }
+
+    /// Scrolls the focused panel to the top.
+    fn handle_panel_scroll_to_top(&mut self) {
+        use crate::views::orchestrator_view::PanelFocus;
+        
+        match self.panel_focus {
+            PanelFocus::TaskList => {
+                // Task list panel scrolling would be handled here
+            }
+            PanelFocus::Orchestrator => {
+                self.orchestrator_panel.scroll_to_top();
+            }
+            PanelFocus::Chat => {
+                self.prompt_data.scrollback_offset = 0;
+            }
+        }
+    }
+
+    /// Scrolls the focused panel to the bottom.
+    fn handle_panel_scroll_to_bottom(&mut self) {
+        use crate::views::orchestrator_view::PanelFocus;
+        
+        match self.panel_focus {
+            PanelFocus::TaskList => {
+                // Task list panel scrolling would be handled here
+            }
+            PanelFocus::Orchestrator => {
+                let max_items = self.orchestrator_panel.len();
+                self.orchestrator_panel.scroll_to_bottom();
+            }
+            PanelFocus::Chat => {
+                self.prompt_data.scrollback_offset = self.prompt_data.conversation.len().saturating_sub(1);
+            }
+        }
+    }
+
     async fn handle_enter(&mut self) -> Result<()> {
         let input = self.prompt_data.input_text();
         if input.trim().is_empty() {
@@ -1271,6 +1373,13 @@ impl App {
         // Parse input to detect main command vs subcommand
         let parts: Vec<&str> = partial.split_whitespace().collect();
 
+        // Check cache first
+        let cache_key = partial.to_string();
+        if let Some(cached) = self.prompt_data.command_state.get_cached(&cache_key) {
+            self.prompt_data.command_state.set_suggestions(cached.clone());
+            return;
+        }
+
         let mut suggestions: Vec<CommandSuggestion> = Vec::new();
 
         if parts.is_empty() || (parts.len() == 1 && !partial.ends_with(' ')) {
@@ -1282,15 +1391,24 @@ impl App {
             let matcher = SkimMatcherV2::default();
             let mut scored_commands: Vec<(i64, String, String, SuggestionSource)> = Vec::new();
 
+            // Cache MCP commands lookup to avoid repeated registry access
+            let mcp_commands: Vec<_> = self.mcp_slash_registry.get_all_commands().collect();
+
             // Score built-in commands with fuzzy matching
+            // Early termination: stop after enough high-scoring results
+            const MAX_SUGGESTIONS_TO_SCORE: usize = 50;
             for (cmd, desc) in &self.available_commands {
                 if let Some(score) = matcher.fuzzy_match(cmd, query) {
                     scored_commands.push((score, cmd.to_string(), desc.to_string(), SuggestionSource::BuiltIn));
+                    // Early termination if we have enough high-scoring results
+                    if scored_commands.len() >= MAX_SUGGESTIONS_TO_SCORE && score > 50 {
+                        break;
+                    }
                 }
             }
 
-            // Score MCP commands with fuzzy matching
-            for (cmd_name, prompt) in self.mcp_slash_registry.get_all_commands() {
+            // Score MCP commands with fuzzy matching (using cached list)
+            for (cmd_name, prompt) in mcp_commands {
                 let cmd_without_slash = &cmd_name[1..]; // Remove leading '/'
                 if let Some(score) = matcher.fuzzy_match(cmd_without_slash, query) {
                     let desc = prompt
@@ -1299,11 +1417,15 @@ impl App {
                         .map(|d| d.as_str())
                         .unwrap_or("MCP command");
                     scored_commands.push((score, cmd_name.clone(), desc.to_string(), SuggestionSource::MCP));
+                    // Early termination if we have enough high-scoring results
+                    if scored_commands.len() >= MAX_SUGGESTIONS_TO_SCORE && score > 50 {
+                        break;
+                    }
                 }
             }
 
             // Sort by score (highest first) and take top suggestions
-            // Limit to reasonable number for performance (REQ-198: <50ms requirement)
+            // Use partial sort for better performance when only showing top N
             scored_commands.sort_by(|a, b| b.0.cmp(&a.0));
             const MAX_SUGGESTIONS: usize = 50; // Limit suggestions for performance
             suggestions.extend(
@@ -1400,7 +1522,10 @@ impl App {
         }
 
         // Update state with new suggestions
-        self.prompt_data.command_state.set_suggestions(suggestions);
+        self.prompt_data.command_state.set_suggestions(suggestions.clone());
+        
+        // Cache the results for future use
+        self.prompt_data.command_state.cache_suggestions(cache_key, suggestions);
     }
 
     fn autocomplete_selected_command(&mut self) {
