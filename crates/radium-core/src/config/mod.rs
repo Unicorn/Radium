@@ -116,6 +116,73 @@ impl CheckpointConfig {
     }
 }
 
+/// Custom pattern definition for privacy filtering.
+#[derive(Debug, Clone, Deserialize)]
+pub struct CustomPattern {
+    /// Name of the pattern.
+    pub name: String,
+    /// Regex pattern to match.
+    pub regex: String,
+    /// Replacement string for matches.
+    pub replacement: String,
+}
+
+/// Privacy configuration for sensitive data redaction.
+#[derive(Debug, Clone, Deserialize)]
+pub struct PrivacyConfig {
+    /// Enable privacy mode.
+    #[serde(default = "default_true")]
+    pub enable: bool,
+    /// Privacy mode: "auto", "strict", or "off".
+    #[serde(default = "default_privacy_mode")]
+    pub mode: String,
+    /// Redaction style: "full", "partial", or "hash".
+    #[serde(default = "default_redaction_style")]
+    pub redaction_style: String,
+    /// Enable audit logging of redactions.
+    #[serde(default = "default_true")]
+    pub audit_log: bool,
+    /// Custom patterns for organization-specific sensitive data.
+    #[serde(default)]
+    pub custom_patterns: Vec<CustomPattern>,
+}
+
+fn default_privacy_mode() -> String {
+    "auto".to_string()
+}
+
+fn default_redaction_style() -> String {
+    "partial".to_string()
+}
+
+impl Default for PrivacyConfig {
+    fn default() -> Self {
+        Self {
+            enable: true,
+            mode: default_privacy_mode(),
+            redaction_style: default_redaction_style(),
+            audit_log: true,
+            custom_patterns: Vec::new(),
+        }
+    }
+}
+
+/// Security configuration.
+#[derive(Debug, Clone, Deserialize)]
+pub struct SecurityConfig {
+    /// Privacy configuration.
+    #[serde(default)]
+    pub privacy: PrivacyConfig,
+}
+
+impl Default for SecurityConfig {
+    fn default() -> Self {
+        Self {
+            privacy: PrivacyConfig::default(),
+        }
+    }
+}
+
 /// Root configuration for Radium.
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct Config {
@@ -128,6 +195,9 @@ pub struct Config {
     /// Checkpoint configuration.
     #[serde(default)]
     pub checkpoint: CheckpointConfig,
+    /// Security configuration.
+    #[serde(default)]
+    pub security: SecurityConfig,
 }
 
 impl Config {
@@ -312,5 +382,94 @@ mod tests {
         assert_eq!(config.checkpoint.retention_days, 14);
         assert_eq!(config.checkpoint.max_checkpoints, 50); // Default
         assert_eq!(config.checkpoint.max_size_gb, 5); // Default
+    }
+
+    #[test]
+    fn test_privacy_config_default() {
+        let config = PrivacyConfig::default();
+        assert!(config.enable);
+        assert_eq!(config.mode, "auto");
+        assert_eq!(config.redaction_style, "partial");
+        assert!(config.audit_log);
+        assert!(config.custom_patterns.is_empty());
+    }
+
+    #[test]
+    fn test_privacy_config_deserialize() {
+        let json = r#"{
+            "enable": false,
+            "mode": "strict",
+            "redaction_style": "hash",
+            "audit_log": false
+        }"#;
+        let config: PrivacyConfig = serde_json::from_str(json).unwrap();
+        assert!(!config.enable);
+        assert_eq!(config.mode, "strict");
+        assert_eq!(config.redaction_style, "hash");
+        assert!(!config.audit_log);
+    }
+
+    #[test]
+    fn test_privacy_config_deserialize_with_defaults() {
+        let json = r#"{}"#;
+        let config: PrivacyConfig = serde_json::from_str(json).unwrap();
+        assert!(config.enable); // Default
+        assert_eq!(config.mode, "auto"); // Default
+        assert_eq!(config.redaction_style, "partial"); // Default
+        assert!(config.audit_log); // Default
+    }
+
+    #[test]
+    fn test_privacy_config_with_custom_patterns() {
+        let json = r#"{
+            "custom_patterns": [
+                {
+                    "name": "custom_token",
+                    "regex": "tok_[a-zA-Z0-9]{40}",
+                    "replacement": "***TOKEN***"
+                }
+            ]
+        }"#;
+        let config: PrivacyConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.custom_patterns.len(), 1);
+        assert_eq!(config.custom_patterns[0].name, "custom_token");
+        assert_eq!(config.custom_patterns[0].regex, "tok_[a-zA-Z0-9]{40}");
+        assert_eq!(config.custom_patterns[0].replacement, "***TOKEN***");
+    }
+
+    #[test]
+    fn test_security_config_default() {
+        let config = SecurityConfig::default();
+        assert!(config.privacy.enable);
+        assert_eq!(config.privacy.mode, "auto");
+    }
+
+    #[test]
+    fn test_config_with_security() {
+        let json = r#"{
+            "server": {
+                "address": "127.0.0.1:50051"
+            },
+            "security": {
+                "privacy": {
+                    "enable": false,
+                    "mode": "strict",
+                    "redaction_style": "full"
+                }
+            }
+        }"#;
+        let config: Config = serde_json::from_str(json).unwrap();
+        assert!(!config.security.privacy.enable);
+        assert_eq!(config.security.privacy.mode, "strict");
+        assert_eq!(config.security.privacy.redaction_style, "full");
+    }
+
+    #[test]
+    fn test_config_deserialize_minimal_with_security_defaults() {
+        let json = r"{}";
+        let config: Config = serde_json::from_str(json).unwrap();
+        assert!(config.security.privacy.enable); // Default
+        assert_eq!(config.security.privacy.mode, "auto"); // Default
+        assert_eq!(config.security.privacy.redaction_style, "partial"); // Default
     }
 }
