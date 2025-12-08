@@ -129,7 +129,7 @@ impl SecretScanner {
             ),
             (
                 "generic_api_key".to_string(),
-                Regex::new(r"(?i)(api[_-]?key|apikey)['\"]?\s*[:=]\s*['\"]?([A-Za-z0-9]{20,})").unwrap(),
+                Regex::new(r#"(?i)(api[_-]?key|apikey)['"]?\s*[:=]\s*['"]?([A-Za-z0-9]{20,})"#).unwrap(),
                 Severity::Medium,
             ),
             (
@@ -139,7 +139,7 @@ impl SecretScanner {
             ),
             (
                 "password_in_code".to_string(),
-                Regex::new(r"(?i)password['\"]?\s*[:=]\s*['\"]([^'\"]{8,})['\"]").unwrap(),
+                Regex::new(r#"(?i)password['"]?\s*[:=]\s*['"]([^'"]{8,})['"]"#).unwrap(),
                 Severity::Medium,
             ),
             (
