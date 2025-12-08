@@ -161,6 +161,36 @@ rad agents create my-agent "My Agent" --category core
 - [Developer Guide: Agent System Architecture](docs/developer-guide/agent-system-architecture.md) - Technical architecture details
 - [Examples](examples/agents/) - Example agent configurations
 
+## MCP Proxy Server
+
+The MCP Proxy Server provides centralized access to multiple MCP (Model Context Protocol) servers through a single endpoint, with load balancing, failover, security, and tool aggregation.
+
+### Quick Start
+
+```bash
+# Initialize proxy configuration
+rad mcp proxy init
+
+# Start the proxy server
+rad mcp proxy start
+
+# Check status
+rad mcp proxy status
+
+# Stop the proxy
+rad mcp proxy stop
+```
+
+### Features
+
+- **Centralized Management**: Single configuration point for all upstream MCP servers
+- **High Availability**: Automatic failover when upstream servers become unavailable
+- **Load Balancing**: Distribute requests across multiple upstream servers
+- **Security**: Centralized rate limiting, logging, and sensitive data redaction
+- **Tool Aggregation**: Unified tool catalog with conflict resolution
+
+See [MCP Proxy Documentation](docs/mcp-proxy.md) for detailed setup and configuration.
+
 ## Extension System
 
 Radium's extension system allows you to package and share reusable agent configurations, MCP servers, custom commands, and hooks. Extensions enable the community to share workflows, tools, and configurations.
