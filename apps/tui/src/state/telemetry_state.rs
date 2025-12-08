@@ -1,6 +1,7 @@
 //! Telemetry tracking for token usage and costs.
 
 use std::collections::HashMap;
+use radium_core::monitoring::{ProviderCostBreakdown, TeamCostBreakdown};
 
 /// Token usage metrics
 #[derive(Debug, Clone, Copy, Default)]
@@ -70,6 +71,14 @@ pub struct TelemetryState {
     pub model: Option<String>,
     /// Provider/engine being used
     pub provider: Option<String>,
+    /// Provider cost breakdown (for multi-provider view)
+    pub provider_breakdown: Vec<ProviderCostBreakdown>,
+    /// Team cost breakdown (for attribution view)
+    pub team_breakdown: Vec<TeamCostBreakdown>,
+    /// Whether to show provider breakdown
+    pub show_provider_breakdown: bool,
+    /// Whether to show team breakdown
+    pub show_team_breakdown: bool,
 }
 
 impl TelemetryState {
@@ -82,7 +91,40 @@ impl TelemetryState {
             agent_costs: HashMap::new(),
             model: None,
             provider: None,
+            provider_breakdown: Vec::new(),
+            team_breakdown: Vec::new(),
+            show_provider_breakdown: false,
+            show_team_breakdown: false,
         }
+    }
+
+    /// Updates provider and team breakdowns from MonitoringService.
+    ///
+    /// # Arguments
+    /// * `monitoring` - MonitoringService instance to query
+    pub fn update_breakdowns(&mut self, monitoring: &radium_core::monitoring::MonitoringService) {
+        use radium_core::monitoring::BudgetManager;
+        
+        // Update provider breakdown
+        if let Ok(breakdowns) = BudgetManager::get_provider_breakdown(monitoring) {
+            self.provider_breakdown = breakdowns;
+        }
+
+        // Update team breakdown (limit to top 5)
+        if let Ok(mut breakdowns) = BudgetManager::get_team_breakdown(monitoring) {
+            breakdowns.truncate(5);
+            self.team_breakdown = breakdowns;
+        }
+    }
+
+    /// Toggles provider breakdown display.
+    pub fn toggle_provider_breakdown(&mut self) {
+        self.show_provider_breakdown = !self.show_provider_breakdown;
+    }
+
+    /// Toggles team breakdown display.
+    pub fn toggle_team_breakdown(&mut self) {
+        self.show_team_breakdown = !self.show_team_breakdown;
     }
 
     /// Records token usage for an agent.

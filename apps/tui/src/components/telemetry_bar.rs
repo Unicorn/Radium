@@ -3,7 +3,7 @@
 use crate::state::{TelemetryState, WorkflowStatus};
 use ratatui::{
     prelude::*,
-    widgets::{Block, Borders, Gauge, Paragraph},
+    widgets::{Block, Borders, Gauge, Paragraph, BarChart, Bar},
 };
 
 /// Telemetry bar component
@@ -227,6 +227,108 @@ impl TelemetryBar {
         let widget = Paragraph::new(summary)
             .style(Style::default().fg(Color::Blue))
             .block(Block::default().borders(Borders::ALL).title(" Telemetry "));
+        frame.render_widget(widget, area);
+    }
+
+    /// Renders provider breakdown with horizontal bars.
+    pub fn render_provider_breakdown(frame: &mut Frame, area: Rect, telemetry: &TelemetryState) {
+        let theme = crate::theme::get_theme();
+        
+        if telemetry.provider_breakdown.is_empty() {
+            let widget = Paragraph::new("No provider data available")
+                .style(Style::default().fg(theme.text_muted))
+                .alignment(Alignment::Center)
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_style(Style::default().fg(theme.border))
+                        .title(" Provider Breakdown ")
+                );
+            frame.render_widget(widget, area);
+            return;
+        }
+
+        // Create bar chart data
+        let total_cost: f64 = telemetry.provider_breakdown.iter().map(|b| b.total_cost).sum();
+        let max_cost = telemetry.provider_breakdown.iter()
+            .map(|b| b.total_cost)
+            .fold(0.0, f64::max);
+
+        let bars: Vec<Bar> = telemetry.provider_breakdown.iter().enumerate().map(|(i, breakdown)| {
+            let color = match i % 3 {
+                0 => Color::Blue,      // OpenAI
+                1 => Color::Magenta,   // Anthropic
+                2 => Color::Green,     // Gemini
+                _ => Color::Yellow,
+            };
+            Bar::default()
+                .value(breakdown.total_cost as u64)
+                .label(format!("{} {:.1}%", breakdown.provider, breakdown.percentage).into())
+                .style(Style::default().fg(color))
+        }).collect();
+
+        let labels: Vec<String> = telemetry.provider_breakdown.iter().map(|b| {
+            format!("{}\n${:.2}", b.provider, b.total_cost)
+        }).collect();
+
+        let chart = BarChart::default()
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(theme.border))
+                    .title(" Provider Breakdown ")
+            )
+            .data(&bars)
+            .bar_width(3)
+            .bar_gap(1)
+            .max(max_cost as u64);
+
+        frame.render_widget(chart, area);
+    }
+
+    /// Renders team attribution breakdown.
+    pub fn render_team_breakdown(frame: &mut Frame, area: Rect, telemetry: &TelemetryState) {
+        let theme = crate::theme::get_theme();
+        
+        if telemetry.team_breakdown.is_empty() {
+            let widget = Paragraph::new("No team attribution data available")
+                .style(Style::default().fg(theme.text_muted))
+                .alignment(Alignment::Center)
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_style(Style::default().fg(theme.border))
+                        .title(" Team Attribution ")
+                );
+            frame.render_widget(widget, area);
+            return;
+        }
+
+        // Build team list text
+        let mut lines = Vec::new();
+        for (i, breakdown) in telemetry.team_breakdown.iter().take(5).enumerate() {
+            let project = breakdown.project_name.as_deref().unwrap_or("N/A");
+            let line = format!(
+                "{}. {} / {}\n   ${:.4} ({} execs)",
+                i + 1,
+                breakdown.team_name,
+                project,
+                breakdown.total_cost,
+                breakdown.execution_count
+            );
+            lines.push(line);
+        }
+
+        let text = lines.join("\n\n");
+        let widget = Paragraph::new(text)
+            .style(Style::default().fg(theme.text))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(theme.border))
+                    .title(" Team Attribution (Top 5) ")
+            );
+
         frame.render_widget(widget, area);
     }
 }
