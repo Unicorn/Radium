@@ -3,9 +3,9 @@
 //! This module provides a background service that continuously processes the ExecutionQueue
 //! and dispatches tasks to agents until completion or critical errors.
 
-use crate::{AgentExecutor, AgentRegistry, ExecutionQueue, LoadBalancer};
+use crate::{AgentExecutor, AgentRegistry, CriticalError, ExecutionQueue, LoadBalancer};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::watch;
 use tokio::time;
@@ -47,6 +47,8 @@ pub struct TaskDispatcher {
     paused: Arc<AtomicBool>,
     /// Pause notification for waiting on resume.
     pause_notify: Arc<tokio::sync::Notify>,
+    /// Last critical error encountered (if any).
+    last_error: Arc<Mutex<Option<CriticalError>>>,
 }
 
 impl std::fmt::Debug for TaskDispatcher {
@@ -83,6 +85,7 @@ impl TaskDispatcher {
             shutdown_tx: None,
             paused: Arc::new(AtomicBool::new(false)),
             pause_notify: Arc::new(tokio::sync::Notify::new()),
+            last_error: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -105,6 +108,7 @@ impl TaskDispatcher {
         let load_balancer = Arc::clone(&self.load_balancer);
         let paused = Arc::clone(&self.paused);
         let pause_notify = Arc::clone(&self.pause_notify);
+        let last_error = Arc::clone(&self.last_error);
 
         tokio::spawn(async move {
             info!("Task dispatcher started");
@@ -196,12 +200,37 @@ impl TaskDispatcher {
                                     }
                                 }
                                 Err(e) => {
-                                    error!(
-                                        task_id = %task_id,
-                                        agent_id = %agent_id,
-                                        error = %e,
-                                        "Task execution error"
-                                    );
+                                    // Check if this is a critical error
+                                    if let Some(critical_error) = CriticalError::from_model_error(&e) {
+                                        error!(
+                                            task_id = %task_id,
+                                            agent_id = %agent_id,
+                                            error = %critical_error,
+                                            "Critical error detected, shutting down dispatcher"
+                                        );
+
+                                        // Store the error
+                                        {
+                                            let mut last_err = last_error.lock().unwrap();
+                                            *last_err = Some(critical_error.clone());
+                                        }
+
+                                        // Signal shutdown
+                                        if let Some(shutdown_tx) = shutdown_tx.as_ref() {
+                                            let _ = shutdown_tx.send(());
+                                        }
+
+                                        // Mark task as completed and break
+                                        queue.mark_completed(&task_id).await;
+                                        break;
+                                    } else {
+                                        error!(
+                                            task_id = %task_id,
+                                            agent_id = %agent_id,
+                                            error = %e,
+                                            "Task execution error"
+                                        );
+                                    }
                                 }
                             }
 
@@ -272,6 +301,14 @@ impl TaskDispatcher {
     /// Returns a reference to the load balancer.
     pub fn load_balancer(&self) -> Arc<LoadBalancer> {
         Arc::clone(&self.load_balancer)
+    }
+
+    /// Gets the last critical error encountered (if any).
+    ///
+    /// # Returns
+    /// Returns `Some(CriticalError)` if a critical error occurred, `None` otherwise.
+    pub fn last_error(&self) -> Option<CriticalError> {
+        self.last_error.lock().unwrap().clone()
     }
 }
 

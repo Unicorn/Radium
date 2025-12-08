@@ -370,61 +370,31 @@ impl ParallelExecutor {
                     }
                 });
 
-                join_handles.push((task_id.clone(), handle));
+                batch_handles.push(handle);
             }
 
-            // Wait for at least one task to complete before checking for more ready tasks
-            if !join_handles.is_empty() {
-                // Use select to wait for the first task to complete
-                use tokio::sync::futures::Notified;
-                let (tx, mut rx) = tokio::sync::mpsc::channel(1);
-                
-                // Spawn a task that signals when any handle completes
-                let handles_clone = join_handles.clone();
-                tokio::spawn(async move {
-                    for (task_id, handle) in handles_clone {
-                        if handle.await.is_ok() {
-                            let _ = tx.send(task_id).await;
+            // Wait for all tasks in this batch to complete
+            for handle in batch_handles {
+                match handle.await {
+                    Ok(Ok(task_id)) => {
+                        if execution_state.is_completed(&task_id) {
+                            completed_task_ids.insert(task_id);
                         }
                     }
-                });
-
-                // Wait for at least one completion or timeout
-                tokio::select! {
-                    _ = rx.recv() => {
-                        // A task completed, update completed_task_ids and continue
-                        // We'll update completed_task_ids in the join_handles loop below
+                    Ok(Err(e)) => {
+                        error!(
+                            requirement_id = %requirement_id,
+                            error = %e,
+                            "Task execution failed"
+                        );
                     }
-                    _ = tokio::time::sleep(tokio::time::Duration::from_millis(100)) => {
-                        // Timeout - continue to check for ready tasks
+                    Err(e) => {
+                        error!(
+                            requirement_id = %requirement_id,
+                            error = %e,
+                            "Task join error"
+                        );
                     }
-                }
-            }
-        }
-
-        // Wait for all remaining tasks to complete and update completed_task_ids
-        for (task_id, handle) in join_handles {
-            match handle.await {
-                Ok(Ok(())) => {
-                    if execution_state.is_completed(&task_id) {
-                        completed_task_ids.insert(task_id);
-                    }
-                }
-                Ok(Err(e)) => {
-                    error!(
-                        requirement_id = %requirement_id,
-                        task_id = %task_id,
-                        error = %e,
-                        "Task execution failed"
-                    );
-                }
-                Err(e) => {
-                    error!(
-                        requirement_id = %requirement_id,
-                        task_id = %task_id,
-                        error = %e,
-                        "Task join error"
-                    );
                 }
             }
         }

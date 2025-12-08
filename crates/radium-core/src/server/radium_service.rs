@@ -15,6 +15,18 @@ use radium_orchestrator::{
 
 use crate::models::{Task, Workflow};
 use crate::proto::radium_server::Radium;
+use crate::context::braingrid_client::{
+    BraingridClient, BraingridError, BraingridRequirement, BraingridTask,
+    RequirementStatus, TaskStatus, CacheStats,
+};
+use crate::workflow::{RequirementExecutor, RequirementExecutionResult, RequirementProgress};
+use crate::agents::registry::AgentRegistry;
+use radium_abstraction::Model;
+use radium_models::MockModel;
+use radium_orchestrator::AgentExecutor;
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
+use futures::StreamExt;
 use crate::proto::{
     AgentMessage, CreateAgentRequest, CreateAgentResponse, CreateTaskRequest, CreateTaskResponse,
     CreateWorkflowRequest, CreateWorkflowResponse, DeleteAgentRequest, DeleteAgentResponse,
@@ -35,6 +47,17 @@ use crate::proto::{
     UpdateAgentResponse, UpdateTaskRequest, UpdateTaskResponse, UpdateWorkflowRequest,
     UpdateWorkflowResponse, ValidateSourcesRequest, ValidateSourcesResponse,
     SourceValidationResult, WorkflowExecution,
+    // Braingrid RPCs
+    ReadBraingridRequirementRequest, ReadBraingridRequirementResponse,
+    ListBraingridTasksRequest, ListBraingridTasksResponse,
+    UpdateBraingridTaskStatusRequest, UpdateBraingridTaskStatusResponse,
+    UpdateBraingridRequirementStatusRequest, UpdateBraingridRequirementStatusResponse,
+    CreateBraingridTasksRequest, CreateBraingridTasksResponse,
+    ExecuteBraingridRequirementRequest, ExecutionProgressEvent,
+    ClearBraingridCacheRequest, ClearBraingridCacheResponse,
+    GetBraingridCacheStatsRequest, GetBraingridCacheStatsResponse,
+    BraingridRequirement as ProtoBraingridRequirement, BraingridTask as ProtoBraingridTask,
+    RequirementExecutionResult as ProtoRequirementExecutionResult,
 };
 use crate::storage::{
     AgentRepository, Database, SqliteAgentRepository, SqliteTaskRepository,
@@ -55,6 +78,8 @@ pub struct RadiumService {
     delegation_manager: Arc<crate::collaboration::DelegationManager>,
     /// Progress tracker for agent progress reporting.
     progress_tracker: Arc<crate::collaboration::ProgressTracker>,
+    /// Braingrid client for requirement/task operations.
+    braingrid_client: Arc<BraingridClient>,
 }
 
 impl RadiumService {
@@ -99,6 +124,11 @@ impl RadiumService {
             worker_executor,
         ));
 
+        // Initialize Braingrid client
+        let project_id = std::env::var("BRAINGRID_PROJECT_ID")
+            .unwrap_or_else(|_| "PROJ-14".to_string());
+        let braingrid_client = Arc::new(BraingridClient::new(project_id));
+
         Self {
             db: db_arc,
             orchestrator,
@@ -106,6 +136,7 @@ impl RadiumService {
             lock_manager,
             delegation_manager,
             progress_tracker,
+            braingrid_client,
         }
     }
 
@@ -1189,6 +1220,470 @@ impl Radium for RadiumService {
                 error: Some(e.to_string()),
             })),
         }
+    }
+
+    // ===================================================================
+    // Braingrid RPCs
+    // ===================================================================
+
+    async fn read_braingrid_requirement(
+        &self,
+        request: Request<ReadBraingridRequirementRequest>,
+    ) -> Result<Response<ReadBraingridRequirementResponse>, Status> {
+        let req = request.into_inner();
+        let project_id = req.project_id.as_deref()
+            .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok().as_deref())
+            .unwrap_or("PROJ-14");
+
+        info!(requirement_id = %req.requirement_id, "ReadBraingridRequirement RPC called");
+
+        let client = if project_id != self.braingrid_client.project_id() {
+            Arc::new(BraingridClient::new(project_id))
+        } else {
+            Arc::clone(&self.braingrid_client)
+        };
+
+        match client.fetch_requirement_tree(&req.requirement_id).await {
+            Ok(requirement) => {
+                let proto_req = requirement_to_proto(requirement);
+                Ok(Response::new(ReadBraingridRequirementResponse {
+                    requirement: Some(proto_req),
+                    error: None,
+                }))
+            }
+            Err(e) => {
+                let error_msg = format!("{}", e);
+                Ok(Response::new(ReadBraingridRequirementResponse {
+                    requirement: None,
+                    error: Some(error_msg),
+                }))
+            }
+        }
+    }
+
+    async fn list_braingrid_tasks(
+        &self,
+        request: Request<ListBraingridTasksRequest>,
+    ) -> Result<Response<ListBraingridTasksResponse>, Status> {
+        let req = request.into_inner();
+        let project_id = req.project_id.as_deref()
+            .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok().as_deref())
+            .unwrap_or("PROJ-14");
+
+        info!(requirement_id = %req.requirement_id, "ListBraingridTasks RPC called");
+
+        let client = if project_id != self.braingrid_client.project_id() {
+            Arc::new(BraingridClient::new(project_id))
+        } else {
+            Arc::clone(&self.braingrid_client)
+        };
+
+        match client.list_tasks(&req.requirement_id).await {
+            Ok(tasks) => {
+                let proto_tasks: Vec<ProtoBraingridTask> = tasks.into_iter()
+                    .map(task_to_proto)
+                    .collect();
+                Ok(Response::new(ListBraingridTasksResponse {
+                    tasks: proto_tasks,
+                    error: None,
+                }))
+            }
+            Err(e) => {
+                let error_msg = format!("{}", e);
+                Ok(Response::new(ListBraingridTasksResponse {
+                    tasks: vec![],
+                    error: Some(error_msg),
+                }))
+            }
+        }
+    }
+
+    async fn update_braingrid_task_status(
+        &self,
+        request: Request<UpdateBraingridTaskStatusRequest>,
+    ) -> Result<Response<UpdateBraingridTaskStatusResponse>, Status> {
+        let req = request.into_inner();
+        let project_id = req.project_id.as_deref()
+            .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok().as_deref())
+            .unwrap_or("PROJ-14");
+
+        info!(
+            task_id = %req.task_id,
+            requirement_id = %req.requirement_id,
+            status = %req.status,
+            "UpdateBraingridTaskStatus RPC called"
+        );
+
+        let status = parse_task_status(&req.status)?;
+        let client = if project_id != self.braingrid_client.project_id() {
+            Arc::new(BraingridClient::new(project_id))
+        } else {
+            Arc::clone(&self.braingrid_client)
+        };
+
+        match client.update_task_status(&req.task_id, &req.requirement_id, status, req.notes.as_deref()).await {
+            Ok(()) => Ok(Response::new(UpdateBraingridTaskStatusResponse {
+                success: true,
+                error: None,
+            })),
+            Err(e) => Ok(Response::new(UpdateBraingridTaskStatusResponse {
+                success: false,
+                error: Some(format!("{}", e)),
+            })),
+        }
+    }
+
+    async fn update_braingrid_requirement_status(
+        &self,
+        request: Request<UpdateBraingridRequirementStatusRequest>,
+    ) -> Result<Response<UpdateBraingridRequirementStatusResponse>, Status> {
+        let req = request.into_inner();
+        let project_id = req.project_id.as_deref()
+            .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok().as_deref())
+            .unwrap_or("PROJ-14");
+
+        info!(
+            requirement_id = %req.requirement_id,
+            status = %req.status,
+            "UpdateBraingridRequirementStatus RPC called"
+        );
+
+        let status = parse_requirement_status(&req.status)?;
+        let client = if project_id != self.braingrid_client.project_id() {
+            Arc::new(BraingridClient::new(project_id))
+        } else {
+            Arc::clone(&self.braingrid_client)
+        };
+
+        match client.update_requirement_status(&req.requirement_id, status).await {
+            Ok(()) => Ok(Response::new(UpdateBraingridRequirementStatusResponse {
+                success: true,
+                error: None,
+            })),
+            Err(e) => Ok(Response::new(UpdateBraingridRequirementStatusResponse {
+                success: false,
+                error: Some(format!("{}", e)),
+            })),
+        }
+    }
+
+    async fn create_braingrid_tasks(
+        &self,
+        request: Request<CreateBraingridTasksRequest>,
+    ) -> Result<Response<CreateBraingridTasksResponse>, Status> {
+        let req = request.into_inner();
+        let project_id = req.project_id.as_deref()
+            .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok().as_deref())
+            .unwrap_or("PROJ-14");
+
+        info!(requirement_id = %req.requirement_id, "CreateBraingridTasks RPC called");
+
+        let client = if project_id != self.braingrid_client.project_id() {
+            Arc::new(BraingridClient::new(project_id))
+        } else {
+            Arc::clone(&self.braingrid_client)
+        };
+
+        match client.breakdown_requirement(&req.requirement_id).await {
+            Ok(tasks) => {
+                let proto_tasks: Vec<ProtoBraingridTask> = tasks.into_iter()
+                    .map(task_to_proto)
+                    .collect();
+                Ok(Response::new(CreateBraingridTasksResponse {
+                    tasks: proto_tasks,
+                    error: None,
+                }))
+            }
+            Err(e) => Ok(Response::new(CreateBraingridTasksResponse {
+                tasks: vec![],
+                error: Some(format!("{}", e)),
+            })),
+        }
+    }
+
+    async fn execute_braingrid_requirement(
+        &self,
+        request: Request<ExecuteBraingridRequirementRequest>,
+    ) -> Result<Response<tonic::codec::Streaming<ExecutionProgressEvent>>, Status> {
+        let req = request.into_inner();
+        let project_id = req.project_id.as_deref()
+            .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok().as_deref())
+            .unwrap_or("PROJ-14");
+
+        info!(requirement_id = %req.requirement_id, "ExecuteBraingridRequirement RPC called");
+
+        // Create a channel for streaming progress events
+        let (tx, mut rx) = mpsc::channel(100);
+        
+        // Convert to Result stream for gRPC
+        let rx = rx.map(|event| Ok(event) as Result<ExecutionProgressEvent, Status>);
+
+        // Spawn execution in background
+        let req_id = req.requirement_id.clone();
+        let db = Arc::clone(&self.db);
+        let orchestrator = Arc::clone(&self.orchestrator);
+        let executor = Arc::new(AgentExecutor::with_mock_model());
+        let agent_registry = Arc::new(AgentRegistry::new());
+
+        tokio::spawn(async move {
+            // Initialize model - use mock model for now to avoid API key requirements
+            // In production, this would use ModelFactory::create with proper config
+            let model: Arc<dyn Model> = Arc::new(MockModel::new("braingrid-executor".to_string()));
+
+            // Create requirement executor
+            let requirement_executor = match RequirementExecutor::new(
+                project_id,
+                &orchestrator,
+                &executor,
+                &db,
+                agent_registry,
+                model,
+            ) {
+                Ok(exec) => exec,
+                Err(e) => {
+                    let _ = tx.send(ExecutionProgressEvent {
+                        event_type: "FAILED".to_string(),
+                        requirement_id: Some(req_id.clone()),
+                        task_id: None,
+                        task_title: None,
+                        task_number: None,
+                        total_tasks: None,
+                        sub_step: None,
+                        error: Some(format!("Failed to create executor: {}", e)),
+                        result: None,
+                    }).await;
+                    return;
+                }
+            };
+
+            // Create progress channel
+            let (progress_tx, mut progress_rx) = mpsc::channel(100);
+
+            // Spawn progress handler
+            let req_id_for_progress = req_id.clone();
+            let mut event_tx = tx.clone();
+            tokio::spawn(async move {
+                while let Some(progress) = progress_rx.recv().await {
+                    let event = match progress {
+                        RequirementProgress::Started { req_id, total_tasks } => {
+                            ExecutionProgressEvent {
+                                event_type: "STARTED".to_string(),
+                                requirement_id: Some(req_id),
+                                task_id: None,
+                                task_title: None,
+                                task_number: None,
+                                total_tasks: Some(total_tasks as i32),
+                                sub_step: None,
+                                error: None,
+                                result: None,
+                            }
+                        }
+                        RequirementProgress::TaskStarted { task_id, task_title, task_number, total_tasks, .. } => {
+                            ExecutionProgressEvent {
+                                event_type: "TASK_STARTED".to_string(),
+                                requirement_id: None,
+                                task_id: Some(task_id),
+                                task_title: Some(task_title),
+                                task_number: Some(task_number as i32),
+                                total_tasks: Some(total_tasks as i32),
+                                sub_step: None,
+                                error: None,
+                                result: None,
+                            }
+                        }
+                        RequirementProgress::TaskSubStep { task_id, task_title, sub_step } => {
+                            ExecutionProgressEvent {
+                                event_type: "TASK_SUBSTEP".to_string(),
+                                requirement_id: None,
+                                task_id: Some(task_id),
+                                task_title: Some(task_title),
+                                task_number: None,
+                                total_tasks: None,
+                                sub_step: Some(sub_step.as_str().to_string()),
+                                error: None,
+                                result: None,
+                            }
+                        }
+                        RequirementProgress::TaskCompleted { task_id, task_title } => {
+                            ExecutionProgressEvent {
+                                event_type: "TASK_COMPLETED".to_string(),
+                                requirement_id: None,
+                                task_id: Some(task_id),
+                                task_title: Some(task_title),
+                                task_number: None,
+                                total_tasks: None,
+                                sub_step: None,
+                                error: None,
+                                result: None,
+                            }
+                        }
+                        RequirementProgress::TaskFailed { task_id, task_title, error } => {
+                            ExecutionProgressEvent {
+                                event_type: "TASK_FAILED".to_string(),
+                                requirement_id: None,
+                                task_id: Some(task_id),
+                                task_title: Some(task_title),
+                                task_number: None,
+                                total_tasks: None,
+                                sub_step: None,
+                                error: Some(error),
+                                result: None,
+                            }
+                        }
+                        RequirementProgress::Completed { result } => {
+                            ExecutionProgressEvent {
+                                event_type: "COMPLETED".to_string(),
+                                requirement_id: Some(result.requirement_id.clone()),
+                                task_id: None,
+                                task_title: None,
+                                task_number: None,
+                                total_tasks: None,
+                                sub_step: None,
+                                error: None,
+                                result: Some(requirement_execution_result_to_proto(result)),
+                            }
+                        }
+                        RequirementProgress::Failed { error } => {
+                            ExecutionProgressEvent {
+                                event_type: "FAILED".to_string(),
+                                requirement_id: Some(req_id_for_progress.clone()),
+                                task_id: None,
+                                task_title: None,
+                                task_number: None,
+                                total_tasks: None,
+                                sub_step: None,
+                                error: Some(error),
+                                result: None,
+                            }
+                        }
+                    };
+                    let _ = event_tx.send(event).await;
+                }
+            });
+
+            // Execute requirement
+            let _ = requirement_executor.execute_requirement_with_progress(&req_id, progress_tx).await;
+        });
+
+        // Convert receiver to streaming response
+        let stream = ReceiverStream::new(rx);
+        Ok(Response::new(Box::pin(stream) as _))
+    }
+
+    async fn clear_braingrid_cache(
+        &self,
+        request: Request<ClearBraingridCacheRequest>,
+    ) -> Result<Response<ClearBraingridCacheResponse>, Status> {
+        let req = request.into_inner();
+        let project_id = req.project_id.as_deref()
+            .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok().as_deref())
+            .unwrap_or("PROJ-14");
+
+        info!("ClearBraingridCache RPC called");
+
+        let client = if project_id != self.braingrid_client.project_id() {
+            Arc::new(BraingridClient::new(project_id))
+        } else {
+            Arc::clone(&self.braingrid_client)
+        };
+
+        client.clear_cache().await;
+        Ok(Response::new(ClearBraingridCacheResponse {
+            success: true,
+            error: None,
+        }))
+    }
+
+    async fn get_braingrid_cache_stats(
+        &self,
+        request: Request<GetBraingridCacheStatsRequest>,
+    ) -> Result<Response<GetBraingridCacheStatsResponse>, Status> {
+        let req = request.into_inner();
+        let project_id = req.project_id.as_deref()
+            .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok().as_deref())
+            .unwrap_or("PROJ-14");
+
+        info!("GetBraingridCacheStats RPC called");
+
+        let client = if project_id != self.braingrid_client.project_id() {
+            Arc::new(BraingridClient::new(project_id))
+        } else {
+            Arc::clone(&self.braingrid_client)
+        };
+
+        let stats = client.get_cache_stats().await;
+        Ok(Response::new(GetBraingridCacheStatsResponse {
+            hits: stats.hits as i64,
+            misses: stats.misses as i64,
+            size: stats.size as i32,
+            hit_rate: stats.hit_rate(),
+            error: None,
+        }))
+    }
+}
+
+// Conversion helper functions
+
+fn requirement_to_proto(req: BraingridRequirement) -> ProtoBraingridRequirement {
+    ProtoBraingridRequirement {
+        id: req.id,
+        name: req.name,
+        content: req.content,
+        status: format!("{:?}", req.status),
+        assigned_to: req.assigned_to,
+        tasks: req.tasks.into_iter().map(task_to_proto).collect(),
+    }
+}
+
+fn task_to_proto(task: BraingridTask) -> ProtoBraingridTask {
+    ProtoBraingridTask {
+        id: task.id,
+        short_id: task.short_id,
+        number: task.number,
+        title: task.title,
+        description: task.description,
+        status: format!("{:?}", task.status),
+        assigned_to: task.assigned_to,
+        dependencies: task.dependencies,
+    }
+}
+
+fn requirement_execution_result_to_proto(result: RequirementExecutionResult) -> ProtoRequirementExecutionResult {
+    ProtoRequirementExecutionResult {
+        requirement_id: result.requirement_id,
+        tasks_completed: result.tasks_completed as i32,
+        tasks_failed: result.tasks_failed as i32,
+        execution_time_secs: result.execution_time_secs as i64,
+        final_status: format!("{:?}", result.final_status),
+        success: result.success,
+    }
+}
+
+fn parse_task_status(status_str: &str) -> Result<TaskStatus, Status> {
+    match status_str.to_uppercase().as_str() {
+        "PLANNED" => Ok(TaskStatus::Planned),
+        "IN_PROGRESS" | "INPROGRESS" => Ok(TaskStatus::InProgress),
+        "COMPLETED" => Ok(TaskStatus::Completed),
+        "CANCELLED" | "CANCELED" => Ok(TaskStatus::Cancelled),
+        _ => Err(Status::invalid_argument(format!(
+            "Invalid task status: {}. Valid values: PLANNED, IN_PROGRESS, COMPLETED, CANCELLED",
+            status_str
+        ))),
+    }
+}
+
+fn parse_requirement_status(status_str: &str) -> Result<RequirementStatus, Status> {
+    match status_str.to_uppercase().as_str() {
+        "IDEA" => Ok(RequirementStatus::Idea),
+        "PLANNED" => Ok(RequirementStatus::Planned),
+        "IN_PROGRESS" | "INPROGRESS" => Ok(RequirementStatus::InProgress),
+        "REVIEW" => Ok(RequirementStatus::Review),
+        "COMPLETED" => Ok(RequirementStatus::Completed),
+        "CANCELLED" | "CANCELED" => Ok(RequirementStatus::Cancelled),
+        _ => Err(Status::invalid_argument(format!(
+            "Invalid requirement status: {}. Valid values: IDEA, PLANNED, IN_PROGRESS, REVIEW, COMPLETED, CANCELLED",
+            status_str
+        ))),
     }
 }
 

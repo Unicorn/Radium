@@ -56,7 +56,7 @@ pub struct BudgetStatus {
 }
 
 /// Budget errors.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum BudgetError {
     /// Budget limit exceeded.
     BudgetExceeded {

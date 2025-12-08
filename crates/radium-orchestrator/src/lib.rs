@@ -47,7 +47,7 @@ pub use registry::{AgentMetadata, AgentRegistry};
 pub use selector::{AgentSelector, ModelClass, SelectionCriteria, SelectionError};
 
 // Re-export orchestration error separately to avoid conflicts
-pub use error::OrchestrationError;
+pub use error::{CriticalError, OrchestrationError};
 
 /// Represents the context provided to an agent during its execution.
 #[derive(Clone)]

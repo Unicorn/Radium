@@ -9,13 +9,19 @@ pub mod behaviors;
 pub mod complete;
 pub mod control_flow;
 pub mod engine;
+pub mod execution_state;
 pub mod executor;
 pub mod failure;
+pub mod graph_visualizer;
 pub mod parallel;
+pub mod parallel_executor;
+pub mod progress_reporter;
 pub mod recovery;
 pub mod reassignment;
+pub mod report_generator;
 pub mod requirement_executor;
 pub mod service;
+pub mod state_persistence;
 pub mod step_tracking;
 pub mod template_discovery;
 pub mod templates;
@@ -50,7 +56,13 @@ pub use templates::{
     WorkflowStepType, WorkflowTemplate, WorkflowTemplateError,
 };
 pub use agent_selector::{AgentSelectionError, AgentSelector};
+pub use execution_state::{ExecutionState, TaskExecutionStatus, TaskResult};
+pub use graph_visualizer::GraphVisualizer;
+pub use parallel_executor::{ExecutionReport, ParallelExecutor};
+pub use progress_reporter::ProgressReporter;
+pub use report_generator::{CompletionReport, ReportGenerator};
 pub use requirement_executor::{
     RequirementExecutionError, RequirementExecutionResult, RequirementExecutor,
     RequirementProgress,
 };
+pub use state_persistence::{PersistedExecutionState, StatePersistence};
