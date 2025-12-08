@@ -7,7 +7,10 @@ use radium_core::analytics::{
     JsonExporter, MarkdownExporter, ReportFormatter, SessionAnalytics, SessionComparison,
     SessionReport, SessionStorage,
 };
-use radium_core::monitoring::{MonitoringService, ProviderCostBreakdown, TeamCostBreakdown, BudgetManager};
+use radium_core::monitoring::{
+    MonitoringService, ProviderCostBreakdown, TeamCostBreakdown, BudgetManager,
+    ModelTier, ProviderComparison, get_provider_comparison,
+};
 use radium_core::workspace::Workspace;
 use chrono::{DateTime, Utc};
 use std::fs;
@@ -95,6 +98,12 @@ pub enum StatsCommand {
         #[arg(long)]
         json: bool,
     },
+    /// Compare provider costs by tier
+    Compare {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 /// Execute stats command
@@ -149,6 +158,9 @@ pub async fn execute(cmd: StatsCommand) -> Result<()> {
         }
         StatsCommand::Teams { json } => {
             teams_command(&monitoring, json).await
+        }
+        StatsCommand::Compare { json } => {
+            compare_providers_command(&monitoring, json).await
         }
     }
 }
@@ -728,6 +740,77 @@ async fn teams_command(monitoring: &MonitoringService, json: bool) -> Result<()>
                 total_cost,
                 total_executions
             );
+        }
+    }
+
+    Ok(())
+}
+
+async fn compare_providers_command(monitoring: &MonitoringService, json: bool) -> Result<()> {
+    let comparisons = get_provider_comparison(monitoring)
+        .context("Failed to query provider comparison")?;
+
+    if json {
+        let json_data: Vec<serde_json::Value> = comparisons
+            .iter()
+            .map(|c| {
+                serde_json::json!({
+                    "tier": format!("{:?}", c.tier),
+                    "cheapest_provider": c.cheapest_provider,
+                    "potential_savings": c.potential_savings,
+                    "providers": c.providers.iter().map(|p| {
+                        serde_json::json!({
+                            "provider": p.provider,
+                            "model": p.model,
+                            "cost_per_1m_input": p.cost_per_1m_input,
+                            "cost_per_1m_output": p.cost_per_1m_output,
+                            "avg_cost_per_1m_tokens": p.avg_cost_per_1m_tokens,
+                        })
+                    }).collect::<Vec<_>>(),
+                })
+            })
+            .collect();
+        println!("{}", serde_json::to_string_pretty(&json_data)?);
+    } else {
+        println!("Provider Cost Comparison by Tier\n");
+        if comparisons.is_empty() {
+            println!("No provider comparison data available.");
+        } else {
+            for comparison in &comparisons {
+                let tier_name = match comparison.tier {
+                    ModelTier::Fast => "Fast Tier",
+                    ModelTier::Smart => "Smart Tier",
+                    ModelTier::Reasoning => "Reasoning Tier",
+                };
+                
+                println!("{}", tier_name);
+                println!("{}", "=".repeat(80));
+                println!(
+                    "{:<20} {:<25} {:<15} {:<15} {:<15}",
+                    "Provider", "Model", "Input ($/1M)", "Output ($/1M)", "Avg ($/1M)"
+                );
+                println!("{}", "-".repeat(80));
+                
+                for provider in &comparison.providers {
+                    let is_cheapest = provider.provider == comparison.cheapest_provider;
+                    let marker = if is_cheapest { "★ " } else { "  " };
+                    println!(
+                        "{}{:<18} {:<25} ${:<14.2} ${:<14.2} ${:<14.2}",
+                        marker,
+                        provider.provider,
+                        provider.model,
+                        provider.cost_per_1m_input,
+                        provider.cost_per_1m_output,
+                        provider.avg_cost_per_1m_tokens
+                    );
+                }
+                
+                if comparison.potential_savings > 0.0 {
+                    println!("\n💡 Potential savings: {:.1}% by switching to {}", 
+                        comparison.potential_savings, comparison.cheapest_provider);
+                }
+                println!();
+            }
         }
     }
 
