@@ -4,6 +4,7 @@
 //! knowledge, SOPs, and procedures. They are automatically loaded into agent
 //! context based on scope and tags.
 
+pub mod braingrid_storage;
 pub mod discovery;
 pub mod error;
 pub mod parser;

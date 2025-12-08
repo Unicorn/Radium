@@ -26,6 +26,14 @@ pub enum PlaybookCommand {
         #[arg(long)]
         tag: Option<String>,
 
+        /// List playbooks from Braingrid instead of local
+        #[arg(long)]
+        remote: bool,
+
+        /// Braingrid project ID (required for --remote)
+        #[arg(long)]
+        project_id: Option<String>,
+
         /// Output as JSON
         #[arg(long)]
         json: bool,
@@ -48,9 +56,28 @@ pub enum PlaybookCommand {
         /// Tag(s) to search for (comma-separated)
         tags: String,
 
+        /// Search playbooks from Braingrid instead of local
+        #[arg(long)]
+        remote: bool,
+
+        /// Braingrid project ID (required for --remote)
+        #[arg(long)]
+        project_id: Option<String>,
+
         /// Output as JSON
         #[arg(long)]
         json: bool,
+    },
+
+    /// Sync playbooks between local and Braingrid
+    Sync {
+        /// Braingrid project ID
+        #[arg(long)]
+        project_id: Option<String>,
+
+        /// Upload local playbooks to Braingrid (default: download only)
+        #[arg(long)]
+        upload: bool,
     },
 }
 

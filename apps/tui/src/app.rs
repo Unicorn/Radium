@@ -22,7 +22,7 @@ use crate::requirement_progress::{ActiveRequirement, ActiveRequirementProgress};
 use crate::requirement_executor::RequirementExecutor as TuiRequirementExecutor;
 use crate::progress_channel::ExecutionResult;
 use crate::setup::SetupWizard;
-use crate::state::{CheckpointInterruptState, CommandSuggestion, CommandSuggestionState, ExecutionHistory, ExecutionRecord, SuggestionSource, WorkflowUIState};
+use crate::state::{CheckpointBrowserState, CheckpointInterruptState, CommandSuggestion, CommandSuggestionState, ExecutionHistory, ExecutionRecord, SuggestionSource, WorkflowUIState};
 use crate::theme::RadiumTheme;
 use crate::views::PromptData;
 use crate::workspace::WorkspaceStatus;
@@ -75,6 +75,10 @@ pub struct App {
     pub theme: RadiumTheme,
     /// Whether to show keyboard shortcuts overlay
     pub show_shortcuts: bool,
+    /// Whether to show checkpoint browser
+    pub show_checkpoint_browser: bool,
+    /// Checkpoint browser state
+    pub checkpoint_browser_state: Option<CheckpointBrowserState>,
     /// TUI configuration
     pub config: TuiConfig,
     /// Whether orchestration is currently running (for cancellation support)
@@ -267,6 +271,8 @@ impl App {
             mcp_slash_registry: SlashCommandRegistry::new(),
             theme,
             show_shortcuts: false,
+            show_checkpoint_browser: false,
+            checkpoint_browser_state: None,
             config,
             orchestration_running: false,
             toast_manager: ToastManager::new(),
@@ -604,6 +610,22 @@ impl App {
                     }
                 }
                 
+                // Handle Ctrl+B to open checkpoint browser
+                if modifiers.contains(KeyModifiers::CONTROL) && key == KeyCode::Char('b') {
+                    if !self.show_checkpoint_browser {
+                        // Initialize and show checkpoint browser
+                        let mut browser_state = CheckpointBrowserState::new();
+                        if let Err(e) = browser_state.initialize() {
+                            browser_state.set_error(e);
+                        }
+                        self.checkpoint_browser_state = Some(browser_state);
+                        self.show_checkpoint_browser = true;
+                    } else {
+                        // Hide checkpoint browser
+                        self.show_checkpoint_browser = false;
+                    }
+                    return Ok(());
+                }
                 // Handle Ctrl+$ to open cost dashboard
                 if key == KeyCode::Char('$') && modifiers.contains(KeyModifiers::CONTROL) {
                     self.show_costs_dashboard().await?;

@@ -1,5 +1,6 @@
 //! Model router for Smart/Eco tier selection.
 
+use super::ab_testing::{ABTestGroup, ABTestSampler};
 use super::complexity::ComplexityEstimator;
 use super::cost_tracker::CostTracker;
 use super::types::{ComplexityScore, ComplexityWeights, RoutingTier};
@@ -44,6 +45,8 @@ pub struct ModelRouter {
     auto_route: bool,
     /// Cost tracker for per-tier usage tracking.
     cost_tracker: Arc<CostTracker>,
+    /// Optional A/B test sampler for routing validation.
+    ab_test_sampler: Option<Arc<ABTestSampler>>,
 }
 
 impl ModelRouter {
@@ -65,6 +68,7 @@ impl ModelRouter {
             estimator: ComplexityEstimator::new(),
             auto_route: true,
             cost_tracker: Arc::new(CostTracker::new()),
+            ab_test_sampler: None,
         }
     }
 
@@ -83,7 +87,17 @@ impl ModelRouter {
             estimator: ComplexityEstimator::with_weights(weights),
             auto_route: true,
             cost_tracker: Arc::new(CostTracker::new()),
+            ab_test_sampler: None,
         }
+    }
+    
+    /// Sets the A/B test sampler for routing validation.
+    ///
+    /// # Arguments
+    /// * `sampler` - A/B test sampler instance
+    pub fn with_ab_testing(mut self, sampler: ABTestSampler) -> Self {
+        self.ab_test_sampler = Some(Arc::new(sampler));
+        self
     }
     
     /// Creates a new model router from model specification strings.
@@ -157,6 +171,7 @@ impl ModelRouter {
                             tier: RoutingTier::Smart,
                             decision_type: DecisionType::Manual,
                             complexity_score: None,
+                            ab_test_group: None,
                         },
                     );
                 }
@@ -168,6 +183,7 @@ impl ModelRouter {
                             tier: RoutingTier::Eco,
                             decision_type: DecisionType::Manual,
                             complexity_score: None,
+                            ab_test_group: None,
                         },
                     );
                 }
@@ -187,6 +203,7 @@ impl ModelRouter {
                     tier: RoutingTier::Smart,
                     decision_type: DecisionType::Fallback,
                     complexity_score: None,
+                    ab_test_group: None,
                 },
             );
         }
@@ -210,16 +227,34 @@ impl ModelRouter {
         };
 
         // Route based on complexity threshold
-        let tier = if complexity.score >= self.threshold {
+        let mut tier = if complexity.score >= self.threshold {
             RoutingTier::Smart
         } else {
             RoutingTier::Eco
+        };
+
+        // Handle A/B testing: invert routing for Test group
+        let ab_test_group = if let Some(ref sampler) = self.ab_test_sampler {
+            let group = sampler.assign_group();
+            if group == ABTestGroup::Test {
+                // Invert routing decision for test group
+                tier = match tier {
+                    RoutingTier::Smart => RoutingTier::Eco,
+                    RoutingTier::Eco => RoutingTier::Smart,
+                    RoutingTier::Auto => tier, // Should not happen
+                };
+                debug!("A/B test: Test group assignment, inverted routing");
+            }
+            Some(group)
+        } else {
+            None
         };
 
         debug!(
             complexity_score = complexity.score,
             threshold = self.threshold,
             selected_tier = ?tier,
+            ab_test_group = ?ab_test_group,
             "Auto-routing based on complexity"
         );
 
@@ -235,6 +270,7 @@ impl ModelRouter {
                 tier,
                 decision_type: DecisionType::Auto,
                 complexity_score: Some(complexity.score),
+                ab_test_group,
             },
         )
     }
@@ -317,6 +353,8 @@ pub struct RoutingDecision {
     pub decision_type: DecisionType,
     /// Complexity score if available.
     pub complexity_score: Option<f64>,
+    /// A/B test group assignment if A/B testing is enabled.
+    pub ab_test_group: Option<ABTestGroup>,
 }
 
 /// Type of routing decision.

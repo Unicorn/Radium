@@ -17,7 +17,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use radium_tui::app::App;
 use radium_tui::commands::DisplayContext;
 use radium_tui::components::{render_dialog, render_title_bar, render_toasts, render_toasts_with_areas, AppMode, StatusFooter};
-use radium_tui::views::{render_orchestrator_view, render_prompt, render_setup_wizard, render_shortcuts, render_splash, render_start_page, render_workflow, GlobalLayout};
+use radium_tui::views::{render_checkpoint_browser, render_orchestrator_view, render_prompt, render_setup_wizard, render_shortcuts, render_splash, render_start_page, render_workflow, GlobalLayout};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -361,7 +361,11 @@ async fn main() -> Result<()> {
             // The actual animation will be applied when the table is rendered
 
             // Render main content area (context-aware)
-            if app.show_shortcuts {
+            if app.show_checkpoint_browser {
+                if let Some(ref browser_state) = app.checkpoint_browser_state {
+                    render_checkpoint_browser(frame, main_area, browser_state);
+                }
+            } else if app.show_shortcuts {
                 render_shortcuts(frame, main_area);
             } else if let Some(wizard) = &app.setup_wizard {
                 render_setup_wizard(frame, main_area, wizard);

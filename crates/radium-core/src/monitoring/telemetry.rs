@@ -92,6 +92,9 @@ pub struct TelemetryRecord {
     
     /// Complexity score (0-100) if routing was used.
     pub complexity_score: Option<f64>,
+    
+    /// A/B test group assignment ("control" | "test") if A/B testing was used.
+    pub ab_test_group: Option<String>,
 }
 
 impl TelemetryRecord {

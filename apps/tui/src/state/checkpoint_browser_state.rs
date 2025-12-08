@@ -72,7 +72,22 @@ impl CheckpointBrowserState {
     pub fn load_diff_preview(&mut self) {
         if let Some(ref cm) = self.checkpoint_manager {
             if let Some(checkpoint) = self.checkpoints.get(self.selected_index) {
-                self.diff_preview = cm.diff_checkpoints(&checkpoint.id, "HEAD").ok();
+                // Compare checkpoint to current state
+                // We want to see what changed FROM checkpoint TO current (HEAD)
+                // diff_checkpoints(from_id, to_id) shows changes from from_id to to_id
+                // So we use checkpoint.id as from_id and try to find current state
+                // For now, compare to the most recent checkpoint, or use a workaround
+                if !self.checkpoints.is_empty() {
+                    // Compare to the most recent checkpoint (index 0 after sorting)
+                    let most_recent = &self.checkpoints[0];
+                    if most_recent.id != checkpoint.id {
+                        // Compare checkpoint to most recent
+                        self.diff_preview = cm.diff_checkpoints(&checkpoint.id, &most_recent.id).ok();
+                    } else {
+                        // This is the most recent checkpoint, no diff
+                        self.diff_preview = None;
+                    }
+                }
             }
         }
     }

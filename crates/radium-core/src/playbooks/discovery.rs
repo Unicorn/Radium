@@ -155,6 +155,35 @@ impl PlaybookDiscovery {
 
         Ok(matching)
     }
+
+    /// Discover playbooks from Braingrid.
+    ///
+    /// # Arguments
+    /// * `project_id` - Braingrid project ID
+    ///
+    /// # Errors
+    ///
+    /// Returns error if Braingrid discovery fails.
+    ///
+    /// # Note
+    ///
+    /// This is a placeholder implementation. Actual implementation depends on
+    /// Braingrid API support for playbooks.
+    pub async fn discover_from_braingrid(
+        project_id: &str,
+    ) -> Result<HashMap<String, Playbook>> {
+        use crate::playbooks::braingrid_storage::BraingridPlaybookStorage;
+
+        let storage = BraingridPlaybookStorage::new(project_id);
+        let playbooks = storage.list_playbooks().await?;
+
+        let mut result = HashMap::new();
+        for playbook in playbooks {
+            result.insert(playbook.uri.clone(), playbook);
+        }
+
+        Ok(result)
+    }
 }
 
 #[cfg(test)]
