@@ -2490,6 +2490,104 @@ impl App {
 
         Ok(())
     }
+
+    /// Polls task list from gRPC server and updates task list state.
+    /// This method should be called periodically (every 500ms) when workflow is active.
+    pub async fn poll_task_list(&mut self) -> Result<()> {
+        // Check if 500ms has elapsed since last poll
+        let elapsed = self.last_task_poll.elapsed();
+        if elapsed.as_millis() < 500 {
+            return Ok(());
+        }
+
+        // Try to connect to gRPC server and poll tasks
+        // For now, we'll attempt to connect but handle errors gracefully
+        // The actual connection will be established when needed
+        match self.try_poll_tasks_from_grpc().await {
+            Ok(tasks) => {
+                // Update task list state
+                if self.task_list_state.is_none() {
+                    self.task_list_state = Some(TaskListState::new());
+                }
+                
+                if let Some(ref mut task_state) = self.task_list_state {
+                    // Clear and rebuild task list
+                    task_state.clear();
+                    for (idx, task) in tasks.iter().enumerate() {
+                        task_state.add_task(
+                            task.id.clone(),
+                            task.name.clone(),
+                            task.state.clone(),
+                            task.agent_id.clone(),
+                            idx,
+                        );
+                    }
+                }
+                
+                self.last_task_poll = Instant::now();
+            }
+            Err(e) => {
+                // Log error to orchestrator panel but don't fail
+                self.orchestrator_panel.append_log(format!(
+                    "[Orchestrator] Error polling tasks: {}. Retrying in 2s...",
+                    e
+                ));
+                // Retry after 2s backoff
+                self.last_task_poll = Instant::now() - std::time::Duration::from_millis(1500);
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Attempts to poll tasks from gRPC server.
+    async fn try_poll_tasks_from_grpc(&self) -> Result<Vec<radium_core::models::task::Task>> {
+        use radium_core::radium_client::RadiumClientManager;
+        use radium_core::proto::{ListTasksRequest, ListTasksResponse};
+        use tonic::Request;
+        use radium_core::models::task::Task;
+
+        // Try to get a gRPC client
+        let mut client_manager = RadiumClientManager::new();
+        let mut client = client_manager.connect().await
+            .map_err(|e| anyhow::anyhow!("Failed to connect to gRPC server: {}", e))?;
+
+        // Call ListTasks RPC
+        let request = Request::new(ListTasksRequest {});
+        let response = client.list_tasks(request).await
+            .map_err(|e| anyhow::anyhow!("gRPC call failed: {}", e))?;
+
+        let proto_tasks = response.into_inner().tasks;
+
+        // Convert proto tasks to Task models
+        let tasks: Result<Vec<Task>, _> = proto_tasks
+            .into_iter()
+            .map(|proto_task| Task::try_from(proto_task))
+            .collect();
+
+        tasks.map_err(|e| anyhow::anyhow!("Failed to parse tasks: {}", e))
+    }
+
+    /// Polls orchestrator logs from monitoring service.
+    /// This method should be called periodically (every 500ms) when orchestrator is active.
+    pub async fn poll_orchestrator_logs(&mut self) -> Result<()> {
+        // Check if 500ms has elapsed since last poll
+        let elapsed = self.last_log_poll.elapsed();
+        if elapsed.as_millis() < 500 {
+            return Ok(());
+        }
+
+        // For now, we'll add a placeholder that can be extended later
+        // The orchestrator logs can come from monitoring service or a new gRPC method
+        // For now, we'll just update the timestamp to prevent excessive polling
+        self.last_log_poll = Instant::now();
+
+        // TODO: Implement actual orchestrator log polling
+        // This could query monitoring service for logs with agent_type="orchestrator"
+        // or use a new StreamOrchestratorLogs RPC method
+
+        Ok(())
+    }
 }
 
 /// Simple fuzzy match helper (basic implementation).
