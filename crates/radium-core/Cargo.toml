@@ -143,3 +143,7 @@ harness = false
 [[bench]]
 name = "context_files_bench"
 harness = false
+
+[[bench]]
+name = "privacy_bench"
+harness = false
