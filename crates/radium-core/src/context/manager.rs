@@ -8,12 +8,15 @@ use super::error::Result;
 use super::files::ContextFileLoader;
 use super::injection::{ContextInjector, InjectionDirective};
 use super::metrics::ContextMetrics;
+use super::playbook_loader::PlaybookLoader;
 use super::sources::{
     BraingridReader, HttpReader, JiraReader, LocalFileReader, SourceRegistry,
 };
 use crate::learning::LearningStore;
 use crate::memory::MemoryStore;
+use crate::playbooks::registry::PlaybookRegistry;
 use crate::workspace::{PlanDiscovery, RequirementId, Workspace};
+use std::sync::Arc;
 
 /// Context manager for agent execution.
 ///
@@ -49,6 +52,9 @@ pub struct ContextManager {
 
     /// Optional metrics collector (enabled when metrics are needed).
     metrics: Option<ContextMetrics>,
+
+    /// Optional playbook registry for organizational knowledge.
+    playbook_registry: Option<Arc<PlaybookRegistry>>,
 }
 
 impl ContextManager {
@@ -77,6 +83,7 @@ impl ContextManager {
             context_file_cache: None,
             source_registry,
             metrics: None,
+            playbook_registry: None,
         }
     }
 
@@ -118,6 +125,7 @@ impl ContextManager {
             context_file_cache: None,
             source_registry,
             metrics: None,
+            playbook_registry: None,
         })
     }
 
@@ -230,6 +238,36 @@ impl ContextManager {
 
         let context = learning_store.as_context(max_per_section);
         if context.is_empty() { None } else { Some(format!("{}\n", context)) }
+    }
+
+    /// Gathers playbook context from organizational knowledge.
+    ///
+    /// # Arguments
+    /// * `requirement_id` - Optional requirement ID to determine scope
+    ///
+    /// # Returns
+    /// Playbook context as a formatted string, or None if no playbook registry is available
+    pub fn gather_playbook_context(&self, requirement_id: Option<&RequirementId>) -> Option<String> {
+        let Some(ref registry) = self.playbook_registry else {
+            return None;
+        };
+
+        // Determine scope: "requirement" if requirement_id is provided, otherwise "task"
+        let scope = if requirement_id.is_some() {
+            "requirement"
+        } else {
+            "task"
+        };
+
+        let loader = PlaybookLoader::new(Arc::clone(registry));
+
+        // Load playbooks for this scope (no tag filtering for now)
+        match loader.load_for_scope(scope, None) {
+            Ok(playbooks) if !playbooks.is_empty() => {
+                Some(PlaybookLoader::format_playbooks(&playbooks))
+            }
+            Ok(_) | Err(_) => None,
+        }
     }
 
     /// Processes injection directives and returns injected content.
@@ -380,6 +418,12 @@ impl ContextManager {
             context.push_str("\n---\n\n");
         }
 
+        // Add playbook context if available
+        if let Some(playbook_ctx) = self.gather_playbook_context(requirement_id.as_ref()) {
+            context.push_str(&playbook_ctx);
+            context.push_str("\n---\n\n");
+        }
+
         // Add memory context for this agent if available
         if let Ok(Some(mem_ctx)) = self.gather_memory_context(&agent_name) {
             context.push_str(&mem_ctx);
@@ -441,6 +485,17 @@ impl ContextManager {
     /// Sets the learning store.
     pub fn set_learning_store(&mut self, learning_store: LearningStore) {
         self.learning_store = Some(learning_store);
+    }
+
+    /// Sets the playbook registry.
+    pub fn with_playbook_registry(mut self, registry: Arc<PlaybookRegistry>) -> Self {
+        self.playbook_registry = Some(registry);
+        self
+    }
+
+    /// Returns a reference to the playbook registry if initialized.
+    pub fn playbook_registry(&self) -> Option<&Arc<PlaybookRegistry>> {
+        self.playbook_registry.as_ref()
     }
 
     /// Returns a reference to the source registry.

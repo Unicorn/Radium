@@ -555,6 +555,85 @@ impl CheckpointManager {
         Ok(())
     }
 
+    /// Restores a single file from a checkpoint.
+    ///
+    /// # Arguments
+    /// * `checkpoint_id` - Checkpoint identifier to restore from
+    /// * `file_path` - Path to the file to restore (relative to workspace root)
+    ///
+    /// # Returns
+    /// `true` if file was restored, `false` if file was already up-to-date
+    ///
+    /// # Errors
+    /// Returns error if restore fails, file not found in checkpoint, or file path is invalid
+    pub fn restore_file_from_checkpoint(
+        &self,
+        checkpoint_id: &str,
+        file_path: &str,
+    ) -> Result<bool> {
+        // Verify checkpoint exists
+        let checkpoint = self.get_checkpoint(checkpoint_id)?;
+
+        // Normalize file path (remove leading slash if present, handle relative paths)
+        let normalized_path = file_path.trim_start_matches('/');
+        let file_path_buf = PathBuf::from(normalized_path);
+
+        // Ensure file path is within workspace (security check)
+        let full_path = self.workspace_root.join(&file_path_buf);
+        if !full_path.starts_with(&self.workspace_root) {
+            return Err(CheckpointError::RestoreFailed(format!(
+                "File path outside workspace: {}",
+                file_path
+            )));
+        }
+
+        // Check if file exists in checkpoint using git show
+        let output = Command::new("git")
+            .args(["show", &format!("{}:{}", checkpoint.commit_hash, normalized_path)])
+            .current_dir(&self.workspace_root)
+            .output()?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            if stderr.contains("does not exist") || stderr.contains("fatal:") {
+                return Err(CheckpointError::CheckpointNotFound(format!(
+                    "File '{}' not found in checkpoint '{}'",
+                    file_path, checkpoint_id
+                )));
+            }
+            return Err(CheckpointError::GitCommandFailed(stderr.to_string()));
+        }
+
+        // Extract file content from git show output
+        let file_content = output.stdout;
+
+        // Check if target file exists and compare content
+        let target_exists = full_path.exists();
+        let needs_restore = if target_exists {
+            // Read current file content
+            match fs::read(&full_path) {
+                Ok(current_content) => current_content != file_content,
+                Err(_) => true, // If we can't read it, assume it needs restore
+            }
+        } else {
+            true // File doesn't exist, needs to be created
+        };
+
+        if !needs_restore {
+            return Ok(false); // File already up-to-date
+        }
+
+        // Create parent directories if needed
+        if let Some(parent) = full_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+
+        // Write extracted content to file
+        fs::write(&full_path, file_content)?;
+
+        Ok(true) // File was restored
+    }
+
     /// Deletes a checkpoint.
     ///
     /// # Arguments

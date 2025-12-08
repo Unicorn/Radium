@@ -2,8 +2,8 @@
 
 use super::complexity::ComplexityEstimator;
 use super::cost_tracker::CostTracker;
-use super::types::{ComplexityScore, RoutingTier};
-use radium_models::ModelConfig;
+use super::types::{ComplexityScore, ComplexityWeights, RoutingTier};
+use radium_models::{ModelConfig, ModelFactory, ModelType};
 use std::sync::Arc;
 use tracing::{debug, warn};
 
@@ -51,7 +51,7 @@ impl ModelRouter {
         smart_model: ModelConfig,
         eco_model: ModelConfig,
         threshold: Option<f64>,
-        weights: super::types::ComplexityWeights,
+        weights: ComplexityWeights,
     ) -> Self {
         Self {
             smart_model,
@@ -61,6 +61,64 @@ impl ModelRouter {
             auto_route: true,
             cost_tracker: Arc::new(CostTracker::new()),
         }
+    }
+    
+    /// Creates a new model router from RoutingConfig.
+    ///
+    /// Loads configuration from TOML file or uses defaults, then creates
+    /// ModelRouter with the specified settings.
+    ///
+    /// # Errors
+    /// Returns error if configuration loading or model parsing fails.
+    pub fn from_config() -> Result<Self, String> {
+        use radium_core::config::routing::RoutingConfig;
+        
+        let config = RoutingConfig::load().map_err(|e| format!("Failed to load routing config: {}", e))?;
+        
+        // Parse model specifications
+        let (smart_engine, smart_model_id) = config.parse_model_spec(&config.smart_model)
+            .map_err(|e| format!("Failed to parse smart_model '{}': {}", config.smart_model, e))?;
+        let (eco_engine, eco_model_id) = config.parse_model_spec(&config.eco_model)
+            .map_err(|e| format!("Failed to parse eco_model '{}': {}", config.eco_model, e))?;
+        
+        // Convert engine strings to ModelType
+        let smart_type = match smart_engine.as_str() {
+            "claude" => ModelType::Claude,
+            "openai" => ModelType::OpenAI,
+            "gemini" => ModelType::Gemini,
+            "mock" => ModelType::Mock,
+            _ => return Err(format!("Unsupported engine: {}", smart_engine)),
+        };
+        
+        let eco_type = match eco_engine.as_str() {
+            "claude" => ModelType::Claude,
+            "openai" => ModelType::OpenAI,
+            "gemini" => ModelType::Gemini,
+            "mock" => ModelType::Mock,
+            _ => return Err(format!("Unsupported engine: {}", eco_engine)),
+        };
+        
+        let smart_config = ModelConfig::new(smart_type, smart_model_id);
+        let eco_config = ModelConfig::new(eco_type, eco_model_id);
+        
+        // Convert config weights to ComplexityWeights
+        let weights = ComplexityWeights {
+            token_count: config.weights.token_count,
+            task_type: config.weights.task_type,
+            reasoning: config.weights.reasoning,
+            context: config.weights.context,
+        };
+        
+        let mut router = Self::with_weights(
+            smart_config,
+            eco_config,
+            Some(config.complexity_threshold),
+            weights,
+        );
+        
+        router.auto_route = config.auto_route;
+        
+        Ok(router)
     }
 
     /// Selects the appropriate model based on complexity or override.

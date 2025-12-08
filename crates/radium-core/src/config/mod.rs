@@ -1,6 +1,7 @@
 //! Configuration module for Radium Core.
 
 pub mod cli_config;
+pub mod routing;
 
 use std::net::SocketAddr;
 

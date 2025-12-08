@@ -19,6 +19,9 @@ pub enum CheckpointCommand {
     Restore {
         /// Checkpoint ID to restore
         checkpoint_id: String,
+        /// Optional file path to restore (if provided, only this file will be restored)
+        #[arg(long)]
+        file: Option<String>,
     },
     /// Clean up old checkpoints
     Cleanup {
@@ -67,8 +70,8 @@ pub async fn execute(cmd: CheckpointCommand) -> Result<()> {
 
     match cmd {
         CheckpointCommand::List { json } => list_command(&checkpoint_manager, json).await,
-        CheckpointCommand::Restore { checkpoint_id } => {
-            restore_command(&checkpoint_manager, &checkpoint_id).await
+        CheckpointCommand::Restore { checkpoint_id, file } => {
+            restore_command(&checkpoint_manager, &checkpoint_id, file.as_deref()).await
         }
         CheckpointCommand::Cleanup { keep } => cleanup_command(&checkpoint_manager, keep).await,
         CheckpointCommand::Info => info_command(&checkpoint_manager).await,
@@ -205,18 +208,39 @@ fn format_number(n: u64) -> String {
 async fn restore_command(
     checkpoint_manager: &CheckpointManager,
     checkpoint_id: &str,
+    file_path: Option<&str>,
 ) -> Result<()> {
-    println!("Restoring checkpoint: {}", checkpoint_id);
+    if let Some(file) = file_path {
+        // Selective file restore
+        println!("Restoring file '{}' from checkpoint: {}", file, checkpoint_id);
 
-    checkpoint_manager
-        .restore_checkpoint(checkpoint_id)
-        .context(format!("Failed to restore checkpoint: {}", checkpoint_id))?;
+        match checkpoint_manager.restore_file_from_checkpoint(checkpoint_id, file) {
+            Ok(true) => {
+                println!("✓ File restored successfully.");
+                println!("  File '{}' has been restored to its state in checkpoint '{}'.", file, checkpoint_id);
+            }
+            Ok(false) => {
+                println!("✓ File already up-to-date.");
+                println!("  File '{}' matches the checkpoint version, no changes needed.", file);
+            }
+            Err(e) => {
+                return Err(anyhow::anyhow!("Failed to restore file: {}", e));
+            }
+        }
+    } else {
+        // Full workspace restore
+        println!("Restoring checkpoint: {}", checkpoint_id);
 
-    println!("✓ Checkpoint restored successfully.");
-    println!("  Your workspace has been restored to the state at this checkpoint.");
-    println!(
-        "  Note: You may need to re-propose tool calls if you were in the middle of agent execution."
-    );
+        checkpoint_manager
+            .restore_checkpoint(checkpoint_id)
+            .context(format!("Failed to restore checkpoint: {}", checkpoint_id))?;
+
+        println!("✓ Checkpoint restored successfully.");
+        println!("  Your workspace has been restored to the state at this checkpoint.");
+        println!(
+            "  Note: You may need to re-propose tool calls if you were in the middle of agent execution."
+        );
+    }
 
     Ok(())
 }

@@ -19,6 +19,7 @@ use commands::{
     // All commands enabled!
     templates, complete, autonomous, vibecheck, chat, mcp, custom, braingrid,
 };
+use commands::requirement::RequirementCommand;
 
 /// Radium CLI - Next-generation agentic orchestration tool
 ///

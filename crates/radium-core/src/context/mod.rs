@@ -51,6 +51,7 @@ mod history;
 mod injection;
 mod manager;
 pub mod metrics;
+mod playbook_loader;
 pub mod sources;
 mod templates;
 mod validator;
