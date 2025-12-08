@@ -1,0 +1,14 @@
+{
+  "name": "radium-nvim",
+  "version": "1.0.0",
+  "description": "Neovim plugin for seamless Radium editor integration",
+  "author": "Radium Team",
+  "components": {
+    "prompts": [],
+    "mcp_servers": [],
+    "commands": ["commands/*.toml"],
+    "hooks": ["hooks/*.toml"]
+  },
+  "dependencies": []
+}
+
