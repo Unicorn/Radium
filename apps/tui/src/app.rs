@@ -22,7 +22,7 @@ use crate::requirement_progress::{ActiveRequirement, ActiveRequirementProgress};
 use crate::requirement_executor::RequirementExecutor as TuiRequirementExecutor;
 use crate::progress_channel::ExecutionResult;
 use crate::setup::SetupWizard;
-use crate::state::{CheckpointBrowserState, CheckpointInterruptState, CommandSuggestion, CommandSuggestionState, ExecutionHistory, ExecutionRecord, SuggestionSource, WorkflowUIState};
+use crate::state::{CheckpointBrowserState, CheckpointInterruptState, CommandSuggestion, CommandSuggestionState, ExecutionHistory, ExecutionRecord, PrivacyState, SuggestionSource, WorkflowUIState};
 use crate::theme::RadiumTheme;
 use crate::views::PromptData;
 use crate::workspace::WorkspaceStatus;
@@ -134,6 +134,8 @@ pub struct App {
     pub current_model_id: Option<String>,
     /// Model filter state for capability filtering
     pub model_filter: ModelFilter,
+    /// Privacy state for sensitive data redaction
+    pub privacy_state: PrivacyState,
 }
 
 /// Model filter for capability-based filtering
@@ -304,6 +306,7 @@ impl App {
             budget_analytics_view: None,
             current_model_id,
             model_filter: ModelFilter::default(),
+            privacy_state: PrivacyState::default(),
         };
 
         // Check for resumable executions on startup
@@ -626,6 +629,14 @@ impl App {
                     }
                     return Ok(());
                 }
+                // Handle Ctrl+P to toggle privacy mode
+                if modifiers.contains(KeyModifiers::CONTROL) && key == KeyCode::Char('p') {
+                    self.privacy_state.toggle();
+                    let status = if self.privacy_state.enabled { "ON" } else { "OFF" };
+                    self.toast_manager.info(format!("Privacy mode: {}", status));
+                    return Ok(());
+                }
+
                 // Handle Ctrl+$ to open cost dashboard
                 if key == KeyCode::Char('$') && modifiers.contains(KeyModifiers::CONTROL) {
                     self.show_costs_dashboard().await?;

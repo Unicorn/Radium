@@ -1,7 +1,7 @@
 //! Status footer component for displaying overall status and help text.
 
 use crate::commands::DisplayContext;
-use crate::state::WorkflowStatus;
+use crate::state::{PrivacyState, WorkflowStatus};
 use ratatui::{
     prelude::*,
     widgets::{Block, Borders, Paragraph},
@@ -34,7 +34,7 @@ impl AppMode {
     /// Returns keyboard shortcuts for the mode.
     pub fn shortcuts(&self) -> &'static str {
         match self {
-            Self::Prompt => "[Ctrl+P] Command Palette | [Ctrl+C] Quit | [?] Help",
+            Self::Prompt => "[Ctrl+P] Privacy | [Ctrl+C] Quit | [?] Help",
             Self::Workflow => "[↑↓] Navigate | [Enter] Select | [Esc] Close | [Ctrl+C] Cancel",
             Self::Chat => "[Enter] Send | [↑↓] Scroll | [Esc] Back | [Ctrl+C] Quit",
             Self::History => "[↑↓] Navigate | [Enter] View | [Esc] Back | [Ctrl+C] Quit",
@@ -55,6 +55,7 @@ impl StatusFooter {
         mode: AppMode,
         context: Option<&DisplayContext>,
         selection_info: Option<&str>,
+        privacy_state: Option<&PrivacyState>,
     ) {
         let theme = crate::theme::get_theme();
         let chunks = Layout::default()
@@ -62,6 +63,7 @@ impl StatusFooter {
             .constraints([
                 Constraint::Length(12), // Mode
                 Constraint::Min(10),    // Selection info
+                Constraint::Length(25), // Privacy indicator
                 Constraint::Percentage(50), // Shortcuts
             ])
             .split(area);
@@ -106,6 +108,33 @@ impl StatusFooter {
             );
         frame.render_widget(info_widget, chunks[1]);
 
+        // Privacy indicator
+        let privacy_text = if let Some(privacy) = privacy_state {
+            if privacy.enabled {
+                if privacy.redaction_count > 0 {
+                    format!("Privacy: ON ({} redactions)", privacy.redaction_count)
+                } else {
+                    "Privacy: ON".to_string()
+                }
+            } else {
+                "Privacy: OFF".to_string()
+            }
+        } else {
+            "Privacy: OFF".to_string()
+        };
+        let privacy_color = privacy_state
+            .map(|p| if p.enabled { Color::Green } else { Color::DarkGray })
+            .unwrap_or(Color::DarkGray);
+        let privacy_widget = Paragraph::new(privacy_text)
+            .style(Style::default().fg(privacy_color).add_modifier(Modifier::BOLD))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(theme.border))
+                    .style(Style::default().bg(theme.bg_panel)),
+            );
+        frame.render_widget(privacy_widget, chunks[2]);
+
         // Keyboard shortcuts
         let shortcuts_text = mode.shortcuts();
         let shortcuts_widget = Paragraph::new(shortcuts_text)
@@ -117,7 +146,7 @@ impl StatusFooter {
                     .border_style(Style::default().fg(theme.border))
                     .style(Style::default().bg(theme.bg_panel)),
             );
-        frame.render_widget(shortcuts_widget, chunks[2]);
+        frame.render_widget(shortcuts_widget, chunks[3]);
     }
 
     /// Renders the status footer (legacy method for backward compatibility).
@@ -315,6 +344,7 @@ impl StatusFooter {
         mode: AppMode,
         context: Option<&DisplayContext>,
         model_id: Option<&str>,
+        privacy_state: Option<&PrivacyState>,
     ) {
         let theme = crate::theme::get_theme();
         
@@ -323,21 +353,23 @@ impl StatusFooter {
         
         // Adjust layout constraints based on whether we show the input
         let chunks = if is_chat_context {
-            // In Chat context: only context info and shortcuts (no input)
+            // In Chat context: context info, privacy, shortcuts (no input)
             Layout::default()
                 .direction(Direction::Horizontal)
                 .constraints([
                     Constraint::Min(15),        // Context info
+                    Constraint::Length(25),    // Privacy indicator
                     Constraint::Min(30),       // Keyboard shortcuts
                 ])
                 .split(area)
         } else {
-            // Other contexts: context info, input prompt, shortcuts
+            // Other contexts: context info, input prompt, privacy, shortcuts
             Layout::default()
                 .direction(Direction::Horizontal)
                 .constraints([
                     Constraint::Min(15),        // Context info
                     Constraint::Fill(1),       // Input prompt (flexible, centered)
+                    Constraint::Length(25),    // Privacy indicator
                     Constraint::Min(30),       // Keyboard shortcuts
                 ])
                 .split(area)
@@ -401,14 +433,42 @@ impl StatusFooter {
         frame.render_widget(context_widget, chunks[0]);
 
         // Center: Input prompt (only if not in Chat context)
+        let input_index = if is_chat_context { 0 } else { 1 };
         if !is_chat_context {
             // Render TextArea widget directly (it implements Widget)
-            frame.render_widget(input.clone(), chunks[1]);
+            frame.render_widget(input.clone(), chunks[input_index]);
         }
+
+        // Privacy indicator
+        let privacy_index = if is_chat_context { 1 } else { 2 };
+        let privacy_text = if let Some(privacy) = privacy_state {
+            if privacy.enabled {
+                if privacy.redaction_count > 0 {
+                    format!("Privacy: ON ({})", privacy.redaction_count)
+                } else {
+                    "Privacy: ON".to_string()
+                }
+            } else {
+                "Privacy: OFF".to_string()
+            }
+        } else {
+            "Privacy: OFF".to_string()
+        };
+        let privacy_color = privacy_state
+            .map(|p| if p.enabled { Color::Green } else { Color::DarkGray })
+            .unwrap_or(Color::DarkGray);
+        let privacy_widget = Paragraph::new(privacy_text)
+            .style(Style::default().fg(privacy_color).add_modifier(Modifier::BOLD))
+            .block(
+                Block::default()
+                    .borders(Borders::NONE)
+                    .padding(ratatui::widgets::Padding::new(0, 1, 0, 1)),
+            );
+        frame.render_widget(privacy_widget, chunks[privacy_index]);
 
         // Right: Keyboard shortcuts
         let shortcuts_text = mode.shortcuts();
-        let shortcuts_index = if is_chat_context { 1 } else { 2 };
+        let shortcuts_index = if is_chat_context { 2 } else { 3 };
         let shortcuts_widget = Paragraph::new(shortcuts_text)
             .style(Style::default().fg(theme.text_dim))
             .alignment(Alignment::Right)
