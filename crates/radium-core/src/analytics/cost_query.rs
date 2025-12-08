@@ -8,14 +8,14 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Service for querying cost data from telemetry.
-pub struct CostQueryService {
+pub struct CostQueryService<'a> {
     /// Reference to monitoring service for database access.
-    monitoring: Arc<MonitoringService>,
+    monitoring: &'a MonitoringService,
 }
 
-impl CostQueryService {
+impl<'a> CostQueryService<'a> {
     /// Create a new cost query service.
-    pub fn new(monitoring: Arc<MonitoringService>) -> Self {
+    pub fn new(monitoring: &'a MonitoringService) -> Self {
         Self { monitoring }
     }
 

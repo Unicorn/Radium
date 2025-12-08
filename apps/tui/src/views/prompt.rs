@@ -449,8 +449,13 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
             ratatui::text::Line::from(""),
         ];
 
-        // REQ-198: Show "No matches found" when active but no suggestions
-        if total_suggestions == 0 {
+        // REQ-198: Show error state or "No matches found" when active but no suggestions
+        if let Some(error_msg) = &data.command_state.error_message {
+            menu_lines.push(ratatui::text::Line::from(Span::styled(
+                format!("  ⚠ {}", error_msg),
+                Style::default().fg(THEME.error()),
+            )));
+        } else if total_suggestions == 0 {
             menu_lines.push(ratatui::text::Line::from(Span::styled(
                 "  No matches found",
                 Style::default().fg(THEME.text_muted()),

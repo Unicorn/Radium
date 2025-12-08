@@ -155,6 +155,7 @@ impl CredentialStore {
     /// Stores a credential for the specified provider with attribution metadata.
     ///
     /// If a credential already exists for this provider, it will be overwritten.
+    /// Metadata fields that are `None` will be set to `None` (clearing any existing values).
     ///
     /// # Arguments
     ///
@@ -176,12 +177,6 @@ impl CredentialStore {
         cost_center: Option<String>,
     ) -> AuthResult<()> {
         let mut creds = self.load()?;
-
-        // Preserve existing metadata if present and new metadata is None
-        let existing_provider = creds.providers.get(provider_type.as_str());
-        let team_name = team_name.or_else(|| existing_provider.and_then(|p| p.team_name.clone()));
-        let project_name = project_name.or_else(|| existing_provider.and_then(|p| p.project_name.clone()));
-        let cost_center = cost_center.or_else(|| existing_provider.and_then(|p| p.cost_center.clone()));
 
         let provider = Provider {
             kind: provider_type,
@@ -417,7 +412,7 @@ mod tests {
     }
 
     #[test]
-    fn test_store_preserves_existing_metadata() {
+    fn test_store_clears_metadata() {
         let temp_dir = TempDir::new().unwrap();
         let creds_path = temp_dir.path().join("credentials.json");
         let store = CredentialStore::with_path(creds_path);
@@ -433,15 +428,15 @@ mod tests {
             )
             .unwrap();
 
-        // Store again with only API key (should preserve metadata)
+        // Store again with only API key (should clear metadata)
         store.store(ProviderType::Gemini, "key2".to_string()).unwrap();
 
         let creds = store.load().unwrap();
         let provider = creds.providers.get("gemini").unwrap();
         assert_eq!(provider.api_key, "key2");
-        assert_eq!(provider.team_name, Some("team1".to_string()));
-        assert_eq!(provider.project_name, Some("project1".to_string()));
-        assert_eq!(provider.cost_center, Some("center1".to_string()));
+        assert_eq!(provider.team_name, None);
+        assert_eq!(provider.project_name, None);
+        assert_eq!(provider.cost_center, None);
     }
 
     #[test]

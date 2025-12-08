@@ -1373,6 +1373,9 @@ impl App {
         // Parse input to detect main command vs subcommand
         let parts: Vec<&str> = partial.split_whitespace().collect();
 
+        // Clear any previous error message
+        self.prompt_data.command_state.error_message = None;
+
         // Check cache first
         let cache_key = partial.to_string();
         if let Some(cached) = self.prompt_data.command_state.get_cached(&cache_key) {
@@ -1408,6 +1411,7 @@ impl App {
             }
 
             // Score MCP commands with fuzzy matching (using cached list)
+            // MCP commands are already collected, so we can iterate safely
             for (cmd_name, prompt) in mcp_commands {
                 let cmd_without_slash = &cmd_name[1..]; // Remove leading '/'
                 if let Some(score) = matcher.fuzzy_match(cmd_without_slash, query) {
@@ -1460,7 +1464,8 @@ impl App {
                 match main_cmd {
                     "chat" if parts.len() <= 2 => {
                         // Suggest agent IDs for /chat command with fuzzy matching
-                        if let Ok(agents) = crate::chat_executor::get_available_agents() {
+                        match crate::chat_executor::get_available_agents() {
+                            Ok(agents) => {
                             let query = if parts.len() > 1 { parts[1] } else { "" };
                             
                             if query.len() >= 2 {
@@ -1510,6 +1515,13 @@ impl App {
                                                 "agent-id".to_string(),
                                             )
                                         })
+                                );
+                            }
+                            Err(e) => {
+                                // Log error but continue with other suggestion sources
+                                // Error message will be shown if no other suggestions available
+                                self.prompt_data.command_state.error_message = Some(
+                                    format!("Unable to load agents: {}", e)
                                 );
                             }
                         }
