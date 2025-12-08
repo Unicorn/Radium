@@ -456,6 +456,13 @@ impl AgentExecutor {
         let mut exhausted_combinations: HashSet<(String, String)> = HashSet::new();
         let mut current_model = model;
         let mut current_provider = Self::infer_provider_from_model(&current_model);
+        
+        // Track failover context for error messages
+        let mut failover_context = FailoverContext {
+            attempted_combinations: Vec::new(),
+            error_types: Vec::new(),
+            budget_status: None,
+        };
 
         // Budget checking disabled - requires radium_core dependency
         // TODO: Re-enable budget checking when radium_core is available as dependency
