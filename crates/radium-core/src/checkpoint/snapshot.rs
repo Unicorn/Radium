@@ -5,8 +5,29 @@ use serde_json;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH, Duration};
 use uuid::Uuid;
+
+/// Checkpoint expiration policy configuration.
+#[derive(Debug, Clone)]
+pub struct CheckpointPolicy {
+    /// Delete checkpoints older than this many days (None = disabled).
+    pub age_days: Option<u32>,
+    /// Maximum total checkpoint size in GB (None = disabled).
+    pub max_size_gb: Option<f64>,
+    /// Minimum number of recent checkpoints to always keep.
+    pub min_keep: usize,
+}
+
+impl Default for CheckpointPolicy {
+    fn default() -> Self {
+        Self {
+            age_days: Some(30),
+            max_size_gb: Some(5.0),
+            min_keep: 5,
+        }
+    }
+}
 
 /// Checkpoint metadata.
 #[derive(Debug, Clone)]
@@ -350,6 +371,10 @@ impl CheckpointManager {
             return Err(CheckpointError::GitCommandFailed(stderr.to_string()));
         }
 
+        // Apply expiration policy after checkpoint creation
+        let policy = CheckpointPolicy::default(); // TODO: Load from config
+        let _ = self.evaluate_cleanup_policy(&policy);
+        
         Ok(checkpoint)
     }
 

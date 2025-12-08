@@ -40,6 +40,21 @@ pub enum CheckpointCommand {
         /// Checkpoint ID to show
         checkpoint_id: String,
     },
+    /// View or update checkpoint expiration policy
+    Policy {
+        /// Show current policy (default if no flags)
+        #[arg(long)]
+        show: bool,
+        /// Set age-based expiration in days (0 to disable)
+        #[arg(long)]
+        age_days: Option<u32>,
+        /// Set maximum size in GB (0 to disable)
+        #[arg(long)]
+        max_size_gb: Option<f64>,
+        /// Set minimum number of checkpoints to keep
+        #[arg(long)]
+        min_keep: Option<usize>,
+    },
 }
 
 /// Execute checkpoint command
@@ -62,6 +77,9 @@ pub async fn execute(cmd: CheckpointCommand) -> Result<()> {
         }
         CheckpointCommand::Show { checkpoint_id } => {
             show_command(&checkpoint_manager, &checkpoint_id).await
+        }
+        CheckpointCommand::Policy { show, age_days, max_size_gb, min_keep } => {
+            policy_command(&checkpoint_manager, show, age_days, max_size_gb, min_keep).await
         }
     }
 }
