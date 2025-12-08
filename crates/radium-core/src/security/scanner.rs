@@ -398,7 +398,7 @@ mod tests {
             "token = 'sk-test123456789012345678901234567890123456'",
         ).unwrap();
 
-        let matches = scanner.scan_file(&git_dir.join("config")).unwrap();
+        let _matches = scanner.scan_file(&git_dir.join("config")).unwrap();
         // Should be excluded, but if not excluded by path check, should still scan
         // The exclusion happens in scan_workspace, not scan_file
         // So this test verifies scan_file doesn't exclude by directory name alone

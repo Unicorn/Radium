@@ -261,11 +261,12 @@ mod tests {
     fn test_redact_registered_secret() {
         let temp_dir = TempDir::new().unwrap();
         let vault_path = temp_dir.path().join("secrets.vault");
-        let manager = Arc::new(SecretManager::new(vault_path, "TestPassword123!").unwrap());
+        let mut manager = SecretManager::new(vault_path.clone(), "TestPassword123!").unwrap();
 
         // Store a secret
         manager.store_secret("api_key", "sk-test123456789012345678901234567890123456").unwrap();
 
+        let manager = Arc::new(manager);
         let filter = SecretFilter::new(manager);
         let content = "Use API key sk-test123456789012345678901234567890123456 here";
         let filtered = filter.redact_secrets(content).unwrap();

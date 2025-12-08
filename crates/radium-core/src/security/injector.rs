@@ -311,14 +311,13 @@ mod tests {
 
     #[test]
     fn test_inject_env_var_syntax() {
-        let (injector, temp_dir) = create_test_injector();
-        let manager = Arc::new(SecretManager::new(
-            temp_dir.path().join("secrets.vault"),
-            "TestPassword123!",
-        ).unwrap());
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("secrets.vault");
+        let mut manager = SecretManager::new(vault_path, "TestPassword123!").unwrap();
 
         manager.store_secret("api_key", "sk-real-value").unwrap();
 
+        let manager = Arc::new(manager);
         let injector = SecretInjector::new(manager);
         let content = "Use $SECRET_api_key here";
         let injected = injector.inject_secrets(content).unwrap();
