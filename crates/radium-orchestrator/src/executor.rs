@@ -97,7 +97,8 @@ struct FailoverContext {
     /// List of error types encountered (e.g., "rate_limit", "quota_exhausted").
     error_types: Vec<String>,
     /// Budget status if budget manager is available.
-    budget_status: Option<radium_core::monitoring::BudgetStatus>,
+    /// Note: Disabled - requires radium_core dependency
+    budget_status: Option<String>, // Placeholder - was radium_core::monitoring::BudgetStatus
 }
 
 /// Trait for sandbox operations to avoid circular dependency with radium-core.
@@ -299,19 +300,10 @@ impl AgentExecutor {
         }
         
         // Include budget status if available
-        if let Some(ref budget_status) = context.budget_status {
-            if let Some(total_budget) = budget_status.total_budget {
-                message.push_str(&format!(
-                    "Budget: ${:.2} spent of ${:.2} limit ({:.1}% used)\n",
-                    budget_status.spent_amount, total_budget, budget_status.percentage_used
-                ));
-                if let Some(remaining) = budget_status.remaining_budget {
-                    message.push_str(&format!("Remaining budget: ${:.2}\n", remaining));
-                }
-            } else {
-                message.push_str(&format!("Budget: ${:.2} spent (no limit)\n", budget_status.spent_amount));
-            }
-            message.push('\n');
+        // Budget status display disabled - requires radium_core dependency
+        // TODO: Re-enable when radium_core is available
+        if context.budget_status.is_some() {
+            message.push_str("Budget status: Available (details disabled)\n");
         }
         
         // Determine error types and provide actionable next steps
@@ -686,7 +678,8 @@ impl AgentExecutor {
                             // All providers exhausted - create checkpoint before stopping
                             // Get budget status if available
                             if let Some(ref budget_manager) = self.budget_manager {
-                                failover_context.budget_status = Some(budget_manager.get_budget_status());
+                                // Budget status disabled - requires radium_core dependency
+                    // failover_context.budget_status = Some(budget_manager.get_budget_status());
                             }
                             
                             error!(
