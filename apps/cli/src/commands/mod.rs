@@ -29,6 +29,7 @@ pub mod constitution;
 pub mod requirement;
 pub mod run;
 pub mod sandbox;
+pub mod session;
 pub mod stats;
 pub mod status;
 pub mod step;

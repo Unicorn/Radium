@@ -15,7 +15,7 @@ use tracing_subscriber::FmtSubscriber;
 
 use commands::{
     agents, auth, budget, capability, checkpoint, clean, context, cost, craft, doctor, engines, extension, hooks, init, learning, monitor, plan, playbook, policy, privacy, requirement, run,
-    sandbox, secret, stats, status, step, validate,
+    sandbox, secret, session, stats, status, step, validate,
     // All commands enabled!
     templates, complete, autonomous, vibecheck, chat, mcp, custom, braingrid,
 };
@@ -316,6 +316,12 @@ enum Command {
     /// and cost transparency.
     #[command(subcommand)]
     Stats(stats::StatsCommand),
+
+    /// Session management
+    ///
+    /// Search, export, delete, and view session information.
+    #[command(subcommand)]
+    Session(session::SessionCommand),
 
     /// Manage checkpoints for agent work snapshots
     ///
@@ -618,6 +624,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Stats(cmd) => {
             stats::execute(cmd).await?;
+        }
+        Command::Session(cmd) => {
+            session::execute(cmd).await?;
         }
         Command::Checkpoint(cmd) => {
             checkpoint::execute(cmd).await?;
