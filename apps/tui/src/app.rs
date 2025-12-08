@@ -126,6 +126,8 @@ pub struct App {
     /// Cost dashboard state (when viewing cost dashboard)
     pub cost_dashboard_state: Option<crate::state::CostDashboardState>,
     pub budget_analytics_view: Option<crate::views::BudgetAnalyticsView>,
+    /// Current model ID being used
+    pub current_model_id: Option<String>,
 }
 
 impl App {
@@ -203,10 +205,11 @@ impl App {
         let theme = RadiumTheme::from_config();
         let config = TuiConfig::load().unwrap_or_default();
         
-        // Extract animation config before moving config
+        // Extract animation config and model ID before moving config
         let anim_enabled = config.animations.enabled;
         let anim_duration_mult = config.animations.duration_multiplier;
         let anim_reduced_motion = config.animations.reduced_motion;
+        let current_model_id = Some(config.model.default_model_id.clone());
 
         let mut app = Self {
             should_quit: false,
@@ -253,6 +256,7 @@ impl App {
             panel_focus: crate::views::orchestrator_view::PanelFocus::Chat,
             cost_dashboard_state: None,
             budget_analytics_view: None,
+            current_model_id,
         };
 
         // Show setup wizard if not configured, otherwise start chat
@@ -2375,6 +2379,9 @@ impl App {
                     ));
                 }
                 
+                // Update current model ID
+                self.current_model_id = Some(model_id.to_string());
+                
                 self.prompt_data.add_output(format!(
                     "✅ Switched to {} successfully",
                     model_id
@@ -2392,6 +2399,21 @@ impl App {
         }
 
         Ok(())
+    }
+
+    /// Get display name for current model (truncated if too long)
+    fn get_model_display_name(&self) -> String {
+        self.current_model_id
+            .as_ref()
+            .map(|id| {
+                // Shorten long model names
+                if id.len() > 25 {
+                    format!("{}...", &id[..22])
+                } else {
+                    id.clone()
+                }
+            })
+            .unwrap_or_else(|| "None".to_string())
     }
 
     /// Show full orchestrator configuration

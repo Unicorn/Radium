@@ -459,6 +459,7 @@ async fn main() -> Result<()> {
                 &app.prompt_data.input,
                 mode,
                 Some(&app.prompt_data.context),
+                app.current_model_id.as_deref(),
             );
 
             // Render dialogs (on top of everything except shortcuts)

@@ -314,6 +314,7 @@ impl StatusFooter {
         input: &crate::components::textarea::TextArea,
         mode: AppMode,
         context: Option<&DisplayContext>,
+        model_id: Option<&str>,
     ) {
         let theme = crate::theme::get_theme();
         
@@ -342,20 +343,52 @@ impl StatusFooter {
                 .split(area)
         };
 
-        // Left: Context info
+        // Left: Context info with model
         let context_text = if let Some(ctx) = context {
             match ctx {
                 DisplayContext::Chat { agent_id, session_id } => {
-                    format!("Agent: {} | Session: {}", agent_id, session_id)
+                    if let Some(model) = model_id {
+                        format!("Agent: {} | Session: {} | Model: {}", agent_id, session_id, model)
+                    } else {
+                        format!("Agent: {} | Session: {}", agent_id, session_id)
+                    }
                 }
-                DisplayContext::AgentList => "Select an agent".to_string(),
-                DisplayContext::SessionList => "Select a session".to_string(),
+                DisplayContext::AgentList => {
+                    if let Some(model) = model_id {
+                        format!("Select an agent | Model: {}", model)
+                    } else {
+                        "Select an agent".to_string()
+                    }
+                }
+                DisplayContext::SessionList => {
+                    if let Some(model) = model_id {
+                        format!("Select a session | Model: {}", model)
+                    } else {
+                        "Select a session".to_string()
+                    }
+                }
                 DisplayContext::ModelSelector => "Select a model".to_string(),
-                DisplayContext::Dashboard => "Dashboard".to_string(),
-                DisplayContext::Help => "Help".to_string(),
+                DisplayContext::Dashboard => {
+                    if let Some(model) = model_id {
+                        format!("Dashboard | Model: {}", model)
+                    } else {
+                        "Dashboard".to_string()
+                    }
+                }
+                DisplayContext::Help => {
+                    if let Some(model) = model_id {
+                        format!("Help | Model: {}", model)
+                    } else {
+                        "Help".to_string()
+                    }
+                }
             }
         } else {
-            format!("Mode: {}", mode.as_str())
+            if let Some(model) = model_id {
+                format!("Mode: {} | Model: {}", mode.as_str(), model)
+            } else {
+                format!("Mode: {}", mode.as_str())
+            }
         };
 
         let context_widget = Paragraph::new(context_text)
