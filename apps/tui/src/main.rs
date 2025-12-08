@@ -148,6 +148,9 @@ async fn main() -> Result<()> {
             }
         }
 
+        // Poll task list and orchestrator logs will be called from orchestrator view rendering
+        // The polling methods check elapsed time internally to avoid excessive calls
+
         // Poll for requirement progress updates (non-blocking) - new ProgressMessage system
         if let Some(active_req_progress) = &mut app.active_requirement_progress {
             match active_req_progress.progress_rx.try_recv() {
