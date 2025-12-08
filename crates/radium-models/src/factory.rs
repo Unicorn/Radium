@@ -181,6 +181,10 @@ mod tests {
         assert_eq!(ModelType::from_str("MOCK"), Ok(ModelType::Mock));
         assert_eq!(ModelType::from_str("gemini"), Ok(ModelType::Gemini));
         assert_eq!(ModelType::from_str("openai"), Ok(ModelType::OpenAI));
+        assert_eq!(ModelType::from_str("claude"), Ok(ModelType::Claude));
+        assert_eq!(ModelType::from_str("anthropic"), Ok(ModelType::Claude));
+        assert_eq!(ModelType::from_str("Claude"), Ok(ModelType::Claude));
+        assert_eq!(ModelType::from_str("ANTHROPIC"), Ok(ModelType::Claude));
         assert_eq!(ModelType::from_str("unknown"), Err(()));
     }
 
@@ -223,5 +227,49 @@ mod tests {
     fn test_factory_create_invalid_type() {
         let result = ModelFactory::create_from_str("invalid", "test".to_string());
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_factory_create_claude_with_api_key() {
+        let config = ModelConfig::new(
+            ModelType::Claude,
+            "claude-3-sonnet-20240229".to_string(),
+        )
+        .with_api_key("test-api-key".to_string());
+        let model = ModelFactory::create(config).unwrap();
+        assert_eq!(model.model_id(), "claude-3-sonnet-20240229");
+    }
+
+    #[test]
+    fn test_factory_create_from_str_anthropic() {
+        let _model = ModelFactory::create_from_str(
+            "anthropic",
+            "claude-3-sonnet-20240229".to_string(),
+        );
+        // This will fail if ANTHROPIC_API_KEY is not set, which is expected
+        // We just verify the string parsing works
+        assert!(ModelType::from_str("anthropic").is_ok());
+    }
+
+    #[test]
+    fn test_factory_create_from_str_claude() {
+        let _model = ModelFactory::create_from_str(
+            "claude",
+            "claude-3-sonnet-20240229".to_string(),
+        );
+        // This will fail if ANTHROPIC_API_KEY is not set, which is expected
+        // We just verify the string parsing works
+        assert!(ModelType::from_str("claude").is_ok());
+    }
+
+    #[test]
+    fn test_factory_create_claude_with_explicit_api_key() {
+        let model = ModelFactory::create_with_api_key(
+            "claude",
+            "claude-3-sonnet-20240229".to_string(),
+            "test-api-key".to_string(),
+        )
+        .unwrap();
+        assert_eq!(model.model_id(), "claude-3-sonnet-20240229");
     }
 }
