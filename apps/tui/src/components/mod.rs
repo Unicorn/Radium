@@ -20,6 +20,7 @@ pub mod requirement_progress_bar;
 pub mod spinner;
 pub mod status_footer;
 pub mod status_icon;
+pub mod task_list;
 pub mod textarea;
 pub mod telemetry_bar;
 pub mod title_bar;
