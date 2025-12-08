@@ -504,8 +504,130 @@ async fn delete_command(
 
 /// Show session info
 async fn info_command(session_id: Option<&str>) -> Result<()> {
-    // Stub implementation - will be implemented in Task 5
-    println!("Info command: session_id={:?}", session_id);
+    let workspace = Workspace::discover()
+        .context("No Radium workspace found. Run 'rad init' to create one.")?;
+
+    let storage = SessionStorage::new(workspace.root())?;
+    let sessions_dir = storage.sessions_dir();
+
+    if let Some(sid) = session_id {
+        // Session detail mode
+        let report = storage.load_report(sid)
+            .context(format!("Session '{}' not found", sid))?;
+
+        // Get interaction count from history
+        let history_dir = workspace.root().join(".radium/_internals/history");
+        let history = HistoryManager::new(&history_dir)?;
+        let interactions = history.get_interactions(Some(sid));
+        let interaction_count = interactions.len();
+        let last_interaction = interactions.last().map(|i| i.timestamp);
+
+        // Get primary model (most used)
+        let primary_model = report
+            .metrics
+            .model_usage
+            .iter()
+            .max_by_key(|(_, stats)| stats.requests)
+            .map(|(model, _)| model.clone());
+
+        // Format duration
+        let duration_str = format_duration(report.metrics.wall_time);
+
+        // Display session details
+        println!("\nSession Information");
+        println!("{}", "=".repeat(60));
+        println!("Session ID:        {}", report.metrics.session_id);
+        println!("Generated:         {}", report.generated_at.to_rfc3339());
+        println!("Start Time:        {}", report.metrics.start_time.to_rfc3339());
+        if let Some(end_time) = report.metrics.end_time {
+            println!("End Time:          {}", end_time.to_rfc3339());
+        }
+        println!("Duration:          {}", duration_str);
+        println!("Interactions:      {}", interaction_count);
+        if let Some(last) = last_interaction {
+            println!("Last Interaction:  {}", last.to_rfc3339());
+        }
+        if let Some(model) = primary_model {
+            println!("Primary Model:     {}", model);
+        }
+        println!("Tool Calls:        {}", report.metrics.tool_calls);
+        println!("Success Rate:       {:.1}%", report.metrics.success_rate());
+        
+        // Token and cost info
+        let (input_tokens, output_tokens) = report.metrics.total_tokens();
+        println!("Input Tokens:      {}", input_tokens);
+        println!("Output Tokens:     {}", output_tokens);
+        println!("Total Cost:        ${:.4}", report.metrics.total_cost);
+
+        // File paths
+        let history_file = history_dir.join("history.json");
+        let analytics_file = sessions_dir.join(format!("{}.json", sid));
+        println!("\nFile Paths:");
+        println!("  History:         {}", history_file.display());
+        println!("  Analytics:       {}", analytics_file.display());
+        println!();
+    } else {
+        // Storage overview mode
+        let metadata_list = storage.list_report_metadata()?;
+        let session_count = metadata_list.len();
+
+        // Calculate total size
+        let mut total_size: u64 = 0;
+        if sessions_dir.exists() {
+            for entry in fs::read_dir(sessions_dir)? {
+                let entry = entry?;
+                let path = entry.path();
+                if path.is_file() {
+                    if let Ok(metadata) = fs::metadata(&path) {
+                        total_size += metadata.len();
+                    }
+                }
+            }
+        }
+
+        let size_str = format_file_size(total_size);
+
+        println!("\nSession Storage Information");
+        println!("{}", "=".repeat(60));
+        println!("Storage Directory: {}", sessions_dir.display());
+        println!("Total Size:         {}", size_str);
+        println!("Session Count:      {}", session_count);
+        println!();
+    }
+
     Ok(())
+}
+
+/// Format file size in human-readable format
+fn format_file_size(bytes: u64) -> String {
+    const KB: u64 = 1024;
+    const MB: u64 = KB * 1024;
+    const GB: u64 = MB * 1024;
+
+    if bytes >= GB {
+        format!("{:.2} GB", bytes as f64 / GB as f64)
+    } else if bytes >= MB {
+        format!("{:.2} MB", bytes as f64 / MB as f64)
+    } else if bytes >= KB {
+        format!("{:.2} KB", bytes as f64 / KB as f64)
+    } else {
+        format!("{} bytes", bytes)
+    }
+}
+
+/// Format duration in human-readable format
+fn format_duration(d: std::time::Duration) -> String {
+    let secs = d.as_secs();
+    let hours = secs / 3600;
+    let minutes = (secs % 3600) / 60;
+    let seconds = secs % 60;
+
+    if hours > 0 {
+        format!("{}h {}m {}s", hours, minutes, seconds)
+    } else if minutes > 0 {
+        format!("{}m {}s", minutes, seconds)
+    } else {
+        format!("{}s", seconds)
+    }
 }
 
