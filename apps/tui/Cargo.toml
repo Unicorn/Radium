@@ -69,9 +69,8 @@ unicode-width = "0.1"
 textwrap = "0.16"
 fuzzy-matcher = "0.3"  # For command palette
 
-# Optional (for Phase 4):
-# termimad = "0.29"       # Markdown rendering (disabled due to crossterm version conflict)
-# syntect = "5.0"         # Syntax highlighting
+# Syntax highlighting
+syntect = "5.3"
 
 [dev-dependencies]
 tempfile = "3.8"
