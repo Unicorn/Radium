@@ -604,6 +604,16 @@ async fn main() -> anyhow::Result<()> {
                 anyhow::bail!("Agent ID is required when not using --list");
             }
         }
+        Command::Clipboard { action } => {
+            match action {
+                commands::clipboard::ClipboardCommand::Send => {
+                    clipboard::send().await?;
+                }
+                commands::clipboard::ClipboardCommand::Receive => {
+                    clipboard::receive().await?;
+                }
+            }
+        }
         Command::Status { json } => {
             status::execute(json).await?;
         }
