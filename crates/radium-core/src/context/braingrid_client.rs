@@ -532,6 +532,12 @@ impl BraingridClient {
     pub fn cache_ttl(&self) -> std::time::Duration {
         self.cache_ttl
     }
+
+    /// Get command timeout (for testing)
+    #[cfg(test)]
+    pub fn command_timeout(&self) -> Duration {
+        self.command_timeout
+    }
 }
 
 #[cfg(test)]
@@ -559,5 +565,41 @@ mod tests {
         let task_status = TaskStatus::Completed;
         let json = serde_json::to_string(&task_status).unwrap();
         assert_eq!(json, "\"COMPLETED\"");
+    }
+
+    #[tokio::test]
+    async fn test_cache_stats_default() {
+        let stats = CacheStats::default();
+        assert_eq!(stats.hits, 0);
+        assert_eq!(stats.misses, 0);
+        assert_eq!(stats.size, 0);
+        assert_eq!(stats.hit_rate(), 0.0);
+    }
+
+    #[tokio::test]
+    async fn test_cache_stats_hit_rate() {
+        let mut stats = CacheStats::default();
+        stats.hits = 80;
+        stats.misses = 20;
+        assert_eq!(stats.hit_rate(), 80.0);
+    }
+
+    #[tokio::test]
+    async fn test_braingrid_error_codes() {
+        let error = BraingridError::CliNotFound("braingrid".to_string());
+        assert_eq!(error.error_code(), "CLI_NOT_FOUND");
+
+        let error = BraingridError::NotFound("REQ-123".to_string());
+        assert_eq!(error.error_code(), "NOT_FOUND");
+
+        let error = BraingridError::AuthenticationFailed("Invalid token".to_string());
+        assert_eq!(error.error_code(), "AUTHENTICATION_FAILED");
+    }
+
+    #[tokio::test]
+    async fn test_braingrid_client_with_timeout() {
+        let client = BraingridClient::new("PROJ-14").with_command_timeout(60);
+        // Verify timeout is set
+        assert_eq!(client.command_timeout().as_secs(), 60);
     }
 }

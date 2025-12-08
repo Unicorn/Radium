@@ -1413,10 +1413,10 @@ impl Radium for RadiumService {
         info!(requirement_id = %req.requirement_id, "ExecuteBraingridRequirement RPC called");
 
         // Create a channel for streaming progress events
-        let (tx, mut rx) = mpsc::channel(100);
+        let (tx, rx) = mpsc::channel(100);
         
         // Convert to Result stream for gRPC
-        let rx = rx.map(|event| Ok(event) as Result<ExecutionProgressEvent, Status>);
+        let rx = ReceiverStream::new(rx).map(|event| Ok(event) as Result<ExecutionProgressEvent, Status>);
 
         // Spawn execution in background
         let req_id = req.requirement_id.clone();
@@ -1565,9 +1565,8 @@ impl Radium for RadiumService {
             let _ = requirement_executor.execute_requirement_with_progress(&req_id, progress_tx).await;
         });
 
-        // Convert receiver to streaming response
-        let stream = ReceiverStream::new(rx);
-        Ok(Response::new(Box::pin(stream) as _))
+        // Return streaming response
+        Ok(Response::new(Box::pin(rx) as _))
     }
 
     async fn clear_braingrid_cache(

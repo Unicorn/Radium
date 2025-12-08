@@ -759,4 +759,40 @@ mod tests {
         assert_eq!(result.tasks_failed, 0);
         assert!(result.success);
     }
+
+    #[test]
+    fn test_task_substep_as_str() {
+        assert_eq!(TaskSubStep::Preparing.as_str(), "Preparing");
+        assert_eq!(TaskSubStep::Executing.as_str(), "Executing");
+        assert_eq!(TaskSubStep::Validating.as_str(), "Validating");
+        assert_eq!(TaskSubStep::Completing.as_str(), "Completing");
+    }
+
+    #[test]
+    fn test_requirement_progress_variants() {
+        let progress = RequirementProgress::Started {
+            req_id: "REQ-123".to_string(),
+            total_tasks: 5,
+        };
+        match progress {
+            RequirementProgress::Started { req_id, total_tasks } => {
+                assert_eq!(req_id, "REQ-123");
+                assert_eq!(total_tasks, 5);
+            }
+            _ => panic!("Wrong variant"),
+        }
+
+        let progress = RequirementProgress::TaskSubStep {
+            task_id: "TASK-1".to_string(),
+            task_title: "Test Task".to_string(),
+            sub_step: TaskSubStep::Executing,
+        };
+        match progress {
+            RequirementProgress::TaskSubStep { task_id, sub_step, .. } => {
+                assert_eq!(task_id, "TASK-1");
+                assert_eq!(sub_step, TaskSubStep::Executing);
+            }
+            _ => panic!("Wrong variant"),
+        }
+    }
 }
