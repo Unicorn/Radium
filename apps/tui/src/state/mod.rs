@@ -6,6 +6,7 @@
 mod agent_state;
 mod checkpoint_state;
 mod checkpoint_interrupt_state;
+mod checkpoint_browser_state;
 mod command_suggestions;
 mod cost_state;
 mod execution_history;
@@ -16,6 +17,7 @@ mod workflow_state;
 pub use agent_state::{AgentState, AgentStatus, SubAgentState};
 pub use checkpoint_state::{CheckpointInfo, CheckpointState};
 pub use checkpoint_interrupt_state::{CheckpointInterruptState, InterruptAction, InterruptTrigger};
+pub use checkpoint_browser_state::CheckpointBrowserState;
 pub use command_suggestions::{CommandSuggestion, CommandSuggestionState, SuggestionSource, SuggestionType, TriggerMode};
 pub use cost_state::{CostDashboardState, DateRangeFilter, DisplayRow, GroupingMode, SortColumn, ViewMode};
 pub use execution_history::{AggregateStats, ExecutionHistory, ExecutionRecord, ExecutionStatus};

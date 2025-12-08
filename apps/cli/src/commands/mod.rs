@@ -32,6 +32,7 @@ pub mod status;
 pub mod step;
 pub mod templates;
 pub mod learning;
+pub mod playbook;
 pub mod types;
 pub mod validate;
 pub mod vibecheck;
