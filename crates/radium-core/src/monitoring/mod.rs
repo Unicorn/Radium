@@ -24,12 +24,14 @@
 //! # }
 //! ```
 
+mod budget;
 mod error;
 mod logs;
 pub(crate) mod schema;
 pub(crate) mod service;
 pub(crate) mod telemetry;
 
+pub use budget::{BudgetConfig, BudgetError, BudgetManager, BudgetStatus};
 pub use error::{MonitoringError, Result};
 pub use logs::LogManager;
 pub use schema::initialize_schema;

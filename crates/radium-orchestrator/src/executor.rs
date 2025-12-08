@@ -110,6 +110,9 @@ pub struct AgentExecutor {
     default_model_id: String,
     /// Optional sandbox manager for sandbox operations.
     sandbox_manager: Option<Arc<dyn SandboxManager>>,
+    /// Optional budget manager for cost tracking and enforcement.
+    /// Note: BudgetManager type removed to avoid dependency on radium_core
+    budget_manager: Option<Arc<dyn std::any::Any + Send + Sync>>,
 }
 
 impl fmt::Debug for AgentExecutor {
@@ -118,6 +121,7 @@ impl fmt::Debug for AgentExecutor {
             .field("default_model_type", &self.default_model_type)
             .field("default_model_id", &self.default_model_id)
             .field("sandbox_manager", &if self.sandbox_manager.is_some() { "Some" } else { "None" })
+            .field("budget_manager", &"<optional>")
             .finish()
     }
 }
@@ -134,6 +138,8 @@ impl AgentExecutor {
             default_model_type,
             default_model_id,
             sandbox_manager: None,
+            #[allow(unused_mut)]
+            budget_manager: None,
         }
     }
 
@@ -153,6 +159,8 @@ impl AgentExecutor {
             default_model_type,
             default_model_id,
             sandbox_manager,
+            #[allow(unused_mut)]
+            budget_manager: None,
         }
     }
 
@@ -162,6 +170,14 @@ impl AgentExecutor {
     /// * `manager` - The sandbox manager to use
     pub fn set_sandbox_manager(&mut self, manager: Arc<dyn SandboxManager>) {
         self.sandbox_manager = Some(manager);
+    }
+
+    /// Sets the budget manager.
+    ///
+    /// # Arguments
+    /// * `manager` - The budget manager to use
+    pub fn set_budget_manager(&mut self, manager: Arc<BudgetManager>) {
+        self.budget_manager = Some(manager);
     }
 
     /// Creates a new agent executor with Mock model as default.
@@ -400,6 +416,61 @@ impl AgentExecutor {
         let mut current_model = model;
         let mut current_provider = Self::infer_provider_from_model(&current_model);
 
+        // Pre-execution budget check
+        if let Some(ref budget_manager) = self.budget_manager {
+            // Estimate cost: roughly 1 token ≈ 4 characters, assume 70% input / 30% output ratio
+            let estimated_input_tokens = effective_input.len() as f64 / 4.0;
+            let estimated_output_tokens = estimated_input_tokens * 0.3 / 0.7; // Assume output is 30% of input
+            let model_id = current_model.model_id();
+            
+            // Use average pricing for estimation (fallback to provider defaults)
+            let (input_price, output_price) = Self::estimate_pricing_for_model(&current_provider, model_id);
+            let estimated_cost = (estimated_input_tokens / 1_000_000.0) * input_price 
+                + (estimated_output_tokens / 1_000_000.0) * output_price;
+
+            match budget_manager.check_budget_available(estimated_cost) {
+                Ok(()) => {
+                    debug!(
+                        agent_id = %agent_id,
+                        estimated_cost = %estimated_cost,
+                        "Budget check passed"
+                    );
+                }
+                Err(radium_core::monitoring::BudgetError::BudgetExceeded { spent, limit, requested }) => {
+                    error!(
+                        agent_id = %agent_id,
+                        spent = %spent,
+                        limit = %limit,
+                        requested = %requested,
+                        "Budget exceeded, blocking execution"
+                    );
+                    // Cleanup sandbox before early return
+                    if let Some(ref manager) = self.sandbox_manager {
+                        manager.cleanup_sandbox(agent_id).await;
+                    }
+                    return ExecutionResult {
+                        output: AgentOutput::Text(format!(
+                            "Execution blocked: Budget exceeded (${:.2} spent of ${:.2} limit, estimated cost ${:.2})",
+                            spent, limit, requested
+                        )),
+                        success: false,
+                        error: Some(format!("Budget exceeded: ${:.2} spent of ${:.2} limit", spent, limit)),
+                        telemetry: None,
+                    };
+                }
+                Err(radium_core::monitoring::BudgetError::BudgetWarning { spent, limit, percentage }) => {
+                    warn!(
+                        agent_id = %agent_id,
+                        spent = %spent,
+                        limit = %limit,
+                        percentage = %percentage,
+                        "Budget warning threshold reached"
+                    );
+                    // Continue execution but log warning
+                }
+            }
+        }
+
         // Retry loop with provider failover
         loop {
             // Create agent context with current model
@@ -414,6 +485,29 @@ impl AgentExecutor {
             let execution_result = match agent.execute(&effective_input, context).await {
                 Ok(output) => {
                     info!(agent_id = %agent_id, output_type = ?output, provider = %current_provider, "Agent execution completed successfully");
+                    
+                    // Record cost after successful execution
+                    if let Some(ref budget_manager) = self.budget_manager {
+                        // Estimate actual cost from input/output (rough estimate)
+                        let input_tokens = effective_input.len() as f64 / 4.0;
+                        let output_tokens = if let AgentOutput::Text(ref text) = output {
+                            text.len() as f64 / 4.0
+                        } else {
+                            input_tokens * 0.3 / 0.7 // Default estimate
+                        };
+                        let model_id = current_model.model_id();
+                        let (input_price, output_price) = Self::estimate_pricing_for_model(&current_provider, model_id);
+                        let actual_cost = (input_tokens / 1_000_000.0) * input_price 
+                            + (output_tokens / 1_000_000.0) * output_price;
+                        
+                        budget_manager.record_cost(actual_cost);
+                        debug!(
+                            agent_id = %agent_id,
+                            cost = %actual_cost,
+                            "Recorded execution cost"
+                        );
+                    }
+                    
                     ExecutionResult {
                         output: output,
                         success: true,
