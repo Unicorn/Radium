@@ -87,7 +87,7 @@ impl Default for AutonomousConfig {
 }
 
 /// Checkpoint frequency for autonomous execution.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckpointFrequency {
     /// Create checkpoint before every step.
     EveryStep,
@@ -95,6 +95,8 @@ pub enum CheckpointFrequency {
     EveryIteration,
     /// Create checkpoint only on failure.
     OnFailure,
+    /// Create checkpoint at a fixed time interval.
+    TimeInterval(Duration),
 }
 
 /// Execution result for autonomous execution.
@@ -441,6 +443,72 @@ impl AutonomousOrchestrator {
             });
         }
 
+        // Step 5.5: Setup time-based checkpointing if configured
+        let (checkpoint_cancel_tx, mut checkpoint_cancel_rx) = tokio::sync::oneshot::channel::<()>();
+        
+        if let CheckpointFrequency::TimeInterval(interval) = &self.config.checkpoint_frequency {
+            let interval = *interval;
+            let workflow_id_clone = workflow_id.clone();
+            
+            // Get or create CheckpointManager
+            let checkpoint_manager = Workspace::discover()
+                .ok()
+                .and_then(|ws| CheckpointManager::new(ws.root()).ok());
+
+            if let Some(manager) = checkpoint_manager {
+                let manager = Arc::new(Mutex::new(manager));
+                let manager_clone = Arc::clone(&manager);
+                let mut cancel_rx = checkpoint_cancel_rx;
+                
+                // Spawn timer task
+                tokio::spawn(async move {
+                    let mut interval_timer = tokio::time::interval(interval);
+                    interval_timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+                    
+                    // Skip the first immediate tick
+                    interval_timer.tick().await;
+                    
+                    loop {
+                        tokio::select! {
+                            _ = interval_timer.tick() => {
+                                // Create checkpoint
+                                if let Ok(mut mgr) = manager_clone.lock() {
+                                    let description = format!(
+                                        "Time-based checkpoint for workflow: {}",
+                                        workflow_id_clone
+                                    );
+                                    match mgr.create_checkpoint(Some(description)) {
+                                        Ok(checkpoint) => {
+                                            info!(
+                                                workflow_id = %workflow_id_clone,
+                                                checkpoint_id = %checkpoint.id,
+                                                interval_secs = interval.as_secs(),
+                                                "Created time-based checkpoint"
+                                            );
+                                        }
+                                        Err(e) => {
+                                            debug!(
+                                                workflow_id = %workflow_id_clone,
+                                                error = %e,
+                                                "Failed to create time-based checkpoint"
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                            _ = &mut cancel_rx => {
+                                info!(
+                                    workflow_id = %workflow_id_clone,
+                                    "Time-based checkpoint timer stopped"
+                                );
+                                break;
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
         // Step 6: Execute workflow with monitoring
         let mut steps_completed = 0;
         let mut steps_failed = 0;
@@ -515,6 +583,9 @@ impl AutonomousOrchestrator {
                 }
             }
         };
+
+        // Stop time-based checkpoint timer
+        let _ = checkpoint_cancel_tx.send(());
 
         // Step 6: Record learning data if enabled
         // TODO: Re-enable learning once method visibility issues are resolved
