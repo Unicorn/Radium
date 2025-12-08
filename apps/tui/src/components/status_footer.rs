@@ -39,7 +39,7 @@ impl AppMode {
             Self::Chat => "[Enter] Send | [↑↓] Scroll | [Esc] Back | [Ctrl+C] Quit",
             Self::History => "[↑↓] Navigate | [Enter] View | [Esc] Back | [Ctrl+C] Quit",
             Self::Setup => "[Enter] Continue | [Esc] Skip | [Ctrl+C] Quit",
-            Self::Requirement => "[↑↓] Scroll | [Esc] Cancel | [Ctrl+C] Force Quit",
+            Self::Requirement => "[Ctrl+S] Checkpoint | [↑↓] Scroll | [Esc] Cancel | [Ctrl+C] Force Quit",
         }
     }
 }

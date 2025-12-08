@@ -679,6 +679,69 @@ impl App {
                 self.show_shortcuts = true;
                 return Ok(());
             }
+            // Manual checkpoint creation (CTRL+S) during workflow execution
+            KeyCode::Char('s') if modifiers.contains(KeyModifiers::CONTROL) => {
+                // Only allow checkpoint creation during active workflow execution
+                let is_workflow_active = self.orchestration_running 
+                    || self.active_requirement.is_some() 
+                    || self.active_requirement_progress.is_some();
+                
+                if is_workflow_active {
+                    use radium_core::workspace::Workspace;
+                    use radium_core::checkpoint::CheckpointManager;
+                    use std::time::SystemTime;
+                    use std::time::UNIX_EPOCH;
+                    
+                    match Workspace::discover() {
+                        Ok(workspace) => {
+                            match CheckpointManager::new(workspace.root()) {
+                                Ok(checkpoint_manager) => {
+                                    // Generate description with timestamp
+                                    let timestamp = SystemTime::now()
+                                        .duration_since(UNIX_EPOCH)
+                                        .map(|d| d.as_secs())
+                                        .unwrap_or(0);
+                                    let description = format!(
+                                        "Manual checkpoint created at {}",
+                                        chrono::DateTime::<chrono::Utc>::from(
+                                            std::time::UNIX_EPOCH + std::time::Duration::from_secs(timestamp)
+                                        )
+                                        .format("%Y-%m-%d %H:%M:%S UTC")
+                                    );
+                                    
+                                    match checkpoint_manager.create_checkpoint(Some(description)) {
+                                        Ok(checkpoint) => {
+                                            self.toast_manager.success(
+                                                format!("Checkpoint created: {}", checkpoint.id)
+                                            );
+                                        }
+                                        Err(e) => {
+                                            self.toast_manager.error(
+                                                format!("Failed to create checkpoint: {}", e)
+                                            );
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    self.toast_manager.error(
+                                        format!("Failed to initialize checkpoint manager: {}", e)
+                                    );
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            self.toast_manager.error(
+                                format!("No workspace found: {}", e)
+                            );
+                        }
+                    }
+                } else {
+                    // Not during workflow execution - ignore or show hint
+                    self.toast_manager.info(
+                        "Checkpoint available during workflow execution only".to_string()
+                    );
+                }
+            }
             // Quit or cancel orchestration
             KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => {
                 if self.orchestration_running {
