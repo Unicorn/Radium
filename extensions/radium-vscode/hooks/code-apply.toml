@@ -1,0 +1,12 @@
+[[hooks]]
+name = "code-apply"
+type = "after_tool"
+priority = 100
+enabled = true
+script = "hooks/code-apply.sh"
+
+[hooks.config]
+# Code application hook configuration
+# Processes agent output to extract code blocks for editor consumption
+# Extracts markdown fenced code blocks and formats them for editor application
+

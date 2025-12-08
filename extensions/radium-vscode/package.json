@@ -1,0 +1,47 @@
+{
+  "name": "radium-vscode",
+  "displayName": "Radium Code Assistant",
+  "description": "Seamless bidirectional integration between VS Code and Radium agents",
+  "version": "1.0.0",
+  "publisher": "radium",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other",
+    "Machine Learning"
+  ],
+  "activationEvents": [
+    "onCommand:radium.sendSelection",
+    "onCommand:radium.applyCode",
+    "onCommand:radium.chat"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "radium.sendSelection",
+        "title": "Radium: Send Selection"
+      },
+      {
+        "command": "radium.applyCode",
+        "title": "Radium: Apply Code"
+      },
+      {
+        "command": "radium.chat",
+        "title": "Radium: Chat"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0",
+    "@types/node": "^18.0.0",
+    "typescript": "^5.0.0"
+  }
+}
+

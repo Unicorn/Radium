@@ -1,0 +1,14 @@
+{
+  "name": "radium-vscode",
+  "version": "1.0.0",
+  "description": "VS Code extension for seamless Radium editor integration",
+  "author": "Radium Team",
+  "components": {
+    "prompts": [],
+    "mcp_servers": [],
+    "commands": [],
+    "hooks": ["hooks/*.toml"]
+  },
+  "dependencies": []
+}
+
