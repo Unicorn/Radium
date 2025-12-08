@@ -82,6 +82,24 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
         "ALTER TABLE telemetry ADD COLUMN behavior_outcome TEXT",
         [],
     );
+    
+    // Migrate existing tables to add API key attribution columns if they don't exist
+    let _ = conn.execute(
+        "ALTER TABLE telemetry ADD COLUMN api_key_id TEXT",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE telemetry ADD COLUMN team_name TEXT",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE telemetry ADD COLUMN project_name TEXT",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE telemetry ADD COLUMN cost_center TEXT",
+        [],
+    );
 
     // Indexes for efficient queries
     conn.execute(

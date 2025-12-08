@@ -183,6 +183,22 @@ impl TelemetryRecord {
         self
     }
 
+    /// Sets API key attribution metadata.
+    #[must_use]
+    pub fn with_attribution(
+        mut self,
+        api_key_id: Option<String>,
+        team_name: Option<String>,
+        project_name: Option<String>,
+        cost_center: Option<String>,
+    ) -> Self {
+        self.api_key_id = api_key_id;
+        self.team_name = team_name;
+        self.project_name = project_name;
+        self.cost_center = cost_center;
+        self
+    }
+
     /// Calculates estimated cost based on model pricing.
     /// Uses engine-specific pricing when engine_id is set, otherwise falls back to model-based pricing.
     pub fn calculate_cost(&mut self) -> &mut Self {
@@ -425,7 +441,8 @@ impl TelemetryTracking for MonitoringService {
             "SELECT agent_id, timestamp, input_tokens, output_tokens, cached_tokens,
                     cache_creation_tokens, cache_read_tokens, total_tokens,
                     estimated_cost, model, provider, tool_name, tool_args, tool_approved, tool_approval_type, engine_id,
-                    behavior_type, behavior_invocation_count, behavior_duration_ms, behavior_outcome
+                    behavior_type, behavior_invocation_count, behavior_duration_ms, behavior_outcome,
+                    api_key_id, team_name, project_name, cost_center
              FROM telemetry WHERE agent_id = ?1 ORDER BY timestamp DESC",
         )?;
 
@@ -452,6 +469,10 @@ impl TelemetryTracking for MonitoringService {
                     behavior_invocation_count: row.get(17).ok(),
                     behavior_duration_ms: row.get(18).ok(),
                     behavior_outcome: row.get(19).ok(),
+                    api_key_id: row.get(20).ok(),
+                    team_name: row.get(21).ok(),
+                    project_name: row.get(22).ok(),
+                    cost_center: row.get(23).ok(),
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -512,19 +533,21 @@ impl TelemetryTracking for MonitoringService {
     }
     
     fn get_behavior_metrics(&self, workflow_id: Option<&str>) -> Result<Vec<TelemetryRecord>> {
-        let query = if let Some(wf_id) = workflow_id {
+        let query = if let Some(_wf_id) = workflow_id {
             // Filter by workflow_id if provided (would need workflow_id in telemetry table for full support)
             // For now, filter by behavior_type is not null
             "SELECT agent_id, timestamp, input_tokens, output_tokens, cached_tokens,
                     cache_creation_tokens, cache_read_tokens, total_tokens,
                     estimated_cost, model, provider, tool_name, tool_args, tool_approved, tool_approval_type, engine_id,
-                    behavior_type, behavior_invocation_count, behavior_duration_ms, behavior_outcome
+                    behavior_type, behavior_invocation_count, behavior_duration_ms, behavior_outcome,
+                    api_key_id, team_name, project_name, cost_center
              FROM telemetry WHERE behavior_type IS NOT NULL ORDER BY timestamp DESC"
         } else {
             "SELECT agent_id, timestamp, input_tokens, output_tokens, cached_tokens,
                     cache_creation_tokens, cache_read_tokens, total_tokens,
                     estimated_cost, model, provider, tool_name, tool_args, tool_approved, tool_approval_type, engine_id,
-                    behavior_type, behavior_invocation_count, behavior_duration_ms, behavior_outcome
+                    behavior_type, behavior_invocation_count, behavior_duration_ms, behavior_outcome,
+                    api_key_id, team_name, project_name, cost_center
              FROM telemetry WHERE behavior_type IS NOT NULL ORDER BY timestamp DESC"
         };
         
@@ -551,6 +574,10 @@ impl TelemetryTracking for MonitoringService {
                 behavior_invocation_count: row.get(17).ok(),
                 behavior_duration_ms: row.get(18).ok(),
                 behavior_outcome: row.get(19).ok(),
+                api_key_id: row.get(20).ok(),
+                team_name: row.get(21).ok(),
+                project_name: row.get(22).ok(),
+                cost_center: row.get(23).ok(),
             })
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -563,7 +590,8 @@ impl TelemetryTracking for MonitoringService {
             "SELECT agent_id, timestamp, input_tokens, output_tokens, cached_tokens,
                     cache_creation_tokens, cache_read_tokens, total_tokens,
                     estimated_cost, model, provider, tool_name, tool_args, tool_approved, tool_approval_type, engine_id,
-                    behavior_type, behavior_invocation_count, behavior_duration_ms, behavior_outcome
+                    behavior_type, behavior_invocation_count, behavior_duration_ms, behavior_outcome,
+                    api_key_id, team_name, project_name, cost_center
              FROM telemetry WHERE behavior_type = ?1 ORDER BY timestamp DESC",
         )?;
         
@@ -589,6 +617,10 @@ impl TelemetryTracking for MonitoringService {
                 behavior_invocation_count: row.get(17).ok(),
                 behavior_duration_ms: row.get(18).ok(),
                 behavior_outcome: row.get(19).ok(),
+                api_key_id: row.get(20).ok(),
+                team_name: row.get(21).ok(),
+                project_name: row.get(22).ok(),
+                cost_center: row.get(23).ok(),
             })
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;

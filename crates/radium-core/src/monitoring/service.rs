@@ -242,8 +242,9 @@ impl MonitoringService {
             "INSERT INTO telemetry (agent_id, timestamp, input_tokens, output_tokens, cached_tokens,
                                     cache_creation_tokens, cache_read_tokens, total_tokens,
                                     estimated_cost, model, provider, tool_name, tool_args, tool_approved, tool_approval_type, engine_id,
-                                    behavior_type, behavior_invocation_count, behavior_duration_ms, behavior_outcome)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)",
+                                    behavior_type, behavior_invocation_count, behavior_duration_ms, behavior_outcome,
+                                    api_key_id, team_name, project_name, cost_center)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24)",
             rusqlite::params![
                 record.agent_id,
                 record.timestamp,
@@ -265,6 +266,10 @@ impl MonitoringService {
                 record.behavior_invocation_count,
                 record.behavior_duration_ms,
                 record.behavior_outcome,
+                record.api_key_id,
+                record.team_name,
+                record.project_name,
+                record.cost_center,
             ],
         )?;
         Ok(())
