@@ -1,0 +1,136 @@
+# Execution Profile Policy Configuration
+# Optimized for execution agents (e.g., executor-agent)
+# Allows writes with approval, blocks dangerous operations
+
+approval_mode = "ask"
+
+# Allow read operations for code understanding
+[[rules]]
+name = "Allow read operations"
+priority = "user"
+action = "allow"
+tool_pattern = "read_*"
+reason = "Execution agents need to read code before modifying"
+
+[[rules]]
+name = "Allow codebase search"
+priority = "user"
+action = "allow"
+tool_pattern = "codebase_search"
+reason = "Execution agents need to find relevant code"
+
+# File writes require approval - execution agents can modify but need oversight
+[[rules]]
+name = "Require approval for file writes"
+priority = "user"
+action = "ask_user"
+tool_pattern = "write_*"
+reason = "File writes require approval for safety"
+
+[[rules]]
+name = "Require approval for file edits"
+priority = "user"
+action = "ask_user"
+tool_pattern = "search_replace"
+reason = "File edits require approval for safety"
+
+# Allow safe build and test commands
+[[rules]]
+name = "Allow build commands"
+priority = "user"
+action = "allow"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "cargo build *"
+reason = "Build commands are safe for execution agents"
+
+[[rules]]
+name = "Allow test commands"
+priority = "user"
+action = "allow"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "* test *"
+reason = "Test execution is safe and necessary"
+
+[[rules]]
+name = "Allow linting commands"
+priority = "user"
+action = "allow"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "* lint *"
+reason = "Linting is safe and helps maintain code quality"
+
+# Deny dangerous operations with highest priority
+[[rules]]
+name = "Deny dangerous deletion commands"
+priority = "admin"
+action = "deny"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "rm -rf *"
+reason = "Prevent accidental deletion of files or directories"
+
+[[rules]]
+name = "Deny recursive deletion"
+priority = "admin"
+action = "deny"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "rm -r *"
+reason = "Prevent recursive deletion"
+
+[[rules]]
+name = "Deny system modification commands"
+priority = "admin"
+action = "deny"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "sudo *"
+reason = "Prevent system-level modifications"
+
+[[rules]]
+name = "Deny format operations on root"
+priority = "admin"
+action = "deny"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "* format * / *"
+reason = "Prevent formatting root filesystem"
+
+# Deny production database access
+[[rules]]
+name = "Deny production database access"
+priority = "admin"
+action = "deny"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "* production *"
+reason = "Prevent accidental production database access"
+
+[[rules]]
+name = "Deny production database access (prod)"
+priority = "admin"
+action = "deny"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "* prod *"
+reason = "Prevent accidental prod database access"
+
+# Deny network operations to external services
+[[rules]]
+name = "Deny external API calls"
+priority = "admin"
+action = "deny"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "* curl * http*"
+reason = "Prevent unauthorized external API calls"
+
+# MCP tools require approval - may have side effects
+[[rules]]
+name = "Require approval for MCP tools"
+priority = "user"
+action = "ask_user"
+tool_pattern = "mcp_*"
+reason = "MCP tools may have side effects, require approval"
+
+# Default: ask for anything else
+[[rules]]
+name = "Require approval for all other operations"
+priority = "default"
+action = "ask_user"
+tool_pattern = "*"
+reason = "Default: require approval for any operation not explicitly allowed or denied"
+

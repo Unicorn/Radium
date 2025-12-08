@@ -1,0 +1,80 @@
+# Balanced Policy Configuration
+# Balanced security and usability - auto-approve edits, ask for other operations
+# Suitable for general development with safety guards
+
+approval_mode = "autoEdit"
+
+# Allow safe read operations
+[[rules]]
+name = "Allow safe file reads"
+priority = "user"
+action = "allow"
+tool_pattern = "read_*"
+reason = "Read operations are safe and always allowed"
+
+# File writes require approval (autoEdit mode will auto-approve edit operations)
+[[rules]]
+name = "Require approval for file writes"
+priority = "user"
+action = "ask_user"
+tool_pattern = "write_*"
+reason = "File writes require user approval for safety"
+
+# Allow safe shell commands with patterns
+[[rules]]
+name = "Allow git commands"
+priority = "user"
+action = "allow"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "git *"
+reason = "Git commands are generally safe"
+
+[[rules]]
+name = "Allow build commands"
+priority = "user"
+action = "allow"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "cargo *"
+reason = "Build commands are safe for development"
+
+[[rules]]
+name = "Allow test commands"
+priority = "user"
+action = "allow"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "* test *"
+reason = "Test execution is safe"
+
+# Deny dangerous operations with high priority
+[[rules]]
+name = "Deny dangerous deletion commands"
+priority = "admin"
+action = "deny"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "rm -rf *"
+reason = "Prevent accidental deletion of files"
+
+[[rules]]
+name = "Deny system modification commands"
+priority = "admin"
+action = "deny"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "sudo *"
+reason = "Prevent system-level modifications"
+
+[[rules]]
+name = "Deny network operations to production"
+priority = "admin"
+action = "deny"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "* production *"
+reason = "Prevent accidental production access"
+
+# MCP tools require approval
+[[rules]]
+name = "Require approval for MCP tools"
+priority = "user"
+action = "ask_user"
+tool_pattern = "mcp_*"
+reason = "MCP tools may have side effects, require approval"
+

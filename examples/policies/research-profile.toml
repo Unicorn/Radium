@@ -1,0 +1,105 @@
+# Research Profile Policy Configuration
+# Optimized for read-only research agents (e.g., research-agent)
+# Maximum safety: read-only operations, no writes, no network calls
+
+approval_mode = "ask"
+
+# Allow all read operations - research agents need to explore codebases
+[[rules]]
+name = "Allow all read operations"
+priority = "admin"
+action = "allow"
+tool_pattern = "read_*"
+reason = "Research agents need read access for exploration"
+
+[[rules]]
+name = "Allow codebase search"
+priority = "admin"
+action = "allow"
+tool_pattern = "codebase_search"
+reason = "Research agents need semantic search capabilities"
+
+[[rules]]
+name = "Allow grep operations"
+priority = "admin"
+action = "allow"
+tool_pattern = "grep"
+reason = "Research agents need pattern search capabilities"
+
+[[rules]]
+name = "Allow directory listing"
+priority = "admin"
+action = "allow"
+tool_pattern = "list_dir"
+reason = "Research agents need to explore directory structure"
+
+[[rules]]
+name = "Allow file search"
+priority = "admin"
+action = "allow"
+tool_pattern = "glob_file_search"
+reason = "Research agents need to find files by pattern"
+
+# Deny all write operations - research agents should not modify code
+[[rules]]
+name = "Deny all file writes"
+priority = "admin"
+action = "deny"
+tool_pattern = "write_*"
+reason = "Research agents are read-only, no file modifications allowed"
+
+[[rules]]
+name = "Deny file edits"
+priority = "admin"
+action = "deny"
+tool_pattern = "search_replace"
+reason = "Research agents cannot edit files"
+
+[[rules]]
+name = "Deny file deletion"
+priority = "admin"
+action = "deny"
+tool_pattern = "delete_file"
+reason = "Research agents cannot delete files"
+
+# Deny all shell commands - research agents should not execute code
+[[rules]]
+name = "Deny all shell commands"
+priority = "admin"
+action = "deny"
+tool_pattern = "run_terminal_cmd"
+reason = "Research agents are read-only, no command execution"
+
+# Deny network operations - research agents should not make external calls
+[[rules]]
+name = "Deny network operations"
+priority = "admin"
+action = "deny"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "* curl *"
+reason = "Research agents should not make network calls"
+
+[[rules]]
+name = "Deny network operations (wget)"
+priority = "admin"
+action = "deny"
+tool_pattern = "run_terminal_cmd"
+arg_pattern = "* wget *"
+reason = "Research agents should not make network calls"
+
+# Deny MCP tools that might have side effects
+[[rules]]
+name = "Deny MCP tools with side effects"
+priority = "admin"
+action = "deny"
+tool_pattern = "mcp_*"
+reason = "Research agents should not use tools with potential side effects"
+
+# Default: ask for anything else (defense in depth)
+[[rules]]
+name = "Require approval for all other operations"
+priority = "default"
+action = "ask_user"
+tool_pattern = "*"
+reason = "Default: require approval for any operation not explicitly allowed"
+

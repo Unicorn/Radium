@@ -1,7 +1,8 @@
 # Permissive Policy Configuration
-# Development mode - allows most operations automatically
+# Development mode - allows most operations automatically (yolo mode)
+# Use with caution: minimal restrictions, maximum automation
 
-approval_mode = "autoEdit"
+approval_mode = "yolo"
 
 # Allow all file operations
 [[rules]]
