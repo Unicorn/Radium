@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Policy Editor - Radium Desktop</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            margin-bottom: 2rem;
+        }
+        
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(90deg, #00d4ff, #00ff88);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .header p {
+            color: #aaa;
+        }
+        
+        .toolbar {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            background: linear-gradient(90deg, #00d4ff, #00ff88);
+            border: none;
+            color: #1a1a2e;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(0, 212, 255, 0.3);
+        }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+        
+        @media (max-width: 1200px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .panel {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 1.5rem;
+        }
+        
+        .panel h2 {
+            color: #00ff88;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #aaa;
+            font-weight: 500;
+        }
+        
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.75rem;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: #fff;
+            font-size: 1rem;
+            font-family: inherit;
+        }
+        
+        .form-group select option {
+            background: #1a1a2e;
+            color: #fff;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #00ff88;
+            box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.1);
+        }
+        
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        .rules-list {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        
+        .rule-item {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .rule-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        
+        .rule-item-name {
+            font-weight: 600;
+            color: #00ff88;
+        }
+        
+        .rule-item-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .btn-small {
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+        }
+        
+        .btn-danger {
+            background: rgba(255, 107, 107, 0.2);
+            border-color: #ff6b6b;
+            color: #ff9999;
+        }
+        
+        .btn-danger:hover {
+            background: rgba(255, 107, 107, 0.3);
+        }
+        
+        .rule-item-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 0.5rem;
+            font-size: 0.9rem;
+            color: #aaa;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            background: rgba(0, 255, 136, 0.2);
+            color: #00ff88;
+            border: 1px solid rgba(0, 255, 136, 0.3);
+        }
+        
+        .badge.admin {
+            background: rgba(255, 107, 107, 0.2);
+            color: #ff9999;
+            border-color: #ff6b6b;
+        }
+        
+        .badge.user {
+            background: rgba(0, 212, 255, 0.2);
+            color: #00d4ff;
+            border-color: #00d4ff;
+        }
+        
+        .message {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            display: none;
+        }
+        
+        .message.error {
+            background: rgba(255, 107, 107, 0.2);
+            border: 1px solid #ff6b6b;
+            color: #ff9999;
+        }
+        
+        .message.success {
+            background: rgba(0, 255, 136, 0.2);
+            border: 1px solid #00ff88;
+            color: #00ff88;
+        }
+        
+        .message.show {
+            display: block;
+        }
+        
+        .test-panel {
+            margin-top: 2rem;
+        }
+        
+        .test-result {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+        }
+        
+        .test-result.show {
+            display: block;
+        }
+        
+        .test-result.allowed {
+            border: 1px solid #00ff88;
+        }
+        
+        .test-result.denied {
+            border: 1px solid #ff6b6b;
+        }
+        
+        .test-result.ask {
+            border: 1px solid #00d4ff;
+        }
+        
+        .pattern-helper {
+            margin-top: 0.5rem;
+            font-size: 0.85rem;
+            color: #888;
+        }
+        
+        .pattern-suggestions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+        
+        .pattern-suggestion {
+            padding: 0.25rem 0.5rem;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+        
+        .pattern-suggestion:hover {
+            background: rgba(0, 255, 136, 0.2);
+            border-color: #00ff88;
+        }
+        
+        .conflicts-panel {
+            margin-top: 2rem;
+        }
+        
+        .conflict-item {
+            background: rgba(255, 107, 107, 0.1);
+            border: 1px solid #ff6b6b;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #888;
+        }
+        
+        .toml-preview {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 1rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Policy Editor</h1>
+            <p>Manage tool execution policies for Radium agents</p>
+        </div>
+        
+        <div id="message" class="message"></div>
+        
+        <div class="toolbar">
+            <button class="btn" onclick="savePolicy()">Save Policy</button>
+            <button class="btn btn-secondary" onclick="validatePolicy()">Validate</button>
+            <button class="btn btn-secondary" onclick="checkConflicts()">Check Conflicts</button>
+            <button class="btn btn-secondary" onclick="loadPolicy()">Reload</button>
+        </div>
+        
+        <div class="grid">
+            <div class="panel">
+                <h2>Policy Configuration</h2>
+                
+                <div class="form-group">
+                    <label for="approval-mode">Approval Mode</label>
+                    <select id="approval-mode">
+                        <option value="ask">Ask (Require approval for all operations)</option>
+                        <option value="autoEdit">AutoEdit (Auto-approve edits, ask for others)</option>
+                        <option value="yolo">Yolo (Auto-approve all operations)</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Rules</label>
+                    <div id="rules-list" class="rules-list">
+                        <div class="empty-state">No rules configured. Add a rule below.</div>
+                    </div>
+                </div>
+                
+                <h3 style="color: #00ff88; margin-top: 2rem; margin-bottom: 1rem;">Add New Rule</h3>
+                
+                <div class="form-group">
+                    <label for="rule-name">Rule Name *</label>
+                    <input type="text" id="rule-name" placeholder="e.g., Allow read operations" />
+                </div>
+                
+                <div class="form-group">
+                    <label for="rule-priority">Priority *</label>
+                    <select id="rule-priority">
+                        <option value="default">Default (Lowest priority)</option>
+                        <option value="user" selected>User (Medium priority)</option>
+                        <option value="admin">Admin (Highest priority)</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="rule-action">Action *</label>
+                    <select id="rule-action">
+                        <option value="allow">Allow</option>
+                        <option value="deny">Deny</option>
+                        <option value="ask_user">Ask User</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="rule-tool-pattern">Tool Pattern * (Glob pattern)</label>
+                    <input type="text" id="rule-tool-pattern" placeholder="e.g., read_*, write_*, run_terminal_cmd" />
+                    <div class="pattern-helper">
+                        Common patterns: <span class="pattern-suggestions">
+                            <span class="pattern-suggestion" onclick="setPattern('read_*')">read_*</span>
+                            <span class="pattern-suggestion" onclick="setPattern('write_*')">write_*</span>
+                            <span class="pattern-suggestion" onclick="setPattern('run_terminal_cmd')">run_terminal_cmd</span>
+                            <span class="pattern-suggestion" onclick="setPattern('mcp_*')">mcp_*</span>
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="rule-arg-pattern">Argument Pattern (Optional, Glob pattern)</label>
+                    <input type="text" id="rule-arg-pattern" placeholder="e.g., git *, rm -rf *" />
+                </div>
+                
+                <div class="form-group">
+                    <label for="rule-reason">Reason (Optional)</label>
+                    <textarea id="rule-reason" placeholder="Explain why this rule exists"></textarea>
+                </div>
+                
+                <button class="btn" onclick="addRule()">Add Rule</button>
+            </div>
+            
+            <div>
+                <div class="panel">
+                    <h2>Test Policy</h2>
+                    
+                    <div class="form-group">
+                        <label for="test-tool-name">Tool Name</label>
+                        <input type="text" id="test-tool-name" placeholder="e.g., read_file" />
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="test-tool-args">Arguments (space-separated)</label>
+                        <input type="text" id="test-tool-args" placeholder="e.g., config.toml" />
+                    </div>
+                    
+                    <button class="btn" onclick="testPolicy()">Test</button>
+                    
+                    <div id="test-result" class="test-result"></div>
+                </div>
+                
+                <div class="panel conflicts-panel">
+                    <h2>Conflicts</h2>
+                    <div id="conflicts-list">
+                        <div class="empty-state">No conflicts detected</div>
+                    </div>
+                </div>
+                
+                <div class="panel" style="margin-top: 2rem;">
+                    <h2>TOML Preview</h2>
+                    <div id="toml-preview" class="toml-preview">Loading...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script type="module" src="js/policy-editor.js"></script>
+</body>
+</html>
+

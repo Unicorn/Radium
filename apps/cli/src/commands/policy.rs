@@ -1,9 +1,15 @@
 //! Policy management commands.
 
+mod policy_learn;
+
 use clap::Subcommand;
 use radium_core::policy::{ApprovalMode, ConflictDetector, PolicyEngine, ResolutionStrategy, merge_template, TemplateDiscovery};
 use radium_core::workspace::Workspace;
 use std::path::PathBuf;
+use policy_learn::execute_learn_command;
+
+mod policy_learn;
+use policy_learn::execute_learn_command;
 
 /// Policy command options.
 #[derive(Subcommand, Debug)]
@@ -87,6 +93,12 @@ pub enum PolicyCommand {
         json: bool,
     },
 
+    /// Policy learning from approval patterns
+    Learn {
+        #[command(subcommand)]
+        command: LearnCommand,
+    },
+
     /// Resolve conflicts in policy rules
     Resolve {
         /// Resolution strategy (auto, higher-priority, more-specific, keep-first, keep-second, remove-both, rename)
@@ -97,6 +109,43 @@ pub enum PolicyCommand {
         #[arg(long)]
         yes: bool,
 
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+/// Policy learning commands.
+#[derive(Subcommand, Debug)]
+pub enum LearnCommand {
+    /// Analyze approval patterns and detect safe execution patterns
+    Analyze {
+        /// Minimum frequency threshold (default: 5)
+        #[arg(long, default_value = "5")]
+        min_frequency: u64,
+        /// Minimum confidence threshold (0.0-1.0, default: 0.7)
+        #[arg(long, default_value = "0.7")]
+        min_confidence: f64,
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Show policy rule suggestions
+    Suggest {
+        /// Minimum frequency threshold (default: 5)
+        #[arg(long, default_value = "5")]
+        min_frequency: u64,
+        /// Minimum confidence threshold (0.0-1.0, default: 0.7)
+        #[arg(long, default_value = "0.7")]
+        min_confidence: f64,
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Apply a policy suggestion
+    Apply {
+        /// Suggestion ID to apply
+        suggestion_id: String,
         /// Output as JSON
         #[arg(long)]
         json: bool,
@@ -148,6 +197,7 @@ pub async fn execute_policy_command(command: PolicyCommand) -> anyhow::Result<()
         PolicyCommand::Templates { command } => execute_template_command(command).await,
         PolicyCommand::Conflicts { json } => detect_conflicts(json).await,
         PolicyCommand::Resolve { strategy, yes, json } => resolve_conflicts(strategy, yes, json).await,
+        PolicyCommand::Learn { command } => execute_learn_command(command).await,
     }
 }
 

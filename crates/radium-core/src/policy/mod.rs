@@ -33,6 +33,8 @@ pub mod conflict_resolution;
 pub mod constitution;
 mod dry_run;
 mod rules;
+#[cfg(feature = "monitoring")]
+pub mod suggestions;
 pub mod templates;
 mod types;
 
@@ -43,8 +45,11 @@ pub use constitution::ConstitutionManager;
 pub use rules::{PolicyEngine, PolicyRule};
 pub use templates::{merge_template, PolicyTemplate, TemplateDiscovery};
 pub use alerts::{AlertConfig, AlertManager, AlertPayload, AlertSeverity, WebhookConfig};
+pub use analytics::PolicyAnalytics;
 pub use dry_run::{format_preview, generate_preview};
 pub use types::{
     ApprovalMode, DryRunPreview, PolicyAction, PolicyDecision, PolicyError, PolicyPriority,
     PolicyResult,
 };
+#[cfg(feature = "monitoring")]
+pub use suggestions::{PolicySuggestion, PolicySuggestionService};

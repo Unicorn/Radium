@@ -17,6 +17,7 @@
 //! ```
 
 pub mod analytics;
+pub mod capability_manager;
 pub mod config;
 pub mod discovery;
 pub mod linter;
@@ -29,6 +30,9 @@ pub mod validation;
 
 pub use analytics::{
     AgentAnalytics, AgentAnalyticsService, AnalyticsError, OverallStats, UsageRecord,
+};
+pub use capability_manager::{
+    CapabilityError, CapabilityManager, ElevationRecord, ElevationRequest,
 };
 pub use config::{AgentConfigError, AgentConfigFile, ReasoningEffort};
 pub use discovery::{AgentDiscovery, DiscoveryError};

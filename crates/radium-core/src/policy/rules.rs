@@ -7,6 +7,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use super::alerts::AlertManager;
+use super::analytics::PolicyAnalytics;
 use super::dry_run::generate_preview;
 use super::types::{
     ApprovalMode, PolicyAction, PolicyDecision, PolicyError, PolicyPriority, PolicyResult,

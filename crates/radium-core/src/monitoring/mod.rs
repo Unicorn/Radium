@@ -28,6 +28,8 @@ mod attribution;
 mod budget;
 mod error;
 mod logs;
+#[cfg(feature = "monitoring")]
+pub mod permission_analytics;
 pub(crate) mod schema;
 pub(crate) mod service;
 pub(crate) mod telemetry;
@@ -42,3 +44,8 @@ pub use logs::LogManager;
 pub use schema::initialize_schema;
 pub use service::{AgentRecord, AgentStatus, AgentUsage, MonitoringService, UsageFilter};
 pub use telemetry::{TelemetryParser, TelemetryRecord, TelemetrySummary, TelemetryTracking};
+#[cfg(feature = "monitoring")]
+pub use permission_analytics::{
+    AgentUsageStats, Anomaly, AnomalyCategory, AnomalySeverity, PermissionAnalytics,
+    PermissionEvent, PermissionOutcome, RuleEffectivenessStats, TimeSeriesPoint, ToolUsageStats,
+};

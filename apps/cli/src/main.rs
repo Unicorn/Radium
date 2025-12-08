@@ -14,7 +14,7 @@ use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 use commands::{
-    agents, auth, budget, checkpoint, clean, context, cost, craft, doctor, engines, extension, hooks, init, learning, monitor, plan, playbook, policy, requirement, run,
+    agents, auth, budget, capability, checkpoint, clean, context, cost, craft, doctor, engines, extension, hooks, init, learning, monitor, plan, playbook, policy, requirement, run,
     sandbox, stats, status, step, validate,
     // All commands enabled!
     templates, complete, autonomous, vibecheck, chat, mcp, custom, braingrid,
@@ -354,6 +354,13 @@ enum Command {
     #[command(subcommand)]
     Policy(policy::PolicyCommand),
 
+    /// Capability management
+    ///
+    /// Manage runtime capability elevation for agents.
+    /// Request, grant, revoke, and view capability elevations.
+    #[command(subcommand)]
+    Capability(capability::CapabilityCommand),
+
     /// Constitution management
     ///
     /// Manage session-based constitution rules for per-session constraints.
@@ -614,6 +621,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Policy(cmd) => {
             policy::execute_policy_command(cmd).await?;
+        }
+        Command::Capability(cmd) => {
+            capability::execute_capability_command(cmd).await?;
         }
         Command::Constitution(cmd) => {
             commands::constitution::execute_constitution_command(cmd).await?;

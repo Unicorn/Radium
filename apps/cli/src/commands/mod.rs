@@ -5,6 +5,7 @@ pub mod auth;
 pub mod autonomous;
 pub mod braingrid;
 pub mod budget;
+pub mod capability;
 pub mod chat;
 pub mod checkpoint;
 pub mod clean;

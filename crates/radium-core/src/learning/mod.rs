@@ -6,6 +6,8 @@
 
 #[cfg(feature = "workflow")]
 pub mod integration;
+#[cfg(feature = "monitoring")]
+pub mod pattern_analyzer;
 #[cfg(feature = "workflow")]
 pub mod recovery_learning;
 #[cfg(feature = "workflow")]
@@ -26,3 +28,7 @@ pub use store::{
     STANDARD_CATEGORIES, STANDARD_SECTIONS, Skill, SkillStatus,
 };
 pub use updates::{UpdateBatch, UpdateOperation, UpdateOperationType};
+#[cfg(feature = "monitoring")]
+pub use pattern_analyzer::{
+    Pattern, PatternAnalyzer, PatternEvent, PolicySuggestionGenerator,
+};

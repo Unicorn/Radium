@@ -3,8 +3,13 @@
 //! This module contains the Tauri commands and application logic.
 
 pub mod client;
+pub mod policy;
 
 use client::ClientManager;
+use policy::{
+    get_policy_config, save_policy_config, validate_policy_config,
+    check_policy_tool, detect_policy_conflicts,
+};
 use radium_core::extensions::{ExtensionDiscovery, ExtensionManager, InstallOptions};
 // Note: server and workflow modules require specific features
 // use radium_core::server::manager::EmbeddedServer;
@@ -1098,7 +1103,12 @@ pub fn run() {
             install_extension,
             uninstall_extension,
             get_extension_info,
-            search_extensions
+            search_extensions,
+            get_policy_config,
+            save_policy_config,
+            validate_policy_config,
+            check_policy_tool,
+            detect_policy_conflicts
         ])
         .setup(|app| {
             info!("Radium Desktop starting up");
