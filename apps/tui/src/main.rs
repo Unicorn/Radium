@@ -386,6 +386,9 @@ async fn main() -> Result<()> {
 
             // Process and apply effects after all rendering is complete
             app.effect_manager.process_effects(delta_time, frame.buffer_mut(), area);
+            
+            // Increment spinner frame counter for animations (target 60fps)
+            app.spinner_frame = app.spinner_frame.wrapping_add(1);
         })?;
 
         // Update previous state for transition detection (after rendering)

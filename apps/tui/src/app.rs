@@ -88,6 +88,8 @@ pub struct App {
     pub previous_dialog_open: bool,
     /// Previous toast count (for toast animation detection)
     pub previous_toast_count: usize,
+    /// Frame counter for spinner animations (increments on each render)
+    pub spinner_frame: usize,
 }
 
 impl App {
@@ -422,9 +424,10 @@ impl App {
             }
 
             // Escape to cancel command menu
-            KeyCode::Esc if !self.prompt_data.command_suggestions.is_empty() => {
+            KeyCode::Esc if self.prompt_data.autocomplete_active => {
                 self.prompt_data.command_suggestions.clear();
                 self.prompt_data.selected_suggestion_index = 0;
+                self.prompt_data.autocomplete_active = false;
             }
 
             // Enter - handle Cmd+Enter for submission, plain Enter for newline
@@ -994,10 +997,22 @@ impl App {
         if !input.starts_with('/') {
             self.prompt_data.command_suggestions.clear();
             self.prompt_data.selected_suggestion_index = 0;
+            self.prompt_data.autocomplete_active = false;
             return;
         }
 
         let partial = &input[1..]; // Remove the '/'
+
+        // REQ-198: Only show suggestions after 2+ characters (excluding the '/')
+        if partial.len() < 2 {
+            self.prompt_data.command_suggestions.clear();
+            self.prompt_data.selected_suggestion_index = 0;
+            self.prompt_data.autocomplete_active = false;
+            return;
+        }
+
+        // Mark auto-completion as active (user has typed 2+ characters)
+        self.prompt_data.autocomplete_active = true;
 
         // Parse input to detect main command vs subcommand
         let parts: Vec<&str> = partial.split_whitespace().collect();
