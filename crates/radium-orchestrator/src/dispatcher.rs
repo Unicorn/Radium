@@ -3,7 +3,9 @@
 //! This module provides a background service that continuously processes the ExecutionQueue
 //! and dispatches tasks to agents until completion or critical errors.
 
-use crate::{AgentExecutor, AgentRegistry, CriticalError, ExecutionQueue, LoadBalancer};
+use crate::{
+    AgentExecutor, AgentRegistry, CriticalError, ExecutionQueue, LoadBalancer, ProgressReporter,
+};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -49,6 +51,8 @@ pub struct TaskDispatcher {
     pause_notify: Arc<tokio::sync::Notify>,
     /// Last critical error encountered (if any).
     last_error: Arc<Mutex<Option<CriticalError>>>,
+    /// Progress reporter for real-time monitoring.
+    progress_reporter: Arc<ProgressReporter>,
 }
 
 impl std::fmt::Debug for TaskDispatcher {
@@ -86,6 +90,7 @@ impl TaskDispatcher {
             paused: Arc::new(AtomicBool::new(false)),
             pause_notify: Arc::new(tokio::sync::Notify::new()),
             last_error: Arc::new(Mutex::new(None)),
+            progress_reporter: Arc::new(ProgressReporter::new()),
         }
     }
 
@@ -110,6 +115,7 @@ impl TaskDispatcher {
         let paused = Arc::clone(&self.paused);
         let pause_notify = Arc::clone(&self.pause_notify);
         let last_error = Arc::clone(&self.last_error);
+        let progress_reporter = Arc::clone(&self.progress_reporter);
 
         tokio::spawn(async move {
             info!("Task dispatcher started");
@@ -143,6 +149,14 @@ impl TaskDispatcher {
                                 agent_id = %agent_id,
                                 "Processing task"
                             );
+
+                            // Emit task started event
+                            progress_reporter.emit_task_started(task_id.clone(), agent_id.clone());
+
+                            // Update active tasks
+                            let queue_metrics = queue.metrics().await;
+                            progress_reporter.update_active_tasks(queue_metrics.running).await;
+                            progress_reporter.update_queue_depth(queue_metrics.pending).await;
 
                             // Check if agent is available (not at capacity)
                             let agent_load = load_balancer.get_agent_load(&agent_id).await;
@@ -191,6 +205,13 @@ impl TaskDispatcher {
                                             agent_id = %agent_id,
                                             "Task completed successfully"
                                         );
+                                        progress_reporter
+                                            .emit_task_completed(
+                                                task_id.clone(),
+                                                agent_id.clone(),
+                                                execution_result.telemetry,
+                                            )
+                                            .await;
                                     } else {
                                         warn!(
                                             task_id = %task_id,
@@ -198,6 +219,12 @@ impl TaskDispatcher {
                                             error = ?execution_result.error,
                                             "Task execution failed"
                                         );
+                                        let error_msg = execution_result
+                                            .error
+                                            .unwrap_or_else(|| "Unknown error".to_string());
+                                        progress_reporter
+                                            .emit_task_failed(task_id.clone(), agent_id.clone(), error_msg)
+                                            .await;
                                     }
                                 }
                                 Err(e) => {
@@ -229,6 +256,9 @@ impl TaskDispatcher {
                                             error = %e,
                                             "Task execution error"
                                         );
+                                        progress_reporter
+                                            .emit_task_failed(task_id.clone(), agent_id.clone(), e.to_string())
+                                            .await;
                                     }
                                 }
                             }
@@ -308,6 +338,14 @@ impl TaskDispatcher {
     /// Returns `Some(CriticalError)` if a critical error occurred, `None` otherwise.
     pub fn last_error(&self) -> Option<CriticalError> {
         self.last_error.lock().unwrap().clone()
+    }
+
+    /// Gets the progress reporter for monitoring.
+    ///
+    /// # Returns
+    /// Returns a reference to the progress reporter.
+    pub fn progress_reporter(&self) -> Arc<ProgressReporter> {
+        Arc::clone(&self.progress_reporter)
     }
 }
 

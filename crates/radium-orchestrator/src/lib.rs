@@ -10,6 +10,7 @@ pub mod lifecycle;
 pub mod load_balancer;
 pub mod orchestration;
 pub mod plugin;
+pub mod progress;
 pub mod queue;
 pub mod registry;
 pub mod selector;
@@ -32,6 +33,7 @@ pub use executor::{
     AgentExecutor, ExecutionResult, ExecutionTelemetry, HookExecutor, HookResult, QueueProcessor, QueueProcessorConfig, SandboxManager,
 };
 pub use load_balancer::LoadBalancer;
+pub use progress::{ProgressEvent, ProgressMetrics, ProgressReporter};
 pub use lifecycle::{AgentLifecycle, AgentState};
 pub use orchestration::{
     FinishReason, OrchestrationProvider, OrchestrationResult,
