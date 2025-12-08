@@ -1,7 +1,6 @@
 //! State management for checkpoint and interrupt moments during workflow execution.
 
 use std::time::SystemTime;
-use radium_core::checkpoint::CheckpointDiff;
 
 /// Trigger type for workflow interrupts.
 #[derive(Debug, Clone, PartialEq)]
@@ -68,8 +67,8 @@ pub struct CheckpointInterruptState {
     pub show_diff: bool,
     /// IDs of checkpoints available for rollback
     pub available_checkpoints: Vec<String>,
-    /// Cached diff data
-    pub diff_data: Option<CheckpointDiff>,
+    /// Cached diff data (will use radium_core::checkpoint::CheckpointDiff when integrated)
+    pub diff_data: Option<radium_core::checkpoint::CheckpointDiff>,
     /// Scroll offset for diff view
     pub diff_scroll_offset: usize,
 }
@@ -184,9 +183,10 @@ impl CheckpointInterruptState {
         self.show_details = !self.show_details;
     }
 
-    /// Toggles the diff view.
+    /// Toggles the diff view and fetches diff if needed.
     pub fn toggle_diff(&mut self) {
         self.show_diff = !self.show_diff;
+        // Diff will be fetched when needed via fetch_diff method
     }
 
     /// Checks if rollback is available.
@@ -195,10 +195,68 @@ impl CheckpointInterruptState {
     }
 
     /// Fetches diff data from checkpoint manager.
-    /// Note: This is a placeholder - actual implementation requires CheckpointManager access.
-    pub fn fetch_diff(&mut self, _checkpoint_manager: &dyn std::any::Any) -> Result<(), String> {
-        // This will be implemented in TASK-8 with proper CheckpointManager integration
-        Err("Diff fetching not yet implemented".to_string())
+    pub fn fetch_diff(&mut self, checkpoint_manager: &radium_core::checkpoint::CheckpointManager) -> Result<(), String> {
+        // Get current and previous checkpoint IDs
+        let current_id = match &self.checkpoint_id {
+            Some(id) => id.clone(),
+            None => {
+                // Try to get latest checkpoint
+                if let Some(latest) = checkpoint_manager.list_checkpoints().ok()
+                    .and_then(|checkpoints| checkpoints.last()) {
+                    latest.id.clone()
+                } else {
+                    return Err("No checkpoint available for diff".to_string());
+                }
+            }
+        };
+
+        // Get previous checkpoint (one before current)
+        let checkpoints = checkpoint_manager.list_checkpoints()
+            .map_err(|e| format!("Failed to list checkpoints: {}", e))?;
+        
+        let prev_id = if checkpoints.len() >= 2 {
+            // Find current checkpoint index
+            let current_idx = checkpoints.iter()
+                .position(|cp| cp.id == current_id)
+                .unwrap_or(checkpoints.len() - 1);
+            
+            if current_idx > 0 {
+                Some(checkpoints[current_idx - 1].id.clone())
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Get diff between checkpoints
+        if let Some(prev_id) = prev_id {
+            match checkpoint_manager.diff_checkpoints(&prev_id, &current_id) {
+                Ok(diff) => {
+                    self.diff_data = Some(diff);
+                    Ok(())
+                }
+                Err(e) => Err(format!("Failed to get diff: {}", e)),
+            }
+        } else {
+            // No previous checkpoint - get diff from current to workspace state
+            match checkpoint_manager.diff_checkpoint(&current_id) {
+                Ok(diff_text) => {
+                    // Create a simple CheckpointDiff from the text
+                    let diff = radium_core::checkpoint::CheckpointDiff {
+                        added: Vec::new(),
+                        modified: Vec::new(),
+                        deleted: Vec::new(),
+                        raw_diff: diff_text,
+                        insertions: 0,
+                        deletions: 0,
+                    };
+                    self.diff_data = Some(diff);
+                    Ok(())
+                }
+                Err(e) => Err(format!("Failed to get diff: {}", e)),
+            }
+        }
     }
 }
 

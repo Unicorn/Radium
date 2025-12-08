@@ -5,6 +5,7 @@
 
 pub mod agent_timeline;
 pub mod checkpoint_modal;
+pub mod checkpoint_interrupt_modal;
 pub mod dialog;
 pub mod execution_detail_view;
 pub mod execution_history_view;
@@ -28,6 +29,7 @@ pub mod toast;
 
 pub use agent_timeline::AgentTimeline;
 pub use checkpoint_modal::CheckpointModal;
+pub use checkpoint_interrupt_modal::CheckpointInterruptModal;
 pub use dialog::{Dialog, DialogChoice, DialogManager, render_dialog};
 pub use execution_detail_view::{Action as ExecutionDetailAction, ExecutionDetailView};
 pub use execution_history_view::{Action as ExecutionHistoryAction, ExecutionHistoryView, SortColumn};

@@ -22,7 +22,7 @@ use crate::requirement_progress::{ActiveRequirement, ActiveRequirementProgress};
 use crate::requirement_executor::RequirementExecutor as TuiRequirementExecutor;
 use crate::progress_channel::ExecutionResult;
 use crate::setup::SetupWizard;
-use crate::state::{ExecutionHistory, ExecutionRecord, WorkflowUIState};
+use crate::state::{CheckpointInterruptState, ExecutionHistory, ExecutionRecord, WorkflowUIState};
 use crate::theme::RadiumTheme;
 use crate::views::PromptData;
 use crate::workspace::WorkspaceStatus;
@@ -107,6 +107,8 @@ pub struct App {
     pub execution_history: ExecutionHistory,
     /// Active execution view (History, Detail, or Summary)
     pub active_execution_view: ExecutionView,
+    /// Checkpoint interrupt state (when workflow pauses for user action)
+    pub checkpoint_interrupt_state: Option<CheckpointInterruptState>,
 }
 
 impl App {
@@ -223,6 +225,7 @@ impl App {
             previous_toast_count: 0,
             execution_history,
             active_execution_view: ExecutionView::None,
+            checkpoint_interrupt_state: None,
         };
 
         // Show setup wizard if not configured, otherwise start chat
@@ -364,6 +367,11 @@ impl App {
 
 
     pub async fn handle_key(&mut self, key: KeyCode, modifiers: KeyModifiers) -> Result<()> {
+        // If checkpoint interrupt is active, handle interrupt input first
+        if self.is_interrupt_active() {
+            return self.handle_checkpoint_interrupt_key(key).await;
+        }
+
         // If dialog is open, handle dialog input first
         if self.dialog_manager.is_open() {
             if let Some(_value) = self.dialog_manager.handle_key(key) {
@@ -2136,6 +2144,281 @@ impl App {
         self.active_requirement_progress
             .as_ref()
             .map(|p| p.requirement_id.as_str())
+    }
+
+    /// Activates a checkpoint interrupt.
+    pub fn activate_checkpoint_interrupt(&mut self, state: CheckpointInterruptState) {
+        // Store current display context if not already stored
+        if self.previous_context.is_none() {
+            self.previous_context = Some(self.prompt_data.context.clone());
+        }
+
+        // Set interrupt state
+        self.checkpoint_interrupt_state = Some(state.clone());
+
+        // Transition to Checkpoint display context
+        let checkpoint_id = state.checkpoint_id.clone().unwrap_or_else(|| "unknown".to_string());
+        let reason = match &state.trigger {
+            crate::state::InterruptTrigger::AgentCheckpoint { reason, .. } => reason.clone(),
+            crate::state::InterruptTrigger::PolicyAskUser { reason, .. } => reason.clone(),
+            crate::state::InterruptTrigger::Error { message } => message.clone(),
+        };
+        let agent_id = match &state.trigger {
+            crate::state::InterruptTrigger::AgentCheckpoint { agent_id, .. } => Some(agent_id.clone()),
+            _ => None,
+        };
+
+        self.prompt_data.context = DisplayContext::Checkpoint {
+            checkpoint_id,
+            reason,
+            agent_id,
+        };
+    }
+
+    /// Deactivates the checkpoint interrupt.
+    pub fn deactivate_checkpoint_interrupt(&mut self) {
+        self.checkpoint_interrupt_state = None;
+
+        // Restore previous context if available, otherwise default to Help
+        if let Some(prev_context) = self.previous_context.take() {
+            self.prompt_data.context = prev_context;
+        } else {
+            self.prompt_data.context = DisplayContext::Help;
+        }
+    }
+
+    /// Checks if a checkpoint interrupt is currently active.
+    pub fn is_interrupt_active(&self) -> bool {
+        self.checkpoint_interrupt_state
+            .as_ref()
+            .map(|s| s.is_active())
+            .unwrap_or(false)
+    }
+
+    /// Handles keyboard input for checkpoint interrupt modal.
+    async fn handle_checkpoint_interrupt_key(&mut self, key: KeyCode) -> Result<()> {
+        let interrupt_state = match &mut self.checkpoint_interrupt_state {
+            Some(state) if state.is_active() => state,
+            _ => return Ok(()),
+        };
+
+        match key {
+            KeyCode::Tab => {
+                interrupt_state.select_next_action();
+            }
+            KeyCode::BackTab => {
+                interrupt_state.select_previous_action();
+            }
+            KeyCode::Enter => {
+                // Confirm selected action
+                if let Some(action) = interrupt_state.get_selected_action().cloned() {
+                    match action {
+                        InterruptAction::Continue => {
+                            self.toast_manager.info("Continuing workflow execution...".to_string());
+                            
+                            // Resume workflow if paused
+                            if let Some(ref mut workflow_state) = self.workflow_state {
+                                workflow_state.resume();
+                            }
+                            
+                            self.deactivate_checkpoint_interrupt();
+                        }
+                        InterruptAction::Rollback { checkpoint_id } => {
+                            // Show confirmation dialog
+                            use crate::components::DialogChoice;
+                            let cp_id = checkpoint_id.clone();
+                            let choices = vec![
+                                DialogChoice::new("Yes".to_string(), "yes".to_string()),
+                                DialogChoice::new("No".to_string(), "no".to_string()),
+                            ];
+                            self.dialog_manager.show_select_menu(
+                                format!("Restore to checkpoint {}? This will discard current changes.", checkpoint_id),
+                                choices,
+                            );
+                            // Store checkpoint_id for rollback - will execute rollback when dialog confirms
+                            // For now, we'll handle this in the main event loop when dialog returns "yes"
+                        }
+                        InterruptAction::Cancel => {
+                            // Show confirmation dialog
+                            use crate::components::DialogChoice;
+                            let choices = vec![
+                                DialogChoice::new("Yes".to_string(), "yes".to_string()),
+                                DialogChoice::new("No".to_string(), "no".to_string()),
+                            ];
+                            let workflow_id = interrupt_state.workflow_id.clone();
+                            self.dialog_manager.show_select_menu(
+                                "Cancel workflow execution? This cannot be undone.".to_string(),
+                                choices,
+                            );
+                            // Store workflow_id for dialog callback - will be handled in main event loop
+                            // For now, Cancel will be handled when dialog confirms
+                        }
+                    }
+                }
+            }
+            KeyCode::Char('d') => {
+                interrupt_state.toggle_details();
+            }
+            KeyCode::Up if interrupt_state.show_diff => {
+                // Scroll diff view up
+                interrupt_state.diff_scroll_offset = interrupt_state.diff_scroll_offset.saturating_sub(1);
+            }
+            KeyCode::Down if interrupt_state.show_diff => {
+                // Scroll diff view down
+                interrupt_state.diff_scroll_offset = interrupt_state.diff_scroll_offset.saturating_add(1);
+            }
+            KeyCode::Char('g') => {
+                interrupt_state.toggle_diff();
+                
+                // Fetch diff if toggling on and not already fetched
+                if interrupt_state.show_diff && interrupt_state.diff_data.is_none() {
+                    use radium_core::workspace::Workspace;
+                    use radium_core::checkpoint::CheckpointManager;
+                    
+                    if let Ok(workspace) = Workspace::discover() {
+                        if let Ok(checkpoint_manager) = CheckpointManager::new(workspace.root()) {
+                            if let Err(e) = interrupt_state.fetch_diff(&checkpoint_manager) {
+                                self.toast_manager.warning(format!("Failed to fetch diff: {}", e));
+                            }
+                        }
+                    }
+                }
+            }
+            KeyCode::Esc => {
+                // Only allow Esc if no destructive action is in progress
+                // For now, just close the modal
+                self.deactivate_checkpoint_interrupt();
+            }
+            _ => {
+                // Other keys are ignored
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Checks for checkpoint behavior and activates interrupt if detected.
+    /// This should be called periodically during workflow execution.
+    pub fn check_for_checkpoint_behavior(&mut self, workflow_id: &str, step_number: usize, agent_id: Option<&str>) -> Result<bool> {
+        use radium_core::workspace::{Workspace, WorkspaceStructure};
+        use radium_core::workflow::behaviors::checkpoint::CheckpointEvaluator;
+        use std::path::Path;
+
+        // Only check if not already in interrupt state
+        if self.is_interrupt_active() {
+            return Ok(false);
+        }
+
+        // Get workspace
+        let workspace = match Workspace::discover() {
+            Ok(ws) => ws,
+            Err(_) => return Ok(false),
+        };
+
+        let ws_structure = WorkspaceStructure::new(workspace.root());
+        let behavior_file = ws_structure.memory_dir().join("behavior.json");
+
+        if !behavior_file.exists() {
+            return Ok(false);
+        }
+
+        // Check for checkpoint behavior
+        let evaluator = CheckpointEvaluator::new();
+        let output = ""; // We don't have the output here, but it's not used by CheckpointEvaluator
+        match evaluator.evaluate_checkpoint(&behavior_file, output) {
+            Ok(Some(decision)) if decision.should_stop_workflow => {
+                // Checkpoint detected - activate interrupt
+                use crate::state::{CheckpointInterruptState, InterruptTrigger};
+
+                let trigger = if let Some(agent_id) = agent_id {
+                    InterruptTrigger::AgentCheckpoint {
+                        reason: decision.reason.unwrap_or_else(|| "Checkpoint triggered".to_string()),
+                        agent_id: agent_id.to_string(),
+                    }
+                } else {
+                    InterruptTrigger::AgentCheckpoint {
+                        reason: decision.reason.unwrap_or_else(|| "Checkpoint triggered".to_string()),
+                        agent_id: "unknown".to_string(),
+                    }
+                };
+
+                let mut interrupt_state = CheckpointInterruptState::new(
+                    trigger,
+                    workflow_id.to_string(),
+                    step_number,
+                );
+
+                // Get available checkpoints from workflow state if available
+                if let Some(ref workflow_state) = self.workflow_state {
+                    let checkpoint_ids: Vec<String> = workflow_state
+                        .checkpoint
+                        .checkpoints
+                        .iter()
+                        .map(|cp| cp.id.clone())
+                        .collect();
+                    interrupt_state.available_checkpoints = checkpoint_ids;
+                    
+                    // Set current checkpoint ID if available
+                    if let Some(current_cp) = workflow_state.checkpoint.current_checkpoint.as_ref() {
+                        interrupt_state.checkpoint_id = Some(current_cp.clone());
+                    }
+                }
+
+                // Activate interrupt
+                interrupt_state.activate(interrupt_state.checkpoint_id.clone());
+
+                // Pause workflow if it's running
+                if let Some(ref mut workflow_state) = self.workflow_state {
+                    workflow_state.pause();
+                }
+
+                self.activate_checkpoint_interrupt(interrupt_state);
+                Ok(true)
+            }
+            Ok(_) => Ok(false),
+            Err(_) => Ok(false),
+        }
+    }
+
+    /// Executes checkpoint rollback to restore workspace to a previous checkpoint.
+    pub fn execute_checkpoint_rollback(&mut self, checkpoint_id: String) -> Result<()> {
+        use radium_core::workspace::Workspace;
+        use radium_core::checkpoint::CheckpointManager;
+
+        // Get workspace
+        let workspace = Workspace::discover()
+            .map_err(|e| anyhow::anyhow!("Failed to discover workspace: {}", e))?;
+
+        // Create checkpoint manager
+        let checkpoint_manager = CheckpointManager::new(workspace.root())
+            .map_err(|e| anyhow::anyhow!("Failed to create checkpoint manager: {}", e))?;
+
+        // Verify checkpoint exists
+        checkpoint_manager
+            .get_checkpoint(&checkpoint_id)
+            .map_err(|e| anyhow::anyhow!("Checkpoint not found: {}", e))?;
+
+        // Execute rollback
+        checkpoint_manager
+            .restore_checkpoint(&checkpoint_id)
+            .map_err(|e| anyhow::anyhow!("Failed to restore checkpoint: {}", e))?;
+
+        // Show success toast
+        self.toast_manager.success(format!("Checkpoint {} restored successfully", checkpoint_id));
+
+        // Update workflow state to reflect rollback
+        if let Some(ref mut workflow_state) = self.workflow_state {
+            // Find the checkpoint and reset workflow to that step
+            if let Some(checkpoint) = workflow_state.checkpoint.get_checkpoint(&checkpoint_id) {
+                workflow_state.current_step = checkpoint.step_number;
+                workflow_state.pause(); // Pause after rollback - user can resume
+            }
+        }
+
+        // Deactivate interrupt modal
+        self.deactivate_checkpoint_interrupt();
+
+        Ok(())
     }
 }
 

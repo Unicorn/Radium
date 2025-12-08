@@ -449,6 +449,14 @@ async fn main() -> Result<()> {
                 radium_tui::app::ExecutionView::None => {}
             }
 
+            // Render checkpoint interrupt modal (on top of execution views, below toasts)
+            if let Some(ref interrupt_state) = app.checkpoint_interrupt_state {
+                if interrupt_state.is_active() {
+                    use radium_tui::components::CheckpointInterruptModal;
+                    CheckpointInterruptModal::render(frame, area, interrupt_state, &app.theme);
+                }
+            }
+
             // Render toasts (on top of everything)
             let toast_areas = render_toasts_with_areas(frame, area, &app.toast_manager);
 
