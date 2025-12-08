@@ -130,6 +130,7 @@ impl TelemetryRecord {
             model_tier: None,
             routing_decision: None,
             complexity_score: None,
+            ab_test_group: None,
         }
     }
 
@@ -232,6 +233,12 @@ impl TelemetryRecord {
     #[must_use]
     pub fn with_complexity_score(mut self, score: f64) -> Self {
         self.complexity_score = Some(score);
+        self
+    }
+
+    /// Sets the A/B test group for this telemetry record.
+    pub fn with_ab_test_group(mut self, group: String) -> Self {
+        self.ab_test_group = Some(group);
         self
     }
 
@@ -479,7 +486,7 @@ impl TelemetryTracking for MonitoringService {
                     estimated_cost, model, provider, tool_name, tool_args, tool_approved, tool_approval_type, engine_id,
                     behavior_type, behavior_invocation_count, behavior_duration_ms, behavior_outcome,
                     api_key_id, team_name, project_name, cost_center,
-                    model_tier, routing_decision, complexity_score
+                    model_tier, routing_decision, complexity_score, ab_test_group
              FROM telemetry WHERE agent_id = ?1 ORDER BY timestamp DESC",
         )?;
 
@@ -513,6 +520,7 @@ impl TelemetryTracking for MonitoringService {
                     model_tier: row.get(24).ok(),
                     routing_decision: row.get(25).ok(),
                     complexity_score: row.get(26).ok(),
+                    ab_test_group: row.get(27).ok(),
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;

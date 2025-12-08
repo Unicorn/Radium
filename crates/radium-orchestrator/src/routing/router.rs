@@ -221,6 +221,7 @@ impl ModelRouter {
                         tier: RoutingTier::Smart,
                         decision_type: DecisionType::Fallback,
                         complexity_score: None,
+                        ab_test_group: None,
                     },
                 );
             }

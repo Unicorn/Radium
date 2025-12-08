@@ -106,6 +106,9 @@ petgraph = "0.6"
 # File watching
 notify = "6.1"
 
+# Directory walking
+walkdir = "2.4"
+
 # Internal crates
 radium-abstraction.workspace = true
 radium-models.workspace = true

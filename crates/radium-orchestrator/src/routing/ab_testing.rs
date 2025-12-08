@@ -1,7 +1,8 @@
 //! A/B testing framework for model routing validation.
 
-use rand::Rng;
-use std::sync::{Arc, RwLock};
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// A/B testing configuration.
 #[derive(Debug, Clone)]
@@ -45,8 +46,8 @@ impl ABTestGroup {
 pub struct ABTestSampler {
     /// Configuration.
     config: ABTestConfig,
-    /// Random number generator (thread-safe).
-    rng: Arc<RwLock<rand::rngs::ThreadRng>>,
+    /// Counter for pseudo-random sampling (thread-safe).
+    counter: AtomicU64,
 }
 
 impl ABTestSampler {
@@ -58,15 +59,16 @@ impl ABTestSampler {
     pub fn new(config: ABTestConfig) -> Self {
         Self {
             config,
-            rng: Arc::new(RwLock::new(rand::thread_rng())),
+            counter: AtomicU64::new(0),
         }
     }
     
     /// Assigns a group for the next test.
     ///
-    /// Uses random sampling based on sample_rate to determine
+    /// Uses pseudo-random sampling based on sample_rate to determine
     /// if the request should be in the Test group (inverted routing)
-    /// or Control group (normal routing).
+    /// or Control group (normal routing). Uses a counter-based hash
+    /// approach that is thread-safe and Send/Sync compatible.
     ///
     /// # Returns
     /// ABTestGroup assignment
@@ -75,8 +77,15 @@ impl ABTestSampler {
             return ABTestGroup::Control;
         }
         
-        let mut rng = self.rng.write().unwrap();
-        let random_value: f64 = rng.gen();
+        // Use counter-based hashing for thread-safe pseudo-random sampling
+        let count = self.counter.fetch_add(1, Ordering::Relaxed);
+        let mut hasher = DefaultHasher::new();
+        count.hash(&mut hasher);
+        std::thread::current().id().hash(&mut hasher);
+        let hash = hasher.finish();
+        
+        // Convert hash to 0-1 range
+        let random_value = (hash % 10_000) as f64 / 10_000.0;
         
         if random_value < self.config.sample_rate {
             ABTestGroup::Test

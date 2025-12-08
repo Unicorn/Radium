@@ -84,12 +84,17 @@ pub enum PlaybookCommand {
 /// Execute playbook command.
 pub async fn execute_playbook_command(command: PlaybookCommand) -> anyhow::Result<()> {
     match command {
-        PlaybookCommand::List { scope, priority, tag, json } => {
-            list_playbooks(scope, priority, tag, json).await
+        PlaybookCommand::List { scope, priority, tag, remote, project_id, json } => {
+            list_playbooks(scope, priority, tag, remote, project_id, json).await
         }
         PlaybookCommand::Apply { file } => apply_playbook(file).await,
         PlaybookCommand::Delete { uri } => delete_playbook(uri).await,
-        PlaybookCommand::Search { tags, json } => search_playbooks(tags, json).await,
+        PlaybookCommand::Search { tags, remote, project_id, json } => {
+            search_playbooks(tags, remote, project_id, json).await
+        }
+        PlaybookCommand::Sync { project_id, upload } => {
+            sync_playbooks(project_id, upload).await
+        }
     }
 }
 
@@ -98,15 +103,29 @@ async fn list_playbooks(
     scope: Option<String>,
     priority: Option<String>,
     tag: Option<String>,
+    remote: bool,
+    project_id: Option<String>,
     json: bool,
 ) -> anyhow::Result<()> {
-    let discovery = PlaybookDiscovery::new()
-        .map_err(|e| anyhow::anyhow!("Failed to initialize playbook discovery: {}", e))?;
+    let mut playbooks = if remote {
+        let project_id = project_id
+            .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok())
+            .ok_or_else(|| anyhow::anyhow!("Project ID required for --remote. Use --project-id or set BRAINGRID_PROJECT_ID"))?;
 
-    let mut playbooks = if let Some(scope_filter) = scope {
-        discovery.find_by_scope(&scope_filter)?
+        PlaybookDiscovery::discover_from_braingrid(&project_id)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to discover playbooks from Braingrid: {}", e))?
+            .into_values()
+            .collect()
     } else {
-        discovery.discover_all()?.into_values().collect()
+        let discovery = PlaybookDiscovery::new()
+            .map_err(|e| anyhow::anyhow!("Failed to initialize playbook discovery: {}", e))?;
+
+        if let Some(scope_filter) = scope {
+            discovery.find_by_scope(&scope_filter)?
+        } else {
+            discovery.discover_all()?.into_values().collect()
+        }
     };
 
     // Filter by priority if specified
@@ -313,16 +332,35 @@ async fn delete_playbook(uri: String) -> anyhow::Result<()> {
 }
 
 /// Search playbooks by tag(s).
-async fn search_playbooks(tags: String, json: bool) -> anyhow::Result<()> {
-    let discovery = PlaybookDiscovery::new()
-        .map_err(|e| anyhow::anyhow!("Failed to initialize playbook discovery: {}", e))?;
-
+async fn search_playbooks(
+    tags: String,
+    remote: bool,
+    project_id: Option<String>,
+    json: bool,
+) -> anyhow::Result<()> {
     let tag_list: Vec<String> = tags
         .split(',')
         .map(|s| s.trim().to_string())
         .collect();
 
-    let playbooks = discovery.find_by_tags(&tag_list)?;
+    let playbooks = if remote {
+        let project_id = project_id
+            .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok())
+            .ok_or_else(|| anyhow::anyhow!("Project ID required for --remote. Use --project-id or set BRAINGRID_PROJECT_ID"))?;
+
+        let all = PlaybookDiscovery::discover_from_braingrid(&project_id)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to discover playbooks from Braingrid: {}", e))?;
+
+        all.into_values()
+            .filter(|p| p.has_tags(&tag_list))
+            .collect()
+    } else {
+        let discovery = PlaybookDiscovery::new()
+            .map_err(|e| anyhow::anyhow!("Failed to initialize playbook discovery: {}", e))?;
+
+        discovery.find_by_tags(&tag_list)?
+    };
 
     if json {
         let playbooks_json: Vec<serde_json::Value> = playbooks

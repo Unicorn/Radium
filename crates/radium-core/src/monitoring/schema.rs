@@ -112,6 +112,7 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
     );
     let _ = conn.execute(
         "ALTER TABLE telemetry ADD COLUMN complexity_score REAL",
+        "ALTER TABLE telemetry ADD COLUMN ab_test_group TEXT",
         [],
     );
 

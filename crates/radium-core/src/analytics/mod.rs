@@ -32,7 +32,7 @@ pub use budget::{
 pub use comparison::{ComparisonFormatter, SessionComparison};
 #[cfg(feature = "monitoring")]
 pub use cost_history::{
-    CostAnalytics, CostBreakdown, CostEvent, CostSummary, DateRange, TimePeriod,
+    CostAnalytics, CostBreakdown, CostEvent, CostSummary as CostHistorySummary, DateRange, TimePeriod,
 };
 #[cfg(feature = "monitoring")]
 pub use cost_query::CostQueryService;

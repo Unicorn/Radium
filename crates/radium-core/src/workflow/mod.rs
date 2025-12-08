@@ -41,7 +41,7 @@ pub use recovery::{
     RecoveryContext, RecoveryError, RecoveryManager, RecoveryStrategy, Result as RecoveryResult,
 };
 pub use reassignment::{
-    AgentPerformanceTracker, AgentReassignment, AgentSelector, AgentStats, ReassignmentError,
+    AgentPerformanceTracker, AgentReassignment, AgentStats, ReassignmentError,
     ReassignmentReason, ReassignmentRecord,
 };
 pub use service::{WorkflowExecution, WorkflowService};
