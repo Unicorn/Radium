@@ -15,7 +15,7 @@ use tracing_subscriber::FmtSubscriber;
 
 use commands::{
     agents, auth, budget, capability, checkpoint, clean, clipboard, context, cost, craft, doctor, engines, extension, hooks, init, learning, monitor, plan, playbook, policy, privacy, requirement, run,
-    sandbox, secret, session, stats, status, step, validate,
+    sandbox, secret, session, stats, status, step, theme, validate,
     // All commands enabled!
     templates, complete, autonomous, vibecheck, chat, mcp, custom, braingrid,
 };
@@ -332,6 +332,12 @@ enum Command {
     #[command(subcommand)]
     Session(session::SessionCommand),
 
+    /// Theme management
+    ///
+    /// List, set, and preview available themes for the TUI.
+    #[command(subcommand)]
+    Theme(theme::ThemeCommand),
+
     /// Manage checkpoints for agent work snapshots
     ///
     /// List and restore git-based checkpoints created during workflow execution.
@@ -646,6 +652,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Session(cmd) => {
             session::execute(cmd).await?;
+        }
+        Command::Theme(cmd) => {
+            theme::execute(cmd).await?;
         }
         Command::Checkpoint(cmd) => {
             checkpoint::execute(cmd).await?;

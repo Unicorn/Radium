@@ -48,6 +48,7 @@ radium-core = { workspace = true, features = ["monitoring", "workflow", "mcp-pro
 radium-models.workspace = true
 radium-abstraction.workspace = true
 radium-orchestrator.workspace = true
+radium-tui = { workspace = true }
 
 # Logging
 tracing.workspace = true
