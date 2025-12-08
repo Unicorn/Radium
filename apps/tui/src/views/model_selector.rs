@@ -10,6 +10,34 @@ use crate::components::InteractiveTable;
 use crate::icons::Icons;
 use crate::theme::THEME;
 
+/// Format cost per million tokens
+fn format_cost(cost: Option<f64>) -> String {
+    cost.map(|c| format!("${:.2}", c)).unwrap_or_else(|| "N/A".to_string())
+}
+
+/// Format context window size
+fn format_context_window(tokens: Option<u32>) -> String {
+    tokens.map(|t| {
+        if t >= 1_000_000 {
+            format!("{}M", t / 1_000_000)
+        } else if t >= 1_000 {
+            format!("{}K", t / 1_000)
+        } else {
+            format!("{}", t)
+        }
+    }).unwrap_or_else(|| "N/A".to_string())
+}
+
+/// Format capabilities as icons
+fn format_capabilities(caps: &[String]) -> String {
+    caps.iter().map(|c| match c.as_str() {
+        "vision" => "👁️",
+        "tools" => "🔧",
+        "reasoning" => "🧠",
+        _ => "",
+    }).collect::<Vec<_>>().join(" ")
+}
+
 /// Model information.
 #[derive(Debug, Clone)]
 pub struct ModelInfo {
@@ -18,6 +46,10 @@ pub struct ModelInfo {
     pub provider: String,
     pub description: Option<String>,
     pub is_selected: bool,
+    pub input_cost_per_million: Option<f64>,
+    pub output_cost_per_million: Option<f64>,
+    pub context_window: Option<u32>,
+    pub capabilities: Vec<String>,
 }
 
 /// Render the model selector view.
@@ -50,11 +82,18 @@ pub fn render_model_selector(
         .iter()
         .map(|model| {
             let status = if model.is_selected { "✓" } else { " " };
+            let desc = model.description.clone().unwrap_or_else(|| "N/A".to_string());
+            let capabilities = format_capabilities(&model.capabilities);
+            let desc_with_caps = if capabilities.is_empty() {
+                desc
+            } else {
+                format!("{} {}", desc, capabilities)
+            };
             vec![
                 status.to_string(),
                 model.name.clone(),
                 model.provider.clone(),
-                model.description.clone().unwrap_or_else(|| "N/A".to_string()),
+                desc_with_caps,
             ]
         })
         .collect();

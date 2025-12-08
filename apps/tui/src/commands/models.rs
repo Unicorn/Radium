@@ -23,6 +23,10 @@ pub fn get_available_models() -> Result<Vec<crate::views::model_selector::ModelI
             provider: "Gemini".to_string(),
             description: Some("Default - Reasoning optimized".to_string()),
             is_selected: "gemini-2.0-flash-thinking" == default_model_id,
+            input_cost_per_million: Some(0.10),
+            output_cost_per_million: Some(0.40),
+            context_window: Some(32_000),
+            capabilities: vec!["reasoning".to_string(), "tools".to_string()],
         });
         models.push(crate::views::model_selector::ModelInfo {
             id: "gemini-2.0-flash-exp".to_string(),
@@ -30,6 +34,10 @@ pub fn get_available_models() -> Result<Vec<crate::views::model_selector::ModelI
             provider: "Gemini".to_string(),
             description: Some("Fast, experimental".to_string()),
             is_selected: "gemini-2.0-flash-exp" == default_model_id,
+            input_cost_per_million: Some(0.10),
+            output_cost_per_million: Some(0.40),
+            context_window: Some(32_000),
+            capabilities: vec!["vision".to_string(), "tools".to_string()],
         });
         models.push(crate::views::model_selector::ModelInfo {
             id: "gemini-1.5-pro".to_string(),
@@ -37,6 +45,10 @@ pub fn get_available_models() -> Result<Vec<crate::views::model_selector::ModelI
             provider: "Gemini".to_string(),
             description: Some("Most capable".to_string()),
             is_selected: "gemini-1.5-pro" == default_model_id,
+            input_cost_per_million: Some(1.25),
+            output_cost_per_million: Some(5.00),
+            context_window: Some(2_000_000),
+            capabilities: vec!["vision".to_string(), "tools".to_string(), "reasoning".to_string()],
         });
     }
 
@@ -51,6 +63,10 @@ pub fn get_available_models() -> Result<Vec<crate::views::model_selector::ModelI
             provider: "OpenAI".to_string(),
             description: Some("Multimodal".to_string()),
             is_selected: "gpt-4o" == default_model_id,
+            input_cost_per_million: Some(2.50),
+            output_cost_per_million: Some(10.00),
+            context_window: Some(128_000),
+            capabilities: vec!["vision".to_string(), "tools".to_string()],
         });
         models.push(crate::views::model_selector::ModelInfo {
             id: "gpt-4o-mini".to_string(),
@@ -58,6 +74,10 @@ pub fn get_available_models() -> Result<Vec<crate::views::model_selector::ModelI
             provider: "OpenAI".to_string(),
             description: Some("Fast, efficient".to_string()),
             is_selected: "gpt-4o-mini" == default_model_id,
+            input_cost_per_million: Some(0.15),
+            output_cost_per_million: Some(0.60),
+            context_window: Some(128_000),
+            capabilities: vec!["vision".to_string(), "tools".to_string()],
         });
     }
 
