@@ -500,7 +500,24 @@ impl App {
             }
             ExecutionView::None => {
                 // Handle cost dashboard keyboard input
-                if matches!(self.prompt_data.context, DisplayContext::CostDashboard) {
+                if matches!(self.prompt_data.context, DisplayContext::BudgetAnalytics) {
+                    if let Some(ref mut view) = self.budget_analytics_view {
+                        // Handle tab navigation
+                        match key {
+                            KeyCode::Right | KeyCode::Tab => {
+                                view.selected_tab = view.selected_tab.next();
+                            }
+                            KeyCode::Left => {
+                                view.selected_tab = view.selected_tab.previous();
+                            }
+                            KeyCode::Esc => {
+                                self.prompt_data.context = DisplayContext::Help;
+                                return Ok(());
+                            }
+                            _ => {}
+                        }
+                    }
+                } else if matches!(self.prompt_data.context, DisplayContext::CostDashboard) {
                     if let Some(ref mut state) = self.cost_dashboard_state {
                         // Get workspace and monitoring service
                         if let Ok(workspace) = radium_core::Workspace::discover() {
