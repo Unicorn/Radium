@@ -12,6 +12,7 @@ use radium_core::{
     engines::{EngineRegistry, ExecutionRequest},
     engines::providers::{ClaudeEngine, GeminiEngine, MockEngine, OpenAIEngine},
     syntax::SyntaxHighlighter,
+    code_blocks::{CodeBlockParser, CodeBlockStore},
     terminal::{TerminalCapabilities, ColorSupport, rgb_to_terminal_color},
 };
 use std::sync::Arc;
@@ -28,12 +29,13 @@ pub async fn execute(
     engine: Option<String>,
     reasoning: Option<String>,
     model_tier: Option<String>,
+    session_id: Option<String>,
 ) -> anyhow::Result<()> {
     println!("{}", "rad step".bold().cyan());
     println!();
     
-    // Generate session ID for tracking
-    let session_id = Uuid::new_v4().to_string();
+    // Use provided session ID or generate new one
+    let session_id = session_id.unwrap_or_else(|| Uuid::new_v4().to_string());
     let session_start_time = Utc::now();
 
     // Discover workspace (optional for step command)
@@ -212,6 +214,29 @@ pub async fn execute(
 
     let execution_result = execute_agent_with_engine(&registry, &agent.id, &rendered, selected_engine, selected_model).await;
     
+    // Parse and store code blocks from response
+    if let Ok(ref response) = execution_result {
+        let blocks = CodeBlockParser::parse(&response.content);
+        if !blocks.is_empty() {
+            // Store blocks if workspace is available
+            if let Some(ref workspace) = workspace {
+                match CodeBlockStore::new(workspace.root(), session_id.clone()) {
+                    Ok(mut store) => {
+                        if let Err(e) = store.store_blocks(&agent.id, blocks.clone()) {
+                            eprintln!("  {} Failed to store code blocks: {}", "⚠".yellow(), e);
+                        } else {
+                            println!();
+                            println!("  {} {} code blocks extracted", "✓".green(), blocks.len());
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("  {} Failed to create code block store: {}", "⚠".yellow(), e);
+                    }
+                }
+            }
+        }
+    }
+    
     // Extract token usage from response for telemetry
     let token_usage = execution_result.as_ref().ok().and_then(|r| r.usage.as_ref());
 
@@ -388,9 +413,16 @@ fn load_prompt(prompt_path: &std::path::Path) -> anyhow::Result<String> {
     bail!("Prompt file not found: {}", prompt_path.display())
 }
 
-/// Print output with syntax highlighting for code blocks.
+/// Print output with syntax highlighting for code blocks and annotations.
 fn print_highlighted_output(text: &str) {
     use radium_core::syntax::StyledLine;
+    
+    // Parse code blocks to get indices and languages
+    let blocks = CodeBlockParser::parse(text);
+    let mut block_map: std::collections::HashMap<usize, (String, usize)> = blocks
+        .iter()
+        .map(|b| (b.start_line, (b.language.clone().unwrap_or_else(|| "text".to_string()), b.index)))
+        .collect();
     
     let highlighter = SyntaxHighlighter::new();
     let capabilities = TerminalCapabilities::color_support();
@@ -398,6 +430,8 @@ fn print_highlighted_output(text: &str) {
     let mut in_code_block = false;
     let mut code_block_lang = String::new();
     let mut code_block_content = String::new();
+    let mut current_line = 1;
+    let mut current_block_index = 0;
     
     for line in text.lines() {
         if line.trim().starts_with("```") {
@@ -418,7 +452,19 @@ fn print_highlighted_output(text: &str) {
                 in_code_block = true;
                 let lang = line.trim().strip_prefix("```").unwrap_or("");
                 code_block_lang = lang.trim().to_string();
+                
+                // Find block index for this line
+                if let Some((_, index)) = block_map.get(&current_line) {
+                    current_block_index = *index;
+                    let lang_display = if code_block_lang.is_empty() {
+                        "text".to_string()
+                    } else {
+                        code_block_lang.clone()
+                    };
+                    println!("{}", format!("[Block {}: {}]", index, lang_display).cyan().bold());
+                }
             }
+            current_line += 1;
             continue;
         }
         
@@ -431,6 +477,7 @@ fn print_highlighted_output(text: &str) {
             // Regular text - print as-is
             println!("{}", line);
         }
+        current_line += 1;
     }
     
     // Handle unclosed code block

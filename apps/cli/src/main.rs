@@ -14,7 +14,7 @@ use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 use commands::{
-    agents, auth, budget, capability, checkpoint, clean, clipboard, context, cost, craft, doctor, engines, extension, hooks, init, learning, monitor, plan, playbook, policy, privacy, requirement, run,
+    agents, auth, budget, capability, checkpoint, clean, clipboard, code, context, cost, craft, doctor, engines, extension, hooks, init, learning, monitor, plan, playbook, policy, privacy, requirement, run,
     sandbox, secret, session, stats, status, step, theme, validate,
     // All commands enabled!
     templates, complete, autonomous, vibecheck, chat, mcp, custom, braingrid,
@@ -231,6 +231,14 @@ enum Command {
     Clipboard {
         #[command(subcommand)]
         action: commands::clipboard::ClipboardCommand,
+    },
+
+    /// Code block management
+    ///
+    /// List, copy, save, and append code blocks extracted from agent responses.
+    Code {
+        #[command(subcommand)]
+        cmd: commands::code::CodeCommand,
     },
 
     /// Show status of workspace, engines, and authentication
@@ -599,7 +607,7 @@ async fn main() -> anyhow::Result<()> {
             run::execute(script, model, dir, model_tier).await?;
         }
         Command::Step { id, prompt, model, engine, reasoning, model_tier } => {
-            step::execute(id, prompt, model, engine, reasoning, model_tier).await?;
+            step::execute(id, prompt, model, engine, reasoning, model_tier, None).await?;
         }
         Command::Chat { agent_id, session, resume, list } => {
             if list {
@@ -619,6 +627,9 @@ async fn main() -> anyhow::Result<()> {
                     clipboard::receive().await?;
                 }
             }
+        }
+        Command::Code { cmd } => {
+            code::execute(cmd).await?;
         }
         Command::Status { json } => {
             status::execute(json).await?;

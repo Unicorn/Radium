@@ -346,7 +346,13 @@ impl Orchestrator {
     /// # Returns
     /// Returns `true` if the task was found and cancelled, `false` otherwise.
     pub async fn cancel_task(&self, task_id: &str) -> bool {
-        self.queue.cancel_task(task_id).await
+        // First, try to cancel via processor (triggers cancellation token)
+        let cancelled_via_processor = self.processor.cancel_task(task_id).await;
+        
+        // Also remove from queue
+        let cancelled_via_queue = self.queue.cancel_task(task_id).await;
+        
+        cancelled_via_processor || cancelled_via_queue
     }
 
     /// Returns queue metrics.

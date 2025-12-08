@@ -23,6 +23,7 @@ pub mod autonomous;
 pub mod auth;
 pub mod checkpoint;
 pub mod clipboard;
+pub mod code_blocks;
 #[cfg(feature = "server")]
 pub mod client;
 // pub mod collaboration;  // TEMPORARILY DISABLED: depends on radium-orchestrator (circular dependency)

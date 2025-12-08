@@ -22,6 +22,8 @@ pub enum AgentState {
     Stopped,
     /// Agent execution encountered an error.
     Error,
+    /// Agent execution was cancelled.
+    Cancelled,
 }
 
 impl AgentState {
@@ -38,14 +40,16 @@ impl AgentState {
         match (self, to) {
             // From Idle: can go to Running or Stopped
             (Self::Idle, Self::Running | Self::Stopped) => true,
-            // From Running: can go to Paused, Stopped, or Error
-            (Self::Running, Self::Paused | Self::Stopped | Self::Error) => true,
-            // From Paused: can go to Running or Stopped
-            (Self::Paused, Self::Running | Self::Stopped) => true,
+            // From Running: can go to Paused, Stopped, Error, or Cancelled
+            (Self::Running, Self::Paused | Self::Stopped | Self::Error | Self::Cancelled) => true,
+            // From Paused: can go to Running, Stopped, or Cancelled
+            (Self::Paused, Self::Running | Self::Stopped | Self::Cancelled) => true,
             // From Stopped: can go to Idle
             (Self::Stopped, Self::Idle) => true,
             // From Error: can go to Idle or Stopped
             (Self::Error, Self::Idle | Self::Stopped) => true,
+            // From Cancelled: can go to Idle or Stopped
+            (Self::Cancelled, Self::Idle | Self::Stopped) => true,
             // Same state is always valid
             (a, b) if *a == b => true,
             // All other transitions are invalid

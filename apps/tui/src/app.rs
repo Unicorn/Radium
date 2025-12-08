@@ -43,6 +43,28 @@ pub enum ExecutionView {
     Summary(SummaryView),
 }
 
+/// Last executed operation for retry functionality
+#[derive(Debug, Clone)]
+pub enum LastOperation {
+    /// Last executed requirement
+    Requirement(String),  // requirement_id
+    /// Last executed task
+    Task(String),        // task_id
+}
+
+/// Cancellation state for visual feedback
+#[derive(Debug, Clone)]
+pub enum CancellationState {
+    /// Cancellation requested
+    Requested,
+    /// Cancellation in progress
+    InProgress,
+    /// Cleaning up resources
+    CleaningUp,
+    /// Cancellation complete
+    Complete,
+}
+
 /// Main application with unified prompt interface.
 pub struct App {
     /// Whether to quit
@@ -136,6 +158,10 @@ pub struct App {
     pub model_filter: ModelFilter,
     /// Privacy state for sensitive data redaction
     pub privacy_state: PrivacyState,
+    /// Last executed operation for CTRL+R retry functionality
+    pub last_executed_operation: Option<LastOperation>,
+    /// Cancellation state for visual feedback
+    pub cancellation_state: Option<CancellationState>,
 }
 
 /// Model filter for capability-based filtering
@@ -307,6 +333,8 @@ impl App {
             current_model_id,
             model_filter: ModelFilter::default(),
             privacy_state: PrivacyState::default(),
+            last_executed_operation: None,
+            cancellation_state: None,
         };
 
         // Check for resumable executions on startup
@@ -793,16 +821,64 @@ impl App {
                     );
                 }
             }
+            // Retry last operation (CTRL+R)
+            KeyCode::Char('r') if modifiers.contains(KeyModifiers::CONTROL) => {
+                if let Some(ref last_op) = self.last_executed_operation {
+                    match last_op {
+                        LastOperation::Requirement(req_id) => {
+                            self.toast_manager.info("Retrying last requirement...".to_string());
+                            // Re-execute requirement with same parameters
+                            let project_id = std::env::var("BRAINGRID_PROJECT_ID")
+                                .ok()
+                                .unwrap_or_else(|| "PROJ-14".to_string());
+                            if let Err(e) = self.handle_requirement(req_id, Some(project_id)).await {
+                                self.toast_manager.error(format!("Failed to retry requirement: {}", e));
+                            }
+                        }
+                        LastOperation::Task(task_id) => {
+                            self.toast_manager.info("Retrying last task...".to_string());
+                            // TODO: Implement task retry when task execution is available
+                            self.toast_manager.info("Task retry not yet implemented".to_string());
+                        }
+                    }
+                } else {
+                    self.toast_manager.info("No operation to retry".to_string());
+                }
+            }
             // Quit or cancel orchestration
             KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => {
                 if self.orchestration_running {
-                    // Cancel orchestration if running
+                    // Set cancellation state for visual feedback
+                    self.cancellation_state = Some(CancellationState::Requested);
+                    
+                    // Show enhanced cancellation toast
+                    let task_name = self.active_requirement_progress.as_ref()
+                        .map(|p| format!("Requirement {}", p.requirement_id))
+                        .or_else(|| self.active_requirement.as_ref().map(|r| format!("Requirement {}", r.requirement_id)))
+                        .unwrap_or_else(|| "Current operation".to_string());
+                    
+                    self.toast_manager.info(format!(
+                        "⚠️  Cancelling: {}...",
+                        task_name
+                    ));
+                    
+                    // Update state to InProgress
+                    self.cancellation_state = Some(CancellationState::InProgress);
+                    
+                    // Cancel orchestration
                     self.orchestration_running = false;
                     let max_history = self.config.performance.max_conversation_history;
                     self.prompt_data.add_conversation_message(
                         "⚠️  Cancellation requested. Current operation will complete due to timeout protection.".to_string(),
                         max_history
                     );
+                    
+                    // Update state to CleaningUp, then Complete after a brief delay
+                    // (In a real implementation, we'd track actual cleanup progress)
+                    self.cancellation_state = Some(CancellationState::CleaningUp);
+                    // Note: In a full implementation, we'd use a timer or callback to set Complete state
+                    // For now, we'll set it immediately as a placeholder
+                    self.cancellation_state = Some(CancellationState::Complete);
                 } else {
                     self.should_quit = true;
                 }
@@ -2860,6 +2936,9 @@ impl App {
         // Store active requirement progress tracking and task handle
         self.active_requirement_progress = Some(ActiveRequirementProgress::new(req_id.to_string(), progress_rx));
         self.active_requirement_handle = Some(task_handle);
+
+        // Track last executed operation for CTRL+R retry
+        self.last_executed_operation = Some(LastOperation::Requirement(req_id.to_string()));
 
         self.prompt_data.add_output("⏳ Execution started in background...".to_string());
         self.prompt_data.add_output("   Progress updates will appear below".to_string());

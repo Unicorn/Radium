@@ -30,6 +30,8 @@ service Radium {
   rpc ListTasks (ListTasksRequest) returns (ListTasksResponse) {}
   rpc UpdateTask (UpdateTaskRequest) returns (UpdateTaskResponse) {}
   rpc DeleteTask (DeleteTaskRequest) returns (DeleteTaskResponse) {}
+  rpc CancelTask (CancelTaskRequest) returns (CancelTaskResponse) {}
+  rpc ResumeTask (ResumeTaskRequest) returns (ResumeTaskResponse) {}
 
   // Orchestrator Operations
   rpc ExecuteAgent (ExecuteAgentRequest) returns (ExecuteAgentResponse) {}
@@ -248,6 +250,24 @@ message DeleteTaskRequest {
 
 message DeleteTaskResponse {
   bool success = 1;
+}
+
+message CancelTaskRequest {
+  string task_id = 1;
+}
+
+message CancelTaskResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message ResumeTaskRequest {
+  string task_id = 1;
+}
+
+message ResumeTaskResponse {
+  bool success = 1;
+  string message = 2;
 }
 
 // ===================================================================

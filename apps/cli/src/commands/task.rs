@@ -32,6 +32,16 @@ pub enum TaskCommand {
         #[arg(short, long)]
         input_json: Option<String>,
     },
+    /// Cancel a running task
+    Cancel {
+        /// Task ID
+        id: String,
+    },
+    /// Resume a cancelled task
+    Resume {
+        /// Task ID
+        id: String,
+    },
 }
 
 /// Execute task command
@@ -45,6 +55,8 @@ pub async fn execute_task_command(
         TaskCommand::Create { id, name, description, agent_id, input_json } => {
             create_task(client, id, name, description, agent_id, input_json).await
         }
+        TaskCommand::Cancel { id } => cancel_task(client, id).await,
+        TaskCommand::Resume { id } => resume_task(client, id).await,
     }
 }
 
@@ -154,5 +166,51 @@ async fn create_task(
     let response = client.create_task(request).await?;
 
     println!("Task created with ID: {}", response.into_inner().task_id);
+    Ok(())
+}
+
+async fn cancel_task(
+    client: &mut RadiumClient<tonic::transport::Channel>,
+    id: String,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use colored::*;
+
+    let request = Request::new(radium_core::proto::CancelTaskRequest { task_id: id.clone() });
+    let response = client.cancel_task(request).await?;
+    let result = response.into_inner();
+    
+    if result.success {
+        println!("{} {}", "Task cancelled:".green(), id);
+        if !result.message.is_empty() {
+            println!("{}", result.message);
+        }
+    } else {
+        eprintln!("{} {}", "Error:".red().bold(), result.message);
+        return Err(result.message.into());
+    }
+
+    Ok(())
+}
+
+async fn resume_task(
+    client: &mut RadiumClient<tonic::transport::Channel>,
+    id: String,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use colored::*;
+
+    let request = Request::new(radium_core::proto::ResumeTaskRequest { task_id: id.clone() });
+    let response = client.resume_task(request).await?;
+    let result = response.into_inner();
+    
+    if result.success {
+        println!("{} {}", "Task resumed:".green(), id);
+        if !result.message.is_empty() {
+            println!("{}", result.message);
+        }
+    } else {
+        eprintln!("{} {}", "Error:".red().bold(), result.message);
+        return Err(result.message.into());
+    }
+
     Ok(())
 }

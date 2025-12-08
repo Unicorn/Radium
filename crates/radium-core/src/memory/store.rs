@@ -2,6 +2,7 @@
 
 use super::error::{MemoryError, Result};
 use crate::workspace::RequirementId;
+use crate::code_blocks::CodeBlock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -26,6 +27,10 @@ pub struct MemoryEntry {
     /// Optional metadata.
     #[serde(default)]
     pub metadata: HashMap<String, String>,
+
+    /// Optional code blocks extracted from this output.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code_blocks: Option<Vec<CodeBlock>>,
 }
 
 impl MemoryEntry {
@@ -47,6 +52,7 @@ impl MemoryEntry {
             timestamp: SystemTime::now(),
             output: truncated_output,
             metadata: HashMap::new(),
+            code_blocks: None,
         }
     }
 
@@ -54,6 +60,13 @@ impl MemoryEntry {
     #[must_use]
     pub fn with_metadata(mut self, key: String, value: String) -> Self {
         self.metadata.insert(key, value);
+        self
+    }
+
+    /// Adds code blocks to the entry.
+    #[must_use]
+    pub fn with_code_blocks(mut self, blocks: Vec<CodeBlock>) -> Self {
+        self.code_blocks = Some(blocks);
         self
     }
 }

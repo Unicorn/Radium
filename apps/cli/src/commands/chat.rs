@@ -12,6 +12,7 @@ use radium_core::{
     monitoring::MonitoringService,
     mcp::{McpIntegration, SlashCommandRegistry},
     Workspace,
+    code_blocks::CodeBlockStore,
 };
 use std::io::{self, Write};
 use std::sync::Arc;
@@ -130,7 +131,15 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
                             let storage = SessionStorage::new(workspace.root()).ok();
                             if let Some(ref storage) = storage {
                                 let _ = storage.save_report(&report);
-                                display_session_summary(&report);
+                                
+                                // Get code block count for session
+                                let block_count = CodeBlockStore::new(workspace.root(), session_id.clone())
+                                    .ok()
+                                    .and_then(|store| store.list_blocks(None).ok())
+                                    .map(|blocks| blocks.len())
+                                    .unwrap_or(0);
+                                
+                                display_session_summary(&report, block_count);
                             }
                         }
                     }
@@ -282,6 +291,8 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
             None, // model
             None, // engine
             None, // reasoning
+            None, // model_tier
+            Some(session_id.clone()), // session_id
         )
         .await
         {
@@ -357,7 +368,7 @@ fn print_banner(
 }
 
 /// Display session summary at end of execution.
-fn display_session_summary(report: &SessionReport) {
+fn display_session_summary(report: &SessionReport, block_count: usize) {
     println!();
     println!("{}", "─".repeat(60).dimmed());
     println!("{}", "Session Summary".bold().cyan());
@@ -369,6 +380,11 @@ fn display_session_summary(report: &SessionReport) {
     // Print a condensed version (first few lines)
     for line in summary.lines().take(15) {
         println!("{}", line);
+    }
+    
+    // Display code block count
+    if block_count > 0 {
+        println!("  {} {} code blocks extracted", "📋".cyan(), block_count);
     }
     
     println!();

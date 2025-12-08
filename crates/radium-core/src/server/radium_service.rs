@@ -28,7 +28,8 @@ use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use futures::StreamExt;
 use crate::proto::{
-    AgentMessage, CreateAgentRequest, CreateAgentResponse, CreateTaskRequest, CreateTaskResponse,
+    AgentMessage, CancelTaskRequest, CancelTaskResponse, CreateAgentRequest, CreateAgentResponse, CreateTaskRequest, CreateTaskResponse,
+    ResumeTaskRequest, ResumeTaskResponse,
     CreateWorkflowRequest, CreateWorkflowResponse, DeleteAgentRequest, DeleteAgentResponse,
     DeleteTaskRequest, DeleteTaskResponse, DeleteWorkflowRequest, DeleteWorkflowResponse,
     ExecuteAgentRequest, ExecuteAgentResponse, ExecuteWorkflowRequest, ExecuteWorkflowResponse,
@@ -558,6 +559,161 @@ impl Radium for RadiumService {
         repo.delete(&task_id).map_err(|e| storage_to_status(&e, "Task", &task_id))?;
 
         Ok(Response::new(DeleteTaskResponse { success: true }))
+    }
+
+    async fn cancel_task(
+        &self,
+        request: Request<CancelTaskRequest>,
+    ) -> Result<Response<CancelTaskResponse>, Status> {
+        use crate::models::TaskResult;
+        use chrono::Utc;
+        
+        let task_id = request.into_inner().task_id;
+        info!(task_id = %task_id, "Received cancel task request");
+
+        // Check if task exists
+        let mut db = self.lock_db()?;
+        let repo = SqliteTaskRepository::new(&mut *db);
+        let mut task = repo.get_by_id(&task_id).map_err(|e| storage_to_status(&e, "Task", &task_id))?;
+
+        // Capture partial result if task was running
+        let was_running = matches!(task.state, crate::models::TaskState::Running);
+        let started_at = task.created_at; // Use created_at as started_at if not available in result
+        
+        // Cancel task via orchestrator if available
+        if let Some(ref orchestrator) = self.orchestrator {
+            let cancelled = orchestrator.cancel_task(&task_id).await;
+            if cancelled || was_running {
+                // Create partial result for cancelled task
+                let cancelled_at = Utc::now();
+                let partial_output = if let Some(ref existing_result) = task.result {
+                    // Use existing result output if available
+                    existing_result.output.clone()
+                } else {
+                    // Create empty output with cancellation message
+                    serde_json::json!({
+                        "message": "Task was cancelled",
+                        "partial": true
+                    })
+                };
+                
+                let partial_result = TaskResult::partial(
+                    partial_output,
+                    started_at,
+                    cancelled_at,
+                    Some("user_requested".to_string()),
+                );
+                
+                // Update task with partial result and Cancelled state
+                task.set_result(partial_result);
+                task.set_state(crate::models::TaskState::Cancelled);
+                
+                let mut repo = SqliteTaskRepository::new(&mut *db);
+                if let Err(e) = repo.update(&task) {
+                    warn!(task_id = %task_id, error = %e, "Failed to update task with partial result after cancellation");
+                }
+                
+                Ok(Response::new(CancelTaskResponse {
+                    success: true,
+                    message: format!("Task {} cancelled successfully, partial results saved", task_id),
+                }))
+            } else {
+                Ok(Response::new(CancelTaskResponse {
+                    success: false,
+                    message: format!("Task {} not found in running tasks or already completed", task_id),
+                }))
+            }
+        } else {
+            // No orchestrator available, create partial result and update task state
+            let cancelled_at = Utc::now();
+            let partial_output = if let Some(ref existing_result) = task.result {
+                existing_result.output.clone()
+            } else {
+                serde_json::json!({
+                    "message": "Task was cancelled",
+                    "partial": true
+                })
+            };
+            
+            let partial_result = TaskResult::partial(
+                partial_output,
+                started_at,
+                cancelled_at,
+                Some("user_requested".to_string()),
+            );
+            
+            task.set_result(partial_result);
+            task.set_state(crate::models::TaskState::Cancelled);
+            let mut repo = SqliteTaskRepository::new(&mut *db);
+            repo.update(&task).map_err(|e| storage_to_status(&e, "Task", &task_id))?;
+            
+            Ok(Response::new(CancelTaskResponse {
+                success: true,
+                message: format!("Task {} marked as cancelled, partial results saved", task_id),
+            }))
+        }
+    }
+
+    async fn resume_task(
+        &self,
+        request: Request<ResumeTaskRequest>,
+    ) -> Result<Response<ResumeTaskResponse>, Status> {
+        let task_id = request.into_inner().task_id;
+        info!(task_id = %task_id, "Received resume task request");
+
+        // Check if task exists
+        let mut db = self.lock_db()?;
+        let repo = SqliteTaskRepository::new(&mut *db);
+        let task = repo.get_by_id(&task_id).map_err(|e| storage_to_status(&e, "Task", &task_id))?;
+
+        // Validate that task can be resumed
+        if !matches!(task.state, crate::models::TaskState::Cancelled) {
+            return Ok(Response::new(ResumeTaskResponse {
+                success: false,
+                message: format!("Task {} cannot be resumed: current state is {:?}, expected Cancelled", task_id, task.state),
+            }));
+        }
+
+        if !task.has_partial_result() {
+            return Ok(Response::new(ResumeTaskResponse {
+                success: false,
+                message: format!("Task {} cannot be resumed: no partial results available", task_id),
+            }));
+        }
+
+        // Restore task state and re-enqueue for execution
+        let mut task = task;
+        task.set_state(crate::models::TaskState::Queued);
+        
+        // Clear the partial result flag (or keep it for reference - for now we'll keep it)
+        // The task will be re-executed from the beginning, but we have the partial results for reference
+        
+        let mut repo = SqliteTaskRepository::new(&mut *db);
+        repo.update(&task).map_err(|e| storage_to_status(&e, "Task", &task_id))?;
+
+        // Re-enqueue task via orchestrator if available
+        if let Some(ref orchestrator) = self.orchestrator {
+            use radium_orchestrator::ExecutionTask;
+            let execution_task = ExecutionTask::new(
+                task.agent_id.clone(),
+                serde_json::to_string(&task.input).unwrap_or_else(|_| "{}".to_string()),
+                1, // Default priority
+            )
+            .with_task_id(task_id.clone());
+            
+            if let Err(e) = orchestrator.enqueue_task(execution_task).await {
+                warn!(task_id = %task_id, error = %e, "Failed to re-enqueue task for resume");
+                return Ok(Response::new(ResumeTaskResponse {
+                    success: false,
+                    message: format!("Failed to re-enqueue task: {}", e),
+                }));
+            }
+        }
+
+        Ok(Response::new(ResumeTaskResponse {
+            success: true,
+            message: format!("Task {} resumed and re-queued for execution", task_id),
+        }))
     }
 
     async fn execute_agent(

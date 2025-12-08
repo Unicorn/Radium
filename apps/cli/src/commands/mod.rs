@@ -11,6 +11,7 @@ pub mod chat;
 pub mod checkpoint;
 pub mod clean;
 pub mod clipboard;
+pub mod code;
 pub mod complete;
 pub mod context;
 pub mod cost;

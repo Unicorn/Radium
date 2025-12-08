@@ -40,6 +40,9 @@ pub enum TaskState {
 /// Stores the output and metadata from a completed task execution.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TaskResult {
+    /// Whether this is a partial result (task was cancelled).
+    #[serde(default)]
+    pub is_partial: bool,
     /// The output produced by the task (JSON value).
     pub output: Value,
     /// Optional error message if the task failed.
@@ -50,6 +53,10 @@ pub struct TaskResult {
     pub completed_at: Option<DateTime<Utc>>,
     /// Duration of execution in milliseconds.
     pub duration_ms: Option<u64>,
+    /// Timestamp when the task was cancelled (if applicable).
+    pub cancelled_at: Option<DateTime<Utc>>,
+    /// Reason for cancellation (if applicable).
+    pub cancellation_reason: Option<String>,
 }
 
 impl TaskResult {
@@ -62,7 +69,16 @@ impl TaskResult {
     /// # Returns
     /// A new `TaskResult` with no error and no completion time.
     pub fn new(output: Value, started_at: DateTime<Utc>) -> Self {
-        Self { output, error: None, started_at, completed_at: None, duration_ms: None }
+        Self {
+            is_partial: false,
+            output,
+            error: None,
+            started_at,
+            completed_at: None,
+            duration_ms: None,
+            cancelled_at: None,
+            cancellation_reason: None,
+        }
     }
 
     /// Creates a task result representing a successful completion.
@@ -79,11 +95,14 @@ impl TaskResult {
             completed_at.signed_duration_since(started_at).num_milliseconds().max(0) as u64;
 
         Self {
+            is_partial: false,
             output,
             error: None,
             started_at,
             completed_at: Some(completed_at),
             duration_ms: Some(duration_ms),
+            cancelled_at: None,
+            cancellation_reason: None,
         }
     }
 
@@ -101,11 +120,45 @@ impl TaskResult {
             completed_at.signed_duration_since(started_at).num_milliseconds().max(0) as u64;
 
         Self {
+            is_partial: false,
             output: Value::Null,
             error: Some(error),
             started_at,
             completed_at: Some(completed_at),
             duration_ms: Some(duration_ms),
+            cancelled_at: None,
+            cancellation_reason: None,
+        }
+    }
+
+    /// Creates a partial task result for a cancelled task.
+    ///
+    /// # Arguments
+    /// * `output` - The partial output value from the task
+    /// * `started_at` - When the task started
+    /// * `cancelled_at` - When the task was cancelled
+    /// * `reason` - Reason for cancellation
+    ///
+    /// # Returns
+    /// A new `TaskResult` marked as partial with cancellation metadata.
+    pub fn partial(
+        output: Value,
+        started_at: DateTime<Utc>,
+        cancelled_at: DateTime<Utc>,
+        reason: Option<String>,
+    ) -> Self {
+        let duration_ms =
+            cancelled_at.signed_duration_since(started_at).num_milliseconds().max(0) as u64;
+
+        Self {
+            is_partial: true,
+            output,
+            error: None,
+            started_at,
+            completed_at: Some(cancelled_at),
+            duration_ms: Some(duration_ms),
+            cancelled_at: Some(cancelled_at),
+            cancellation_reason: reason,
         }
     }
 
@@ -117,6 +170,11 @@ impl TaskResult {
     /// Returns whether the task result represents a failure.
     pub fn is_failure(&self) -> bool {
         self.error.is_some()
+    }
+
+    /// Returns whether the task result is partial (cancelled).
+    pub fn is_partial_result(&self) -> bool {
+        self.is_partial
     }
 }
 
@@ -230,6 +288,14 @@ impl Task {
         self.result = Some(result);
         self.state = TaskState::Completed;
         self.updated_at = Utc::now();
+    }
+
+    /// Returns whether the task has partial results (was cancelled).
+    ///
+    /// # Returns
+    /// `true` if the task has a partial result, `false` otherwise.
+    pub fn has_partial_result(&self) -> bool {
+        self.result.as_ref().map_or(false, |r| r.is_partial_result())
     }
 }
 

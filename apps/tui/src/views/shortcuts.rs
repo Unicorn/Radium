@@ -60,6 +60,10 @@ pub fn get_shortcuts() -> Vec<ShortcutCategory> {
                     keys: "Backspace".to_string(),
                     description: "Delete character".to_string(),
                 },
+                Shortcut {
+                    keys: "Ctrl+R".to_string(),
+                    description: "Retry last requirement or task".to_string(),
+                },
             ],
         },
         ShortcutCategory {

@@ -56,6 +56,7 @@ impl StatusFooter {
         context: Option<&DisplayContext>,
         selection_info: Option<&str>,
         privacy_state: Option<&PrivacyState>,
+        cancellation_info: Option<&str>,
     ) {
         let theme = crate::theme::get_theme();
         let chunks = Layout::default()
@@ -80,8 +81,10 @@ impl StatusFooter {
             );
         frame.render_widget(mode_widget, chunks[0]);
 
-        // Selection/Context info
-        let info_text = if let Some(info) = selection_info {
+        // Selection/Context info (or cancellation info if active)
+        let info_text = if let Some(cancel_info) = cancellation_info {
+            cancel_info.to_string()
+        } else if let Some(info) = selection_info {
             info.to_string()
         } else if let Some(ctx) = context {
             match ctx {

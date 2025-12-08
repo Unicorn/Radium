@@ -8,7 +8,7 @@ fn generate_test_text(size_kb: usize) -> String {
     let base_text = "Connect to 192.168.1.100 and email user@example.com. \
                      Call 555-123-4567. AWS account: 123456789012. \
                      Card: 4532015112830366. SSN: 123-45-6789. \
-                     API key: sk_live_PLACEHOLDER_API_KEY_FOR_TESTING_ONLY_NOT_A_REAL_SECRET.";
+                     API key: sk_test_PLACEHOLDER_API_KEY_FOR_TESTING_ONLY_NOT_A_REAL_SECRET.";
     
     let mut text = String::with_capacity(size_kb * 1024);
     let repetitions = (size_kb * 1024) / base_text.len() + 1;

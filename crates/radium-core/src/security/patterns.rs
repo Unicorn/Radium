@@ -293,7 +293,7 @@ mod tests {
     #[test]
     fn test_api_key_pattern() {
         let library = PatternLibrary::default();
-        let text = "API key: sk_live_PLACEHOLDER_API_KEY_FOR_TESTING_ONLY_NOT_A_REAL_SECRET";
+        let text = "API key: sk_test_PLACEHOLDER_API_KEY_FOR_TESTING_ONLY_NOT_A_REAL_SECRET";
         let matches = library.find_matches(text);
         assert!(matches.contains_key("api_key"));
     }

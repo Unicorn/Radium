@@ -1,8 +1,10 @@
 //! Output window component for displaying streaming agent output.
 
 use crate::state::OutputBuffer;
+use radium_core::code_blocks::CodeBlockParser;
 use ratatui::{
     prelude::*,
+    text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
 };
 
@@ -27,24 +29,39 @@ impl OutputWindow {
         let visible_lines = buffer.visible_lines(output_height);
         let output_text = visible_lines.join("\n");
 
-        // Output content
-        let output = Paragraph::new(output_text)
+        // Parse code blocks and create annotated output
+        let annotated_lines = annotate_with_code_blocks(&output_text);
+
+        // Output content with annotations
+        let output = Paragraph::new(annotated_lines)
             .style(Style::default())
             .block(Block::default().borders(Borders::ALL).title(format!(" {} ", title)))
             .wrap(Wrap { trim: true });
         frame.render_widget(output, chunks[0]);
 
-        // Status line
+        // Status line with code block count
         let total_lines = buffer.lines.len();
         let scroll_pos = buffer.scroll_position;
         let at_bottom = buffer.is_at_bottom();
+        
+        // Count code blocks in full buffer
+        let full_text = buffer.lines.join("\n");
+        let blocks = CodeBlockParser::parse(&full_text);
+        let block_count = blocks.len();
 
         let status_text = if total_lines == 0 {
             "No output yet".to_string()
-        } else if at_bottom {
-            format!("Lines: {} [At Bottom]", total_lines)
         } else {
-            format!("Lines: {} [Scroll: {}/{}]", total_lines, scroll_pos + 1, total_lines)
+            let base_text = if at_bottom {
+                format!("Lines: {} [At Bottom]", total_lines)
+            } else {
+                format!("Lines: {} [Scroll: {}/{}]", total_lines, scroll_pos + 1, total_lines)
+            };
+            if block_count > 0 {
+                format!("{} | 📋 {} blocks", base_text, block_count)
+            } else {
+                base_text
+            }
         };
 
         let status_style = if at_bottom {
@@ -85,8 +102,11 @@ impl OutputWindow {
         let visible_lines = buffer.visible_lines(output_height);
         let output_text = visible_lines.join("\n");
 
-        // Output content
-        let output = Paragraph::new(output_text)
+        // Parse code blocks and create annotated output
+        let annotated_lines = annotate_with_code_blocks(&output_text);
+
+        // Output content with annotations
+        let output = Paragraph::new(annotated_lines)
             .style(Style::default())
             .block(Block::default().borders(Borders::LEFT | Borders::RIGHT))
             .wrap(Wrap { trim: true });
@@ -122,6 +142,52 @@ impl OutputWindow {
 
         Self::render(frame, chunks[0], left_buffer, left_title);
         Self::render(frame, chunks[1], right_buffer, right_title);
+    }
+}
+
+/// Annotate output text with code block markers.
+fn annotate_with_code_blocks(text: &str) -> Vec<Line<'_>> {
+    let blocks = CodeBlockParser::parse(text);
+    let mut block_map: std::collections::HashMap<usize, (usize, String)> = blocks
+        .iter()
+        .map(|b| (b.start_line, (b.index, b.language.clone().unwrap_or_else(|| "text".to_string()))))
+        .collect();
+
+    let mut lines = Vec::new();
+    let mut current_line = 1;
+    let mut in_code_block = false;
+
+    for line in text.lines() {
+        if line.trim().starts_with("```") {
+            if in_code_block {
+                in_code_block = false;
+            } else {
+                in_code_block = true;
+                // Add annotation if this is a block start
+                if let Some((index, lang)) = block_map.get(&current_line) {
+                    let annotation = format!("[Block {}: {}] ", index, lang);
+                    lines.push(Line::from(vec![
+                        Span::styled(annotation, Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                        Span::raw(""),
+                    ]));
+                }
+            }
+            current_line += 1;
+            continue;
+        }
+
+        if in_code_block {
+            lines.push(Line::from(Span::raw(line)));
+        } else {
+            lines.push(Line::from(Span::raw(line)));
+        }
+        current_line += 1;
+    }
+
+    if lines.is_empty() {
+        vec![Line::from(Span::raw(""))]
+    } else {
+        lines
     }
 }
 

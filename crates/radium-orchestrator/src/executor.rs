@@ -16,8 +16,9 @@ use std::path::Path;
 use std::process::Command;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{Semaphore, mpsc};
+use tokio::sync::{Semaphore, mpsc, RwLock};
 use tokio::time;
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
 
 
@@ -1047,6 +1048,8 @@ pub struct QueueProcessor {
     executor: Arc<AgentExecutor>,
     /// Shutdown signal sender.
     shutdown_tx: Option<mpsc::UnboundedSender<()>>,
+    /// Cancellation tokens for running tasks (task_id -> token).
+    cancellation_tokens: Arc<RwLock<std::collections::HashMap<String, CancellationToken>>>,
 }
 
 impl fmt::Debug for QueueProcessor {
@@ -1076,7 +1079,16 @@ impl QueueProcessor {
         executor: Arc<AgentExecutor>,
     ) -> Self {
         let semaphore = Arc::new(Semaphore::new(config.max_concurrent_tasks));
-        Self { config, semaphore, registry, lifecycle, queue, executor, shutdown_tx: None }
+        Self {
+            config,
+            semaphore,
+            registry,
+            lifecycle,
+            queue,
+            executor,
+            shutdown_tx: None,
+            cancellation_tokens: Arc::new(RwLock::new(std::collections::HashMap::new())),
+        }
     }
 
     /// Starts the queue processor in a background task.
@@ -1097,6 +1109,7 @@ impl QueueProcessor {
         let lifecycle = Arc::clone(&self.lifecycle);
         let queue = Arc::clone(&self.queue);
         let executor = Arc::clone(&self.executor);
+        let cancellation_tokens = Arc::clone(&self.cancellation_tokens);
 
         tokio::spawn(async move {
             info!("Queue processor started");
@@ -1127,13 +1140,22 @@ impl QueueProcessor {
                                 break;
                             };
 
+                            // Create cancellation token for this task
+                            let cancellation_token = CancellationToken::new();
+                            {
+                                let mut tokens = cancellation_tokens.write().await;
+                                tokens.insert(task_id.clone(), cancellation_token.clone());
+                            }
+
                             // Spawn task execution
                             let registry_clone = Arc::clone(&registry);
                             let lifecycle_clone = Arc::clone(&lifecycle);
                             let queue_clone = Arc::clone(&queue);
                             let executor_clone = Arc::clone(&executor);
+                            let cancellation_tokens_clone = Arc::clone(&cancellation_tokens);
                             let task_id_clone = task_id.clone();
                             let agent_id_clone = agent_id.clone();
+                            let cancellation_token_clone = cancellation_token.clone();
 
                             tokio::spawn(async move {
                                 let _permit = permit; // Hold permit for task duration
@@ -1180,12 +1202,26 @@ impl QueueProcessor {
                                     }
                                 }
 
-                                // Execute with timeout
-                                let execution_result = time::timeout(
-                                    config.task_timeout,
-                                    executor_clone.execute_agent_with_default_model(agent, &input, None as Option<&Arc<dyn HookExecutor>>),
-                                )
-                                .await;
+                                // Execute with cancellation token support
+                                let execution_future = executor_clone.execute_agent_with_default_model(agent, &input, None as Option<&Arc<dyn HookExecutor>>);
+                                
+                                let execution_result = tokio::select! {
+                                    result = execution_future => {
+                                        // Normal execution completed
+                                        Ok(result)
+                                    }
+                                    _ = cancellation_token_clone.cancelled() => {
+                                        // Task was cancelled
+                                        info!(
+                                            task_id = %task_id_clone,
+                                            agent_id = %agent_id_clone,
+                                            "Task execution cancelled"
+                                        );
+                                        // Mark as cancelled in lifecycle
+                                        let _ = lifecycle_clone.set_state(&agent_id_clone, AgentState::Cancelled).await;
+                                        Err("Task cancelled".to_string())
+                                    }
+                                };
 
                                 match execution_result {
                                     Ok(Ok(result)) => {
@@ -1215,15 +1251,24 @@ impl QueueProcessor {
                                         );
                                         let _ = lifecycle_clone.mark_error(&agent_id_clone).await;
                                     }
-                                    Err(_) => {
+                                    Err(msg) if msg == "Task cancelled" => {
+                                        // Already handled above, just clean up
+                                    }
+                                    Err(e) => {
                                         error!(
                                             task_id = %task_id_clone,
                                             agent_id = %agent_id_clone,
-                                            timeout = ?config.task_timeout,
-                                            "Task execution timed out"
+                                            error = %e,
+                                            "Unexpected error during task execution"
                                         );
                                         let _ = lifecycle_clone.mark_error(&agent_id_clone).await;
                                     }
+                                }
+
+                                // Clean up cancellation token
+                                {
+                                    let mut tokens = cancellation_tokens_clone.write().await;
+                                    tokens.remove(&task_id_clone);
                                 }
 
                                 queue_clone.mark_completed(&task_id_clone).await;
@@ -1247,6 +1292,18 @@ impl QueueProcessor {
     pub fn stop(&mut self) -> Result<(), String> {
         match self.shutdown_tx.take() {
             Some(shutdown_tx) => {
+                // Trigger all cancellation tokens for running tasks
+                // We need to do this in an async context, so we spawn a task
+                let tokens = Arc::clone(&self.cancellation_tokens);
+                tokio::spawn(async move {
+                    let tokens_read = tokens.read().await;
+                    for (task_id, token) in tokens_read.iter() {
+                        info!(task_id = %task_id, "Cancelling task");
+                        token.cancel();
+                    }
+                });
+                
+                // Send shutdown signal
                 let _ = shutdown_tx.send(());
                 Ok(())
             }
@@ -1261,6 +1318,24 @@ impl QueueProcessor {
     #[must_use]
     pub fn is_running(&self) -> bool {
         self.shutdown_tx.is_some()
+    }
+
+    /// Cancels a specific task by triggering its cancellation token.
+    ///
+    /// # Arguments
+    /// * `task_id` - The task ID to cancel
+    ///
+    /// # Returns
+    /// Returns `true` if the task was found and cancelled, `false` otherwise.
+    pub async fn cancel_task(&self, task_id: &str) -> bool {
+        let tokens = self.cancellation_tokens.read().await;
+        if let Some(token) = tokens.get(task_id) {
+            info!(task_id = %task_id, "Triggering cancellation token for task");
+            token.cancel();
+            true
+        } else {
+            false
+        }
     }
 }
 
