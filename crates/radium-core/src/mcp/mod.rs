@@ -14,6 +14,7 @@ pub mod messages;
 #[cfg(feature = "orchestrator-integration")]
 pub mod orchestration_bridge;
 pub mod prompts;
+pub mod proxy;
 pub mod tools;
 pub mod transport;
 
