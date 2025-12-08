@@ -18,32 +18,64 @@ impl CheckpointInterruptModal {
         state: &CheckpointInterruptState,
         theme: &RadiumTheme,
     ) {
+        // Check minimum terminal size
+        if area.width < 80 || area.height < 24 {
+            Self::render_size_warning(frame, area, theme);
+            return;
+        }
+
+        // Determine responsive modal size based on terminal dimensions
+        let (width_percent, height_percent) = Self::calculate_modal_size(area);
+        
         // Create a centered modal area
-        let modal_area = Self::centered_rect(80, 75, area);
+        let modal_area = Self::centered_rect(width_percent, height_percent, area);
 
         // Clear the background
         frame.render_widget(Clear, modal_area);
 
+        // Calculate responsive constraints based on available height
+        let available_height = modal_area.height;
+        let is_narrow = area.width < 80;
+        
+        // Adjust section sizes based on available space
+        let header_size = if available_height < 30 { 2 } else { 3 };
+        let context_size = if available_height < 30 { 3 } else { 4 };
+        let summary_size = if available_height < 30 { 4 } else { 6 };
+        let actions_size = if available_height < 30 { 4 } else { 5 };
+        let details_size = if state.show_details || state.show_diff {
+            if available_height < 30 { 6 } else { 10 }
+        } else {
+            if available_height < 30 { 2 } else { 3 }
+        };
+        let help_size = if available_height < 30 { 2 } else { 3 };
+
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3), // Header
-                Constraint::Length(4), // Context
-                Constraint::Length(6), // Summary
-                Constraint::Length(5), // Actions
-                Constraint::Length(if state.show_details || state.show_diff { 10 } else { 3 }), // Details/Diff
-                Constraint::Length(3), // Help
+                Constraint::Length(header_size), // Header
+                Constraint::Length(context_size), // Context
+                Constraint::Length(summary_size), // Summary
+                Constraint::Length(actions_size), // Actions
+                Constraint::Length(details_size), // Details/Diff
+                Constraint::Length(help_size), // Help
             ])
             .split(modal_area);
 
-        // Header
+        // Header - truncate long reasons
         let reason = match &state.trigger {
             InterruptTrigger::AgentCheckpoint { reason, .. } => reason.clone(),
             InterruptTrigger::PolicyAskUser { reason, .. } => reason.clone(),
             InterruptTrigger::Error { message } => message.clone(),
         };
-        let title = format!("⏸  CHECKPOINT: {}", reason);
+        let max_reason_len = (modal_area.width as usize).saturating_sub(20); // Leave space for "⏸  CHECKPOINT: "
+        let truncated_reason = if reason.len() > max_reason_len {
+            format!("{}...", &reason[..max_reason_len.saturating_sub(3)])
+        } else {
+            reason
+        };
+        let title = format!("⏸  CHECKPOINT: {}", truncated_reason);
         let header = Paragraph::new(title)
+            .wrap(Wrap { trim: true })
             .style(Style::default().fg(theme.primary).add_modifier(Modifier::BOLD))
             .alignment(Alignment::Center)
             .block(
@@ -212,6 +244,64 @@ impl CheckpointInterruptModal {
                 Constraint::Percentage((100 - percent_x) / 2),
             ])
             .split(popup_layout[1])[1]
+    }
+
+    /// Calculates responsive modal size based on terminal dimensions.
+    fn calculate_modal_size(area: Rect) -> (u16, u16) {
+        let width = area.width;
+        let height = area.height;
+
+        // Define breakpoints
+        let narrow_width = 80;
+        let normal_width = 120;
+        let narrow_height = 30;
+        let normal_height = 40;
+
+        // Calculate width percentage
+        let width_percent = if width < narrow_width {
+            95 // Very narrow: use most of the width
+        } else if width < normal_width {
+            80 // Narrow: current default
+        } else {
+            70 // Wide: use less width for better aesthetics
+        };
+
+        // Calculate height percentage
+        let height_percent = if height < narrow_height {
+            90 // Short: use most of the height
+        } else if height < normal_height {
+            75 // Normal: current default
+        } else {
+            60 // Tall: use less height
+        };
+
+        (width_percent, height_percent)
+    }
+
+    /// Renders a warning message when terminal is too small.
+    fn render_size_warning(frame: &mut Frame, area: Rect, theme: &RadiumTheme) {
+        let warning_area = Self::centered_rect(70, 30, area);
+        frame.render_widget(Clear, warning_area);
+
+        let warning_text = vec![
+            "⚠️  Terminal Too Small".to_string(),
+            "".to_string(),
+            "Minimum size required: 80x24".to_string(),
+            format!("Current size: {}x{}", area.width, area.height),
+            "".to_string(),
+            "Please resize your terminal and try again.".to_string(),
+        ];
+
+        let warning = Paragraph::new(warning_text.join("\n"))
+            .style(Style::default().fg(theme.error).add_modifier(Modifier::BOLD))
+            .alignment(Alignment::Center)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(theme.error))
+                    .title(" Size Warning "),
+            );
+        frame.render_widget(warning, warning_area);
     }
 }
 
