@@ -6,10 +6,12 @@
 //! - Pattern-based detection of sensitive information
 
 mod error;
+mod filter;
 mod patterns;
 mod secret_manager;
 
 pub use error::{SecurityError, SecurityResult};
+pub use filter::{CredentialMatch, SecretFilter};
 pub use secret_manager::SecretManager;
 
 // Privacy module exports

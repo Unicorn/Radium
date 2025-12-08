@@ -33,6 +33,7 @@ pub mod analytics;
 pub mod conflict_resolution;
 pub mod constitution;
 mod dry_run;
+pub mod network_interceptor;
 pub mod reload;
 mod rules;
 mod storage;
@@ -41,6 +42,9 @@ pub mod suggestions;
 pub mod templates;
 mod types;
 
+pub use network_interceptor::{
+    DefaultNetworkInterceptor, NetworkInterceptor, NetworkInterceptorManager, NetworkPattern,
+};
 pub use reload::PolicyReloader;
 pub use rules::{PolicyEngine, PolicyRule};
 pub use templates::{merge_template, PolicyTemplate, TemplateDiscovery};
