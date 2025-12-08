@@ -18,6 +18,7 @@ pub mod extension;
 pub mod hooks;
 pub mod init;
 pub mod mcp;
+pub mod mcp_proxy;
 pub mod monitor;
 pub mod plan;
 pub mod policy;

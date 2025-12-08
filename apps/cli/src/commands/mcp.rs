@@ -32,6 +32,11 @@ pub enum McpCommand {
     Prompts,
     /// Interactive setup wizard for configuring MCP servers
     Setup,
+    /// MCP proxy server commands
+    Proxy {
+        #[clap(subcommand)]
+        subcommand: crate::commands::mcp_proxy::McpProxyCommand,
+    },
 }
 
 /// OAuth authentication subcommands.
@@ -256,6 +261,9 @@ pub async fn execute_mcp_command(command: McpCommand) -> anyhow::Result<()> {
         }
         McpCommand::Setup => {
             setup_wizard(&workspace, &mut config_manager).await?;
+        }
+        McpCommand::Proxy { subcommand } => {
+            crate::commands::mcp_proxy::execute_mcp_proxy_command(subcommand).await?;
         }
     }
 
