@@ -403,9 +403,102 @@ async fn delete_command(
     before: Option<&str>,
     all: bool,
 ) -> Result<()> {
-    // Stub implementation - will be implemented in Task 4
-    println!("Delete command: session_id={:?}, before={:?}, all={}", 
-        session_id, before, all);
+    let workspace = Workspace::discover()
+        .context("No Radium workspace found. Run 'rad init' to create one.")?;
+
+    // Initialize history manager and storage
+    let history_dir = workspace.root().join(".radium/_internals/history");
+    let mut history = HistoryManager::new(&history_dir)?;
+    let storage = SessionStorage::new(workspace.root())?;
+
+    // Validate that exactly one deletion mode is specified
+    let mode_count = [session_id.is_some(), before.is_some(), all].iter().filter(|&&x| x).count();
+    if mode_count != 1 {
+        return Err(anyhow::anyhow!(
+            "Exactly one deletion mode must be specified: session_id, --before, or --all"
+        ));
+    }
+
+    let mut deleted_count = 0;
+
+    if let Some(sid) = session_id {
+        // Single session deletion
+        // Remove from history
+        history.clear_session(Some(sid))?;
+        
+        // Delete analytics file
+        let sessions_dir = storage.sessions_dir();
+        let file_path = sessions_dir.join(format!("{}.json", sid));
+        if file_path.exists() {
+            fs::remove_file(&file_path)?;
+        }
+        
+        deleted_count = 1;
+        println!("Deleted session: {}", sid);
+    } else if let Some(before_date_str) = before {
+        // Batch deletion by date
+        let before_date = chrono::DateTime::parse_from_rfc3339(before_date_str)
+            .or_else(|_| {
+                chrono::NaiveDate::parse_from_str(before_date_str, "%Y-%m-%d")
+                    .map(|d| d.and_hms_opt(0, 0, 0).unwrap().and_utc())
+            })
+            .context(format!("Invalid date format: {}. Use ISO 8601 or YYYY-MM-DD", before_date_str))?
+            .with_timezone(&chrono::Utc);
+
+        // Get all sessions and filter by date
+        let metadata_list = storage.list_report_metadata()?;
+        let sessions_to_delete: Vec<_> = metadata_list
+            .into_iter()
+            .filter(|m| m.generated_at.date_naive() < before_date.date_naive())
+            .collect();
+
+        let sessions_dir = storage.sessions_dir();
+        for metadata in &sessions_to_delete {
+            // Remove from history
+            history.clear_session(Some(&metadata.session_id))?;
+            
+            // Delete analytics file
+            let file_path = sessions_dir.join(format!("{}.json", metadata.session_id));
+            if file_path.exists() {
+                let _ = fs::remove_file(&file_path);
+            }
+        }
+
+        deleted_count = sessions_to_delete.len();
+        println!("Deleted {} session(s) before {}", deleted_count, before_date_str);
+    } else if all {
+        // Delete all sessions with confirmation
+        print!("Delete all sessions? This cannot be undone. (y/N): ");
+        io::stdout().flush()?;
+        
+        let mut confirmation = String::new();
+        io::stdin().read_line(&mut confirmation)?;
+        let confirmation = confirmation.trim().to_lowercase();
+        
+        if confirmation == "y" || confirmation == "yes" {
+            // Get all sessions
+            let metadata_list = storage.list_report_metadata()?;
+            let sessions_dir = storage.sessions_dir();
+            
+            for metadata in &metadata_list {
+                // Remove from history
+                let _ = history.clear_session(Some(&metadata.session_id));
+                
+                // Delete analytics file
+                let file_path = sessions_dir.join(format!("{}.json", metadata.session_id));
+                if file_path.exists() {
+                    let _ = fs::remove_file(&file_path);
+                }
+            }
+
+            deleted_count = metadata_list.len();
+            println!("Deleted all {} session(s)", deleted_count);
+        } else {
+            println!("Deletion cancelled.");
+            return Ok(());
+        }
+    }
+
     Ok(())
 }
 
