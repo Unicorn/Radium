@@ -9,6 +9,8 @@ pub mod comparison;
 #[cfg(feature = "monitoring")]
 pub mod export;
 #[cfg(feature = "monitoring")]
+pub mod exporters;
+#[cfg(feature = "monitoring")]
 pub mod report;
 #[cfg(feature = "monitoring")]
 pub mod session;
@@ -16,6 +18,11 @@ pub mod storage;
 
 #[cfg(feature = "monitoring")]
 pub use comparison::{ComparisonFormatter, SessionComparison};
+#[cfg(feature = "monitoring")]
+pub use export::{CostRecord, CostSummary, ExportError, ExportFormat, ExportOptions, Exporter};
+#[cfg(feature = "monitoring")]
+pub use exporters::{CsvExporter, JsonExporter};
+// MarkdownExporter will be added in subsequent task
 #[cfg(feature = "monitoring")]
 pub use report::{ReportFormatter, SessionReport};
 #[cfg(feature = "monitoring")]

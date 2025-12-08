@@ -31,6 +31,9 @@ tonic.workspace = true
 # Async runtime
 tokio.workspace = true
 
+# HTTP client for credential validation
+reqwest = { version = "0.12", features = ["json"] }
+
 # Internal crates
 radium-core = { workspace = true, features = ["monitoring", "workflow", "mcp-progress", "orchestrator-integration"] }
 radium-models.workspace = true

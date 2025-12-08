@@ -103,14 +103,27 @@ impl CheckpointInterruptModal {
             .block(Block::default().borders(Borders::ALL).title(" Context "));
         frame.render_widget(context, chunks[1]);
 
-        // Summary
-        let summary_text = vec![
-            "Summary:".to_string(),
-            "• Workflow execution paused".to_string(),
-            "• Review required before proceeding".to_string(),
-            "".to_string(),
-            format!("• Checkpoint ID: {}", state.checkpoint_id.as_ref().unwrap_or(&"N/A".to_string())),
-        ];
+        // Summary - adapt based on interrupt type
+        let summary_text = match &state.trigger {
+            InterruptTrigger::PolicyAskUser { tool_name, args, .. } => {
+                vec![
+                    "Policy Decision Required:".to_string(),
+                    format!("• Tool: {}", tool_name),
+                    format!("• Arguments: {}", if args.len() > 50 { format!("{}...", &args[..47]) } else { args.clone() }),
+                    "".to_string(),
+                    "• User approval required for tool execution".to_string(),
+                ]
+            }
+            _ => {
+                vec![
+                    "Summary:".to_string(),
+                    "• Workflow execution paused".to_string(),
+                    "• Review required before proceeding".to_string(),
+                    "".to_string(),
+                    format!("• Checkpoint ID: {}", state.checkpoint_id.as_ref().unwrap_or(&"N/A".to_string())),
+                ]
+            }
+        };
         let summary = Paragraph::new(summary_text.join("\n"))
             .style(Style::default().fg(theme.text))
             .block(Block::default().borders(Borders::ALL).title(" Summary "));
@@ -124,12 +137,19 @@ impl CheckpointInterruptModal {
             .map(|(idx, action)| {
                 let is_selected = idx == state.selected_action_index;
                 let prefix = if is_selected { "> " } else { "  " };
-                let label = match action {
-                    InterruptAction::Continue => "Continue - Resume execution",
-                    InterruptAction::Rollback { checkpoint_id } => {
+                // Adapt labels based on interrupt type
+                let label = match (&state.trigger, action) {
+                    (InterruptTrigger::PolicyAskUser { .. }, InterruptAction::Continue) => {
+                        "Approve - Allow tool execution"
+                    }
+                    (InterruptTrigger::PolicyAskUser { .. }, InterruptAction::Cancel) => {
+                        "Deny - Block tool execution"
+                    }
+                    (_, InterruptAction::Continue) => "Continue - Resume execution",
+                    (_, InterruptAction::Rollback { checkpoint_id }) => {
                         &format!("Rollback - Restore to checkpoint {}", checkpoint_id)
                     }
-                    InterruptAction::Cancel => "Cancel - Stop workflow",
+                    (_, InterruptAction::Cancel) => "Cancel - Stop workflow",
                 };
                 let style = if is_selected {
                     Style::default()

@@ -123,6 +123,13 @@ impl CheckpointInterruptState {
 
     /// Gets the list of available actions based on state.
     pub fn available_actions(&self) -> Vec<InterruptAction> {
+        // Policy AskUser interrupts use Approve/Deny instead of Continue/Cancel
+        if matches!(self.trigger, InterruptTrigger::PolicyAskUser { .. }) {
+            // For policy interrupts, we'll use Continue as Approve and Cancel as Deny
+            // The UI will display them differently
+            return vec![InterruptAction::Continue, InterruptAction::Cancel];
+        }
+
         let mut actions = vec![InterruptAction::Continue];
         
         if self.can_rollback() {

@@ -22,7 +22,7 @@ use crate::requirement_progress::{ActiveRequirement, ActiveRequirementProgress};
 use crate::requirement_executor::RequirementExecutor as TuiRequirementExecutor;
 use crate::progress_channel::ExecutionResult;
 use crate::setup::SetupWizard;
-use crate::state::{CheckpointInterruptState, ExecutionHistory, ExecutionRecord, WorkflowUIState};
+use crate::state::{CheckpointInterruptState, CommandSuggestion, CommandSuggestionState, ExecutionHistory, ExecutionRecord, SuggestionSource, WorkflowUIState};
 use crate::theme::RadiumTheme;
 use crate::views::PromptData;
 use crate::workspace::WorkspaceStatus;
@@ -109,6 +109,14 @@ pub struct App {
     pub active_execution_view: ExecutionView,
     /// Checkpoint interrupt state (when workflow pauses for user action)
     pub checkpoint_interrupt_state: Option<CheckpointInterruptState>,
+    /// Task list state for tracking tasks with agent assignments
+    pub task_list_state: Option<TaskListState>,
+    /// Orchestrator thinking panel for displaying orchestrator logs
+    pub orchestrator_panel: OrchestratorThinkingPanel,
+    /// Last time task list was polled
+    pub last_task_poll: Instant,
+    /// Last time orchestrator logs were polled
+    pub last_log_poll: Instant,
 }
 
 impl App {
@@ -226,6 +234,10 @@ impl App {
             execution_history,
             active_execution_view: ExecutionView::None,
             checkpoint_interrupt_state: None,
+            task_list_state: None,
+            orchestrator_panel: OrchestratorThinkingPanel::new(),
+            last_task_poll: Instant::now(),
+            last_log_poll: Instant::now(),
         };
 
         // Show setup wizard if not configured, otherwise start chat
@@ -537,26 +549,21 @@ impl App {
             }
 
             // Arrow keys for command menu navigation
-            KeyCode::Up if self.prompt_data.autocomplete_active && !self.prompt_data.command_suggestions.is_empty() => {
-                self.prompt_data.selected_suggestion_index =
-                    self.prompt_data.selected_suggestion_index.saturating_sub(1);
+            KeyCode::Up if self.prompt_data.command_state.is_active && !self.prompt_data.command_state.suggestions.is_empty() => {
+                self.prompt_data.command_state.select_previous();
             }
-            KeyCode::Down if self.prompt_data.autocomplete_active && !self.prompt_data.command_suggestions.is_empty() => {
-                let max_index = self.prompt_data.command_suggestions.len().saturating_sub(1);
-                self.prompt_data.selected_suggestion_index =
-                    (self.prompt_data.selected_suggestion_index + 1).min(max_index);
+            KeyCode::Down if self.prompt_data.command_state.is_active && !self.prompt_data.command_state.suggestions.is_empty() => {
+                self.prompt_data.command_state.select_next();
             }
 
             // Tab to autocomplete selected command
-            KeyCode::Tab if self.prompt_data.autocomplete_active && !self.prompt_data.command_suggestions.is_empty() => {
+            KeyCode::Tab if self.prompt_data.command_state.is_active && !self.prompt_data.command_state.suggestions.is_empty() => {
                 self.autocomplete_selected_command();
             }
 
             // Escape to cancel command menu
-            KeyCode::Esc if self.prompt_data.autocomplete_active => {
-                self.prompt_data.command_suggestions.clear();
-                self.prompt_data.selected_suggestion_index = 0;
-                self.prompt_data.autocomplete_active = false;
+            KeyCode::Esc if self.prompt_data.command_state.is_active => {
+                self.prompt_data.command_state.clear();
             }
 
             // Enter - handle Cmd+Enter for submission, plain Enter for newline
@@ -568,7 +575,7 @@ impl App {
                 
                 if is_submit {
                     // Submit the input
-                    if self.prompt_data.autocomplete_active && !self.prompt_data.command_suggestions.is_empty() {
+                    if self.prompt_data.command_state.is_active && !self.prompt_data.command_state.suggestions.is_empty() {
                         // Autocomplete selected suggestion
                         self.autocomplete_selected_command();
                         // Then execute it
@@ -616,16 +623,17 @@ impl App {
             KeyCode::Esc if self.prompt_data.command_palette_active => {
                 self.prompt_data.command_palette_active = false;
                 self.prompt_data.command_palette_query.clear();
-                self.prompt_data.command_suggestions.clear();
+                self.prompt_data.command_palette_suggestions.clear();
+                self.prompt_data.command_palette_selected_index = 0;
             }
 
             // Enter in command palette
             KeyCode::Enter if self.prompt_data.command_palette_active => {
                 // Get the command to execute without holding a borrow
                 let cmd_to_execute = {
-                    let selected_idx = self.prompt_data.selected_suggestion_index;
+                    let selected_idx = self.prompt_data.command_palette_selected_index;
                     self.prompt_data
-                        .command_suggestions
+                        .command_palette_suggestions
                         .get(selected_idx)
                         .and_then(|s| s.split(" - ").next().map(|s| s.to_string()))
                 };
@@ -641,13 +649,10 @@ impl App {
 
             // Arrow keys in command palette
             KeyCode::Up if self.prompt_data.command_palette_active => {
-                self.prompt_data.selected_suggestion_index =
-                    self.prompt_data.selected_suggestion_index.saturating_sub(1);
+                self.prompt_data.command_state.select_previous();
             }
             KeyCode::Down if self.prompt_data.command_palette_active => {
-                let max_index = self.prompt_data.command_suggestions.len().saturating_sub(1);
-                self.prompt_data.selected_suggestion_index =
-                    (self.prompt_data.selected_suggestion_index + 1).min(max_index);
+                self.prompt_data.command_state.select_next();
             }
 
             // Backspace in command palette
@@ -673,7 +678,7 @@ impl App {
             | KeyCode::Delete | KeyCode::Tab
             if !self.prompt_data.command_palette_active 
                 && !self.dialog_manager.is_open()
-                && self.prompt_data.command_suggestions.is_empty() => {
+                && self.prompt_data.command_state.suggestions.is_empty() => {
                 self.prompt_data.input.handle_key(key, modifiers);
             }
 
@@ -1124,9 +1129,7 @@ impl App {
 
         // Only show suggestions if typing a slash command
         if !input.starts_with('/') {
-            self.prompt_data.command_suggestions.clear();
-            self.prompt_data.selected_suggestion_index = 0;
-            self.prompt_data.autocomplete_active = false;
+            self.prompt_data.command_state.clear();
             return;
         }
 
@@ -1134,19 +1137,17 @@ impl App {
 
         // REQ-198: Only show suggestions after 2+ characters (excluding the '/')
         if partial.len() < 2 {
-            self.prompt_data.command_suggestions.clear();
-            self.prompt_data.selected_suggestion_index = 0;
-            self.prompt_data.autocomplete_active = false;
+            self.prompt_data.command_state.clear();
             return;
         }
 
         // Mark auto-completion as active (user has typed 2+ characters)
-        self.prompt_data.autocomplete_active = true;
+        self.prompt_data.command_state.is_active = true;
 
         // Parse input to detect main command vs subcommand
         let parts: Vec<&str> = partial.split_whitespace().collect();
 
-        let mut suggestions: Vec<String> = Vec::new();
+        let mut suggestions: Vec<CommandSuggestion> = Vec::new();
 
         if parts.is_empty() || (parts.len() == 1 && !partial.ends_with(' ')) {
             // Typing main command - show matching main commands with fuzzy search
@@ -1155,12 +1156,12 @@ impl App {
             // REQ-198: Performance optimization - use fuzzy matching for efficient filtering
             // SkimMatcherV2 is optimized for <50ms latency even with 100+ commands
             let matcher = SkimMatcherV2::default();
-            let mut scored_commands: Vec<(i64, String)> = Vec::new();
+            let mut scored_commands: Vec<(i64, String, String, SuggestionSource)> = Vec::new();
 
             // Score built-in commands with fuzzy matching
             for (cmd, desc) in &self.available_commands {
                 if let Some(score) = matcher.fuzzy_match(cmd, query) {
-                    scored_commands.push((score, format!("/{} - {}", cmd, desc)));
+                    scored_commands.push((score, cmd.to_string(), desc.to_string(), SuggestionSource::BuiltIn));
                 }
             }
 
@@ -1173,7 +1174,7 @@ impl App {
                         .as_ref()
                         .map(|d| d.as_str())
                         .unwrap_or("MCP command");
-                    scored_commands.push((score, format!("{} - {}", cmd_name, desc)));
+                    scored_commands.push((score, cmd_name.clone(), desc.to_string(), SuggestionSource::MCP));
                 }
             }
 
@@ -1185,7 +1186,7 @@ impl App {
                 scored_commands
                     .into_iter()
                     .take(MAX_SUGGESTIONS)
-                    .map(|(_, cmd)| cmd)
+                    .map(|(score, cmd, desc, source)| CommandSuggestion::new(cmd, desc, score, source))
             );
         } else if parts.len() >= 1 {
             // Main command is complete - show subcommands or arguments
@@ -1199,7 +1200,14 @@ impl App {
                     subcommands
                         .iter()
                         .filter(|(subcmd, _desc)| subcmd.starts_with(subquery))
-                        .map(|(subcmd, desc)| format!("/{} {} - {}", main_cmd, subcmd, desc))
+                        .map(|(subcmd, desc)| {
+                            CommandSuggestion::new(
+                                format!("/{} {}", main_cmd, subcmd),
+                                desc.to_string(),
+                                100, // High score for exact prefix match
+                                SuggestionSource::BuiltIn,
+                            )
+                        })
                 );
             } else {
                 // No subcommands - check for dynamic argument completion
@@ -1231,7 +1239,15 @@ impl App {
                                     scored_agents
                                         .into_iter()
                                         .take(20) // Limit to top 20 agents
-                                        .map(|(_, (agent_id, desc))| format!("/chat {} - {}", agent_id, desc))
+                                        .map(|(score, (agent_id, desc))| {
+                                            CommandSuggestion::new_parameter(
+                                                format!("/chat {}", agent_id),
+                                                desc,
+                                                score,
+                                                SuggestionSource::Agent,
+                                                "agent-id".to_string(),
+                                            )
+                                        })
                                 );
                             } else {
                                 // Show all agents if query is too short
@@ -1239,7 +1255,15 @@ impl App {
                                     agents
                                         .iter()
                                         .take(20)
-                                        .map(|(agent_id, desc)| format!("/chat {} - {}", agent_id, desc))
+                                        .map(|(agent_id, desc)| {
+                                            CommandSuggestion::new_parameter(
+                                                format!("/chat {}", agent_id),
+                                                desc.clone(),
+                                                50, // Default score
+                                                SuggestionSource::Agent,
+                                                "agent-id".to_string(),
+                                            )
+                                        })
                                 );
                             }
                         }
@@ -1251,46 +1275,41 @@ impl App {
             }
         }
 
-        self.prompt_data.command_suggestions = suggestions;
-
-        // Reset selection if list changed
-        self.prompt_data.selected_suggestion_index = 0;
+        // Update state with new suggestions
+        self.prompt_data.command_state.set_suggestions(suggestions);
     }
 
     fn autocomplete_selected_command(&mut self) {
-        if let Some(suggestion) =
-            self.prompt_data.command_suggestions.get(self.prompt_data.selected_suggestion_index)
-        {
-            // Extract just the command part (before the ' - ')
-            if let Some(cmd) = suggestion.split(" - ").next() {
-                // Check if this is a main command with subcommands
-                let cmd_without_slash = cmd.trim_start_matches('/');
-                let parts: Vec<&str> = cmd_without_slash.split_whitespace().collect();
+        if let Some(suggestion) = self.prompt_data.command_state.get_selected() {
+            // Extract just the command part
+            let cmd = &suggestion.command;
+            
+            // Check if this is a main command with subcommands
+            let cmd_without_slash = cmd.trim_start_matches('/');
+            let parts: Vec<&str> = cmd_without_slash.split_whitespace().collect();
 
-                let has_subcommands = if parts.len() == 1 {
-                    self.available_subcommands.contains_key(parts[0])
-                } else {
-                    false
-                };
+            let has_subcommands = if parts.len() == 1 {
+                self.available_subcommands.contains_key(parts[0])
+            } else {
+                false
+            };
 
-                // Set the input
-                let input_text = if has_subcommands {
-                    // Add a space to trigger subcommand suggestions
-                    format!("{} ", cmd)
-                } else {
-                    // Use the command as-is
-                    cmd.to_string()
-                };
-                self.prompt_data.set_input(&input_text);
+            // Set the input
+            let input_text = if has_subcommands {
+                // Add a space to trigger subcommand suggestions
+                format!("{} ", cmd)
+            } else {
+                // Use the command as-is
+                cmd.clone()
+            };
+            self.prompt_data.set_input(&input_text);
 
-                // Clear suggestions - they'll be regenerated if needed
-                self.prompt_data.command_suggestions.clear();
-                self.prompt_data.selected_suggestion_index = 0;
+            // Clear suggestions - they'll be regenerated if needed
+            self.prompt_data.command_state.clear();
 
-                // If has subcommands, trigger update to show them
-                if has_subcommands {
-                    self.update_command_suggestions();
-                }
+            // If has subcommands, trigger update to show them
+            if has_subcommands {
+                self.update_command_suggestions();
             }
         }
     }
@@ -2214,7 +2233,17 @@ impl App {
                 if let Some(action) = interrupt_state.get_selected_action().cloned() {
                     match action {
                         InterruptAction::Continue => {
-                            self.toast_manager.info("Continuing workflow execution...".to_string());
+                            // Check if this is a policy interrupt (Approve)
+                            let is_policy_approve = matches!(
+                                interrupt_state.trigger,
+                                crate::state::InterruptTrigger::PolicyAskUser { .. }
+                            );
+                            
+                            if is_policy_approve {
+                                self.toast_manager.info("Tool execution approved".to_string());
+                            } else {
+                                self.toast_manager.info("Continuing workflow execution...".to_string());
+                            }
                             
                             // Resume workflow if paused
                             if let Some(ref mut workflow_state) = self.workflow_state {
@@ -2294,6 +2323,47 @@ impl App {
             }
         }
 
+        Ok(())
+    }
+
+    /// Activates a policy AskUser interrupt.
+    /// This should be called when the policy engine returns an AskUser decision.
+    pub fn activate_policy_interrupt(
+        &mut self,
+        workflow_id: &str,
+        step_number: usize,
+        tool_name: String,
+        args: String,
+        reason: String,
+    ) -> Result<()> {
+        use crate::state::{CheckpointInterruptState, InterruptTrigger};
+
+        // Only activate if not already in interrupt state
+        if self.is_interrupt_active() {
+            return Ok(());
+        }
+
+        let trigger = InterruptTrigger::PolicyAskUser {
+            tool_name,
+            args,
+            reason,
+        };
+
+        let mut interrupt_state = CheckpointInterruptState::new(
+            trigger,
+            workflow_id.to_string(),
+            step_number,
+        );
+
+        // Policy interrupts don't have checkpoints
+        interrupt_state.activate(None);
+
+        // Pause workflow if it's running
+        if let Some(ref mut workflow_state) = self.workflow_state {
+            workflow_state.pause();
+        }
+
+        self.activate_checkpoint_interrupt(interrupt_state);
         Ok(())
     }
 

@@ -12,6 +12,7 @@ use crate::commands::DisplayContext;
 use crate::components::InteractiveTable;
 use crate::icons::Icons;
 use crate::setup::SetupWizard;
+use crate::state::CommandSuggestionState;
 use crate::theme::THEME;
 use ratatui::layout::Constraint;
 use tachyonfx::{EffectTimer, Interpolation};
@@ -36,12 +37,12 @@ pub struct PromptData {
     pub sessions: Vec<(String, usize)>,
     /// Selected index for lists
     pub selected_index: usize,
-    /// Command suggestions for autocomplete
-    pub command_suggestions: Vec<String>,
-    /// Selected suggestion index for command menu navigation
-    pub selected_suggestion_index: usize,
-    /// Whether auto-completion overlay should be shown (user has typed 2+ chars after '/')
-    pub autocomplete_active: bool,
+    /// Command suggestion state for autocomplete
+    pub command_state: CommandSuggestionState,
+    /// Command suggestions for palette (temporary, uses simple strings)
+    pub command_palette_suggestions: Vec<String>,
+    /// Selected suggestion index for command palette
+    pub command_palette_selected_index: usize,
     /// Scrollback offset for conversation history
     pub scrollback_offset: usize,
     /// Command palette state
@@ -72,9 +73,9 @@ impl PromptData {
             agents: Vec::new(),
             sessions: Vec::new(),
             selected_index: 0,
-            command_suggestions: Vec::new(),
-            selected_suggestion_index: 0,
-            autocomplete_active: false,
+            command_state: CommandSuggestionState::new(),
+            command_palette_suggestions: Vec::new(),
+            command_palette_selected_index: 0,
             scrollback_offset: 0,
             command_palette_active: false,
             command_palette_query: String::new(),
@@ -396,28 +397,10 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
     // Note: Input prompt is now rendered in the status bar (not here)
 
     // Show command menu popup if auto-completion is active (user has typed 2+ chars after '/')
-    if data.autocomplete_active {
-        const MAX_SUGGESTIONS_TO_SHOW: usize = 8;
-
-        let total_suggestions = data.command_suggestions.len();
-        let selected_idx = data.selected_suggestion_index;
-
-        // Calculate visible range (centered on selection when possible)
-        let (visible_start, visible_end) = if total_suggestions <= MAX_SUGGESTIONS_TO_SHOW {
-            (0, total_suggestions)
-        } else {
-            // Try to center the selection in the visible window
-            let half_window = MAX_SUGGESTIONS_TO_SHOW / 2;
-            let start = selected_idx.saturating_sub(half_window);
-            let end = (start + MAX_SUGGESTIONS_TO_SHOW).min(total_suggestions);
-            // Adjust start if we hit the end
-            let start = if end == total_suggestions {
-                total_suggestions.saturating_sub(MAX_SUGGESTIONS_TO_SHOW)
-            } else {
-                start
-            };
-            (start, end)
-        };
+    if data.command_state.is_active {
+        let total_suggestions = data.command_state.suggestions.len();
+        let selected_idx = data.command_state.selected_index;
+        let (visible_start, visible_end) = data.command_state.visible_range;
 
         let visible_count = visible_end - visible_start;
         let has_more_above = visible_start > 0;
@@ -468,14 +451,15 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
         } else {
             // Add scroll indicator at top if needed
             if has_more_above {
+                let hidden_count = visible_start;
                 menu_lines.push(ratatui::text::Line::from(Span::styled(
-                    "  ▲ More above...",
+                    format!("  ▲ {} more above...", hidden_count),
                     Style::default().fg(THEME.text_dim()),
                 )));
             }
 
             // Show visible suggestions
-            for (i, suggestion) in data.command_suggestions.iter().enumerate().skip(visible_start).take(visible_count) {
+            for (i, suggestion) in data.command_state.suggestions.iter().enumerate().skip(visible_start).take(visible_count) {
                 let is_selected = i == selected_idx;
                 let style = if is_selected {
                     Style::default().fg(THEME.bg_primary()).bg(THEME.primary()).add_modifier(Modifier::BOLD)
@@ -484,16 +468,19 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
                 };
 
                 let prefix = if is_selected { "▶ " } else { "  " };
+                // Format suggestion with command and description
+                let display_text = format!("{}{} - {}", prefix, suggestion.command, suggestion.description);
                 menu_lines.push(ratatui::text::Line::from(Span::styled(
-                    format!("{}{}", prefix, suggestion),
+                    display_text,
                     style,
                 )));
             }
 
             // Add scroll indicator at bottom if needed
             if has_more_below {
+                let hidden_count = total_suggestions - visible_end;
                 menu_lines.push(ratatui::text::Line::from(Span::styled(
-                    "  ▼ More below...",
+                    format!("  ▼ {} more below...", hidden_count),
                     Style::default().fg(THEME.text_dim()),
                 )));
             }
@@ -521,7 +508,7 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
 /// Render command palette overlay.
 fn render_command_palette(frame: &mut Frame, area: Rect, data: &PromptData) {
     let popup_width = 70;
-    let popup_height = (data.command_suggestions.len() + 6).min(20) as u16;
+    let popup_height = (data.command_palette_suggestions.len() + 6).min(20) as u16;
 
     let popup_area = Rect {
         x: (area.width.saturating_sub(popup_width)) / 2,
@@ -543,14 +530,14 @@ fn render_command_palette(frame: &mut Frame, area: Rect, data: &PromptData) {
         Line::from(""),
     ];
 
-    if data.command_suggestions.is_empty() {
+    if data.command_palette_suggestions.is_empty() {
         lines.push(Line::from(Span::styled(
             "No matching commands",
             Style::default().fg(THEME.text_muted()),
         )));
     } else {
-        for (i, suggestion) in data.command_suggestions.iter().enumerate() {
-            let is_selected = i == data.selected_suggestion_index;
+        for (i, suggestion) in data.command_palette_suggestions.iter().enumerate() {
+            let is_selected = i == data.command_palette_selected_index;
             let style = if is_selected {
                 Style::default().fg(THEME.bg_primary()).bg(THEME.primary()).add_modifier(Modifier::BOLD)
             } else {
