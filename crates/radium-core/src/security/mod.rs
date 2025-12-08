@@ -8,6 +8,7 @@
 mod error;
 mod filter;
 mod injector;
+mod migration;
 mod patterns;
 mod scanner;
 mod secret_manager;
@@ -15,6 +16,7 @@ mod secret_manager;
 pub use error::{SecurityError, SecurityResult};
 pub use filter::{CredentialMatch, SecretFilter};
 pub use injector::SecretInjector;
+pub use migration::{MigrationManager, MigrationReport};
 pub use scanner::{ScanReport, SecretMatch, SecretScanner, Severity};
 pub use secret_manager::SecretManager;
 

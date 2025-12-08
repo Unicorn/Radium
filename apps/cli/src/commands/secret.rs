@@ -2,7 +2,7 @@
 
 use anyhow::{Result, anyhow};
 use colored::Colorize;
-use radium_core::security::{SecretManager, SecretScanner};
+use radium_core::security::{MigrationManager, SecretManager, SecretScanner};
 use radium_core::workspace::Workspace;
 use rpassword::read_password;
 use serde_json::json;
@@ -329,8 +329,57 @@ async fn scan_secrets(json_output: bool) -> Result<()> {
 
 /// Migrates credentials from plaintext to encrypted vault.
 async fn migrate_secrets() -> Result<()> {
-    // This will be implemented in Task 6
-    println!("{}", "Migration feature will be implemented in Task 6".yellow());
+    println!();
+    println!("{}", "Migrate Credentials to Encrypted Vault".bold().cyan());
+    println!();
+
+    // Check if credentials file exists
+    let creds_path = MigrationManager::detect_credentials_file();
+    if creds_path.is_none() {
+        println!("{}", "No credentials.json file found. Nothing to migrate.".yellow());
+        return Ok(());
+    }
+
+    println!("Found credentials file: {}", creds_path.as_ref().unwrap().display());
+    println!();
+
+    // Prompt for master password
+    println!("Create a master password for the encrypted vault:");
+    let master_password = prompt_master_password_with_confirmation()?;
+
+    println!();
+    println!("Migrating credentials...");
+
+    // Run migration
+    let report = MigrationManager::migrate_to_vault(&master_password)
+        .map_err(|e| anyhow!("Migration failed: {}", e))?;
+
+    println!();
+    if report.migrated > 0 {
+        println!("{}", format!("✓ Migration completed successfully!").green());
+        println!();
+        println!("  Total credentials: {}", report.total_credentials);
+        println!("  Migrated: {}", report.migrated);
+        if report.failed > 0 {
+            println!("  {} Failed: {}", "⚠".yellow(), report.failed);
+        }
+        println!("  Backup created: {}", report.backup_path.display());
+        println!();
+        println!("{}", "Original credentials.json has been marked as deprecated.".dimmed());
+        println!("{}", "Your credentials are now stored in the encrypted vault.".dimmed());
+        println!();
+        println!("Next steps:");
+        println!("  1. Verify your credentials work: radium auth status");
+        println!("  2. Test secret access: radium secret list");
+        println!("  3. If needed, rollback from: {}", report.backup_path.display());
+    } else {
+        println!("{}", "⚠ No credentials were migrated.".yellow());
+        if report.failed > 0 {
+            println!("  All {} credentials failed to migrate.", report.failed);
+        }
+    }
+    println!();
+
     Ok(())
 }
 
