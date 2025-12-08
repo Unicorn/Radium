@@ -12,7 +12,7 @@ use crate::commands::DisplayContext;
 use crate::components::InteractiveTable;
 use crate::icons::Icons;
 use crate::setup::SetupWizard;
-use crate::state::CommandSuggestionState;
+use crate::state::{CommandSuggestionState, SuggestionSource};
 use crate::theme::THEME;
 use ratatui::layout::Constraint;
 use tachyonfx::{EffectTimer, Interpolation};
@@ -423,6 +423,7 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
         };
 
         // Build styled menu items
+        const MAX_SUGGESTIONS_TO_SHOW: usize = 8;
         let title = if total_suggestions > MAX_SUGGESTIONS_TO_SHOW {
             format!(
                 "{} Commands ({}/{})",
@@ -448,6 +449,11 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
                 "  No matches found",
                 Style::default().fg(THEME.text_muted()),
             )));
+            menu_lines.push(ratatui::text::Line::from(""));
+            menu_lines.push(ratatui::text::Line::from(Span::styled(
+                "  Type /help to see all commands",
+                Style::default().fg(THEME.text_dim()),
+            )));
         } else {
             // Add scroll indicator at top if needed
             if has_more_above {
@@ -461,15 +467,32 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
             // Show visible suggestions
             for (i, suggestion) in data.command_state.suggestions.iter().enumerate().skip(visible_start).take(visible_count) {
                 let is_selected = i == selected_idx;
-                let style = if is_selected {
+                
+                // Determine icon and color based on source
+                let (source_icon, source_color) = match suggestion.source {
+                    SuggestionSource::BuiltIn => ("", THEME.text()),
+                    SuggestionSource::MCP => ("🔌 ", THEME.secondary()),
+                    SuggestionSource::Agent => (Icons::AGENT, THEME.info()),
+                    SuggestionSource::Workflow => ("⚙️ ", THEME.primary()),
+                };
+                
+                let base_style = if is_selected {
                     Style::default().fg(THEME.bg_primary()).bg(THEME.primary()).add_modifier(Modifier::BOLD)
                 } else {
                     Style::default().fg(THEME.text())
                 };
+                
+                // Apply source color if not selected
+                let style = if is_selected {
+                    base_style
+                } else {
+                    base_style.fg(source_color)
+                };
 
                 let prefix = if is_selected { "▶ " } else { "  " };
-                // Format suggestion with command and description
-                let display_text = format!("{}{} - {}", prefix, suggestion.command, suggestion.description);
+                
+                // Format suggestion with source icon, command and description
+                let display_text = format!("{}{}{} - {}", prefix, source_icon, suggestion.command, suggestion.description);
                 menu_lines.push(ratatui::text::Line::from(Span::styled(
                     display_text,
                     style,

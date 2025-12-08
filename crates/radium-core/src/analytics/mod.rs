@@ -21,8 +21,7 @@ pub use comparison::{ComparisonFormatter, SessionComparison};
 #[cfg(feature = "monitoring")]
 pub use export::{CostRecord, CostSummary, ExportError, ExportFormat, ExportOptions, Exporter};
 #[cfg(feature = "monitoring")]
-pub use exporters::{CsvExporter, JsonExporter};
-// MarkdownExporter will be added in subsequent task
+pub use exporters::{CsvExporter, JsonExporter, MarkdownExporter};
 #[cfg(feature = "monitoring")]
 pub use report::{ReportFormatter, SessionReport};
 #[cfg(feature = "monitoring")]
