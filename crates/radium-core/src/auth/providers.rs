@@ -137,6 +137,9 @@ mod tests {
             api_key: "test-key".to_string(),
             enabled: true,
             last_updated: time::OffsetDateTime::now_utc(),
+            team_name: None,
+            project_name: None,
+            cost_center: None,
         };
 
         let json = serde_json::to_string(&provider).unwrap();
@@ -148,5 +151,47 @@ mod tests {
         assert_eq!(deserialized.kind, ProviderType::Gemini);
         assert_eq!(deserialized.api_key, "test-key");
         assert!(deserialized.enabled);
+    }
+
+    #[test]
+    fn test_provider_backward_compatibility() {
+        // Test that old credentials files without metadata fields still load
+        let old_json = r#"{
+            "type": "gemini",
+            "api_key": "test-key",
+            "enabled": true,
+            "last_updated": "2024-01-01T00:00:00Z"
+        }"#;
+
+        let provider: Provider = serde_json::from_str(old_json).unwrap();
+        assert_eq!(provider.kind, ProviderType::Gemini);
+        assert_eq!(provider.api_key, "test-key");
+        assert!(provider.enabled);
+        assert_eq!(provider.team_name, None);
+        assert_eq!(provider.project_name, None);
+        assert_eq!(provider.cost_center, None);
+    }
+
+    #[test]
+    fn test_provider_with_metadata() {
+        let provider = Provider {
+            kind: ProviderType::OpenAI,
+            api_key: "sk-test".to_string(),
+            enabled: true,
+            last_updated: time::OffsetDateTime::now_utc(),
+            team_name: Some("backend-team".to_string()),
+            project_name: Some("api-redesign".to_string()),
+            cost_center: Some("ENG-001".to_string()),
+        };
+
+        let json = serde_json::to_string(&provider).unwrap();
+        assert!(json.contains("backend-team"));
+        assert!(json.contains("api-redesign"));
+        assert!(json.contains("ENG-001"));
+
+        let deserialized: Provider = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.team_name, Some("backend-team".to_string()));
+        assert_eq!(deserialized.project_name, Some("api-redesign".to_string()));
+        assert_eq!(deserialized.cost_center, Some("ENG-001".to_string()));
     }
 }

@@ -2,10 +2,17 @@
 
 use anyhow::{Context, Result};
 use clap::Subcommand;
-use radium_core::analytics::{ComparisonFormatter, ReportFormatter, SessionAnalytics, SessionComparison, SessionReport, SessionStorage};
+use radium_core::analytics::{
+    ComparisonFormatter, CostQueryService, CsvExporter, ExportFormat, ExportOptions, Exporter,
+    JsonExporter, MarkdownExporter, ReportFormatter, SessionAnalytics, SessionComparison,
+    SessionReport, SessionStorage,
+};
 use radium_core::monitoring::MonitoringService;
 use radium_core::workspace::Workspace;
+use chrono::{DateTime, Utc};
 use std::fs;
+use std::path::PathBuf;
+use std::sync::Arc;
 
 /// Statistics subcommands
 #[derive(Subcommand, Debug)]
@@ -43,13 +50,28 @@ pub enum StatsCommand {
         #[arg(long)]
         json: bool,
     },
-    /// Export analytics to JSON
+    /// Export analytics data
     Export {
-        /// Output file path (default: stdout)
+        /// Output file path (default: stdout for session export, ~/.radium/reports/ for cost export)
         #[arg(short, long)]
         output: Option<String>,
-        /// Session ID (optional, exports all if not specified)
+        /// Session ID (optional, exports session report if provided, otherwise exports cost data)
         session_id: Option<String>,
+        /// Export format for cost data (csv, json, markdown). Ignored if session_id is provided.
+        #[arg(long)]
+        format: Option<String>,
+        /// Start date for cost export filter (ISO 8601 format, e.g., 2025-12-01)
+        #[arg(long)]
+        start: Option<String>,
+        /// End date for cost export filter (ISO 8601 format, e.g., 2025-12-31)
+        #[arg(long)]
+        end: Option<String>,
+        /// Filter by plan/requirement ID (e.g., REQ-123)
+        #[arg(long)]
+        plan: Option<String>,
+        /// Filter by provider (e.g., anthropic, openai)
+        #[arg(long)]
+        provider: Option<String>,
     },
     /// Compare two sessions
     Compare {
@@ -85,8 +107,27 @@ pub async fn execute(cmd: StatsCommand) -> Result<()> {
             engine_command(&analytics, session_id.as_deref(), json).await
         }
         StatsCommand::History { limit, json } => history_command(&analytics, limit, json).await,
-        StatsCommand::Export { output, session_id } => {
-            export_command(&analytics, output.as_deref(), session_id.as_deref()).await
+        StatsCommand::Export {
+            output,
+            session_id,
+            format,
+            start,
+            end,
+            plan,
+            provider,
+        } => {
+            export_command(
+                &analytics,
+                &monitoring,
+                output.as_deref(),
+                session_id.as_deref(),
+                format.as_deref(),
+                start.as_deref(),
+                end.as_deref(),
+                plan.as_deref(),
+                provider.as_deref(),
+            )
+            .await
         }
         StatsCommand::Compare { session_a, session_b, json } => {
             compare_command(&analytics, &session_a, &session_b, json).await
@@ -358,13 +399,20 @@ async fn history_command(_analytics: &SessionAnalytics, limit: usize, json: bool
 
 async fn export_command(
     analytics: &SessionAnalytics,
+    monitoring: &MonitoringService,
     output: Option<&str>,
     session_id: Option<&str>,
+    format: Option<&str>,
+    start: Option<&str>,
+    end: Option<&str>,
+    plan: Option<&str>,
+    provider: Option<&str>,
 ) -> Result<()> {
-    let workspace = Workspace::discover()?;
-    let storage = SessionStorage::new(workspace.root())?;
-
+    // If session_id is provided, export session report (backward compatibility)
     if let Some(sid) = session_id {
+        let workspace = Workspace::discover()?;
+        let storage = SessionStorage::new(workspace.root())?;
+
         // Try to load from storage first, otherwise generate
         let report = if let Ok(stored) = storage.load_report(sid) {
             stored
@@ -384,20 +432,116 @@ async fn export_command(
         } else {
             println!("{}", json);
         }
-    } else {
-        // Export all stored sessions
-        let reports = storage.list_reports()?;
-        let json = serde_json::to_string_pretty(&reports)?;
-
-        if let Some(output_path) = output {
-            fs::write(output_path, json)?;
-            println!("Exported {} sessions to {}", reports.len(), output_path);
-        } else {
-            println!("{}", json);
-        }
+        return Ok(());
     }
 
+    // Otherwise, export cost data
+    // Parse format (default to csv)
+    let export_format = if let Some(fmt_str) = format {
+        ExportFormat::from_str(fmt_str).context(format!("Invalid format: {}. Use csv, json, or markdown", fmt_str))?
+    } else {
+        ExportFormat::Csv
+    };
+
+    // Parse dates
+    let start_date = if let Some(start_str) = start {
+        Some(
+            DateTime::parse_from_rfc3339(start_str)
+                .or_else(|_| DateTime::parse_from_str(start_str, "%Y-%m-%d"))
+                .context(format!("Invalid start date format: {}. Use ISO 8601 or YYYY-MM-DD", start_str))?
+                .with_timezone(&Utc),
+        )
+    } else {
+        None
+    };
+
+    let end_date = if let Some(end_str) = end {
+        Some(
+            DateTime::parse_from_rfc3339(end_str)
+                .or_else(|_| DateTime::parse_from_str(end_str, "%Y-%m-%d"))
+                .context(format!("Invalid end date format: {}. Use ISO 8601 or YYYY-MM-DD", end_str))?
+                .with_timezone(&Utc),
+        )
+    } else {
+        None
+    };
+
+    // Create export options
+    let output_path = if let Some(path) = output {
+        Some(PathBuf::from(path))
+    } else {
+        Some(generate_default_output_path(&export_format)?)
+    };
+
+    let options = ExportOptions {
+        format: export_format,
+        start_date,
+        end_date,
+        plan_id: plan.map(|s| s.to_string()),
+        provider: provider.map(|s| s.to_string()),
+        output_path: output_path.clone(),
+    };
+
+    // Query cost data
+    let cost_service = CostQueryService::new(Arc::new(monitoring.clone()));
+    let records = cost_service.query_records(&options)
+        .context("Failed to query cost data from database")?;
+
+    if records.is_empty() {
+        println!("No cost data found matching the specified filters.");
+        return Ok(());
+    }
+
+    // Generate summary
+    let summary = cost_service.generate_summary(&records);
+
+    // Select exporter
+    let exporter: Box<dyn Exporter> = match options.format {
+        ExportFormat::Csv => Box::new(CsvExporter),
+        ExportFormat::Json => Box::new(JsonExporter),
+        ExportFormat::Markdown => Box::new(MarkdownExporter),
+    };
+
+    // Export (use summary for better readability, but could also use detailed records)
+    let export_content = if records.len() > 100 {
+        // For large datasets, export summary
+        exporter.export_summary(&summary, &options)
+            .context("Failed to generate export")?
+    } else {
+        // For smaller datasets, export detailed records
+        exporter.export(&records, &options)
+            .context("Failed to generate export")?
+    };
+
+    // Write to file
+    let output_path_str = output_path.as_ref().unwrap();
+    fs::create_dir_all(output_path_str.parent().unwrap())?;
+    fs::write(output_path_str, export_content)?;
+
+    println!(
+        "Exported {} cost records to {}",
+        records.len(),
+        output_path_str.display()
+    );
+    println!("Total cost: ${:.4}", summary.total_cost);
+    println!("Total tokens: {}", summary.total_tokens);
+
     Ok(())
+}
+
+/// Generate default output path for cost export.
+fn generate_default_output_path(format: &ExportFormat) -> Result<PathBuf> {
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .context("Could not determine home directory")?;
+    
+    let reports_dir = PathBuf::from(home).join(".radium").join("reports");
+    fs::create_dir_all(&reports_dir)?;
+
+    let date_str = Utc::now().format("%Y-%m-%d").to_string();
+    let filename = format!("{}-costs-export.{}", date_str, format.extension());
+    
+    Ok(reports_dir.join(filename))
 }
 
 async fn compare_command(

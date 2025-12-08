@@ -1514,6 +1514,89 @@ impl App {
                             }
                         }
                     }
+                    "session" if parts.len() == 2 => {
+                        // Suggest session IDs for /session command
+                        let query = parts[1];
+                        for (session_id, message_count) in &self.prompt_data.sessions {
+                            if session_id.contains(query) {
+                                suggestions.push(CommandSuggestion::new_parameter(
+                                    format!("/session {}", session_id),
+                                    format!("{} messages", message_count),
+                                    50, // Default score for substring match
+                                    SuggestionSource::BuiltIn,
+                                    "session-id".to_string(),
+                                ));
+                            }
+                        }
+                    }
+                    "workflow" if parts.len() == 2 => {
+                        // Suggest workflow template names for /workflow command
+                        let query = parts[1];
+                        // Use TemplateDiscovery to find workflow templates
+                        use radium_core::workflow::template_discovery::TemplateDiscovery;
+                        if let Ok(discovery) = TemplateDiscovery::new().discover_all() {
+                            let matcher = SkimMatcherV2::default();
+                            let mut scored_workflows: Vec<(i64, (String, String))> = Vec::new();
+                            
+                            for (name, template) in discovery {
+                                if let Some(score) = matcher.fuzzy_match(&name, query) {
+                                    let desc = template.description.unwrap_or_else(|| "Workflow template".to_string());
+                                    scored_workflows.push((score, (name, desc)));
+                                }
+                            }
+                            
+                            scored_workflows.sort_by(|a, b| b.0.cmp(&a.0));
+                            suggestions.extend(
+                                scored_workflows
+                                    .into_iter()
+                                    .take(20)
+                                    .map(|(score, (name, desc))| {
+                                        CommandSuggestion::new_parameter(
+                                            format!("/workflow {}", name),
+                                            desc,
+                                            score,
+                                            SuggestionSource::Workflow,
+                                            "workflow-name".to_string(),
+                                        )
+                                    })
+                            );
+                        }
+                    }
+                    _ => {
+                        // Check for /orchestrator start subcommand
+                        if parts.len() == 3 && parts[0] == "orchestrator" && parts[1] == "start" {
+                            // Suggest agent IDs for /orchestrator start command
+                            let query = parts[2];
+                            if let Ok(agents) = crate::chat_executor::get_available_agents() {
+                                let matcher = SkimMatcherV2::default();
+                                let mut scored_agents: Vec<(i64, (String, String))> = Vec::new();
+                                
+                                for (agent_id, desc) in &agents {
+                                    if let Some(score) = matcher.fuzzy_match(agent_id, query) {
+                                        scored_agents.push((score, (agent_id.clone(), desc.clone())));
+                                    }
+                                }
+                                
+                                scored_agents.sort_by(|a, b| b.0.cmp(&a.0));
+                                suggestions.extend(
+                                    scored_agents
+                                        .into_iter()
+                                        .take(20)
+                                        .map(|(score, (agent_id, desc))| {
+                                            CommandSuggestion::new_parameter(
+                                                format!("/orchestrator start {}", agent_id),
+                                                desc,
+                                                score,
+                                                SuggestionSource::Agent,
+                                                "agent-id".to_string(),
+                                            )
+                                        })
+                                );
+                            }
+                        } else {
+                            // No dynamic completion for this command
+                        }
+                    }
                     _ => {
                         // No dynamic completion for this command
                     }

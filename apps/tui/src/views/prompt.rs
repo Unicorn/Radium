@@ -497,8 +497,19 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
 
                 let prefix = if is_selected { "▶ " } else { "  " };
                 
+                // Add parameter indicator for parameter suggestions
+                let param_indicator = if suggestion.suggestion_type == crate::state::SuggestionType::Parameter {
+                    if let Some(param_name) = &suggestion.parameter_name {
+                        format!("<{}> ", param_name)
+                    } else {
+                        String::new()
+                    }
+                } else {
+                    String::new()
+                };
+                
                 // Format suggestion with source icon, command and description
-                let display_text = format!("{}{}{} - {}", prefix, source_icon, suggestion.command, suggestion.description);
+                let display_text = format!("{}{}{}{} - {}", prefix, source_icon, suggestion.command, param_indicator, suggestion.description);
                 menu_lines.push(ratatui::text::Line::from(Span::styled(
                     display_text,
                     style,

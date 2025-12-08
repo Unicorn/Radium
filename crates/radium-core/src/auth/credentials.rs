@@ -149,13 +149,48 @@ impl CredentialStore {
     ///
     /// Returns an error if file operations fail or permissions cannot be set.
     pub fn store(&self, provider_type: ProviderType, api_key: String) -> AuthResult<()> {
+        self.store_with_metadata(provider_type, api_key, None, None, None)
+    }
+
+    /// Stores a credential for the specified provider with attribution metadata.
+    ///
+    /// If a credential already exists for this provider, it will be overwritten.
+    ///
+    /// # Arguments
+    ///
+    /// * `provider_type` - The provider to store credentials for
+    /// * `api_key` - The API key to store
+    /// * `team_name` - Optional team name for cost attribution
+    /// * `project_name` - Optional project name for cost attribution
+    /// * `cost_center` - Optional cost center for chargeback
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if file operations fail or permissions cannot be set.
+    pub fn store_with_metadata(
+        &self,
+        provider_type: ProviderType,
+        api_key: String,
+        team_name: Option<String>,
+        project_name: Option<String>,
+        cost_center: Option<String>,
+    ) -> AuthResult<()> {
         let mut creds = self.load()?;
+
+        // Preserve existing metadata if present and new metadata is None
+        let existing_provider = creds.providers.get(provider_type.as_str());
+        let team_name = team_name.or_else(|| existing_provider.and_then(|p| p.team_name.clone()));
+        let project_name = project_name.or_else(|| existing_provider.and_then(|p| p.project_name.clone()));
+        let cost_center = cost_center.or_else(|| existing_provider.and_then(|p| p.cost_center.clone()));
 
         let provider = Provider {
             kind: provider_type,
             api_key,
             enabled: true,
             last_updated: time::OffsetDateTime::now_utc(),
+            team_name,
+            project_name,
+            cost_center,
         };
 
         creds.providers.insert(provider_type.as_str().to_string(), provider);
@@ -355,5 +390,87 @@ mod tests {
         assert!(contents.contains("\"providers\""));
         assert!(contents.contains("\"gemini\""));
         assert!(contents.contains("\"test-key\""));
+    }
+
+    #[test]
+    fn test_store_with_metadata() {
+        let temp_dir = TempDir::new().unwrap();
+        let creds_path = temp_dir.path().join("credentials.json");
+        let store = CredentialStore::with_path(creds_path);
+
+        store
+            .store_with_metadata(
+                ProviderType::OpenAI,
+                "sk-test".to_string(),
+                Some("backend-team".to_string()),
+                Some("api-redesign".to_string()),
+                Some("ENG-001".to_string()),
+            )
+            .unwrap();
+
+        // Verify metadata is persisted by loading the provider
+        let creds = store.load().unwrap();
+        let provider = creds.providers.get("openai").unwrap();
+        assert_eq!(provider.team_name, Some("backend-team".to_string()));
+        assert_eq!(provider.project_name, Some("api-redesign".to_string()));
+        assert_eq!(provider.cost_center, Some("ENG-001".to_string()));
+    }
+
+    #[test]
+    fn test_store_preserves_existing_metadata() {
+        let temp_dir = TempDir::new().unwrap();
+        let creds_path = temp_dir.path().join("credentials.json");
+        let store = CredentialStore::with_path(creds_path);
+
+        // Store with metadata
+        store
+            .store_with_metadata(
+                ProviderType::Gemini,
+                "key1".to_string(),
+                Some("team1".to_string()),
+                Some("project1".to_string()),
+                Some("center1".to_string()),
+            )
+            .unwrap();
+
+        // Store again with only API key (should preserve metadata)
+        store.store(ProviderType::Gemini, "key2".to_string()).unwrap();
+
+        let creds = store.load().unwrap();
+        let provider = creds.providers.get("gemini").unwrap();
+        assert_eq!(provider.api_key, "key2");
+        assert_eq!(provider.team_name, Some("team1".to_string()));
+        assert_eq!(provider.project_name, Some("project1".to_string()));
+        assert_eq!(provider.cost_center, Some("center1".to_string()));
+    }
+
+    #[test]
+    fn test_backward_compatibility_loading_old_credentials() {
+        let temp_dir = TempDir::new().unwrap();
+        let creds_path = temp_dir.path().join("credentials.json");
+        let store = CredentialStore::with_path(creds_path.clone());
+
+        // Create an old-format credentials file (without metadata fields)
+        let old_format = r#"{
+            "version": "1.0",
+            "providers": {
+                "gemini": {
+                    "type": "gemini",
+                    "api_key": "test-key",
+                    "enabled": true,
+                    "last_updated": "2024-01-01T00:00:00Z"
+                }
+            }
+        }"#;
+
+        std::fs::write(&creds_path, old_format).unwrap();
+
+        // Should load without errors
+        let creds = store.load().unwrap();
+        let provider = creds.providers.get("gemini").unwrap();
+        assert_eq!(provider.api_key, "test-key");
+        assert_eq!(provider.team_name, None);
+        assert_eq!(provider.project_name, None);
+        assert_eq!(provider.cost_center, None);
     }
 }
