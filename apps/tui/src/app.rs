@@ -300,6 +300,24 @@ impl App {
             model_filter: ModelFilter::default(),
         };
 
+        // Check for resumable executions on startup
+        let workspace_root = workspace_status.as_ref().and_then(|ws| ws.root.clone());
+        if let Some(root) = workspace_root {
+            use radium_core::workflow::StatePersistence;
+            let state_persistence = StatePersistence::new(root);
+            if let Ok(resumable) = state_persistence.list_resumable() {
+                if !resumable.is_empty() {
+                    let count = resumable.len();
+                    let msg = if count == 1 {
+                        format!("1 interrupted execution found. Use 'requirement resume <req-id>' to continue.")
+                    } else {
+                        format!("{} interrupted executions found. Use 'requirement resume <req-id>' to continue.", count)
+                    };
+                    app.toast_manager.info(msg);
+                }
+            }
+        }
+
         // Show setup wizard if not configured, otherwise start chat
         if !setup_complete {
             app.setup_wizard = Some(SetupWizard::new());

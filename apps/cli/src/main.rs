@@ -9,6 +9,7 @@ mod validation;
 
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, shells};
+use colored::Colorize;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
@@ -510,6 +511,14 @@ async fn main() -> anyhow::Result<()> {
         unsafe { std::env::set_var("RADIUM_WORKSPACE", workspace) };
     }
 
+    // Check for resumable executions on startup (before command execution)
+    // Skip for init command and other commands that shouldn't be interrupted
+    if let Some(ref cmd) = args.command {
+        if !matches!(cmd, Command::Init { .. } | Command::Braingrid(_)) {
+            check_and_prompt_resume().await?;
+        }
+    }
+
     // If no command provided, show help
     let command = if let Some(cmd) = args.command {
         cmd
@@ -659,5 +668,53 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
+    Ok(())
+}
+
+/// Checks for resumable executions and prompts user to resume.
+async fn check_and_prompt_resume() -> anyhow::Result<()> {
+    use radium_core::workspace::Workspace;
+    use radium_core::workflow::StatePersistence;
+    
+    // Try to discover workspace (may not exist yet)
+    let workspace = match Workspace::discover() {
+        Ok(ws) => ws,
+        Err(_) => return Ok(()), // No workspace, nothing to resume
+    };
+    
+    let state_persistence = StatePersistence::new(workspace.root());
+    let resumable = state_persistence.list_resumable()
+        .map_err(|e| anyhow::anyhow!("Failed to list resumable executions: {}", e))?;
+    
+    if resumable.is_empty() {
+        return Ok(()); // No resumable executions
+    }
+    
+    // Load state for each resumable requirement
+    let mut resumable_info = Vec::new();
+    for req_id in &resumable {
+        if let Ok(Some(state)) = state_persistence.load_state(req_id) {
+            resumable_info.push((req_id.clone(), state));
+        }
+    }
+    
+    if resumable_info.is_empty() {
+        return Ok(());
+    }
+    
+    // Display resumable executions
+    println!("\n{} Found {} interrupted execution(s):", "ℹ".cyan(), resumable_info.len());
+    println!();
+    for (idx, (req_id, state)) in resumable_info.iter().enumerate() {
+        let completed = state.completed_tasks.len();
+        let total = completed + state.next_tasks.len();
+        let last_checkpoint = state.last_checkpoint_at.format("%Y-%m-%d %H:%M:%S UTC");
+        println!("  {}. {} - {} ({} of {} tasks completed, last checkpoint: {})",
+            idx + 1, req_id, state.requirement_title, completed, total, last_checkpoint);
+    }
+    println!();
+    println!("{} To resume, run: rad requirement resume <req-id>", "ℹ".cyan());
+    println!();
+    
     Ok(())
 }
