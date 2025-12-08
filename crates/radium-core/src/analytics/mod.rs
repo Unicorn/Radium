@@ -7,6 +7,8 @@ pub mod code_changes;
 #[cfg(feature = "monitoring")]
 pub mod comparison;
 #[cfg(feature = "monitoring")]
+pub mod export;
+#[cfg(feature = "monitoring")]
 pub mod report;
 #[cfg(feature = "monitoring")]
 pub mod session;

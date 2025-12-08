@@ -28,6 +28,29 @@ pub enum AuthError {
     /// Permission denied error.
     #[error("Permission denied: {0}")]
     PermissionDenied(String),
+
+    /// Connection failed during validation.
+    #[error("Connection failed for {provider}: {reason}")]
+    ConnectionFailed { provider: String, reason: String },
+
+    /// API key is unauthorized.
+    #[error("Unauthorized for {provider}")]
+    Unauthorized { provider: String },
+
+    /// Rate limited by provider.
+    #[error("Rate limited for {provider}")]
+    RateLimited {
+        provider: String,
+        retry_after: Option<std::time::Duration>,
+    },
+
+    /// Provider service is unavailable.
+    #[error("Service unavailable for {provider}")]
+    ServiceUnavailable { provider: String },
+
+    /// Validation timeout.
+    #[error("Validation timeout for {provider}")]
+    Timeout { provider: String },
 }
 
 /// Result type alias for authentication operations.
@@ -66,5 +89,58 @@ mod tests {
         let msg = format!("{}", err);
         assert!(msg.contains("Permission denied"));
         assert!(msg.contains("HOME not set"));
+    }
+
+    #[test]
+    fn test_auth_error_connection_failed() {
+        let err = AuthError::ConnectionFailed {
+            provider: "Gemini (Google)".to_string(),
+            reason: "Network error".to_string(),
+        };
+        let msg = format!("{}", err);
+        assert!(msg.contains("Connection failed"));
+        assert!(msg.contains("Gemini (Google)"));
+        assert!(msg.contains("Network error"));
+    }
+
+    #[test]
+    fn test_auth_error_unauthorized() {
+        let err = AuthError::Unauthorized {
+            provider: "OpenAI (GPT)".to_string(),
+        };
+        let msg = format!("{}", err);
+        assert!(msg.contains("Unauthorized"));
+        assert!(msg.contains("OpenAI (GPT)"));
+    }
+
+    #[test]
+    fn test_auth_error_rate_limited() {
+        let err = AuthError::RateLimited {
+            provider: "Claude (Anthropic)".to_string(),
+            retry_after: Some(std::time::Duration::from_secs(60)),
+        };
+        let msg = format!("{}", err);
+        assert!(msg.contains("Rate limited"));
+        assert!(msg.contains("Claude (Anthropic)"));
+    }
+
+    #[test]
+    fn test_auth_error_service_unavailable() {
+        let err = AuthError::ServiceUnavailable {
+            provider: "Gemini (Google)".to_string(),
+        };
+        let msg = format!("{}", err);
+        assert!(msg.contains("Service unavailable"));
+        assert!(msg.contains("Gemini (Google)"));
+    }
+
+    #[test]
+    fn test_auth_error_timeout() {
+        let err = AuthError::Timeout {
+            provider: "OpenAI (GPT)".to_string(),
+        };
+        let msg = format!("{}", err);
+        assert!(msg.contains("Validation timeout"));
+        assert!(msg.contains("OpenAI (GPT)"));
     }
 }

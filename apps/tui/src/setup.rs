@@ -2,9 +2,11 @@
 //!
 //! Guides users through authentication and configuration.
 
+use std::collections::HashMap;
+
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyModifiers};
-use radium_core::auth::{CredentialStore, ProviderType};
+use radium_core::auth::{AuthError, CredentialStore, ProviderType};
 
 use crate::icons::Icons;
 
