@@ -145,6 +145,9 @@ pub struct ThemeConfig {
     /// Theme preset: "dark", "light", or "custom"
     #[serde(default = "default_preset")]
     pub preset: String,
+    /// Path to TextMate .tmTheme file (overrides preset if provided)
+    #[serde(default)]
+    pub theme_file: Option<String>,
     /// Custom colors (only used if preset = "custom")
     #[serde(default)]
     pub colors: Option<CustomColors>,
@@ -239,7 +242,14 @@ impl TuiConfig {
         toml.push_str("# This file allows you to customize the TUI appearance\n\n");
         toml.push_str("[theme]\n");
         toml.push_str("# Theme preset: \"dark\" (default), \"light\", \"github\", \"monokai\", \"onedark\", \"solarized-dark\", \"dracula\", or \"custom\"\n");
-        toml.push_str(&format!("preset = \"{}\"\n\n", self.theme.preset));
+        toml.push_str(&format!("preset = \"{}\"\n", self.theme.preset));
+        toml.push_str("# Optional: Path to TextMate .tmTheme file (overrides preset if provided)\n");
+        if let Some(ref theme_file) = self.theme.theme_file {
+            toml.push_str(&format!("# theme_file = \"{}\"\n", theme_file));
+        } else {
+            toml.push_str("# theme_file = \"/path/to/theme.tmTheme\"\n");
+        }
+        toml.push_str("\n");
 
         toml.push_str("[performance]\n");
         toml.push_str("# Maximum conversation history to keep in memory (default: 500)\n");

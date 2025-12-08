@@ -68,6 +68,17 @@ impl RadiumTheme {
     pub fn from_config() -> Self {
         match TuiConfig::load() {
             Ok(config) => {
+                // Check for .tmTheme file first (takes precedence)
+                if let Some(ref theme_file) = config.theme.theme_file {
+                    match Self::load_from_tmtheme(theme_file) {
+                        Ok(theme) => return theme,
+                        Err(e) => {
+                            eprintln!("Warning: Failed to load .tmTheme file '{}': {}. Falling back to preset.", theme_file, e);
+                        }
+                    }
+                }
+
+                // Use preset
                 match config.theme.preset.as_str() {
                     "light" => Self::light(),
                     "github" => Self::github(),
@@ -94,6 +105,39 @@ impl RadiumTheme {
                 Self::dark()
             }
         }
+    }
+
+    /// Load theme from TextMate .tmTheme file.
+    pub fn load_from_tmtheme(path: &str) -> Result<Self> {
+        use radium_core::syntax::tmtheme_loader;
+        use std::path::Path;
+
+        let path_buf = Path::new(path);
+        if !path_buf.exists() {
+            return Err(anyhow::anyhow!("Theme file not found: {}", path));
+        }
+
+        let loaded_theme = tmtheme_loader::load_tmtheme(path_buf)?;
+
+        // Convert loaded theme to RadiumTheme
+        Ok(Self {
+            primary: loaded_theme.primary,
+            secondary: loaded_theme.secondary,
+            purple: loaded_theme.purple,
+            success: loaded_theme.success,
+            warning: loaded_theme.warning,
+            error: loaded_theme.error,
+            info: loaded_theme.info,
+            text: loaded_theme.text,
+            text_muted: loaded_theme.text_muted,
+            text_dim: loaded_theme.text_dim,
+            bg_primary: loaded_theme.bg_primary,
+            bg_panel: loaded_theme.bg_panel,
+            bg_element: loaded_theme.bg_element,
+            border: loaded_theme.border,
+            border_active: loaded_theme.border_active,
+            border_subtle: loaded_theme.border_subtle,
+        })
     }
 
     /// Create theme from custom colors.
