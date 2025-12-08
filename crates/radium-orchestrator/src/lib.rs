@@ -7,6 +7,7 @@ pub mod dispatcher;
 pub mod error;
 pub mod executor;
 pub mod lifecycle;
+pub mod load_balancer;
 pub mod orchestration;
 pub mod plugin;
 pub mod queue;
@@ -30,6 +31,7 @@ pub use dispatcher::{TaskDispatcher, TaskDispatcherConfig};
 pub use executor::{
     AgentExecutor, ExecutionResult, ExecutionTelemetry, HookExecutor, HookResult, QueueProcessor, QueueProcessorConfig, SandboxManager,
 };
+pub use load_balancer::LoadBalancer;
 pub use lifecycle::{AgentLifecycle, AgentState};
 pub use orchestration::{
     FinishReason, OrchestrationProvider, OrchestrationResult,

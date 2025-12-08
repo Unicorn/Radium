@@ -16,7 +16,7 @@ use commands::{
     agents, auth, budget, checkpoint, clean, context, craft, doctor, engines, extension, hooks, init, learning, monitor, plan, policy, requirement, run,
     sandbox, stats, status, step, validate,
     // All commands enabled!
-    templates, complete, autonomous, vibecheck, chat, mcp, custom,
+    templates, complete, autonomous, vibecheck, chat, mcp, custom, braingrid,
 };
 
 /// Radium CLI - Next-generation agentic orchestration tool
@@ -151,6 +151,12 @@ enum Command {
         #[arg(long)]
         ls: bool,
     },
+
+    /// Braingrid operations
+    ///
+    /// Read, update, and manage Braingrid requirements and tasks.
+    #[command(subcommand)]
+    Braingrid(BraingridCommand),
 
     /// Run agent(s) with enhanced syntax
     ///
@@ -409,7 +415,7 @@ enum Command {
 }
 
 // Command types are now in commands::types module
-use commands::{AgentsCommand, AuthCommand, ExtensionCommand, TemplatesCommand};
+use commands::{AgentsCommand, AuthCommand, ExtensionCommand, TemplatesCommand, BraingridCommand, CacheCommand};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -498,6 +504,35 @@ async fn main() -> anyhow::Result<()> {
                 requirement::execute(id, project).await?;
             } else {
                 anyhow::bail!("Requirement ID is required when not using --ls");
+            }
+        }
+        Command::Braingrid(cmd) => {
+            match cmd {
+                BraingridCommand::Read { req_id, project } => {
+                    braingrid::read(req_id, project).await?;
+                }
+                BraingridCommand::Tasks { req_id, project } => {
+                    braingrid::tasks(req_id, project).await?;
+                }
+                BraingridCommand::UpdateTask { task_id, req_id, status, project } => {
+                    braingrid::update_task(task_id, req_id, status, project).await?;
+                }
+                BraingridCommand::UpdateReq { req_id, status, project } => {
+                    braingrid::update_req(req_id, status, project).await?;
+                }
+                BraingridCommand::Breakdown { req_id, project } => {
+                    braingrid::breakdown(req_id, project).await?;
+                }
+                BraingridCommand::Cache(cache_cmd) => {
+                    match cache_cmd {
+                        CacheCommand::Clear { project } => {
+                            braingrid::cache_clear(project).await?;
+                        }
+                        CacheCommand::Stats { project } => {
+                            braingrid::cache_stats(project).await?;
+                        }
+                    }
+                }
             }
         }
         Command::Run { script, model, dir } => {

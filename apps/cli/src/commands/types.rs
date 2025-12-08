@@ -811,3 +811,86 @@ pub enum EngineConfigCommand {
         engine: Option<String>,
     },
 }
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum BraingridCommand {
+    /// Read a requirement with all tasks
+    Read {
+        /// Requirement ID (e.g., "REQ-173")
+        req_id: String,
+
+        /// Braingrid project ID (defaults to BRAINGRID_PROJECT_ID env var or PROJ-14)
+        #[arg(short, long)]
+        project: Option<String>,
+    },
+
+    /// List all tasks for a requirement
+    Tasks {
+        /// Requirement ID (e.g., "REQ-173")
+        req_id: String,
+
+        /// Braingrid project ID (defaults to BRAINGRID_PROJECT_ID env var or PROJ-14)
+        #[arg(short, long)]
+        project: Option<String>,
+    },
+
+    /// Update task status
+    UpdateTask {
+        /// Task ID (e.g., "TASK-1")
+        task_id: String,
+
+        /// Requirement ID (e.g., "REQ-173")
+        req_id: String,
+
+        /// Status (PLANNED, IN_PROGRESS, COMPLETED, CANCELLED)
+        status: String,
+
+        /// Braingrid project ID (defaults to BRAINGRID_PROJECT_ID env var or PROJ-14)
+        #[arg(short, long)]
+        project: Option<String>,
+    },
+
+    /// Update requirement status
+    UpdateReq {
+        /// Requirement ID (e.g., "REQ-173")
+        req_id: String,
+
+        /// Status (IDEA, PLANNED, IN_PROGRESS, REVIEW, COMPLETED, CANCELLED)
+        status: String,
+
+        /// Braingrid project ID (defaults to BRAINGRID_PROJECT_ID env var or PROJ-14)
+        #[arg(short, long)]
+        project: Option<String>,
+    },
+
+    /// Trigger requirement breakdown (create tasks)
+    Breakdown {
+        /// Requirement ID (e.g., "REQ-173")
+        req_id: String,
+
+        /// Braingrid project ID (defaults to BRAINGRID_PROJECT_ID env var or PROJ-14)
+        #[arg(short, long)]
+        project: Option<String>,
+    },
+
+    /// Cache operations
+    #[command(subcommand)]
+    Cache(CacheCommand),
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum CacheCommand {
+    /// Clear Braingrid cache
+    Clear {
+        /// Braingrid project ID (defaults to BRAINGRID_PROJECT_ID env var or PROJ-14)
+        #[arg(short, long)]
+        project: Option<String>,
+    },
+
+    /// Show cache statistics
+    Stats {
+        /// Braingrid project ID (defaults to BRAINGRID_PROJECT_ID env var or PROJ-14)
+        #[arg(short, long)]
+        project: Option<String>,
+    },
+}

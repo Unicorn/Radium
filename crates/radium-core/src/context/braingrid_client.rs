@@ -3,13 +3,79 @@
 //! Provides full read/write capabilities for Braingrid requirements and tasks,
 //! enabling autonomous workflow execution with real-time status synchronization.
 
-use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::process::Command as TokioCommand;
 use tokio::sync::RwLock;
 use tokio::time::{timeout, Duration};
 use std::collections::HashMap;
+use std::fmt;
+use thiserror::Error;
+
+/// Errors that can occur during Braingrid operations
+#[derive(Debug, Error)]
+pub enum BraingridError {
+    /// Braingrid CLI not found or not in PATH
+    #[error("Braingrid CLI not found at '{0}'. Please ensure braingrid is installed and in PATH, or set BRAINGRID_CLI_PATH environment variable.")]
+    CliNotFound(String),
+
+    /// Authentication failed
+    #[error("Braingrid authentication failed: {0}")]
+    AuthenticationFailed(String),
+
+    /// Requirement or task not found
+    #[error("Braingrid resource not found: {0}")]
+    NotFound(String),
+
+    /// Invalid status transition
+    #[error("Invalid status transition: {0}")]
+    InvalidStatus(String),
+
+    /// Breakdown operation failed
+    #[error("Failed to breakdown requirement: {0}")]
+    BreakdownFailed(String),
+
+    /// Network or connection error
+    #[error("Network error connecting to Braingrid: {0}")]
+    NetworkError(String),
+
+    /// JSON parsing error
+    #[error("Failed to parse JSON response: {0}")]
+    ParseError(String),
+
+    /// Command execution timeout
+    #[error("Braingrid command timed out after {0:?}")]
+    Timeout(Duration),
+
+    /// Generic command execution error
+    #[error("Braingrid command failed: {0}")]
+    CommandFailed(String),
+
+    /// IO error
+    #[error("IO error: {0}")]
+    IoError(#[from] std::io::Error),
+}
+
+impl BraingridError {
+    /// Get error code for the error type
+    pub fn error_code(&self) -> &'static str {
+        match self {
+            BraingridError::CliNotFound(_) => "CLI_NOT_FOUND",
+            BraingridError::AuthenticationFailed(_) => "AUTHENTICATION_FAILED",
+            BraingridError::NotFound(_) => "NOT_FOUND",
+            BraingridError::InvalidStatus(_) => "INVALID_STATUS",
+            BraingridError::BreakdownFailed(_) => "BREAKDOWN_FAILED",
+            BraingridError::NetworkError(_) => "NETWORK_ERROR",
+            BraingridError::ParseError(_) => "PARSE_ERROR",
+            BraingridError::Timeout(_) => "TIMEOUT",
+            BraingridError::CommandFailed(_) => "COMMAND_FAILED",
+            BraingridError::IoError(_) => "IO_ERROR",
+        }
+    }
+}
+
+/// Result type for Braingrid operations
+pub type Result<T> = std::result::Result<T, BraingridError>;
 
 /// Status values for Braingrid requirements
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -160,38 +226,42 @@ impl BraingridClient {
         // Execute with timeout
         let output = timeout(self.command_timeout, cmd.output())
             .await
-            .map_err(|_| anyhow!("Braingrid command timed out after {:?}", self.command_timeout))?
+            .map_err(|_| BraingridError::Timeout(self.command_timeout))?
             .map_err(|e| {
                 if e.kind() == std::io::ErrorKind::NotFound {
-                    anyhow!(
-                        "Braingrid CLI not found at '{}'. Please ensure braingrid is installed and in PATH, or set BRAINGRID_CLI_PATH environment variable.",
-                        self.cli_path
-                    )
+                    BraingridError::CliNotFound(self.cli_path.clone())
                 } else {
-                    anyhow!("Failed to execute braingrid command: {}", e)
+                    BraingridError::IoError(e)
                 }
             })?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             let stdout = String::from_utf8_lossy(&output.stdout);
+            let error_msg = format!("{}", stderr);
             
             // Check for common error patterns
             if stderr.contains("not found") || stderr.contains("NotFound") || stdout.contains("not found") {
-                return Err(anyhow!("Braingrid resource not found: {}", stderr));
+                return Err(BraingridError::NotFound(error_msg));
             }
             if stderr.contains("Unauthorized") || stderr.contains("authentication") || stderr.contains("401") {
-                return Err(anyhow!("Braingrid authentication failed: {}", stderr));
+                return Err(BraingridError::AuthenticationFailed(error_msg));
             }
             if stderr.contains("network") || stderr.contains("connection") || stderr.contains("timeout") {
-                return Err(anyhow!("Network error connecting to Braingrid: {}", stderr));
+                return Err(BraingridError::NetworkError(error_msg));
+            }
+            if stderr.contains("invalid status") || stderr.contains("status transition") {
+                return Err(BraingridError::InvalidStatus(error_msg));
             }
             
-            return Err(anyhow!("Braingrid command failed: {}", stderr));
+            return Err(BraingridError::CommandFailed(error_msg));
         }
 
         let stdout = String::from_utf8(output.stdout)
-            .map_err(|e| anyhow!("Failed to parse command output as UTF-8: {}", e))?;
+            .map_err(|e| BraingridError::IoError(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Failed to parse command output as UTF-8: {}", e)
+            )))?;
         
         Ok(stdout)
     }
@@ -209,13 +279,16 @@ impl BraingridClient {
                 "json",
             ])
             .await
-            .context(format!("Failed to fetch requirement {}", req_id))?;
+            .map_err(|e| match e {
+                BraingridError::NotFound(_) => BraingridError::NotFound(format!("Requirement {} not found", req_id)),
+                _ => e,
+            })?;
 
         // Strip spinner animation and extract JSON (starts with '{')
         let json_start = output.find('{').unwrap_or(0);
         let json_str = &output[json_start..];
         serde_json::from_str(json_str)
-            .context("Failed to parse requirement JSON")
+            .map_err(|e| BraingridError::ParseError(format!("Failed to parse requirement JSON: {}", e)))
     }
 
     /// Fetch requirement tree (requirement + all tasks) with caching
@@ -252,13 +325,16 @@ impl BraingridClient {
                 "json",
             ])
             .await
-            .context(format!("Failed to build requirement tree for {}", req_id))?;
+            .map_err(|e| match e {
+                BraingridError::NotFound(_) => BraingridError::NotFound(format!("Requirement {} not found", req_id)),
+                _ => e,
+            })?;
 
         // Strip spinner animation and extract JSON (starts with '{')
         let json_start = output.find('{').unwrap_or(0);
         let json_str = &output[json_start..];
         let requirement: BraingridRequirement = serde_json::from_str(json_str)
-            .context("Failed to parse requirement tree JSON")?;
+            .map_err(|e| BraingridError::ParseError(format!("Failed to parse requirement tree JSON: {}", e)))?;
 
         // Update cache
         {
@@ -295,10 +371,13 @@ impl BraingridClient {
                 "json",
             ])
             .await
-            .context(format!("Failed to list tasks for {}", req_id))?;
+            .map_err(|e| match e {
+                BraingridError::NotFound(_) => BraingridError::NotFound(format!("Requirement {} not found", req_id)),
+                _ => e,
+            })?;
 
         serde_json::from_str(&output)
-            .context("Failed to parse task list JSON")
+            .map_err(|e| BraingridError::ParseError(format!("Failed to parse task list JSON: {}", e)))
     }
 
     /// Update task status
@@ -334,7 +413,11 @@ impl BraingridClient {
 
         self.execute_command(&args)
             .await
-            .context(format!("Failed to update task {} status", task_id))?;
+            .map_err(|e| match e {
+                BraingridError::NotFound(_) => BraingridError::NotFound(format!("Task {} not found", task_id)),
+                BraingridError::InvalidStatus(_) => BraingridError::InvalidStatus(format!("Invalid status transition for task {}", task_id)),
+                _ => e,
+            })?;
 
         // Invalidate cache for the requirement since task status changed
         {
@@ -373,7 +456,11 @@ impl BraingridClient {
             status_str,
         ])
         .await
-        .context(format!("Failed to update requirement {} status", req_id))?;
+        .map_err(|e| match e {
+            BraingridError::NotFound(_) => BraingridError::NotFound(format!("Requirement {} not found", req_id)),
+            BraingridError::InvalidStatus(_) => BraingridError::InvalidStatus(format!("Invalid status transition for requirement {}", req_id)),
+            _ => e,
+        })?;
 
         // Invalidate cache
         {
@@ -397,7 +484,10 @@ impl BraingridClient {
             &self.project_id,
         ])
         .await
-        .context(format!("Failed to breakdown requirement {}", req_id))?;
+        .map_err(|e| match e {
+            BraingridError::NotFound(_) => BraingridError::NotFound(format!("Requirement {} not found", req_id)),
+            _ => BraingridError::BreakdownFailed(format!("Failed to breakdown requirement {}: {}", req_id, e)),
+        })?;
 
         // Invalidate cache since tasks were added
         {

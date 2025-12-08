@@ -176,7 +176,7 @@ impl AgentExecutor {
     ///
     /// # Arguments
     /// * `manager` - The budget manager to use
-    pub fn set_budget_manager(&mut self, manager: Arc<BudgetManager>) {
+    pub fn set_budget_manager(&mut self, manager: Arc<dyn std::any::Any + Send + Sync>) {
         self.budget_manager = Some(manager);
     }
 

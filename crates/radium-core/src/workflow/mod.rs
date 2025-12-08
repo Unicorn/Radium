@@ -4,6 +4,7 @@
 //! sequential execution, conditional branching, and parallel execution,
 //! plus workflow behaviors (loop, trigger, checkpoint).
 
+pub mod agent_selector;
 pub mod behaviors;
 pub mod complete;
 pub mod control_flow;
@@ -48,6 +49,7 @@ pub use templates::{
     ModuleBehavior, ModuleBehaviorAction, ModuleBehaviorType, WorkflowStep, WorkflowStepConfig,
     WorkflowStepType, WorkflowTemplate, WorkflowTemplateError,
 };
+pub use agent_selector::{AgentSelectionError, AgentSelector};
 pub use requirement_executor::{
     RequirementExecutionError, RequirementExecutionResult, RequirementExecutor,
     RequirementProgress,

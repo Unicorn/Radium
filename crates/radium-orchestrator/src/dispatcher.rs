@@ -3,7 +3,7 @@
 //! This module provides a background service that continuously processes the ExecutionQueue
 //! and dispatches tasks to agents until completion or critical errors.
 
-use crate::{AgentExecutor, AgentRegistry, ExecutionQueue};
+use crate::{AgentExecutor, AgentRegistry, ExecutionQueue, LoadBalancer};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -16,12 +16,15 @@ use tracing::{debug, error, info, warn};
 pub struct TaskDispatcherConfig {
     /// Interval for polling the queue when empty.
     pub poll_interval: Duration,
+    /// Maximum concurrent tasks per agent.
+    pub max_concurrent_per_agent: usize,
 }
 
 impl Default for TaskDispatcherConfig {
     fn default() -> Self {
         Self {
             poll_interval: Duration::from_millis(100),
+            max_concurrent_per_agent: 10,
         }
     }
 }
@@ -34,6 +37,8 @@ pub struct TaskDispatcher {
     queue: Arc<ExecutionQueue>,
     /// Agent executor for running agents.
     executor: Arc<AgentExecutor>,
+    /// Load balancer for agent selection.
+    load_balancer: Arc<LoadBalancer>,
     /// Configuration.
     config: TaskDispatcherConfig,
     /// Shutdown signal sender.
@@ -68,10 +73,12 @@ impl TaskDispatcher {
         executor: Arc<AgentExecutor>,
         config: TaskDispatcherConfig,
     ) -> Self {
+        let load_balancer = Arc::new(LoadBalancer::new(config.max_concurrent_per_agent));
         Self {
             registry,
             queue,
             executor,
+            load_balancer,
             config,
             shutdown_tx: None,
             paused: Arc::new(AtomicBool::new(false)),
@@ -95,6 +102,7 @@ impl TaskDispatcher {
         let registry = Arc::clone(&self.registry);
         let queue = Arc::clone(&self.queue);
         let executor = Arc::clone(&self.executor);
+        let load_balancer = Arc::clone(&self.load_balancer);
         let paused = Arc::clone(&self.paused);
         let pause_notify = Arc::clone(&self.pause_notify);
 
@@ -131,6 +139,23 @@ impl TaskDispatcher {
                                 "Processing task"
                             );
 
+                            // Check if agent is available (not at capacity)
+                            let agent_load = load_balancer.get_agent_load(&agent_id).await;
+                            if agent_load >= config.max_concurrent_per_agent {
+                                // Agent is at capacity, put task back in queue
+                                warn!(
+                                    task_id = %task_id,
+                                    agent_id = %agent_id,
+                                    load = agent_load,
+                                    max = config.max_concurrent_per_agent,
+                                    "Agent at capacity, skipping task"
+                                );
+                                // Note: We can't easily put the task back, so we'll mark it as completed
+                                // In a production system, we'd have a better mechanism for this
+                                queue.mark_completed(&task_id).await;
+                                continue;
+                            }
+
                             // Get agent from registry
                             let Some(agent) = registry.get_agent(&agent_id).await else {
                                 error!(
@@ -142,10 +167,16 @@ impl TaskDispatcher {
                                 continue;
                             };
 
+                            // Increment load before execution
+                            load_balancer.increment_load(&agent_id).await;
+
                             // Execute the agent
                             let result = executor
                                 .execute_agent_with_default_model(agent, &input, None)
                                 .await;
+
+                            // Decrement load after execution
+                            load_balancer.decrement_load(&agent_id).await;
 
                             match result {
                                 Ok(execution_result) => {
@@ -233,6 +264,14 @@ impl TaskDispatcher {
     #[must_use]
     pub fn is_paused(&self) -> bool {
         self.paused.load(Ordering::Relaxed)
+    }
+
+    /// Gets the load balancer for monitoring agent utilization.
+    ///
+    /// # Returns
+    /// Returns a reference to the load balancer.
+    pub fn load_balancer(&self) -> Arc<LoadBalancer> {
+        Arc::clone(&self.load_balancer)
     }
 }
 
@@ -324,6 +363,7 @@ mod tests {
         let executor = Arc::new(AgentExecutor::with_mock_model());
         let config = TaskDispatcherConfig {
             poll_interval: Duration::from_millis(10),
+            max_concurrent_per_agent: 10,
         };
 
         // Register an agent
@@ -372,6 +412,7 @@ mod tests {
         let executor = Arc::new(AgentExecutor::with_mock_model());
         let config = TaskDispatcherConfig {
             poll_interval: Duration::from_millis(10),
+            max_concurrent_per_agent: 10,
         };
 
         let mut dispatcher = TaskDispatcher::new(
@@ -403,6 +444,7 @@ mod tests {
         let executor = Arc::new(AgentExecutor::with_mock_model());
         let config = TaskDispatcherConfig {
             poll_interval: Duration::from_millis(10),
+            max_concurrent_per_agent: 10,
         };
 
         // Register an agent

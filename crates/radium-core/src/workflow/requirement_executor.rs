@@ -8,7 +8,7 @@ use thiserror::Error;
 use tracing::{error, info};
 
 use crate::context::braingrid_client::{
-    BraingridClient, RequirementStatus, TaskStatus,
+    BraingridClient, BraingridError, RequirementStatus, TaskStatus,
 };
 use crate::autonomous::orchestrator::{AutonomousOrchestrator, AutonomousConfig};
 use crate::agents::registry::AgentRegistry;
@@ -21,7 +21,7 @@ use radium_orchestrator::{AgentExecutor, Orchestrator};
 pub enum RequirementExecutionError {
     /// Braingrid client error.
     #[error("Braingrid error: {0}")]
-    Braingrid(#[from] anyhow::Error),
+    Braingrid(#[from] BraingridError),
 
     /// Autonomous execution error.
     #[error("Autonomous execution error: {0}")]
@@ -497,6 +497,15 @@ impl RequirementExecutor {
                 .update_task_status(&task_id, req_id, TaskStatus::InProgress, None)
                 .await?;
 
+            // Sub-step: Preparing
+            let _ = progress_tx
+                .send(RequirementProgress::TaskSubStep {
+                    task_id: task_id.clone(),
+                    task_title: task.title.clone(),
+                    sub_step: TaskSubStep::Preparing,
+                })
+                .await;
+
             // Build goal
             let goal = if let Some(description) = &task.description {
                 format!("Task: {}\n\nDescription:\n{}", task.title, description)
@@ -504,10 +513,37 @@ impl RequirementExecutor {
                 format!("Task: {}", task.title)
             };
 
+            // Sub-step: Executing
+            let _ = progress_tx
+                .send(RequirementProgress::TaskSubStep {
+                    task_id: task_id.clone(),
+                    task_title: task.title.clone(),
+                    sub_step: TaskSubStep::Executing,
+                })
+                .await;
+
             // Execute task
             let execution_successful = match self.orchestrator.execute_autonomous(&goal, Arc::clone(&self.model)).await {
                 Ok(execution_result) => {
                     if execution_result.success {
+                        // Sub-step: Validating
+                        let _ = progress_tx
+                            .send(RequirementProgress::TaskSubStep {
+                                task_id: task_id.clone(),
+                                task_title: task.title.clone(),
+                                sub_step: TaskSubStep::Validating,
+                            })
+                            .await;
+
+                        // Sub-step: Completing
+                        let _ = progress_tx
+                            .send(RequirementProgress::TaskSubStep {
+                                task_id: task_id.clone(),
+                                task_title: task.title.clone(),
+                                sub_step: TaskSubStep::Completing,
+                            })
+                            .await;
+
                         let notes = format!(
                             "Completed via autonomous execution (workflow: {})",
                             execution_result.workflow_id
@@ -538,6 +574,24 @@ impl RequirementExecutor {
 
                     match self.model.generate_text(&prompt, None).await {
                         Ok(response) => {
+                            // Sub-step: Validating
+                            let _ = progress_tx
+                                .send(RequirementProgress::TaskSubStep {
+                                    task_id: task_id.clone(),
+                                    task_title: task.title.clone(),
+                                    sub_step: TaskSubStep::Validating,
+                                })
+                                .await;
+
+                            // Sub-step: Completing
+                            let _ = progress_tx
+                                .send(RequirementProgress::TaskSubStep {
+                                    task_id: task_id.clone(),
+                                    task_title: task.title.clone(),
+                                    sub_step: TaskSubStep::Completing,
+                                })
+                                .await;
+
                             let notes = format!(
                                 "Completed via fallback execution:\n{}",
                                 response.content.chars().take(500).collect::<String>()

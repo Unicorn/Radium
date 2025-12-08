@@ -55,6 +55,16 @@ service Radium {
   rpc SpawnWorkerAgent (SpawnWorkerAgentRequest) returns (SpawnWorkerAgentResponse) {}
   rpc GetWorkerStatus (GetWorkerStatusRequest) returns (GetWorkerStatusResponse) {}
   rpc ReportProgress (ReportProgressRequest) returns (ReportProgressResponse) {}
+
+  // Braingrid Operations
+  rpc ReadBraingridRequirement (ReadBraingridRequirementRequest) returns (ReadBraingridRequirementResponse) {}
+  rpc ListBraingridTasks (ListBraingridTasksRequest) returns (ListBraingridTasksResponse) {}
+  rpc UpdateBraingridTaskStatus (UpdateBraingridTaskStatusRequest) returns (UpdateBraingridTaskStatusResponse) {}
+  rpc UpdateBraingridRequirementStatus (UpdateBraingridRequirementStatusRequest) returns (UpdateBraingridRequirementStatusResponse) {}
+  rpc CreateBraingridTasks (CreateBraingridTasksRequest) returns (CreateBraingridTasksResponse) {}
+  rpc ExecuteBraingridRequirement (ExecuteBraingridRequirementRequest) returns (stream ExecutionProgressEvent) {}
+  rpc ClearBraingridCache (ClearBraingridCacheRequest) returns (ClearBraingridCacheResponse) {}
+  rpc GetBraingridCacheStats (GetBraingridCacheStatsRequest) returns (GetBraingridCacheStatsResponse) {}
 }
 
 // ===================================================================
@@ -472,4 +482,129 @@ message ReportProgressRequest {
 message ReportProgressResponse {
   bool success = 1;
   optional string error = 2;
+}
+
+// ===================================================================
+// Braingrid RPCs
+// ===================================================================
+
+message ReadBraingridRequirementRequest {
+  string requirement_id = 1;
+  optional string project_id = 2;
+}
+
+message ReadBraingridRequirementResponse {
+  BraingridRequirement requirement = 1;
+  optional string error = 2;
+}
+
+message ListBraingridTasksRequest {
+  string requirement_id = 1;
+  optional string project_id = 2;
+}
+
+message ListBraingridTasksResponse {
+  repeated BraingridTask tasks = 1;
+  optional string error = 2;
+}
+
+message UpdateBraingridTaskStatusRequest {
+  string task_id = 1;
+  string requirement_id = 2;
+  string status = 3;  // PLANNED, IN_PROGRESS, COMPLETED, CANCELLED
+  optional string project_id = 4;
+  optional string notes = 5;
+}
+
+message UpdateBraingridTaskStatusResponse {
+  bool success = 1;
+  optional string error = 2;
+}
+
+message UpdateBraingridRequirementStatusRequest {
+  string requirement_id = 1;
+  string status = 2;  // IDEA, PLANNED, IN_PROGRESS, REVIEW, COMPLETED, CANCELLED
+  optional string project_id = 3;
+}
+
+message UpdateBraingridRequirementStatusResponse {
+  bool success = 1;
+  optional string error = 2;
+}
+
+message CreateBraingridTasksRequest {
+  string requirement_id = 1;
+  optional string project_id = 2;
+}
+
+message CreateBraingridTasksResponse {
+  repeated BraingridTask tasks = 1;
+  optional string error = 2;
+}
+
+message ExecuteBraingridRequirementRequest {
+  string requirement_id = 1;
+  optional string project_id = 2;
+}
+
+message ExecutionProgressEvent {
+  string event_type = 1;  // STARTED, TASK_STARTED, TASK_SUBSTEP, TASK_COMPLETED, TASK_FAILED, COMPLETED, FAILED
+  optional string requirement_id = 2;
+  optional string task_id = 3;
+  optional string task_title = 4;
+  optional int32 task_number = 5;
+  optional int32 total_tasks = 6;
+  optional string sub_step = 7;  // PREPARING, EXECUTING, VALIDATING, COMPLETING
+  optional string error = 8;
+  optional RequirementExecutionResult result = 9;
+}
+
+message RequirementExecutionResult {
+  string requirement_id = 1;
+  int32 tasks_completed = 2;
+  int32 tasks_failed = 3;
+  int64 execution_time_secs = 4;
+  string final_status = 5;
+  bool success = 6;
+}
+
+message ClearBraingridCacheRequest {
+  optional string project_id = 1;
+}
+
+message ClearBraingridCacheResponse {
+  bool success = 1;
+  optional string error = 2;
+}
+
+message GetBraingridCacheStatsRequest {
+  optional string project_id = 1;
+}
+
+message GetBraingridCacheStatsResponse {
+  int64 hits = 1;
+  int64 misses = 2;
+  int32 size = 3;
+  double hit_rate = 4;
+  optional string error = 5;
+}
+
+message BraingridRequirement {
+  string id = 1;
+  string name = 2;
+  string content = 3;
+  string status = 4;  // IDEA, PLANNED, IN_PROGRESS, REVIEW, COMPLETED, CANCELLED
+  optional string assigned_to = 5;
+  repeated BraingridTask tasks = 6;
+}
+
+message BraingridTask {
+  string id = 1;
+  optional string short_id = 2;
+  string number = 3;
+  string title = 4;
+  optional string description = 5;
+  string status = 6;  // PLANNED, IN_PROGRESS, COMPLETED, CANCELLED
+  optional string assigned_to = 7;
+  repeated string dependencies = 8;
 }

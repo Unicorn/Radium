@@ -60,6 +60,7 @@
 //! - [Plan Executor](executor) - Uses DAG for execution ordering
 
 use crate::models::PlanManifest;
+use crate::context::braingrid_client::BraingridTask;
 use petgraph::algo::{is_cyclic_directed, toposort};
 use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::Direction;
@@ -180,6 +181,81 @@ pub struct DependencyGraph {
 }
 
 impl DependencyGraph {
+    /// Creates a new dependency graph from Braingrid tasks.
+    ///
+    /// # Arguments
+    /// * `tasks` - Vector of Braingrid tasks with dependencies
+    ///
+    /// # Errors
+    /// Returns error if:
+    /// - A dependency reference doesn't exist
+    /// - A circular dependency is detected
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// use radium_core::planning::dag::DependencyGraph;
+    /// use radium_core::context::braingrid_client::BraingridTask;
+    ///
+    /// # fn example(tasks: &[BraingridTask]) -> Result<(), Box<dyn std::error::Error>> {
+    /// let dag = DependencyGraph::from_braingrid_tasks(tasks)?;
+    /// dag.detect_cycles()?;
+    /// let order = dag.topological_sort()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn from_braingrid_tasks(tasks: &[BraingridTask]) -> Result<Self> {
+        let mut graph = DiGraph::new();
+        let mut node_map = HashMap::new();
+        let mut task_map = HashMap::new();
+
+        // First pass: create nodes for all tasks
+        // Use task number as the task ID for consistency with dependencies
+        for task in tasks {
+            let task_id = task.number.clone();
+            let node = graph.add_node(task_id.clone());
+            node_map.insert(task_id.clone(), node);
+            task_map.insert(node, task_id);
+        }
+
+        // Second pass: create edges for dependencies and validate references
+        for task in tasks {
+            let task_id = task.number.clone();
+            let from_node = node_map.get(&task_id).ok_or_else(|| {
+                DagError::InvalidTaskId(format!("Task not found in node map: {}", task_id))
+            })?;
+
+            for dep_number in &task.dependencies {
+                // Validate dependency exists
+                if !node_map.contains_key(dep_number) {
+                    return Err(DagError::DependencyNotFound(format!(
+                        "Dependency task not found: {} (referenced by {})",
+                        dep_number, task_id
+                    )));
+                }
+
+                let to_node = node_map.get(dep_number).ok_or_else(|| {
+                    DagError::DependencyNotFound(format!(
+                        "Dependency task not found: {} (referenced by {})",
+                        dep_number, task_id
+                    ))
+                })?;
+
+                // Add edge: task depends on dep_number, so edge goes from dep_number to task
+                // (dependencies must complete before the task)
+                graph.add_edge(*to_node, *from_node, ());
+            }
+        }
+
+        // Check for cycles
+        if is_cyclic_directed(&graph) {
+            let cycle_path = Self::find_cycle_path(&graph, &task_map)?;
+            return Err(DagError::CycleDetected(cycle_path));
+        }
+
+        Ok(Self { graph, node_map, task_map })
+    }
+
     /// Creates a new dependency graph from a plan manifest.
     ///
     /// # Arguments
@@ -477,6 +553,58 @@ impl DependencyGraph {
     /// Gets the number of edges (dependencies) in the graph.
     pub fn edge_count(&self) -> usize {
         self.graph.edge_count()
+    }
+
+    /// Gets tasks that are ready to execute (all dependencies satisfied).
+    ///
+    /// # Arguments
+    /// * `completed_task_ids` - Set of task IDs that have been completed
+    ///
+    /// # Returns
+    /// Vector of task IDs that can be executed now (all dependencies are in completed_task_ids)
+    pub fn ready_tasks(&self, completed_task_ids: &HashSet<String>) -> Vec<String> {
+        self.node_map
+            .iter()
+            .filter_map(|(task_id, node)| {
+                // Check if all dependencies are completed
+                let all_deps_completed = self
+                    .graph
+                    .neighbors_directed(*node, Direction::Incoming)
+                    .all(|dep_node| {
+                        self.task_map
+                            .get(&dep_node)
+                            .map(|dep_id| completed_task_ids.contains(dep_id))
+                            .unwrap_or(false)
+                    });
+
+                if all_deps_completed && !completed_task_ids.contains(task_id) {
+                    Some(task_id.clone())
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    /// Checks if a task is blocked (has unsatisfied dependencies).
+    ///
+    /// # Arguments
+    /// * `task_id` - The task ID to check
+    /// * `completed_task_ids` - Set of task IDs that have been completed
+    ///
+    /// # Returns
+    /// `true` if the task has at least one unsatisfied dependency, `false` otherwise
+    pub fn is_blocked(&self, task_id: &str, completed_task_ids: &HashSet<String>) -> bool {
+        if let Some(node) = self.node_map.get(task_id) {
+            self.graph
+                .neighbors_directed(*node, Direction::Incoming)
+                .any(|dep_node| {
+                    let dep_id = self.task_map.get(&dep_node);
+                    dep_id.map(|id| !completed_task_ids.contains(id)).unwrap_or(false)
+                })
+        } else {
+            true // Task not found, consider it blocked
+        }
     }
 }
 
@@ -819,6 +947,180 @@ mod tests {
             DagError::DependencyNotFound(_) => {} // Invalid format is treated as missing dependency
             _ => panic!("Expected DependencyNotFound error"),
         }
+    }
+
+    #[test]
+    fn test_dag_from_braingrid_tasks() {
+        use crate::context::braingrid_client::{BraingridTask, TaskStatus};
+
+        let tasks = vec![
+            BraingridTask {
+                id: "task1".to_string(),
+                short_id: Some("TASK-1".to_string()),
+                number: "1".to_string(),
+                title: "Task 1".to_string(),
+                description: None,
+                status: TaskStatus::Planned,
+                assigned_to: None,
+                dependencies: vec![],
+            },
+            BraingridTask {
+                id: "task2".to_string(),
+                short_id: Some("TASK-2".to_string()),
+                number: "2".to_string(),
+                title: "Task 2".to_string(),
+                description: None,
+                status: TaskStatus::Planned,
+                assigned_to: None,
+                dependencies: vec!["1".to_string()],
+            },
+            BraingridTask {
+                id: "task3".to_string(),
+                short_id: Some("TASK-3".to_string()),
+                number: "3".to_string(),
+                title: "Task 3".to_string(),
+                description: None,
+                status: TaskStatus::Planned,
+                assigned_to: None,
+                dependencies: vec!["2".to_string()],
+            },
+        ];
+
+        let dag = DependencyGraph::from_braingrid_tasks(&tasks).unwrap();
+        assert_eq!(dag.node_count(), 3);
+        assert_eq!(dag.edge_count(), 2);
+
+        let sorted = dag.topological_sort().unwrap();
+        assert_eq!(sorted.len(), 3);
+        assert_eq!(sorted[0], "1");
+        assert_eq!(sorted[1], "2");
+        assert_eq!(sorted[2], "3");
+    }
+
+    #[test]
+    fn test_dag_from_braingrid_tasks_cycle() {
+        use crate::context::braingrid_client::{BraingridTask, TaskStatus};
+
+        let tasks = vec![
+            BraingridTask {
+                id: "task1".to_string(),
+                short_id: Some("TASK-1".to_string()),
+                number: "1".to_string(),
+                title: "Task 1".to_string(),
+                description: None,
+                status: TaskStatus::Planned,
+                assigned_to: None,
+                dependencies: vec!["2".to_string()],
+            },
+            BraingridTask {
+                id: "task2".to_string(),
+                short_id: Some("TASK-2".to_string()),
+                number: "2".to_string(),
+                title: "Task 2".to_string(),
+                description: None,
+                status: TaskStatus::Planned,
+                assigned_to: None,
+                dependencies: vec!["1".to_string()],
+            },
+        ];
+
+        let result = DependencyGraph::from_braingrid_tasks(&tasks);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            DagError::CycleDetected(_) => {}
+            _ => panic!("Expected CycleDetected error"),
+        }
+    }
+
+    #[test]
+    fn test_dag_ready_tasks() {
+        use crate::context::braingrid_client::{BraingridTask, TaskStatus};
+
+        let tasks = vec![
+            BraingridTask {
+                id: "task1".to_string(),
+                short_id: Some("TASK-1".to_string()),
+                number: "1".to_string(),
+                title: "Task 1".to_string(),
+                description: None,
+                status: TaskStatus::Planned,
+                assigned_to: None,
+                dependencies: vec![],
+            },
+            BraingridTask {
+                id: "task2".to_string(),
+                short_id: Some("TASK-2".to_string()),
+                number: "2".to_string(),
+                title: "Task 2".to_string(),
+                description: None,
+                status: TaskStatus::Planned,
+                assigned_to: None,
+                dependencies: vec!["1".to_string()],
+            },
+            BraingridTask {
+                id: "task3".to_string(),
+                short_id: Some("TASK-3".to_string()),
+                number: "3".to_string(),
+                title: "Task 3".to_string(),
+                description: None,
+                status: TaskStatus::Planned,
+                assigned_to: None,
+                dependencies: vec![],
+            },
+        ];
+
+        let dag = DependencyGraph::from_braingrid_tasks(&tasks).unwrap();
+
+        // Initially, tasks 1 and 3 should be ready (no dependencies)
+        let mut completed = HashSet::new();
+        let ready = dag.ready_tasks(&completed);
+        assert_eq!(ready.len(), 2);
+        assert!(ready.contains(&"1".to_string()));
+        assert!(ready.contains(&"3".to_string()));
+
+        // After completing task 1, task 2 should be ready
+        completed.insert("1".to_string());
+        let ready = dag.ready_tasks(&completed);
+        assert_eq!(ready.len(), 2);
+        assert!(ready.contains(&"2".to_string()));
+        assert!(ready.contains(&"3".to_string()));
+    }
+
+    #[test]
+    fn test_dag_is_blocked() {
+        use crate::context::braingrid_client::{BraingridTask, TaskStatus};
+
+        let tasks = vec![
+            BraingridTask {
+                id: "task1".to_string(),
+                short_id: Some("TASK-1".to_string()),
+                number: "1".to_string(),
+                title: "Task 1".to_string(),
+                description: None,
+                status: TaskStatus::Planned,
+                assigned_to: None,
+                dependencies: vec![],
+            },
+            BraingridTask {
+                id: "task2".to_string(),
+                short_id: Some("TASK-2".to_string()),
+                number: "2".to_string(),
+                title: "Task 2".to_string(),
+                description: None,
+                status: TaskStatus::Planned,
+                assigned_to: None,
+                dependencies: vec!["1".to_string()],
+            },
+        ];
+
+        let dag = DependencyGraph::from_braingrid_tasks(&tasks).unwrap();
+
+        let mut completed = HashSet::new();
+        assert!(!dag.is_blocked("1", &completed));
+        assert!(dag.is_blocked("2", &completed));
+
+        completed.insert("1".to_string());
+        assert!(!dag.is_blocked("2", &completed));
     }
 }
 
