@@ -13,6 +13,9 @@ pub fn render_workflow(
     area: Rect,
     workflow_state: &WorkflowUIState,
     selected_agent_id: Option<&str>,
+    frame_counter: usize,
+    animations_enabled: bool,
+    reduced_motion: bool,
 ) {
     let theme = crate::theme::get_theme();
 
@@ -43,7 +46,15 @@ pub fn render_workflow(
     let agents: Vec<AgentState> = workflow_state.agents.values().cloned().collect();
     let selected_index = selected_agent_id
         .and_then(|id| agents.iter().position(|a| a.agent_id == id));
-    AgentTimeline::render(frame, content_chunks[0], &agents, selected_index);
+    AgentTimeline::render(
+        frame,
+        content_chunks[0],
+        &agents,
+        selected_index,
+        frame_counter,
+        animations_enabled,
+        reduced_motion,
+    );
 
     // Right panel: Output window
     let output_title = selected_agent_id

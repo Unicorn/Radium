@@ -302,7 +302,15 @@ async fn main() -> Result<()> {
                 render_setup_wizard(frame, main_area, wizard);
             } else if let Some(ref workflow_state) = app.workflow_state {
                 // Workflow mode: split-panel layout
-                render_workflow(frame, main_area, workflow_state, app.selected_agent_id.as_deref());
+                render_workflow(
+                    frame,
+                    main_area,
+                    workflow_state,
+                    app.selected_agent_id.as_deref(),
+                    app.spinner_frame,
+                    app.config.animations.enabled,
+                    app.config.animations.reduced_motion,
+                );
             } else if app.orchestration_running {
                 // Orchestrator running: show split view with chat log and active agents
                 // Get active agents from orchestration service (simplified for now)
@@ -363,6 +371,20 @@ async fn main() -> Result<()> {
                 // Dialog just closed - animate close (if we had the areas, but they're gone now)
                 // Note: Close animation would need to be triggered before dialog is removed
                 // For now, we'll handle this in the dialog manager if needed
+            }
+
+            // Render execution views (on top of main content, below dialogs)
+            match &mut app.active_execution_view {
+                radium_tui::app::ExecutionView::History(view) => {
+                    view.render(frame, area);
+                }
+                radium_tui::app::ExecutionView::Detail(view) => {
+                    view.render(frame, area);
+                }
+                radium_tui::app::ExecutionView::Summary(view) => {
+                    view.render(frame, area);
+                }
+                radium_tui::app::ExecutionView::None => {}
             }
 
             // Render toasts (on top of everything)

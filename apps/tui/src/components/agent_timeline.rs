@@ -1,5 +1,6 @@
 //! Agent timeline component for displaying agent execution progress.
 
+use crate::components::status_icon::render_status_icon;
 use crate::state::{AgentState, AgentStatus, SubAgentState};
 use ratatui::{
     prelude::*,
@@ -17,8 +18,20 @@ impl AgentTimeline {
         area: Rect,
         agents: &[AgentState],
         selected_index: Option<usize>,
+        frame_counter: usize,
+        animations_enabled: bool,
+        reduced_motion: bool,
     ) {
-        Self::render_with_expansion(frame, area, agents, selected_index, &HashSet::new())
+        Self::render_with_expansion(
+            frame,
+            area,
+            agents,
+            selected_index,
+            &HashSet::new(),
+            frame_counter,
+            animations_enabled,
+            reduced_motion,
+        )
     }
 
     /// Renders the agent timeline with expansion support.
@@ -28,6 +41,9 @@ impl AgentTimeline {
         agents: &[AgentState],
         selected_index: Option<usize>,
         expanded_agents: &HashSet<String>,
+        frame_counter: usize,
+        animations_enabled: bool,
+        reduced_motion: bool,
     ) {
         let theme = crate::theme::get_theme();
         let chunks = Layout::default()
@@ -60,7 +76,13 @@ impl AgentTimeline {
             let has_sub_agents = !agent.sub_agents.is_empty();
 
             // Main agent node
-            let status_color = Self::status_color(agent.status, &theme);
+            let (icon, icon_style) = render_status_icon(
+                agent.status,
+                frame_counter,
+                animations_enabled,
+                reduced_motion,
+            );
+            let status_color = icon_style.fg.unwrap_or(theme.text);
             let elapsed = agent
                 .elapsed_time()
                 .map(|d| format!("{:.1}s", d.as_secs_f64()))
@@ -81,7 +103,7 @@ impl AgentTimeline {
             let content = format!(
                 "{} {} {} - {} ({}){}",
                 expand_indicator,
-                agent.status.icon(),
+                icon,
                 agent.agent_name,
                 agent.status.as_str(),
                 elapsed,
@@ -104,7 +126,13 @@ impl AgentTimeline {
             if is_expanded && has_sub_agents {
                 let sub_agents: Vec<&SubAgentState> = agent.sub_agents.values().collect();
                 for sub_agent in sub_agents {
-                    let sub_status_color = Self::status_color(sub_agent.status, &theme);
+                    let (sub_icon, sub_icon_style) = render_status_icon(
+                        sub_agent.status,
+                        frame_counter,
+                        animations_enabled,
+                        reduced_motion,
+                    );
+                    let sub_status_color = sub_icon_style.fg.unwrap_or(theme.text);
                     let sub_elapsed = sub_agent
                         .elapsed_time()
                         .map(|d| format!("{:.1}s", d.as_secs_f64()))
@@ -112,7 +140,7 @@ impl AgentTimeline {
 
                     let sub_content = format!(
                         "    {} {} - {} ({})",
-                        sub_agent.status.icon(),
+                        sub_icon,
                         sub_agent.agent_name,
                         sub_agent.status.as_str(),
                         sub_elapsed
@@ -169,7 +197,14 @@ impl AgentTimeline {
     }
 
     /// Renders agent details (expanded view).
-    pub fn render_details(frame: &mut Frame, area: Rect, agent: &AgentState) {
+    pub fn render_details(
+        frame: &mut Frame,
+        area: Rect,
+        agent: &AgentState,
+        frame_counter: usize,
+        animations_enabled: bool,
+        reduced_motion: bool,
+    ) {
         let theme = crate::theme::get_theme();
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -189,14 +224,20 @@ impl AgentTimeline {
         frame.render_widget(title_widget, chunks[0]);
 
         // Info
-        let status_color = Self::status_color(agent.status, &theme);
+        let (status_icon, icon_style) = render_status_icon(
+            agent.status,
+            frame_counter,
+            animations_enabled,
+            reduced_motion,
+        );
+        let status_color = icon_style.fg.unwrap_or(theme.text);
         let elapsed = agent
             .elapsed_time()
             .map(|d| format!("{:.1}s", d.as_secs_f64()))
             .unwrap_or_else(|| "-".to_string());
 
         let info_text = vec![
-            format!("Status: {} {}", agent.status.icon(), agent.status.as_str()),
+            format!("Status: {} {}", status_icon, agent.status.as_str()),
             format!("ID: {}", agent.agent_id),
             format!("Elapsed: {}", elapsed),
             format!("Tokens: {}", format_tokens(agent.tokens_used)),
@@ -214,10 +255,16 @@ impl AgentTimeline {
                 .sub_agents
                 .values()
                 .map(|sub_agent| {
-                    let status_color = Self::status_color(sub_agent.status, &theme);
+                    let (sub_icon, sub_icon_style) = render_status_icon(
+                        sub_agent.status,
+                        frame_counter,
+                        animations_enabled,
+                        reduced_motion,
+                    );
+                    let status_color = sub_icon_style.fg.unwrap_or(theme.text);
                     let content = format!(
                         "  {} {} - {}",
-                        sub_agent.status.icon(),
+                        sub_icon,
                         sub_agent.agent_name,
                         sub_agent.status.as_str()
                     );
