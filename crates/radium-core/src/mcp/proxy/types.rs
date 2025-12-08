@@ -32,6 +32,9 @@ pub struct ProxyConfig {
     /// Security configuration settings.
     #[serde(default)]
     pub security: SecurityConfig,
+    /// Conflict resolution strategy for tool name conflicts.
+    #[serde(default)]
+    pub conflict_strategy: ConflictStrategy,
     /// List of upstream MCP servers to connect to.
     #[serde(default)]
     pub upstreams: Vec<UpstreamConfig>,
@@ -172,7 +175,7 @@ pub trait ToolRouter: Send + Sync {
         &self,
         tool_name: &str,
         arguments: &Value,
-    ) -> Result<McpToolResult>;
+    ) -> Result<crate::mcp::McpToolResult>;
 }
 
 /// Trait for security policy enforcement.
@@ -208,7 +211,7 @@ pub trait SecurityLayer: Send + Sync {
     async fn check_response(
         &self,
         tool_name: &str,
-        result: &McpToolResult,
+        result: &crate::mcp::McpToolResult,
         agent_id: &str,
     ) -> Result<()>;
 }
@@ -314,7 +317,7 @@ impl McpProxyServer {
 
         let router: Arc<dyn ToolRouter> = Arc::new(DefaultToolRouter::new(Arc::clone(&pool)));
         let catalog: Arc<dyn ToolCatalog> = Arc::new(DefaultToolCatalog::new(
-            config.security.conflict_strategy,
+            config.conflict_strategy,
             priorities,
         ));
         let security: Arc<dyn SecurityLayer> = Arc::new(DefaultSecurityLayer::new(config.security.clone())?);
@@ -338,6 +341,12 @@ impl McpProxyServer {
             shutdown_tx,
             _shutdown_rx: shutdown_rx,
         })
+    }
+
+    /// Get a reference to the underlying ProxyServer.
+    /// Returns None if the server hasn't been started yet.
+    pub fn server(&self) -> Option<&ProxyServer> {
+        self.server.as_ref()
     }
 
     /// Start the proxy server.
@@ -373,7 +382,7 @@ impl McpProxyServer {
 
         let router: Arc<dyn ToolRouter> = Arc::new(DefaultToolRouter::new(Arc::clone(&self.pool)));
         let catalog: Arc<dyn ToolCatalog> = Arc::new(DefaultToolCatalog::new(
-            self.config.security.conflict_strategy,
+            self.config.conflict_strategy,
             priorities,
         ));
         let security: Arc<dyn SecurityLayer> = Arc::new(DefaultSecurityLayer::new(self.config.security.clone())?);
@@ -445,6 +454,7 @@ mod tests {
             transport: ProxyTransport::Sse,
             max_connections: 100,
             security: SecurityConfig::default(),
+            conflict_strategy: ConflictStrategy::default(),
             upstreams: Vec::new(),
         };
 
