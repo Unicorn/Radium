@@ -62,6 +62,7 @@ clap_complete = "4.5"
 inquire = "0.7"
 tabled = "0.15"
 colored = "2.1"
+rpassword = "7.3"
 
 # Error handling
 anyhow.workspace = true

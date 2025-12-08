@@ -3,6 +3,7 @@
 pub mod agents;
 pub mod auth;
 pub mod autonomous;
+pub mod secret;
 pub mod braingrid;
 pub mod budget;
 pub mod capability;
@@ -40,7 +41,7 @@ pub mod vibecheck;
 
 // Re-export types for convenience
 pub use types::{AgentsCommand, AuthCommand, EnginesCommand, ExtensionCommand};
-pub use types::{CustomCommand, TemplatesCommand, BraingridCommand, CacheCommand};
+pub use types::{CustomCommand, TemplatesCommand, BraingridCommand, CacheCommand, SecretCommand};
 pub use context::ContextCommand;
 pub use budget::BudgetCommand;
 pub use constitution::ConstitutionCommand;

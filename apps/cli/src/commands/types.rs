@@ -879,6 +879,42 @@ pub enum BraingridCommand {
 }
 
 #[derive(Subcommand, Debug, Clone)]
+pub enum SecretCommand {
+    /// Add a new secret to the encrypted vault
+    Add {
+        /// Secret name
+        name: Option<String>,
+    },
+    /// List all secret names (values are never shown)
+    List {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Rotate a secret (update with new value)
+    Rotate {
+        /// Secret name to rotate
+        name: String,
+    },
+    /// Remove a secret from the vault
+    Remove {
+        /// Secret name to remove
+        name: String,
+        /// Skip confirmation prompt
+        #[arg(short, long)]
+        force: bool,
+    },
+    /// Scan workspace for hardcoded credentials
+    Scan {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Migrate credentials from plaintext to encrypted vault
+    Migrate,
+}
+
+#[derive(Subcommand, Debug, Clone)]
 pub enum CacheCommand {
     /// Clear Braingrid cache
     Clear {
