@@ -4,8 +4,10 @@ use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 
+use super::audit::AuditLogger;
 use super::patterns::PatternLibrary;
 use super::privacy_error::{PrivacyError, Result};
+use chrono::Utc;
 
 /// Style of redaction to apply.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -28,7 +30,7 @@ pub struct RedactionStats {
 }
 
 /// Privacy filter for redacting sensitive data from text.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct PrivacyFilter {
     /// Pattern library for detecting sensitive data.
     pattern_library: Arc<RwLock<PatternLibrary>>,
@@ -36,6 +38,8 @@ pub struct PrivacyFilter {
     allowlist: Arc<RwLock<HashSet<String>>>,
     /// Redaction style to use.
     style: RedactionStyle,
+    /// Optional audit logger for recording redactions.
+    audit_logger: Option<Arc<AuditLogger>>,
 }
 
 impl PrivacyFilter {
@@ -49,6 +53,26 @@ impl PrivacyFilter {
             pattern_library: Arc::new(RwLock::new(pattern_library)),
             allowlist: Arc::new(RwLock::new(HashSet::new())),
             style,
+            audit_logger: None,
+        }
+    }
+
+    /// Creates a new privacy filter with audit logging.
+    ///
+    /// # Arguments
+    /// * `style` - The redaction style to use
+    /// * `pattern_library` - The pattern library for detection
+    /// * `audit_logger` - Optional audit logger for recording redactions
+    pub fn with_audit_logger(
+        style: RedactionStyle,
+        pattern_library: PatternLibrary,
+        audit_logger: Option<Arc<AuditLogger>>,
+    ) -> Self {
+        Self {
+            pattern_library: Arc::new(RwLock::new(pattern_library)),
+            allowlist: Arc::new(RwLock::new(HashSet::new())),
+            style,
+            audit_logger,
         }
     }
 
@@ -64,10 +88,30 @@ impl PrivacyFilter {
     ///
     /// # Arguments
     /// * `text` - The text to redact
+    /// * `context` - Context where redaction occurs (e.g., "ContextManager.build_context")
+    /// * `agent_id` - Optional agent ID that triggered the redaction
     ///
     /// # Returns
     /// A tuple of (redacted_text, statistics)
     pub fn redact(&self, text: &str) -> Result<(String, RedactionStats)> {
+        self.redact_with_context(text, "unknown", None)
+    }
+
+    /// Redacts sensitive data from the given text with context information.
+    ///
+    /// # Arguments
+    /// * `text` - The text to redact
+    /// * `context` - Context where redaction occurs (e.g., "ContextManager.build_context")
+    /// * `agent_id` - Optional agent ID that triggered the redaction
+    ///
+    /// # Returns
+    /// A tuple of (redacted_text, statistics)
+    pub fn redact_with_context(
+        &self,
+        text: &str,
+        context: &str,
+        agent_id: Option<&str>,
+    ) -> Result<(String, RedactionStats)> {
         let pattern_library = self.pattern_library.read().unwrap();
         let allowlist = self.allowlist.read().unwrap();
         let matches = pattern_library.find_matches(text);
@@ -108,7 +152,28 @@ impl PrivacyFilter {
 
             redacted.replace_range(start..end, &redacted_value);
             stats.count += 1;
-            *stats.patterns.entry(pattern_name).or_insert(0) += 1;
+            *stats.patterns.entry(pattern_name.clone()).or_insert(0) += 1;
+        }
+
+        // Log audit entry if logger is present and redactions occurred
+        if stats.count > 0 {
+            if let Some(ref logger) = self.audit_logger {
+                // Create audit entry for each pattern type
+                for (pattern_type, count) in &stats.patterns {
+                    let entry = super::audit::AuditEntry {
+                        timestamp: Utc::now().to_rfc3339(),
+                        agent_id: agent_id.map(String::from),
+                        pattern_type: pattern_type.clone(),
+                        redaction_count: *count,
+                        context: context.to_string(),
+                        mode: format!("{:?}", self.style).to_lowercase(),
+                    };
+                    if let Err(e) = logger.log(entry) {
+                        // Log error but don't fail redaction
+                        tracing::warn!("Failed to log audit entry: {}", e);
+                    }
+                }
+            }
         }
 
         Ok((redacted, stats))

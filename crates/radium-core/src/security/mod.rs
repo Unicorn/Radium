@@ -27,6 +27,8 @@ pub mod privacy {
 
 mod privacy_error;
 mod privacy_filter;
+mod audit;
 
 pub use privacy::{PrivacyError, Result as PrivacyResult, PrivacyFilter, RedactionStyle, RedactionStats};
 pub use patterns::{Pattern, PatternLibrary, validate_luhn};
+pub use audit::{AuditEntry, AuditLogger};
