@@ -116,6 +116,9 @@ notify = "6.1"
 # Directory walking
 walkdir = "2.4"
 
+# Clipboard operations (cross-platform)
+arboard = "3.3"
+
 # Internal crates
 radium-abstraction.workspace = true
 radium-models.workspace = true

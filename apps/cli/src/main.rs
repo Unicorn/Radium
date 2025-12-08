@@ -14,7 +14,7 @@ use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 use commands::{
-    agents, auth, budget, capability, checkpoint, clean, context, cost, craft, doctor, engines, extension, hooks, init, learning, monitor, plan, playbook, policy, privacy, requirement, run,
+    agents, auth, budget, capability, checkpoint, clean, clipboard, context, cost, craft, doctor, engines, extension, hooks, init, learning, monitor, plan, playbook, policy, privacy, requirement, run,
     sandbox, secret, session, stats, status, step, validate,
     // All commands enabled!
     templates, complete, autonomous, vibecheck, chat, mcp, custom, braingrid,
@@ -222,6 +222,15 @@ enum Command {
         /// List available sessions
         #[arg(long)]
         list: bool,
+    },
+
+    /// Clipboard mode for universal editor support
+    ///
+    /// Bidirectional clipboard operations for sending code to Radium
+    /// and receiving processed results, supporting any editor via copy/paste.
+    Clipboard {
+        #[command(subcommand)]
+        action: commands::clipboard::ClipboardCommand,
     },
 
     /// Show status of workspace, engines, and authentication
