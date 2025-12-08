@@ -96,9 +96,37 @@ struct FailoverContext {
     attempted_combinations: Vec<(String, String)>,
     /// List of error types encountered (e.g., "rate_limit", "quota_exhausted").
     error_types: Vec<String>,
-    /// Budget status if budget manager is available.
-    /// Note: Disabled - requires radium_core dependency
-    budget_status: Option<String>, // Placeholder - was radium_core::monitoring::BudgetStatus
+    /// Budget status if budget manager is available (formatted string).
+    budget_status: Option<String>,
+}
+
+/// Trait for budget management to avoid circular dependency with radium-core.
+pub trait BudgetManagerTrait: Send + Sync {
+    /// Check if estimated cost is within budget.
+    fn check_budget_available(&self, estimated_cost: f64) -> Result<(), BudgetCheckResult>;
+    
+    /// Record an actual cost after execution.
+    fn record_cost(&self, actual_cost: f64);
+    
+    /// Get budget status as a formatted string.
+    fn get_budget_status_string(&self) -> Option<String>;
+}
+
+/// Result of budget check.
+#[derive(Debug, Clone)]
+pub enum BudgetCheckResult {
+    /// Budget limit exceeded.
+    BudgetExceeded {
+        spent: f64,
+        limit: f64,
+        requested: f64,
+    },
+    /// Budget warning threshold reached.
+    BudgetWarning {
+        spent: f64,
+        limit: f64,
+        percentage: f64,
+    },
 }
 
 /// Trait for sandbox operations to avoid circular dependency with radium-core.
@@ -123,8 +151,7 @@ pub struct AgentExecutor {
     /// Optional sandbox manager for sandbox operations.
     sandbox_manager: Option<Arc<dyn SandboxManager>>,
     /// Optional budget manager for cost tracking and enforcement.
-    /// Note: BudgetManager type removed to avoid dependency on radium_core
-    budget_manager: Option<Arc<dyn std::any::Any + Send + Sync>>,
+    budget_manager: Option<Arc<dyn BudgetManagerTrait>>,
 }
 
 impl fmt::Debug for AgentExecutor {
@@ -188,7 +215,7 @@ impl AgentExecutor {
     ///
     /// # Arguments
     /// * `manager` - The budget manager to use
-    pub fn set_budget_manager(&mut self, manager: Arc<dyn std::any::Any + Send + Sync>) {
+    pub fn set_budget_manager(&mut self, manager: Arc<dyn BudgetManagerTrait>) {
         self.budget_manager = Some(manager);
     }
 
@@ -300,10 +327,10 @@ impl AgentExecutor {
         }
         
         // Include budget status if available
-        // Budget status display disabled - requires radium_core dependency
-        // TODO: Re-enable when radium_core is available
-        if context.budget_status.is_some() {
-            message.push_str("Budget status: Available (details disabled)\n");
+        if let Some(ref budget_status_str) = context.budget_status {
+            message.push_str("Budget status: ");
+            message.push_str(budget_status_str);
+            message.push('\n');
         }
         
         // Determine error types and provide actionable next steps
@@ -513,13 +540,59 @@ impl AgentExecutor {
             budget_status: None,
         };
 
-        // Budget checking disabled - requires radium_core dependency
-        // TODO: Re-enable budget checking when radium_core is available as dependency
-        if self.budget_manager.is_some() {
-            debug!(
-                agent_id = %agent_id,
-                "Budget manager present but checking disabled (radium_core not available)"
-            );
+        // Pre-execution budget check
+        if let Some(ref budget_manager) = self.budget_manager {
+            // Estimate cost: roughly 1 token ≈ 4 characters, assume 70% input / 30% output ratio
+            let estimated_input_tokens = effective_input.len() as f64 / 4.0;
+            let estimated_output_tokens = estimated_input_tokens * 0.3 / 0.7; // Assume output is 30% of input
+            let model_id = current_model.model_id();
+            
+            // Use average pricing for estimation (fallback to provider defaults)
+            let (input_price, output_price) = Self::estimate_pricing_for_model(&current_provider, model_id);
+            let estimated_cost = (estimated_input_tokens / 1_000_000.0) * input_price 
+                + (estimated_output_tokens / 1_000_000.0) * output_price;
+
+            match budget_manager.check_budget_available(estimated_cost) {
+                Ok(()) => {
+                    debug!(
+                        agent_id = %agent_id,
+                        estimated_cost = %estimated_cost,
+                        "Budget check passed"
+                    );
+                }
+                Err(BudgetCheckResult::BudgetExceeded { spent, limit, requested }) => {
+                    error!(
+                        agent_id = %agent_id,
+                        spent = %spent,
+                        limit = %limit,
+                        requested = %requested,
+                        "Budget exceeded, blocking execution"
+                    );
+                    // Cleanup sandbox before early return
+                    if let Some(ref manager) = self.sandbox_manager {
+                        manager.cleanup_sandbox(agent_id).await;
+                    }
+                    return ExecutionResult {
+                        output: AgentOutput::Text(format!(
+                            "Execution blocked: Budget exceeded (${:.2} spent of ${:.2} limit, estimated cost ${:.2})",
+                            spent, limit, requested
+                        )),
+                        success: false,
+                        error: Some(format!("Budget exceeded: ${:.2} spent of ${:.2} limit", spent, limit)),
+                        telemetry: None,
+                    };
+                }
+                Err(BudgetCheckResult::BudgetWarning { spent, limit, percentage }) => {
+                    warn!(
+                        agent_id = %agent_id,
+                        spent = %spent,
+                        limit = %limit,
+                        percentage = %percentage,
+                        "Budget warning threshold reached"
+                    );
+                    // Continue execution but log warning
+                }
+            }
         }
 
         // Retry loop with provider failover
@@ -550,11 +623,16 @@ impl AgentExecutor {
                         } else {
                             input_tokens * 0.3 / 0.7 // Default estimate
                         };
-                        // Budget cost recording disabled - requires radium_core dependency
-                        // TODO: Re-enable when radium_core is available
+                        let model_id = current_model.model_id();
+                        let (input_price, output_price) = Self::estimate_pricing_for_model(&current_provider, model_id);
+                        let actual_cost = (input_tokens / 1_000_000.0) * input_price 
+                            + (output_tokens / 1_000_000.0) * output_price;
+                        
+                        budget_manager.record_cost(actual_cost);
                         debug!(
                             agent_id = %agent_id,
-                            "Budget manager present but cost recording disabled"
+                            cost = %actual_cost,
+                            "Recorded execution cost"
                         );
                     }
                     
@@ -678,8 +756,9 @@ impl AgentExecutor {
                             // All providers exhausted - create checkpoint before stopping
                             // Get budget status if available
                             if let Some(ref budget_manager) = self.budget_manager {
-                                // Budget status disabled - requires radium_core dependency
-                    // failover_context.budget_status = Some(budget_manager.get_budget_status());
+                                if let Some(status_str) = budget_manager.get_budget_status_string() {
+                                    failover_context.budget_status = Some(status_str);
+                                }
                             }
                             
                             error!(
