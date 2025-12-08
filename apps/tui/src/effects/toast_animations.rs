@@ -6,7 +6,10 @@ use tachyonfx::{fx, CellFilter, Effect, EffectTimer, Interpolation};
 /// Creates a slide-in animation for toast notifications
 pub fn create_toast_slide_in(duration_ms: u64) -> Effect {
     fx::slide_in(
-        tachyonfx::Direction::RightToLeft,
+        tachyonfx::Motion::RightToLeft,
+        5,  // gradient_length
+        0,  // randomness
+        Color::Black,  // color_behind_cells
         create_timer(duration_ms, Interpolation::QuadOut),
     )
 }
@@ -49,6 +52,6 @@ pub fn create_toast_animation_for_area(
 }
 
 fn create_timer(duration_ms: u64, interpolation: Interpolation) -> EffectTimer {
-    EffectTimer::from_ms(duration_ms, interpolation)
+    EffectTimer::from_ms(duration_ms as u32, interpolation)
 }
 

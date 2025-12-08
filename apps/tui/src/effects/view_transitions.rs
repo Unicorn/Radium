@@ -1,16 +1,14 @@
 //! View transition effects for smooth context switching.
 
 use ratatui::prelude::*;
-use tachyonfx::{fx, Effect, EffectTimer, Interpolation, SpatialPattern};
+use tachyonfx::{fx, pattern::RadialPattern, Effect, EffectTimer, Interpolation};
 
 use crate::commands::DisplayContext;
 
 /// Creates a dissolve transition effect for view changes
 pub fn create_dissolve_transition(duration_ms: u64) -> Effect {
     fx::dissolve(create_timer(duration_ms, Interpolation::QuadInOut))
-        .with_pattern(SpatialPattern::RadialPattern(
-            tachyonfx::RadialPattern::center(),
-        ))
+        .with_pattern(RadialPattern::center())
 }
 
 /// Creates a fade transition effect for view changes
@@ -19,8 +17,14 @@ pub fn create_fade_transition(duration_ms: u64) -> Effect {
 }
 
 /// Creates a slide transition effect for view changes
-pub fn create_slide_transition(direction: tachyonfx::Direction, duration_ms: u64) -> Effect {
-    fx::slide_in(direction, create_timer(duration_ms, Interpolation::QuadInOut))
+pub fn create_slide_transition(direction: tachyonfx::Motion, duration_ms: u64) -> Effect {
+    fx::slide_in(
+        direction,
+        5,  // gradient_length
+        0,  // randomness
+        Color::Black,  // color_behind_cells
+        create_timer(duration_ms, Interpolation::QuadInOut),
+    )
 }
 
 /// Detects if a view context has changed
@@ -54,6 +58,6 @@ pub fn contexts_equal(a: &DisplayContext, b: &DisplayContext) -> bool {
 }
 
 fn create_timer(duration_ms: u64, interpolation: Interpolation) -> EffectTimer {
-    EffectTimer::from_ms(duration_ms, interpolation)
+    EffectTimer::from_ms(duration_ms as u32, interpolation)
 }
 

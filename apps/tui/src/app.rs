@@ -1,24 +1,26 @@
 //! New unified prompt-based application.
 
 use anyhow::Result;
-use crossterm::event::{KeyCode, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use radium_core::auth::{CredentialStore, ProviderType};
 use radium_core::mcp::{McpIntegration, SlashCommandRegistry};
-use radium_core::workflow::RequirementExecutor;
 use radium_core::agents::registry::AgentRegistry;
 use radium_core::storage::Database;
 use radium_models::{ModelFactory, ModelConfig, ModelType};
 use radium_orchestrator::{OrchestrationConfig, OrchestrationService, AgentExecutor, Orchestrator};
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
 
 use crate::commands::{Command, DisplayContext};
 use crate::components::{DialogManager, ToastManager};
 use crate::config::TuiConfig;
 use crate::effects::AppEffectManager;
-use crate::requirement_progress::ActiveRequirement;
+use crate::requirement_progress::{ActiveRequirement, ActiveRequirementProgress};
+use crate::requirement_executor::RequirementExecutor as TuiRequirementExecutor;
+use crate::progress_channel::ExecutionResult;
 use crate::setup::SetupWizard;
 use crate::state::WorkflowUIState;
 use crate::theme::RadiumTheme;
@@ -72,8 +74,12 @@ pub struct App {
     pub workflow_state: Option<WorkflowUIState>,
     /// Selected agent ID in workflow mode
     pub selected_agent_id: Option<String>,
-    /// Active requirement execution (for async progress tracking)
+    /// Active requirement execution (for async progress tracking - old system)
     pub active_requirement: Option<ActiveRequirement>,
+    /// Active requirement execution using new ProgressMessage system
+    pub active_requirement_progress: Option<ActiveRequirementProgress>,
+    /// Join handle for active requirement task
+    pub active_requirement_handle: Option<JoinHandle<Result<ExecutionResult, String>>>,
     /// Effect manager for animations
     pub effect_manager: AppEffectManager,
     /// Previous display context (for view transition detection)
@@ -144,6 +150,11 @@ impl App {
         // Load theme and config
         let theme = RadiumTheme::from_config();
         let config = TuiConfig::load().unwrap_or_default();
+        
+        // Extract animation config before moving config
+        let anim_enabled = config.animations.enabled;
+        let anim_duration_mult = config.animations.duration_multiplier;
+        let anim_reduced_motion = config.animations.reduced_motion;
 
         let mut app = Self {
             should_quit: false,
@@ -168,7 +179,13 @@ impl App {
             workflow_state: None,
             selected_agent_id: None,
             active_requirement: None,
-            effect_manager: AppEffectManager::new(),
+            active_requirement_progress: None,
+            active_requirement_handle: None,
+            effect_manager: AppEffectManager::with_config(
+                anim_enabled,
+                anim_duration_mult,
+                anim_reduced_motion,
+            ),
             previous_context: None,
             previous_dialog_open: false,
             previous_toast_count: 0,
@@ -311,6 +328,7 @@ impl App {
         self.prompt_data.add_output("Type a command to get started!".to_string());
     }
 
+
     pub async fn handle_key(&mut self, key: KeyCode, modifiers: KeyModifiers) -> Result<()> {
         // If dialog is open, handle dialog input first
         if self.dialog_manager.is_open() {
@@ -409,21 +427,33 @@ impl App {
                 self.prompt_data.selected_suggestion_index = 0;
             }
 
-            // Enter - autocomplete+execute if suggestions showing, otherwise process command
+            // Enter - handle Cmd+Enter for submission, plain Enter for newline
             KeyCode::Enter if !self.prompt_data.command_palette_active => {
-                if !self.prompt_data.command_suggestions.is_empty() {
-                    // Autocomplete selected suggestion
-                    self.autocomplete_selected_command();
-                    // Then execute it
-                    self.handle_enter().await?;
+                // Check for Cmd/Ctrl+Enter for submission
+                // On macOS: META (Cmd), on others: CONTROL (Ctrl)
+                let is_submit = modifiers.contains(KeyModifiers::META) 
+                    || modifiers.contains(KeyModifiers::CONTROL);
+                
+                if is_submit {
+                    // Submit the input
+                    if !self.prompt_data.command_suggestions.is_empty() {
+                        // Autocomplete selected suggestion
+                        self.autocomplete_selected_command();
+                        // Then execute it
+                        self.handle_enter().await?;
+                    } else {
+                        self.handle_enter().await?;
+                    }
                 } else {
-                    self.handle_enter().await?;
+                    // Plain Enter - insert newline via TextArea
+                    self.prompt_data.input.handle_key(key, modifiers);
+                    self.update_command_suggestions();
                 }
             }
 
-            // Backspace (unless in command palette)
+            // Backspace (unless in command palette) - delegate to TextArea
             KeyCode::Backspace if !self.prompt_data.command_palette_active => {
-                self.prompt_data.pop_char();
+                self.prompt_data.input.handle_key(key, modifiers);
                 self.update_command_suggestions();
             }
 
@@ -459,18 +489,21 @@ impl App {
 
             // Enter in command palette
             KeyCode::Enter if self.prompt_data.command_palette_active => {
-                if let Some(suggestion) = self
-                    .prompt_data
-                    .command_suggestions
-                    .get(self.prompt_data.selected_suggestion_index)
-                {
-                    if let Some(cmd) = suggestion.split(" - ").next() {
-                        self.prompt_data.input = cmd.to_string();
-                        self.prompt_data.command_palette_active = false;
-                        self.prompt_data.command_palette_query.clear();
-                        // Execute the command
-                        self.handle_enter().await?;
-                    }
+                // Get the command to execute without holding a borrow
+                let cmd_to_execute = {
+                    let selected_idx = self.prompt_data.selected_suggestion_index;
+                    self.prompt_data
+                        .command_suggestions
+                        .get(selected_idx)
+                        .and_then(|s| s.split(" - ").next().map(|s| s.to_string()))
+                };
+                
+                if let Some(cmd) = cmd_to_execute {
+                    self.prompt_data.set_input(&cmd);
+                    self.prompt_data.command_palette_active = false;
+                    self.prompt_data.command_palette_query.clear();
+                    // Execute the command
+                    self.handle_enter().await?;
                 }
             }
 
@@ -491,15 +524,25 @@ impl App {
                 self.update_command_palette();
             }
 
-            // Regular characters
+            // Regular characters - delegate to TextArea for normal input
             KeyCode::Char(c) if !modifiers.contains(KeyModifiers::CONTROL) => {
                 if self.prompt_data.command_palette_active {
                     self.prompt_data.command_palette_query.push(c);
                     self.update_command_palette();
                 } else {
-                    self.prompt_data.push_char(c);
+                    // Delegate to TextArea for text input
+                    self.prompt_data.input.handle_key(key, modifiers);
                     self.update_command_suggestions();
                 }
+            }
+
+            // Delegate other navigation/editing keys to TextArea when not in special modes
+            KeyCode::Left | KeyCode::Right | KeyCode::Up | KeyCode::Down
+            | KeyCode::Delete | KeyCode::Tab
+            if !self.prompt_data.command_palette_active 
+                && !self.dialog_manager.is_open()
+                && self.prompt_data.command_suggestions.is_empty() => {
+                self.prompt_data.input.handle_key(key, modifiers);
             }
 
             _ => {}
@@ -509,7 +552,7 @@ impl App {
     }
 
     async fn handle_enter(&mut self) -> Result<()> {
-        let input = self.prompt_data.input.clone();
+        let input = self.prompt_data.input_text();
         if input.trim().is_empty() {
             return Ok(());
         }
@@ -945,7 +988,7 @@ impl App {
     }
 
     fn update_command_suggestions(&mut self) {
-        let input = &self.prompt_data.input;
+        let input = self.prompt_data.input.text();
 
         // Only show suggestions if typing a slash command
         if !input.starts_with('/') {
@@ -1051,13 +1094,14 @@ impl App {
                 };
 
                 // Set the input
-                self.prompt_data.input = if has_subcommands {
+                let input_text = if has_subcommands {
                     // Add a space to trigger subcommand suggestions
                     format!("{} ", cmd)
                 } else {
                     // Use the command as-is
                     cmd.to_string()
                 };
+                self.prompt_data.set_input(&input_text);
 
                 // Clear suggestions - they'll be regenerated if needed
                 self.prompt_data.command_suggestions.clear();
@@ -1680,41 +1724,28 @@ impl App {
 
         // Create requirement executor
         self.prompt_data.add_output("⚙️  Creating requirement executor...".to_string());
-        let executor_instance = match RequirementExecutor::new(
+        let executor_instance = TuiRequirementExecutor::new(
             project_id.clone(),
-            &orchestrator,
-            &executor,
-            &db,
+            orchestrator,
+            executor,
+            db,
             agent_registry,
             model,
-        ) {
-            Ok(exec) => {
-                self.prompt_data.add_output("   ✓ Executor created".to_string());
-                exec
-            }
-            Err(e) => {
-                self.prompt_data.add_output(format!("   ❌ Failed to create executor: {}", e));
-                return Ok(());
-            }
-        };
+        );
 
+        self.prompt_data.add_output("   ✓ Executor created".to_string());
         self.prompt_data.add_output("".to_string());
         self.prompt_data.add_output(format!("🚀 Starting async execution for {}...", req_id));
         self.prompt_data.add_output("   UI will remain responsive during execution".to_string());
         self.prompt_data.add_output("─".repeat(60));
         self.prompt_data.add_output("".to_string());
 
-        // Create progress channel
-        let (progress_tx, progress_rx) = tokio::sync::mpsc::channel(100);
+        // Spawn async execution task using new system
+        let (task_handle, progress_rx) = executor_instance.spawn_requirement_task(req_id.to_string());
 
-        // Spawn async execution
-        let req_id_clone = req_id.to_string();
-        tokio::spawn(async move {
-            let _ = executor_instance.execute_requirement_with_progress(&req_id_clone, progress_tx).await;
-        });
-
-        // Store active requirement for progress tracking
-        self.active_requirement = Some(ActiveRequirement::new(req_id.to_string(), progress_rx));
+        // Store active requirement progress tracking and task handle
+        self.active_requirement_progress = Some(ActiveRequirementProgress::new(req_id.to_string(), progress_rx));
+        self.active_requirement_handle = Some(task_handle);
 
         self.prompt_data.add_output("⏳ Execution started in background...".to_string());
         self.prompt_data.add_output("   Progress updates will appear below".to_string());

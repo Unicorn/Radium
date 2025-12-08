@@ -16,7 +16,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use radium_tui::app::App;
 use radium_tui::commands::DisplayContext;
-use radium_tui::components::{render_dialog, render_title_bar, render_toasts, AppMode, StatusFooter};
+use radium_tui::components::{render_dialog, render_title_bar, render_toasts, render_toasts_with_areas, AppMode, StatusFooter};
 use radium_tui::views::{render_orchestrator_view, render_prompt, render_setup_wizard, render_shortcuts, render_splash, render_start_page, render_workflow, GlobalLayout};
 
 #[tokio::main]
@@ -80,7 +80,7 @@ async fn main() -> Result<()> {
         // Update toast manager (remove expired toasts)
         app.toast_manager.update();
 
-        // Poll for requirement progress updates (non-blocking)
+        // Poll for requirement progress updates (non-blocking) - old system
         if let Some(active_req) = &mut app.active_requirement {
             match active_req.progress_rx.try_recv() {
                 Ok(progress) => {
@@ -148,6 +148,91 @@ async fn main() -> Result<()> {
             }
         }
 
+        // Poll for requirement progress updates (non-blocking) - new ProgressMessage system
+        if let Some(active_req_progress) = &mut app.active_requirement_progress {
+            match active_req_progress.progress_rx.try_recv() {
+                Ok(message) => {
+                    // Update active requirement progress state
+                    active_req_progress.update(message.clone());
+
+                    // Use toast notifications for key events
+                    match &message {
+                        radium_tui::progress_channel::ProgressMessage::StatusChange { task_title, status, .. } => {
+                            let status_symbol = status.symbol();
+                            app.toast_manager.info(format!("{} {}", status_symbol, task_title));
+                        }
+                        radium_tui::progress_channel::ProgressMessage::TokenUpdate { tokens_in, tokens_out, .. } => {
+                            // Update silently, tokens are shown in status message
+                            // Could add a toast here if desired: app.toast_manager.info(format!("Tokens: {} in, {} out", tokens_in, tokens_out));
+                        }
+                        radium_tui::progress_channel::ProgressMessage::DurationUpdate { elapsed, .. } => {
+                            // Update silently, duration is shown in status message
+                        }
+                        radium_tui::progress_channel::ProgressMessage::TaskComplete { task_id, result } => {
+                            app.toast_manager.success(format!("{} Task completed: {}", radium_tui::progress_channel::TaskStatus::Completed.symbol(), result));
+                        }
+                        radium_tui::progress_channel::ProgressMessage::TaskFailed { task_id, error } => {
+                            app.toast_manager.error(format!("{} Task failed: {}", radium_tui::progress_channel::TaskStatus::Failed.symbol(), error));
+                        }
+                        radium_tui::progress_channel::ProgressMessage::RequirementComplete { requirement_id, result } => {
+                            if result.tasks_failed == 0 {
+                                app.toast_manager.success(format!(
+                                    "{} Requirement {} completed! ({} tasks, {}s)",
+                                    radium_tui::progress_channel::TaskStatus::Completed.symbol(),
+                                    requirement_id,
+                                    result.tasks_completed,
+                                    result.execution_time_secs
+                                ));
+                            } else {
+                                app.toast_manager.warning(format!(
+                                    "{} Requirement {} completed with {} failures ({} tasks, {}s)",
+                                    radium_tui::progress_channel::TaskStatus::Failed.symbol(),
+                                    requirement_id,
+                                    result.tasks_failed,
+                                    result.tasks_completed,
+                                    result.execution_time_secs
+                                ));
+                            }
+
+                            // Show final summary in output
+                            app.prompt_data.add_output("".to_string());
+                            app.prompt_data.add_output("─".repeat(60));
+                            app.prompt_data.add_output("📊 Execution Summary".to_string());
+                            app.prompt_data.add_output("─".repeat(60));
+                            app.prompt_data.add_output("".to_string());
+                            app.prompt_data.add_output(format!("  Requirement: {}", result.requirement_id));
+                            app.prompt_data.add_output(format!("  Tasks Completed: {}", result.tasks_completed));
+                            app.prompt_data.add_output(format!("  Tasks Failed: {}", result.tasks_failed));
+                            app.prompt_data.add_output(format!("  Execution Time: {}s", result.execution_time_secs));
+                            app.prompt_data.add_output(format!("  Tokens: {} in, {} out", active_req_progress.tokens_in, active_req_progress.tokens_out));
+                            app.prompt_data.add_output("".to_string());
+                            app.prompt_data.add_output("─".repeat(60));
+
+                            // Check if task handle is complete and clean up
+                            if let Some(ref handle) = app.active_requirement_handle {
+                                if handle.is_finished() {
+                                    // Task completed, clean up
+                                    app.active_requirement_progress = None;
+                                    app.active_requirement_handle = None;
+                                }
+                            } else {
+                                // No handle to check, just clean up progress
+                                app.active_requirement_progress = None;
+                            }
+                        }
+                    }
+                }
+                Err(tokio::sync::mpsc::error::TryRecvError::Empty) => {
+                    // No updates available, continue
+                }
+                Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
+                    app.toast_manager.warning("Requirement execution channel closed unexpectedly".to_string());
+                    app.active_requirement_progress = None;
+                    app.active_requirement_handle = None;
+                }
+            }
+        }
+
         // Draw UI
         terminal.draw(|frame| {
             let area = frame.area();
@@ -194,17 +279,21 @@ async fn main() -> Result<()> {
 
             // Detect view context changes for transitions
             let context_changed = app.previous_context.as_ref()
-                .map(|prev| !crate::effects::view_transitions::contexts_equal(prev, &app.prompt_data.context))
+                .map(|prev| !radium_tui::effects::view_transitions::contexts_equal(prev, &app.prompt_data.context))
                 .unwrap_or(true);
 
             // Trigger view transition animation if context changed
             if context_changed && app.previous_context.is_some() {
-                use crate::effects::view_transitions::create_dissolve_transition;
+                use radium_tui::effects::view_transitions::create_dissolve_transition;
                 use tachyonfx::CellFilter;
                 let effect = create_dissolve_transition(400)
                     .with_filter(CellFilter::Area(main_area));
                 app.effect_manager.add_effect(effect);
             }
+
+            // Detect table selection changes for animations
+            // Note: Table animations are handled at render time, but we track state here
+            // The actual animation will be applied when the table is rendered
 
             // Render main content area (context-aware)
             if app.show_shortcuts {
@@ -266,7 +355,7 @@ async fn main() -> Result<()> {
             if current_dialog_open && !app.previous_dialog_open {
                 // Dialog just opened - animate it
                 if let Some((backdrop_area, dialog_area)) = dialog_areas {
-                    use crate::effects::dialog_animations::create_dialog_open_animation;
+                    use radium_tui::effects::dialog_animations::create_dialog_open_animation;
                     let effect = create_dialog_open_animation(backdrop_area, dialog_area, 300);
                     app.effect_manager.add_effect(effect);
                 }
@@ -283,7 +372,7 @@ async fn main() -> Result<()> {
             let current_toast_count = app.toast_manager.toasts().len();
             if current_toast_count > app.previous_toast_count {
                 // New toasts appeared - animate them
-                use crate::effects::toast_animations::create_toast_show_animation;
+                use radium_tui::effects::toast_animations::create_toast_show_animation;
                 use tachyonfx::CellFilter;
                 for (idx, toast_area) in toast_areas.iter().enumerate() {
                     if idx < current_toast_count && idx >= app.previous_toast_count {

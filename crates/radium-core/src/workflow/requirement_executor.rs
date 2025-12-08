@@ -233,6 +233,14 @@ impl RequirementExecutor {
                 .update_task_status(&task_id, req_id, TaskStatus::InProgress, None)
                 .await?;
 
+            // Sub-step: Preparing
+            info!(
+                requirement_id = %req_id,
+                task_id = %task_id,
+                sub_step = "Preparing",
+                "Preparing task execution"
+            );
+
             // Build goal from task information
             let goal = if let Some(description) = &task.description {
                 format!("Task: {}\n\nDescription:\n{}", task.title, description)
@@ -244,6 +252,14 @@ impl RequirementExecutor {
                 requirement_id = %req_id,
                 task_id = %task_id,
                 "Attempting autonomous execution"
+            );
+
+            // Sub-step: Executing
+            info!(
+                requirement_id = %req_id,
+                task_id = %task_id,
+                sub_step = "Executing",
+                "Executing task"
             );
 
             // Try autonomous orchestrator first, fall back to direct execution if planning fails
@@ -287,10 +303,20 @@ impl RequirementExecutor {
 
                     match self.model.generate_text(&prompt, None).await {
                         Ok(response) => {
+                            // Sub-step: Validating
                             info!(
                                 requirement_id = %req_id,
                                 task_id = %task_id,
-                                "Direct execution completed"
+                                sub_step = "Validating",
+                                "Validating task execution"
+                            );
+
+                            // Sub-step: Completing
+                            info!(
+                                requirement_id = %req_id,
+                                task_id = %task_id,
+                                sub_step = "Completing",
+                                "Completing task"
                             );
 
                             let notes = format!(
@@ -586,6 +612,31 @@ impl RequirementExecutor {
     }
 }
 
+/// Sub-steps during task execution
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TaskSubStep {
+    /// Preparing - Loading context, validating dependencies
+    Preparing,
+    /// Executing - Running the actual task logic
+    Executing,
+    /// Validating - Checking outputs and success criteria
+    Validating,
+    /// Completing - Finalizing and updating status
+    Completing,
+}
+
+impl TaskSubStep {
+    /// Get human-readable name for the sub-step
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            TaskSubStep::Preparing => "Preparing",
+            TaskSubStep::Executing => "Executing",
+            TaskSubStep::Validating => "Validating",
+            TaskSubStep::Completing => "Completing",
+        }
+    }
+}
+
 /// Progress updates during requirement execution.
 #[derive(Debug, Clone)]
 pub enum RequirementProgress {
@@ -601,6 +652,13 @@ pub enum RequirementProgress {
         task_title: String,
         task_number: usize,
         total_tasks: usize,
+    },
+
+    /// A task sub-step update.
+    TaskSubStep {
+        task_id: String,
+        task_title: String,
+        sub_step: TaskSubStep,
     },
 
     /// A task completed successfully.

@@ -19,6 +19,8 @@ orchestrator-integration = []
 workflow = ["radium-orchestrator", "orchestrator-integration"]
 monitoring = []
 mcp-progress = ["indicatif"]
+server = []
+http = []
 
 [dependencies]
 # gRPC

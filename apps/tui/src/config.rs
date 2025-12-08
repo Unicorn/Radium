@@ -13,6 +13,9 @@ pub struct TuiConfig {
     /// Performance configuration
     #[serde(default)]
     pub performance: PerformanceConfig,
+    /// Animation configuration
+    #[serde(default)]
+    pub animations: AnimationConfig,
 }
 
 /// Performance configuration.
@@ -31,6 +34,42 @@ impl Default for PerformanceConfig {
     fn default() -> Self {
         Self {
             max_conversation_history: 500,
+        }
+    }
+}
+
+/// Animation configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AnimationConfig {
+    /// Whether animations are enabled (default: true)
+    #[serde(default = "default_animations_enabled")]
+    pub enabled: bool,
+    /// Animation duration multiplier (default: 1.0)
+    #[serde(default = "default_duration_multiplier")]
+    pub duration_multiplier: f64,
+    /// Whether to use reduced motion (default: false)
+    #[serde(default = "default_reduced_motion")]
+    pub reduced_motion: bool,
+}
+
+fn default_animations_enabled() -> bool {
+    true
+}
+
+fn default_duration_multiplier() -> f64 {
+    1.0
+}
+
+fn default_reduced_motion() -> bool {
+    false
+}
+
+impl Default for AnimationConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            duration_multiplier: 1.0,
+            reduced_motion: false,
         }
     }
 }
@@ -84,6 +123,7 @@ impl Default for TuiConfig {
         Self {
             theme: ThemeConfig::default(),
             performance: PerformanceConfig::default(),
+            animations: AnimationConfig::default(),
         }
     }
 }
@@ -137,6 +177,14 @@ impl TuiConfig {
         toml.push_str("[performance]\n");
         toml.push_str("# Maximum conversation history to keep in memory (default: 500)\n");
         toml.push_str(&format!("max_conversation_history = {}\n\n", self.performance.max_conversation_history));
+
+        toml.push_str("[animations]\n");
+        toml.push_str("# Whether animations are enabled (default: true)\n");
+        toml.push_str(&format!("enabled = {}\n", self.animations.enabled));
+        toml.push_str("# Animation duration multiplier (default: 1.0)\n");
+        toml.push_str(&format!("duration_multiplier = {}\n", self.animations.duration_multiplier));
+        toml.push_str("# Whether to use reduced motion (default: false)\n");
+        toml.push_str(&format!("reduced_motion = {}\n\n", self.animations.reduced_motion));
 
         if let Some(ref colors) = self.theme.colors {
             toml.push_str("# Custom colors (only used if preset = \"custom\")\n");

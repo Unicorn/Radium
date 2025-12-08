@@ -310,7 +310,7 @@ impl StatusFooter {
     pub fn render_with_input(
         frame: &mut Frame,
         area: Rect,
-        input: &str,
+        input: &crate::components::textarea::TextArea,
         mode: AppMode,
         context: Option<&DisplayContext>,
     ) {
@@ -352,21 +352,8 @@ impl StatusFooter {
         frame.render_widget(context_widget, chunks[0]);
 
         // Center: Input prompt (always visible, fixed position)
-        let prompt_text = if input.is_empty() {
-            format!("> _")
-        } else {
-            format!("> {}_", input)
-        };
-        
-        let prompt_widget = Paragraph::new(prompt_text)
-            .style(Style::default().fg(theme.primary))
-            .alignment(Alignment::Left)
-            .block(
-                Block::default()
-                    .borders(Borders::NONE)
-                    .padding(ratatui::widgets::Padding::new(0, 1, 0, 1)),
-            );
-        frame.render_widget(prompt_widget, chunks[1]);
+        // Render TextArea widget directly (it implements Widget)
+        frame.render_widget(input.clone(), chunks[1]);
 
         // Right: Keyboard shortcuts
         let shortcuts_text = mode.shortcuts();

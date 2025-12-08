@@ -117,7 +117,7 @@ mod tests {
     fn test_prompt_data_initialization() {
         let prompt_data = PromptData::new();
         assert_eq!(prompt_data.context, DisplayContext::Help);
-        assert!(prompt_data.input.is_empty());
+        assert!(prompt_data.input_text().is_empty());
         assert!(!prompt_data.output.is_empty()); // Should have welcome message
         assert!(prompt_data.conversation.is_empty());
         assert!(!prompt_data.command_palette_active);
@@ -127,21 +127,30 @@ mod tests {
     fn test_prompt_data_input_handling() {
         let mut prompt_data = PromptData::new();
         
-        // Test pushing characters
-        prompt_data.push_char('h');
-        prompt_data.push_char('e');
-        prompt_data.push_char('l');
-        prompt_data.push_char('l');
-        prompt_data.push_char('o');
-        assert_eq!(prompt_data.input, "hello");
+        // Test setting input
+        prompt_data.set_input("hello");
+        assert_eq!(prompt_data.input_text(), "hello");
 
-        // Test popping characters
-        prompt_data.pop_char();
-        assert_eq!(prompt_data.input, "hell");
+        // Test setting different input
+        prompt_data.set_input("hell");
+        assert_eq!(prompt_data.input_text(), "hell");
 
         // Test clearing input
         prompt_data.clear_input();
-        assert!(prompt_data.input.is_empty());
+        assert!(prompt_data.input_text().is_empty());
+    }
+
+    #[test]
+    fn test_prompt_data_multiline_input() {
+        let mut prompt_data = PromptData::new();
+        
+        // Test multiline input
+        prompt_data.set_input("line1\nline2\nline3");
+        assert_eq!(prompt_data.input_text(), "line1\nline2\nline3");
+        
+        let input_text = prompt_data.input_text();
+        let lines: Vec<&str> = input_text.lines().collect();
+        assert_eq!(lines.len(), 3);
     }
 
     #[test]
@@ -205,9 +214,7 @@ mod tests {
         let mut prompt_data = PromptData::new();
         
         // Simulate typing "/ch"
-        prompt_data.push_char('/');
-        prompt_data.push_char('c');
-        prompt_data.push_char('h');
+        prompt_data.set_input("/ch");
         
         // Command suggestions should be filtered
         prompt_data.command_suggestions = vec![
@@ -217,6 +224,39 @@ mod tests {
         
         assert!(!prompt_data.command_suggestions.is_empty());
         assert!(prompt_data.command_suggestions.iter().any(|s| s.contains("chat")));
+    }
+
+    #[test]
+    fn test_command_parsing_with_multiline_input() {
+        let mut prompt_data = PromptData::new();
+        
+        // Set multiline input with command on first line
+        prompt_data.set_input("/chat agent-1\nsome note");
+        
+        // Command parsing should work with first line
+        let input = prompt_data.input_text();
+        let first_line = input.lines().next().unwrap_or("");
+        let cmd = Command::parse(first_line);
+        
+        assert!(cmd.is_some());
+        if let Some(cmd) = cmd {
+            assert_eq!(cmd.name, "chat");
+            assert_eq!(cmd.args, vec!["agent-1"]);
+        }
+    }
+
+    #[test]
+    fn test_enter_vs_cmd_enter_behavior() {
+        let mut prompt_data = PromptData::new();
+        prompt_data.set_input("test message");
+        
+        // Plain Enter should insert newline (tested via TextArea)
+        use crossterm::event::{KeyCode, KeyModifiers};
+        prompt_data.input.handle_key(KeyCode::Enter, KeyModifiers::NONE);
+        
+        let text = prompt_data.input_text();
+        // Should have newline inserted
+        assert!(text.contains('\n') || text.ends_with('\n'));
     }
 
     #[test]

@@ -6,6 +6,7 @@ use ratatui::{
     prelude::*,
     widgets::{Block, Borders, Paragraph, Wrap},
 };
+use crate::components::textarea::TextArea;
 
 use crate::commands::DisplayContext;
 use crate::components::InteractiveTable;
@@ -13,13 +14,18 @@ use crate::icons::Icons;
 use crate::setup::SetupWizard;
 use crate::theme::THEME;
 use ratatui::layout::Constraint;
+use tachyonfx::{EffectTimer, Interpolation};
+
+fn create_table_timer(duration_ms: u64) -> EffectTimer {
+    EffectTimer::from_ms(duration_ms as u32, Interpolation::QuadOut)
+}
 
 /// Unified prompt data.
 pub struct PromptData {
     /// Current display context
     pub context: DisplayContext,
-    /// Input buffer for prompt
-    pub input: String,
+    /// Input buffer for prompt (multiline textarea)
+    pub input: TextArea,
     /// Output/display lines
     pub output: Vec<String>,
     /// Chat conversation history (when in Chat context)
@@ -47,7 +53,7 @@ impl PromptData {
     pub fn new() -> Self {
         Self {
             context: DisplayContext::Help,
-            input: String::new(),
+            input: TextArea::default(),
             output: vec![
                 "Welcome to Radium TUI!".to_string(),
                 "".to_string(),
@@ -69,19 +75,23 @@ impl PromptData {
             scrollback_offset: 0,
             command_palette_active: false,
             command_palette_query: String::new(),
+            previous_selected_index: 0,
         }
     }
 
-    pub fn push_char(&mut self, c: char) {
-        self.input.push(c);
+    /// Get the current input text as a String.
+    pub fn input_text(&self) -> String {
+        self.input.text()
     }
 
-    pub fn pop_char(&mut self) {
-        self.input.pop();
-    }
-
+    /// Clear the input textarea.
     pub fn clear_input(&mut self) {
         self.input.clear();
+    }
+
+    /// Set the input text content.
+    pub fn set_input(&mut self, text: &str) {
+        self.input.set_text(text);
     }
 
     pub fn add_output(&mut self, line: String) {
@@ -129,6 +139,86 @@ impl PromptData {
         }
 
         self.conversation[start..end].to_vec()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    #[test]
+    fn test_prompt_data_new() {
+        let data = PromptData::new();
+        assert_eq!(data.context, DisplayContext::Help);
+        assert_eq!(data.input_text(), "");
+        assert!(data.output.len() > 0);
+    }
+
+    #[test]
+    fn test_input_text_empty() {
+        let data = PromptData::new();
+        assert_eq!(data.input_text(), "");
+    }
+
+    #[test]
+    fn test_set_input() {
+        let mut data = PromptData::new();
+        data.set_input("test input");
+        assert_eq!(data.input_text(), "test input");
+    }
+
+    #[test]
+    fn test_set_input_multiline() {
+        let mut data = PromptData::new();
+        data.set_input("line1\nline2\nline3");
+        assert_eq!(data.input_text(), "line1\nline2\nline3");
+    }
+
+    #[test]
+    fn test_clear_input() {
+        let mut data = PromptData::new();
+        data.set_input("some text");
+        assert_eq!(data.input_text(), "some text");
+        data.clear_input();
+        assert_eq!(data.input_text(), "");
+    }
+
+    #[test]
+    fn test_textarea_basic_input() {
+        let mut data = PromptData::new();
+        data.input.handle_key(KeyCode::Char('h'), KeyModifiers::NONE);
+        data.input.handle_key(KeyCode::Char('i'), KeyModifiers::NONE);
+        assert_eq!(data.input_text(), "hi");
+    }
+
+    #[test]
+    fn test_textarea_multiline_input() {
+        let mut data = PromptData::new();
+        // Type "hello"
+        for c in "hello".chars() {
+            data.input.handle_key(KeyCode::Char(c), KeyModifiers::NONE);
+        }
+        // Press Enter
+        data.input.handle_key(KeyCode::Enter, KeyModifiers::NONE);
+        // Type "world"
+        for c in "world".chars() {
+            data.input.handle_key(KeyCode::Char(c), KeyModifiers::NONE);
+        }
+        assert_eq!(data.input_text(), "hello\nworld");
+    }
+
+    #[test]
+    fn test_textarea_backspace() {
+        let mut data = PromptData::new();
+        // Type "test"
+        for c in "test".chars() {
+            data.input.handle_key(KeyCode::Char(c), KeyModifiers::NONE);
+        }
+        assert_eq!(data.input_text(), "test");
+        // Press Backspace
+        data.input.handle_key(KeyCode::Backspace, KeyModifiers::NONE);
+        assert_eq!(data.input_text(), "tes");
     }
 }
 
@@ -202,7 +292,8 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
                     .collect();
                 
                 table.set_items(items);
-                table.set_selected(Some(data.selected_index.min(data.agents.len().saturating_sub(1))));
+                let selected_idx = data.selected_index.min(data.agents.len().saturating_sub(1));
+                table.set_selected(Some(selected_idx));
                 table.render(frame, area, Some(" Available Agents "));
             }
         }

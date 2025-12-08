@@ -55,6 +55,6 @@ pub fn create_dialog_close_animation(
 }
 
 fn create_timer(duration_ms: u64, interpolation: Interpolation) -> EffectTimer {
-    EffectTimer::from_ms(duration_ms, interpolation)
+    EffectTimer::from_ms(duration_ms as u32, interpolation)
 }
 

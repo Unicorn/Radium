@@ -46,7 +46,7 @@ pub fn render_title_bar(
         .split(content_area);
 
     // Left side: "Radium" (neon green, bold) | Version (normal text)
-    let mut left_parts = vec![
+    let left_parts = vec![
         Span::styled(
             "Radium",
             Style::default().fg(neon_green).add_modifier(Modifier::BOLD),
@@ -59,8 +59,7 @@ pub fn render_title_bar(
     ];
 
     let left_widget = Paragraph::new(Line::from(left_parts))
-        .alignment(Alignment::Left)
-        .style(Style::default().bg(theme.bg_primary));
+        .alignment(Alignment::Left);
     frame.render_widget(left_widget, chunks[0]);
 
     // Right side: Orchestration status | Connected Services
@@ -94,17 +93,17 @@ pub fn render_title_bar(
     }
 
     let right_widget = Paragraph::new(Line::from(right_parts))
-        .alignment(Alignment::Right)
-        .style(Style::default().bg(theme.bg_primary));
+        .alignment(Alignment::Right);
     frame.render_widget(right_widget, chunks[2]);
 
     // Draw bottom border in light purple on the last line of the title area
     let border_y = area.bottom().saturating_sub(1);
     if border_y >= area.y && border_y < area.bottom() {
         for x in area.left()..area.right() {
-            let cell = frame.buffer_mut().cell_mut(x, border_y);
-            cell.set_char('─');
-            cell.set_style(Style::default().fg(light_purple).bg(theme.bg_primary));
+            if let Some(cell) = frame.buffer_mut().cell_mut((x, border_y)) {
+                cell.set_char('─');
+                cell.set_style(Style::default().fg(light_purple));
+            }
         }
     }
 }

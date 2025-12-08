@@ -408,7 +408,7 @@ impl AutonomousOrchestrator {
                 );
 
                 // Try to recover or reassign if enabled
-                let mut recovered = false;
+                let mut _recovered = false;
 
                 // Attempt recovery if enabled
                 if let Some(ref recovery_manager) = self.recovery_manager {
@@ -418,7 +418,7 @@ impl AutonomousOrchestrator {
                         Arc::clone(&db),
                     ).await {
                         recoveries_performed += 1;
-                        recovered = true;
+                        _recovered = true;
                         info!(
                             workflow_id = %workflow_id,
                             "Recovery successful"
@@ -433,7 +433,7 @@ impl AutonomousOrchestrator {
                                 Arc::clone(&db),
                             ).await {
                                 reassignments_performed += 1;
-                                recovered = true;
+                                _recovered = true;
                                 info!(
                                     workflow_id = %workflow_id,
                                     "Reassignment successful"

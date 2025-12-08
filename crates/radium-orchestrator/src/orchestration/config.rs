@@ -208,7 +208,7 @@ impl OrchestrationConfig {
         // Try workspace path first
         if let Some(parent) = workspace_path.parent() {
             // Create parent directory if needed
-            if let Err(e) = std::fs::create_dir_all(parent) {
+            if let Err(_e) = std::fs::create_dir_all(parent) {
                 // If directory creation fails, fall back to default path
                 return self.save_to_file(Self::default_config_path());
             }

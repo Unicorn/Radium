@@ -74,16 +74,17 @@ pub fn render_start_page(frame: &mut Frame, area: Rect, prompt_data: &PromptData
         height: chunks[10].height,
     };
 
-    let placeholder = if prompt_data.input.is_empty() {
+    let input_text = prompt_data.input_text();
+    let placeholder = if input_text.is_empty() {
         "Type /help for commands or chat naturally"
     } else {
         ""
     };
     
-    let prompt_text = if prompt_data.input.is_empty() {
+    let prompt_text = if input_text.is_empty() {
         format!("{}_", placeholder)
     } else {
-        format!("{}_", prompt_data.input)
+        format!("{}_", input_text)
     };
 
     let prompt_widget = Paragraph::new(prompt_text)

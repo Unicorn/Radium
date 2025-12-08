@@ -1,6 +1,6 @@
 //! Progress bar component for requirement execution.
 
-use crate::requirement_progress::ActiveRequirement;
+use crate::requirement_progress::{ActiveRequirement, ActiveRequirementProgress};
 use ratatui::{
     prelude::*,
     widgets::{Block, Borders, Gauge, Paragraph, Wrap},
@@ -44,6 +44,8 @@ pub fn render_requirement_progress(frame: &mut Frame, area: Rect, active_req: &A
         progress
     );
 
+    // Use animated color for progress bar (will be enhanced with effects)
+    let progress_color = theme.primary;
     let progress_bar = Gauge::default()
         .block(
             Block::default()
@@ -52,10 +54,13 @@ pub fn render_requirement_progress(frame: &mut Frame, area: Rect, active_req: &A
                 .style(Style::default().bg(theme.bg_panel))
                 .title(" Progress "),
         )
-        .gauge_style(Style::default().fg(theme.primary).bg(theme.bg_panel))
+        .gauge_style(Style::default().fg(progress_color).bg(theme.bg_panel))
         .percent(progress as u16)
         .label(progress_label);
     frame.render_widget(progress_bar, chunks[1]);
+    
+    // Note: Progress value animations are handled by smooth value updates
+    // Color pulse effects can be added via effect_manager if needed
 
     // Current task
     let task_text = if let Some(ref task) = active_req.current_task {
@@ -105,6 +110,128 @@ pub fn render_requirement_progress(frame: &mut Frame, area: Rect, active_req: &A
     frame.render_widget(task_stats, chunks[3]);
 }
 
+/// Renders a progress bar for an active requirement using the new ProgressMessage system.
+pub fn render_requirement_progress_new(frame: &mut Frame, area: Rect, active_req: &ActiveRequirementProgress) {
+    let theme = crate::theme::get_theme();
+
+    // Split area into sections
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3), // Header with requirement ID
+            Constraint::Length(3), // Progress bar with status symbol
+            Constraint::Length(3), // Current task with status
+            Constraint::Length(4), // Task stats with tokens and duration
+            Constraint::Min(0),    // Spacing
+        ])
+        .split(area);
+
+    // Header
+    let status_symbol = active_req.status.symbol();
+    let header_text = format!("{} Requirement: {}", status_symbol, active_req.req_id);
+    let header = Paragraph::new(header_text)
+        .style(Style::default().fg(theme.primary).add_modifier(Modifier::BOLD))
+        .alignment(Alignment::Center)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme.border))
+                .style(Style::default().bg(theme.bg_panel)),
+        );
+    frame.render_widget(header, chunks[0]);
+
+    // Progress bar
+    let progress = active_req.progress_percentage();
+    let progress_label = if let Some(ref result) = active_req.execution_result {
+        format!(
+            "{} tasks completed, {} failed ({}%)",
+            result.tasks_completed,
+            result.tasks_failed,
+            progress
+        )
+    } else {
+        format!("{}%", progress)
+    };
+
+    let progress_color = match active_req.status {
+        crate::progress_channel::TaskStatus::Pending => theme.text,
+        crate::progress_channel::TaskStatus::Running => theme.primary,
+        crate::progress_channel::TaskStatus::Completed => theme.success,
+        crate::progress_channel::TaskStatus::Failed => theme.error,
+    };
+
+    let progress_bar = Gauge::default()
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme.border))
+                .style(Style::default().bg(theme.bg_panel))
+                .title(" Progress "),
+        )
+        .gauge_style(Style::default().fg(progress_color).bg(theme.bg_panel))
+        .percent(progress as u16)
+        .label(progress_label);
+    frame.render_widget(progress_bar, chunks[1]);
+
+    // Current task with status symbol
+    let task_text = if let Some(ref task_title) = active_req.current_task_title {
+        format!("{} {}", active_req.status.symbol(), task_title)
+    } else {
+        format!("{} Waiting...", active_req.status.symbol())
+    };
+
+    let current_task = Paragraph::new(task_text)
+        .style(Style::default().fg(theme.text))
+        .wrap(Wrap { trim: true })
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme.border))
+                .style(Style::default().bg(theme.bg_panel))
+                .title(" Current Task "),
+        );
+    frame.render_widget(current_task, chunks[2]);
+
+    // Task stats with tokens and duration
+    let elapsed_secs = active_req.elapsed_duration.as_secs();
+    let stats_text = vec![
+        Line::from(vec![
+            Span::styled(" Completed: ", Style::default().fg(theme.success)),
+            Span::styled(
+                active_req.tasks_completed.to_string(),
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled("  Failed: ", Style::default().fg(theme.error)),
+            Span::styled(
+                active_req.tasks_failed.to_string(),
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled(" Tokens: ", Style::default().fg(theme.primary)),
+            Span::styled(
+                format!("{} in, {} out", active_req.tokens_in, active_req.tokens_out),
+                Style::default().fg(theme.text),
+            ),
+            Span::styled("  Duration: ", Style::default().fg(theme.primary)),
+            Span::styled(
+                format!("{}s", elapsed_secs),
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            ),
+        ]),
+    ];
+
+    let task_stats = Paragraph::new(stats_text)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme.border))
+                .style(Style::default().bg(theme.bg_panel))
+                .title(" Statistics "),
+        );
+    frame.render_widget(task_stats, chunks[3]);
+}
+
 /// Renders a minimal inline progress indicator (for use in status line).
 pub fn render_inline_progress(active_req: &ActiveRequirement) -> String {
     let spinner = get_spinner(active_req.tasks_completed);
@@ -114,6 +241,18 @@ pub fn render_inline_progress(active_req: &ActiveRequirement) -> String {
         format!("{} {} ({}%)", spinner, truncate_task_name(task, 30), progress)
     } else {
         format!("{} Waiting... ({}%)", spinner, progress)
+    }
+}
+
+/// Renders a minimal inline progress indicator for the new ProgressMessage system.
+pub fn render_inline_progress_new(active_req: &ActiveRequirementProgress) -> String {
+    let status_symbol = active_req.status.symbol();
+    let progress = active_req.progress_percentage();
+
+    if let Some(ref task_title) = active_req.current_task_title {
+        format!("{} {} ({}%)", status_symbol, truncate_task_name(task_title, 30), progress)
+    } else {
+        format!("{} Waiting... ({}%)", status_symbol, progress)
     }
 }
 
