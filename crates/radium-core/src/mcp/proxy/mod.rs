@@ -82,6 +82,7 @@
 //! # }
 //! ```
 
+pub mod catalog;
 pub mod config;
 pub mod health;
 pub mod router;
@@ -89,6 +90,7 @@ pub mod types;
 pub mod upstream_pool;
 
 // Re-export public types
+pub use catalog::DefaultToolCatalog;
 pub use config::ProxyConfigManager;
 pub use health::HealthChecker;
 pub use router::DefaultToolRouter;
