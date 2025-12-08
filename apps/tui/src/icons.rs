@@ -31,6 +31,9 @@ impl Icons {
     /// Settings
     pub const SETTINGS: &'static str = "⚙️";
 
+    /// Edit / Input
+    pub const EDIT: &'static str = "✏️";
+
     /// Info
     pub const INFO: &'static str = "ℹ";
 

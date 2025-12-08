@@ -413,11 +413,35 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
                 }
             }
 
+            // Build chat history title with scroll position indicator
+            let total_lines = data.conversation.len();
+            let scroll_pos = data.chat_scroll_offset + 1;
             let chat_title = if data.is_chat_focused() {
-                format!("{} Chat History [FOCUSED]", Icons::CHAT)
+                if total_lines > 0 {
+                    format!("{} Chat History [FOCUSED] ↑{}/{}", Icons::CHAT, scroll_pos, total_lines)
+                } else {
+                    format!("{} Chat History [FOCUSED]", Icons::CHAT)
+                }
             } else {
-                format!("{} Chat History", Icons::CHAT)
+                if total_lines > 0 {
+                    format!("{} Chat History ↑{}/{}", Icons::CHAT, scroll_pos, total_lines)
+                } else {
+                    format!("{} Chat History", Icons::CHAT)
+                }
             };
+
+            // Check if there's more content below
+            let has_more_below = data.chat_scroll_offset < total_lines.saturating_sub(viewport_height);
+            
+            // Add scroll indicator if there's more content below
+            if has_more_below && !visible_conversation.is_empty() {
+                let indicator_line = ratatui::text::Line::from(Span::styled(
+                    format!("  ↓ More messages below (↑/↓ to scroll)"),
+                    Style::default().fg(THEME.text_dim())
+                ));
+                markdown_lines.push(ratatui::text::Line::from(""));
+                markdown_lines.push(indicator_line);
+            }
 
             let chat_widget = Paragraph::new(markdown_lines)
                 .wrap(Wrap { trim: true })
@@ -439,9 +463,9 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData) {
 
             // Bottom pane: Prompt editor
             let prompt_title = if data.is_prompt_focused() {
-                format!("{} Prompt [FOCUSED]", Icons::CHAT) // Using CHAT icon for now, will add EDIT in Task 5
+                format!("{} Prompt [FOCUSED]", Icons::EDIT)
             } else {
-                format!("{} Prompt", Icons::CHAT)
+                format!("{} Prompt", Icons::EDIT)
             };
 
             let prompt_block = Block::default()
