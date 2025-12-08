@@ -42,6 +42,8 @@ pub use progress_indicator::{render_progress_bar_simple, render_progress_gauge, 
 pub use requirement_progress_bar::{render_requirement_progress, render_requirement_progress_new, render_inline_progress, render_inline_progress_new};
 pub use spinner::{Spinner, SpinnerFrames};
 pub use status_footer::{AppMode, StatusFooter};
+pub use status_icon::{get_status_color, render_status_icon};
+pub use task_list::{render_task_summary, TaskItem, TaskList};
 pub use telemetry_bar::TelemetryBar;
 pub use title_bar::render_title_bar;
 pub use toast::{Toast, ToastManager, ToastVariant, render_toasts, render_toasts_with_areas};

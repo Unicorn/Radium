@@ -80,19 +80,22 @@ impl TelemetryBar {
             );
         frame.render_widget(status_widget, chunks[1]);
 
-        // Token info with cached tokens
+        // Token info with breakdown: "1,234 in / 5,678 out (6,912 total)"
+        let total_tokens = telemetry.overall_tokens.total();
         let token_text = if telemetry.overall_tokens.cached_tokens > 0 {
             format!(
-                "{}in / {}out\n({} cached)",
+                "{} in / {} out\n({} total, {} cached)",
                 format_number(telemetry.overall_tokens.input_tokens),
                 format_number(telemetry.overall_tokens.output_tokens),
+                format_number(total_tokens),
                 format_number(telemetry.overall_tokens.cached_tokens)
             )
         } else {
             format!(
-                "{}in / {}out",
+                "{} in / {} out\n({} total)",
                 format_number(telemetry.overall_tokens.input_tokens),
-                format_number(telemetry.overall_tokens.output_tokens)
+                format_number(telemetry.overall_tokens.output_tokens),
+                format_number(total_tokens)
             )
         };
 
@@ -207,9 +210,15 @@ impl TelemetryBar {
 
     /// Renders a compact telemetry summary in a single line.
     pub fn render_compact(frame: &mut Frame, area: Rect, telemetry: &TelemetryState) {
+        let token_breakdown = format!(
+            "{} in / {} out ({} total)",
+            format_number(telemetry.overall_tokens.input_tokens),
+            format_number(telemetry.overall_tokens.output_tokens),
+            format_number(telemetry.overall_tokens.total())
+        );
         let summary = format!(
             "Tokens: {} | Cost: ${:.4} | Model: {}/{}",
-            format_number(telemetry.overall_tokens.total()),
+            token_breakdown,
             telemetry.overall_cost,
             telemetry.provider.as_deref().unwrap_or("?"),
             telemetry.model.as_deref().unwrap_or("?")
