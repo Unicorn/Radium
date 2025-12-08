@@ -129,7 +129,9 @@ pub use sandbox::{
 };
 #[cfg(feature = "orchestrator-integration")]
 pub use sandbox::AgentSandboxManager;
-pub use security::{PrivacyError, Result as PrivacyResult};
+pub use security::{
+    PrivacyError, Result as PrivacyResult, Pattern, PatternLibrary,
+};
 pub use storage::{
     AgentRepository, Database, SqliteAgentRepository, SqliteTaskRepository,
     SqliteWorkflowRepository, StorageError, TaskRepository, WorkflowRepository,
