@@ -624,7 +624,8 @@ impl AgentExecutor {
                             input_tokens * 0.3 / 0.7 // Default estimate
                         };
                         let model_id = current_model.model_id();
-                        let (input_price, output_price) = Self::estimate_pricing_for_model(&current_provider, model_id);
+                        // Pricing estimation disabled - requires radium_core dependency
+                        // let (input_price, output_price) = Self::estimate_pricing_for_model(&current_provider, model_id);
                         let actual_cost = (input_tokens / 1_000_000.0) * input_price 
                             + (output_tokens / 1_000_000.0) * output_price;
                         

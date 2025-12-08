@@ -99,6 +99,7 @@ impl TaskDispatcher {
         }
 
         let (shutdown_tx, mut shutdown_rx) = watch::channel(());
+        let shutdown_tx_for_error = shutdown_tx.clone();
         self.shutdown_tx = Some(shutdown_tx);
 
         let config = self.config.clone();
@@ -216,9 +217,7 @@ impl TaskDispatcher {
                                         }
 
                                         // Signal shutdown
-                                        if let Some(shutdown_tx) = shutdown_tx.as_ref() {
-                                            let _ = shutdown_tx.send(());
-                                        }
+                                        let _ = shutdown_tx_for_error.send(());
 
                                         // Mark task as completed and break
                                         queue.mark_completed(&task_id).await;

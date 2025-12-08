@@ -78,13 +78,13 @@ impl ParallelExecutor {
     /// * `requirement_id` - The requirement ID for status updates
     ///
     /// # Returns
-    /// Execution report with summary statistics
+    /// Tuple of (ExecutionReport, ExecutionState) with summary statistics and execution state
     pub async fn execute_tasks(
         &self,
         tasks: Vec<BraingridTask>,
         dep_graph: &DependencyGraph,
         requirement_id: &str,
-    ) -> Result<ExecutionReport, String> {
+    ) -> Result<(ExecutionReport, Arc<ExecutionState>), String> {
         let start_time = std::time::Instant::now();
 
         // Get all task IDs
@@ -427,7 +427,7 @@ impl ParallelExecutor {
             "Parallel execution completed"
         );
 
-        Ok(report)
+        Ok((report, execution_state))
     }
 
     /// Checks if a task is blocked by failed dependencies.

@@ -6,7 +6,12 @@
 use anyhow::{Context, bail};
 use colored::Colorize;
 use radium_core::{
-    workflow::{RequirementExecutor, RequirementExecutionError},
+    context::braingrid_client::BraingridClient,
+    planning::dag::DependencyGraph,
+    workflow::{
+        AgentSelector, ExecutionState, ParallelExecutor, ProgressReporter, ReportGenerator,
+        RequirementExecutor, RequirementExecutionError, StatePersistence,
+    },
     agents::registry::AgentRegistry,
     storage::Database,
     Workspace,
@@ -66,7 +71,18 @@ struct Pagination {
 /// # Arguments
 /// * `req_id` - Braingrid requirement ID (e.g., "REQ-173")
 /// * `project_id` - Braingrid project ID (e.g., "PROJ-14")
-pub async fn execute(req_id: String, project_id: Option<String>) -> anyhow::Result<()> {
+/// * `max_parallel` - Maximum concurrent task executions
+/// * `dry_run` - Show execution plan without running
+/// * `resume` - Resume from last checkpoint
+/// * `skip_breakdown` - Fail if no tasks instead of triggering breakdown
+pub async fn execute(
+    req_id: String,
+    project_id: Option<String>,
+    max_parallel: usize,
+    dry_run: bool,
+    resume: bool,
+    skip_breakdown: bool,
+) -> anyhow::Result<()> {
     println!("{}", "rad requirement execute".bold().cyan());
     println!();
 
@@ -88,6 +104,13 @@ pub async fn execute(req_id: String, project_id: Option<String>) -> anyhow::Resu
     println!("{}", "Configuration:".bold());
     println!("  Requirement ID: {}", req_id.cyan());
     println!("  Project ID: {}", project_id.cyan());
+    println!("  Max Parallel: {}", max_parallel);
+    if dry_run {
+        println!("  {} Dry-run mode (no execution)", "⚠".yellow());
+    }
+    if resume {
+        println!("  {} Resume mode", "↻".cyan());
+    }
     println!();
 
     // Discover workspace
@@ -138,90 +161,154 @@ pub async fn execute(req_id: String, project_id: Option<String>) -> anyhow::Resu
     println!("  {} Model initialized", "✓".green());
     println!();
 
-    // Create requirement executor
-    println!("{}", "Creating requirement executor...".dimmed());
-    let executor_instance = RequirementExecutor::new(
-        project_id.clone(),
-        &orchestrator,
-        &executor,
-        &db,
-        agent_registry,
-        model,
-    )
-    .context("Failed to create requirement executor")?;
-    println!("  {} Executor created", "✓".green());
+    // Initialize Braingrid client
+    let braingrid_client = Arc::new(BraingridClient::new(project_id.clone()));
+
+    // Fetch requirement
+    println!("{}", "Fetching requirement...".dimmed());
+    let mut requirement = braingrid_client
+        .fetch_requirement_tree(&req_id)
+        .await
+        .context("Failed to fetch requirement")?;
+    println!("  {} Requirement loaded: {}", "✓".green(), requirement.name);
     println!();
 
-    // Execute requirement
+    // Check if tasks exist, trigger breakdown if needed
+    if requirement.tasks.is_empty() {
+        if skip_breakdown {
+            bail!("No tasks found for requirement {} and --skip-breakdown is set", req_id);
+        }
+        println!("{}", "No tasks found, triggering breakdown...".dimmed());
+        requirement.tasks = braingrid_client
+            .breakdown_requirement(&req_id)
+            .await
+            .context("Failed to trigger breakdown")?;
+        println!("  {} Generated {} tasks", "✓".green(), requirement.tasks.len());
+        println!();
+    }
+
+    // Build dependency graph
+    println!("{}", "Building dependency graph...".dimmed());
+    let dep_graph = DependencyGraph::from_braingrid_tasks(&requirement.tasks)
+        .context("Failed to build dependency graph")?;
+    
+    // Validate for cycles
+    dep_graph.detect_cycles()
+        .map_err(|e| anyhow::anyhow!("Circular dependency detected: {}", e))?;
+    
+    println!("  {} Dependency graph validated", "✓".green());
+    println!();
+
+    // Dry-run mode: show execution plan
+    if dry_run {
+        println!("{}", "Execution Plan (Dry-Run)".bold().cyan());
+        println!("{}", "─".repeat(60).dimmed());
+        println!();
+        
+        let execution_order = dep_graph.topological_sort()
+            .context("Failed to get execution order")?;
+        
+        println!("  Execution Order:");
+        for (idx, task_id) in execution_order.iter().enumerate() {
+            if let Some(task) = requirement.tasks.iter().find(|t| t.number == *task_id) {
+                println!("    {}. {}: {}", idx + 1, task_id, task.title);
+            }
+        }
+        println!();
+        
+        println!("  Ready Tasks (can run in parallel):");
+        let ready = dep_graph.ready_tasks(&std::collections::HashSet::new());
+        for task_id in ready {
+            if let Some(task) = requirement.tasks.iter().find(|t| t.number == task_id) {
+                println!("    - {}: {}", task_id, task.title);
+            }
+        }
+        println!();
+        
+        println!("  {} Dry-run complete. Use without --dry-run to execute.", "ℹ".cyan());
+        return Ok(());
+    }
+
+    // Initialize state persistence
+    let state_persistence = StatePersistence::new(workspace.root());
+
+    // Check for resume
+    if resume {
+        if let Some(persisted_state) = state_persistence.load_state(&req_id)
+            .context("Failed to load execution state")? {
+            println!("{}", format!("Resuming from checkpoint ({} completed tasks)", persisted_state.completed_tasks.len()).dimmed());
+            println!();
+        }
+    }
+
+    // Create agent selector
+    let agent_selector = Arc::new(AgentSelector::new(Arc::clone(&agent_registry)));
+
+    // Create parallel executor
+    let parallel_executor = ParallelExecutor::new(
+        max_parallel,
+        Arc::clone(&braingrid_client),
+        Arc::clone(&executor),
+        agent_selector,
+    );
+
+    // Initialize progress reporter
+    let mut progress_reporter = ProgressReporter::new(requirement.clone(), requirement.tasks.len());
+
+    // Update requirement status to IN_PROGRESS
+    braingrid_client
+        .update_requirement_status(&req_id, radium_core::context::braingrid_client::RequirementStatus::InProgress)
+        .await
+        .context("Failed to update requirement status")?;
+
+    // Execute tasks
     println!("{}", format!("Executing requirement {}...", req_id).bold());
     println!("{}", "─".repeat(60).dimmed());
     println!();
 
-    let result = executor_instance
-        .execute_requirement(&req_id)
+    let (execution_report, execution_state) = parallel_executor
+        .execute_tasks(requirement.tasks.clone(), &dep_graph, &req_id)
         .await
-        .map_err(|e| match e {
-            RequirementExecutionError::Braingrid(err) => {
-                if err.to_string().contains("not found") {
-                    anyhow::anyhow!("Requirement {} not found in project {}", req_id, project_id)
-                } else {
-                    anyhow::anyhow!("Braingrid error: {}", err)
-                }
-            }
-            RequirementExecutionError::NoTasks(req) => {
-                anyhow::anyhow!("No tasks available for requirement {} after breakdown", req)
-            }
-            RequirementExecutionError::Autonomous(err) => {
-                anyhow::anyhow!("Autonomous execution error: {}", err)
-            }
-            RequirementExecutionError::TaskFailed(task_id, err) => {
-                anyhow::anyhow!("Task {} failed: {}", task_id, err)
-            }
-            RequirementExecutionError::Configuration(err) => {
-                anyhow::anyhow!("Configuration error: {}", err)
-            }
-        })?;
+        .map_err(|e| anyhow::anyhow!("Parallel execution failed: {}", e))?;
+
+    // Generate completion report
+    let report_generator = ReportGenerator::new(workspace.root());
+    let completion_report = report_generator.generate_report(
+        &requirement,
+        &execution_state,
+        &execution_report,
+    );
+
+    // Save report
+    let report_path = report_generator
+        .save_report(&completion_report, &req_id)
+        .context("Failed to save completion report")?;
+    
+    println!("  {} Completion report saved to: {}", "✓".green(), report_path.display());
+
+    // Update requirement status
+    let final_status = if execution_report.success {
+        radium_core::context::braingrid_client::RequirementStatus::Review
+    } else {
+        radium_core::context::braingrid_client::RequirementStatus::InProgress
+    };
+    
+    braingrid_client
+        .update_requirement_status(&req_id, final_status.clone())
+        .await
+        .context("Failed to update requirement status")?;
+
+    // Clean up state on success
+    if execution_report.success {
+        let _ = state_persistence.delete_state(&req_id);
+    }
+
+    // Display summary
+    progress_reporter.finish(&execution_report);
+    report_generator.display_summary(&completion_report);
 
     let elapsed = start_time.elapsed();
 
-    // Display results
-    println!();
-    println!("{}", "─".repeat(60).dimmed());
-    println!("{}", "Execution Summary".bold().cyan());
-    println!("{}", "─".repeat(60).dimmed());
-    println!();
-
-    println!("  Requirement: {}", result.requirement_id.cyan());
-    println!("  Tasks Completed: {}", result.tasks_completed.to_string().green());
-    println!("  Tasks Failed: {}", result.tasks_failed.to_string().red());
-    println!("  Execution Time: {}s", elapsed.as_secs().to_string().cyan());
-    println!("  Final Status: {:?}", result.final_status);
-    println!();
-
-    if result.success {
-        println!(
-            "  {} Requirement execution completed successfully!",
-            "✓".green()
-        );
-        println!(
-            "  {} Requirement status set to REVIEW",
-            "→".cyan()
-        );
-    } else {
-        println!(
-            "  {} Requirement execution completed with {} failed tasks",
-            "⚠".yellow(),
-            result.tasks_failed
-        );
-        println!(
-            "  {} Review failed tasks in Braingrid",
-            "→".yellow()
-        );
-    }
-
-    println!();
-    println!("{}", "─".repeat(60).dimmed());
-    println!();
 
     Ok(())
 }

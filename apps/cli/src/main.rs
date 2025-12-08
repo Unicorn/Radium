@@ -150,6 +150,22 @@ enum Command {
         /// List all requirements for the project
         #[arg(long)]
         ls: bool,
+
+        /// Maximum number of concurrent task executions (default: 3)
+        #[arg(long, default_value = "3")]
+        parallel: usize,
+
+        /// Show execution plan without running tasks
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Resume from last checkpoint if execution was interrupted
+        #[arg(long)]
+        resume: bool,
+
+        /// Fail if no tasks exist instead of triggering breakdown
+        #[arg(long)]
+        skip_breakdown: bool,
     },
 
     /// Braingrid operations
