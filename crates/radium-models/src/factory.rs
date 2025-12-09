@@ -3,7 +3,7 @@
 //! This module provides functionality to create model instances based on configuration,
 //! handling API key loading from environment variables.
 
-use crate::{ClaudeModel, GeminiModel, MockModel, OpenAIModel};
+use crate::{ClaudeModel, GeminiModel, MockModel, OpenAIModel, UniversalModel};
 use radium_abstraction::{Model, ModelError};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -20,6 +20,8 @@ pub enum ModelType {
     Gemini,
     /// OpenAI model.
     OpenAI,
+    /// Universal OpenAI-compatible model (vLLM, LocalAI, LM Studio, etc.).
+    Universal,
     /// Ollama local model.
     Ollama,
 }
