@@ -294,7 +294,7 @@ impl ParallelExecutor {
                                 test_results,
                                 started_at,
                                 completed_at,
-                                agent_id,
+                                agent_id.clone(),
                             );
 
                             execution_state_clone.mark_completed(&task_id_clone, task_result);
