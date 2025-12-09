@@ -336,6 +336,142 @@ impl Model for OllamaModel {
     }
 }
 
+#[async_trait]
+impl StreamingModel for OllamaModel {
+    async fn generate_stream(
+        &self,
+        prompt: &str,
+        parameters: Option<ModelParameters>,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<String, ModelError>> + Send>>, ModelError> {
+        debug!(
+            model_id = %self.model_id,
+            prompt_len = prompt.len(),
+            parameters = ?parameters,
+            "OllamaModel generating streaming text"
+        );
+
+        let url = format!("{}/api/generate", self.base_url);
+
+        let request_body = OllamaGenerateRequest {
+            model: self.model_id.clone(),
+            prompt: prompt.to_string(),
+            stream: true,
+            options: Self::build_options(parameters),
+        };
+
+        // Make streaming request
+        let response = self
+            .client
+            .post(&url)
+            .json(&request_body)
+            .send()
+            .await
+            .map_err(|e| {
+                error!(error = %e, base_url = %self.base_url, "Failed to connect to Ollama");
+                if e.is_connect() {
+                    ModelError::RequestError(format!(
+                        "Ollama server not reachable at {}. Start it with 'ollama serve'.",
+                        self.base_url
+                    ))
+                } else {
+                    ModelError::RequestError(format!("Network error: {}", e))
+                }
+            })?;
+
+        // Check status
+        let status = response.status();
+        if !status.is_success() {
+            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            error!(
+                status = %status,
+                error = %error_text,
+                "Ollama API returned error status"
+            );
+
+            // Try to parse error JSON
+            if let Ok(error_json) = serde_json::from_str::<OllamaError>(&error_text) {
+                if error_json.error.contains("model") && error_json.error.contains("not found") {
+                    return Err(ModelError::ModelResponseError(format!(
+                        "Model '{}' not found. Pull it with 'ollama pull {}'.",
+                        self.model_id, self.model_id
+                    )));
+                }
+                if error_json.error.contains("out of memory") || error_json.error.contains("OOM") {
+                    return Err(ModelError::ModelResponseError(
+                        "Insufficient memory to load model. Try a smaller variant.".to_string(),
+                    ));
+                }
+            }
+
+            if status == 404 {
+                return Err(ModelError::ModelResponseError(format!(
+                    "Model '{}' not found. Pull it with 'ollama pull {}'.",
+                    self.model_id, self.model_id
+                )));
+            }
+
+            return Err(ModelError::ModelResponseError(format!(
+                "API error ({}): {}",
+                status, error_text
+            )));
+        }
+
+        // Create stream from response body
+        let stream = response
+            .bytes_stream()
+            .map(|chunk_result| -> Result<String, ModelError> {
+                let chunk = chunk_result.map_err(|e| {
+                    error!(error = %e, "Failed to read chunk from Ollama stream");
+                    ModelError::RequestError(format!("Stream error: {}", e))
+                })?;
+
+                // Convert bytes to string
+                let text = String::from_utf8_lossy(&chunk).to_string();
+                Ok(text)
+            })
+            .flat_map(|text_result| {
+                futures::stream::iter(match text_result {
+                    Ok(text) => {
+                        // Split by newlines to handle NDJSON
+                        let lines: Vec<String> = text
+                            .lines()
+                            .map(|s| s.to_string())
+                            .filter(|s| !s.is_empty())
+                            .collect();
+
+                        // Parse each line as JSON and extract tokens
+                        lines
+                            .into_iter()
+                            .filter_map(|line| {
+                                match serde_json::from_str::<OllamaResponse>(&line) {
+                                    Ok(ollama_resp) => {
+                                        if ollama_resp.done {
+                                            None // End of stream
+                                        } else {
+                                            Some(Ok(ollama_resp.response))
+                                        }
+                                    }
+                                    Err(e) => {
+                                        // If it's not valid JSON, it might be a partial token
+                                        // Just return it as-is
+                                        if !line.trim().is_empty() {
+                                            Some(Ok(line))
+                                        } else {
+                                            None
+                                        }
+                                    }
+                                }
+                            })
+                            .collect::<Vec<_>>()
+                    }
+                    Err(e) => vec![Err(e)],
+                })
+            });
+
+        Ok(Box::pin(stream))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
