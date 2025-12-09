@@ -46,6 +46,20 @@ pub struct ProxyServer {
     connection_tasks: Arc<tokio::sync::Mutex<Vec<JoinHandle<()>>>>,
 }
 
+impl std::fmt::Debug for ProxyServer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProxyServer")
+            .field("config", &self.config)
+            .field("router", &"<ToolRouterTrait>")
+            .field("catalog", &"<ToolCatalogTrait>")
+            .field("security", &"<SecurityLayerTrait>")
+            .field("listener", &self.listener.is_some())
+            .field("shutdown_tx", &self.shutdown_tx.is_some())
+            .field("connection_tasks", &"<Mutex<Vec<JoinHandle>>>")
+            .finish()
+    }
+}
+
 impl ProxyServer {
     /// Create a new proxy server.
     ///

@@ -11,6 +11,7 @@ use tokio::sync::{broadcast, Mutex};
 use tokio::task::JoinHandle;
 
 /// Health checker for monitoring and reconnecting upstream servers.
+#[derive(Debug)]
 pub struct HealthChecker {
     /// Pool of upstream connections to monitor.
     pool: Arc<UpstreamPool>,

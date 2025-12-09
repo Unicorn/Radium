@@ -31,6 +31,7 @@ pub struct UpstreamConnection {
 ///
 /// Provides thread-safe access to multiple upstream connections with
 /// state tracking and lifecycle management.
+#[derive(Debug)]
 pub struct UpstreamPool {
     /// Map of upstream name to connection.
     upstreams: Arc<RwLock<HashMap<String, UpstreamConnection>>>,

@@ -198,6 +198,48 @@ impl AuditLogger {
         Ok(())
     }
 
+    /// Logs a pre-constructed audit entry.
+    ///
+    /// This method is useful when you have already constructed an AuditEntry
+    /// with all fields populated (e.g., for privacy redaction auditing).
+    ///
+    /// # Arguments
+    ///
+    /// * `entry` - The audit entry to log
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if logging fails.
+    pub fn log(&self, entry: AuditEntry) -> SecurityResult<()> {
+        // Check if rotation is needed
+        self.rotate_if_needed()?;
+
+        // Serialize to JSON
+        let json = serde_json::to_string(&entry)
+            .map_err(|e| SecurityError::Serialization(e))?;
+
+        // Append to log file
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.log_path)
+            .map_err(|e| SecurityError::Io(e))?;
+
+        writeln!(file, "{}", json)
+            .map_err(|e| SecurityError::Io(e))?;
+
+        // Ensure permissions are still 0600
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let perms = std::fs::Permissions::from_mode(0o600);
+            std::fs::set_permissions(&self.log_path, perms)
+                .map_err(|e| SecurityError::Io(e))?;
+        }
+
+        Ok(())
+    }
+
     /// Queries audit log entries matching the filter.
     ///
     /// # Arguments

@@ -34,9 +34,9 @@ impl PolicyReloader {
         engine: Arc<RwLock<PolicyEngine>>,
     ) -> PolicyResult<Self> {
         let policy_file = policy_file.as_ref().to_path_buf();
-        
+
         // Create file watcher
-        let watcher = notify::recommended_watcher(Self::create_event_handler(Arc::clone(&engine), policy_file.clone()))
+        let mut watcher = notify::recommended_watcher(Self::create_event_handler(Arc::clone(&engine), policy_file.clone()))
             .map_err(|e| PolicyError::InvalidConfig(format!("Failed to create file watcher: {}", e)))?;
 
         // Watch the policy file
