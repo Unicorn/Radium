@@ -13,7 +13,7 @@
 //!
 //! ```no_run
 //! use radium_models::UniversalModel;
-//! use radium_abstraction::ChatMessage;
+//! use radium_abstraction::{ChatMessage, Model};
 //!
 //! # async fn example() -> Result<(), radium_abstraction::ModelError> {
 //! let model = UniversalModel::without_auth(
