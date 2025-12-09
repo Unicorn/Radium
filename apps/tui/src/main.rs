@@ -16,7 +16,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use radium_tui::app::App;
 use radium_tui::commands::DisplayContext;
-use radium_tui::components::{render_dialog, render_title_bar, render_toasts, render_toasts_with_areas, AppMode, StatusFooter};
+use radium_tui::components::{render_dialog, render_title_bar, render_toasts_with_areas, AppMode, StatusFooter};
 use radium_tui::views::{render_checkpoint_browser, render_orchestrator_view, render_prompt, render_setup_wizard, render_shortcuts, render_splash, render_start_page, render_workflow, GlobalLayout};
 
 #[tokio::main]
@@ -160,7 +160,7 @@ async fn main() -> Result<()> {
 
                     // Track execution history
                     let req_id = active_req_progress.req_id.clone();
-                    use radium_tui::state::ExecutionStatus;
+                    
 
                     // Use toast notifications for key events
                     match &message {
@@ -195,7 +195,7 @@ async fn main() -> Result<()> {
                                 record.update_tokens(*tokens_in, *tokens_out, 0); // cached tokens not available
                             }
                         }
-                        radium_tui::progress_channel::ProgressMessage::DurationUpdate { elapsed, .. } => {
+                        radium_tui::progress_channel::ProgressMessage::DurationUpdate {  .. } => {
                             // Update silently, duration is shown in status message
                             // Duration is calculated automatically when record is finalized
                         }
