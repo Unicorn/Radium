@@ -138,7 +138,7 @@ impl OllamaEngine {
     }
 
     /// Formats bytes as human-readable size string.
-    fn format_size(bytes: u64) -> String {
+    pub fn format_size(bytes: u64) -> String {
         const GB: u64 = 1_000_000_000;
         const MB: u64 = 1_000_000;
         const KB: u64 = 1_000;
@@ -152,6 +152,11 @@ impl OllamaEngine {
         } else {
             format!("{} B", bytes)
         }
+    }
+
+    /// Gets full model metadata (for display purposes).
+    pub async fn get_model_metadata(&self) -> Result<Vec<OllamaModelMetadata>> {
+        self.get_cached_models().await
     }
 }
 
@@ -470,6 +475,25 @@ mod tests {
         let result = engine.is_authenticated().await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), true);
+    }
+
+    #[test]
+    fn test_format_size() {
+        assert_eq!(OllamaEngine::format_size(3826793677), "3.8 GB");
+        assert_eq!(OllamaEngine::format_size(512000000), "512.0 MB");
+        assert_eq!(OllamaEngine::format_size(1024000), "1.0 MB");
+        assert_eq!(OllamaEngine::format_size(512000), "512.0 KB");
+        assert_eq!(OllamaEngine::format_size(1024), "1.0 KB");
+        assert_eq!(OllamaEngine::format_size(512), "512 B");
+    }
+
+    #[tokio::test]
+    async fn test_available_models_empty_initially() {
+        let engine = OllamaEngine::new();
+        // Initially, available_models should return empty vec
+        // (models haven't been fetched yet)
+        let models = engine.available_models();
+        assert!(models.is_empty());
     }
 }
 
