@@ -42,6 +42,7 @@ impl HealthChecker {
         let pool = Arc::clone(&self.pool);
         let mut shutdown_rx = self.shutdown_tx.subscribe();
         let check_tasks = Arc::clone(&self.check_tasks);
+        let upstream_name_clone = upstream_name.clone();
 
         let handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(interval_secs));
@@ -52,24 +53,24 @@ impl HealthChecker {
                 tokio::select! {
                     _ = interval.tick() => {
                         // Perform health check
-                        let state = pool.get_state(&upstream_name).await;
+                        let state = pool.get_state(&upstream_name_clone).await;
 
                         match state {
                             Some(crate::mcp::proxy::types::ConnectionState::Connected) => {
                                 // Check if client is still responsive
-                                if let Some(client) = pool.get_upstream(&upstream_name).await {
+                                if let Some(client) = pool.get_upstream(&upstream_name_clone).await {
                                     let client_guard = client.lock().await;
                                     if client_guard.is_connected() {
                                         // Connection is healthy
-                                        pool.mark_healthy(&upstream_name).await;
+                                        pool.mark_healthy(&upstream_name_clone).await;
                                         backoff_seconds = 1; // Reset backoff
                                     } else {
                                         // Connection lost
-                                        pool.mark_unhealthy(&upstream_name).await;
+                                        pool.mark_unhealthy(&upstream_name_clone).await;
                                     }
                                 } else {
                                     // Client not available
-                                    pool.mark_unhealthy(&upstream_name).await;
+                                    pool.mark_unhealthy(&upstream_name_clone).await;
                                 }
                             }
                             Some(crate::mcp::proxy::types::ConnectionState::Disconnected) |
@@ -77,23 +78,23 @@ impl HealthChecker {
                                 // Attempt reconnection with exponential backoff
                                 tokio::time::sleep(Duration::from_secs(backoff_seconds)).await;
 
-                                match pool.reconnect_upstream(&upstream_name).await {
+                                match pool.reconnect_upstream(&upstream_name_clone).await {
                                     Ok(_) => {
                                         tracing::info!(
-                                            upstream_name = %upstream_name,
+                                            upstream_name = %upstream_name_clone,
                                             "Successfully reconnected to upstream"
                                         );
-                                        pool.mark_healthy(&upstream_name).await;
+                                        pool.mark_healthy(&upstream_name_clone).await;
                                         backoff_seconds = 1; // Reset backoff
                                     }
                                     Err(e) => {
                                         tracing::warn!(
-                                            upstream_name = %upstream_name,
+                                            upstream_name = %upstream_name_clone,
                                             backoff_seconds = backoff_seconds,
                                             error = %e,
                                             "Failed to reconnect to upstream, will retry"
                                         );
-                                        pool.mark_unhealthy(&upstream_name).await;
+                                        pool.mark_unhealthy(&upstream_name_clone).await;
                                         // Exponential backoff: double the wait time, max 60s
                                         backoff_seconds = (backoff_seconds * 2).min(max_backoff);
                                     }
