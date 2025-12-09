@@ -2,6 +2,7 @@
 
 pub mod cli_config;
 pub mod engine_costs;
+pub mod model_cache;
 pub mod routing;
 
 use std::net::SocketAddr;
