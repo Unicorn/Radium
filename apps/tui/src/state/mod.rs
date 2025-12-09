@@ -27,6 +27,73 @@ pub use telemetry_state::{TelemetryState, TokenMetrics};
 pub use task_list_state::{TaskListState, TaskListItem};
 pub use workflow_state::{WorkflowStatus, WorkflowUIState};
 
+pub use crate::state::{StreamingContext, StreamingState};
+
+/// Streaming state for TUI streaming responses
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StreamingState {
+    /// No streaming active
+    Idle,
+    /// Connecting to model
+    Connecting,
+    /// Actively streaming tokens
+    Streaming,
+    /// Streaming completed successfully
+    Completed,
+    /// Streaming was cancelled by user
+    Cancelled,
+    /// Streaming encountered an error
+    Error(String),
+}
+
+/// Context for managing streaming responses
+#[derive(Debug)]
+pub struct StreamingContext {
+    /// Current streaming state
+    pub state: StreamingState,
+    /// Buffer for accumulating tokens before display (5-10 tokens)
+    pub token_buffer: Vec<String>,
+    /// Receiver for tokens from the streaming task
+    pub token_receiver: tokio::sync::mpsc::Receiver<String>,
+    /// Sender for cancellation signal
+    pub cancellation_tx: Option<tokio::sync::oneshot::Sender<()>>,
+    /// Whether cancellation has been requested
+    pub is_cancelled: bool,
+}
+
+impl StreamingContext {
+    /// Creates a new streaming context
+    pub fn new(
+        token_receiver: tokio::sync::mpsc::Receiver<String>,
+        cancellation_tx: Option<tokio::sync::oneshot::Sender<()>>,
+    ) -> Self {
+        Self {
+            state: StreamingState::Connecting,
+            token_buffer: Vec::new(),
+            token_receiver,
+            cancellation_tx,
+            is_cancelled: false,
+        }
+    }
+
+    /// Flushes the token buffer, returning accumulated tokens
+    pub fn flush_buffer(&mut self) -> String {
+        let result = self.token_buffer.join("");
+        self.token_buffer.clear();
+        result
+    }
+
+    /// Adds a token to the buffer
+    pub fn add_token(&mut self, token: String) {
+        self.token_buffer.push(token);
+    }
+
+    /// Checks if buffer should be flushed (5-10 tokens)
+    pub fn should_flush(&self) -> bool {
+        self.token_buffer.len() >= 5
+    }
+}
+
 /// Output buffer for agent execution
 #[derive(Debug, Clone)]
 pub struct OutputBuffer {

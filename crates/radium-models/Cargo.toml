@@ -23,7 +23,7 @@ async-trait.workspace = true
 
 # HTTP client - using reqwest (simpler than raw hyper)
 reqwest = { version = "0.12", features = ["json", "stream"] }
-tokio = { version = "1", features = ["rt", "net"] }
+tokio = { version = "1", features = ["rt", "net", "macros"] }
 futures = "0.3"
 bytes = "1.5"
 

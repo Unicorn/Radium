@@ -232,6 +232,11 @@ mod tests {
         assert_eq!(ModelType::from_str("ollama"), Ok(ModelType::Ollama));
         assert_eq!(ModelType::from_str("Ollama"), Ok(ModelType::Ollama));
         assert_eq!(ModelType::from_str("OLLAMA"), Ok(ModelType::Ollama));
+        assert_eq!(ModelType::from_str("universal"), Ok(ModelType::Universal));
+        assert_eq!(ModelType::from_str("openai-compatible"), Ok(ModelType::Universal));
+        assert_eq!(ModelType::from_str("local"), Ok(ModelType::Universal));
+        assert_eq!(ModelType::from_str("Universal"), Ok(ModelType::Universal));
+        assert_eq!(ModelType::from_str("UNIVERSAL"), Ok(ModelType::Universal));
         assert_eq!(ModelType::from_str("unknown"), Err(()));
     }
 
@@ -241,9 +246,13 @@ mod tests {
         assert_eq!(config.model_type, ModelType::Mock);
         assert_eq!(config.model_id, "test-model");
         assert_eq!(config.api_key, None);
+        assert_eq!(config.base_url, None);
 
         let config = config.with_api_key("test-key".to_string());
         assert_eq!(config.api_key, Some("test-key".to_string()));
+
+        let config = config.with_base_url("http://localhost:8000/v1".to_string());
+        assert_eq!(config.base_url, Some("http://localhost:8000/v1".to_string()));
     }
 
     #[test]
@@ -318,5 +327,38 @@ mod tests {
         )
         .unwrap();
         assert_eq!(model.model_id(), "claude-3-sonnet-20240229");
+    }
+
+    #[test]
+    fn test_factory_create_universal_with_base_url() {
+        let config = ModelConfig::new(ModelType::Universal, "test-model".to_string())
+            .with_base_url("http://localhost:8000/v1".to_string());
+        let model = ModelFactory::create(config).unwrap();
+        assert_eq!(model.model_id(), "test-model");
+    }
+
+    #[test]
+    fn test_factory_create_universal_with_api_key() {
+        let config = ModelConfig::new(ModelType::Universal, "test-model".to_string())
+            .with_base_url("http://localhost:8000/v1".to_string())
+            .with_api_key("test-key".to_string());
+        let model = ModelFactory::create(config).unwrap();
+        assert_eq!(model.model_id(), "test-model");
+    }
+
+    #[test]
+    fn test_factory_create_universal_missing_base_url() {
+        let config = ModelConfig::new(ModelType::Universal, "test-model".to_string());
+        let result = ModelFactory::create(config);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("base_url is required"));
+    }
+
+    #[test]
+    fn test_factory_create_from_str_universal() {
+        // This will fail without base_url, but we can test the string parsing
+        let result = ModelFactory::create_from_str("universal", "test-model".to_string());
+        // Should fail because base_url is required, but string parsing should work
+        assert!(result.is_err());
     }
 }

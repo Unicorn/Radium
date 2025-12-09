@@ -128,6 +128,81 @@ pub enum TaskType {
     Simple,
 }
 
+/// Error types for routing operations.
+#[derive(Debug, Clone, thiserror::Error)]
+pub enum RoutingError {
+    /// All models in the fallback chain failed.
+    #[error("All models in fallback chain failed. Failures: {0:?}")]
+    AllModelsFailed(Vec<FailureRecord>),
+    
+    /// No suitable model found that meets the requirements.
+    #[error("No suitable model found: {0}")]
+    NoSuitableModel(String),
+    
+    /// Configuration error.
+    #[error("Routing configuration error: {0}")]
+    ConfigurationError(String),
+}
+
+/// Record of a model failure for tracking and debugging.
+#[derive(Debug, Clone)]
+pub struct FailureRecord {
+    /// Model identifier that failed.
+    pub model_id: String,
+    /// Timestamp when the failure occurred.
+    pub timestamp: std::time::SystemTime,
+    /// Error message describing the failure.
+    pub error: String,
+}
+
+impl FailureRecord {
+    /// Creates a new failure record.
+    pub fn new(model_id: String, error: String) -> Self {
+        Self {
+            model_id,
+            timestamp: std::time::SystemTime::now(),
+            error,
+        }
+    }
+}
+
+/// Fallback chain for model retry logic.
+#[derive(Debug, Clone)]
+pub struct FallbackChain {
+    /// Ordered list of model configurations to try.
+    pub models: Vec<radium_models::ModelConfig>,
+    /// Maximum number of retries per model before moving to next.
+    pub max_retries_per_model: u32,
+}
+
+impl FallbackChain {
+    /// Creates a new fallback chain.
+    pub fn new(models: Vec<radium_models::ModelConfig>) -> Self {
+        Self {
+            models,
+            max_retries_per_model: 1,
+        }
+    }
+    
+    /// Creates a new fallback chain with custom retry count.
+    pub fn with_retries(models: Vec<radium_models::ModelConfig>, max_retries: u32) -> Self {
+        Self {
+            models,
+            max_retries_per_model: max_retries,
+        }
+    }
+    
+    /// Returns the number of models in the chain.
+    pub fn len(&self) -> usize {
+        self.models.len()
+    }
+    
+    /// Returns true if the chain is empty.
+    pub fn is_empty(&self) -> bool {
+        self.models.is_empty()
+    }
+}
+
 impl TaskType {
     /// Estimates complexity factor for this task type (0-1 scale).
     #[must_use]
