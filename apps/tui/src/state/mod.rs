@@ -51,6 +51,8 @@ pub struct StreamingContext {
     pub state: StreamingState,
     /// Buffer for accumulating tokens before display (5-10 tokens)
     pub token_buffer: Vec<String>,
+    /// Full accumulated response (for history saving)
+    pub accumulated_response: String,
     /// Receiver for tokens from the streaming task
     pub token_receiver: tokio::sync::mpsc::Receiver<String>,
     /// Sender for cancellation signal
