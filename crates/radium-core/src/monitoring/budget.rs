@@ -3,11 +3,7 @@
 //! This module provides budget tracking, pre-execution cost checks, and budget warnings
 //! to prevent cost overruns during agent execution.
 
-// Note: analytics::budget module is feature-gated, so these types won't be available
-// unless the monitoring feature is enabled. For now, we'll comment out this import
-// and the related fields until the analytics module is implemented or feature gates
-// are properly configured throughout the codebase.
-// use crate::analytics::budget::{AnomalyDetector, BudgetForecaster, CostAnomaly, ForecastResult};
+use crate::analytics::budget::{AnomalyDetector, BudgetForecaster, CostAnomaly, ForecastResult};
 use crate::monitoring::{MonitoringService, Result as MonitoringResult};
 use chrono::{DateTime, Utc};
 use rusqlite::params;

@@ -128,8 +128,7 @@ impl PolicyReloader {
                 // Apply new rules atomically
                 {
                     let mut engine_write = engine.write().await;
-                    engine_write.approval_mode = new_engine.approval_mode;
-                    engine_write.rules = new_engine.rules;
+                    engine_write.update_from(new_engine);
                     // Note: hook_registry, alert_manager, analytics are preserved
                 }
 

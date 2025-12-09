@@ -5,7 +5,7 @@
 
 #[cfg(feature = "workflow")]
 mod autonomous;
-mod dag;
+pub mod dag;
 mod executor;
 mod generator;
 pub mod markdown;

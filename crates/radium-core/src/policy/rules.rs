@@ -401,6 +401,15 @@ impl PolicyEngine {
         &self.rules
     }
 
+    /// Updates the approval mode and rules from another PolicyEngine.
+    ///
+    /// This is useful for hot-reloading policy configuration while preserving
+    /// other components like hook_registry, alert_manager, and analytics.
+    pub fn update_from(&mut self, other: PolicyEngine) {
+        self.approval_mode = other.approval_mode;
+        self.rules = other.rules;
+    }
+
     /// Detects conflicts in the current set of rules.
     ///
     /// # Returns
