@@ -23,6 +23,18 @@ pub struct McpClient {
     server_config: Option<McpServerConfig>,
 }
 
+impl std::fmt::Debug for McpClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("McpClient")
+            .field("transport", &"<Box<dyn McpTransport>>")
+            .field("server_info", &self.server_info)
+            .field("request_id", &"<Arc<Mutex<u64>>>")
+            .field("token_manager", &self.token_manager.is_some())
+            .field("server_config", &self.server_config.is_some())
+            .finish()
+    }
+}
+
 impl McpClient {
     /// Create a new MCP client and connect to the server.
     ///
