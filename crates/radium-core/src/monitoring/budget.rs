@@ -256,11 +256,10 @@ impl Default for BudgetWarningConfig {
 pub struct BudgetAnalytics {
     /// Daily spend trend data (last 30 days).
     pub trend_data: Vec<DailySpend>,
-    // Forecast and anomaly fields commented out until analytics module is available
-    // /// Forecast result with exhaustion projection.
-    // pub forecast: Option<ForecastResult>,
-    // /// Detected cost anomalies.
-    // pub anomalies: Vec<CostAnomaly>,
+    /// Forecast result with exhaustion projection.
+    pub forecast: Option<ForecastResult>,
+    /// Detected cost anomalies.
+    pub anomalies: Vec<CostAnomaly>,
     /// Active budget warnings.
     pub warnings: Vec<BudgetError>,
 }
@@ -799,7 +798,7 @@ pub fn get_provider_comparison(
         let cheapest = providers.first().map(|p| p.provider.clone()).unwrap_or_default();
         
         // Calculate potential savings for each provider vs cheapest
-        let mut max_savings = 0.0;
+        let mut max_savings: f64 = 0.0;
         if let Some(cheapest_cost) = providers.first().map(|p| p.avg_cost_per_1m_tokens) {
             for provider in &providers {
                 if provider.avg_cost_per_1m_tokens > cheapest_cost {
