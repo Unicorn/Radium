@@ -9,13 +9,13 @@ use radium_core::engines::{
 };
 use radium_core::engines::providers::{ClaudeEngine, GeminiEngine, MockEngine, OpenAIEngine};
 use radium_core::workspace::Workspace;
-use radium_models::{ModelCache, ModelConfig, ModelType};
+use radium_models::{CacheKey, ModelCache, ModelConfig, ModelType};
 use serde_json::json;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use toml;
 
 /// Execute the models command.
@@ -32,6 +32,7 @@ pub async fn execute(command: ModelsCommand) -> Result<()> {
         ModelsCommand::ClearCache { provider, model } => {
             clear_cache(provider, model).await
         }
+        ModelsCommand::CacheStatus { json } => cache_status(json).await,
     }
 }
 
@@ -503,5 +504,165 @@ async fn clear_cache(provider: Option<String>, model: Option<String>) -> Result<
     }
 
     Ok(())
+}
+
+/// Display cache status and statistics.
+async fn cache_status(json_output: bool) -> Result<()> {
+    // Discover workspace
+    let workspace = Workspace::discover()
+        .map_err(|_| anyhow::anyhow!("No Radium workspace found. Run 'rad init' first."))?;
+
+    // Load cache configuration
+    let cache_config = load_cache_config(workspace.root())
+        .context("Failed to load cache configuration")?;
+
+    if !cache_config.enabled {
+        if json_output {
+            println!("{}", serde_json::to_string_pretty(&json!({
+                "enabled": false,
+                "message": "Cache is disabled in configuration"
+            }))?);
+        } else {
+            println!("{}", "Cache is disabled in configuration.".yellow());
+        }
+        return Ok(());
+    }
+
+    // Create cache
+    let cache = Arc::new(
+        ModelCache::new(cache_config.clone()).context("Failed to create model cache")?,
+    );
+
+    let stats = cache.get_stats();
+    let models = cache.list_models();
+
+    if json_output {
+        let mut models_json = Vec::new();
+        let now = Instant::now();
+
+        for (key, cached) in &models {
+            let last_accessed_secs = now.duration_since(cached.last_accessed).as_secs();
+            let age_secs = now.duration_since(cached.created_at).as_secs();
+
+            models_json.push(json!({
+                "provider": format!("{:?}", key.provider).to_lowercase(),
+                "model": key.model_name,
+                "last_accessed_secs": last_accessed_secs,
+                "access_count": cached.access_count,
+                "age_secs": age_secs,
+            }));
+        }
+
+        let output = json!({
+            "cache_size": stats.cache_size,
+            "max_cache_size": cache_config.max_cache_size,
+            "total_hits": stats.total_hits,
+            "total_misses": stats.total_misses,
+            "total_evictions": stats.total_evictions,
+            "models": models_json,
+            "config": {
+                "enabled": cache_config.enabled,
+                "inactivity_timeout_secs": cache_config.inactivity_timeout_secs,
+                "max_cache_size": cache_config.max_cache_size,
+                "cleanup_interval_secs": cache_config.cleanup_interval_secs,
+            }
+        });
+
+        println!("{}", serde_json::to_string_pretty(&output)?);
+    } else {
+        // Formatted table output
+        println!();
+        println!("{}", "Model Cache Status".bold().cyan());
+        println!("{}", "=".repeat(50));
+        println!();
+
+        // Summary
+        println!("Cache Size: {}/{} models", stats.cache_size, cache_config.max_cache_size);
+        println!("Total Access Count: {}", stats.total_hits + stats.total_misses);
+        println!();
+
+        if models.is_empty() {
+            println!("{}", "Cache is empty.".dimmed());
+            println!();
+        } else {
+            // Table header
+            println!(
+                "{:<12} {:<25} {:<15} {:<10} {:<12}",
+                "Provider", "Model", "Last Accessed", "Accesses", "Age"
+            );
+            println!("{}", "─".repeat(80));
+
+            let now = Instant::now();
+            for (key, cached) in &models {
+                let provider_str = format!("{:?}", key.provider).to_lowercase();
+                let last_accessed = format_relative_time(now.duration_since(cached.last_accessed));
+                let age = format_duration(now.duration_since(cached.created_at));
+
+                println!(
+                    "{:<12} {:<25} {:<15} {:<10} {:<12}",
+                    provider_str.cyan(),
+                    key.model_name,
+                    last_accessed.dimmed(),
+                    cached.access_count,
+                    age.dimmed()
+                );
+            }
+
+            println!();
+        }
+
+        // Configuration section
+        println!("{}", "Configuration:".bold());
+        println!(
+            "  Inactivity Timeout: {}",
+            format_duration(cache_config.inactivity_timeout())
+        );
+        println!("  Max Cache Size: {}", cache_config.max_cache_size);
+        println!(
+            "  Cleanup Interval: {}",
+            format_duration(cache_config.cleanup_interval())
+        );
+        println!();
+    }
+
+    Ok(())
+}
+
+/// Format a duration as a human-readable string.
+fn format_duration(duration: Duration) -> String {
+    let secs = duration.as_secs();
+    if secs < 60 {
+        format!("{}s", secs)
+    } else if secs < 3600 {
+        let mins = secs / 60;
+        let remaining_secs = secs % 60;
+        if remaining_secs == 0 {
+            format!("{}m", mins)
+        } else {
+            format!("{}m {}s", mins, remaining_secs)
+        }
+    } else {
+        let hours = secs / 3600;
+        let remaining_mins = (secs % 3600) / 60;
+        if remaining_mins == 0 {
+            format!("{}h", hours)
+        } else {
+            format!("{}h {}m", hours, remaining_mins)
+        }
+    }
+}
+
+/// Format a duration as relative time (e.g., "2m ago").
+fn format_relative_time(duration: Duration) -> String {
+    let secs = duration.as_secs();
+    if secs < 60 {
+        format!("{}s ago", secs)
+    } else if secs < 3600 {
+        let mins = secs / 60;
+        format!("{}m ago", mins)
+    } else {
+        let hours = secs / 3600;
+        format!("{}h ago", hours)
+    }
 }
 

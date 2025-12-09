@@ -975,4 +975,11 @@ pub enum ModelsCommand {
         #[arg(long)]
         model: Option<String>,
     },
+
+    /// Display cache status and statistics
+    CacheStatus {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
 }
