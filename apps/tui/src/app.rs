@@ -2010,7 +2010,8 @@ impl App {
                                         })
                                 );
                             }
-                            Err(e) => {
+                        }
+                        Err(e) => {
                                 // Log error but continue with other suggestion sources
                                 // Error message will be shown if no other suggestions available
                                 self.prompt_data.command_state.error_message = Some(

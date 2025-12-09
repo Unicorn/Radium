@@ -869,6 +869,3 @@ impl Default for SetupWizard {
         Self::new()
     }
 }
-
-    }
-}
