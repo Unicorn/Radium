@@ -97,7 +97,6 @@ async fn test_ollama_engine_in_registry_health_check() {
 
 #[test]
 fn test_ollama_format_size() {
-    use radium_core::engines::providers::ollama::OllamaEngine;
     assert_eq!(OllamaEngine::format_size(3826793677), "3.8 GB");
     assert_eq!(OllamaEngine::format_size(512000000), "512.0 MB");
     assert_eq!(OllamaEngine::format_size(1024000), "1.0 MB");
