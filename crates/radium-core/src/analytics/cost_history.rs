@@ -54,12 +54,12 @@ impl DateRange {
     /// Creates a date range for this month.
     pub fn this_month() -> Self {
         let now = Utc::now();
+        // Get the date and set to first of month at midnight
         let start = now
+            .date_naive()
             .with_day(1)
-            .and_then(|d| d.with_hour(0))
-            .and_then(|d| d.with_minute(0))
-            .and_then(|d| d.with_second(0))
-            .map(|d| d.timestamp())
+            .and_then(|d| d.and_hms_opt(0, 0, 0))
+            .map(|dt| dt.and_utc().timestamp())
             .unwrap_or_else(|| Utc::now().timestamp() - 2592000); // Fallback to 30 days ago
         let end = Utc::now().timestamp();
         Self { start, end }

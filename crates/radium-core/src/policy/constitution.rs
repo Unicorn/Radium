@@ -128,6 +128,15 @@ impl ConstitutionManager {
         }
     }
 
+    /// Removes the constitution for a session.
+    ///
+    /// # Arguments
+    /// * `session_id` - The session identifier
+    pub fn remove_constitution(&self, session_id: &str) {
+        let mut constitutions = self.constitutions.write().unwrap();
+        constitutions.remove(session_id);
+    }
+
     /// Cleans up stale session constitutions.
     ///
     /// Removes entries that haven't been accessed within the TTL period.
