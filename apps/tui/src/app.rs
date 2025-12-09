@@ -675,30 +675,38 @@ impl App {
                 }
                 
                 // Handle execution view shortcuts when no view is active
-                match key {
-                    KeyCode::Char('h') | KeyCode::F(2) => {
-                        // Toggle history view
-                        if let Some(req_id) = self.get_current_requirement_id() {
-                            let records: Vec<ExecutionRecord> = self.execution_history
-                                .get_records_for_requirement(req_id)
-                                .into_iter()
-                                .cloned()
-                                .collect();
-                            let history_view = ExecutionHistoryView::new(records);
-                            self.active_execution_view = ExecutionView::History(history_view);
+                // Only process single-letter hotkeys if input field doesn't have focus
+                // In Chat context: check if prompt has focus (dual-pane)
+                // In other contexts: never process hotkeys since input is always active
+                let should_process_hotkeys = matches!(self.prompt_data.context, DisplayContext::Chat { .. })
+                    && !self.prompt_data.is_prompt_focused();
+
+                if should_process_hotkeys {
+                    match key {
+                        KeyCode::Char('h') | KeyCode::F(2) => {
+                            // Toggle history view
+                            if let Some(req_id) = self.get_current_requirement_id() {
+                                let records: Vec<ExecutionRecord> = self.execution_history
+                                    .get_records_for_requirement(req_id)
+                                    .into_iter()
+                                    .cloned()
+                                    .collect();
+                                let history_view = ExecutionHistoryView::new(records);
+                                self.active_execution_view = ExecutionView::History(history_view);
+                            }
+                            return Ok(());
                         }
-                        return Ok(());
-                    }
-                    KeyCode::Char('s') => {
-                        // Show summary view
-                        if let Some(req_id) = self.get_current_requirement_id() {
-                            let stats = self.execution_history.get_aggregate_stats(req_id);
-                            let summary_view = SummaryView::new(stats, req_id.to_string());
-                            self.active_execution_view = ExecutionView::Summary(summary_view);
+                        KeyCode::Char('s') => {
+                            // Show summary view
+                            if let Some(req_id) = self.get_current_requirement_id() {
+                                let stats = self.execution_history.get_aggregate_stats(req_id);
+                                let summary_view = SummaryView::new(stats, req_id.to_string());
+                                self.active_execution_view = ExecutionView::Summary(summary_view);
+                            }
+                            return Ok(());
                         }
-                        return Ok(());
+                        _ => {}
                     }
-                    _ => {}
                 }
             }
         }
