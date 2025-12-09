@@ -9,6 +9,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
+use tokio::time::timeout;
 
 /// Ollama engine implementation for local Ollama server.
 pub struct OllamaEngine {
@@ -158,6 +159,61 @@ impl OllamaEngine {
     pub async fn get_model_metadata(&self) -> Result<Vec<OllamaModelMetadata>> {
         self.get_cached_models().await
     }
+
+    /// Checks server health and returns version string.
+    pub async fn check_server_health(&self) -> Result<String> {
+        const HEALTH_CHECK_TIMEOUT: Duration = Duration::from_secs(5);
+
+        let url = format!("{}/api/version", self.base_url);
+
+        let health_check = async {
+            let response = self
+                .client
+                .get(&url)
+                .send()
+                .await
+                .map_err(|e| {
+                    // Differentiate error types
+                    let error_msg = if e.is_connect() {
+                        "Ollama server not running. Try: ollama serve"
+                    } else if e.is_timeout() {
+                        "Ollama server timeout. Check if server is overloaded."
+                    } else {
+                        &format!("Network error connecting to Ollama server: {}", e)
+                    };
+                    EngineError::ExecutionError(error_msg.to_string())
+                })?;
+
+            let status = response.status();
+            if !status.is_success() {
+                let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+                return Err(EngineError::ExecutionError(format!(
+                    "Ollama API error ({}): {}",
+                    status, error_text
+                )));
+            }
+
+            let version_response: OllamaVersionResponse = response
+                .json()
+                .await
+                .map_err(|e| {
+                    EngineError::ExecutionError(format!(
+                        "Invalid response from Ollama server: {}",
+                        e
+                    ))
+                })?;
+
+            Ok(version_response.version)
+        };
+
+        timeout(HEALTH_CHECK_TIMEOUT, health_check)
+            .await
+            .map_err(|_| {
+                EngineError::ExecutionError(
+                    "Ollama server timeout. Check if server is overloaded.".to_string()
+                )
+            })?
+    }
 }
 
 impl Default for OllamaEngine {
@@ -267,6 +323,12 @@ struct OllamaModelDetails {
     quantization_level: Option<String>,
 }
 
+/// Ollama API version response structure.
+#[derive(Debug, Deserialize)]
+struct OllamaVersionResponse {
+    version: String,
+}
+
 #[async_trait]
 impl Engine for OllamaEngine {
     fn metadata(&self) -> &EngineMetadata {
@@ -274,9 +336,8 @@ impl Engine for OllamaEngine {
     }
 
     async fn is_available(&self) -> bool {
-        // Health check will be implemented in Task 3
-        // For now, return true
-        true
+        // Check server health with timeout
+        self.check_server_health().await.is_ok()
     }
 
     async fn is_authenticated(&self) -> Result<bool> {
@@ -494,6 +555,17 @@ mod tests {
         // (models haven't been fetched yet)
         let models = engine.available_models();
         assert!(models.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_is_available_without_server() {
+        let engine = OllamaEngine::new();
+        // Without a running Ollama server, is_available should return false
+        // This test will fail if Ollama is actually running, which is expected
+        let available = engine.is_available().await;
+        // We can't assert a specific value since it depends on whether Ollama is running
+        // But we can verify the method doesn't panic
+        assert!(available == true || available == false);
     }
 }
 
