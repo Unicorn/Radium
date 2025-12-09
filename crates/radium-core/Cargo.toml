@@ -22,6 +22,7 @@ mcp-progress = ["indicatif"]
 server = []
 http = []
 syntax = []  # Syntax highlighting support
+tui-theme = ["syntax", "ratatui"]  # TUI-specific theme loading with ratatui
 
 [dependencies]
 # gRPC
@@ -122,6 +123,7 @@ arboard = "3.3"
 
 # Syntax highlighting
 syntect = "5.3"
+ratatui = { version = "0.29", optional = true }
 
 # Internal crates
 radium-abstraction.workspace = true

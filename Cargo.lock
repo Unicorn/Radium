@@ -2847,6 +2847,7 @@ dependencies = [
  "radium-models",
  "radium-orchestrator",
  "rand",
+ "ratatui",
  "regex",
  "reqwest",
  "rusqlite",

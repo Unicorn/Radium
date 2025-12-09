@@ -54,21 +54,23 @@ fn convert_theme(theme: &syntect::highlighting::Theme) -> Result<RadiumTheme> {
     // Try to find colors from common scopes
     for scope in &theme.scopes {
         let scope_name = scope.scope.as_str();
-        let color = scope.style.foreground;
 
-        // Map common scopes to theme colors
-        if scope_name.contains("keyword") || scope_name.contains("storage") {
-            primary = Color::Rgb(color.r, color.g, color.b);
-        } else if scope_name.contains("string") {
-            success = Color::Rgb(color.r, color.g, color.b);
-        } else if scope_name.contains("comment") {
-            // Comments typically use muted colors
-        } else if scope_name.contains("invalid") || scope_name.contains("error") {
-            error = Color::Rgb(color.r, color.g, color.b);
-        } else if scope_name.contains("function") || scope_name.contains("entity") {
-            info = Color::Rgb(color.r, color.g, color.b);
-        } else if scope_name.contains("constant") || scope_name.contains("number") {
-            secondary = Color::Rgb(color.r, color.g, color.b);
+        // Only process if foreground color is present
+        if let Some(color) = scope.style.foreground {
+            // Map common scopes to theme colors
+            if scope_name.contains("keyword") || scope_name.contains("storage") {
+                primary = Color::Rgb(color.r, color.g, color.b);
+            } else if scope_name.contains("string") {
+                success = Color::Rgb(color.r, color.g, color.b);
+            } else if scope_name.contains("comment") {
+                // Comments typically use muted colors
+            } else if scope_name.contains("invalid") || scope_name.contains("error") {
+                error = Color::Rgb(color.r, color.g, color.b);
+            } else if scope_name.contains("function") || scope_name.contains("entity") {
+                info = Color::Rgb(color.r, color.g, color.b);
+            } else if scope_name.contains("constant") || scope_name.contains("number") {
+                secondary = Color::Rgb(color.r, color.g, color.b);
+            }
         }
     }
 
@@ -108,7 +110,7 @@ fn convert_theme(theme: &syntect::highlighting::Theme) -> Result<RadiumTheme> {
             ((background.g as u16 + foreground.g as u16) / 2) as u8,
             ((background.b as u16 + foreground.b as u16) / 2) as u8,
         ),
-        border_active: Color::Rgb(primary.r, primary.g, primary.b),
+        border_active: primary,
         border_subtle: Color::Rgb(
             ((background.r as u16 * 3 + foreground.r as u16) / 4) as u8,
             ((background.g as u16 * 3 + foreground.g as u16) / 4) as u8,

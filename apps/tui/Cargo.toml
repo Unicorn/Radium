@@ -35,7 +35,7 @@ tokio.workspace = true
 reqwest = { version = "0.12", features = ["json"] }
 
 # Internal crates
-radium-core = { workspace = true, features = ["monitoring", "workflow", "mcp-progress", "orchestrator-integration", "syntax"] }
+radium-core = { workspace = true, features = ["monitoring", "workflow", "mcp-progress", "orchestrator-integration", "syntax", "tui-theme"] }
 radium-models.workspace = true
 radium-abstraction.workspace = true
 radium-orchestrator.workspace = true

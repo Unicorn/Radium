@@ -3,7 +3,7 @@
 //! This module handles loading, parsing, and validation of proxy server
 //! configuration from TOML files.
 
-use crate::mcp::proxy::types::{ProxyConfig, ProxyTransport, SecurityConfig, UpstreamConfig};
+use crate::mcp::proxy::types::{ConflictStrategy, ProxyConfig, ProxyTransport, SecurityConfig, UpstreamConfig};
 use crate::mcp::{McpError, McpServerConfig, Result, TransportType};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};

@@ -39,7 +39,7 @@ impl HealthChecker {
     /// * `interval_secs` - Health check interval in seconds
     pub async fn start_health_check(&self, upstream_name: String, interval_secs: u64) {
         let pool = Arc::clone(&self.pool);
-        let shutdown_rx = self.shutdown_tx.subscribe();
+        let mut shutdown_rx = self.shutdown_tx.subscribe();
         let check_tasks = Arc::clone(&self.check_tasks);
 
         let handle = tokio::spawn(async move {

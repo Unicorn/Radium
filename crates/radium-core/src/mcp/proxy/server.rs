@@ -92,7 +92,7 @@ impl ProxyServer {
 
         tracing::info!(port = self.config.port, "MCP proxy server started");
 
-        let shutdown_rx = self.shutdown_tx.as_ref().unwrap().subscribe();
+        let mut shutdown_rx = self.shutdown_tx.as_ref().unwrap().subscribe();
         let router = Arc::clone(&self.router);
         let catalog = Arc::clone(&self.catalog);
         let security = Arc::clone(&self.security);

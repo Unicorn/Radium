@@ -305,33 +305,34 @@ impl BudgetManager {
         Self::new(BudgetConfig::new(Some(max_budget)))
     }
 
-    /// Creates a budget manager with analytics capabilities.
-    ///
-    /// # Arguments
-    /// * `config` - Budget configuration
-    /// * `telemetry_store` - Monitoring service for database access
-    /// * `forecaster` - Budget forecaster for projections
-    /// * `anomaly_detector` - Anomaly detector for cost analysis
-    /// * `warning_config` - Warning configuration (uses defaults if None)
-    ///
-    /// # Returns
-    /// BudgetManager with analytics enabled
-    pub fn with_analytics(
-        config: BudgetConfig,
-        telemetry_store: Arc<MonitoringService>,
-        forecaster: Arc<BudgetForecaster>,
-        anomaly_detector: Arc<AnomalyDetector>,
-        warning_config: Option<BudgetWarningConfig>,
-    ) -> Self {
-        Self {
-            config,
-            spent_amount: Arc::new(Mutex::new(0.0)),
-            telemetry_store: Some(telemetry_store),
-            forecaster: Some(forecaster),
-            anomaly_detector: Some(anomaly_detector),
-            warning_config: warning_config.unwrap_or_default(),
-        }
-    }
+    // TODO: Re-enable when analytics module is available
+    // /// Creates a budget manager with analytics capabilities.
+    // ///
+    // /// # Arguments
+    // /// * `config` - Budget configuration
+    // /// * `telemetry_store` - Monitoring service for database access
+    // /// * `forecaster` - Budget forecaster for projections
+    // /// * `anomaly_detector` - Anomaly detector for cost analysis
+    // /// * `warning_config` - Warning configuration (uses defaults if None)
+    // ///
+    // /// # Returns
+    // /// BudgetManager with analytics enabled
+    // pub fn with_analytics(
+    //     config: BudgetConfig,
+    //     telemetry_store: Arc<MonitoringService>,
+    //     forecaster: Arc<BudgetForecaster>,
+    //     anomaly_detector: Arc<AnomalyDetector>,
+    //     warning_config: Option<BudgetWarningConfig>,
+    // ) -> Self {
+    //     Self {
+    //         config,
+    //         spent_amount: Arc::new(Mutex::new(0.0)),
+    //         telemetry_store: Some(telemetry_store),
+    //         forecaster: Some(forecaster),
+    //         anomaly_detector: Some(anomaly_detector),
+    //         warning_config: warning_config.unwrap_or_default(),
+    //     }
+    // }
 
     /// Checks if the estimated cost is within budget.
     ///

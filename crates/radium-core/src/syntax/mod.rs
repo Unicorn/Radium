@@ -9,13 +9,13 @@ pub mod highlighter;
 pub mod languages;
 #[cfg(feature = "syntax")]
 pub mod theme_adapter;
-#[cfg(feature = "syntax")]
+#[cfg(feature = "tui-theme")]
 pub mod tmtheme_loader;
 
 #[cfg(feature = "syntax")]
 pub use highlighter::{SyntaxHighlighter, StyledLine, StyledSpan};
 #[cfg(feature = "syntax")]
 pub use languages::LanguageRegistry;
-#[cfg(feature = "syntax")]
+#[cfg(feature = "tui-theme")]
 pub use tmtheme_loader::{load_tmtheme, RadiumTheme};
 
