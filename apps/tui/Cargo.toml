@@ -73,5 +73,8 @@ fuzzy-matcher = "0.3"  # For command palette
 # Syntax highlighting
 syntect = "5.3"
 
+# Regex for command pattern matching
+regex = "1.10"
+
 [dev-dependencies]
 tempfile = "3.8"

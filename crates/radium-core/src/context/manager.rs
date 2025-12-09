@@ -4,6 +4,7 @@ use std::fmt::Write;
 use std::path::Path;
 use std::time::Instant;
 
+use super::analysis::AnalysisPlan;
 use super::error::Result;
 use super::files::ContextFileLoader;
 use super::injection::{ContextInjector, InjectionDirective};
@@ -534,6 +535,56 @@ impl ContextManager {
             let total_time = start_time.elapsed();
             metrics.total_time_ms = total_time.as_millis() as u64;
         }
+
+        Ok(final_context)
+    }
+
+    /// Creates an analysis plan from user input.
+    ///
+    /// This method analyzes the user's question to determine the question type
+    /// and provides recommendations for files to read and searches to perform.
+    ///
+    /// # Arguments
+    /// * `input` - The user's input/question
+    ///
+    /// # Returns
+    /// An analysis plan with recommendations
+    pub fn create_analysis_plan(&self, input: &str) -> AnalysisPlan {
+        AnalysisPlan::from_input(input)
+    }
+
+    /// Builds context with analysis plan guidance included.
+    ///
+    /// This is similar to `build_context` but includes an analysis plan at the
+    /// beginning to guide the agent on what files to read and searches to perform.
+    ///
+    /// # Arguments
+    /// * `invocation` - The agent invocation string (e.g., "agent[input:file.md]")
+    /// * `requirement_id` - Optional plan requirement ID for plan context
+    /// * `user_input` - The original user input/question for analysis planning
+    ///
+    /// # Returns
+    /// Complete context string ready for prompt injection, including analysis plan
+    ///
+    /// # Errors
+    /// Returns error if context gathering fails
+    pub fn build_context_with_analysis(
+        &mut self,
+        invocation: &str,
+        requirement_id: Option<RequirementId>,
+        user_input: &str,
+    ) -> Result<String> {
+        // Create analysis plan from user input
+        let analysis_plan = self.create_analysis_plan(user_input);
+        let plan_context = analysis_plan.to_context_string();
+
+        // Build regular context
+        let mut context = self.build_context(invocation, requirement_id)?;
+
+        // Prepend analysis plan to context
+        let mut final_context = plan_context;
+        final_context.push_str("---\n\n");
+        final_context.push_str(&context);
 
         Ok(final_context)
     }

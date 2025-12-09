@@ -148,11 +148,23 @@ impl PromptData {
         }
 
         // Use chat_scroll_offset for chat context (split-pane view), scrollback_offset for other contexts
-        let scroll_offset = if matches!(self.context, DisplayContext::Chat { .. }) {
+        let mut scroll_offset = if matches!(self.context, DisplayContext::Chat { .. }) {
             self.chat_scroll_offset
         } else {
             self.scrollback_offset
         };
+
+        // Handle "scroll to bottom" sentinel value (usize::MAX)
+        // Calculate the offset to show the last viewport_height lines
+        if scroll_offset == usize::MAX {
+            if total_lines <= viewport_height {
+                // Show all lines from the start
+                scroll_offset = 0;
+            } else {
+                // Show the last viewport_height lines
+                scroll_offset = total_lines - viewport_height;
+            }
+        }
 
         // Calculate visible range
         let start = scroll_offset.min(total_lines.saturating_sub(1));
@@ -181,14 +193,36 @@ impl PromptData {
     }
 
     /// Scroll chat history up by the specified amount.
+    /// 
+    /// If currently at the bottom (usize::MAX sentinel), calculate proper offset first.
     pub fn scroll_chat_up(&mut self, amount: usize) {
+        // If we're at the "scroll to bottom" sentinel, we need to calculate where we are
+        // We'll use a conservative estimate: assume we're showing the last viewport_height lines
+        // Since we don't have viewport_height here, we'll just start from a reasonable position
+        if self.chat_scroll_offset == usize::MAX {
+            let total_lines = self.conversation.len();
+            // Estimate: assume viewport shows ~20 lines, so start from total_lines - 20
+            let estimated_viewport = 20;
+            if total_lines > estimated_viewport {
+                self.chat_scroll_offset = total_lines - estimated_viewport;
+            } else {
+                self.chat_scroll_offset = 0;
+            }
+        }
         self.chat_scroll_offset = self.chat_scroll_offset.saturating_sub(amount);
     }
 
     /// Scroll chat history down by the specified amount.
+    /// 
+    /// If currently at the bottom (usize::MAX sentinel), scrolling down does nothing.
     pub fn scroll_chat_down(&mut self, amount: usize) {
         let total_lines = self.conversation.len();
         if total_lines == 0 {
+            return;
+        }
+        // If we're at the "scroll to bottom" sentinel, we're already at the bottom
+        // Scrolling down should do nothing
+        if self.chat_scroll_offset == usize::MAX {
             return;
         }
         let max_scroll = total_lines.saturating_sub(1);
@@ -196,13 +230,13 @@ impl PromptData {
     }
 
     /// Scroll chat history to the bottom.
+    /// 
+    /// Sets a special value (usize::MAX) to indicate "scroll to bottom" intent.
+    /// The actual offset will be calculated during rendering based on viewport height.
     pub fn scroll_chat_to_bottom(&mut self) {
-        let total_lines = self.conversation.len();
-        if total_lines == 0 {
-            self.chat_scroll_offset = 0;
-        } else {
-            self.chat_scroll_offset = total_lines.saturating_sub(1);
-        }
+        // Use usize::MAX as a sentinel value to indicate "scroll to bottom"
+        // The actual offset will be calculated in get_visible_conversation() based on viewport
+        self.chat_scroll_offset = usize::MAX;
     }
 }
 
@@ -419,7 +453,17 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData, model_fil
 
             // Build chat history title with scroll position indicator
             let total_lines = data.conversation.len();
-            let scroll_pos = data.chat_scroll_offset + 1;
+            // Calculate actual scroll offset (handling usize::MAX sentinel)
+            let actual_scroll_offset = if data.chat_scroll_offset == usize::MAX {
+                if total_lines <= viewport_height {
+                    0
+                } else {
+                    total_lines - viewport_height
+                }
+            } else {
+                data.chat_scroll_offset
+            };
+            let scroll_pos = actual_scroll_offset + 1;
             let chat_title = if total_lines > 0 {
                 format!("{} Chat History ↑{}/{}", Icons::CHAT, scroll_pos, total_lines)
             } else {
@@ -427,7 +471,7 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData, model_fil
             };
 
             // Check if there's more content below
-            let has_more_below = data.chat_scroll_offset < total_lines.saturating_sub(viewport_height);
+            let has_more_below = actual_scroll_offset < total_lines.saturating_sub(viewport_height);
             
             // Add scroll indicator if there's more content below
             if has_more_below && !visible_conversation.is_empty() {

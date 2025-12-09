@@ -44,6 +44,7 @@
 //! # }
 //! ```
 
+pub mod analysis;
 pub mod braingrid_client;
 mod error;
 mod files;
@@ -56,6 +57,7 @@ pub mod sources;
 mod templates;
 mod validator;
 
+pub use analysis::{AnalysisPlan, QuestionType};
 pub use error::{ContextError, Result};
 pub use files::ContextFileLoader;
 pub use history::{HistoryError, HistoryManager, Interaction, Result as HistoryResult};

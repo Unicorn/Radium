@@ -4,11 +4,14 @@
 
 use anyhow::{Context, Result};
 use radium_core::auth::{CredentialStore, ProviderType};
-use radium_core::context::HistoryManager;
+use radium_core::context::{ContextManager, HistoryManager};
 use radium_core::{AgentDiscovery, PromptContext, PromptTemplate, Workspace};
 use radium_models::ModelFactory;
 use std::fs;
 use std::path::PathBuf;
+use std::time::Duration;
+use tokio::process::Command;
+use tokio::time::timeout;
 
 /// Result of executing a chat message.
 #[derive(Debug, Clone)]
@@ -34,11 +37,84 @@ pub async fn execute_chat_message(
     // Load prompt template
     let prompt_content = load_prompt(&agent.prompt_path)?;
 
-    // Render prompt with user message
+    // Build enhanced context with analysis plan
     let mut context = PromptContext::new();
     context.set("user_input", message.to_string());
+    
+    // Detect if user is asking for a command execution
+    let command_hint = detect_command_request(&message);
+    if let Some(hint) = command_hint {
+        context.set("command_hint", hint);
+    }
 
-    let template = PromptTemplate::from_string(prompt_content);
+    // Create analysis plan and include it in context if this looks like a general question
+    let analysis_plan = if let Ok(workspace) = Workspace::discover() {
+        let context_manager = ContextManager::new(&workspace);
+        let plan = context_manager.create_analysis_plan(message);
+        
+        // Include analysis plan for project overview, technology stack, or architecture questions
+        match plan.question_type {
+            radium_core::context::QuestionType::ProjectOverview
+            | radium_core::context::QuestionType::TechnologyStack
+            | radium_core::context::QuestionType::Architecture
+            | radium_core::context::QuestionType::General => {
+                let plan_context = plan.to_context_string();
+                context.set("analysis_plan", plan_context);
+            }
+            _ => {
+                // For specific questions, still include basic guidance
+                let plan_context = plan.to_context_string();
+                context.set("analysis_plan", plan_context);
+            }
+        }
+        
+        Some(plan)
+    } else {
+        None
+    };
+
+    // If analysis plan was created, prepend it to the prompt content
+    let final_prompt_content = if let Some(ref plan) = analysis_plan {
+        // Check if this is a general question that needs deep analysis
+        match plan.question_type {
+            radium_core::context::QuestionType::ProjectOverview
+            | radium_core::context::QuestionType::TechnologyStack
+            | radium_core::context::QuestionType::Architecture
+            | radium_core::context::QuestionType::General => {
+                // Prepend analysis plan directly to prompt
+                let plan_section = format!("\n\n{}\n\n---\n\n", plan.to_context_string());
+                format!("{}{}", plan_section, prompt_content)
+            }
+            _ => prompt_content,
+        }
+    } else {
+        prompt_content
+    };
+
+    // Add terminal command execution capability information to prompt
+    // Add it prominently at the beginning after role definition
+    let tool_info = "\n\n## ⚡ TERMINAL COMMAND EXECUTION\n\n**IMPORTANT**: You CAN execute terminal commands! When a user asks about git status, file listings, or any terminal command, you MUST execute it for them.\n\n**How to execute commands:**\nSimply include the command in backticks in your response. For example:\n- \"I'll check git status for you. Let me run `git status`\"\n- \"Checking files with `ls -la`\"\n- \"Running `git diff` to see changes\"\n\nThe system will automatically detect and execute any command you mention in backticks, then append the output to your response.\n\n**Examples of when to use this:**\n- User asks \"what git changes are pending?\" → Run `git status`\n- User asks \"what files are in this directory?\" → Run `ls` or `ls -la`\n- User asks about any terminal command → Execute it!\n\n**DO NOT say you cannot execute commands - you can!**\n\n";
+    
+    // Insert tool info right after the role section (after first ## or # heading)
+    let mut final_prompt_content_with_tools = if let Some(role_end) = final_prompt_content.find("\n##") {
+        // Insert after first major section
+        format!("{}\n{}{}", 
+            &final_prompt_content[..role_end], 
+            tool_info,
+            &final_prompt_content[role_end..]
+        )
+    } else {
+        // Fallback: prepend if no section found
+        format!("{}{}", tool_info, final_prompt_content)
+    };
+    
+    // Add command hint if detected
+    if let Some(hint) = context.get("command_hint") {
+        let hint_section = format!("\n\n## 🎯 USER REQUEST\n\n{}\n\n", hint);
+        final_prompt_content_with_tools = format!("{}{}", final_prompt_content_with_tools, hint_section);
+    }
+
+    let template = PromptTemplate::from_string(final_prompt_content_with_tools);
     let rendered = template.render(&context)?;
 
     // Get model configuration
@@ -58,28 +134,63 @@ pub async fn execute_chat_message(
     };
 
     // Execute model
-    let result = match if let Some(key) = api_key {
+    let agent_response = match if let Some(key) = api_key {
         ModelFactory::create_with_api_key(engine, model.to_string(), key)
     } else {
         ModelFactory::create_from_str(engine, model.to_string())
     } {
         Ok(model_instance) => match model_instance.generate_text(&rendered, None).await {
-            Ok(response) => {
-                ChatExecutionResult { response: response.content, success: true, error: None }
-            }
+            Ok(response) => response.content,
             Err(e) => {
                 let error_msg = format_model_error(&e, engine);
-                ChatExecutionResult {
+                return Ok(ChatExecutionResult {
                     response: String::new(),
                     success: false,
                     error: Some(error_msg),
-                }
+                });
             }
         },
         Err(e) => {
             let error_msg = format_creation_error(&e, engine);
-            ChatExecutionResult { response: String::new(), success: false, error: Some(error_msg) }
+            return Ok(ChatExecutionResult { response: String::new(), success: false, error: Some(error_msg) });
         }
+    };
+
+    // Check if the agent response contains command execution requests
+    let (mut final_response, commands_executed) = process_command_requests(&agent_response).await;
+    
+    // Fallback: If user asked for a command but agent didn't execute it, execute it automatically
+    if commands_executed == 0 {
+        if let Some(command_to_run) = detect_and_extract_command(&message) {
+            // Agent didn't execute the command, so we'll do it automatically
+            let workspace_root = Workspace::discover()
+                .map(|w| w.root().to_path_buf())
+                .unwrap_or_else(|_| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+            
+            match execute_terminal_command(&command_to_run, &workspace_root).await {
+                Ok(output) => {
+                    final_response = format!(
+                        "{}\n\n---\n\n**Automatically executed:** `{}`\n\n**Output:**\n```\n{}\n```",
+                        agent_response, command_to_run, output
+                    );
+                }
+                Err(e) => {
+                    final_response = format!(
+                        "{}\n\n---\n\n**Attempted to execute:** `{}`\n\n**Error:**\n```\n{}\n```",
+                        agent_response, command_to_run, e
+                    );
+                }
+            }
+        } else {
+            final_response = agent_response;
+        }
+    }
+    
+    // Build final response
+    let result = ChatExecutionResult { 
+        response: final_response, 
+        success: true, 
+        error: None 
     };
 
     // Save to history if successful
@@ -208,6 +319,207 @@ fn format_creation_error(error: &radium_abstraction::ModelError, engine: &str) -
         Try: rad auth status",
         error_str
     )
+}
+
+/// Detect and extract command from user message for automatic execution.
+fn detect_and_extract_command(message: &str) -> Option<String> {
+    let lower = message.to_lowercase();
+    
+    // Check for git status requests
+    if lower.contains("git") && (lower.contains("status") || lower.contains("change") || lower.contains("pending") || lower.contains("uncommitted")) {
+        return Some("git status".to_string());
+    }
+    
+    // Check for git diff requests
+    if lower.contains("git") && lower.contains("diff") {
+        return Some("git diff".to_string());
+    }
+    
+    // Check for file listing requests
+    if (lower.contains("list") || lower.contains("show")) && (lower.contains("file") || lower.contains("directory") || lower.contains("dir")) {
+        return Some("ls -la".to_string());
+    }
+    
+    // Try to extract command from backticks
+    if let Some(cmd) = extract_command_from_message(message) {
+        return Some(cmd);
+    }
+    
+    None
+}
+
+/// Detect if user message is requesting a command execution.
+fn detect_command_request(message: &str) -> Option<String> {
+    let lower = message.to_lowercase();
+    
+    // Check for git status requests
+    if lower.contains("git") && (lower.contains("status") || lower.contains("change") || lower.contains("pending") || lower.contains("uncommitted")) {
+        return Some("The user is asking about git status. You MUST execute `git status` to answer their question.".to_string());
+    }
+    
+    // Check for file listing requests
+    if lower.contains("list") && (lower.contains("file") || lower.contains("directory") || lower.contains("dir")) {
+        return Some("The user wants to see files. You MUST execute `ls -la` or similar command.".to_string());
+    }
+    
+    // Check for other common command patterns
+    if lower.contains("run") || lower.contains("execute") || lower.contains("check") {
+        // Try to extract command from message
+        if let Some(cmd) = extract_command_from_message(message) {
+            return Some(format!("The user wants to execute a command. You MUST run `{}` to help them.", cmd));
+        }
+    }
+    
+    None
+}
+
+/// Try to extract a command from user message.
+fn extract_command_from_message(message: &str) -> Option<String> {
+    use regex::Regex;
+    
+    // Look for commands in backticks
+    if let Ok(re) = Regex::new(r#"`([^`]+)`"#) {
+        if let Some(cap) = re.captures(message) {
+            if let Some(cmd) = cap.get(1) {
+                let cmd_str = cmd.as_str().trim();
+                // Basic validation - looks like a command
+                if !cmd_str.is_empty() && cmd_str.len() < 200 {
+                    return Some(cmd_str.to_string());
+                }
+            }
+        }
+    }
+    
+    // Look for "git status" pattern
+    if let Ok(re) = Regex::new(r#"(?:run|execute|check)\s+(git\s+\w+)"#) {
+        if let Some(cap) = re.captures(&message.to_lowercase()) {
+            if let Some(cmd) = cap.get(1) {
+                return Some(cmd.as_str().to_string());
+            }
+        }
+    }
+    
+    None
+}
+
+/// Process command execution requests in agent response.
+/// 
+/// Detects patterns like "run `command`", "execute `command`", "please run `command`"
+/// and executes the commands, then appends the output to the response.
+async fn process_command_requests(response: &str) -> (String, usize) {
+    use regex::Regex;
+    
+    // Patterns to detect command requests - be more flexible
+    let patterns = vec![
+        // Explicit requests
+        (r#"(?:run|execute|check|show)\s+`([^`]+)`"#, "explicit"),
+        (r#"(?:please|can you|could you)\s+(?:run|execute|check)\s+`([^`]+)`"#, "polite"),
+        (r#"let me\s+(?:run|execute|check)\s+`([^`]+)`"#, "let me"),
+        // Direct command mentions in backticks (most common)
+        (r#"`(git\s+[^\s`]+(?:\s+[^\s`]+)*)`"#, "git"),
+        (r#"`(ls\s*[^\s`]*)`"#, "ls"),
+        (r#"`(pwd)`"#, "pwd"),
+        (r#"`(cat\s+[^\s`]+)`"#, "cat"),
+        (r#"`(grep\s+[^`]+)`"#, "grep"),
+        // Any command in backticks (catch-all for common commands)
+        (r#"`([a-z][a-z0-9_-]+\s+[^`]+)`"#, "any"),
+        // Fallback: any backticked text that looks like a command
+        (r#"`([^\s`]+\s+[^`]+)`"#, "fallback"),
+    ];
+
+    let mut final_response = response.to_string();
+    let mut commands_executed = 0;
+    let mut executed_commands: Vec<String> = Vec::new();
+
+    // Get workspace root for command execution
+    let workspace_root = Workspace::discover()
+        .map(|w| w.root().to_path_buf())
+        .unwrap_or_else(|_| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+
+    for (pattern, _label) in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            for cap in re.captures_iter(response) {
+                if let Some(command_match) = cap.get(1) {
+                    let command = command_match.as_str().trim();
+                    
+                    // Skip if we've already executed this command
+                    if executed_commands.contains(&command.to_string()) {
+                        continue;
+                    }
+                    
+                    // Execute the command
+                    match execute_terminal_command(command, &workspace_root).await {
+                        Ok(output) => {
+                            executed_commands.push(command.to_string());
+                            commands_executed += 1;
+                            
+                            // Append command output to response
+                            final_response.push_str(&format!(
+                                "\n\n---\n\n**Command executed:** `{}`\n\n**Output:**\n```\n{}\n```",
+                                command, output
+                            ));
+                        }
+                        Err(e) => {
+                            executed_commands.push(command.to_string());
+                            commands_executed += 1;
+                            
+                            // Append error to response
+                            final_response.push_str(&format!(
+                                "\n\n---\n\n**Command executed:** `{}`\n\n**Error:**\n```\n{}\n```",
+                                command, e
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    (final_response, commands_executed)
+}
+
+/// Execute a terminal command and return the output.
+async fn execute_terminal_command(command: &str, cwd: &PathBuf) -> Result<String> {
+    let timeout_duration = Duration::from_secs(30);
+    
+    #[cfg(unix)]
+    let shell_cmd = "sh";
+    #[cfg(unix)]
+    let shell_arg = "-c";
+    #[cfg(windows)]
+    let shell_cmd = "cmd";
+    #[cfg(windows)]
+    let shell_arg = "/c";
+
+    let mut cmd = Command::new(shell_cmd);
+    cmd.arg(shell_arg);
+    cmd.arg(command);
+    cmd.current_dir(cwd);
+
+    match timeout(timeout_duration, cmd.output()).await {
+        Ok(Ok(output)) => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let exit_code = output.status.code().unwrap_or(-1);
+
+            if output.status.success() {
+                if stderr.trim().is_empty() {
+                    Ok(stdout.trim().to_string())
+                } else {
+                    Ok(format!("{}\n{}", stdout.trim(), stderr.trim()))
+                }
+            } else {
+                Err(anyhow::anyhow!(
+                    "Command failed with exit code {}\nSTDOUT:\n{}\nSTDERR:\n{}",
+                    exit_code,
+                    stdout,
+                    stderr
+                ))
+            }
+        }
+        Ok(Err(e)) => Err(anyhow::anyhow!("Failed to execute command: {}", e)),
+        Err(_) => Err(anyhow::anyhow!("Command timed out after 30 seconds")),
+    }
 }
 
 /// Format model execution errors with helpful guidance.

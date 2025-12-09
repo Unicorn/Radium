@@ -2933,6 +2933,7 @@ dependencies = [
  "radium-models",
  "radium-orchestrator",
  "ratatui",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",
