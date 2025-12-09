@@ -186,11 +186,17 @@ pub async fn execute_chat_message(
             let supports_streaming = engine == "ollama";
             
             if supports_streaming {
-                // Try to use streaming
-                match try_streaming_execution(&*model_instance, &rendered).await {
+                // Try to use streaming for Ollama
+                match try_streaming_execution(model, &rendered).await {
                     Ok((response, stream_ctx)) => {
-                        // Streaming succeeded
-                        (response, Some(stream_ctx))
+                        // Streaming succeeded - return early with streaming context
+                        // The response will be accumulated in the TUI as tokens arrive
+                        return Ok(ChatExecutionResult {
+                            response,
+                            success: true,
+                            error: None,
+                            streaming_context: Some(stream_ctx),
+                        });
                     }
                     Err(_) => {
                         // Streaming failed, fall back to non-streaming

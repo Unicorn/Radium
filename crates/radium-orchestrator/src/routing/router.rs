@@ -95,7 +95,7 @@ impl ModelRouter {
             cost_tracker: Arc::new(CostTracker::new()),
             ab_test_sampler: None,
             fallback_chain: None,
-            tried_models: Vec::new(),
+            tried_models: Arc::new(RwLock::new(Vec::new())),
         }
     }
     
@@ -128,12 +128,15 @@ impl ModelRouter {
     /// - `Ok(None)` if no fallback chain is configured
     /// - `Err(RoutingError::AllModelsFailed)` if all models in chain have been tried
     pub fn get_next_fallback_model(
-        &mut self,
+        &self,
         failed_model_id: &str,
         error: &str,
     ) -> Result<Option<ModelConfig>, RoutingError> {
         // Record the failure
-        self.tried_models.push(failed_model_id.to_string());
+        {
+            let mut tried = self.tried_models.write().unwrap();
+            tried.push(failed_model_id.to_string());
+        }
         
         // If no fallback chain, return None (no fallback available)
         let chain = match &self.fallback_chain {
@@ -142,16 +145,21 @@ impl ModelRouter {
         };
         
         // Find the next model in the chain that hasn't been tried
+        let tried = self.tried_models.read().unwrap();
         for model_config in &chain.models {
             // Use model_id directly for comparison
-            if !self.tried_models.contains(&model_config.model_id) {
-                self.tried_models.push(model_config.model_id.clone());
+            if !tried.contains(&model_config.model_id) {
+                drop(tried);
+                let mut tried = self.tried_models.write().unwrap();
+                tried.push(model_config.model_id.clone());
                 return Ok(Some(model_config.clone()));
             }
         }
+        drop(tried);
         
         // All models have been tried - return error with failure records
-        let failures: Vec<FailureRecord> = self.tried_models
+        let tried = self.tried_models.read().unwrap();
+        let failures: Vec<FailureRecord> = tried
             .iter()
             .map(|model_id| FailureRecord::new(
                 model_id.clone(),
@@ -162,9 +170,13 @@ impl ModelRouter {
                 }
             ))
             .collect();
+        drop(tried);
         
         // Reset tried models for next attempt
-        self.tried_models.clear();
+        {
+            let mut tried = self.tried_models.write().unwrap();
+            tried.clear();
+        }
         
         Err(RoutingError::AllModelsFailed(failures))
     }
@@ -172,8 +184,9 @@ impl ModelRouter {
     /// Resets the fallback chain state (clears tried models).
     ///
     /// Call this when starting a new routing sequence.
-    pub fn reset_fallback_state(&mut self) {
-        self.tried_models.clear();
+    pub fn reset_fallback_state(&self) {
+        let mut tried = self.tried_models.write().unwrap();
+        tried.clear();
     }
     
     /// Creates a new model router from model specification strings.

@@ -16,5 +16,5 @@ pub use complexity::ComplexityEstimator;
 pub use cost_tracker::{CostMetrics, CostTracker, TierMetrics};
 pub use question_type::{AnalysisPlan, QuestionType};
 pub use router::{DecisionType, ModelRouter, RoutingDecision};
-pub use types::{ComplexityScore, ComplexityWeights, RoutingTier, TaskType};
+pub use types::{ComplexityScore, ComplexityWeights, FailureRecord, FallbackChain, RoutingError, RoutingTier, TaskType};
 
