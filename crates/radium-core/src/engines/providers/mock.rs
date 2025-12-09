@@ -5,6 +5,7 @@ use crate::engines::engine_trait::{
 };
 use crate::engines::error::Result;
 use async_trait::async_trait;
+use std::time::Instant;
 
 /// Mock engine implementation for testing.
 pub struct MockEngine {

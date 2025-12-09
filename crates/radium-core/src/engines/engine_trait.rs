@@ -143,6 +143,13 @@ pub struct ExecutionResponse {
 
     /// Raw response (for debugging).
     pub raw: Option<String>,
+
+    /// Execution duration (for local model cost tracking).
+    /// 
+    /// This field should be populated for successful executions to enable
+    /// duration-based cost calculation for local models. Set to `None` for
+    /// failed executions or if duration tracking is not available.
+    pub execution_duration: Option<std::time::Duration>,
 }
 
 /// Token usage information.

@@ -24,8 +24,7 @@ use radium_abstraction::{
 };
 use tracing::debug;
 
-pub use cache::{CacheConfig, CacheKey, CacheStats, CachedModel};
-// ModelCache will be exported in Task 2
+pub use cache::{CacheConfig, CacheKey, CacheStats, CachedModel, ModelCache};
 pub use claude::ClaudeModel;
 pub use factory::{ModelConfig, ModelFactory, ModelType};
 pub use gemini::GeminiModel;
