@@ -342,7 +342,7 @@ impl StatusFooter {
 
     /// Renders the status bar with fixed input prompt.
     /// This is the universal status bar that always includes the input prompt for consistency.
-    /// Layout: Agent/Session info on top row, Input field on bottom row.
+    /// Layout: Agent/Session info on top row, Input field in middle, hints on bottom row.
     pub fn render_with_input(
         frame: &mut Frame,
         area: Rect,
@@ -353,83 +353,34 @@ impl StatusFooter {
         privacy_state: Option<&PrivacyState>,
     ) {
         let theme = crate::theme::get_theme();
-        
-        // Split into two rows: agent info on top, input on bottom
+
+        // Split into three rows: agent info on top, input in middle, hints on bottom
         let rows = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(1),  // Agent/Session info bar
                 Constraint::Length(3),  // Input row (3 lines for bigger input with border)
+                Constraint::Length(1),  // Hints row (model on left, shortcuts on right)
             ])
             .split(area);
 
-        // Top row: Agent/Session/Model info
+        // Top row: Agent/Session info
         let context_text = if let Some(ctx) = context {
             match ctx {
                 DisplayContext::Chat { agent_id, session_id } => {
-                    if let Some(model) = model_id {
-                        format!("Agent: {} | Session: {} | Model: {}", agent_id, session_id, model)
-                    } else {
-                        format!("Agent: {} | Session: {}", agent_id, session_id)
-                    }
+                    format!("Agent: {} | Session: {}", agent_id, session_id)
                 }
-                DisplayContext::AgentList => {
-                    if let Some(model) = model_id {
-                        format!("Select an agent | Model: {}", model)
-                    } else {
-                        "Select an agent".to_string()
-                    }
-                }
-                DisplayContext::SessionList => {
-                    if let Some(model) = model_id {
-                        format!("Select a session | Model: {}", model)
-                    } else {
-                        "Select a session".to_string()
-                    }
-                }
+                DisplayContext::AgentList => "Select an agent".to_string(),
+                DisplayContext::SessionList => "Select a session".to_string(),
                 DisplayContext::ModelSelector => "Select a model".to_string(),
-                DisplayContext::Dashboard => {
-                    if let Some(model) = model_id {
-                        format!("Dashboard | Model: {}", model)
-                    } else {
-                        "Dashboard".to_string()
-                    }
-                }
-                DisplayContext::Help => {
-                    if let Some(model) = model_id {
-                        format!("Help | Model: {}", model)
-                    } else {
-                        "Help".to_string()
-                    }
-                }
-                DisplayContext::CostDashboard => {
-                    if let Some(model) = model_id {
-                        format!("Cost Dashboard | Model: {}", model)
-                    } else {
-                        "Cost Dashboard".to_string()
-                    }
-                }
-                DisplayContext::BudgetAnalytics => {
-                    if let Some(model) = model_id {
-                        format!("Budget Analytics | Model: {}", model)
-                    } else {
-                        "Budget Analytics".to_string()
-                    }
-                }
-                DisplayContext::Checkpoint { reason, .. } => {
-                    if let Some(model) = model_id {
-                        format!("Checkpoint: {} | Model: {}", reason, model)
-                    } else {
-                        format!("Checkpoint: {}", reason)
-                    }
-                }
+                DisplayContext::Dashboard => "Dashboard".to_string(),
+                DisplayContext::Help => "Help".to_string(),
+                DisplayContext::CostDashboard => "Cost Dashboard".to_string(),
+                DisplayContext::BudgetAnalytics => "Budget Analytics".to_string(),
+                DisplayContext::Checkpoint { reason, .. } => format!("Checkpoint: {}", reason),
             }
         } else {
-            if let Some(model) = model_id {
-                format!("Mode: {} | Model: {}", mode.as_str(), model)
-            } else {
-                format!("Mode: {}", mode.as_str())
-            }
+            format!("Mode: {}", mode.as_str())
         };
 
         let context_widget = Paragraph::new(context_text)
@@ -442,37 +393,43 @@ impl StatusFooter {
             );
         frame.render_widget(context_widget, rows[0]);
 
-        // Bottom row: Input field (full width, bigger) with shortcuts on the right
-        let input_chunks = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Fill(1),       // Input prompt (flexible, takes most space)
-                Constraint::Min(30),       // Keyboard shortcuts
-            ])
-            .split(rows[1]);
-
-        // Input prompt (always visible, bigger now)
-        // Add a border around the input to make it more visually distinct
+        // Middle row: Input field (full width, bigger)
         let input_block = Block::default()
             .borders(Borders::ALL)
             .border_style(Style::default().fg(theme.primary))
             .title(" Input ");
-        let input_area = input_block.inner(input_chunks[0]);
-        frame.render_widget(input_block, input_chunks[0]);
+        let input_area = input_block.inner(rows[1]);
+        frame.render_widget(input_block, rows[1]);
         // Render TextArea widget inside the bordered area
         frame.render_widget(input.clone(), input_area);
+
+        // Bottom row: Model on left, keyboard shortcuts on right
+        let hints_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Length(30),    // Model info on left
+                Constraint::Fill(1),       // Keyboard shortcuts on right (flexible)
+            ])
+            .split(rows[2]);
+
+        // Left: Model info
+        let model_text = if let Some(model) = model_id {
+            format!("Model: {}", model)
+        } else {
+            "Model: not set".to_string()
+        };
+        let model_widget = Paragraph::new(model_text)
+            .style(Style::default().fg(theme.text_muted))
+            .block(Block::default().borders(Borders::NONE));
+        frame.render_widget(model_widget, hints_chunks[0]);
 
         // Right: Keyboard shortcuts
         let shortcuts_text = mode.shortcuts();
         let shortcuts_widget = Paragraph::new(shortcuts_text)
             .style(Style::default().fg(theme.text_dim))
             .alignment(Alignment::Right)
-            .block(
-                Block::default()
-                    .borders(Borders::NONE)
-                    .padding(ratatui::widgets::Padding::new(0, 0, 0, 1)),
-            );
-        frame.render_widget(shortcuts_widget, input_chunks[1]);
+            .block(Block::default().borders(Borders::NONE));
+        frame.render_widget(shortcuts_widget, hints_chunks[1]);
     }
 }
 

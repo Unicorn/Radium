@@ -439,14 +439,51 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData, model_fil
             let viewport_height = area.height.saturating_sub(2) as usize;
             let visible_conversation = data.get_visible_conversation(viewport_height);
 
-            // Parse visible conversation lines as markdown
+            // Parse visible conversation lines as markdown with visual distinction
             let mut markdown_lines = Vec::new();
             if visible_conversation.is_empty() {
                 markdown_lines.push(ratatui::text::Line::from("No messages yet. Type a message to start!"));
             } else {
                 for line in &visible_conversation {
-                    let parsed = crate::views::markdown::render_markdown(line);
-                    markdown_lines.extend(parsed);
+                    // Add visual distinction for different message types
+                    if line.starts_with("You: ") {
+                        // User message - use primary color with box drawing character
+                        let content = line.strip_prefix("You: ").unwrap_or(line);
+                        markdown_lines.push(ratatui::text::Line::from(vec![
+                            Span::styled("┌─ ", Style::default().fg(THEME.primary())),
+                            Span::styled("You", Style::default().fg(THEME.primary()).add_modifier(Modifier::BOLD)),
+                        ]));
+                        let parsed = crate::views::markdown::render_markdown(content);
+                        for parsed_line in parsed {
+                            let mut spans = vec![Span::styled("│ ", Style::default().fg(THEME.primary()))];
+                            spans.extend(parsed_line.spans);
+                            markdown_lines.push(ratatui::text::Line::from(spans));
+                        }
+                        markdown_lines.push(ratatui::text::Line::from(
+                            Span::styled("└─", Style::default().fg(THEME.primary()))
+                        ));
+                    } else if line.starts_with("Agent: ") || line.starts_with("Assistant: ") {
+                        // AI message - use info/secondary color with different box drawing
+                        let prefix = if line.starts_with("Agent: ") { "Agent: " } else { "Assistant: " };
+                        let content = line.strip_prefix(prefix).unwrap_or(line);
+                        markdown_lines.push(ratatui::text::Line::from(vec![
+                            Span::styled("╭─ ", Style::default().fg(THEME.info())),
+                            Span::styled(prefix.trim_end_matches(": "), Style::default().fg(THEME.info()).add_modifier(Modifier::BOLD)),
+                        ]));
+                        let parsed = crate::views::markdown::render_markdown(content);
+                        for parsed_line in parsed {
+                            let mut spans = vec![Span::styled("│ ", Style::default().fg(THEME.info()))];
+                            spans.extend(parsed_line.spans);
+                            markdown_lines.push(ratatui::text::Line::from(spans));
+                        }
+                        markdown_lines.push(ratatui::text::Line::from(
+                            Span::styled("╰─", Style::default().fg(THEME.info()))
+                        ));
+                    } else {
+                        // Other messages (errors, system messages, etc.)
+                        let parsed = crate::views::markdown::render_markdown(line);
+                        markdown_lines.extend(parsed);
+                    }
                     markdown_lines.push(ratatui::text::Line::from("")); // Add spacing between messages
                 }
             }
@@ -490,6 +527,7 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData, model_fil
                         .borders(Borders::ALL)
                         .border_style(Style::default().fg(THEME.border()))
                         .title(chat_title)
+                        .padding(ratatui::widgets::Padding::new(1, 1, 1, 1))
                 )
                 .style(Style::default().fg(THEME.text()))
                 .scroll((0, 0)); // No scroll needed since we're already culling

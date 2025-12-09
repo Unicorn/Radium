@@ -3,7 +3,7 @@
 //! Provides a consistent three-tier layout:
 //! - Title bar (fixed, height 2): Logo and metadata
 //! - Main area (flexible): Content area that can be split
-//! - Status bar (fixed, height 5): Agent info (1 line) + Input prompt (3 lines) + border (1 line)
+//! - Status bar (fixed, height 6): Agent info (1 line) + Input prompt (3 lines) + Hints row (1 line) + border (1 line)
 
 use ratatui::{
     prelude::*,
@@ -21,7 +21,7 @@ impl GlobalLayout {
             .constraints([
                 Constraint::Length(2), // Title bar (2 lines: 1 for content, 1 for border)
                 Constraint::Min(0),    // Main area (flexible)
-                Constraint::Length(5),  // Status bar (5 lines: 1 for agent info + 3 for input + 1 for border)
+                Constraint::Length(6),  // Status bar (6 lines: 1 for agent info + 3 for input + 1 for hints + 1 for border)
             ])
             .split(area);
         [chunks[0], chunks[1], chunks[2]]

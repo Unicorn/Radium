@@ -254,25 +254,49 @@ fn render_very_narrow_layout(
         title.push_str(" [Ctrl+O: Orchestrator]");
     }
 
-    let viewport_height = area.height.saturating_sub(2) as usize;
+    let viewport_height = area.height.saturating_sub(4) as usize; // Account for padding
     let visible_conversation = prompt_data.get_visible_conversation(viewport_height);
 
     let mut styled_lines = Vec::new();
     for line in &visible_conversation {
-        let styled_line = if line.starts_with("You: ") {
-            Line::from(Span::styled(line.clone(), Style::default().fg(theme.primary)))
+        if line.starts_with("You: ") {
+            // User message - use primary color with box drawing character
+            let content = line.strip_prefix("You: ").unwrap_or(line);
+            styled_lines.push(Line::from(vec![
+                Span::styled("┌─ ", Style::default().fg(theme.primary)),
+                Span::styled("You", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
+            ]));
+            styled_lines.push(Line::from(vec![
+                Span::styled("│ ", Style::default().fg(theme.primary)),
+                Span::styled(content, Style::default().fg(theme.text)),
+            ]));
+            styled_lines.push(Line::from(
+                Span::styled("└─", Style::default().fg(theme.primary))
+            ));
         } else if line.starts_with("Agent: ") || line.starts_with("Assistant: ") {
-            Line::from(Span::styled(line.clone(), Style::default().fg(theme.info)))
+            // AI message - use info/secondary color with different box drawing
+            let prefix = if line.starts_with("Agent: ") { "Agent: " } else { "Assistant: " };
+            let content = line.strip_prefix(prefix).unwrap_or(line);
+            styled_lines.push(Line::from(vec![
+                Span::styled("╭─ ", Style::default().fg(theme.info)),
+                Span::styled(prefix.trim_end_matches(": "), Style::default().fg(theme.info).add_modifier(Modifier::BOLD)),
+            ]));
+            styled_lines.push(Line::from(vec![
+                Span::styled("│ ", Style::default().fg(theme.info)),
+                Span::styled(content, Style::default().fg(theme.text)),
+            ]));
+            styled_lines.push(Line::from(
+                Span::styled("╰─", Style::default().fg(theme.info))
+            ));
         } else if line.starts_with("Error: ") || line.starts_with("❌") {
-            Line::from(Span::styled(line.clone(), Style::default().fg(theme.error)))
+            styled_lines.push(Line::from(Span::styled(line.clone(), Style::default().fg(theme.error))));
         } else if line.starts_with("⚠️") || line.starts_with("⏰") || line.starts_with("⏱️") {
-            Line::from(Span::styled(line.clone(), Style::default().fg(theme.warning)))
+            styled_lines.push(Line::from(Span::styled(line.clone(), Style::default().fg(theme.warning))));
         } else if line.starts_with("📋") || line.starts_with("⏳") || line.starts_with("✅") {
-            Line::from(Span::styled(line.clone(), Style::default().fg(theme.text_muted)))
+            styled_lines.push(Line::from(Span::styled(line.clone(), Style::default().fg(theme.text_muted))));
         } else {
-            Line::from(Span::styled(line.clone(), Style::default().fg(theme.text)))
-        };
-        styled_lines.push(styled_line);
+            styled_lines.push(Line::from(Span::styled(line.clone(), Style::default().fg(theme.text))));
+        }
         styled_lines.push(Line::from(""));
     }
 
@@ -282,7 +306,8 @@ fn render_very_narrow_layout(
             Block::default()
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(theme.border))
-                .title(title),
+                .title(title)
+                .padding(ratatui::widgets::Padding::new(1, 1, 1, 1)),
         )
         .style(Style::default().fg(theme.text));
 
@@ -297,53 +322,61 @@ fn render_chat_log(
     theme: &crate::theme::RadiumTheme,
     focused: bool,
 ) {
-    // Calculate viewport height
-    let viewport_height = area.height.saturating_sub(2) as usize;
-    
+    // Calculate viewport height (account for padding)
+    let viewport_height = area.height.saturating_sub(4) as usize; // Extra space for padding
+
     // Get visible conversation lines
     let visible_conversation = prompt_data.get_visible_conversation(viewport_height);
 
-    // Parse and color-code messages
+    // Parse and color-code messages with visual distinction
     let mut styled_lines = Vec::new();
     for line in &visible_conversation {
-        let styled_line = if line.starts_with("You: ") {
-            // User message - primary color
-            Line::from(Span::styled(
-                line.clone(),
-                Style::default().fg(theme.primary),
-            ))
+        if line.starts_with("You: ") {
+            // User message - use primary color with box drawing character
+            let content = line.strip_prefix("You: ").unwrap_or(line);
+            styled_lines.push(Line::from(vec![
+                Span::styled("┌─ ", Style::default().fg(theme.primary)),
+                Span::styled("You", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
+            ]));
+            styled_lines.push(Line::from(vec![
+                Span::styled("│ ", Style::default().fg(theme.primary)),
+                Span::styled(content, Style::default().fg(theme.text)),
+            ]));
+            styled_lines.push(Line::from(
+                Span::styled("└─", Style::default().fg(theme.primary))
+            ));
         } else if line.starts_with("Agent: ") || line.starts_with("Assistant: ") {
-            // Agent/assistant message - info color
-            Line::from(Span::styled(
-                line.clone(),
-                Style::default().fg(theme.info),
-            ))
+            // AI message - use info/secondary color with different box drawing
+            let prefix = if line.starts_with("Agent: ") { "Agent: " } else { "Assistant: " };
+            let content = line.strip_prefix(prefix).unwrap_or(line);
+            styled_lines.push(Line::from(vec![
+                Span::styled("╭─ ", Style::default().fg(theme.info)),
+                Span::styled(prefix.trim_end_matches(": "), Style::default().fg(theme.info).add_modifier(Modifier::BOLD)),
+            ]));
+            styled_lines.push(Line::from(vec![
+                Span::styled("│ ", Style::default().fg(theme.info)),
+                Span::styled(content, Style::default().fg(theme.text)),
+            ]));
+            styled_lines.push(Line::from(
+                Span::styled("╰─", Style::default().fg(theme.info))
+            ));
         } else if line.starts_with("Error: ") || line.starts_with("❌") {
             // Error message - error color
             Line::from(Span::styled(
                 line.clone(),
                 Style::default().fg(theme.error),
-            ))
+            ));
+            styled_lines.push(Line::from(Span::styled(line.clone(), Style::default().fg(theme.error))));
         } else if line.starts_with("⚠️") || line.starts_with("⏰") || line.starts_with("⏱️") {
             // Warning/system message - warning color
-            Line::from(Span::styled(
-                line.clone(),
-                Style::default().fg(theme.warning),
-            ))
+            styled_lines.push(Line::from(Span::styled(line.clone(), Style::default().fg(theme.warning))));
         } else if line.starts_with("📋") || line.starts_with("⏳") || line.starts_with("✅") {
             // System message - muted color
-            Line::from(Span::styled(
-                line.clone(),
-                Style::default().fg(theme.text_muted),
-            ))
+            styled_lines.push(Line::from(Span::styled(line.clone(), Style::default().fg(theme.text_muted))));
         } else {
             // Default text color
-            Line::from(Span::styled(
-                line.clone(),
-                Style::default().fg(theme.text),
-            ))
-        };
-        styled_lines.push(styled_line);
+            styled_lines.push(Line::from(Span::styled(line.clone(), Style::default().fg(theme.text))));
+        }
         styled_lines.push(Line::from("")); // Add spacing between messages
     }
 
@@ -357,7 +390,8 @@ fn render_chat_log(
                 } else {
                     Style::default().fg(theme.border)
                 })
-                .title(" Chat Log "),
+                .title(" Chat Log ")
+                .padding(ratatui::widgets::Padding::new(1, 1, 1, 1)),
         )
         .style(Style::default().fg(theme.text));
 
