@@ -30,8 +30,8 @@ fn default_min_billable_duration() -> f64 {
     0.0
 }
 
-/// TOML structure for deserialization.
-#[derive(Debug, Clone, Deserialize)]
+/// TOML structure for serialization/deserialization.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct EngineCostsConfigToml {
     /// Engines section.
     #[serde(default)]
@@ -63,7 +63,7 @@ impl EngineCostsConfig {
         let toml_config: EngineCostsConfigToml = toml::from_str(&content)
             .map_err(|e| MonitoringError::Other(format!("Failed to parse engine costs config: {}", e)))?;
 
-        let mut config = Self {
+        let config = Self {
             config_path: path.to_path_buf(),
             engines: toml_config.engines,
         };
