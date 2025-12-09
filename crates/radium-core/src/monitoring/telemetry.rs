@@ -242,6 +242,37 @@ impl TelemetryRecord {
         self
     }
 
+    /// Sets local model cost based on execution duration.
+    ///
+    /// This method calculates cost for local/self-hosted models using duration-based
+    /// pricing from the cost tracker. Use this for local engines (Ollama, LM Studio, etc.)
+    /// instead of token-based cost calculation.
+    ///
+    /// # Arguments
+    /// * `engine_id` - Engine identifier (e.g., "ollama", "lm-studio")
+    /// * `duration` - Execution duration
+    /// * `cost_tracker` - Local model cost tracker
+    ///
+    /// # Returns
+    /// Self with populated cost, duration, engine_id, and provider fields
+    pub fn with_local_cost(
+        mut self,
+        engine_id: &str,
+        duration: std::time::Duration,
+        cost_tracker: &crate::monitoring::LocalModelCostTracker,
+    ) -> Self {
+        // Calculate cost using the cost tracker
+        let cost = cost_tracker.calculate_cost(engine_id, duration);
+
+        // Populate telemetry fields
+        self.estimated_cost = cost;
+        self.behavior_duration_ms = Some(duration.as_millis() as u64);
+        self.engine_id = Some(engine_id.to_string());
+        self.provider = Some("local".to_string());
+
+        self
+    }
+
     /// Calculates estimated cost based on model pricing.
     /// Uses engine-specific pricing when engine_id is set, otherwise falls back to model-based pricing.
     pub fn calculate_cost(&mut self) -> &mut Self {

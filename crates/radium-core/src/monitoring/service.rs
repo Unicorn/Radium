@@ -169,6 +169,8 @@ pub struct MonitoringService {
     hook_registry: Option<Arc<HookRegistry>>,
     /// Optional privacy filter for redacting sensitive data.
     privacy_filter: Option<Arc<PrivacyFilter>>,
+    /// Optional local model cost tracker for duration-based cost calculation.
+    cost_tracker: Option<Arc<super::LocalModelCostTracker>>,
 }
 
 impl MonitoringService {
@@ -211,7 +213,12 @@ impl MonitoringService {
                 }
             });
 
-        Ok(Self { conn, hook_registry: None, privacy_filter })
+        Ok(Self {
+            conn,
+            hook_registry: None,
+            privacy_filter,
+            cost_tracker: None,
+        })
     }
 
     /// Creates a new monitoring service with hook registry.
@@ -224,7 +231,12 @@ impl MonitoringService {
     pub fn with_hooks(hook_registry: Arc<HookRegistry>) -> Result<Self> {
         let conn = Connection::open_in_memory()?;
         initialize_schema(&conn)?;
-        Ok(Self { conn, hook_registry: Some(hook_registry), privacy_filter: None })
+        Ok(Self {
+            conn,
+            hook_registry: Some(hook_registry),
+            privacy_filter: None,
+            cost_tracker: None,
+        })
     }
 
     /// Opens a monitoring service with a database file.
@@ -262,7 +274,12 @@ impl MonitoringService {
                 }
             });
 
-        Ok(Self { conn, hook_registry: None, privacy_filter })
+        Ok(Self {
+            conn,
+            hook_registry: None,
+            privacy_filter,
+            cost_tracker: None,
+        })
     }
 
     /// Opens a monitoring service with a database file and hook registry.
@@ -276,7 +293,12 @@ impl MonitoringService {
     pub fn open_with_hooks(path: impl AsRef<Path>, hook_registry: Arc<HookRegistry>) -> Result<Self> {
         let conn = Connection::open(path)?;
         initialize_schema(&conn)?;
-        Ok(Self { conn, hook_registry: Some(hook_registry), privacy_filter: None })
+        Ok(Self {
+            conn,
+            hook_registry: Some(hook_registry),
+            privacy_filter: None,
+            cost_tracker: None,
+        })
     }
 
     /// Sets the hook registry for this monitoring service.
@@ -287,6 +309,19 @@ impl MonitoringService {
     /// Gets a clone of the hook registry if it exists.
     pub fn get_hook_registry(&self) -> Option<Arc<HookRegistry>> {
         self.hook_registry.as_ref().map(Arc::clone)
+    }
+
+    /// Sets the local model cost tracker for this monitoring service.
+    ///
+    /// # Arguments
+    /// * `cost_tracker` - Local model cost tracker for duration-based cost calculation
+    pub fn set_cost_tracker(&mut self, cost_tracker: Arc<super::LocalModelCostTracker>) {
+        self.cost_tracker = Some(cost_tracker);
+    }
+
+    /// Gets a reference to the cost tracker if it exists.
+    pub fn get_cost_tracker(&self) -> Option<&Arc<super::LocalModelCostTracker>> {
+        self.cost_tracker.as_ref()
     }
 
     /// Records telemetry synchronously (internal method, hooks should be executed before calling this).
