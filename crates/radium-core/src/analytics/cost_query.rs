@@ -32,7 +32,7 @@ impl<'a> CostQueryService<'a> {
         // Use a simpler approach: build query string and use params! macro with conditional values
         let mut query = String::from(
             "SELECT t.agent_id, t.timestamp, t.input_tokens, t.output_tokens, t.cached_tokens,
-                    t.total_tokens, t.estimated_cost, t.model, t.provider, a.plan_id, t.model_tier
+                    t.total_tokens, t.estimated_cost, t.model, t.provider, a.plan_id, t.model_tier, t.engine_id
              FROM telemetry t
              LEFT JOIN agents a ON t.agent_id = a.id
              WHERE 1=1",
@@ -184,6 +184,7 @@ impl<'a> CostQueryService<'a> {
             total_tokens: row.get(5)?,
             estimated_cost: row.get(6)?,
             model_tier: row.get(10).ok(),
+            engine_id: row.get(11).ok(),
         })
     }
 
@@ -206,6 +207,7 @@ impl<'a> CostQueryService<'a> {
                 breakdown_by_plan: HashMap::new(),
                 top_plans: Vec::new(),
                 tier_breakdown: None,
+                local_breakdown: None,
             };
         }
 
@@ -222,11 +224,27 @@ impl<'a> CostQueryService<'a> {
         let mut breakdown_by_provider: HashMap<String, f64> = HashMap::new();
         let mut breakdown_by_model: HashMap<String, f64> = HashMap::new();
         let mut breakdown_by_plan: HashMap<String, f64> = HashMap::new();
+        let mut local_breakdown: HashMap<String, f64> = HashMap::new();
+        let mut local_total_cost = 0.0;
 
         for record in records {
-            // Provider breakdown
-            if let Some(provider) = &record.provider {
-                *breakdown_by_provider.entry(provider.clone()).or_insert(0.0) += record.estimated_cost;
+            // Check if this is a local model
+            let is_local = record.provider.as_deref() == Some("local")
+                || (record.provider.is_none() && record.engine_id.is_some());
+
+            if is_local {
+                // Aggregate local costs by engine_id
+                if let Some(engine_id) = &record.engine_id {
+                    *local_breakdown.entry(engine_id.clone()).or_insert(0.0) += record.estimated_cost;
+                    local_total_cost += record.estimated_cost;
+                }
+                // Add to provider breakdown as "local" aggregate
+                *breakdown_by_provider.entry("local".to_string()).or_insert(0.0) += record.estimated_cost;
+            } else {
+                // Provider breakdown for cloud models
+                if let Some(provider) = &record.provider {
+                    *breakdown_by_provider.entry(provider.clone()).or_insert(0.0) += record.estimated_cost;
+                }
             }
 
             // Model breakdown
@@ -251,6 +269,13 @@ impl<'a> CostQueryService<'a> {
         // Calculate tier breakdown if tier data is available
         let tier_breakdown = self.calculate_tier_breakdown(records);
 
+        // Only include local_breakdown if there are local models
+        let local_breakdown = if local_breakdown.is_empty() {
+            None
+        } else {
+            Some(local_breakdown)
+        };
+
         CostSummary {
             period: (start, end),
             total_cost,
@@ -260,6 +285,7 @@ impl<'a> CostQueryService<'a> {
             breakdown_by_plan,
             top_plans,
             tier_breakdown,
+            local_breakdown,
         }
     }
 
