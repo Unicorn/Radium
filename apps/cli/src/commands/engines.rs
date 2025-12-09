@@ -4,7 +4,7 @@ use super::types::{EnginesCommand, EngineConfigCommand};
 use anyhow::{Context, Result, bail};
 use colored::Colorize;
 use radium_core::engines::{EngineRegistry, HealthStatus, PerEngineConfig};
-use radium_core::engines::providers::{ClaudeEngine, GeminiEngine, MockEngine, OpenAIEngine};
+use radium_core::engines::providers::{ClaudeEngine, GeminiEngine, MockEngine, OllamaEngine, OpenAIEngine};
 use radium_core::workspace::Workspace;
 use serde_json::json;
 use std::sync::Arc;
@@ -39,6 +39,7 @@ fn init_registry() -> EngineRegistry {
     let _ = registry.register(Arc::new(ClaudeEngine::new()));
     let _ = registry.register(Arc::new(OpenAIEngine::new()));
     let _ = registry.register(Arc::new(GeminiEngine::new()));
+    let _ = registry.register(Arc::new(OllamaEngine::new()));
 
     // Load config after engines are registered
     let _ = registry.load_config();

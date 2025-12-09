@@ -42,12 +42,15 @@
 //! ```
 
 use async_trait::async_trait;
+use futures::Stream;
 use radium_abstraction::{
     ChatMessage, Model, ModelError, ModelParameters, ModelResponse, ModelUsage,
 };
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::env;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use std::time::Duration;
 use tracing::{debug, error};
 
@@ -335,6 +338,248 @@ impl Model for UniversalModel {
     }
 }
 
+impl UniversalModel {
+    /// Generates a chat completion with streaming support (Server-Sent Events).
+    ///
+    /// This method returns a stream that accumulates tokens as they arrive from the server.
+    /// The stream yields the accumulated content after each chunk is received.
+    ///
+    /// # Arguments
+    /// * `messages` - The conversation history as a slice of chat messages
+    /// * `parameters` - Optional parameters to control generation
+    ///
+    /// # Errors
+    /// Returns a `ModelError` if the request fails or streaming cannot be established.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use futures::StreamExt;
+    /// use radium_models::UniversalModel;
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let model = UniversalModel::without_auth(
+    ///     "llama-2-7b".to_string(),
+    ///     "http://localhost:1234/v1".to_string(),
+    /// );
+    ///
+    /// let messages = vec![radium_abstraction::ChatMessage {
+    ///     role: "user".to_string(),
+    ///     content: "Say hello".to_string(),
+    /// }];
+    ///
+    /// let mut stream = model.generate_chat_completion_stream(&messages, None).await?;
+    /// while let Some(result) = stream.next().await {
+    ///     let content = result?;
+    ///     print!("{}", content);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn generate_chat_completion_stream(
+        &self,
+        messages: &[ChatMessage],
+        parameters: Option<ModelParameters>,
+    ) -> Result<impl Stream<Item = Result<String, ModelError>>, ModelError> {
+        debug!(
+            model_id = %self.model_id,
+            message_count = messages.len(),
+            parameters = ?parameters,
+            "UniversalModel generating streaming chat completion"
+        );
+
+        // Build OpenAI-compatible API request
+        let url = format!("{}/chat/completions", self.base_url);
+
+        // Convert messages to OpenAI format
+        let openai_messages: Vec<OpenAIMessage> = messages
+            .iter()
+            .map(|msg| OpenAIMessage {
+                role: Self::role_to_openai(&msg.role),
+                content: msg.content.clone(),
+            })
+            .collect();
+
+        // Build request body with streaming enabled
+        let mut request_body = OpenAIStreamingRequest {
+            model: self.model_id.clone(),
+            messages: openai_messages,
+            stream: true,
+            temperature: None,
+            top_p: None,
+            max_tokens: None,
+            stop: None,
+        };
+
+        // Apply parameters if provided
+        if let Some(params) = parameters {
+            request_body.temperature = params.temperature;
+            request_body.top_p = params.top_p;
+            request_body.max_tokens = params.max_tokens;
+            request_body.stop = params.stop_sequences;
+        }
+
+        // Make streaming API request
+        let mut request = self.client.post(&url).json(&request_body);
+
+        // Add Bearer auth if API key is present
+        if let Some(ref api_key) = self.api_key {
+            request = request.bearer_auth(api_key);
+        }
+
+        let response = request.send().await.map_err(|e| {
+            error!(
+                error = %e,
+                url = %url,
+                "Failed to send streaming request to OpenAI-compatible API"
+            );
+            ModelError::RequestError(format!("Network error: {}", e))
+        })?;
+
+        // Check status
+        let status = response.status();
+        if !status.is_success() {
+            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            error!(
+                status = %status,
+                error = %error_text,
+                url = %url,
+                "OpenAI-compatible API returned error status for streaming request"
+            );
+            
+            // Map errors similar to non-streaming
+            if status == 401 || status == 403 {
+                return Err(ModelError::UnsupportedModelProvider(format!(
+                    "Authentication failed ({}): {}",
+                    status, error_text
+                )));
+            }
+            
+            if status == 402 || status == 429 {
+                return Err(ModelError::QuotaExceeded {
+                    provider: "universal".to_string(),
+                    message: Some(error_text),
+                });
+            }
+            
+            if (500..=599).contains(&status.as_u16()) {
+                return Err(ModelError::ModelResponseError(format!(
+                    "Server error ({}): {}",
+                    status, error_text
+                )));
+            }
+            
+            return Err(ModelError::ModelResponseError(format!(
+                "API error ({}): {}",
+                status, error_text
+            )));
+        }
+
+        // Create streaming response parser
+        Ok(SSEStream::new(response))
+    }
+}
+
+// Streaming response parser for SSE format
+struct SSEStream {
+    stream: Pin<Box<dyn Stream<Item = Result<bytes::Bytes, reqwest::Error>> + Send>>,
+    buffer: String,
+    accumulated: String,
+    done: bool,
+}
+
+impl SSEStream {
+    fn new(response: reqwest::Response) -> Self {
+        Self {
+            stream: Box::pin(response.bytes_stream()),
+            buffer: String::new(),
+            accumulated: String::new(),
+            done: false,
+        }
+    }
+}
+
+impl Stream for SSEStream {
+    type Item = Result<String, ModelError>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if self.done {
+            return Poll::Ready(None);
+        }
+
+        loop {
+            // Poll the underlying byte stream
+            match self.stream.as_mut().poll_next(cx) {
+                Poll::Ready(Some(Ok(bytes))) => {
+                    // Convert bytes to string and append to buffer
+                    match String::from_utf8(bytes.to_vec()) {
+                        Ok(chunk) => {
+                            self.buffer.push_str(&chunk);
+                            
+                            // Process complete lines (SSE events are separated by \n\n)
+                            while let Some(end_idx) = self.buffer.find("\n\n") {
+                                let event = self.buffer[..end_idx].to_string();
+                                self.buffer = self.buffer[end_idx + 2..].to_string();
+                                
+                                // Parse SSE event
+                                if event.starts_with("data: ") {
+                                    let data = &event[6..]; // Skip "data: " prefix
+                                    
+                                    // Check for [DONE] signal
+                                    if data.trim() == "[DONE]" {
+                                        self.done = true;
+                                        return Poll::Ready(Some(Ok(self.accumulated.clone())));
+                                    }
+                                    
+                                    // Parse JSON chunk
+                                    match serde_json::from_str::<OpenAIStreamingResponse>(data) {
+                                        Ok(streaming_response) => {
+                                            // Extract delta content
+                                            if let Some(choice) = streaming_response.choices.first() {
+                                                if let Some(content) = &choice.delta.content {
+                                                    self.accumulated.push_str(content);
+                                                    return Poll::Ready(Some(Ok(self.accumulated.clone())));
+                                                }
+                                            }
+                                        }
+                                        Err(e) => {
+                                            // Skip malformed JSON chunks (some servers send empty chunks)
+                                            debug!("Failed to parse SSE chunk: {}", e);
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            // Continue polling for more data
+                            continue;
+                        }
+                        Err(e) => {
+                            return Poll::Ready(Some(Err(ModelError::SerializationError(format!(
+                                "Failed to decode SSE chunk: {}",
+                                e
+                            )))));
+                        }
+                    }
+                }
+                Poll::Ready(Some(Err(e))) => {
+                    return Poll::Ready(Some(Err(ModelError::RequestError(format!(
+                        "Stream error: {}",
+                        e
+                    )))));
+                }
+                Poll::Ready(None) => {
+                    // Stream ended
+                    self.done = true;
+                    if !self.accumulated.is_empty() {
+                        return Poll::Ready(Some(Ok(self.accumulated.clone())));
+                    }
+                    return Poll::Ready(None);
+                }
+                Poll::Pending => return Poll::Pending,
+            }
+        }
+    }
+}
+
 // OpenAI-compatible API request/response structures
 // These match the OpenAI API specification and can be used with any compatible server
 
@@ -342,6 +587,21 @@ impl Model for UniversalModel {
 struct OpenAIRequest {
     model: String,
     messages: Vec<OpenAIMessage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    temperature: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    top_p: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_tokens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stop: Option<Vec<String>>,
+}
+
+#[derive(Debug, Serialize)]
+struct OpenAIStreamingRequest {
+    model: String,
+    messages: Vec<OpenAIMessage>,
+    stream: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     temperature: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -375,6 +635,22 @@ struct OpenAIUsage {
     prompt_tokens: u32,
     completion_tokens: u32,
     total_tokens: u32,
+}
+
+// Streaming response structures
+#[derive(Debug, Deserialize)]
+struct OpenAIStreamingResponse {
+    choices: Vec<OpenAIStreamingChoice>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenAIStreamingChoice {
+    delta: OpenAIStreamingDelta,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenAIStreamingDelta {
+    content: Option<String>,
 }
 
 #[cfg(test)]

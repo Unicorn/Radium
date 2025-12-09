@@ -1086,6 +1086,111 @@ mod tests {
         assert!(ids.contains(&"c-engine".to_string()));
     }
 
+    #[tokio::test]
+    async fn test_select_engine_cli_override() {
+        let registry = EngineRegistry::new();
+        registry.register(Arc::new(MockEngine::new("engine-1"))).unwrap();
+        registry.register(Arc::new(MockEngine::new("engine-2"))).unwrap();
+        registry.set_default("engine-1").unwrap();
+
+        // CLI override should take precedence over default
+        let selected = registry.select_engine(Some("engine-2"), None).await.unwrap();
+        assert_eq!(selected.metadata().id, "engine-2");
+    }
+
+    #[tokio::test]
+    async fn test_select_engine_default_fallback() {
+        let registry = EngineRegistry::new();
+        registry.register(Arc::new(MockEngine::new("engine-1"))).unwrap();
+        registry.set_default("engine-1").unwrap();
+
+        // Should use default when no CLI override
+        let selected = registry.select_engine(None, None).await.unwrap();
+        assert_eq!(selected.metadata().id, "engine-1");
+    }
+
+    #[tokio::test]
+    async fn test_select_engine_first_available_fallback() {
+        let registry = EngineRegistry::new();
+        registry.register(Arc::new(MockEngine::new("engine-1"))).unwrap();
+        registry.register(Arc::new(MockEngine::new("engine-2"))).unwrap();
+        // No default set
+
+        // Should use first available when no default
+        let selected = registry.select_engine(None, None).await.unwrap();
+        // Should get one of the engines (order may vary)
+        assert!(selected.metadata().id == "engine-1" || selected.metadata().id == "engine-2");
+    }
+
+    #[tokio::test]
+    async fn test_select_engine_agent_preference() {
+        let registry = EngineRegistry::new();
+        registry.register(Arc::new(MockEngine::new("engine-1"))).unwrap();
+        registry.register(Arc::new(MockEngine::new("engine-2"))).unwrap();
+        registry.set_default("engine-1").unwrap();
+
+        // Agent preference should be used when no CLI override
+        let selected = registry.select_engine(None, Some("engine-2")).await.unwrap();
+        assert_eq!(selected.metadata().id, "engine-2");
+    }
+
+    #[tokio::test]
+    async fn test_select_engine_not_found() {
+        let registry = EngineRegistry::new();
+        registry.register(Arc::new(MockEngine::new("engine-1"))).unwrap();
+
+        // Should error with helpful message
+        let result = registry.select_engine(Some("nonexistent"), None).await;
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error.to_string().contains("not found"));
+        assert!(error.to_string().contains("engine-1")); // Should list available
+    }
+
+    #[tokio::test]
+    async fn test_list_available() {
+        let registry = EngineRegistry::new();
+        registry.register(Arc::new(MockEngine::new("engine-1"))).unwrap();
+        registry.register(Arc::new(MockEngine::new("engine-2"))).unwrap();
+        registry.set_default("engine-1").unwrap();
+
+        let engines = registry.list_available().await.unwrap();
+        assert_eq!(engines.len(), 2);
+        
+        let engine1 = engines.iter().find(|e| e.id == "engine-1").unwrap();
+        assert!(engine1.is_default);
+        assert_eq!(engine1.credential_status, CredentialStatus::Available);
+        
+        let engine2 = engines.iter().find(|e| e.id == "engine-2").unwrap();
+        assert!(!engine2.is_default);
+    }
+
+    #[tokio::test]
+    async fn test_validate_engine() {
+        let registry = EngineRegistry::new();
+        registry.register(Arc::new(MockEngine::new("engine-1"))).unwrap();
+
+        let status = registry.validate_engine("engine-1").await.unwrap();
+        assert!(status.config_valid);
+        assert!(status.credentials_available);
+        assert!(status.api_reachable);
+    }
+
+    #[tokio::test]
+    async fn test_validate_all() {
+        let registry = EngineRegistry::new();
+        registry.register(Arc::new(MockEngine::new("engine-1"))).unwrap();
+        registry.register(Arc::new(MockEngine::new("engine-2"))).unwrap();
+
+        let results = registry.validate_all().await.unwrap();
+        assert_eq!(results.len(), 2);
+        
+        for (id, status) in results {
+            assert!(id == "engine-1" || id == "engine-2");
+            assert!(status.config_valid);
+        }
+    }
+
     #[test]
     fn test_registry_has_after_register() {
         let registry = EngineRegistry::new();

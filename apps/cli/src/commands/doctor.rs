@@ -108,11 +108,23 @@ async fn execute_human() -> anyhow::Result<()> {
     }
     println!();
 
-    // Check engine health
-    println!("{}", "Engine Health:".bold());
+    // Check engine configuration and validation
+    println!("{}", "Engine Configuration:".bold());
     let config_path = Workspace::discover()
         .ok()
         .map(|w| w.radium_dir().join("config.toml"));
+    
+    let config_exists = config_path.as_ref().map(|p| p.exists()).unwrap_or(false);
+    if config_exists {
+        println!("  {} Configuration file found", "✓".green());
+        if let Some(ref path) = config_path {
+            println!("  Location: {}", path.display().to_string().dimmed());
+        }
+    } else {
+        println!("  {} No configuration file found", "⚠".yellow());
+        println!("  {}", "Note: Engines will use default settings".dimmed());
+    }
+    
     let registry = if let Some(ref path) = config_path {
         EngineRegistry::with_config_path(path)
     } else {
@@ -125,27 +137,61 @@ async fn execute_human() -> anyhow::Result<()> {
     let _ = registry.register(Arc::new(OpenAIEngine::new()));
     let _ = registry.register(Arc::new(GeminiEngine::new()));
     
-    let health_results = registry.check_health(5).await;
-    let mut engine_issues = false;
+    // Load config after engines are registered
+    let _ = registry.load_config();
     
-    for health in &health_results {
-        match &health.status {
-            HealthStatus::Healthy => {
-                println!("  {} {}: {}", "✓".green(), health.engine_id.cyan(), "Healthy".green());
+    // Check for default engine
+    let default_engine = registry.get_default().ok();
+    if default_engine.is_some() {
+        println!("  {} Default engine configured", "✓".green());
+    } else {
+        println!("  {} No default engine set", "⚠".yellow());
+        println!("  {}", "Suggestion: Set default engine in config.toml or use --model flag".dimmed());
+    }
+    
+    // Validate all engines
+    println!();
+    println!("{}", "Engine Validation:".bold());
+    let validation_results = registry.validate_all().await.unwrap_or_default();
+    let mut validation_issues = false;
+    
+    if validation_results.is_empty() {
+        println!("  {}", "No engines registered".dimmed());
+    } else {
+        for (engine_id, status) in &validation_results {
+            let mut issues = Vec::new();
+            
+            if !status.config_valid {
+                issues.push("invalid config".to_string());
+                validation_issues = true;
             }
-            HealthStatus::Warning(msg) => {
-                println!("  {} {}: {}", "⚠".yellow(), health.engine_id.cyan(), format!("Warning - {}", msg).yellow());
-                engine_issues = true;
+            if !status.credentials_available {
+                issues.push("missing credentials".to_string());
+                validation_issues = true;
             }
-            HealthStatus::Failed(msg) => {
-                println!("  {} {}: {}", "✗".red(), health.engine_id.cyan(), format!("Failed - {}", msg).red());
-                engine_issues = true;
+            if !status.api_reachable {
+                issues.push("API unreachable".to_string());
+                validation_issues = true;
+            }
+            
+            if issues.is_empty() {
+                println!("  {} {}: All checks passed", "✓".green(), engine_id.cyan());
+            } else {
+                println!("  {} {}: {}", "✗".red(), engine_id.cyan(), issues.join(", ").red());
+                if let Some(ref msg) = status.error_message {
+                    println!("      {}", msg.dimmed());
+                }
             }
         }
     }
     
-    if engine_issues {
+    if validation_issues {
         all_ok = false;
+        println!();
+        println!("  {}", "Suggestions:".yellow());
+        println!("    - Run `rad auth login <provider>` to configure credentials");
+        println!("    - Run `rad models test <engine-id>` for detailed diagnostics");
+        println!("    - Check environment variables for API keys");
     }
     println!();
 
