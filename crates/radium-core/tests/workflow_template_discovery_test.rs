@@ -1,3 +1,5 @@
+#![cfg(feature = "workflow")]
+
 //! Tests for workflow template discovery system.
 
 use radium_core::workflow::template_discovery::TemplateDiscovery;

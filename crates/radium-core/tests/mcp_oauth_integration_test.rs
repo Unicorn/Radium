@@ -1,3 +1,5 @@
+#![cfg(feature = "server")]
+
 //! Integration tests for MCP OAuth authentication flow.
 
 use radium_core::mcp::auth::{OAuthToken, OAuthTokenManager};

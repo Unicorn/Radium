@@ -1,5 +1,7 @@
 //! Unit tests for session report storage and persistence.
 
+#![cfg(feature = "monitoring")]
+
 use chrono::Utc;
 use radium_core::analytics::{SessionMetrics, SessionReport, SessionStorage};
 use std::collections::HashMap;
@@ -26,6 +28,7 @@ fn create_test_report(session_id: &str) -> SessionReport {
         lines_added: 50,
         lines_removed: 20,
         model_usage: HashMap::new(),
+        engine_usage: HashMap::new(),
         total_cached_tokens: 0,
         total_cache_creation_tokens: 0,
         total_cache_read_tokens: 0,
@@ -299,6 +302,7 @@ fn test_session_storage_round_trip() {
         lines_added: 100,
         lines_removed: 50,
         model_usage: HashMap::new(),
+        engine_usage: HashMap::new(),
         total_cached_tokens: 5000,
         total_cache_creation_tokens: 2000,
         total_cache_read_tokens: 3000,

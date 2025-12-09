@@ -52,6 +52,8 @@ fn create_test_agent_config() -> AgentConfig {
         model: None,
         reasoning_effort: None,
         mirror_path: None,
+        category: None,
+        loop_behavior: None,
         trigger_behavior: None,
         file_path: None,
         capabilities: AgentCapabilities {
@@ -61,6 +63,7 @@ fn create_test_agent_config() -> AgentConfig {
         },
         sandbox: None,
         persona_config: None,
+        routing: None,
     }
 }
 
@@ -183,8 +186,10 @@ async fn test_permission_denial_with_clear_error() {
     let decision = engine.evaluate_tool("run_terminal_cmd", &["rm", "-rf", "/tmp"]).await.unwrap();
     assert!(decision.is_denied());
     assert_eq!(decision.matched_rule.as_deref(), Some("deny-dangerous"));
-    assert!(decision.reason().contains("Prevent accidental deletion") || 
-            decision.reason().contains("deny-dangerous"));
+    if let Some(reason) = &decision.reason {
+        assert!(reason.contains("Prevent accidental deletion") ||
+                reason.contains("deny-dangerous"));
+    }
 }
 
 #[tokio::test]

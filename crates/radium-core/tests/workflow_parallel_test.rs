@@ -1,3 +1,5 @@
+#![cfg(feature = "workflow")]
+
 //! Tests for parallel workflow step execution.
 
 use radium_core::models::{Task, Workflow, WorkflowStep};

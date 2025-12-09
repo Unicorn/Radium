@@ -495,15 +495,8 @@ health_check_interval = 30
         assert_eq!(config.upstreams[0].server.name, "test-upstream");
     }
 
-    #[test]
-    fn test_validate_config_invalid_port() {
-        let mut config = ProxyConfigManager::generate_default();
-        config.port = 70000;
-
-        let result = ProxyConfigManager::validate_config(&config);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("port"));
-    }
+    // Note: Cannot test invalid port > 65535 since port is u16
+    // Zero port is tested in test_validate_config_zero_port
 
     #[test]
     fn test_validate_config_zero_port() {

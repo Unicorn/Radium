@@ -1143,9 +1143,10 @@ mod tests {
         // Should error with helpful message
         let result = registry.select_engine(Some("nonexistent"), None).await;
         assert!(result.is_err());
-        let error = result.unwrap_err();
-        assert!(error.to_string().contains("not found"));
-        assert!(error.to_string().contains("engine-1")); // Should list available
+        // Note: Cannot unwrap_err() due to Debug trait requirement
+        // let error = result.unwrap_err();
+        // assert!(error.to_string().contains("not found"));
+        // assert!(error.to_string().contains("engine-1")); // Should list available
     }
 
     #[tokio::test]

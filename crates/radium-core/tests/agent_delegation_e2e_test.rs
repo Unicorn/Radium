@@ -1,3 +1,5 @@
+#![cfg(feature = "workflow")]
+
 //! End-to-end tests for agent delegation workflow.
 //!
 //! Tests verify the complete agent delegation workflow where a main agent

@@ -1,6 +1,6 @@
 //! TOML configuration file support for routing rules.
 
-use super::types::{ComplexityWeights, FallbackChain, RoutingStrategy};
+use super::types::{FallbackChain, RoutingStrategy};
 use radium_models::{ModelConfig, ModelType};
 use serde::Deserialize;
 use std::path::Path;

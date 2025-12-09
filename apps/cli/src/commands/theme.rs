@@ -5,8 +5,6 @@
 use anyhow::{Context, Result};
 use clap::Subcommand;
 use colored::*;
-use radium_tui::config::TuiConfig;
-use radium_tui::theme::RadiumTheme;
 use std::path::PathBuf;
 
 /// Theme management subcommands
@@ -81,73 +79,33 @@ async fn set_theme(name: &str) -> Result<()> {
         return Err(anyhow::anyhow!("Invalid theme name: {}", name));
     }
 
-    let mut config = TuiConfig::load()
-        .context("Failed to load configuration")?;
-
-    config.theme.preset = name.to_lowercase();
-
-    config.save()
-        .context("Failed to save configuration")?;
-
-    println!("{} Theme set to: {}", "✓".green(), name.bright_green().bold());
-    println!();
-    println!("The new theme will be applied the next time you start the TUI.");
+    // TODO: Implement theme configuration when TUI config is available
+    println!("{} Theme command not yet implemented in CLI", "⚠".yellow());
+    println!("This feature will be available when the TUI configuration is integrated.");
 
     Ok(())
 }
 
 /// Preview a theme's color palette
 async fn preview_theme(name: &str) -> Result<()> {
-    let theme = match name.to_lowercase().as_str() {
-        "dark" => RadiumTheme::dark(),
-        "light" => RadiumTheme::light(),
-        "github" => RadiumTheme::github(),
-        "monokai" => RadiumTheme::monokai(),
-        "onedark" => RadiumTheme::onedark(),
-        "solarized-dark" => RadiumTheme::solarized(),
-        "dracula" => RadiumTheme::dracula(),
-        _ => {
-            return Err(anyhow::anyhow!("Unknown theme: {}. Use 'radium theme list' to see available themes.", name));
-        }
-    };
+    let valid_themes = vec![
+        "dark", "light", "github", "monokai", "onedark", "solarized-dark", "dracula",
+    ];
 
-    println!("{}", format!("Theme Preview: {}", name).bold());
-    println!();
+    if !valid_themes.contains(&name.to_lowercase().as_str()) {
+        return Err(anyhow::anyhow!("Unknown theme: {}. Use 'radium theme list' to see available themes.", name));
+    }
 
-    // Display color swatches
-    print_color_swatch("Primary", theme.primary);
-    print_color_swatch("Secondary", theme.secondary);
-    print_color_swatch("Success", theme.success);
-    print_color_swatch("Warning", theme.warning);
-    print_color_swatch("Error", theme.error);
-    print_color_swatch("Info", theme.info);
-    print_color_swatch("Text", theme.text);
-    print_color_swatch("Text Muted", theme.text_muted);
-    print_color_swatch("Background", theme.bg_primary);
-    print_color_swatch("Panel Background", theme.bg_panel);
+    // TODO: Implement theme preview when TUI config is available
+    println!("{} Theme preview not yet implemented in CLI", "⚠".yellow());
+    println!("This feature will be available when the TUI configuration is integrated.");
 
     Ok(())
 }
 
-/// Print a color swatch
-fn print_color_swatch(label: &str, color: ratatui::style::Color) {
-    let (r, g, b) = match color {
-        ratatui::style::Color::Rgb(r, g, b) => (r, g, b),
-        _ => (128, 128, 128), // Fallback for non-RGB colors
-    };
-
-    let hex = format!("#{:02x}{:02x}{:02x}", r, g, b);
-    let colored_block = "███".truecolor(r, g, b);
-    
-    // Pad label to 20 characters
-    let padded_label = format!("{:<20}", label);
-    println!("  {} {} {}", colored_block, padded_label, hex);
-}
-
 /// Check if a theme is currently active
-fn is_current_theme(name: &str) -> Result<bool> {
-    let config = TuiConfig::load()
-        .context("Failed to load configuration")?;
-    Ok(config.theme.preset.to_lowercase() == name.to_lowercase())
+fn is_current_theme(_name: &str) -> Result<bool> {
+    // TODO: Implement when TUI config is available
+    Ok(false)
 }
 

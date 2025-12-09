@@ -1,12 +1,12 @@
 //! Policy management commands.
 
-mod policy_learn;
+// mod policy_learn; // TODO: Module not yet implemented
 
 use clap::Subcommand;
 use radium_core::policy::{ApprovalMode, ConflictDetector, PolicyEngine, ResolutionStrategy, merge_template, TemplateDiscovery};
 use radium_core::workspace::Workspace;
 use std::path::PathBuf;
-use policy_learn::execute_learn_command;
+// use policy_learn::execute_learn_command; // TODO: Module not yet implemented
 
 /// Policy command options.
 #[derive(Subcommand, Debug)]
@@ -194,7 +194,7 @@ pub async fn execute_policy_command(command: PolicyCommand) -> anyhow::Result<()
         PolicyCommand::Templates { command } => execute_template_command(command).await,
         PolicyCommand::Conflicts { json } => detect_conflicts(json).await,
         PolicyCommand::Resolve { strategy, yes, json } => resolve_conflicts(strategy, yes, json).await,
-        PolicyCommand::Learn { command } => execute_learn_command(command).await,
+        PolicyCommand::Learn { command } => execute_learn_command_stub(command).await,
     }
 }
 
@@ -1027,3 +1027,9 @@ async fn validate_template(name: String) -> anyhow::Result<()> {
     }
 }
 
+/// Stub for policy learning command (not yet implemented).
+async fn execute_learn_command_stub(_command: LearnCommand) -> anyhow::Result<()> {
+    eprintln!("Policy learning feature is not yet implemented.");
+    eprintln!("This command will analyze approval patterns and suggest policy rules.");
+    Ok(())
+}

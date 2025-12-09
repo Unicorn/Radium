@@ -173,8 +173,6 @@ struct OllamaResponse {
     prompt_eval_count: Option<u32>,
     #[serde(rename = "eval_count")]
     eval_count: Option<u32>,
-    #[serde(skip)]
-    error: Option<String>,
 }
 
 #[derive(Deserialize)]

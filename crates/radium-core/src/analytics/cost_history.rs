@@ -464,7 +464,7 @@ mod tests {
         let telemetry = TelemetryRecord::new("agent-1".to_string())
             .with_tokens(1000, 500)
             .with_model("gpt-4".to_string(), "openai".to_string());
-        monitoring.record_telemetry(&telemetry).await.unwrap();
+        monitoring.record_telemetry_sync(&telemetry).unwrap();
 
         // Query cost events
         let now = Utc::now().timestamp();
@@ -495,8 +495,8 @@ mod tests {
         let telemetry2 = TelemetryRecord::new("agent-2".to_string())
             .with_tokens(2000, 1000)
             .with_model("gpt-4".to_string(), "openai".to_string());
-        monitoring.record_telemetry(&telemetry1).await.unwrap();
-        monitoring.record_telemetry(&telemetry2).await.unwrap();
+        monitoring.record_telemetry_sync(&telemetry1).unwrap();
+        monitoring.record_telemetry_sync(&telemetry2).unwrap();
 
         let now = Utc::now().timestamp();
         let range = DateRange::new(now - 86400, now + 86400);
@@ -527,8 +527,8 @@ mod tests {
         let telemetry2 = TelemetryRecord::new("agent-2".to_string())
             .with_tokens(2000, 1000)
             .with_model("gpt-4".to_string(), "openai".to_string());
-        monitoring.record_telemetry(&telemetry1).await.unwrap();
-        monitoring.record_telemetry(&telemetry2).await.unwrap();
+        monitoring.record_telemetry_sync(&telemetry1).unwrap();
+        monitoring.record_telemetry_sync(&telemetry2).unwrap();
 
         let now = Utc::now().timestamp();
         let range = DateRange::new(now - 86400, now + 86400);

@@ -17,7 +17,7 @@ pub struct BudgetForecaster {
 pub use crate::analytics::budget::cache::AnalyticsCache;
 
 /// Result of budget exhaustion forecast.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct ForecastResult {
     /// Projected date when budget will be exhausted.
     pub exhaustion_date: DateTime<Utc>,

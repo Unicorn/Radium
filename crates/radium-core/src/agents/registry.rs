@@ -632,6 +632,7 @@ mod tests {
             capabilities: crate::agents::config::AgentCapabilities::default(),
             sandbox: None,
             persona_config: None,
+            routing: None,
         }
     }
 

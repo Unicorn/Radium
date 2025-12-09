@@ -61,7 +61,7 @@ pub struct BudgetStatus {
 }
 
 /// Budget errors.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub enum BudgetError {
     /// Budget limit exceeded.
     BudgetExceeded {
@@ -253,13 +253,15 @@ impl Default for BudgetWarningConfig {
 }
 
 /// Comprehensive budget analytics aggregating forecast, anomalies, and warnings.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct BudgetAnalytics {
     /// Daily spend trend data (last 30 days).
     pub trend_data: Vec<DailySpend>,
     /// Forecast result with exhaustion projection.
+    #[cfg(feature = "monitoring")]
     pub forecast: Option<ForecastResult>,
     /// Detected cost anomalies.
+    #[cfg(feature = "monitoring")]
     pub anomalies: Vec<CostAnomaly>,
     /// Active budget warnings.
     pub warnings: Vec<BudgetError>,
@@ -438,7 +440,10 @@ impl BudgetManager {
 
         // Get forecast if forecaster is available
         // TODO: Re-enable when analytics module is available
-        let forecast = None;
+        #[cfg(feature = "monitoring")]
+        let forecast: Option<ForecastResult> = None;
+        #[cfg(not(feature = "monitoring"))]
+        let forecast: Option<()> = None;
         // let forecast = if let (Some(ref forecaster), Some(limit)) = (&self.forecaster, self.config.max_budget) {
         //     let spent = self.get_spent_from_source();
         //     let remaining = (limit - spent).max(0.0);
@@ -449,6 +454,7 @@ impl BudgetManager {
 
         // Get anomalies if detector is available
         // TODO: Re-enable when analytics module is available
+        #[cfg(feature = "monitoring")]
         let anomalies = Vec::new();
         // let anomalies = if let Some(ref detector) = self.anomaly_detector {
         //     detector.detect_anomalies(30).unwrap_or_default()
@@ -457,11 +463,16 @@ impl BudgetManager {
         // };
 
         // Generate warnings
+        #[cfg(feature = "monitoring")]
         let warnings = self.generate_warnings(&forecast)?;
+        #[cfg(not(feature = "monitoring"))]
+        let warnings = Vec::new();
 
         Ok(BudgetAnalytics {
             trend_data,
+            #[cfg(feature = "monitoring")]
             forecast,
+            #[cfg(feature = "monitoring")]
             anomalies,
             warnings,
         })
@@ -535,6 +546,7 @@ impl BudgetManager {
     ///
     /// # Returns
     /// Vector of budget warnings
+    #[cfg(feature = "monitoring")]
     fn generate_warnings(&self, forecast: &Option<ForecastResult>) -> MonitoringResult<Vec<BudgetError>> {
         let mut warnings = Vec::new();
 

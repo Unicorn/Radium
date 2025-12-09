@@ -1,3 +1,5 @@
+#![cfg(feature = "server")]
+
 //! Integration tests for the Radium gRPC Server logic.
 //!
 //! Covers:

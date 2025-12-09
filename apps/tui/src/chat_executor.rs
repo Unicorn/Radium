@@ -17,7 +17,7 @@ use tokio::time::timeout;
 use crate::state::{StreamingContext, StreamingState};
 
 /// Result of executing a chat message.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ChatExecutionResult {
     pub response: String,
     pub success: bool,
@@ -96,9 +96,8 @@ async fn try_streaming_execution(
         
         // Spawn task to consume stream
         let prompt_clone = prompt.to_string();
-        let mut accumulated_response = String::new();
         let token_tx_clone = token_tx.clone();
-        
+
         // Start streaming
         let mut stream = match ollama_model.generate_stream(&prompt_clone, None).await {
             Ok(stream) => stream,
@@ -106,56 +105,72 @@ async fn try_streaming_execution(
                 // Classify error
                 let error_type = classify_stream_error(&e);
                 last_error = Some(e);
-                
+
                 if error_type == ErrorType::Permanent || attempt >= MAX_RETRIES - 1 {
                     // Permanent error or max retries reached
                     return Err(last_error.unwrap());
                 }
-                
+
                 // Transient error - retry with exponential backoff
                 let delay_secs = 2_u64.pow(attempt as u32);
                 tokio::time::sleep(std::time::Duration::from_secs(delay_secs)).await;
                 continue;
             }
         };
-        
+
         // Spawn task to consume the stream
         tokio::spawn(async move {
+            let mut cancel_rx = Some(cancel_rx);
             loop {
-                tokio::select! {
-                    // Check for cancellation
-                    _ = cancel_rx => {
-                        // Cancellation requested
-                        break;
+                // Check for cancellation first
+                if let Some(rx) = cancel_rx.take() {
+                    tokio::select! {
+                        _ = rx => {
+                            // Cancellation requested
+                            break;
+                        }
+                        // Get next token from stream
+                        token_result = stream.next() => {
+                            match token_result {
+                                Some(Ok(token)) => {
+                                    // Send token to channel (ignore errors if receiver is dropped)
+                                    let _ = token_tx_clone.send(token).await;
+                                }
+                                Some(Err(e)) => {
+                                    // Stream error - send error token and break
+                                    let _ = token_tx_clone.send(format!("\n[Stream error: {}]", e)).await;
+                                    break;
+                                }
+                                None => {
+                                    // Stream ended
+                                    break;
+                                }
+                            }
+                        }
                     }
-                    // Get next token from stream
-                    token_result = stream.next() => {
-                        match token_result {
-                            Some(Ok(token)) => {
-                                accumulated_response.push_str(&token);
-                                // Send token to channel (ignore errors if receiver is dropped)
-                                let _ = token_tx_clone.send(token).await;
-                            }
-                            Some(Err(e)) => {
-                                // Stream error - send error token and break
-                                let _ = token_tx_clone.send(format!("\n[Stream error: {}]", e)).await;
-                                break;
-                            }
-                            None => {
-                                // Stream ended
-                                break;
-                            }
+                } else {
+                    // Cancellation already checked, just process stream
+                    match stream.next().await {
+                        Some(Ok(token)) => {
+                            let _ = token_tx_clone.send(token).await;
+                        }
+                        Some(Err(e)) => {
+                            let _ = token_tx_clone.send(format!("\n[Stream error: {}]", e)).await;
+                            break;
+                        }
+                        None => {
+                            break;
                         }
                     }
                 }
             }
         });
-        
+
         // Create streaming context
         let stream_ctx = StreamingContext::new(token_rx, Some(cancel_tx));
-        
-        // Return accumulated response (will be empty initially, filled as stream progresses)
-        return Ok((accumulated_response, stream_ctx));
+
+        // Return empty response initially (will be filled as stream progresses via streaming context)
+        return Ok((String::new(), stream_ctx));
     }
     
     // Should not reach here, but handle it anyway

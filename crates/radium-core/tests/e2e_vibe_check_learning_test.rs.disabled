@@ -1,3 +1,5 @@
+#![cfg(feature = "workflow")]
+
 //! End-to-end integration test for vibe check and learning system.
 //!
 //! Tests the complete flow from workflow execution with vibe check,

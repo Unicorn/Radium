@@ -198,6 +198,7 @@ mod tests {
             capabilities: AgentCapabilities::default(),
             persona_config: None,
             sandbox: None,
+            routing: None,
         }
     }
 

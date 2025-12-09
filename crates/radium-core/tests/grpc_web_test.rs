@@ -1,3 +1,5 @@
+#![cfg(feature = "server")]
+
 //! Integration tests for gRPC-Web support.
 //!
 //! RAD-039: This test needs to be completed with proper gRPC-Web framing.

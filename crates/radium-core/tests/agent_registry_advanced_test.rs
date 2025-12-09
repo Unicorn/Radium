@@ -25,6 +25,7 @@ fn create_test_agent(id: &str, name: &str, category: Option<&str>, engine: Optio
         capabilities: AgentCapabilities::default(),
         sandbox: None,
         persona_config: None,
+        routing: None,
     };
     agent
 }

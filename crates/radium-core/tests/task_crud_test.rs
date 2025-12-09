@@ -1,3 +1,5 @@
+#![cfg(feature = "server")]
+
 //! Integration tests for Task CRUD operations.
 
 mod common;

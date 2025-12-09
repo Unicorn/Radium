@@ -252,15 +252,15 @@ mod tests {
     #[test]
     fn test_inject_single_secret() {
         let (injector, temp_dir) = create_test_injector();
-        let manager = Arc::new(SecretManager::new(
+        let mut manager = SecretManager::new(
             temp_dir.path().join("secrets.vault"),
             "TestPassword123!",
-        ).unwrap());
+        ).unwrap();
 
         // Store a secret
         manager.store_secret("api_key", "sk-real-value-12345").unwrap();
 
-        let injector = SecretInjector::new(manager);
+        let injector = SecretInjector::new(Arc::new(manager));
         let content = "Use {{SECRET:api_key}} here";
         let injected = injector.inject_secrets(content).unwrap();
 
@@ -271,14 +271,14 @@ mod tests {
     #[test]
     fn test_inject_environment_variables() {
         let (injector, temp_dir) = create_test_injector();
-        let manager = Arc::new(SecretManager::new(
+        let mut manager = SecretManager::new(
             temp_dir.path().join("secrets.vault"),
             "TestPassword123!",
-        ).unwrap());
+        ).unwrap();
 
         manager.store_secret("api_key", "sk-real-value").unwrap();
 
-        let injector = SecretInjector::new(manager);
+        let injector = SecretInjector::new(Arc::new(manager));
         let mut env = HashMap::new();
         env.insert("API_KEY".to_string(), "{{SECRET:api_key}}".to_string());
 

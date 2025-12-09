@@ -1,3 +1,5 @@
+#![cfg(feature = "workflow")]
+
 //! Tests for workflow service layer.
 
 use radium_core::models::WorkflowState;

@@ -212,7 +212,6 @@ async fn reset_budget() -> anyhow::Result<()> {
 
 /// Get or create BudgetManager with analytics if available.
 fn get_budget_manager_with_analytics() -> anyhow::Result<Option<(radium_core::monitoring::BudgetManager, radium_core::monitoring::BudgetConfig)>> {
-    use radium_core::analytics::budget::{AnomalyDetector, AnalyticsCache, BudgetForecaster};
     use radium_core::monitoring::{BudgetConfig, BudgetManager, MonitoringService};
     use std::sync::Arc;
 
@@ -238,19 +237,8 @@ fn get_budget_manager_with_analytics() -> anyhow::Result<Option<(radium_core::mo
         return Ok(None); // No budget set
     };
 
-    // Create analytics components
-    let cache = Arc::new(AnalyticsCache::new());
-    let forecaster = Arc::new(BudgetForecaster::with_cache(monitoring.clone(), cache.clone()));
-    let anomaly_detector = Arc::new(AnomalyDetector::new(monitoring.clone()));
-
-    // Create BudgetManager with analytics
-    let manager = BudgetManager::with_analytics(
-        budget_config.clone(),
-        monitoring,
-        forecaster,
-        anomaly_detector,
-        None,
-    );
+    // Create BudgetManager with simple constructor (analytics features not yet integrated)
+    let manager = BudgetManager::new(budget_config.clone());
 
     Ok(Some((manager, budget_config)))
 }

@@ -275,7 +275,7 @@ async fn apply_playbook(file: PathBuf) -> anyhow::Result<()> {
         "✓".green()
     );
     println!("URI: {}", playbook.uri.bright_blue());
-    println!("Location: {}", target_path.display().bright_blue());
+    println!("Location: {}", target_path.display().to_string().bright_blue());
 
     Ok(())
 }
@@ -472,7 +472,7 @@ async fn sync_playbooks(project_id: Option<String>, upload: bool) -> anyhow::Res
     // Upload missing remote playbooks (if requested)
     if upload && !missing_remote.is_empty() {
         println!("Uploading {} playbook(s) to Braingrid...", missing_remote.len());
-        use crate::playbooks::braingrid_storage::BraingridPlaybookStorage;
+        use radium_core::playbooks::braingrid_storage::BraingridPlaybookStorage;
         let storage = BraingridPlaybookStorage::new(&project_id);
 
         for playbook in missing_remote {

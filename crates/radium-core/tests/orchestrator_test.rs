@@ -1,3 +1,5 @@
+#![cfg(feature = "server")]
+
 //! Integration tests for the orchestrator features.
 
 mod common;

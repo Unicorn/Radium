@@ -192,6 +192,7 @@ mod tests {
             timestamp: Utc::now(),
             agent_id: "agent-1".to_string(),
             plan_id: Some("REQ-123".to_string()),
+            engine_id: Some("engine-1".to_string()),
             model: Some("claude-3.5-sonnet".to_string()),
             provider: Some("anthropic".to_string()),
             input_tokens: 1500,
@@ -294,6 +295,8 @@ mod tests {
                 map.insert("REQ-124".to_string(), 30.0);
                 map
             },
+            local_breakdown: Some(std::collections::HashMap::new()),
+            tier_breakdown: None,
             top_plans: vec![
                 ("REQ-123".to_string(), 70.0),
                 ("REQ-124".to_string(), 30.0),

@@ -89,7 +89,7 @@ async fn check_file(file_path: &PathBuf) -> anyhow::Result<()> {
         println!();
     }
 
-    println!("Total: {} sensitive data pattern(s) found", total_findings.bright_red().bold());
+    println!("Total: {} sensitive data pattern(s) found", total_findings.to_string().bright_red().bold());
     std::process::exit(2);
 }
 

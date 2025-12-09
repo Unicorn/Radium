@@ -1,3 +1,5 @@
+#![cfg(feature = "workflow")]
+
 //! Integration tests for Workflow CRUD operations.
 
 mod common;

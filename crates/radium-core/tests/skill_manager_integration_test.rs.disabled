@@ -3,6 +3,8 @@
 //! Tests that SkillManager correctly generates skillbook updates from oversight feedback,
 //! parses UpdateOperation types, and handles incremental updates.
 
+#![cfg(feature = "workflow")]
+
 use radium_abstraction::{ChatMessage, Model, ModelError, ModelParameters, ModelResponse};
 use radium_core::learning::{
     store::LearningStore, skill_manager::SkillManager, UpdateBatch, UpdateOperation,

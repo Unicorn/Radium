@@ -287,8 +287,8 @@ fn test_dag_get_dependencies_and_dependents() {
     // But we can verify the structure through topological sort and execution levels
     let sorted = dag.topological_sort().unwrap();
     assert_eq!(sorted[0], "I1.T1"); // No dependencies
-    assert!(sorted.contains(&"I1.T2"));
-    assert!(sorted.contains(&"I1.T3"));
+    assert!(sorted.contains(&"I1.T2".to_string()));
+    assert!(sorted.contains(&"I1.T3".to_string()));
     assert_eq!(sorted[3], "I1.T4"); // Depends on T2 and T3
 }
 

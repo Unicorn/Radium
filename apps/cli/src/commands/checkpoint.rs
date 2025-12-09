@@ -81,8 +81,10 @@ pub async fn execute(cmd: CheckpointCommand) -> Result<()> {
         CheckpointCommand::Show { checkpoint_id } => {
             show_command(&checkpoint_manager, &checkpoint_id).await
         }
-        CheckpointCommand::Policy { show, age_days, max_size_gb, min_keep } => {
-            policy_command(&checkpoint_manager, show, age_days, max_size_gb, min_keep).await
+        CheckpointCommand::Policy { show: _, age_days: _, max_size_gb: _, min_keep: _ } => {
+            // TODO: Implement policy_command
+            eprintln!("Checkpoint policy management not yet implemented");
+            Ok(())
         }
     }
 }
@@ -202,7 +204,6 @@ fn format_number(n: u64) -> String {
         count += 1;
     }
     result.chars().rev().collect()
-    Ok(())
 }
 
 async fn restore_command(

@@ -355,27 +355,25 @@ async fn warm_agent_models(
 
     let agents = registry.list_all().context("Failed to list agents")?;
 
-    let mut models_to_warm = HashSet::new();
+    let mut models_to_warm: HashSet<(String, String)> = HashSet::new();
 
     for agent in &agents {
         // Get metadata from agent config
         if let Some(ref persona) = agent.persona_config {
-            if let Some(ref recommended) = persona.recommended_models {
-                // Add primary model
-                models_to_warm.insert((
-                    recommended.primary.engine.clone(),
-                    recommended.primary.model.clone(),
-                ));
+            // Add primary model
+            models_to_warm.insert((
+                persona.models.primary.engine.clone(),
+                persona.models.primary.model.clone(),
+            ));
 
-                // Add fallback if present
-                if let Some(ref fallback) = recommended.fallback {
-                    models_to_warm.insert((fallback.engine.clone(), fallback.model.clone()));
-                }
+            // Add fallback if present
+            if let Some(ref fallback) = persona.models.fallback {
+                models_to_warm.insert((fallback.engine.clone(), fallback.model.clone()));
+            }
 
-                // Add premium if present
-                if let Some(ref premium) = recommended.premium {
-                    models_to_warm.insert((premium.engine.clone(), premium.model.clone()));
-                }
+            // Add premium if present
+            if let Some(ref premium) = persona.models.premium {
+                models_to_warm.insert((premium.engine.clone(), premium.model.clone()));
             }
         }
     }
@@ -450,12 +448,12 @@ async fn clear_cache(provider: Option<String>, model: Option<String>) -> Result<
         ModelCache::new(cache_config).context("Failed to create model cache")?,
     );
 
-    let cleared_count = if let (Some(prov), Some(mod_name)) = (provider, model) {
+    let cleared_count = if let (Some(ref prov), Some(ref mod_name)) = (provider.as_ref(), model.as_ref()) {
         // Clear specific model
-        let model_type = ModelType::from_str(&prov).map_err(|()| {
+        let model_type = ModelType::from_str(prov).map_err(|()| {
             anyhow::anyhow!("Unknown provider: {}", prov)
         })?;
-        let key = radium_models::CacheKey::new(model_type, mod_name, None);
+        let key = radium_models::CacheKey::new(model_type, mod_name.to_string(), None);
         if cache.remove(&key) {
             println!("{}", format!("Cleared {}/{} from cache", prov, key.model_name).green());
             1
@@ -463,7 +461,7 @@ async fn clear_cache(provider: Option<String>, model: Option<String>) -> Result<
             println!("{}", format!("Model {}/{} not found in cache", prov, key.model_name).yellow());
             0
         }
-    } else if let Some(prov) = provider {
+    } else if let Some(ref prov) = provider {
         // Clear all models from provider
         use radium_models::CacheKey;
         let model_type = ModelType::from_str(&prov).map_err(|()| {

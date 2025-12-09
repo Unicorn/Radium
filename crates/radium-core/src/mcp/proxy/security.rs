@@ -287,6 +287,7 @@ impl SecurityLayerTrait for DefaultSecurityLayer {
 mod tests {
     use super::*;
     use crate::mcp::proxy::types::SecurityConfig;
+    use serde_json::json;
 
     fn create_test_config() -> SecurityConfig {
         SecurityConfig {

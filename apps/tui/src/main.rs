@@ -153,7 +153,7 @@ async fn main() -> Result<()> {
 
         // Poll for streaming tokens (non-blocking)
         if let Some(stream_ctx) = &mut app.streaming_context {
-            use crate::state::StreamingState;
+            use radium_tui::state::StreamingState;
             
             // Update state to Streaming if it was Connecting
             if stream_ctx.state == StreamingState::Connecting {

@@ -439,9 +439,9 @@ pub async fn record_behavior_metrics(
         
         let record = TelemetryRecord::new(agent_id)
             .with_behavior_metrics(behavior_type, invocation_count, duration_ms, outcome);
-        
+
         if let Ok(service) = monitoring.lock() {
-            let _ = service.record_telemetry(&record).await;
+            let _ = service.record_telemetry_sync(&record);
         }
     }
 }

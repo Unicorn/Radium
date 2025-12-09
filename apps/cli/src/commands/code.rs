@@ -11,7 +11,7 @@ use radium_core::{
     Workspace,
 };
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Code block command subcommands.
 #[derive(Debug, clap::Subcommand)]
@@ -77,7 +77,7 @@ pub async fn execute(cmd: CodeCommand) -> Result<()> {
 }
 
 /// List all code blocks for a session.
-async fn list_blocks(workspace_root: &PathBuf, session_id: Option<String>) -> Result<()> {
+async fn list_blocks(workspace_root: &Path, session_id: Option<String>) -> Result<()> {
     println!("{}", "rad code list".bold().cyan());
     println!();
 
@@ -124,7 +124,7 @@ async fn list_blocks(workspace_root: &PathBuf, session_id: Option<String>) -> Re
 
 /// Copy code blocks to clipboard.
 async fn copy_blocks(
-    workspace_root: &PathBuf,
+    workspace_root: &Path,
     indexes: &str,
     session_id: Option<String>,
 ) -> Result<()> {
@@ -167,7 +167,7 @@ async fn copy_blocks(
 
 /// Save a code block to a file.
 async fn save_block(
-    workspace_root: &PathBuf,
+    workspace_root: &Path,
     index: usize,
     file: &PathBuf,
     session_id: Option<String>,
@@ -189,7 +189,7 @@ async fn save_block(
 
     fs::write(file, &block.content)?;
 
-    println!("  {} Saved block {} to {}", "✓".green(), index, file.display().cyan());
+    println!("  {} Saved block {} to {}", "✓".green(), index, file.display().to_string().cyan());
     println!();
 
     Ok(())
@@ -197,7 +197,7 @@ async fn save_block(
 
 /// Append a code block to a file.
 async fn append_block(
-    workspace_root: &PathBuf,
+    workspace_root: &Path,
     index: usize,
     file: &PathBuf,
     session_id: Option<String>,
@@ -237,7 +237,7 @@ async fn append_block(
         .open(file)?;
     file_handle.write_all(content.as_bytes())?;
 
-    println!("  {} Appended block {} to {}", "✓".green(), index, file.display().cyan());
+    println!("  {} Appended block {} to {}", "✓".green(), index, file.display().to_string().cyan());
     println!();
 
     Ok(())
@@ -296,7 +296,7 @@ fn parse_selection(selection: &str) -> Result<BlockSelector> {
 }
 
 /// Find the most recent session by checking modification times.
-fn find_last_session(workspace_root: &PathBuf) -> Option<String> {
+fn find_last_session(workspace_root: &Path) -> Option<String> {
     let code_blocks_dir = workspace_root
         .join(".radium")
         .join("_internals")

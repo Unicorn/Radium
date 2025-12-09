@@ -25,7 +25,7 @@ pub struct CostStatistics {
 }
 
 /// Detected cost anomaly.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct CostAnomaly {
     /// Requirement/agent ID with anomalous cost.
     pub requirement_id: String,
@@ -42,7 +42,7 @@ pub struct CostAnomaly {
 }
 
 /// Severity level of an anomaly.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub enum AnomalySeverity {
     /// Minor anomaly: 2-3 standard deviations from mean.
     Minor,
@@ -51,7 +51,7 @@ pub enum AnomalySeverity {
 }
 
 /// Category of anomaly.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub enum AnomalyCategory {
     /// Unusually high token usage.
     TokenSpike,

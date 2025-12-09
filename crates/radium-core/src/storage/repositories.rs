@@ -1263,6 +1263,9 @@ mod tests {
             started_at: started,
             completed_at: Some(completed),
             duration_ms: Some(5000),
+            cancellation_reason: None,
+            cancelled_at: None,
+            is_partial: false,
         });
         task.set_state(TaskState::Completed);
         repo.update(&task).unwrap();

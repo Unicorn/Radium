@@ -1,3 +1,5 @@
+#![cfg(feature = "workflow")]
+
 //! Integration tests for VibeCheck workflow behavior.
 //!
 //! Tests the integration of VibeCheck behavior with the workflow execution engine,

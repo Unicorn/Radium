@@ -111,12 +111,12 @@ async fn search_command(
     let date_filtered: Vec<_> = if let Some(date_str) = date {
         // Parse date (expecting ISO 8601 format like "2025-12-01" or full datetime)
         let filter_date = chrono::DateTime::parse_from_rfc3339(date_str)
+            .map(|dt| dt.with_timezone(&chrono::Utc))
             .or_else(|_| {
                 chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
                     .map(|d| d.and_hms_opt(0, 0, 0).unwrap().and_utc())
             })
-            .context(format!("Invalid date format: {}. Use ISO 8601 or YYYY-MM-DD", date_str))?
-            .with_timezone(&chrono::Utc);
+            .context(format!("Invalid date format: {}. Use ISO 8601 or YYYY-MM-DD", date_str))?;
 
         metadata_list
             .into_iter()
@@ -438,12 +438,12 @@ async fn delete_command(
     } else if let Some(before_date_str) = before {
         // Batch deletion by date
         let before_date = chrono::DateTime::parse_from_rfc3339(before_date_str)
+            .map(|dt| dt.with_timezone(&chrono::Utc))
             .or_else(|_| {
                 chrono::NaiveDate::parse_from_str(before_date_str, "%Y-%m-%d")
                     .map(|d| d.and_hms_opt(0, 0, 0).unwrap().and_utc())
             })
-            .context(format!("Invalid date format: {}. Use ISO 8601 or YYYY-MM-DD", before_date_str))?
-            .with_timezone(&chrono::Utc);
+            .context(format!("Invalid date format: {}. Use ISO 8601 or YYYY-MM-DD", before_date_str))?;
 
         // Get all sessions and filter by date
         let metadata_list = storage.list_report_metadata()?;

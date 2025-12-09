@@ -1,3 +1,6 @@
+#![cfg(feature = "collaboration")]
+// Note: collaboration module temporarily disabled
+
 //! End-to-end integration tests for multi-agent collaboration.
 
 use radium_core::collaboration::delegation::{DelegationManager, WorkerStatus};

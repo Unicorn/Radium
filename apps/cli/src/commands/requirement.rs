@@ -14,11 +14,10 @@ use radium_core::{
         AgentSelector, ExecutionState, ParallelExecutor, ProgressReporter, ReportGenerator,
         RequirementExecutor, RequirementExecutionError, StatePersistence,
     },
-    agents::registry::AgentRegistry,
     storage::Database,
     Workspace,
 };
-use radium_orchestrator::{AgentExecutor, Orchestrator};
+use radium_orchestrator::{AgentExecutor, AgentRegistry, Orchestrator};
 use std::sync::Arc;
 use std::time::Instant;
 use std::process::Command;
@@ -223,6 +222,7 @@ async fn execute(
         model_type: ModelType::Gemini,
         model_id: "gemini-2.0-flash-exp".to_string(),
         api_key: std::env::var("GEMINI_API_KEY").ok(),
+        base_url: None,
     };
     let model = ModelFactory::create(config)
         .context("Failed to create model")?;

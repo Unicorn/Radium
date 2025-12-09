@@ -3,14 +3,14 @@
 use super::ab_testing::{ABTestGroup, ABTestSampler};
 use super::circuit_breaker::CircuitBreaker;
 use super::complexity::ComplexityEstimator;
-use super::config::{ConfigError, RoutingConfig, RoutingConfigLoader};
+use super::config::{ConfigError, RoutingConfigLoader};
 use super::cost_tracker::CostTracker;
 use super::types::{ComplexityScore, ComplexityWeights, FailureRecord, FallbackChain, ModelMetadata, RoutingError, RoutingStrategy, RoutingTier};
 use radium_models::{ModelConfig, ModelType};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, RwLock};
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 
 /// Parses model specification string into engine and model parts.
 fn parse_model_spec(spec: &str) -> Result<(String, String), String> {

@@ -1,3 +1,5 @@
+#![cfg(feature = "workflow")]
+
 //! Tests for failure detection and classification system.
 
 use radium_core::workflow::failure::{

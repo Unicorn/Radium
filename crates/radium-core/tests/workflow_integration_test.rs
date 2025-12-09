@@ -1,3 +1,5 @@
+#![cfg(feature = "workflow")]
+
 //! Integration tests for workflow execution.
 
 use radium_core::models::{Task, Workflow, WorkflowState, WorkflowStep};

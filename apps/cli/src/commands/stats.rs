@@ -99,7 +99,7 @@ pub enum StatsCommand {
         json: bool,
     },
     /// Compare provider costs by tier
-    Compare {
+    CompareProviders {
         /// Output as JSON
         #[arg(long)]
         json: bool,
@@ -139,7 +139,7 @@ pub async fn execute(cmd: StatsCommand) -> Result<()> {
         } => {
             export_command(
                 &analytics,
-                &monitoring,
+                analytics.monitoring(),
                 output.as_deref(),
                 session_id.as_deref(),
                 format.as_deref(),
@@ -154,13 +154,13 @@ pub async fn execute(cmd: StatsCommand) -> Result<()> {
             compare_command(&analytics, &session_a, &session_b, json).await
         }
         StatsCommand::Providers { json } => {
-            providers_command(&monitoring, json).await
+            providers_command(analytics.monitoring(), json).await
         }
         StatsCommand::Teams { json } => {
-            teams_command(&monitoring, json).await
+            teams_command(analytics.monitoring(), json).await
         }
-        StatsCommand::Compare { json } => {
-            compare_providers_command(&monitoring, json).await
+        StatsCommand::CompareProviders { json } => {
+            compare_providers_command(analytics.monitoring(), json).await
         }
     }
 }

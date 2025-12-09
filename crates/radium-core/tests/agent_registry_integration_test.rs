@@ -107,6 +107,7 @@ fn create_agent_config(
         capabilities: Default::default(),
         sandbox: None,
         persona_config: None,
+        routing: None,
     };
     agent
 }

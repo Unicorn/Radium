@@ -1,5 +1,7 @@
 //! Integration tests for the hooks system.
 
+#![cfg(feature = "orchestrator-integration")]
+
 use radium_core::hooks::config::HookConfig;
 use radium_core::hooks::integration::OrchestratorHooks;
 use radium_core::hooks::model::{ModelHook, ModelHookContext};

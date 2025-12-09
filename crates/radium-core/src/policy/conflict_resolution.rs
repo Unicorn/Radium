@@ -411,6 +411,7 @@ impl ConflictResolver {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{PolicyAction, PolicyPriority};
 
     #[test]
     fn test_detect_conflicting_actions() {

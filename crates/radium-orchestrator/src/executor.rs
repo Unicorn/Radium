@@ -9,7 +9,7 @@ use crate::{
 };
 use radium_abstraction::ModelError;
 use radium_models::{ModelConfig, ModelFactory, ModelType};
-use radium_orchestrator::routing::RoutingStrategy;
+use crate::routing::RoutingStrategy;
 use serde_json::Value;
 use std::collections::HashSet;
 use std::fmt;
@@ -713,6 +713,8 @@ impl AgentExecutor {
                                     ModelType::Claude => "claude",
                                     ModelType::Gemini => "gemini",
                                     ModelType::OpenAI => "openai",
+                                    ModelType::Universal => "universal",
+                                    ModelType::Ollama => "ollama",
                                 },
                                 next_model_id,
                             ) {
@@ -935,6 +937,8 @@ impl AgentExecutor {
                     ModelType::Claude => "claude",
                     ModelType::Gemini => "gemini",
                     ModelType::OpenAI => "openai",
+                    ModelType::Universal => "universal",
+                    ModelType::Ollama => "ollama",
                 },
                 self.default_model_id.clone(),
             )?;
@@ -991,7 +995,7 @@ impl AgentExecutor {
         // Use model router if available, otherwise use default model
         let (model, routing_decision) = if let Some(ref router) = self.model_router {
             // Route model based on complexity or override with specified strategy
-            let strategy = routing_strategy.unwrap_or(radium_orchestrator::routing::RoutingStrategy::ComplexityBased);
+            let strategy = routing_strategy.unwrap_or(crate::routing::RoutingStrategy::ComplexityBased);
             let (model_config, decision) = router.select_model_with_strategy(
                 input,
                 Some(agent.id()),
@@ -1014,6 +1018,8 @@ impl AgentExecutor {
                     ModelType::Claude => "claude",
                     ModelType::Gemini => "gemini",
                     ModelType::OpenAI => "openai",
+                    ModelType::Universal => "universal",
+                    ModelType::Ollama => "ollama",
                 },
                 self.default_model_id.clone(),
             )?;
@@ -1078,6 +1084,8 @@ impl AgentExecutor {
                 ModelType::Claude => "claude",
                 ModelType::Gemini => "gemini",
                 ModelType::OpenAI => "openai",
+                ModelType::Universal => "universal",
+                ModelType::Ollama => "ollama",
             },
             model_id,
         )?;

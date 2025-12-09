@@ -1,3 +1,5 @@
+#![cfg(feature = "workflow")]
+
 //! Tests for workflow template system.
 
 use radium_core::workflow::behaviors::{LoopBehaviorConfig, TriggerBehaviorConfig};

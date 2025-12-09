@@ -13,7 +13,7 @@ use radium_core::{
     engines::providers::{ClaudeEngine, GeminiEngine, MockEngine, OpenAIEngine},
     syntax::SyntaxHighlighter,
     code_blocks::{CodeBlockParser, CodeBlockStore},
-    terminal::{TerminalCapabilities, ColorSupport, rgb_to_terminal_color},
+    terminal::{TerminalCapabilities, ColorSupport},
 };
 use std::sync::Arc;
 use std::fs;
@@ -112,11 +112,12 @@ pub async fn execute(
     
     let selected_engine_id = selected_engine_arc.metadata().id.as_str();
     let selected_engine_name = selected_engine_arc.metadata().name.as_str();
-    
+
     // Model selection: CLI flag → agent config → engine default
+    let default_model = selected_engine_arc.default_model();
     let selected_model = model.as_deref()
         .or_else(|| agent.model.as_deref())
-        .unwrap_or_else(|| selected_engine_arc.default_model().as_str());
+        .unwrap_or_else(|| default_model.as_str());
     let selected_reasoning =
         reasoning.as_deref().unwrap_or_else(|| match agent.reasoning_effort.unwrap_or_default() {
             radium_core::ReasoningEffort::Low => "low",
@@ -254,24 +255,24 @@ pub async fn execute(
         if let Some(monitoring) = monitoring.as_ref() {
             use radium_core::monitoring::{TelemetryRecord, TelemetryTracking, AttributionMetadata};
             use radium_core::auth::ProviderType;
-            
+
             let mut telemetry = TelemetryRecord::new(tracked_agent_id.clone())
-                .with_engine_id(selected_engine.to_string());
-            
+                .with_engine_id(selected_engine_id.to_string());
+
             // Set model info
             if let Some(model) = agent.model.as_deref() {
-                telemetry = telemetry.with_model(model.to_string(), selected_engine.to_string());
+                telemetry = telemetry.with_model(model.to_string(), selected_engine_id.to_string());
             } else {
-                telemetry = telemetry.with_model(response.model.clone(), selected_engine.to_string());
+                telemetry = telemetry.with_model(response.model.clone(), selected_engine_id.to_string());
             }
-            
+
             // Set token usage from response
             if let Some(ref usage) = response.usage {
                 telemetry = telemetry.with_tokens(usage.input_tokens, usage.output_tokens);
             }
-            
+
             // Try to add attribution metadata based on provider type
-            if let Some(provider_type) = match selected_engine {
+            if let Some(provider_type) = match selected_engine_id {
                 "openai" => Some(ProviderType::OpenAI),
                 "claude" | "anthropic" => Some(ProviderType::Claude),
                 "gemini" => Some(ProviderType::Gemini),
@@ -501,10 +502,20 @@ fn print_highlighted_output(text: &str) {
 /// Print a styled line with ANSI color codes.
 fn print_styled_line(styled_line: &radium_core::syntax::StyledLine, capabilities: ColorSupport) {
     use radium_core::syntax::StyledSpan;
-    
+
     for span in &styled_line.spans {
         let (r, g, b) = span.foreground;
-        let color_code = rgb_to_terminal_color(r, g, b, capabilities);
+        let color_code = match capabilities {
+            ColorSupport::Truecolor => format!("\x1b[38;2;{};{};{}m", r, g, b),
+            ColorSupport::Color256 => {
+                let index = radium_core::terminal::rgb_to_256(r, g, b);
+                format!("\x1b[38;5;{}m", index)
+            }
+            ColorSupport::Color16 => {
+                let index = radium_core::terminal::rgb_to_16(r, g, b);
+                format!("\x1b[{}m", if index < 8 { 30 + index } else { 90 + (index - 8) })
+            }
+        };
         print!("{}", color_code);
         
         if let Some((br, bg, bb)) = span.background {

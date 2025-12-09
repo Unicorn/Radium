@@ -444,6 +444,7 @@ impl ProxyServer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mcp::proxy::{ConflictStrategy, ProxyTransport, SecurityConfig};
 
     #[tokio::test]
     async fn test_proxy_server_creation() {
@@ -454,6 +455,7 @@ mod tests {
             max_connections: 100,
             security: SecurityConfig::default(),
             upstreams: vec![],
+            conflict_strategy: ConflictStrategy::AutoPrefix,
         };
 
         let pool = Arc::new(UpstreamPool::new());

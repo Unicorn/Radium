@@ -3,6 +3,8 @@
 //! Tests all workflow behaviors (loop, trigger, checkpoint, vibecheck) in
 //! end-to-end workflow execution scenarios.
 
+#![cfg(feature = "workflow")]
+
 use radium_core::models::{Task, Workflow, WorkflowStep};
 use radium_core::storage::{
     Database, SqliteTaskRepository, SqliteWorkflowRepository, TaskRepository, WorkflowRepository,

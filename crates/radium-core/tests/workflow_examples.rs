@@ -1,3 +1,5 @@
+#![cfg(feature = "workflow")]
+
 //! Example workflows for testing and documentation.
 //!
 //! This module provides example workflow definitions that demonstrate

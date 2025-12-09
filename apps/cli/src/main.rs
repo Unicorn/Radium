@@ -322,6 +322,7 @@ enum Command {
     Engines(commands::EnginesCommand),
 
     /// Manage AI model configurations
+    #[command(subcommand)]
     Models(commands::types::ModelsCommand),
 
     /// Monitor agent execution and telemetry

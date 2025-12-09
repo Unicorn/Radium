@@ -31,6 +31,7 @@ tonic.workspace = true
 # Async runtime
 tokio.workspace = true
 async-trait.workspace = true
+futures = "0.3"
 
 # HTTP client for credential validation
 reqwest = { version = "0.12", features = ["json"] }

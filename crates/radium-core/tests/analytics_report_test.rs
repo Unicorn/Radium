@@ -1,5 +1,7 @@
 //! Unit tests for session report formatting.
 
+#![cfg(feature = "monitoring")]
+
 use chrono::Utc;
 use radium_core::analytics::{ModelUsageStats, ReportFormatter, SessionMetrics, SessionReport};
 use std::collections::HashMap;
@@ -21,10 +23,14 @@ fn create_test_report() -> SessionReport {
         lines_added: 500,
         lines_removed: 200,
         model_usage: HashMap::new(),
+        engine_usage: HashMap::new(),
         total_cached_tokens: 0,
         total_cache_creation_tokens: 0,
         total_cache_read_tokens: 0,
         total_cost: 0.0,
+        tool_approvals_allowed: 0,
+        tool_approvals_asked: 0,
+        tool_approvals_denied: 0,
     };
     
     // Add model usage
@@ -239,8 +245,8 @@ fn test_report_formatter_format_number_large() {
 fn test_report_formatter_format_json_valid() {
     let formatter = ReportFormatter;
     let report = create_test_report();
-    
-    let json_output = formatter.format_json(&report).expect("Failed to format as JSON");
+
+    let json_output = formatter.format_json(&report, false).expect("Failed to format as JSON");
     
     // Verify it's valid JSON
     let parsed: serde_json::Value = serde_json::from_str(&json_output)
@@ -256,8 +262,8 @@ fn test_report_formatter_format_json_valid() {
 fn test_report_formatter_format_json_round_trip() {
     let formatter = ReportFormatter;
     let original_report = create_test_report();
-    
-    let json_output = formatter.format_json(&original_report).expect("Failed to format as JSON");
+
+    let json_output = formatter.format_json(&original_report, false).expect("Failed to format as JSON");
     
     // Deserialize back to SessionReport
     let deserialized: SessionReport = serde_json::from_str(&json_output)

@@ -1,5 +1,7 @@
 //! Tests for extension conflict detection.
 
+#![cfg(feature = "workflow")]
+
 use radium_core::extensions::conflict::ConflictDetector;
 use radium_core::extensions::manifest::{ExtensionComponents, ExtensionManifest};
 use std::collections::HashMap;

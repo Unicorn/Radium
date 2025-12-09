@@ -657,6 +657,7 @@ impl AgentConfig {
             capabilities: AgentCapabilities::default(),
             sandbox: None,
             persona_config: None,
+            routing: None,
         }
     }
 
@@ -1297,6 +1298,7 @@ trigger_agent_id = "helper-agent"
                 capabilities: AgentCapabilities::default(),
                 sandbox: None,
                 persona_config: None,
+                routing: None,
             }
             .with_file_path(config_dir.join("empty-id.toml")),
             persona: None,
@@ -1321,6 +1323,7 @@ trigger_agent_id = "helper-agent"
                 capabilities: AgentCapabilities::default(),
                 sandbox: None,
                 persona_config: None,
+                routing: None,
             }
             .with_file_path(config_dir.join("empty-name.toml")),
             persona: None,
@@ -1345,6 +1348,7 @@ trigger_agent_id = "helper-agent"
                 capabilities: AgentCapabilities::default(),
                 sandbox: None,
                 persona_config: None,
+                routing: None,
             }
             .with_file_path(config_dir.join("empty-prompt.toml")),
             persona: None,

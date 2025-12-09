@@ -1,3 +1,5 @@
+#![cfg(feature = "workflow")]
+
 //! Integration tests for the workflow engine.
 //!
 //! These tests verify that the workflow engine correctly executes workflows,

@@ -3275,6 +3275,7 @@ impl App {
             model_type: ModelType::Gemini,
             model_id: "gemini-2.0-flash-exp".to_string(),
             api_key: std::env::var("GEMINI_API_KEY").ok(),
+            base_url: None,
         };
         let model = match ModelFactory::create(config) {
             Ok(m) => {

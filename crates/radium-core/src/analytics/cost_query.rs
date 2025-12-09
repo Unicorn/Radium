@@ -395,7 +395,7 @@ mod tests {
         let telemetry = TelemetryRecord::new("agent-1".to_string())
             .with_tokens(1000, 500)
             .with_model("claude-3.5-sonnet".to_string(), "anthropic".to_string());
-        monitoring.record_telemetry(&telemetry).await.unwrap();
+        monitoring.record_telemetry_sync(&telemetry).unwrap();
 
         let options = ExportOptions {
             format: ExportFormat::Csv,
@@ -432,8 +432,8 @@ mod tests {
         let telemetry2 = TelemetryRecord::new("agent-2".to_string())
             .with_tokens(2000, 1000)
             .with_model("gpt-4o".to_string(), "openai".to_string());
-        monitoring.record_telemetry(&telemetry1).await.unwrap();
-        monitoring.record_telemetry(&telemetry2).await.unwrap();
+        monitoring.record_telemetry_sync(&telemetry1).unwrap();
+        monitoring.record_telemetry_sync(&telemetry2).unwrap();
 
         let options = ExportOptions {
             format: ExportFormat::Csv,

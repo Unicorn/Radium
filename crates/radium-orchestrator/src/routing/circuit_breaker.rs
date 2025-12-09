@@ -79,14 +79,14 @@ impl ModelHealth {
     fn record_success(&mut self) {
         let now = SystemTime::now();
         self.successes.push_back(now);
-        self.cleanup_old_entries(&mut self.successes, now);
+        Self::cleanup_old_entries_static(&mut self.successes, now, self.window_duration);
     }
-    
+
     /// Records a failed request.
     fn record_failure(&mut self) {
         let now = SystemTime::now();
         self.failures.push_back(now);
-        self.cleanup_old_entries(&mut self.failures, now);
+        Self::cleanup_old_entries_static(&mut self.failures, now, self.window_duration);
     }
     
     /// Calculates failure rate in the current window.
@@ -98,11 +98,11 @@ impl ModelHealth {
         self.failures.len() as f64 / total as f64
     }
     
-    /// Removes entries outside the time window.
-    fn cleanup_old_entries(&mut self, entries: &mut VecDeque<SystemTime>, now: SystemTime) {
+    /// Removes entries outside the time window (static version to avoid borrow conflicts).
+    fn cleanup_old_entries_static(entries: &mut VecDeque<SystemTime>, now: SystemTime, window_duration: Duration) {
         while let Some(&oldest) = entries.front() {
             if let Ok(elapsed) = now.duration_since(oldest) {
-                if elapsed > self.window_duration {
+                if elapsed > window_duration {
                     entries.pop_front();
                 } else {
                     break;
@@ -113,12 +113,12 @@ impl ModelHealth {
             }
         }
     }
-    
+
     /// Cleans up old entries for both success and failure queues.
     fn cleanup(&mut self) {
         let now = SystemTime::now();
-        self.cleanup_old_entries(&mut self.successes, now);
-        self.cleanup_old_entries(&mut self.failures, now);
+        Self::cleanup_old_entries_static(&mut self.successes, now, self.window_duration);
+        Self::cleanup_old_entries_static(&mut self.failures, now, self.window_duration);
     }
 }
 
