@@ -12,6 +12,7 @@ use std::time::SystemTime;
 use tokio::sync::{Mutex, RwLock};
 
 /// An upstream connection with metadata.
+#[derive(Debug)]
 pub struct UpstreamConnection {
     /// Upstream server name.
     pub name: String,
