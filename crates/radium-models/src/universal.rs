@@ -573,7 +573,33 @@ impl Stream for SSEStream {
                     )))));
                 }
                 Poll::Ready(None) => {
-                    // Stream ended
+                    // Stream ended - process any remaining events in buffer
+                    while let Some(end_idx) = self.buffer.find("\n\n") {
+                        let event = self.buffer[..end_idx].to_string();
+                        self.buffer = self.buffer[end_idx + 2..].to_string();
+                        
+                        if event.starts_with("data: ") {
+                            let data = &event[6..];
+                            
+                            if data.trim() == "[DONE]" {
+                                self.done = true;
+                                if !self.accumulated.is_empty() {
+                                    return Poll::Ready(Some(Ok(self.accumulated.clone())));
+                                }
+                                return Poll::Ready(None);
+                            }
+                            
+                            if let Ok(streaming_response) = serde_json::from_str::<OpenAIStreamingResponse>(data) {
+                                if let Some(choice) = streaming_response.choices.first() {
+                                    if let Some(content) = &choice.delta.content {
+                                        self.accumulated.push_str(content);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // No more events in buffer
                     self.done = true;
                     if !self.accumulated.is_empty() {
                         return Poll::Ready(Some(Ok(self.accumulated.clone())));
@@ -1022,6 +1048,429 @@ mod tests {
 
         let _response = model.generate_chat_completion(&messages, Some(params)).await.unwrap();
 
+        mock.assert();
+    }
+
+    #[test]
+    #[allow(clippy::disallowed_methods, unsafe_code)]
+    fn test_universal_model_new_with_env_var() {
+        unsafe {
+            std::env::set_var("UNIVERSAL_API_KEY", "test-env-key");
+        }
+        let model = UniversalModel::new(
+            "test-model".to_string(),
+            "http://localhost:8000/v1".to_string(),
+        );
+        assert!(model.is_ok());
+        let model = model.unwrap();
+        assert_eq!(model.model_id(), "test-model");
+        unsafe {
+            std::env::remove_var("UNIVERSAL_API_KEY");
+        }
+    }
+
+    #[test]
+    #[allow(clippy::disallowed_methods, unsafe_code)]
+    fn test_universal_model_new_without_env_var() {
+        unsafe {
+            std::env::remove_var("UNIVERSAL_API_KEY");
+            std::env::remove_var("OPENAI_COMPATIBLE_API_KEY");
+        }
+        let model = UniversalModel::new(
+            "test-model".to_string(),
+            "http://localhost:8000/v1".to_string(),
+        );
+        assert!(model.is_err());
+    }
+
+    #[test]
+    #[allow(clippy::disallowed_methods, unsafe_code)]
+    fn test_universal_model_new_fallback_to_openai_compatible_key() {
+        unsafe {
+            std::env::remove_var("UNIVERSAL_API_KEY");
+            std::env::set_var("OPENAI_COMPATIBLE_API_KEY", "fallback-key");
+        }
+        let model = UniversalModel::new(
+            "test-model".to_string(),
+            "http://localhost:8000/v1".to_string(),
+        );
+        assert!(model.is_ok());
+        unsafe {
+            std::env::remove_var("OPENAI_COMPATIBLE_API_KEY");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_generate_chat_completion_error_403() {
+        let mut _m = mockito::Server::new_async().await;
+        let mock_url = _m.url();
+        let base_url = format!("{}/v1", mock_url);
+
+        let mock = _m
+            .mock("POST", "/v1/chat/completions")
+            .with_status(403)
+            .with_body(r#"{"error": "Forbidden"}"#)
+            .create();
+
+        let model = UniversalModel::without_auth(
+            "test-model".to_string(),
+            base_url,
+        );
+
+        let messages = vec![ChatMessage {
+            role: "user".to_string(),
+            content: "Test".to_string(),
+        }];
+
+        let result = model.generate_chat_completion(&messages, None).await;
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            ModelError::UnsupportedModelProvider(msg) => {
+                assert!(msg.contains("Authentication failed"));
+            }
+            _ => panic!("Expected UnsupportedModelProvider error"),
+        }
+
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn test_generate_chat_completion_error_402() {
+        let mut _m = mockito::Server::new_async().await;
+        let mock_url = _m.url();
+        let base_url = format!("{}/v1", mock_url);
+
+        let mock = _m
+            .mock("POST", "/v1/chat/completions")
+            .with_status(402)
+            .with_body(r#"{"error": "Insufficient quota"}"#)
+            .create();
+
+        let model = UniversalModel::without_auth(
+            "test-model".to_string(),
+            base_url,
+        );
+
+        let messages = vec![ChatMessage {
+            role: "user".to_string(),
+            content: "Test".to_string(),
+        }];
+
+        let result = model.generate_chat_completion(&messages, None).await;
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            ModelError::QuotaExceeded { provider, .. } => {
+                assert_eq!(provider, "universal");
+            }
+            _ => panic!("Expected QuotaExceeded error"),
+        }
+
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn test_generate_chat_completion_missing_usage() {
+        let mut _m = mockito::Server::new_async().await;
+        let mock_url = _m.url();
+        let base_url = format!("{}/v1", mock_url);
+
+        let mock = _m
+            .mock("POST", "/v1/chat/completions")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{
+                "choices": [{
+                    "message": {
+                        "role": "assistant",
+                        "content": "Response without usage"
+                    }
+                }]
+            }"#)
+            .create();
+
+        let model = UniversalModel::without_auth(
+            "test-model".to_string(),
+            base_url,
+        );
+
+        let messages = vec![ChatMessage {
+            role: "user".to_string(),
+            content: "Hello".to_string(),
+        }];
+
+        let response = model.generate_chat_completion(&messages, None).await.unwrap();
+
+        // Should succeed even without usage info
+        assert_eq!(response.content, "Response without usage");
+        assert!(response.usage.is_none());
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn test_generate_chat_completion_empty_content() {
+        let mut _m = mockito::Server::new_async().await;
+        let mock_url = _m.url();
+        let base_url = format!("{}/v1", mock_url);
+
+        let mock = _m
+            .mock("POST", "/v1/chat/completions")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{
+                "choices": [{
+                    "message": {
+                        "role": "assistant",
+                        "content": ""
+                    }
+                }],
+                "usage": {
+                    "prompt_tokens": 5,
+                    "completion_tokens": 0,
+                    "total_tokens": 5
+                }
+            }"#)
+            .create();
+
+        let model = UniversalModel::without_auth(
+            "test-model".to_string(),
+            base_url,
+        );
+
+        let messages = vec![ChatMessage {
+            role: "user".to_string(),
+            content: "Hello".to_string(),
+        }];
+
+        let response = model.generate_chat_completion(&messages, None).await.unwrap();
+
+        assert_eq!(response.content, "");
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn test_generate_chat_completion_multiple_messages() {
+        let mut _m = mockito::Server::new_async().await;
+        let mock_url = _m.url();
+        let base_url = format!("{}/v1", mock_url);
+
+        let mock = _m
+            .mock("POST", "/v1/chat/completions")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{
+                "choices": [{
+                    "message": {
+                        "role": "assistant",
+                        "content": "Response to conversation"
+                    }
+                }],
+                "usage": {
+                    "prompt_tokens": 20,
+                    "completion_tokens": 5,
+                    "total_tokens": 25
+                }
+            }"#)
+            .create();
+
+        let model = UniversalModel::without_auth(
+            "test-model".to_string(),
+            base_url,
+        );
+
+        let messages = vec![
+            ChatMessage {
+                role: "system".to_string(),
+                content: "You are helpful".to_string(),
+            },
+            ChatMessage {
+                role: "user".to_string(),
+                content: "Hello".to_string(),
+            },
+            ChatMessage {
+                role: "assistant".to_string(),
+                content: "Hi!".to_string(),
+            },
+            ChatMessage {
+                role: "user".to_string(),
+                content: "How are you?".to_string(),
+            },
+        ];
+
+        let response = model.generate_chat_completion(&messages, None).await.unwrap();
+
+        assert_eq!(response.content, "Response to conversation");
+        assert_eq!(response.usage.unwrap().total_tokens, 25);
+        mock.assert();
+    }
+
+    // Streaming tests
+    #[tokio::test]
+    async fn test_streaming_success() {
+        use futures::StreamExt;
+
+        let mut _m = mockito::Server::new_async().await;
+        let mock_url = _m.url();
+        let base_url = format!("{}/v1", mock_url);
+
+        // SSE format: data: <json>\n\n
+        let mock_response = b"data: {\"choices\":[{\"delta\":{\"content\":\"Hello\"}}]}\n\ndata: {\"choices\":[{\"delta\":{\"content\":\" world\"}}]}\n\ndata: {\"choices\":[{\"delta\":{\"content\":\"!\"}}]}\n\ndata: [DONE]\n\n";
+
+        let mock = _m
+            .mock("POST", "/v1/chat/completions")
+            .with_status(200)
+            .with_header("content-type", "text/event-stream")
+            .with_body(mock_response)
+            .create();
+
+        let model = UniversalModel::without_auth(
+            "test-model".to_string(),
+            base_url,
+        );
+
+        let messages = vec![ChatMessage {
+            role: "user".to_string(),
+            content: "Say hello".to_string(),
+        }];
+
+        let mut stream = model
+            .generate_chat_completion_stream(&messages, None)
+            .await
+            .unwrap();
+
+        let mut all_contents = Vec::new();
+        while let Some(result) = stream.next().await {
+            let content = result.unwrap();
+            all_contents.push(content);
+        }
+
+        // The stream should yield accumulated content after each chunk
+        // The last value should be the complete accumulated string
+        assert!(!all_contents.is_empty(), "Stream should yield at least one value");
+        let final_content = all_contents.last().unwrap();
+        assert_eq!(final_content, "Hello world!");
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn test_streaming_with_done_signal() {
+        use futures::StreamExt;
+
+        let mut _m = mockito::Server::new_async().await;
+        let mock_url = _m.url();
+        let base_url = format!("{}/v1", mock_url);
+
+        let mock_response = b"data: {\"choices\":[{\"delta\":{\"content\":\"Test\"}}]}\n\ndata: [DONE]\n\n";
+
+        let mock = _m
+            .mock("POST", "/v1/chat/completions")
+            .with_status(200)
+            .with_header("content-type", "text/event-stream")
+            .with_body(mock_response)
+            .create();
+
+        let model = UniversalModel::without_auth(
+            "test-model".to_string(),
+            base_url,
+        );
+
+        let messages = vec![ChatMessage {
+            role: "user".to_string(),
+            content: "Test".to_string(),
+        }];
+
+        let mut stream = model
+            .generate_chat_completion_stream(&messages, None)
+            .await
+            .unwrap();
+
+        let mut last_content = String::new();
+        while let Some(result) = stream.next().await {
+            let content = result.unwrap();
+            last_content = content;
+        }
+
+        assert_eq!(last_content, "Test");
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn test_streaming_error_handling() {
+        use futures::StreamExt;
+
+        let mut _m = mockito::Server::new_async().await;
+        let mock_url = _m.url();
+        let base_url = format!("{}/v1", mock_url);
+
+        // First chunk valid, second invalid JSON
+        let mock_response = b"data: {\"choices\":[{\"delta\":{\"content\":\"Hello\"}}]}\n\ndata: invalid json\n\n";
+
+        let mock = _m
+            .mock("POST", "/v1/chat/completions")
+            .with_status(200)
+            .with_header("content-type", "text/event-stream")
+            .with_body(mock_response)
+            .create();
+
+        let model = UniversalModel::without_auth(
+            "test-model".to_string(),
+            base_url,
+        );
+
+        let messages = vec![ChatMessage {
+            role: "user".to_string(),
+            content: "Hello".to_string(),
+        }];
+
+        let mut stream = model
+            .generate_chat_completion_stream(&messages, None)
+            .await
+            .unwrap();
+
+        // First chunk should succeed
+        let first = stream.next().await;
+        assert!(first.is_some());
+        assert!(first.unwrap().is_ok());
+
+        // Second chunk should be skipped (malformed JSON)
+        // Stream should continue or end gracefully
+        let _second = stream.next().await;
+        // Implementation skips malformed chunks, so this is acceptable
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn test_streaming_authentication_error() {
+        let mut _m = mockito::Server::new_async().await;
+        let mock_url = _m.url();
+        let base_url = format!("{}/v1", mock_url);
+
+        let mock_response = r#"{"error": {"message": "Unauthorized"}}"#;
+
+        let mock = _m
+            .mock("POST", "/v1/chat/completions")
+            .with_status(401)
+            .with_header("content-type", "application/json")
+            .with_body(mock_response)
+            .create();
+
+        let model = UniversalModel::without_auth(
+            "test-model".to_string(),
+            base_url,
+        );
+
+        let messages = vec![ChatMessage {
+            role: "user".to_string(),
+            content: "Hello".to_string(),
+        }];
+
+        let result = model.generate_chat_completion_stream(&messages, None).await;
+
+        assert!(result.is_err());
+        if let Err(ModelError::UnsupportedModelProvider(msg)) = result {
+            assert!(msg.contains("Authentication failed"));
+        } else {
+            panic!("Expected UnsupportedModelProvider error");
+        }
         mock.assert();
     }
 }
