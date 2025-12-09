@@ -20,6 +20,8 @@ pub enum ModelType {
     Gemini,
     /// OpenAI model.
     OpenAI,
+    /// Ollama local model.
+    Ollama,
 }
 
 impl FromStr for ModelType {
@@ -31,6 +33,7 @@ impl FromStr for ModelType {
             "claude" | "anthropic" => Ok(Self::Claude),
             "gemini" => Ok(Self::Gemini),
             "openai" => Ok(Self::OpenAI),
+            "ollama" => Ok(Self::Ollama),
             _ => Err(()),
         }
     }
@@ -116,6 +119,13 @@ impl ModelFactory {
                 };
                 Ok(Arc::new(model))
             }
+            ModelType::Ollama => {
+                // OllamaModel will be implemented in Task 3
+                // For now, return an error indicating it's not yet implemented
+                Err(ModelError::UnsupportedModelProvider(
+                    "Ollama model support is being implemented".to_string(),
+                ))
+            }
         }
     }
 
@@ -185,6 +195,9 @@ mod tests {
         assert_eq!(ModelType::from_str("anthropic"), Ok(ModelType::Claude));
         assert_eq!(ModelType::from_str("Claude"), Ok(ModelType::Claude));
         assert_eq!(ModelType::from_str("ANTHROPIC"), Ok(ModelType::Claude));
+        assert_eq!(ModelType::from_str("ollama"), Ok(ModelType::Ollama));
+        assert_eq!(ModelType::from_str("Ollama"), Ok(ModelType::Ollama));
+        assert_eq!(ModelType::from_str("OLLAMA"), Ok(ModelType::Ollama));
         assert_eq!(ModelType::from_str("unknown"), Err(()));
     }
 
