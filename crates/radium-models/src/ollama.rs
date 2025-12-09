@@ -451,7 +451,7 @@ impl StreamingModel for OllamaModel {
                                             Some(Ok(ollama_resp.response))
                                         }
                                     }
-                                    Err(e) => {
+                                    Err(_e) => {
                                         // If it's not valid JSON, it might be a partial token
                                         // Just return it as-is
                                         if !line.trim().is_empty() {
