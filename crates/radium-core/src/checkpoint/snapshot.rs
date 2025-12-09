@@ -176,6 +176,7 @@ impl Checkpoint {
 }
 
 /// Checkpoint manager for git snapshots.
+#[derive(Debug, Clone)]
 pub struct CheckpointManager {
     /// Workspace root directory.
     workspace_root: PathBuf,

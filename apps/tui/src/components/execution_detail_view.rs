@@ -10,6 +10,7 @@ use ratatui::{
 };
 
 /// Execution detail view component
+#[derive(Debug, Clone)]
 pub struct ExecutionDetailView {
     /// The execution record to display
     record: ExecutionRecord,
@@ -137,16 +138,16 @@ impl ExecutionDetailView {
         frame.render_widget(status, chunks[1]);
 
         // Timeline: Start time, end time, duration
-        let start_time_str = self.format_timestamp(self.record.start_time);
+        let start_time_str = Self::format_timestamp(self.record.start_time);
         let end_time_str = self
             .record
             .end_time
-            .map(|t| self.format_timestamp(t))
+            .map(|t| Self::format_timestamp(t))
             .unwrap_or_else(|| "N/A".to_string());
         let duration_str = self
             .record
             .duration_secs
-            .map(|d| self.format_duration(d))
+            .map(|d| Self::format_duration(d))
             .unwrap_or_else(|| "N/A".to_string());
 
         let timeline_text = format!(

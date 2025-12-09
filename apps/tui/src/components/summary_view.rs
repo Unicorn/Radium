@@ -10,6 +10,7 @@ use ratatui::{
 };
 
 /// Summary view component
+#[derive(Debug, Clone)]
 pub struct SummaryView {
     /// Aggregate statistics to display
     stats: AggregateStats,
@@ -153,8 +154,8 @@ impl SummaryView {
             0
         };
 
-        let total_duration_str = self.format_duration(self.stats.total_duration_secs);
-        let avg_duration_str = self.format_duration(avg_duration);
+        let total_duration_str = Self::format_duration(self.stats.total_duration_secs);
+        let avg_duration_str = Self::format_duration(avg_duration);
 
         let performance_text = format!(
             "Total Duration: {} | Average: {}",

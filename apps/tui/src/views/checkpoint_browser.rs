@@ -13,7 +13,7 @@ pub fn render_checkpoint_browser(
     state: &CheckpointBrowserState,
 ) {
     let theme = crate::theme::get_theme();
-    
+
     // Main layout: timeline on left, details on right
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
@@ -21,14 +21,14 @@ pub fn render_checkpoint_browser(
         .split(area);
 
     // Left panel: Checkpoint timeline
-    render_checkpoint_timeline(frame, chunks[0], state, theme);
+    render_checkpoint_timeline(frame, chunks[0], state, &theme);
 
     // Right panel: Details and diff preview
-    render_checkpoint_details(frame, chunks[1], state, theme);
+    render_checkpoint_details(frame, chunks[1], state, &theme);
 
     // Restore confirmation dialog (overlay)
     if state.show_restore_confirmation {
-        render_restore_confirmation(frame, area, state, theme);
+        render_restore_confirmation(frame, area, state, &theme);
     }
 }
 
@@ -98,7 +98,7 @@ fn render_checkpoint_timeline(
                 let style = if is_selected {
                     Style::default()
                         .fg(theme.primary)
-                        .bg(theme.bg_selected)
+                        .bg(theme.bg_element)
                         .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default().fg(theme.text)

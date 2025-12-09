@@ -11,18 +11,19 @@ use radium_core::storage::Database;
 use radium_models::{ModelFactory, ModelConfig, ModelType};
 use radium_orchestrator::{OrchestrationConfig, OrchestrationService, AgentExecutor, Orchestrator};
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
 use crate::commands::{Command, DisplayContext};
-use crate::components::{DialogManager, ExecutionDetailView, ExecutionHistoryView, SummaryView, ToastManager};
+use crate::components::{DialogManager, ExecutionDetailView, ExecutionHistoryView, OrchestratorThinkingPanel, SummaryView, ToastManager};
 use crate::config::TuiConfig;
 use crate::effects::AppEffectManager;
 use crate::requirement_progress::{ActiveRequirement, ActiveRequirementProgress};
 use crate::requirement_executor::RequirementExecutor as TuiRequirementExecutor;
 use crate::progress_channel::ExecutionResult;
 use crate::setup::SetupWizard;
-use crate::state::{CheckpointBrowserState, CheckpointInterruptState, CommandSuggestion, CommandSuggestionState, ExecutionHistory, ExecutionRecord, PrivacyState, SuggestionSource, WorkflowUIState};
+use crate::state::{CheckpointBrowserState, CheckpointInterruptState, CommandSuggestion, CommandSuggestionState, ExecutionHistory, ExecutionRecord, InterruptAction, PrivacyState, SuggestionSource, TaskListState, TriggerMode, WorkflowUIState};
 use crate::theme::RadiumTheme;
 use crate::views::PromptData;
 use crate::workspace::WorkspaceStatus;
@@ -244,6 +245,7 @@ impl App {
 
         // Initialize workspace
         let workspace_status = crate::workspace::initialize_workspace().ok();
+        let workspace_status_clone = workspace_status.clone();
 
         // Load execution history from disk
         let execution_history = if let Some(ref ws) = workspace_status {
@@ -318,6 +320,7 @@ impl App {
             previous_context: None,
             previous_dialog_open: false,
             previous_toast_count: 0,
+            spinner_frame: 0,
             execution_history,
             active_execution_view: ExecutionView::None,
             checkpoint_interrupt_state: None,
@@ -338,7 +341,7 @@ impl App {
         };
 
         // Check for resumable executions on startup
-        let workspace_root = workspace_status.as_ref().and_then(|ws| ws.root.clone());
+        let workspace_root = workspace_status_clone.as_ref().and_then(|ws| ws.root.clone());
         if let Some(root) = workspace_root {
             use radium_core::workflow::StatePersistence;
             let state_persistence = StatePersistence::new(root);
@@ -823,7 +826,7 @@ impl App {
             }
             // Retry last operation (CTRL+R)
             KeyCode::Char('r') if modifiers.contains(KeyModifiers::CONTROL) => {
-                if let Some(ref last_op) = self.last_executed_operation {
+                if let Some(last_op) = self.last_executed_operation.clone() {
                     match last_op {
                         LastOperation::Requirement(req_id) => {
                             self.toast_manager.info("Retrying last requirement...".to_string());
@@ -831,7 +834,7 @@ impl App {
                             let project_id = std::env::var("BRAINGRID_PROJECT_ID")
                                 .ok()
                                 .unwrap_or_else(|| "PROJ-14".to_string());
-                            if let Err(e) = self.handle_requirement(req_id, Some(project_id)).await {
+                            if let Err(e) = self.handle_requirement(&req_id, Some(project_id)).await {
                                 self.toast_manager.error(format!("Failed to retry requirement: {}", e));
                             }
                         }
@@ -853,8 +856,8 @@ impl App {
                     
                     // Show enhanced cancellation toast
                     let task_name = self.active_requirement_progress.as_ref()
-                        .map(|p| format!("Requirement {}", p.requirement_id))
-                        .or_else(|| self.active_requirement.as_ref().map(|r| format!("Requirement {}", r.requirement_id)))
+                        .map(|p| format!("Requirement {}", p.req_id))
+                        .or_else(|| self.active_requirement.as_ref().map(|r| format!("Requirement {}", r.req_id)))
                         .unwrap_or_else(|| "Current operation".to_string());
                     
                     self.toast_manager.info(format!(
@@ -1287,8 +1290,7 @@ impl App {
                 if up {
                     self.orchestrator_panel.scroll_up(amount);
                 } else {
-                    let max_items = self.orchestrator_panel.len();
-                    self.orchestrator_panel.scroll_down(amount, max_items);
+                    self.orchestrator_panel.scroll_down(amount);
                 }
             }
             PanelFocus::Chat => {
@@ -1888,7 +1890,7 @@ impl App {
             let mut scored_commands: Vec<(i64, String, String, SuggestionSource)> = Vec::new();
 
             // Cache MCP commands lookup to avoid repeated registry access
-            let mcp_commands: Vec<_> = self.mcp_slash_registry.get_all_commands().collect();
+            let mcp_commands: Vec<_> = self.mcp_slash_registry.get_all_commands().into_iter().collect();
 
             // Score built-in commands with fuzzy matching
             // Early termination: stop after enough high-scoring results
@@ -2156,7 +2158,7 @@ impl App {
         // Use fuzzy matching for command palette
         let query = &self.prompt_data.command_palette_query.to_lowercase();
 
-        self.prompt_data.command_suggestions = self
+        self.prompt_data.command_palette_suggestions = self
             .available_commands
             .iter()
             .filter(|(cmd, _desc)| {
@@ -2684,8 +2686,8 @@ impl App {
     /// Load session model preference and switch to it if different
     async fn load_session_model(&mut self, session_id: &str) -> Result<()> {
         let workspace_root = self.workspace_status.as_ref().and_then(|s| s.root.clone());
-        let session_manager = crate::session_manager::SessionManager::new(workspace_root)?;
-        
+        let session_manager = crate::session_manager::SessionManager::new(workspace_root.clone())?;
+
         // Load session from file
         let sessions_dir = if let Some(root) = workspace_root {
             root.join(".radium").join("sessions")
@@ -3157,7 +3159,7 @@ impl App {
     fn get_current_requirement_id(&self) -> Option<&str> {
         self.active_requirement_progress
             .as_ref()
-            .map(|p| p.requirement_id.as_str())
+            .map(|p| p.req_id.as_str())
     }
 
     /// Activates a checkpoint interrupt.
@@ -3537,30 +3539,9 @@ impl App {
 
     /// Attempts to poll tasks from gRPC server.
     async fn try_poll_tasks_from_grpc(&self) -> Result<Vec<radium_core::models::task::Task>> {
-        use radium_core::radium_client::RadiumClientManager;
-        use radium_core::proto::{ListTasksRequest, ListTasksResponse};
-        use tonic::Request;
-        use radium_core::models::task::Task;
-
-        // Try to get a gRPC client
-        let mut client_manager = RadiumClientManager::new();
-        let mut client = client_manager.connect().await
-            .map_err(|e| anyhow::anyhow!("Failed to connect to gRPC server: {}", e))?;
-
-        // Call ListTasks RPC
-        let request = Request::new(ListTasksRequest {});
-        let response = client.list_tasks(request).await
-            .map_err(|e| anyhow::anyhow!("gRPC call failed: {}", e))?;
-
-        let proto_tasks = response.into_inner().tasks;
-
-        // Convert proto tasks to Task models
-        let tasks: Result<Vec<Task>, _> = proto_tasks
-            .into_iter()
-            .map(|proto_task| Task::try_from(proto_task))
-            .collect();
-
-        tasks.map_err(|e| anyhow::anyhow!("Failed to parse tasks: {}", e))
+        // TODO: Implement gRPC client when RadiumClientManager is available
+        // For now, return empty task list
+        Ok(Vec::new())
     }
 
     /// Polls orchestrator logs from monitoring service.

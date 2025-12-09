@@ -405,7 +405,7 @@ async fn main() -> Result<()> {
                                 let monitoring_path = workspace.radium_dir().join("monitoring.db");
                                 if let Ok(monitoring) = radium_core::monitoring::MonitoringService::open(monitoring_path) {
                                     let analytics = radium_core::analytics::CostAnalytics::new(&monitoring);
-                                    crate::views::render_cost_dashboard(frame, main_area, state, &analytics);
+                                    radium_tui::views::render_cost_dashboard(frame, main_area, state, &analytics);
                                 } else {
                                     // Error: show message
                                     let error_text = "Error: Failed to open monitoring database";

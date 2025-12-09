@@ -326,6 +326,18 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData, model_fil
             // Show general output
             data.output.join("\n")
         }
+        DisplayContext::CostDashboard => {
+            // Cost dashboard will be rendered separately
+            "".to_string()
+        }
+        DisplayContext::BudgetAnalytics => {
+            // Budget analytics will be rendered separately
+            "".to_string()
+        }
+        DisplayContext::Checkpoint { reason, .. } => {
+            // Checkpoint info
+            format!("Checkpoint: {}", reason)
+        }
     };
 
     // Render context-specific views

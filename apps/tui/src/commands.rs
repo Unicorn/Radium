@@ -72,6 +72,7 @@ impl DisplayContext {
             Self::Help => "Help".to_string(),
             Self::ModelSelector => "Model Selection".to_string(),
             Self::CostDashboard => "Cost Analytics Dashboard".to_string(),
+            Self::BudgetAnalytics => "Budget Analytics".to_string(),
             Self::Checkpoint { reason, .. } => format!("Checkpoint: {}", reason),
         }
     }

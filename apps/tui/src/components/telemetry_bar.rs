@@ -254,21 +254,8 @@ impl TelemetryBar {
             .map(|b| b.total_cost)
             .fold(0.0, f64::max);
 
-        let bars: Vec<Bar> = telemetry.provider_breakdown.iter().enumerate().map(|(i, breakdown)| {
-            let color = match i % 3 {
-                0 => Color::Blue,      // OpenAI
-                1 => Color::Magenta,   // Anthropic
-                2 => Color::Green,     // Gemini
-                _ => Color::Yellow,
-            };
-            Bar::default()
-                .value(breakdown.total_cost as u64)
-                .label(format!("{} {:.1}%", breakdown.provider, breakdown.percentage).into())
-                .style(Style::default().fg(color))
-        }).collect();
-
-        let labels: Vec<String> = telemetry.provider_breakdown.iter().map(|b| {
-            format!("{}\n${:.2}", b.provider, b.total_cost)
+        let bars: Vec<(&str, u64)> = telemetry.provider_breakdown.iter().map(|breakdown| {
+            (breakdown.provider.as_str(), breakdown.total_cost as u64)
         }).collect();
 
         let chart = BarChart::default()

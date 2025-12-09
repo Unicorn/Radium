@@ -186,17 +186,19 @@ impl BudgetAnalyticsView {
             Row::new(vec!["REQ-195", "$9.80", "2.4", "MINOR", "LegitimateComplexity"]),
         ];
 
-        let table = Table::new(rows)
+        let table = Table::new(
+                rows,
+                &[
+                    Constraint::Percentage(25),
+                    Constraint::Percentage(20),
+                    Constraint::Percentage(15),
+                    Constraint::Percentage(20),
+                    Constraint::Percentage(20),
+                ]
+            )
             .block(Block::default().borders(Borders::ALL).title(" Cost Anomalies "))
             .header(Row::new(vec!["Requirement", "Cost", "Z-Score", "Severity", "Category"])
                 .style(Style::default().fg(theme.primary).bold()))
-            .widths(&[
-                Constraint::Percentage(25),
-                Constraint::Percentage(20),
-                Constraint::Percentage(15),
-                Constraint::Percentage(20),
-                Constraint::Percentage(20),
-            ])
             .style(Style::default().fg(theme.text));
 
         frame.render_widget(table, area);

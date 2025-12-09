@@ -310,7 +310,7 @@ fn render_summary_panel(
 fn render_provider_breakdown_chart(
     frame: &mut Frame,
     area: Rect,
-    summary: &radium_core::analytics::CostSummary,
+    summary: &radium_core::analytics::CostHistorySummary,
     theme: &crate::theme::RadiumTheme,
 ) {
     let total_cost: f64 = summary
@@ -338,26 +338,11 @@ fn render_provider_breakdown_chart(
         return;
     }
 
-    let bars: Vec<Bar> = summary
+    let bars: Vec<(&str, u64)> = summary
         .breakdown_by_provider
         .iter()
-        .enumerate()
-        .map(|(i, breakdown)| {
-            let percentage = if total_cost > 0.0 {
-                (breakdown.total_cost / total_cost) * 100.0
-            } else {
-                0.0
-            };
-            let color = match i % 3 {
-                0 => Color::Blue,    // OpenAI
-                1 => Color::Magenta, // Anthropic
-                2 => Color::Green,   // Gemini
-                _ => Color::Yellow,
-            };
-            Bar::default()
-                .value(breakdown.total_cost as u64)
-                .label(format!("{} {:.1}%", breakdown.key, percentage).into())
-                .style(Style::default().fg(color))
+        .map(|breakdown| {
+            (breakdown.key.as_str(), breakdown.total_cost as u64)
         })
         .collect();
 

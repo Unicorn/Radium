@@ -181,6 +181,7 @@ impl Default for ThemeConfig {
     fn default() -> Self {
         Self {
             preset: "dark".to_string(),
+            theme_file: None,
             colors: None,
         }
     }

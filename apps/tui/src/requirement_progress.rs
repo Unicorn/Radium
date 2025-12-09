@@ -95,6 +95,10 @@ impl ActiveRequirement {
                 self.current_task = Some(task_title.clone());
                 self.status = format!("⠋ Executing task {}/{}: {}", task_number, total_tasks, task_title);
             }
+            RequirementProgress::TaskSubStep { task_title, sub_step, .. } => {
+                self.current_task = Some(task_title.clone());
+                self.status = format!("⠋ {}: {:?}", task_title, sub_step);
+            }
             RequirementProgress::TaskCompleted { task_title, .. } => {
                 self.tasks_completed += 1;
                 self.status = format!("● Completed: {}", task_title);

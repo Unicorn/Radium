@@ -1,10 +1,11 @@
 //! Telemetry tracking for token usage and costs.
 
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use radium_core::monitoring::{ProviderCostBreakdown, TeamCostBreakdown};
 
 /// Token usage metrics
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct TokenMetrics {
     /// Input tokens
     pub input_tokens: u64,

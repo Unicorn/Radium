@@ -303,7 +303,7 @@ pub enum ValidationProgress {
 }
 
 /// Setup wizard state.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug)]
 pub enum SetupState {
     /// Welcome screen
     Welcome,
@@ -493,21 +493,22 @@ impl SetupWizard {
                         if input.is_empty() {
                             self.error_message = Some("API key cannot be empty".to_string());
                         } else {
-                            // Start validation
+                            // Start validation - clone values before reassigning state
                             let api_key = input.clone();
-                            let provider = *provider;
+                            let provider_to_validate = *provider;
+                            let remaining = remaining_providers.clone();
+
                             self.state = SetupState::Validating {
-                                provider,
+                                provider: provider_to_validate,
                                 progress: ValidationProgress::Testing,
                             };
 
                             // Spawn async validation task
-                            let remaining = remaining_providers.clone();
-                            let validation_result = self.validation_service.validate_credential(provider, &api_key).await;
+                            let validation_result = self.validation_service.validate_credential(provider_to_validate, &api_key).await;
 
                             // Update state based on validation result
                             self.state = SetupState::ValidationResult {
-                                provider,
+                                provider: provider_to_validate,
                                 api_key,
                                 result: validation_result.map_err(|e| e),
                                 remaining_providers: remaining,

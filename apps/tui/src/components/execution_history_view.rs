@@ -21,6 +21,7 @@ pub enum SortColumn {
 }
 
 /// Execution history view component
+#[derive(Debug, Clone)]
 pub struct ExecutionHistoryView {
     /// Filtered and sorted records to display
     records: Vec<ExecutionRecord>,
@@ -242,7 +243,7 @@ impl ExecutionHistoryView {
                         let indicator = if self.sort_ascending { " ↑" } else { " ↓" };
                         cell_text.push_str(indicator);
                     }
-                    Cell::from(cell_text.as_str())
+                    Cell::from(cell_text)
                         .style(Style::default().fg(theme.primary).add_modifier(Modifier::BOLD))
                 }),
         )
@@ -281,13 +282,13 @@ impl ExecutionHistoryView {
                 let cost_text = format!("${:.4}", record.cost);
 
                 Row::new(vec![
-                    Cell::from(record.task_name.as_str()).style(base_style),
+                    Cell::from(record.task_name.clone()).style(base_style),
                     Cell::from(record.status.as_str()).style(status_style),
-                    Cell::from(duration_text.as_str()).style(base_style),
-                    Cell::from(tokens_text.as_str()).style(base_style),
-                    Cell::from(cost_text.as_str()).style(base_style),
-                    Cell::from(record.retry_attempt.to_string().as_str()).style(base_style),
-                    Cell::from(record.cycle_number.to_string().as_str()).style(base_style),
+                    Cell::from(duration_text).style(base_style),
+                    Cell::from(tokens_text).style(base_style),
+                    Cell::from(cost_text).style(base_style),
+                    Cell::from(record.retry_attempt.to_string()).style(base_style),
+                    Cell::from(record.cycle_number.to_string()).style(base_style),
                 ])
                 .height(1)
             })

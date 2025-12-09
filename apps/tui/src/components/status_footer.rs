@@ -96,6 +96,9 @@ impl StatusFooter {
                 DisplayContext::ModelSelector => "Select a model".to_string(),
                 DisplayContext::Dashboard => "Dashboard".to_string(),
                 DisplayContext::Help => "Help".to_string(),
+                DisplayContext::CostDashboard => "Cost Dashboard".to_string(),
+                DisplayContext::BudgetAnalytics => "Budget Analytics".to_string(),
+                DisplayContext::Checkpoint { reason, .. } => format!("Checkpoint: {}", reason),
             }
         } else {
             String::new()
@@ -415,6 +418,27 @@ impl StatusFooter {
                         format!("Help | Model: {}", model)
                     } else {
                         "Help".to_string()
+                    }
+                }
+                DisplayContext::CostDashboard => {
+                    if let Some(model) = model_id {
+                        format!("Cost Dashboard | Model: {}", model)
+                    } else {
+                        "Cost Dashboard".to_string()
+                    }
+                }
+                DisplayContext::BudgetAnalytics => {
+                    if let Some(model) = model_id {
+                        format!("Budget Analytics | Model: {}", model)
+                    } else {
+                        "Budget Analytics".to_string()
+                    }
+                }
+                DisplayContext::Checkpoint { reason, .. } => {
+                    if let Some(model) = model_id {
+                        format!("Checkpoint: {} | Model: {}", reason, model)
+                    } else {
+                        format!("Checkpoint: {}", reason)
                     }
                 }
             }

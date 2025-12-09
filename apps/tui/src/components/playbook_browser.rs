@@ -57,9 +57,9 @@ impl PlaybookBrowser {
         let theme = get_theme();
 
         if self.show_detail {
-            self.render_detail(frame, area, theme);
+            self.render_detail(frame, area, &theme);
         } else {
-            self.render_list(frame, area, theme);
+            self.render_list(frame, area, &theme);
         }
     }
 
@@ -115,8 +115,8 @@ impl PlaybookBrowser {
 
                 let style = if is_selected {
                     Style::default()
-                        .fg(theme.highlight_fg)
-                        .bg(theme.highlight_bg)
+                        .fg(theme.primary)
+                        .bg(theme.bg_element)
                         .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default().fg(theme.text)
@@ -135,8 +135,8 @@ impl PlaybookBrowser {
             )
             .highlight_style(
                 Style::default()
-                    .fg(theme.highlight_fg)
-                    .bg(theme.highlight_bg)
+                    .fg(theme.primary)
+                    .bg(theme.bg_element)
                     .add_modifier(Modifier::BOLD),
             );
 

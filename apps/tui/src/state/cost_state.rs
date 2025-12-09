@@ -1,6 +1,6 @@
 //! Cost dashboard state management for TUI.
 
-use radium_core::analytics::{CostAnalytics, CostBreakdown, CostSummary, DateRange};
+use radium_core::analytics::{CostAnalytics, CostBreakdown, CostHistorySummary, DateRange};
 use std::cmp::Ordering;
 
 /// Date range filter for cost queries.
@@ -150,7 +150,7 @@ pub struct CostDashboardState {
     /// Sort ascending (true) or descending (false)
     pub sort_ascending: bool,
     /// Loaded cost summary
-    pub summary: Option<CostSummary>,
+    pub summary: Option<CostHistorySummary>,
     /// Loaded breakdown data
     pub breakdown_data: Vec<CostBreakdown>,
     /// Whether data is currently loading

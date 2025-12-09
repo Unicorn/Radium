@@ -209,7 +209,7 @@ impl CheckpointInterruptState {
             None => {
                 // Try to get latest checkpoint
                 if let Some(latest) = checkpoint_manager.list_checkpoints().ok()
-                    .and_then(|checkpoints| checkpoints.last()) {
+                    .and_then(|checkpoints| checkpoints.last().cloned()) {
                     latest.id.clone()
                 } else {
                     return Err("No checkpoint available for diff".to_string());

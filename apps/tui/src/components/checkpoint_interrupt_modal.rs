@@ -4,8 +4,9 @@ use crate::state::{CheckpointInterruptState, InterruptAction, InterruptTrigger};
 use crate::theme::RadiumTheme;
 use ratatui::{
     prelude::*,
-    widgets::{Block, Borders, Clear, List, ListItem, Paragraph},
+    widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap},
 };
+use std::time::SystemTime;
 
 /// Checkpoint interrupt modal component
 pub struct CheckpointInterruptModal;

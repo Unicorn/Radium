@@ -5,7 +5,8 @@
 
 use ratatui::{
     prelude::*,
-    widgets::{Block, Borders, Line, Paragraph, Wrap},
+    text::Line,
+    widgets::{Block, Borders, Paragraph, Wrap},
 };
 use crate::state::OutputBuffer;
 use crate::theme::get_theme;
@@ -184,7 +185,7 @@ impl OrchestratorThinkingPanel {
     ///
     /// # Returns
     /// Styled line with syntax highlighting
-    fn apply_syntax_highlighting(line: &str, theme: &crate::theme::RadiumTheme) -> Line {
+    fn apply_syntax_highlighting<'a>(line: &'a str, theme: &'a crate::theme::RadiumTheme) -> Line<'a> {
         // Check for orchestrator prefix
         if line.starts_with("[Orchestrator]") {
             let prefix_end = "[Orchestrator]".len();
