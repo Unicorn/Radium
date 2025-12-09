@@ -9,6 +9,7 @@ use crate::{
 };
 use radium_abstraction::ModelError;
 use radium_models::{ModelConfig, ModelFactory, ModelType};
+use radium_orchestrator::routing::RoutingStrategy;
 use serde_json::Value;
 use std::collections::HashSet;
 use std::fmt;
@@ -912,10 +913,13 @@ impl AgentExecutor {
         // Use model router if available, otherwise use default model
         let (model, routing_decision) = if let Some(ref router) = self.model_router {
             // Route model based on complexity or override
-            let (model_config, decision) = router.select_model(
+            // Use provided strategy or default (complexity-based) for backward compatibility
+            let strategy = routing_strategy.unwrap_or(radium_orchestrator::routing::RoutingStrategy::ComplexityBased);
+            let (model_config, decision) = router.select_model_with_strategy(
                 input,
                 Some(agent.id()),
                 self.tier_override,
+                strategy,
             );
             
             // Create model from routed config

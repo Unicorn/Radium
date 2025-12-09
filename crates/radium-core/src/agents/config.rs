@@ -34,6 +34,20 @@ pub struct AgentTriggerBehavior {
     pub trigger_agent_id: Option<String>,
 }
 
+/// Routing configuration for agent model selection.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentRoutingConfig {
+    /// Routing strategy to use.
+    ///
+    /// Options: "complexity_based", "cost_optimized", "latency_optimized", "quality_optimized"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub strategy: Option<String>,
+    
+    /// Maximum cost per request in USD (optional constraint).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_cost_per_request: Option<f64>,
+}
+
 /// Agent configuration errors.
 #[derive(Debug, Error)]
 pub enum AgentConfigError {
@@ -618,6 +632,10 @@ pub struct AgentConfig {
     /// This is set when loading from a config file that includes persona settings.
     #[serde(skip)]
     pub persona_config: Option<crate::agents::persona::PersonaConfig>,
+    
+    /// Optional routing configuration for model selection.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub routing: Option<AgentRoutingConfig>,
 }
 
 impl AgentConfig {
