@@ -930,3 +930,19 @@ pub enum CacheCommand {
         project: Option<String>,
     },
 }
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum ModelsCommand {
+    /// List all configured models with their status
+    List {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Test a specific model (validate configuration, credentials, API, and perform test generation)
+    Test {
+        /// Model ID to test
+        model_id: String,
+    },
+}

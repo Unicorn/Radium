@@ -41,4 +41,4 @@ pub use detection::BinaryDetector;
 pub use engine_trait::{Engine, EngineMetadata, ExecutionRequest, ExecutionResponse, TokenUsage};
 pub use error::{EngineError, Result};
 pub use metrics::{EngineMetrics, ExecutionMetrics, ModelMetrics};
-pub use registry::{EngineHealth, EngineRegistry, HealthStatus};
+pub use registry::{CredentialStatus, EngineHealth, EngineInfo, EngineRegistry, HealthStatus, ValidationStatus};

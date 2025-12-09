@@ -7,7 +7,8 @@ use crate::engines::error::{EngineError, Result};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, RwLock};
+use std::time::{Duration, Instant};
 
 /// Ollama engine implementation for local Ollama server.
 pub struct OllamaEngine {
@@ -17,6 +18,10 @@ pub struct OllamaEngine {
     client: Arc<Client>,
     /// Base URL for Ollama server.
     base_url: String,
+    /// Model cache with TTL (5 minutes).
+    model_cache: Arc<RwLock<Option<(Instant, Vec<OllamaModelMetadata>)>>>,
+    /// Cached model names for synchronous access.
+    cached_model_names: Arc<Mutex<Vec<String>>>,
 }
 
 impl OllamaEngine {
@@ -37,6 +42,115 @@ impl OllamaEngine {
             metadata,
             client: Arc::new(Client::new()),
             base_url,
+            model_cache: Arc::new(RwLock::new(None)),
+            cached_model_names: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+
+    /// Fetches models from Ollama server.
+    async fn fetch_models(&self) -> Result<Vec<OllamaModelMetadata>> {
+        let url = format!("{}/api/tags", self.base_url);
+        
+        let response = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| {
+                EngineError::ExecutionError(format!(
+                    "Failed to fetch models from Ollama API: {}",
+                    e
+                ))
+            })?;
+
+        // Check response status
+        let status = response.status();
+        if !status.is_success() {
+            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            return Err(EngineError::ExecutionError(format!(
+                "Ollama API error ({}): {}",
+                status, error_text
+            )));
+        }
+
+        // Parse response
+        let tags_response: OllamaTagsResponse = response
+            .json()
+            .await
+            .map_err(|e| EngineError::ExecutionError(format!("Failed to parse response: {}", e)))?;
+
+        // Convert to OllamaModelMetadata
+        let models: Vec<OllamaModelMetadata> = tags_response
+            .models
+            .into_iter()
+            .map(|model| OllamaModelMetadata {
+                name: model.name,
+                size_bytes: model.size,
+                modified_at: model.modified_at,
+                digest: model.digest,
+                format: model.details.as_ref().and_then(|d| d.format.clone()),
+                family: model.details.as_ref().and_then(|d| d.family.clone()),
+                parameter_size: model.details.as_ref().and_then(|d| d.parameter_size.clone()),
+                quantization_level: model.details.as_ref().and_then(|d| d.quantization_level.clone()),
+            })
+            .collect();
+
+        Ok(models)
+    }
+
+    /// Gets cached models, refreshing if cache is expired or missing.
+    async fn get_cached_models(&self) -> Result<Vec<OllamaModelMetadata>> {
+        const CACHE_TTL_SECS: u64 = 300; // 5 minutes
+
+        // Check cache
+        {
+            let cache = self.model_cache.read().map_err(|e| {
+                EngineError::RegistryError(format!("Failed to read model cache: {}", e))
+            })?;
+
+            if let Some((cached_at, models)) = cache.as_ref() {
+                if cached_at.elapsed() < Duration::from_secs(CACHE_TTL_SECS) {
+                    return Ok(models.clone());
+                }
+            }
+        }
+
+        // Cache expired or missing, fetch new models
+        let models = self.fetch_models().await?;
+
+        // Update cache
+        {
+            let mut cache = self.model_cache.write().map_err(|e| {
+                EngineError::RegistryError(format!("Failed to write model cache: {}", e))
+            })?;
+            *cache = Some((Instant::now(), models.clone()));
+        }
+
+        // Update cached model names for synchronous access
+        {
+            let model_names: Vec<String> = models.iter().map(|m| m.name.clone()).collect();
+            if let Ok(mut cached) = self.cached_model_names.lock() {
+                *cached = model_names;
+            }
+        }
+
+        Ok(models)
+    }
+
+    /// Formats bytes as human-readable size string.
+    fn format_size(bytes: u64) -> String {
+        const GB: u64 = 1_000_000_000;
+        const MB: u64 = 1_000_000;
+        const KB: u64 = 1_000;
+
+        if bytes >= GB {
+            format!("{:.1} GB", bytes as f64 / GB as f64)
+        } else if bytes >= MB {
+            format!("{:.1} MB", bytes as f64 / MB as f64)
+        } else if bytes >= KB {
+            format!("{:.1} KB", bytes as f64 / KB as f64)
+        } else {
+            format!("{} B", bytes)
         }
     }
 }
@@ -94,6 +208,58 @@ struct OllamaResponse {
     prompt_eval_count: Option<u64>,
     #[serde(rename = "eval_count")]
     eval_count: Option<u64>,
+}
+
+/// Ollama model metadata.
+#[derive(Debug, Clone)]
+pub struct OllamaModelMetadata {
+    /// Model name (e.g., "llama2:latest").
+    pub name: String,
+    /// Model size in bytes.
+    pub size_bytes: u64,
+    /// Last modified timestamp.
+    pub modified_at: String,
+    /// Model digest.
+    pub digest: String,
+    /// Model format (e.g., "gguf").
+    pub format: Option<String>,
+    /// Model family (e.g., "llama", "mistral").
+    pub family: Option<String>,
+    /// Parameter size (e.g., "7B", "13B").
+    pub parameter_size: Option<String>,
+    /// Quantization level (e.g., "Q4_0", "Q5_K_M").
+    pub quantization_level: Option<String>,
+}
+
+/// Ollama API tags response structure.
+#[derive(Debug, Deserialize)]
+struct OllamaTagsResponse {
+    models: Vec<OllamaModelInfo>,
+}
+
+/// Ollama model information from API.
+#[derive(Debug, Deserialize)]
+struct OllamaModelInfo {
+    name: String,
+    size: u64,
+    #[serde(rename = "modified_at")]
+    modified_at: String,
+    digest: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    details: Option<OllamaModelDetails>,
+}
+
+/// Ollama model details.
+#[derive(Debug, Deserialize)]
+struct OllamaModelDetails {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    format: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    family: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    parameter_size: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    quantization_level: Option<String>,
 }
 
 #[async_trait]
@@ -244,9 +410,12 @@ impl Engine for OllamaEngine {
     }
 
     fn available_models(&self) -> Vec<String> {
-        // Model discovery will be implemented in Task 2
-        // For now, return empty vec
-        Vec::new()
+        // Return cached model names synchronously
+        // The cache will be populated asynchronously when models are first fetched
+        self.cached_model_names
+            .lock()
+            .map(|names| names.clone())
+            .unwrap_or_default()
     }
 }
 

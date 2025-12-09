@@ -97,17 +97,26 @@ pub async fn execute(
     // Load config after engines are registered
     let _ = registry.load_config();
 
-    // Get default engine ID if available
-    let default_engine = registry.get_default().ok();
-    let default_engine_id = default_engine.as_ref().map(|e| e.metadata().id.as_str());
-
-    // Resolve engine: CLI flag → Agent config → Default engine → "mock"
-    let selected_engine = engine
-        .as_deref()
-        .or_else(|| agent.engine.as_deref())
-        .or_else(|| default_engine_id)
-        .unwrap_or("mock");
-    let selected_model = model.as_deref().unwrap_or(agent.model.as_deref().unwrap_or("default"));
+    // Resolve engine using precedence: CLI flag → env var → agent preference → default → first available
+    let selected_engine_arc = registry
+        .select_engine(engine.as_deref(), agent.engine.as_deref())
+        .await
+        .with_context(|| {
+            let available = registry.list().unwrap_or_default();
+            let engine_ids: Vec<String> = available.iter().map(|m| m.id.clone()).collect();
+            format!(
+                "Failed to select engine. Available engines: {}. Run `rad models list` for more details.",
+                engine_ids.join(", ")
+            )
+        })?;
+    
+    let selected_engine_id = selected_engine_arc.metadata().id.as_str();
+    let selected_engine_name = selected_engine_arc.metadata().name.as_str();
+    
+    // Model selection: CLI flag → agent config → engine default
+    let selected_model = model.as_deref()
+        .or_else(|| agent.model.as_deref())
+        .unwrap_or_else(|| selected_engine_arc.default_model().as_str());
     let selected_reasoning =
         reasoning.as_deref().unwrap_or_else(|| match agent.reasoning_effort.unwrap_or_default() {
             radium_core::ReasoningEffort::Low => "low",
@@ -117,7 +126,7 @@ pub async fn execute(
 
     println!();
     println!("{}", "Execution Configuration:".bold());
-    println!("  Engine: {}", selected_engine.cyan());
+    println!("  Engine: {} ({})", selected_engine_id.cyan(), selected_engine_name);
     println!("  Model: {}", selected_model.cyan());
     println!("  Reasoning: {}", selected_reasoning.cyan());
 
@@ -212,7 +221,7 @@ pub async fn execute(
     println!("{}", "Executing agent...".bold());
     println!();
 
-    let execution_result = execute_agent_with_engine(&registry, &agent.id, &rendered, selected_engine, selected_model).await;
+    let execution_result = execute_agent_with_engine(&registry, &agent.id, &rendered, selected_engine_id, selected_model).await;
     
     // Parse and store code blocks from response
     if let Ok(ref response) = execution_result {

@@ -14,7 +14,7 @@ use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 use commands::{
-    agents, auth, budget, capability, checkpoint, clean, clipboard, code, context, cost, craft, doctor, engines, extension, hooks, init, learning, monitor, plan, playbook, policy, privacy, requirement, run,
+    agents, auth, budget, capability, checkpoint, clean, clipboard, code, context, cost, craft, doctor, engines, extension, hooks, init, learning, models, monitor, plan, playbook, policy, privacy, requirement, run,
     sandbox, secret, session, stats, status, step, theme, validate,
     // All commands enabled!
     templates, complete, autonomous, vibecheck, chat, mcp, custom, braingrid,
@@ -320,6 +320,9 @@ enum Command {
     /// List, inspect, and manage AI engine providers.
     #[command(subcommand)]
     Engines(commands::EnginesCommand),
+
+    /// Manage AI model configurations
+    Models(commands::types::ModelsCommand),
 
     /// Monitor agent execution and telemetry
     ///
@@ -654,6 +657,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Engines(cmd) => {
             engines::execute(cmd).await?;
+        }
+        Command::Models(cmd) => {
+            models::execute(cmd).await?;
         }
         Command::Monitor(cmd) => {
             monitor::execute(cmd).await?;

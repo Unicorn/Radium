@@ -35,6 +35,47 @@ pub struct EngineHealth {
     pub authenticated: bool,
 }
 
+/// Credential status for an engine.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CredentialStatus {
+    /// Credentials are available and valid.
+    Available,
+    /// Credentials are missing.
+    Missing,
+    /// Credentials are invalid.
+    Invalid,
+    /// Credential status is unknown.
+    Unknown,
+}
+
+/// Engine information for listing and selection.
+#[derive(Debug, Clone)]
+pub struct EngineInfo {
+    /// Engine ID.
+    pub id: String,
+    /// Engine name.
+    pub name: String,
+    /// Provider type (derived from engine ID).
+    pub provider: String,
+    /// Whether this is the default engine.
+    pub is_default: bool,
+    /// Credential status.
+    pub credential_status: CredentialStatus,
+}
+
+/// Validation status for an engine.
+#[derive(Debug, Clone)]
+pub struct ValidationStatus {
+    /// Whether configuration is valid.
+    pub config_valid: bool,
+    /// Whether credentials are available.
+    pub credentials_available: bool,
+    /// Whether API is reachable.
+    pub api_reachable: bool,
+    /// Optional error message.
+    pub error_message: Option<String>,
+}
+
 /// Engine registry for managing available engines.
 pub struct EngineRegistry {
     /// Registered engines.
@@ -504,6 +545,276 @@ impl EngineRegistry {
                 authenticated: false,
             }),
         }
+    }
+
+    /// Gets the first available engine with valid credentials.
+    ///
+    /// # Returns
+    /// First engine with valid credentials, or error if none found
+    ///
+    /// # Errors
+    /// Returns error if no engines with valid credentials are found
+    pub async fn get_first_available(&self) -> Result<Arc<dyn Engine>> {
+        let engines = self
+            .engines
+            .read()
+            .map_err(|e| EngineError::RegistryError(format!("Lock poisoned: {}", e)))?;
+
+        for (id, engine) in engines.iter() {
+            // Check if engine is available and authenticated
+            let available = engine.is_available().await;
+            if available {
+                let authenticated = engine.is_authenticated().await.unwrap_or(false);
+                let metadata = engine.metadata();
+                // If engine doesn't require auth, or is authenticated, use it
+                if !metadata.requires_auth || authenticated {
+                    return Ok(engine.clone());
+                }
+            }
+        }
+
+        Err(EngineError::NotFound(
+            "No engine with valid credentials found".to_string(),
+        ))
+    }
+
+    /// Selects an engine based on precedence chain.
+    ///
+    /// Precedence order:
+    /// 1. CLI override (if provided)
+    /// 2. Environment variable `RADIUM_MODEL` (if set)
+    /// 3. Agent preference (if provided)
+    /// 4. Default engine (if set)
+    /// 5. First available engine with valid credentials
+    ///
+    /// # Arguments
+    /// * `cli_override` - Optional CLI flag override
+    /// * `agent_preference` - Optional agent preference from config
+    ///
+    /// # Returns
+    /// Selected engine
+    ///
+    /// # Errors
+    /// Returns error if no engine can be selected
+    pub async fn select_engine(
+        &self,
+        cli_override: Option<&str>,
+        agent_preference: Option<&str>,
+    ) -> Result<Arc<dyn Engine>> {
+        // 1. CLI override (highest precedence)
+        if let Some(engine_id) = cli_override {
+            return self.get(engine_id).map_err(|e| {
+                // Provide helpful error with available engines
+                let available = self.list().unwrap_or_default();
+                let engine_ids: Vec<String> = available.iter().map(|m| m.id.clone()).collect();
+                EngineError::NotFound(format!(
+                    "Engine '{}' not found. Available engines: {}. Run `rad models list` for more details.",
+                    engine_id,
+                    engine_ids.join(", ")
+                ))
+            });
+        }
+
+        // 2. Environment variable
+        if let Ok(env_model) = std::env::var("RADIUM_MODEL") {
+            if let Ok(engine) = self.get(&env_model) {
+                return Ok(engine);
+            }
+            // If env var is set but engine not found, continue to next precedence
+        }
+
+        // 3. Agent preference
+        if let Some(pref) = agent_preference {
+            if let Ok(engine) = self.get(pref) {
+                return Ok(engine);
+            }
+            // If agent preference not found, continue to next precedence
+        }
+
+        // 4. Default engine
+        if let Ok(engine) = self.get_default() {
+            return Ok(engine);
+        }
+
+        // 5. First available engine with valid credentials
+        self.get_first_available().await.map_err(|e| {
+            let available = self.list().unwrap_or_default();
+            if available.is_empty() {
+                EngineError::NotFound(
+                    "No engines configured. Register engines or set a default engine.".to_string(),
+                )
+            } else {
+                EngineError::NotFound(format!(
+                    "No engine with valid credentials found. Available engines: {}. Run `rad models list` to check credential status.",
+                    available.iter().map(|m| m.id.clone()).collect::<Vec<_>>().join(", ")
+                ))
+            }
+        })
+    }
+
+    /// Gets an engine with precedence-based selection.
+    ///
+    /// This is a convenience wrapper around `select_engine()`.
+    ///
+    /// # Arguments
+    /// * `cli_override` - Optional CLI flag override
+    /// * `agent_preference` - Optional agent preference from config
+    ///
+    /// # Returns
+    /// Selected engine
+    ///
+    /// # Errors
+    /// Returns error if no engine can be selected
+    pub async fn get_with_precedence(
+        &self,
+        cli_override: Option<&str>,
+        agent_preference: Option<&str>,
+    ) -> Result<Arc<dyn Engine>> {
+        self.select_engine(cli_override, agent_preference).await
+    }
+
+    /// Lists all available engines with credential status.
+    ///
+    /// # Returns
+    /// Vector of engine information with credential status
+    ///
+    /// # Errors
+    /// Returns error if lock poisoned
+    pub async fn list_available(&self) -> Result<Vec<EngineInfo>> {
+        let engines = self
+            .engines
+            .read()
+            .map_err(|e| EngineError::RegistryError(format!("Lock poisoned: {}", e)))?;
+
+        let default_id = self
+            .default_engine
+            .read()
+            .map_err(|e| EngineError::RegistryError(format!("Lock poisoned: {}", e)))?
+            .clone();
+
+        let mut engine_infos = Vec::new();
+
+        for (id, engine) in engines.iter() {
+            let metadata = engine.metadata();
+            let is_default = default_id.as_ref().map_or(false, |d| d == id);
+
+            // Check credential status
+            let credential_status = if metadata.requires_auth {
+                match engine.is_authenticated().await {
+                    Ok(true) => CredentialStatus::Available,
+                    Ok(false) => CredentialStatus::Missing,
+                    Err(_) => CredentialStatus::Unknown,
+                }
+            } else {
+                // Engine doesn't require auth, so credentials are not applicable
+                CredentialStatus::Available
+            };
+
+            // Extract provider from engine ID (e.g., "gemini" from "gemini", "openai" from "openai")
+            let provider = id.clone();
+
+            engine_infos.push(EngineInfo {
+                id: id.clone(),
+                name: metadata.name.clone(),
+                provider,
+                is_default,
+                credential_status,
+            });
+        }
+
+        Ok(engine_infos)
+    }
+
+    /// Validates a specific engine.
+    ///
+    /// Checks configuration validity, credential availability, and API reachability.
+    ///
+    /// # Arguments
+    /// * `engine_id` - Engine identifier
+    ///
+    /// # Returns
+    /// Validation status
+    ///
+    /// # Errors
+    /// Returns error if engine not found
+    pub async fn validate_engine(&self, engine_id: &str) -> Result<ValidationStatus> {
+        let engine = self.get(engine_id)?;
+        let metadata = engine.metadata();
+
+        // Check configuration validity
+        let config_valid = if let Some(engine_config) = self.get_engine_config(engine_id) {
+            engine_config.validate().is_ok()
+        } else {
+            true // No config is valid (uses defaults)
+        };
+
+        // Check credential availability
+        let credentials_available = if metadata.requires_auth {
+            engine.is_authenticated().await.unwrap_or(false)
+        } else {
+            true // Engine doesn't require auth
+        };
+
+        // Check API reachability (engine availability)
+        let api_reachable = engine.is_available().await;
+
+        // Build error message if validation failed
+        let error_message = if !config_valid {
+            Some(format!("Invalid configuration for engine '{}'", engine_id))
+        } else if !credentials_available {
+            let provider = engine_id;
+            Some(format!(
+                "Credentials not configured for engine '{}' (provider: {}). Run `rad auth login {}` or set environment variables.",
+                engine_id, provider, provider
+            ))
+        } else if !api_reachable {
+            Some(format!("API not reachable for engine '{}'", engine_id))
+        } else {
+            None
+        };
+
+        Ok(ValidationStatus {
+            config_valid,
+            credentials_available,
+            api_reachable,
+            error_message,
+        })
+    }
+
+    /// Validates all registered engines.
+    ///
+    /// # Returns
+    /// Vector of validation statuses for each engine
+    ///
+    /// # Errors
+    /// Returns error if lock poisoned
+    pub async fn validate_all(&self) -> Result<Vec<(String, ValidationStatus)>> {
+        let engines = self
+            .engines
+            .read()
+            .map_err(|e| EngineError::RegistryError(format!("Lock poisoned: {}", e)))?;
+
+        let mut results = Vec::new();
+
+        for (id, _) in engines.iter() {
+            match self.validate_engine(id).await {
+                Ok(status) => results.push((id.clone(), status)),
+                Err(e) => {
+                    // If engine not found (shouldn't happen), create a failed validation
+                    results.push((
+                        id.clone(),
+                        ValidationStatus {
+                            config_valid: false,
+                            credentials_available: false,
+                            api_reachable: false,
+                            error_message: Some(format!("Failed to validate engine: {}", e)),
+                        },
+                    ));
+                }
+            }
+        }
+
+        Ok(results)
     }
 }
 

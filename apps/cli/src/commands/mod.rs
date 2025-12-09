@@ -22,6 +22,7 @@ pub mod engines;
 pub mod extension;
 pub mod hooks;
 pub mod init;
+pub mod models;
 pub mod mcp;
 pub mod mcp_proxy;
 pub mod monitor;

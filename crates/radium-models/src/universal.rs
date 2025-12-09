@@ -49,7 +49,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::time::Duration;
-use tracing::debug;
+use tracing::{debug, error};
 
 /// Universal OpenAI-compatible model implementation.
 ///
@@ -231,6 +231,11 @@ impl Model for UniversalModel {
         }
 
         let response = request.send().await.map_err(|e| {
+            error!(
+                error = %e,
+                url = %url,
+                "Failed to send request to OpenAI-compatible API"
+            );
             ModelError::RequestError(format!("Network error: {}", e))
         })?;
 
@@ -238,9 +243,24 @@ impl Model for UniversalModel {
         let status = response.status();
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            error!(
+                status = %status,
+                error = %error_text,
+                url = %url,
+                "OpenAI-compatible API returned error status"
+            );
             
-            // Map quota/rate limit errors to QuotaExceeded
+            // Map authentication errors (401, 403) to UnsupportedModelProvider
+            if status == 401 || status == 403 {
+                return Err(ModelError::UnsupportedModelProvider(format!(
+                    "Authentication failed ({}): {}",
+                    status, error_text
+                )));
+            }
+            
+            // Map quota/rate limit errors (402, 429) to QuotaExceeded
             if status == 402 || status == 429 {
+                // Check for quota-related error messages in response body
                 let is_quota_error = error_text.to_lowercase().contains("exceeded your current quota")
                     || error_text.to_lowercase().contains("insufficient_quota")
                     || error_text.to_lowercase().contains("quota")
@@ -254,7 +274,7 @@ impl Model for UniversalModel {
                 }
             }
             
-            // For 429, treat as QuotaExceeded
+            // For 429, treat as QuotaExceeded (rate limit)
             if status == 429 {
                 return Err(ModelError::QuotaExceeded {
                     provider: "universal".to_string(),
@@ -262,7 +282,15 @@ impl Model for UniversalModel {
                 });
             }
             
-            // Other errors
+            // Map server errors (500-599) to ModelResponseError
+            if (500..=599).contains(&status.as_u16()) {
+                return Err(ModelError::ModelResponseError(format!(
+                    "Server error ({}): {}",
+                    status, error_text
+                )));
+            }
+            
+            // Other errors (400, 404, etc.)
             return Err(ModelError::ModelResponseError(format!(
                 "API error ({}): {}",
                 status, error_text
@@ -271,6 +299,11 @@ impl Model for UniversalModel {
 
         // Parse response
         let openai_response: OpenAIResponse = response.json().await.map_err(|e| {
+            error!(
+                error = %e,
+                url = %url,
+                "Failed to parse OpenAI-compatible API response"
+            );
             ModelError::SerializationError(format!("Failed to parse response: {}", e))
         })?;
 

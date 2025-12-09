@@ -5,6 +5,7 @@
 pub mod claude;
 pub mod factory;
 pub mod gemini;
+pub mod ollama;
 pub mod openai;
 pub mod universal;
 
@@ -17,6 +18,7 @@ use tracing::debug;
 pub use claude::ClaudeModel;
 pub use factory::{ModelConfig, ModelFactory, ModelType};
 pub use gemini::GeminiModel;
+pub use ollama::OllamaModel;
 pub use openai::OpenAIModel;
 pub use universal::UniversalModel;
 

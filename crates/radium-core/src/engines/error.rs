@@ -40,4 +40,12 @@ pub enum EngineError {
     /// I/O error.
     #[error("I/O error: {0}")]
     Io(#[from] io::Error),
+
+    /// Credentials not configured for engine.
+    #[error("Credentials not configured for engine '{0}': {1}")]
+    CredentialsNotConfigured(String, String),
+
+    /// Model validation failed.
+    #[error("Model validation failed for '{0}': {1}")]
+    ValidationFailed(String, String),
 }

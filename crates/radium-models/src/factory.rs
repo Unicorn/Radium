@@ -120,10 +120,10 @@ impl ModelFactory {
                 Ok(Arc::new(model))
             }
             ModelType::Ollama => {
-                // OllamaModel will be implemented in Task 3
-                // For now, return an error indicating it's not yet implemented
+                // Ollama support is not yet implemented.
+                // Use UniversalModel with base_url "http://localhost:11434/v1" instead.
                 Err(ModelError::UnsupportedModelProvider(
-                    "Ollama model support is being implemented".to_string(),
+                    "Ollama model type is not yet implemented. Use UniversalModel with base_url 'http://localhost:11434/v1' instead.".to_string(),
                 ))
             }
         }
