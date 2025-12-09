@@ -73,7 +73,7 @@ impl McpConfigManager {
     }
 
     /// Parse a single server configuration from TOML.
-    fn parse_server_config(server_table: &toml::Table) -> Result<McpServerConfig> {
+    pub fn parse_server_config(server_table: &toml::Table) -> Result<McpServerConfig> {
         let name = server_table
             .get("name")
             .and_then(|n| n.as_str())
