@@ -10,6 +10,7 @@
 //! - **OpenAI**: OpenAI's GPT models (API key required)
 //! - **Ollama**: Local models via Ollama (no API key, local execution)
 
+pub mod cache;
 pub mod claude;
 pub mod factory;
 pub mod gemini;
@@ -23,6 +24,8 @@ use radium_abstraction::{
 };
 use tracing::debug;
 
+pub use cache::{CacheConfig, CacheKey, CacheStats, CachedModel};
+// ModelCache will be exported in Task 2
 pub use claude::ClaudeModel;
 pub use factory::{ModelConfig, ModelFactory, ModelType};
 pub use gemini::GeminiModel;

@@ -34,6 +34,9 @@ tracing.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
 
+# Hashing
+sha2 = "0.10"
+
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 mockito = "1.0"

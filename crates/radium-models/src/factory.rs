@@ -10,7 +10,7 @@ use std::sync::Arc;
 use tracing::{debug, error};
 
 /// Model type enumeration.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ModelType {
     /// Mock model for testing.
     Mock,
