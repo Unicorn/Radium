@@ -561,7 +561,7 @@ impl BudgetManager {
         // }
 
         // Check projected exhaustion
-        if let Some(ref forecast_result) = forecast {
+        if let Some(forecast_result) = forecast {
             if forecast_result.days_remaining <= self.warning_config.projected_days_warning {
                 warnings.push(BudgetError::ProjectedExhaustion {
                     days_remaining: forecast_result.days_remaining,
@@ -741,7 +741,7 @@ pub fn get_provider_comparison(
     for s in &summary {
         let records = monitoring.get_agent_telemetry(&s.agent_id)?;
         for record in records {
-            if let (Some(ref model), Some(ref provider)) = (&record.model, &record.provider) {
+            if let (Some(model), Some(provider)) = (&record.model, &record.provider) {
                 let key = format!("{}:{}", provider, model);
                 let entry = model_costs.entry(key).or_insert((0.0, 0, 0));
                 entry.0 += record.estimated_cost;

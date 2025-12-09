@@ -70,7 +70,8 @@ impl PolicyReloader {
                                 let file_clone = policy_file.clone();
                                 tokio::spawn(async move {
                                     if let Err(e) = Self::reload_policy(&engine_clone, &file_clone).await {
-                                        error!(error = %e, "Failed to reload policy file");
+                                        let error_msg = format!("Failed to reload policy file: {}", e);
+                                        tracing::error!("{}", error_msg);
                                     }
                                 });
                                 break;
@@ -132,15 +133,17 @@ impl PolicyReloader {
                     // Note: hook_registry, alert_manager, analytics are preserved
                 }
 
+                let rule_count = engine.read().await.rules().len();
                 info!(
-                    rule_count = engine.read().await.rules().len(),
+                    rule_count = rule_count,
                     "Policy rules reloaded successfully"
                 );
                 Ok(())
             }
             Err(e) => {
+                let error_msg = format!("{}", e);
                 error!(
-                    error = %e,
+                    error = %error_msg,
                     "Failed to parse policy file, rolling back to previous rules"
                 );
                 // Rollback
