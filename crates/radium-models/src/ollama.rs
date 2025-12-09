@@ -475,6 +475,9 @@ impl StreamingModel for OllamaModel {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures::StreamExt;
+    use mockito::Server;
+    use radium_abstraction::ChatMessage;
 
     #[test]
     fn test_ollama_model_new() {
@@ -490,6 +493,225 @@ mod tests {
         )
         .unwrap();
         assert_eq!(model.model_id(), "llama2");
+    }
+
+    #[tokio::test]
+    async fn test_generate_text_success() {
+        let mut server = Server::new_async().await;
+        let mock_response = r#"{"response":"Hello, world!","done":true,"prompt_eval_count":5,"eval_count":3}"#;
+        
+        let mock = server
+            .mock("POST", "/api/generate")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(mock_response)
+            .create();
+
+        let model = OllamaModel::with_base_url(
+            "llama2".to_string(),
+            server.url(),
+        ).unwrap();
+
+        let response = model.generate_text("Hello", None).await.unwrap();
+        
+        assert_eq!(response.content, "Hello, world!");
+        let usage = response.usage.unwrap();
+        assert_eq!(usage.prompt_tokens, 5);
+        assert_eq!(usage.completion_tokens, 3);
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn test_generate_chat_completion_success() {
+        let mut server = Server::new_async().await;
+        let mock_response = r#"{"response":"Hi there!","done":true,"prompt_eval_count":10,"eval_count":4}"#;
+        
+        let mock = server
+            .mock("POST", "/api/chat")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(mock_response)
+            .create();
+
+        let model = OllamaModel::with_base_url(
+            "llama2".to_string(),
+            server.url(),
+        ).unwrap();
+
+        let messages = vec![
+            ChatMessage {
+                role: "user".to_string(),
+                content: "Hello".to_string(),
+            },
+        ];
+
+        let response = model.generate_chat_completion(&messages, None).await.unwrap();
+        
+        assert_eq!(response.content, "Hi there!");
+        assert_eq!(response.usage.unwrap().total_tokens, 14);
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn test_generate_stream_success() {
+        let mut server = Server::new_async().await;
+        // NDJSON format: one JSON object per line
+        let mock_response = r#"{"response":"Hello","done":false}
+{"response":" world","done":false}
+{"response":"!","done":true,"prompt_eval_count":5,"eval_count":3}"#;
+        
+        let mock = server
+            .mock("POST", "/api/generate")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(mock_response)
+            .create();
+
+        let model = OllamaModel::with_base_url(
+            "llama2".to_string(),
+            server.url(),
+        ).unwrap();
+
+        let mut stream = model.generate_stream("Hello", None).await.unwrap();
+        let mut tokens = Vec::new();
+        
+        while let Some(result) = stream.next().await {
+            match result {
+                Ok(token) => tokens.push(token),
+                Err(e) => panic!("Unexpected error in stream: {}", e),
+            }
+        }
+
+        // Note: The current implementation may yield tokens differently
+        // This test verifies the stream works end-to-end
+        assert!(!tokens.is_empty());
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn test_connection_error() {
+        // Use an invalid URL to trigger connection error
+        let model = OllamaModel::with_base_url(
+            "llama2".to_string(),
+            "http://127.0.0.1:99999".to_string(), // Invalid port
+        ).unwrap();
+
+        let result = model.generate_text("Hello", None).await;
+        
+        assert!(result.is_err());
+        if let Err(ModelError::RequestError(msg)) = result {
+            assert!(msg.contains("not reachable") || msg.contains("Network error"));
+        } else {
+            panic!("Expected RequestError, got: {:?}", result);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_model_not_found_error() {
+        let mut server = Server::new_async().await;
+        let error_response = r#"{"error":"model 'fake-model' not found"}"#;
+        
+        let mock = server
+            .mock("POST", "/api/generate")
+            .with_status(404)
+            .with_header("content-type", "application/json")
+            .with_body(error_response)
+            .create();
+
+        let model = OllamaModel::with_base_url(
+            "fake-model".to_string(),
+            server.url(),
+        ).unwrap();
+
+        let result = model.generate_text("Hello", None).await;
+        
+        assert!(result.is_err());
+        if let Err(ModelError::ModelResponseError(msg)) = result {
+            assert!(msg.contains("not found"));
+            assert!(msg.contains("ollama pull"));
+        } else {
+            panic!("Expected ModelResponseError, got: {:?}", result);
+        }
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn test_out_of_memory_error() {
+        let mut server = Server::new_async().await;
+        let error_response = r#"{"error":"out of memory"}"#;
+        
+        let mock = server
+            .mock("POST", "/api/generate")
+            .with_status(500)
+            .with_header("content-type", "application/json")
+            .with_body(error_response)
+            .create();
+
+        let model = OllamaModel::with_base_url(
+            "llama2".to_string(),
+            server.url(),
+        ).unwrap();
+
+        let result = model.generate_text("Hello", None).await;
+        
+        assert!(result.is_err());
+        if let Err(ModelError::ModelResponseError(msg)) = result {
+            assert!(msg.contains("Insufficient memory"));
+            assert!(msg.contains("smaller variant"));
+        } else {
+            panic!("Expected ModelResponseError, got: {:?}", result);
+        }
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn test_token_usage_tracking() {
+        let mut server = Server::new_async().await;
+        let mock_response = r#"{"response":"Test response","done":true,"prompt_eval_count":10,"eval_count":20}"#;
+        
+        let mock = server
+            .mock("POST", "/api/generate")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(mock_response)
+            .create();
+
+        let model = OllamaModel::with_base_url(
+            "llama2".to_string(),
+            server.url(),
+        ).unwrap();
+
+        let response = model.generate_text("Test", None).await.unwrap();
+        let usage = response.usage.unwrap();
+        
+        assert_eq!(usage.prompt_tokens, 10);
+        assert_eq!(usage.completion_tokens, 20);
+        assert_eq!(usage.total_tokens, 30);
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn test_custom_base_url() {
+        let mut server = Server::new_async().await;
+        let mock_response = r#"{"response":"Custom URL test","done":true,"prompt_eval_count":1,"eval_count":1}"#;
+        
+        let mock = server
+            .mock("POST", "/api/generate")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(mock_response)
+            .create();
+
+        let custom_url = server.url();
+        let model = OllamaModel::with_base_url(
+            "llama2".to_string(),
+            custom_url.clone(),
+        ).unwrap();
+
+        let response = model.generate_text("Test", None).await.unwrap();
+        
+        assert_eq!(response.content, "Custom URL test");
+        mock.assert();
     }
 }
 
