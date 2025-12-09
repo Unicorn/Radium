@@ -74,7 +74,7 @@ impl ModelRouter {
             cost_tracker: Arc::new(CostTracker::new()),
             ab_test_sampler: None,
             fallback_chain: None,
-            tried_models: Vec::new(),
+            tried_models: Arc::new(RwLock::new(Vec::new())),
         }
     }
 
