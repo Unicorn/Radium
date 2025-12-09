@@ -29,6 +29,9 @@ pub async fn execute(command: ModelsCommand) -> Result<()> {
             agents,
             config,
         } => warm_models(provider, model, agents, config).await,
+        ModelsCommand::ClearCache { provider, model } => {
+            clear_cache(provider, model).await
+        }
     }
 }
 
@@ -424,5 +427,81 @@ fn display_warm_progress(provider: &str, model: &str, duration: std::time::Durat
 
     let duration_ms = duration.as_millis();
     println!("  {} {}/{} ({}ms)", status, provider, model, duration_ms);
+}
+
+/// Clear models from the cache.
+async fn clear_cache(provider: Option<String>, model: Option<String>) -> Result<()> {
+    // Discover workspace
+    let workspace = Workspace::discover()
+        .map_err(|_| anyhow::anyhow!("No Radium workspace found. Run 'rad init' first."))?;
+
+    // Load cache configuration
+    let cache_config = load_cache_config(workspace.root())
+        .context("Failed to load cache configuration")?;
+
+    if !cache_config.enabled {
+        println!("{}", "Cache is disabled in configuration.".yellow());
+        return Ok(());
+    }
+
+    // Create cache
+    let cache = Arc::new(
+        ModelCache::new(cache_config).context("Failed to create model cache")?,
+    );
+
+    let cleared_count = if let (Some(prov), Some(mod_name)) = (provider, model) {
+        // Clear specific model
+        let model_type = ModelType::from_str(&prov).map_err(|()| {
+            anyhow::anyhow!("Unknown provider: {}", prov)
+        })?;
+        let key = radium_models::CacheKey::new(model_type, mod_name, None);
+        if cache.remove(&key) {
+            println!("{}", format!("Cleared {}/{} from cache", prov, key.model_name).green());
+            1
+        } else {
+            println!("{}", format!("Model {}/{} not found in cache", prov, key.model_name).yellow());
+            0
+        }
+    } else if let Some(prov) = provider {
+        // Clear all models from provider
+        use radium_models::CacheKey;
+        let model_type = ModelType::from_str(&prov).map_err(|()| {
+            anyhow::anyhow!("Unknown provider: {}", prov)
+        })?;
+
+        // Get list of cached models
+        let models = cache.list_models();
+        let keys_to_remove: Vec<CacheKey> = models
+            .into_iter()
+            .filter(|(k, _)| k.provider == model_type)
+            .map(|(k, _)| k)
+            .collect();
+
+        let mut cleared = 0;
+        for key in keys_to_remove {
+            if cache.remove(&key) {
+                cleared += 1;
+            }
+        }
+
+        if cleared > 0 {
+            println!("{}", format!("Cleared {} models from {} provider", cleared, prov).green());
+        } else {
+            println!("{}", format!("No {} models found in cache", prov).yellow());
+        }
+        cleared
+    } else {
+        // Clear entire cache
+        let stats_before = cache.get_stats();
+        cache.clear();
+        println!("{}", format!("Cleared {} models from cache", stats_before.cache_size).green());
+        stats_before.cache_size
+    };
+
+    if cleared_count == 0 {
+        println!("{}", "Cache is already empty.".dimmed());
+    }
+
+    Ok(())
 }
 

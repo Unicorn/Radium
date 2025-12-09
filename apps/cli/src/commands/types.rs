@@ -964,4 +964,15 @@ pub enum ModelsCommand {
         #[arg(long)]
         config: Option<std::path::PathBuf>,
     },
+
+    /// Clear models from the cache
+    ClearCache {
+        /// Provider name (e.g., gemini, openai) - if specified, only clear models from this provider
+        #[arg(long)]
+        provider: Option<String>,
+
+        /// Model name/ID (e.g., gemini-2.0-flash-exp) - if specified with provider, clear specific model
+        #[arg(long)]
+        model: Option<String>,
+    },
 }

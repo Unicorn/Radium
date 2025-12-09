@@ -250,6 +250,15 @@ impl ModelCache {
         &self.config
     }
 
+    /// List all cached models.
+    ///
+    /// # Returns
+    /// A vector of (cache key, cached model) pairs.
+    pub fn list_models(&self) -> Vec<(CacheKey, CachedModel)> {
+        let cache = self.cache.read().expect("Cache lock poisoned");
+        cache.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+    }
+
     /// Background cleanup task that periodically evicts stale models.
     async fn cleanup_task(
         cache: Arc<RwLock<HashMap<CacheKey, CachedModel>>>,
