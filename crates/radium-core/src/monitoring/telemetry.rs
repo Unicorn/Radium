@@ -1046,6 +1046,81 @@ mod tests {
         assert_eq!(record.complexity_score, Some(75.5));
     }
 
+    #[test]
+    fn test_with_local_cost() {
+        use tempfile::TempDir;
+        use crate::monitoring::LocalModelCostTracker;
+
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("engine-costs.toml");
+
+        let toml_content = r#"
+[engines.ollama]
+cost_per_second = 0.0001
+min_billable_duration = 0.1
+"#;
+        std::fs::write(&config_path, toml_content).unwrap();
+
+        let tracker = LocalModelCostTracker::new(&config_path).unwrap();
+        let record = TelemetryRecord::new("agent-1".to_string())
+            .with_local_cost("ollama", std::time::Duration::from_secs(2), &tracker);
+
+        assert!((record.estimated_cost - 0.0002).abs() < 0.000001);
+        assert_eq!(record.behavior_duration_ms, Some(2000));
+        assert_eq!(record.engine_id, Some("ollama".to_string()));
+        assert_eq!(record.provider, Some("local".to_string()));
+    }
+
+    #[test]
+    fn test_with_local_cost_missing_engine() {
+        use tempfile::TempDir;
+        use crate::monitoring::LocalModelCostTracker;
+
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("engine-costs.toml");
+
+        let toml_content = r#"
+[engines.ollama]
+cost_per_second = 0.0001
+min_billable_duration = 0.1
+"#;
+        std::fs::write(&config_path, toml_content).unwrap();
+
+        let tracker = LocalModelCostTracker::new(&config_path).unwrap();
+        let record = TelemetryRecord::new("agent-1".to_string())
+            .with_local_cost("unknown-engine", std::time::Duration::from_secs(5), &tracker);
+
+        assert_eq!(record.estimated_cost, 0.0);
+        assert_eq!(record.behavior_duration_ms, Some(5000));
+        assert_eq!(record.engine_id, Some("unknown-engine".to_string()));
+        assert_eq!(record.provider, Some("local".to_string()));
+    }
+
+    #[test]
+    fn test_with_local_cost_minimum_billable() {
+        use tempfile::TempDir;
+        use crate::monitoring::LocalModelCostTracker;
+
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("engine-costs.toml");
+
+        let toml_content = r#"
+[engines.ollama]
+cost_per_second = 0.0001
+min_billable_duration = 0.1
+"#;
+        std::fs::write(&config_path, toml_content).unwrap();
+
+        let tracker = LocalModelCostTracker::new(&config_path).unwrap();
+        let record = TelemetryRecord::new("agent-1".to_string())
+            .with_local_cost("ollama", std::time::Duration::from_millis(50), &tracker);
+
+        // Should use 0.1s minimum, so cost = 0.1 * 0.0001 = 0.00001
+        assert!((record.estimated_cost - 0.00001).abs() < 0.000001);
+        assert_eq!(record.behavior_duration_ms, Some(50)); // Actual duration, not minimum
+        assert_eq!(record.engine_id, Some("ollama".to_string()));
+    }
+
     #[tokio::test]
     async fn test_telemetry_record_routing_fields_persistence() {
         use super::super::service::AgentRecord;
