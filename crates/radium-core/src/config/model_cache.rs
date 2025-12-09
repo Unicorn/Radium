@@ -48,8 +48,13 @@ pub fn load_cache_config(workspace_root: &Path) -> Result<CacheConfig, CacheConf
     if let Some(models) = toml.get("models") {
         if let Some(models_table) = models.as_table() {
             if let Some(cache) = models_table.get("cache") {
-                // Deserialize cache config from TOML value
-                let cache_config: CacheConfig = toml::de::from_value(cache.clone())
+                // Convert TOML value to string and parse it
+                let cache_str = toml::to_string(cache).map_err(|e| {
+                    CacheConfigError::Validation(format!("Failed to serialize cache config: {}", e))
+                })?;
+                
+                // Parse cache config from string
+                let cache_config: CacheConfig = toml::from_str(&cache_str)
                     .map_err(CacheConfigError::TomlParse)?;
 
                 // Validate the config
