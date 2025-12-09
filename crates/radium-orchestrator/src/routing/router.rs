@@ -1,6 +1,7 @@
 //! Model router for Smart/Eco tier selection.
 
 use super::ab_testing::{ABTestGroup, ABTestSampler};
+use super::circuit_breaker::CircuitBreaker;
 use super::complexity::ComplexityEstimator;
 use super::cost_tracker::CostTracker;
 use super::types::{ComplexityScore, ComplexityWeights, FailureRecord, FallbackChain, RoutingError, RoutingTier};
@@ -51,6 +52,8 @@ pub struct ModelRouter {
     fallback_chain: Option<FallbackChain>,
     /// Track which models have been tried in the current fallback sequence (thread-safe).
     tried_models: Arc<RwLock<Vec<String>>>,
+    /// Optional circuit breaker for failure detection.
+    circuit_breaker: Option<Arc<CircuitBreaker>>,
 }
 
 impl ModelRouter {
@@ -75,6 +78,7 @@ impl ModelRouter {
             ab_test_sampler: None,
             fallback_chain: None,
             tried_models: Arc::new(RwLock::new(Vec::new())),
+            circuit_breaker: None,
         }
     }
 
@@ -96,6 +100,7 @@ impl ModelRouter {
             ab_test_sampler: None,
             fallback_chain: None,
             tried_models: Arc::new(RwLock::new(Vec::new())),
+            circuit_breaker: None,
         }
     }
     
@@ -114,6 +119,15 @@ impl ModelRouter {
     /// * `chain` - Fallback chain with ordered list of models
     pub fn with_fallback_chain(mut self, chain: FallbackChain) -> Self {
         self.fallback_chain = Some(chain);
+        self
+    }
+    
+    /// Sets the circuit breaker for failure detection.
+    ///
+    /// # Arguments
+    /// * `breaker` - Circuit breaker instance
+    pub fn with_circuit_breaker(mut self, breaker: CircuitBreaker) -> Self {
+        self.circuit_breaker = Some(Arc::new(breaker));
         self
     }
     
@@ -144,16 +158,30 @@ impl ModelRouter {
             None => return Ok(None),
         };
         
-        // Find the next model in the chain that hasn't been tried
+        // Find the next model in the chain that hasn't been tried and isn't circuit-broken
         let tried = self.tried_models.read().unwrap();
         for model_config in &chain.models {
-            // Use model_id directly for comparison
-            if !tried.contains(&model_config.model_id) {
-                drop(tried);
-                let mut tried = self.tried_models.write().unwrap();
-                tried.push(model_config.model_id.clone());
-                return Ok(Some(model_config.clone()));
+            // Skip if already tried
+            if tried.contains(&model_config.model_id) {
+                continue;
             }
+            
+            // Skip if circuit breaker says to skip this model
+            if let Some(ref breaker) = self.circuit_breaker {
+                if breaker.should_skip(&model_config.model_id) {
+                    debug!(
+                        model_id = model_config.model_id,
+                        "Skipping model due to open circuit breaker"
+                    );
+                    continue;
+                }
+            }
+            
+            // Found a valid model
+            drop(tried);
+            let mut tried = self.tried_models.write().unwrap();
+            tried.push(model_config.model_id.clone());
+            return Ok(Some(model_config.clone()));
         }
         drop(tried);
         
@@ -187,6 +215,26 @@ impl ModelRouter {
     pub fn reset_fallback_state(&self) {
         let mut tried = self.tried_models.write().unwrap();
         tried.clear();
+    }
+    
+    /// Records a model success for circuit breaker tracking.
+    ///
+    /// # Arguments
+    /// * `model_id` - Model identifier
+    pub fn record_model_success(&self, model_id: &str) {
+        if let Some(ref breaker) = self.circuit_breaker {
+            breaker.record_success(model_id);
+        }
+    }
+    
+    /// Records a model failure for circuit breaker tracking.
+    ///
+    /// # Arguments
+    /// * `model_id` - Model identifier
+    pub fn record_model_failure(&self, model_id: &str) {
+        if let Some(ref breaker) = self.circuit_breaker {
+            breaker.record_failure(model_id);
+        }
     }
     
     /// Creates a new model router from model specification strings.
@@ -232,6 +280,7 @@ impl ModelRouter {
         router.auto_route = auto_route;
         router.fallback_chain = None;
         router.tried_models = Arc::new(RwLock::new(Vec::new()));
+        router.circuit_breaker = None;
         
         Ok(router)
     }
