@@ -631,6 +631,7 @@ impl TelemetryTracking for MonitoringService {
                 model_tier: row.get(24).ok(),
                 routing_decision: row.get(25).ok(),
                 complexity_score: row.get(26).ok(),
+                ab_test_group: None,  // Not queried in this path
             })
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -678,6 +679,7 @@ impl TelemetryTracking for MonitoringService {
                 model_tier: row.get(24).ok(),
                 routing_decision: row.get(25).ok(),
                 complexity_score: row.get(26).ok(),
+                ab_test_group: None,  // Not queried in this path
             })
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;

@@ -22,17 +22,11 @@ pub use migration::{MigrationManager, MigrationReport};
 pub use scanner::{ScanReport, SecretMatch, SecretScanner, Severity};
 pub use secret_manager::SecretManager;
 
-// Privacy module exports
-pub mod privacy {
-    pub use super::patterns::{Pattern, PatternLibrary, validate_luhn};
-    pub use super::privacy_error::{PrivacyError, Result};
-    pub use super::privacy_filter::{PrivacyFilter, RedactionStyle, RedactionStats};
-}
-
+// Privacy module files
 mod privacy_error;
-mod privacy_filter;
-mod audit;
+mod privacy;
 
-pub use privacy::{PrivacyError, Result as PrivacyResult, PrivacyFilter, RedactionStyle, RedactionStats};
+// Re-export privacy types at top level
+pub use privacy::{PrivacyFilter, RedactionStyle, RedactionStats};
+pub use privacy_error::{PrivacyError, Result as PrivacyResult};
 pub use patterns::{Pattern, PatternLibrary, validate_luhn};
-pub use audit::{AuditEntry, AuditFilter, AuditLogger, AuditOperation};

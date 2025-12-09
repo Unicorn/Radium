@@ -28,6 +28,10 @@ pub enum MonitoringError {
     /// Checkpoint error.
     #[error("checkpoint error: {0}")]
     Checkpoint(String),
+
+    /// Other errors.
+    #[error("{0}")]
+    Other(String),
 }
 
 /// Result type for monitoring operations.

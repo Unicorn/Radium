@@ -436,6 +436,7 @@ impl ProxyConfigManager {
             transport: ProxyTransport::Sse,
             max_connections: 100,
             security: SecurityConfig::default(),
+            conflict_strategy: ConflictStrategy::default(),
             upstreams: Vec::new(),
         }
     }

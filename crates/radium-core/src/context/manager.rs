@@ -186,6 +186,7 @@ impl ContextManager {
             metrics: None,
             playbook_registry: None,
             privacy_filter,
+            secret_filter: None, // TODO: Initialize SecretFilter when needed
         })
     }
 

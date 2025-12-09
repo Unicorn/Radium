@@ -17,7 +17,7 @@ radium-models.workspace = true
 
 # Async runtime
 tokio.workspace = true
-tokio-util = { version = "0.7", features = ["sync"] }
+tokio-util = "0.7"
 
 # Serialization
 serde.workspace = true

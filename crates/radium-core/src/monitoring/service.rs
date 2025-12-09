@@ -388,18 +388,18 @@ impl MonitoringService {
     /// # Errors
     /// Returns error if insertion fails
     pub fn register_agent(&self, record: &AgentRecord) -> Result<()> {
-        self.conn.execute(
-            // Apply privacy redaction to log_file if enabled
-            let redacted_log_file = if let Some(ref filter) = self.privacy_filter {
-                record.log_file.as_ref().map(|log_file| {
-                    filter.redact(log_file).map_err(|e| {
-                        MonitoringError::Other(format!("Privacy redaction failed: {}", e))
-                    }).map(|(redacted, _)| redacted)
-                }).transpose()?
-            } else {
-                record.log_file.clone()
-            };
+        // Apply privacy redaction to log_file if enabled
+        let redacted_log_file = if let Some(ref filter) = self.privacy_filter {
+            record.log_file.as_ref().map(|log_file| {
+                filter.redact(log_file).map_err(|e| {
+                    MonitoringError::Other(format!("Privacy redaction failed: {}", e))
+                }).map(|(redacted, _)| redacted)
+            }).transpose()?
+        } else {
+            record.log_file.clone()
+        };
 
+        self.conn.execute(
             "INSERT INTO agents (id, parent_id, plan_id, agent_type, status, process_id, start_time, log_file)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             params![

@@ -28,6 +28,10 @@ pub enum ContextError {
     /// Invalid tail context size.
     #[error("invalid tail context size: {0}")]
     InvalidTailSize(String),
+
+    /// Other errors.
+    #[error("{0}")]
+    Other(String),
 }
 
 /// Result type for context operations.

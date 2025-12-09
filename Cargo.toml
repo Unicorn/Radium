@@ -74,6 +74,7 @@ radium-abstraction = { path = 'crates/radium-abstraction' }
 radium-models = { path = 'crates/radium-models' }
 radium-core = { path = 'crates/radium-core' }
 radium-orchestrator = { path = 'crates/radium-orchestrator' }
+radium-tui = { path = 'apps/tui' }
 
 [profile.release]
 lto = true

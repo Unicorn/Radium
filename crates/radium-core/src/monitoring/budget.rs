@@ -3,9 +3,14 @@
 //! This module provides budget tracking, pre-execution cost checks, and budget warnings
 //! to prevent cost overruns during agent execution.
 
-use crate::analytics::budget::{AnomalyDetector, BudgetForecaster, CostAnomaly, ForecastResult};
+// Note: analytics::budget module is feature-gated, so these types won't be available
+// unless the monitoring feature is enabled. For now, we'll comment out this import
+// and the related fields until the analytics module is implemented or feature gates
+// are properly configured throughout the codebase.
+// use crate::analytics::budget::{AnomalyDetector, BudgetForecaster, CostAnomaly, ForecastResult};
 use crate::monitoring::{MonitoringService, Result as MonitoringResult};
 use chrono::{DateTime, Utc};
+use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 
@@ -255,10 +260,11 @@ impl Default for BudgetWarningConfig {
 pub struct BudgetAnalytics {
     /// Daily spend trend data (last 30 days).
     pub trend_data: Vec<DailySpend>,
-    /// Forecast result with exhaustion projection.
-    pub forecast: Option<ForecastResult>,
-    /// Detected cost anomalies.
-    pub anomalies: Vec<CostAnomaly>,
+    // Forecast and anomaly fields commented out until analytics module is available
+    // /// Forecast result with exhaustion projection.
+    // pub forecast: Option<ForecastResult>,
+    // /// Detected cost anomalies.
+    // pub anomalies: Vec<CostAnomaly>,
     /// Active budget warnings.
     pub warnings: Vec<BudgetError>,
 }
@@ -270,10 +276,11 @@ pub struct BudgetManager {
     spent_amount: Arc<Mutex<f64>>,
     /// Optional telemetry store for reading spent from database.
     telemetry_store: Option<Arc<MonitoringService>>,
-    /// Optional budget forecaster for analytics.
-    forecaster: Option<Arc<BudgetForecaster>>,
-    /// Optional anomaly detector for cost analysis.
-    anomaly_detector: Option<Arc<AnomalyDetector>>,
+    // Forecaster and anomaly detector fields commented out until analytics module is available
+    // /// Optional budget forecaster for analytics.
+    // forecaster: Option<Arc<BudgetForecaster>>,
+    // /// Optional anomaly detector for cost analysis.
+    // anomaly_detector: Option<Arc<AnomalyDetector>>,
     /// Warning configuration.
     warning_config: BudgetWarningConfig,
 }
@@ -286,8 +293,8 @@ impl BudgetManager {
             config,
             spent_amount: Arc::new(Mutex::new(0.0)),
             telemetry_store: None,
-            forecaster: None,
-            anomaly_detector: None,
+            // forecaster: None,
+            // anomaly_detector: None,
             warning_config: BudgetWarningConfig::default(),
         }
     }

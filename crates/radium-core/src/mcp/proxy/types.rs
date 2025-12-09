@@ -4,7 +4,7 @@
 //! configuration structures, connection state, and trait definitions for
 //! pluggable components.
 
-use crate::mcp::{McpServerConfig, McpTool, Result, TransportType};
+use crate::mcp::{McpError, McpServerConfig, McpTool, Result, TransportType};
 use crate::mcp::proxy::{DefaultSecurityLayer, DefaultToolCatalog, DefaultToolRouter, HealthChecker, ProxyServer, UpstreamPool};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
