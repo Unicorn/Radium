@@ -945,4 +945,23 @@ pub enum ModelsCommand {
         /// Model ID to test
         model_id: String,
     },
+
+    /// Warm models in the cache (pre-load before execution)
+    Warm {
+        /// Provider name (e.g., gemini, openai)
+        #[arg(long)]
+        provider: Option<String>,
+
+        /// Model name/ID (e.g., gemini-2.0-flash-exp)
+        #[arg(long)]
+        model: Option<String>,
+
+        /// Warm all models used by agents in workspace
+        #[arg(long)]
+        agents: bool,
+
+        /// Warm models from configuration file
+        #[arg(long)]
+        config: Option<std::path::PathBuf>,
+    },
 }
