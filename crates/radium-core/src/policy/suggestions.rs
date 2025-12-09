@@ -43,11 +43,12 @@ impl PolicySuggestionService {
             .zip(rules.into_iter())
             .enumerate()
             .map(|(idx, (pattern, rule))| {
+                let confidence = pattern.confidence;
                 PolicySuggestion {
                     id: format!("suggestion-{}", idx + 1),
                     rule,
                     source_pattern: pattern,
-                    confidence: pattern.confidence,
+                    confidence,
                 }
             })
             .collect()

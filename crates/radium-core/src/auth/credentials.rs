@@ -101,7 +101,7 @@ impl CredentialStore {
     /// Loads credentials from the file.
     ///
     /// If the file doesn't exist, returns an empty credentials structure.
-    fn load(&self) -> AuthResult<CredentialsFile> {
+    pub fn load(&self) -> AuthResult<CredentialsFile> {
         if !self.file_path.exists() {
             return Ok(CredentialsFile {
                 version: CREDENTIALS_VERSION.to_string(),
