@@ -1,6 +1,80 @@
-//! Ollama model implementation.
+//! Ollama model provider for local LLM execution.
 //!
-//! This module provides an implementation of the `Model` trait for Ollama's local API.
+//! This module provides integration with Ollama, enabling local model execution
+//! without API costs or internet connectivity requirements.
+//!
+//! # Setup
+//!
+//! 1. Install Ollama: `curl https://ollama.ai/install.sh | sh`
+//! 2. Start Ollama: `ollama serve`
+//! 3. Pull a model: `ollama pull llama2`
+//!
+//! # Examples
+//!
+//! ## Non-Streaming Text Generation
+//!
+//! ```rust,no_run
+//! use radium_models::OllamaModel;
+//! use radium_abstraction::Model;
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let model = OllamaModel::new("llama2".to_string())?;
+//!     let response = model.generate_text("Hello!", None).await?;
+//!     println!("{}", response.content);
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ## Streaming Text Generation
+//!
+//! ```rust,no_run
+//! use radium_models::OllamaModel;
+//! use radium_abstraction::StreamingModel;
+//! use futures::StreamExt;
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let model = OllamaModel::new("llama2".to_string())?;
+//!     let mut stream = model.generate_stream("Write a story", None).await?;
+//!     
+//!     while let Some(token) = stream.next().await {
+//!         print!("{}", token?);
+//!     }
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ## Remote Ollama Server
+//!
+//! ```rust,no_run
+//! use radium_models::OllamaModel;
+//!
+//! let model = OllamaModel::with_base_url(
+//!     "llama2".to_string(),
+//!     "http://192.168.1.100:11434".to_string()
+//! )?;
+//! ```
+//!
+//! # Configuration
+//!
+//! - `model_id`: Model identifier (e.g., "llama2", "codellama:13b")
+//! - `base_url`: Ollama server URL (default: "http://localhost:11434")
+//!
+//! # Troubleshooting
+//!
+//! ## "Ollama server not reachable"
+//! - Ensure Ollama is running: `ollama serve`
+//! - Check the server is listening on port 11434
+//! - For remote servers, set custom base_url
+//!
+//! ## "Model not found"
+//! - Pull the model: `ollama pull llama2`
+//! - List available models: `ollama list`
+//!
+//! ## "Insufficient memory"
+//! - Try a smaller model variant (e.g., llama2:7b instead of llama2:13b)
+//! - Close other applications to free memory
 
 use async_trait::async_trait;
 use futures::stream::{Stream, StreamExt};

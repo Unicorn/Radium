@@ -1,6 +1,14 @@
 //! Model implementations for Radium.
 //!
 //! This crate provides concrete implementations of the `Model` trait.
+//!
+//! # Supported Providers
+//!
+//! - **Mock**: Testing and development
+//! - **Claude**: Anthropic's Claude models (API key required)
+//! - **Gemini**: Google's Gemini models (API key required)
+//! - **OpenAI**: OpenAI's GPT models (API key required)
+//! - **Ollama**: Local models via Ollama (no API key, local execution)
 
 pub mod claude;
 pub mod factory;
