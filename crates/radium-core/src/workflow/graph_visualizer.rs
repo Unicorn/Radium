@@ -25,8 +25,8 @@ impl GraphVisualizer {
         
         // Group tasks by level
         let mut tasks_by_level: HashMap<u32, Vec<String>> = HashMap::new();
-        for (task_id, level) in levels {
-            tasks_by_level.entry(level).or_insert_with(Vec::new).push(task_id);
+        for (task_id, level) in &levels {
+            tasks_by_level.entry(*level).or_insert_with(Vec::new).push(task_id.clone());
         }
 
         // Get max level

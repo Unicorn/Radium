@@ -89,9 +89,9 @@ impl ParallelExecutor {
 
         // Get all task IDs
         let task_ids: Vec<String> = tasks.iter().map(|t| t.number.clone()).collect();
-        let task_map: std::collections::HashMap<String, &BraingridTask> = tasks
+        let task_map: std::collections::HashMap<String, BraingridTask> = tasks
             .iter()
-            .map(|t| (t.number.clone(), t))
+            .map(|t| (t.number.clone(), t.clone()))
             .collect();
 
         // Initialize execution state

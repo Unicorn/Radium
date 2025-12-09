@@ -6,11 +6,10 @@ use thiserror::Error;
 #[derive(Error, Debug, Clone)]
 pub enum PrivacyError {
     /// Failed to compile regex pattern.
-    #[error("Failed to compile pattern '{pattern}': {source}")]
+    #[error("Failed to compile pattern '{pattern}': {details}")]
     PatternError {
         pattern: String,
-        #[source]
-        source: String,
+        details: String,
     },
 
     /// Error during redaction operation.

@@ -15,7 +15,7 @@ pub enum PlaybookError {
     },
 
     /// Failed to parse playbook YAML frontmatter.
-    #[error("Failed to parse playbook frontmatter at {path}: {source}")]
+    #[error("Failed to parse playbook frontmatter{}: {source}", path.as_ref().map(|p| format!(" at {}", p.display())).unwrap_or_default())]
     ParseError {
         path: Option<PathBuf>,
         #[source]

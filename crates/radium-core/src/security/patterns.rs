@@ -8,7 +8,7 @@ use std::sync::Arc;
 use super::privacy_error::{PrivacyError, Result};
 
 /// A pattern for detecting sensitive data.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Pattern {
     /// Human-readable name for this pattern.
     pub name: String,
@@ -16,6 +16,16 @@ pub struct Pattern {
     pub regex: Arc<Regex>,
     /// Optional validator function for additional validation (e.g., Luhn for credit cards).
     pub validator: Option<Arc<dyn Fn(&str) -> bool + Send + Sync>>,
+}
+
+impl std::fmt::Debug for Pattern {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Pattern")
+            .field("name", &self.name)
+            .field("regex", &self.regex)
+            .field("validator", &self.validator.as_ref().map(|_| "<validator>"))
+            .finish()
+    }
 }
 
 impl Pattern {

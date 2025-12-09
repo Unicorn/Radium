@@ -125,13 +125,17 @@ impl ReportGenerator {
                     "Failed"
                 };
 
+                let agent_id = result.agent_id.clone();
+                let error_message = result.error_message.clone();
+                let duration_secs = result.duration_secs();
+
                 task_summaries.push(TaskSummary {
                     task_id: task_id.clone(),
                     task_title: format!("Task {}", task_id), // TODO: Get actual title from requirement
-                    agent_id: result.agent_id,
-                    duration_secs: result.duration_secs(),
+                    agent_id,
+                    duration_secs,
                     status: status.to_string(),
-                    error_message: result.error_message,
+                    error_message,
                 });
             }
         }
