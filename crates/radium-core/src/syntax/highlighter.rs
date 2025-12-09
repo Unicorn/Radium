@@ -125,7 +125,7 @@ impl SyntaxHighlighter {
     /// Convert syntect Style to StyledSpan.
     fn style_to_span(&self, style: Style, text: &str) -> StyledSpan {
         let fg = ThemeAdapter::color_to_rgb(style.foreground);
-        let bg = if style.background.alpha > 0 {
+        let bg = if style.background.a > 0 {
             Some(ThemeAdapter::color_to_rgb(style.background))
         } else {
             None

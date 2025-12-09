@@ -131,6 +131,17 @@ impl AgentSelector {
             "code-agent".to_string()
         }
     }
+
+    /// Gets an agent from the registry by ID.
+    ///
+    /// # Arguments
+    /// * `agent_id` - The ID of the agent to retrieve
+    ///
+    /// # Returns
+    /// The agent if found, None otherwise
+    pub async fn get_agent(&self, agent_id: &str) -> Option<std::sync::Arc<dyn radium_orchestrator::Agent + Send + Sync>> {
+        self.registry.get_agent(agent_id).await
+    }
 }
 
 #[cfg(test)]

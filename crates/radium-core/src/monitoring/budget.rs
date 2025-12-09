@@ -441,20 +441,24 @@ impl BudgetManager {
         let trend_data = self.get_trend_data(30)?;
 
         // Get forecast if forecaster is available
-        let forecast = if let (Some(ref forecaster), Some(limit)) = (&self.forecaster, self.config.max_budget) {
-            let spent = self.get_spent_from_source();
-            let remaining = (limit - spent).max(0.0);
-            forecaster.forecast_exhaustion(remaining).ok()
-        } else {
-            None
-        };
+        // TODO: Re-enable when analytics module is available
+        let forecast = None;
+        // let forecast = if let (Some(ref forecaster), Some(limit)) = (&self.forecaster, self.config.max_budget) {
+        //     let spent = self.get_spent_from_source();
+        //     let remaining = (limit - spent).max(0.0);
+        //     forecaster.forecast_exhaustion(remaining).ok()
+        // } else {
+        //     None
+        // };
 
         // Get anomalies if detector is available
-        let anomalies = if let Some(ref detector) = self.anomaly_detector {
-            detector.detect_anomalies(30).unwrap_or_default()
-        } else {
-            Vec::new()
-        };
+        // TODO: Re-enable when analytics module is available
+        let anomalies = Vec::new();
+        // let anomalies = if let Some(ref detector) = self.anomaly_detector {
+        //     detector.detect_anomalies(30).unwrap_or_default()
+        // } else {
+        //     Vec::new()
+        // };
 
         // Generate warnings
         let warnings = self.generate_warnings(&forecast)?;
@@ -539,26 +543,27 @@ impl BudgetManager {
         let mut warnings = Vec::new();
 
         // Check velocity spike
-        if let Some(ref forecaster) = self.forecaster {
-            let current_velocity = forecaster.calculate_spend_velocity(7)?; // Last 7 days
-            let previous_velocity = forecaster.calculate_spend_velocity(14)? - current_velocity; // Previous 7 days
-            let previous_7_day_velocity = if previous_velocity > 0.0 {
-                previous_velocity
-            } else {
-                current_velocity * 0.5 // Fallback estimate
-            };
+        // TODO: Re-enable when analytics module is available
+        // if let Some(ref forecaster) = self.forecaster {
+        //     let current_velocity = forecaster.calculate_spend_velocity(7)?; // Last 7 days
+        //     let previous_velocity = forecaster.calculate_spend_velocity(14)? - current_velocity; // Previous 7 days
+        //     let previous_7_day_velocity = if previous_velocity > 0.0 {
+        //         previous_velocity
+        //     } else {
+        //         current_velocity * 0.5 // Fallback estimate
+        //     };
 
-            if previous_7_day_velocity > 0.0 {
-                let increase_ratio = current_velocity / previous_7_day_velocity;
-                if increase_ratio >= self.warning_config.velocity_spike_threshold {
-                    warnings.push(BudgetError::VelocitySpike {
-                        current_rate: current_velocity,
-                        previous_rate: previous_7_day_velocity,
-                        increase_pct: (increase_ratio - 1.0) * 100.0,
-                    });
-                }
-            }
-        }
+        //     if previous_7_day_velocity > 0.0 {
+        //         let increase_ratio = current_velocity / previous_7_day_velocity;
+        //         if increase_ratio >= self.warning_config.velocity_spike_threshold {
+        //             warnings.push(BudgetError::VelocitySpike {
+        //                 current_rate: current_velocity,
+        //                 previous_rate: previous_7_day_velocity,
+        //                 increase_pct: (increase_ratio - 1.0) * 100.0,
+        //             });
+        //         }
+        //     }
+        // }
 
         // Check projected exhaustion
         if let Some(ref forecast_result) = forecast {

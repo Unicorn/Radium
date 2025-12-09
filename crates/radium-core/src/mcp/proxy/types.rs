@@ -323,13 +323,8 @@ impl McpProxyServer {
         let security: Arc<dyn SecurityLayer> = Arc::new(DefaultSecurityLayer::new(config.security.clone())?);
         let health_checker = Arc::new(HealthChecker::new(Arc::clone(&pool)));
 
-        // Rebuild catalog initially
-        if let Ok(default_catalog) = Arc::try_unwrap(catalog.clone()) {
-            default_catalog.rebuild_catalog(&pool).await?;
-        } else {
-            // Catalog is shared, need to use trait method or downcast
-            // For now, we'll skip initial rebuild - it will happen on first tools/list
-        }
+        // TODO: Add rebuild_catalog method to ToolCatalog trait for initial rebuild
+        // For now, we skip initial rebuild - it will happen on first tools/list
 
         let (shutdown_tx, shutdown_rx) = broadcast::channel(1);
 
