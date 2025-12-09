@@ -70,6 +70,7 @@ impl StreamingContext {
         Self {
             state: StreamingState::Connecting,
             token_buffer: Vec::new(),
+            accumulated_response: String::new(),
             token_receiver,
             cancellation_tx,
             is_cancelled: false,
@@ -79,6 +80,7 @@ impl StreamingContext {
     /// Flushes the token buffer, returning accumulated tokens
     pub fn flush_buffer(&mut self) -> String {
         let result = self.token_buffer.join("");
+        self.accumulated_response.push_str(&result);
         self.token_buffer.clear();
         result
     }
@@ -91,6 +93,16 @@ impl StreamingContext {
     /// Checks if buffer should be flushed (5-10 tokens)
     pub fn should_flush(&self) -> bool {
         self.token_buffer.len() >= 5
+    }
+
+    /// Gets the full accumulated response
+    pub fn get_full_response(&self) -> String {
+        // Combine accumulated response with current buffer
+        if self.token_buffer.is_empty() {
+            self.accumulated_response.clone()
+        } else {
+            format!("{}{}", self.accumulated_response, self.token_buffer.join(""))
+        }
     }
 }
 

@@ -1,45 +1,51 @@
 //! Universal OpenAI-compatible model implementation.
 //!
 //! This module provides an implementation of the `Model` trait for any server that implements
-//! the OpenAI API specification, including:
-//! - vLLM: High-performance LLM inference server
-//! - LocalAI: Local inference server with OpenAI-compatible API
-//! - LM Studio: Desktop app for running local models
-//! - Ollama: Local model runner with OpenAI-compatible endpoints
+//! the OpenAI Chat Completions API specification. This enables Radium to work with:
 //!
-//! # Examples
+//! - **vLLM**: High-performance LLM inference server
+//! - **LocalAI**: Local inference server with OpenAI-compatible API
+//! - **LM Studio**: Desktop app for running local models
+//! - **Ollama**: Local model runner with OpenAI-compatible endpoints
+//! - **Any OpenAI-compatible server**: Works with any server implementing the OpenAI API spec
 //!
-//! ## vLLM
+//! # Quick Start
+//!
 //! ```no_run
 //! use radium_models::UniversalModel;
+//! use radium_abstraction::ChatMessage;
 //!
-//! let model = UniversalModel::new(
-//!     "meta-llama/Llama-3-70b".to_string(),
-//!     "http://localhost:8000/v1".to_string(),
-//! )?;
-//! # Ok::<(), radium_abstraction::ModelError>(())
-//! ```
-//!
-//! ## LocalAI with authentication
-//! ```no_run
-//! use radium_models::UniversalModel;
-//!
-//! let model = UniversalModel::with_api_key(
-//!     "gpt-3.5-turbo".to_string(),
-//!     "http://localhost:8080/v1".to_string(),
-//!     "local-api-key".to_string(),
-//! );
-//! ```
-//!
-//! ## LM Studio (no authentication)
-//! ```no_run
-//! use radium_models::UniversalModel;
-//!
+//! # async fn example() -> Result<(), radium_abstraction::ModelError> {
 //! let model = UniversalModel::without_auth(
 //!     "llama-2-7b".to_string(),
 //!     "http://localhost:1234/v1".to_string(),
 //! );
+//!
+//! let messages = vec![ChatMessage {
+//!     role: "user".to_string(),
+//!     content: "Say hello".to_string(),
+//! }];
+//!
+//! let response = model.generate_chat_completion(&messages, None).await?;
+//! println!("{}", response.content);
+//! # Ok(())
+//! # }
 //! ```
+//!
+//! # Constructor Patterns
+//!
+//! - `new()` - Loads API key from `UNIVERSAL_API_KEY` or `OPENAI_COMPATIBLE_API_KEY` env vars
+//! - `with_api_key()` - Explicit API key for authenticated servers
+//! - `without_auth()` - No authentication (most common for local servers)
+//!
+//! # Streaming Support
+//!
+//! Use `generate_chat_completion_stream()` for real-time token generation via SSE.
+//!
+//! # Documentation
+//!
+//! For detailed setup guides, troubleshooting, and examples, see the
+//! [Universal Provider Guide](../../../docs/universal-provider-guide.md).
 
 use async_trait::async_trait;
 use futures::Stream;

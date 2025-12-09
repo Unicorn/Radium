@@ -161,28 +161,42 @@ async fn main() -> Result<()> {
             }
             
             // Poll for tokens
-            while let Ok(token) = stream_ctx.token_receiver.try_recv() {
-                // Add token to buffer
-                stream_ctx.add_token(token);
-                
-                // Flush buffer if it reaches 5-10 tokens
-                if stream_ctx.should_flush() {
-                    let flushed = stream_ctx.flush_buffer();
-                    if !flushed.is_empty() {
-                        app.prompt_data.add_output(flushed);
+            loop {
+                match stream_ctx.token_receiver.try_recv() {
+                    Ok(token) => {
+                        // Add token to buffer
+                        stream_ctx.add_token(token);
+                        
+                        // Flush buffer if it reaches 5-10 tokens
+                        if stream_ctx.should_flush() {
+                            let flushed = stream_ctx.flush_buffer();
+                            if !flushed.is_empty() {
+                                app.prompt_data.add_output(flushed);
+                            }
+                        }
+                    }
+                    Err(tokio::sync::mpsc::error::TryRecvError::Empty) => {
+                        // No tokens available, continue
+                        break;
+                    }
+                    Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
+                        // Stream ended - flush remaining tokens and mark as completed
+                        let remaining = stream_ctx.flush_buffer();
+                        if !remaining.is_empty() {
+                            app.prompt_data.add_output(remaining);
+                        }
+                        stream_ctx.state = StreamingState::Completed;
+                        
+                        // Get full response for history saving
+                        let full_response = stream_ctx.get_full_response();
+                        
+                        // Save to history (we'll need to get session info from context)
+                        // For now, just clear the streaming context
+                        // TODO: Save to history when streaming completes
+                        app.streaming_context = None;
+                        break;
                     }
                 }
-            }
-            
-            // Check if stream ended (receiver disconnected)
-            if stream_ctx.token_receiver.is_closed() && stream_ctx.state == StreamingState::Streaming {
-                // Flush any remaining tokens
-                let remaining = stream_ctx.flush_buffer();
-                if !remaining.is_empty() {
-                    app.prompt_data.add_output(remaining);
-                }
-                // Mark as completed
-                stream_ctx.state = StreamingState::Completed;
             }
         }
 
