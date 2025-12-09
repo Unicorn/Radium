@@ -21,9 +21,10 @@ pub struct BraingridPlaybookStorage {
 impl BraingridPlaybookStorage {
     /// Create a new Braingrid playbook storage.
     pub fn new(project_id: impl Into<String>) -> Self {
+        let project_id = project_id.into();
         Self {
-            client: BraingridClient::new(project_id.to_string()),
-            project_id: project_id.into(),
+            client: BraingridClient::new(project_id.clone()),
+            project_id,
         }
     }
 

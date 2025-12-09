@@ -191,7 +191,7 @@ impl ProxyServer {
         router: Arc<dyn ToolRouterTrait>,
         catalog: Arc<dyn ToolCatalogTrait>,
         security: Arc<dyn SecurityLayerTrait>,
-    ) -> Result<Response<Full<Bytes>>, Infallible> {
+    ) -> std::result::Result<Response<Full<Bytes>>, Infallible> {
         // Generate agent ID from request (or use connection ID)
         let agent_id = Uuid::new_v4().to_string();
 

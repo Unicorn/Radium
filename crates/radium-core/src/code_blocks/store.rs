@@ -28,7 +28,7 @@ pub struct CodeBlockStore {
 }
 
 /// Internal storage format for blocks.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct StoredBlock {
     /// Block index.
     index: usize,

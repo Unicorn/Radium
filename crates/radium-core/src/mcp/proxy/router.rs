@@ -106,14 +106,13 @@ impl DefaultToolRouter {
         }
 
         // Filter to only healthy upstreams
-        let healthy_candidates: Vec<String> = candidates
-            .iter()
-            .filter(|name| {
-                // Check if upstream is connected
-                self.pool.get_upstream(name).await.is_some()
-            })
-            .cloned()
-            .collect();
+        let mut healthy_candidates: Vec<String> = Vec::new();
+        for name in candidates {
+            // Check if upstream is connected
+            if self.pool.get_upstream(name).await.is_some() {
+                healthy_candidates.push(name.clone());
+            }
+        }
 
         if healthy_candidates.is_empty() {
             return None;
