@@ -3,10 +3,12 @@
 use super::ab_testing::{ABTestGroup, ABTestSampler};
 use super::circuit_breaker::CircuitBreaker;
 use super::complexity::ComplexityEstimator;
+use super::config::{ConfigError, RoutingConfig, RoutingConfigLoader};
 use super::cost_tracker::CostTracker;
 use super::types::{ComplexityScore, ComplexityWeights, FailureRecord, FallbackChain, ModelMetadata, RoutingError, RoutingStrategy, RoutingTier};
 use radium_models::{ModelConfig, ModelType};
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::{Arc, RwLock};
 use tracing::{debug, warn};
 
@@ -708,6 +710,69 @@ impl ModelRouter {
         if let Err(e) = self.cost_tracker.reset() {
             warn!(error = %e, "Failed to reset cost tracking");
         }
+    }
+    
+    /// Creates a new model router from a configuration file.
+    ///
+    /// # Arguments
+    /// * `config_path` - Path to the routing configuration TOML file
+    /// * `smart_model` - Smart tier model configuration (required)
+    /// * `eco_model` - Eco tier model configuration (required)
+    ///
+    /// # Errors
+    /// Returns error if configuration cannot be loaded or is invalid.
+    pub fn from_config(
+        config_path: &Path,
+        smart_model: ModelConfig,
+        eco_model: ModelConfig,
+    ) -> Result<Self, ConfigError> {
+        let config = RoutingConfigLoader::load(config_path)?;
+        
+        let threshold = config.threshold.unwrap_or(60.0);
+        let default_strategy = RoutingStrategy::from_str(&config.default_strategy)
+            .unwrap_or(RoutingStrategy::ComplexityBased);
+        
+        let mut router = Self::new(smart_model, eco_model, Some(threshold));
+        router.default_strategy = default_strategy;
+        
+        // Build fallback chains
+        let chains = RoutingConfigLoader::build_fallback_chains(&config)?;
+        if let Some((_, chain)) = chains.first() {
+            router.fallback_chain = Some(chain.clone());
+        }
+        
+        Ok(router)
+    }
+    
+    /// Reloads configuration from a file.
+    ///
+    /// # Arguments
+    /// * `config_path` - Path to the routing configuration TOML file
+    ///
+    /// # Errors
+    /// Returns error if configuration cannot be loaded or is invalid.
+    pub fn reload_config(&mut self, config_path: &Path) -> Result<(), ConfigError> {
+        let config = RoutingConfigLoader::load(config_path)?;
+        
+        // Update threshold
+        if let Some(threshold) = config.threshold {
+            self.set_threshold(threshold);
+        }
+        
+        // Update default strategy
+        if let Some(strategy) = RoutingStrategy::from_str(&config.default_strategy) {
+            self.default_strategy = strategy;
+        }
+        
+        // Update fallback chains
+        let chains = RoutingConfigLoader::build_fallback_chains(&config)?;
+        if let Some((_, chain)) = chains.first() {
+            self.fallback_chain = Some(chain.clone());
+        } else {
+            self.fallback_chain = None;
+        }
+        
+        Ok(())
     }
 }
 

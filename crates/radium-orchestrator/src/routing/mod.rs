@@ -6,6 +6,7 @@
 
 pub mod ab_testing;
 pub mod circuit_breaker;
+pub mod config;
 pub mod complexity;
 pub mod cost_tracker;
 pub mod question_type;
@@ -14,6 +15,7 @@ pub mod types;
 
 pub use ab_testing::{ABComparisonReport, ABGroupMetrics, ABTestConfig, ABTestGroup, ABTestSampler, generate_ab_comparison};
 pub use circuit_breaker::{CircuitBreaker, CircuitState};
+pub use config::{ConfigError, FallbackChainConfig, RoutingConfig, RoutingConfigLoader, RoutingRule};
 pub use complexity::ComplexityEstimator;
 pub use cost_tracker::{CostMetrics, CostTracker, TierMetrics};
 pub use question_type::{AnalysisPlan, QuestionType};
