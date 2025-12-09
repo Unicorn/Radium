@@ -35,6 +35,7 @@ impl FromStr for ModelType {
             "claude" | "anthropic" => Ok(Self::Claude),
             "gemini" => Ok(Self::Gemini),
             "openai" => Ok(Self::OpenAI),
+            "universal" | "openai-compatible" | "local" => Ok(Self::Universal),
             "ollama" => Ok(Self::Ollama),
             _ => Err(()),
         }
@@ -50,6 +51,8 @@ pub struct ModelConfig {
     pub model_id: String,
     /// Optional API key (if not provided, will be loaded from environment).
     pub api_key: Option<String>,
+    /// Optional base URL for Universal models (required for Universal type).
+    pub base_url: Option<String>,
 }
 
 impl ModelConfig {
@@ -60,7 +63,12 @@ impl ModelConfig {
     /// * `model_id` - The model ID
     #[must_use]
     pub fn new(model_type: ModelType, model_id: String) -> Self {
-        Self { model_type, model_id, api_key: None }
+        Self {
+            model_type,
+            model_id,
+            api_key: None,
+            base_url: None,
+        }
     }
 
     /// Sets the API key for this configuration.
