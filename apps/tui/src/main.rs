@@ -340,7 +340,7 @@ async fn main() -> Result<()> {
                 }
             };
             
-            render_title_bar(frame, title_area, version, model_info, orchestration_status, &connected_services);
+            render_title_bar(frame, title_area, version, model_info, orchestration_status, &connected_services, Some(&app.privacy_state));
 
             // Detect view context changes for transitions
             let context_changed = app.previous_context.as_ref()

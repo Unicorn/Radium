@@ -12,7 +12,11 @@ use super::{
     agent_tools::AgentToolRegistry,
     config::{OrchestrationConfig, ProviderType},
     context::{Message, OrchestrationContext},
+    context_loader::ContextFileLoaderTrait,
     engine::{EngineConfig, OrchestrationEngine},
+    file_tools::{self, WorkspaceRootProvider as FileWorkspaceRootProvider},
+    hooks::ToolHookExecutor,
+    terminal_tool::{self, WorkspaceRootProvider as TerminalWorkspaceRootProvider, SandboxManager as TerminalSandboxManager},
     tool::Tool,
     providers::{
         claude::ClaudeOrchestrator, gemini::GeminiOrchestrator, openai::OpenAIOrchestrator,
@@ -20,6 +24,7 @@ use super::{
     },
 };
 use crate::error::Result;
+use std::path::PathBuf;
 
 /// Session state for maintaining conversation context
 #[derive(Debug, Clone)]
@@ -70,6 +75,10 @@ pub struct OrchestrationService {
     provider: Arc<dyn OrchestrationProvider>,
     /// Orchestration engine
     engine: Arc<OrchestrationEngine>,
+    /// Context file loader (optional)
+    context_loader: Option<Arc<dyn ContextFileLoaderTrait>>,
+    /// Workspace root for context loading
+    workspace_root: Option<PathBuf>,
 }
 
 impl OrchestrationService {
@@ -78,17 +87,52 @@ impl OrchestrationService {
     /// # Arguments
     /// * `config` - Orchestration configuration
     /// * `mcp_tools` - Optional list of MCP tools to include (initialized at application level)
+    /// * `workspace_root` - Optional workspace root path for file operations
+    /// * `sandbox_manager` - Optional sandbox manager for terminal command execution
+    /// * `context_loader` - Optional context file loader for loading GEMINI.md files
+    /// * `hook_executor` - Optional hook executor for BeforeTool/AfterTool hooks
     pub async fn initialize(
         config: OrchestrationConfig,
         mcp_tools: Option<Vec<Tool>>,
+        workspace_root: Option<PathBuf>,
+        sandbox_manager: Option<Arc<dyn TerminalSandboxManager>>,
+        context_loader: Option<Arc<dyn ContextFileLoaderTrait>>,
+        hook_executor: Option<Arc<dyn ToolHookExecutor>>,
     ) -> Result<Self> {
         // Initialize tool registry
         let mut tool_registry = AgentToolRegistry::new();
         tool_registry.load_agents()?;
         let tool_registry = Arc::new(RwLock::new(tool_registry));
 
-        // Collect all tools (agent + optional MCP)
-        let mut tools = tool_registry.read().await.get_tools().to_vec();
+        // Collect all tools
+        let mut tools = Vec::new();
+
+        // Add file operation tools if workspace root is provided
+        if let Some(ref root) = workspace_root {
+            let workspace_provider: Arc<dyn FileWorkspaceRootProvider> = Arc::new(SimpleWorkspaceRootProvider {
+                root: root.clone(),
+            });
+            let file_tools = file_tools::create_file_operation_tools(workspace_provider);
+            tools.extend(file_tools);
+            tracing::info!("Added {} file operation tools to orchestration", 6);
+
+            // Add terminal command tool
+            let terminal_workspace_provider: Arc<dyn TerminalWorkspaceRootProvider> = Arc::new(SimpleWorkspaceRootProvider {
+                root: root.clone(),
+            });
+            let terminal_tool = terminal_tool::create_terminal_command_tool(
+                terminal_workspace_provider,
+                sandbox_manager,
+                None,
+            );
+            tools.push(terminal_tool);
+            tracing::info!("Added terminal command tool to orchestration");
+        }
+
+        // Add agent tools
+        tools.extend(tool_registry.read().await.get_tools().to_vec());
+
+        // Add MCP tools if provided
         if let Some(mcp_tools) = mcp_tools {
             let mcp_count = mcp_tools.len();
             tools.extend(mcp_tools);
@@ -103,10 +147,11 @@ impl OrchestrationService {
             max_iterations: config.default_provider_config().max_tool_iterations,
             timeout_seconds: 120,
         };
-        let engine = Arc::new(OrchestrationEngine::new(
+        let engine = Arc::new(OrchestrationEngine::with_hook_executor(
             Arc::clone(&provider),
             tools,
             engine_config,
+            hook_executor,
         ));
 
         Ok(Self {
@@ -115,6 +160,8 @@ impl OrchestrationService {
             sessions: Arc::new(RwLock::new(HashMap::new())),
             provider,
             engine,
+            context_loader,
+            workspace_root,
         })
     }
 
@@ -215,6 +262,7 @@ impl OrchestrationService {
     /// # Arguments
     /// * `session_id` - Unique session identifier
     /// * `input` - User input to process
+    /// * `current_dir` - Optional current working directory for context file loading
     ///
     /// # Returns
     /// Orchestration result with response and tool calls
@@ -225,6 +273,7 @@ impl OrchestrationService {
         &self,
         session_id: &str,
         input: &str,
+        current_dir: Option<&std::path::Path>,
     ) -> Result<OrchestrationResult> {
         // Get or create session
         let mut sessions = self.sessions.write().await;
@@ -241,6 +290,28 @@ impl OrchestrationService {
 
         // Build context from session
         let mut context = session.to_context();
+
+        // Load and inject context files if loader is available
+        if let Some(ref loader) = self.context_loader {
+            if let Some(dir) = current_dir.or_else(|| self.workspace_root.as_deref()) {
+                match loader.load_hierarchical(dir) {
+                    Ok(context_content) => {
+                        if !context_content.is_empty() {
+                            // Add context files as a system message
+                            let system_message = format!(
+                                "Context files (GEMINI.md):\n\n{}",
+                                context_content
+                            );
+                            context.add_message(Message::system(system_message));
+                            tracing::debug!("Loaded and injected context files for path: {}", dir.display());
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!("Failed to load context files for {}: {}", dir.display(), e);
+                    }
+                }
+            }
+        }
 
         // Try primary provider first
         match self.engine.execute(input, &mut context).await {
@@ -296,7 +367,7 @@ impl OrchestrationService {
         // Get tools from registry
         let tools = self.tool_registry.read().await.get_tools().to_vec();
 
-        // Create fallback engine
+        // Create fallback engine (without hooks for now - could be enhanced later)
         let engine_config = EngineConfig {
             max_iterations: self.config.prompt_based.max_tool_iterations,
             timeout_seconds: self.config.default_provider_config().max_tool_iterations as u64 * 24, // 2 minutes per iteration
@@ -379,6 +450,23 @@ struct ProviderConfig<'a> {
     #[allow(dead_code)]
     temperature: f32,
     max_tool_iterations: usize,
+}
+
+/// Simple workspace root provider implementation
+struct SimpleWorkspaceRootProvider {
+    root: PathBuf,
+}
+
+impl FileWorkspaceRootProvider for SimpleWorkspaceRootProvider {
+    fn workspace_root(&self) -> Option<PathBuf> {
+        Some(self.root.clone())
+    }
+}
+
+impl TerminalWorkspaceRootProvider for SimpleWorkspaceRootProvider {
+    fn workspace_root(&self) -> Option<PathBuf> {
+        Some(self.root.clone())
+    }
 }
 
 #[cfg(test)]

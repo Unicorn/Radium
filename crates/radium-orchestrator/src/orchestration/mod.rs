@@ -6,11 +6,16 @@
 pub mod agent_tools;
 pub mod config;
 pub mod context;
+pub mod context_loader;
 pub mod engine;
+pub mod file_tools;
+pub mod hooks;
 pub mod mcp_tools;
 pub mod providers;
 pub mod service;
+pub mod terminal_tool;
 pub mod tool;
+pub mod tool_registry;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};

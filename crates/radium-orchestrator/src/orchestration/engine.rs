@@ -9,9 +9,11 @@ use tokio::time::{timeout, Duration};
 use super::{
     FinishReason, OrchestrationProvider, OrchestrationResult,
     context::{Message, OrchestrationContext},
+    hooks::ToolHookExecutor,
     tool::{Tool, ToolArguments, ToolCall},
 };
 use crate::error::{OrchestrationError, Result};
+use tracing::warn;
 
 /// Configuration for orchestration engine
 #[derive(Debug, Clone)]
@@ -36,6 +38,8 @@ pub struct OrchestrationEngine {
     tools: Vec<Tool>,
     /// Engine configuration
     config: EngineConfig,
+    /// Optional hook executor for tool execution hooks
+    hook_executor: Option<Arc<dyn ToolHookExecutor>>,
 }
 
 impl OrchestrationEngine {
@@ -45,12 +49,37 @@ impl OrchestrationEngine {
         tools: Vec<Tool>,
         config: EngineConfig,
     ) -> Self {
-        Self { provider, tools, config }
+        Self {
+            provider,
+            tools,
+            config,
+            hook_executor: None,
+        }
     }
 
     /// Create engine with default configuration
     pub fn with_defaults(provider: Arc<dyn OrchestrationProvider>, tools: Vec<Tool>) -> Self {
         Self::new(provider, tools, EngineConfig::default())
+    }
+
+    /// Create engine with hook executor
+    pub fn with_hook_executor(
+        provider: Arc<dyn OrchestrationProvider>,
+        tools: Vec<Tool>,
+        config: EngineConfig,
+        hook_executor: Option<Arc<dyn ToolHookExecutor>>,
+    ) -> Self {
+        Self {
+            provider,
+            tools,
+            config,
+            hook_executor,
+        }
+    }
+
+    /// Set hook executor
+    pub fn set_hook_executor(&mut self, hook_executor: Option<Arc<dyn ToolHookExecutor>>) {
+        self.hook_executor = hook_executor;
     }
 
     /// Execute orchestration with multi-turn tool execution loop
@@ -95,11 +124,25 @@ impl OrchestrationEngine {
         loop {
             // Check iteration limit
             if iterations >= self.config.max_iterations {
-                return Ok(OrchestrationResult::new(
-                    format!("Reached maximum iterations ({})", self.config.max_iterations),
-                    vec![],
-                    FinishReason::MaxIterations,
-                ));
+                let error_msg = format!(
+                    "Reached maximum iterations ({}) while processing: {}\n\n\
+                    This usually means:\n\
+                    - The task requires more steps than allowed\n\
+                    - There's a loop in tool execution\n\
+                    - The orchestrator is having trouble completing the task\n\n\
+                    Suggestions:\n\
+                    - Break the task into smaller requests\n\
+                    - Increase max_iterations in orchestration config\n\
+                    - Check if tools are calling each other in a loop",
+                    self.config.max_iterations,
+                    if current_input.len() > 100 {
+                        format!("{}...", &current_input[..100])
+                    } else {
+                        current_input.clone()
+                    }
+                );
+                warn!("Orchestration reached max iterations: {}", iterations);
+                return Ok(OrchestrationResult::new(error_msg, vec![], FinishReason::MaxIterations));
             }
 
             // Get orchestration decision from provider
@@ -143,12 +186,28 @@ impl OrchestrationEngine {
 
             // Check if any tool failed
             if tool_results.iter().any(|r| !r.success) {
-                let error_msg = tool_results
+                let failed_tools: Vec<_> = tool_results
                     .iter()
-                    .filter(|r| !r.success)
-                    .map(|r| r.output.as_str())
-                    .collect::<Vec<_>>()
-                    .join("; ");
+                    .enumerate()
+                    .filter(|(_, r)| !r.success)
+                    .map(|(i, r)| {
+                        let tool_call = &result.tool_calls[i];
+                        let file_path = r.metadata.get("file_path")
+                            .map(|p| format!(" (file: {})", p))
+                            .unwrap_or_default();
+                        format!("Tool '{}'{} failed: {}", tool_call.name, file_path, r.output)
+                    })
+                    .collect();
+                
+                let error_msg = format!(
+                    "Tool execution failed:\n\n{}\n\n\
+                    Suggestions:\n\
+                    - Check file paths and permissions\n\
+                    - Verify tool arguments are correct\n\
+                    - Review error messages above for specific issues",
+                    failed_tools.join("\n")
+                );
+                warn!("Tool execution failed: {} tool(s) failed", failed_tools.len());
                 return Ok(OrchestrationResult::new(error_msg, vec![], FinishReason::ToolError));
             }
 
@@ -170,12 +229,102 @@ impl OrchestrationEngine {
         for tool_call in tool_calls {
             // Find matching tool
             let tool = self.tools.iter().find(|t| t.name == tool_call.name).ok_or_else(|| {
-                OrchestrationError::Other(format!("Tool '{}' not found", tool_call.name))
+                let available_tools: Vec<&str> = self.tools.iter().map(|t| t.name.as_str()).collect();
+                let similar_tools: Vec<&str> = available_tools
+                    .iter()
+                    .filter(|name| name.contains(&tool_call.name) || tool_call.name.contains(**name))
+                    .copied()
+                    .collect();
+                
+                let mut error_msg = format!(
+                    "Tool '{}' not found.\n\nAvailable tools ({}): {}",
+                    tool_call.name,
+                    available_tools.len(),
+                    available_tools.join(", ")
+                );
+                
+                if !similar_tools.is_empty() {
+                    error_msg.push_str(&format!("\n\nDid you mean: {}", similar_tools.join(", ")));
+                }
+                
+                OrchestrationError::Other(error_msg)
             })?;
 
+            // Execute before_tool hooks if available
+            let mut effective_arguments = tool_call.arguments.clone();
+            if let Some(ref hook_executor) = self.hook_executor {
+                match hook_executor.before_tool_execution(&tool_call.name, &effective_arguments).await {
+                    Ok(modified_args) => {
+                        effective_arguments = modified_args;
+                        tracing::debug!("BeforeTool hooks modified arguments for tool: {}", tool_call.name);
+                    }
+                    Err(e) => {
+                        // Hook requested to abort execution
+                        tracing::warn!("BeforeTool hook aborted execution for tool {}: {}", tool_call.name, e);
+                        return Err(OrchestrationError::Other(format!(
+                            "Tool execution aborted by hook: {}",
+                            e
+                        )));
+                    }
+                }
+            }
+
             // Execute tool
-            let args = ToolArguments::new(tool_call.arguments.clone());
-            let result = tool.execute(&args).await?;
+            let args = ToolArguments::new(effective_arguments.clone());
+            let mut result = match tool.execute(&args).await {
+                Ok(r) => r,
+                Err(e) => {
+                    // Enhance error with tool context
+                    let error_msg = format!(
+                        "Tool '{}' execution error: {}\n\n\
+                        Tool arguments: {}\n\
+                        Suggestions:\n\
+                        - Verify all required arguments are provided\n\
+                        - Check argument types and formats\n\
+                        - Review tool description: {}",
+                        tool_call.name,
+                        e,
+                        serde_json::to_string_pretty(&effective_arguments).unwrap_or_else(|_| "invalid JSON".to_string()),
+                        tool.description
+                    );
+                    warn!("Tool execution error: {} - {}", tool_call.name, e);
+                    return Err(OrchestrationError::Other(error_msg));
+                }
+            };
+
+            // Execute after_tool hooks if available
+            if let Some(ref hook_executor) = self.hook_executor {
+                let result_json = serde_json::json!({
+                    "success": result.success,
+                    "output": result.output,
+                    "metadata": result.metadata,
+                });
+
+                match hook_executor.after_tool_execution(&tool_call.name, &effective_arguments, &result_json).await {
+                    Ok(modified_result) => {
+                        // Update result if hooks modified it
+                        if let Some(success) = modified_result.get("success").and_then(|v| v.as_bool()) {
+                            result.success = success;
+                        }
+                        if let Some(output) = modified_result.get("output").and_then(|v| v.as_str()) {
+                            result.output = output.to_string();
+                        }
+                        if let Some(metadata) = modified_result.get("metadata").and_then(|v| v.as_object()) {
+                            for (key, value) in metadata {
+                                if let Some(val_str) = value.as_str() {
+                                    result.metadata.insert(key.clone(), val_str.to_string());
+                                }
+                            }
+                        }
+                        tracing::debug!("AfterTool hooks modified result for tool: {}", tool_call.name);
+                    }
+                    Err(e) => {
+                        tracing::warn!("AfterTool hook error for tool {}: {}", tool_call.name, e);
+                        // Continue with original result even if hook fails
+                    }
+                }
+            }
+
             results.push(result);
         }
 

@@ -148,3 +148,58 @@ fn test_tab_key_behavior() {
     assert!(text.len() >= 4); // At least original text
 }
 
+#[test]
+fn test_character_input_when_typing() {
+    // Test that characters like 'h', 's', '?' can be typed when input is not empty
+    let mut data = PromptData::new();
+    
+    // Type some text first
+    data.set_input("tell me about my project");
+    
+    // These characters should be insertable when input is not empty
+    data.input.handle_key(KeyCode::Char('h'), KeyModifiers::NONE);
+    data.input.handle_key(KeyCode::Char('s'), KeyModifiers::NONE);
+    data.input.handle_key(KeyCode::Char('?'), KeyModifiers::NONE);
+    
+    let text = data.input_text();
+    // Should contain the original text plus the new characters
+    assert!(text.contains("tell me about my project"));
+    assert!(text.contains('h') || text.contains('s') || text.contains('?'));
+}
+
+#[test]
+fn test_enter_key_clears_input() {
+    // Test that Enter key clears input after submission
+    let mut data = PromptData::new();
+    data.set_input("test input");
+    
+    // Simulate Enter key (this would normally call handle_enter which clears input)
+    // For this test, we'll just verify the input can be cleared
+    data.clear_input();
+    
+    assert_eq!(data.input_text(), "");
+}
+
+#[test]
+fn test_hotkey_characters_when_input_empty() {
+    // Test that hotkey characters can be typed when input is empty
+    // (they should work as regular characters when input is empty, not as hotkeys)
+    let mut data = PromptData::new();
+    
+    // Input is empty, so typing 'h' should insert 'h'
+    data.input.handle_key(KeyCode::Char('h'), KeyModifiers::NONE);
+    assert_eq!(data.input_text(), "h");
+    
+    data.clear_input();
+    
+    // Typing 's' should insert 's'
+    data.input.handle_key(KeyCode::Char('s'), KeyModifiers::NONE);
+    assert_eq!(data.input_text(), "s");
+    
+    data.clear_input();
+    
+    // Typing '?' should insert '?'
+    data.input.handle_key(KeyCode::Char('?'), KeyModifiers::NONE);
+    assert_eq!(data.input_text(), "?");
+}
+

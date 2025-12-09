@@ -25,9 +25,7 @@ pub fn render_start_page(frame: &mut Frame, area: Rect, prompt_data: &PromptData
             Constraint::Length(1),      // /auth command
             Constraint::Length(1),      // Spacing
             Constraint::Length(1),      // Spec path instruction
-            Constraint::Length(1),      // Spacing
-            Constraint::Length(3),      // Input prompt
-            Constraint::Percentage(20), // Bottom spacing
+            Constraint::Percentage(30), // Bottom spacing (input is in status footer)
         ])
         .split(area);
 
@@ -63,37 +61,7 @@ pub fn render_start_page(frame: &mut Frame, area: Rect, prompt_data: &PromptData
         .style(Style::default().fg(theme.text_muted))
         .alignment(Alignment::Center);
     frame.render_widget(instruction_widget, chunks[8]);
-
-    // Input prompt - centered with responsive width
-    let prompt_width = (area.width as f32 * 0.8) as u16;
-    let prompt_width = prompt_width.min(100).max(50);
-    let prompt_area = Rect {
-        x: (area.width.saturating_sub(prompt_width)) / 2,
-        y: chunks[10].y,
-        width: prompt_width,
-        height: chunks[10].height,
-    };
-
-    let input_text = prompt_data.input_text();
-    let placeholder = if input_text.is_empty() {
-        "Type /help for commands or chat naturally"
-    } else {
-        ""
-    };
     
-    let prompt_text = if input_text.is_empty() {
-        format!("{}_", placeholder)
-    } else {
-        format!("{}_", input_text)
-    };
-
-    let prompt_widget = Paragraph::new(prompt_text)
-        .style(Style::default().fg(theme.purple))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.border_active))
-        );
-    frame.render_widget(prompt_widget, prompt_area);
+    // Note: Input is now always in the status footer for consistency
 }
 

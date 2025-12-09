@@ -10,6 +10,14 @@ use radium_core::agents::registry::AgentRegistry;
 use radium_core::storage::Database;
 use radium_models::{ModelFactory, ModelConfig, ModelType};
 use radium_orchestrator::{OrchestrationConfig, OrchestrationService, AgentExecutor, Orchestrator};
+use radium_orchestrator::orchestration::context_loader::ContextFileLoaderTrait;
+use radium_orchestrator::orchestration::hooks::ToolHookExecutor;
+use radium_core::context::ContextFileLoader as CoreContextFileLoader;
+use radium_core::hooks::integration::OrchestratorHooks;
+use radium_core::hooks::loader::HookLoader;
+use radium_core::hooks::registry::HookRegistry;
+use async_trait::async_trait;
+use serde_json::Value;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::Mutex;
@@ -27,6 +35,35 @@ use crate::state::{CheckpointBrowserState, CheckpointInterruptState, CommandSugg
 use crate::theme::RadiumTheme;
 use crate::views::PromptData;
 use crate::workspace::WorkspaceStatus;
+
+/// TUI implementation of ToolHookExecutor that wraps OrchestratorHooks
+struct TuiToolHookExecutor {
+    hooks: OrchestratorHooks,
+}
+
+#[async_trait]
+impl ToolHookExecutor for TuiToolHookExecutor {
+    async fn before_tool_execution(
+        &self,
+        tool_name: &str,
+        arguments: &Value,
+    ) -> std::result::Result<Value, String> {
+        self.hooks.before_tool_execution(tool_name, arguments)
+            .await
+            .map_err(|e| format!("Hook execution failed: {}", e))
+    }
+
+    async fn after_tool_execution(
+        &self,
+        tool_name: &str,
+        arguments: &Value,
+        result: &Value,
+    ) -> std::result::Result<Value, String> {
+        self.hooks.after_tool_execution(tool_name, arguments, result)
+            .await
+            .map_err(|e| format!("Hook execution failed: {}", e))
+    }
+}
 
 /// Default maximum conversation history if config is unavailable
 const _DEFAULT_MAX_CONVERSATION_HISTORY: usize = 500;
@@ -393,13 +430,53 @@ impl App {
     async fn ensure_orchestration_service(&mut self) -> Result<()> {
         if self.orchestration_service.is_none() && self.orchestration_enabled {
             // Load config from workspace, fall back to defaults
-            let config = if let Ok(workspace) = radium_core::Workspace::discover() {
+            let mut config = if let Ok(workspace) = radium_core::Workspace::discover() {
                 let workspace_config_path = workspace.structure().orchestration_config_file();
                 OrchestrationConfig::load_from_workspace_path(workspace_config_path)
             } else {
                 OrchestrationConfig::load_from_toml(OrchestrationConfig::default_config_path())
                     .unwrap_or_else(|_| OrchestrationConfig::default())
             };
+            
+            // Ensure API keys from CredentialStore are available as environment variables
+            // This allows OrchestrationConfig::get_api_key() to find them
+            // CredentialStore checks both file and env, but orchestrator only checks env
+            if let Ok(credential_store) = radium_core::auth::CredentialStore::new() {
+                let provider = config.default_provider;
+                // Only set env var for providers that need API keys
+                if provider != radium_orchestrator::ProviderType::PromptBased {
+                    // Convert orchestrator ProviderType to core ProviderType
+                    let core_provider = match provider {
+                        radium_orchestrator::ProviderType::Gemini => radium_core::auth::ProviderType::Gemini,
+                        radium_orchestrator::ProviderType::Claude => radium_core::auth::ProviderType::Claude,
+                        radium_orchestrator::ProviderType::OpenAI => radium_core::auth::ProviderType::OpenAI,
+                        radium_orchestrator::ProviderType::PromptBased => unreachable!(),
+                    };
+                    
+                    if let Ok(api_key) = credential_store.get(core_provider) {
+                        // Set as environment variable so orchestrator can find it
+                        // This is a temporary workaround until we can pass credentials directly
+                        let env_var_name = match provider {
+                            radium_orchestrator::ProviderType::Gemini => "GEMINI_API_KEY",
+                            radium_orchestrator::ProviderType::Claude => "ANTHROPIC_API_KEY",
+                            radium_orchestrator::ProviderType::OpenAI => "OPENAI_API_KEY",
+                            radium_orchestrator::ProviderType::PromptBased => unreachable!(),
+                        };
+                        // Only set if not already set (env vars take precedence)
+                        if std::env::var(env_var_name).is_err() {
+                            // SAFETY: Setting environment variable is safe here because:
+                            // 1. We're setting it before the orchestrator service is initialized
+                            // 2. This happens during lazy initialization, before any concurrent access
+                            // 3. The env var is only used by the orchestrator service we're about to create
+                            // 4. This is a workaround to bridge CredentialStore (file-based) to orchestrator (env-based)
+                            #[allow(unsafe_code)]
+                            unsafe {
+                                std::env::set_var(env_var_name, api_key);
+                            }
+                        }
+                    }
+                }
+            }
             
             // Discover MCP tools if MCP integration is available
             let mcp_tools = if let Some(ref mcp_integration) = self.mcp_integration {
@@ -416,26 +493,89 @@ impl App {
                     }
                 }
                 
-                // Discover MCP tools for orchestration
-                use radium_core::mcp::orchestration_bridge::discover_mcp_tools_for_orchestration;
-                discover_mcp_tools_for_orchestration(Arc::clone(mcp_integration))
-                    .await
-                    .ok()
-            } else {
-                None
-            };
+            // Discover MCP tools for orchestration
+            use radium_core::mcp::orchestration_bridge::discover_mcp_tools_for_orchestration;
+            discover_mcp_tools_for_orchestration(Arc::clone(mcp_integration))
+                .await
+                .ok()
+        } else {
+            None
+        };
+        
+        // Extract workspace root and sandbox manager
+        let workspace_root = self.workspace_status.as_ref()
+            .and_then(|ws| ws.root.clone());
+        // TODO: Get sandbox manager from workspace if available
+        let sandbox_manager: Option<Arc<dyn radium_orchestrator::orchestration::terminal_tool::SandboxManager>> = None;
+        
+        // Create context loader if workspace root is available
+        let context_loader: Option<Arc<dyn ContextFileLoaderTrait>> = workspace_root.as_ref().map(|root| {
+            struct TuiContextLoader {
+                loader: CoreContextFileLoader,
+            }
             
-            match OrchestrationService::initialize(config, mcp_tools).await {
+            impl ContextFileLoaderTrait for TuiContextLoader {
+                fn load_hierarchical(&self, path: &std::path::Path) -> Result<String, String> {
+                    self.loader.load_hierarchical(path)
+                        .map_err(|e| format!("Failed to load context files: {}", e))
+                }
+            }
+            
+            Arc::new(TuiContextLoader {
+                loader: CoreContextFileLoader::new(root),
+            }) as Arc<dyn ContextFileLoaderTrait>
+        });
+
+        // Create hook executor if workspace is available
+        let hook_executor: Option<Arc<dyn ToolHookExecutor>> = if let Some(root) = workspace_root.as_ref() {
+            // Try to load hooks from workspace
+            let registry = Arc::new(HookRegistry::new());
+            
+            // Load hooks (best effort - don't fail if loading fails)
+            let _ = HookLoader::load_from_workspace(root, &registry).await;
+            let _ = HookLoader::load_from_extensions(&registry).await;
+            
+            // Only create executor if we successfully loaded hooks or if we want to support hooks
+            // For now, always create executor (it will work even if no hooks are loaded)
+            Some(Arc::new(TuiToolHookExecutor {
+                hooks: OrchestratorHooks::new(Arc::clone(&registry)),
+            }) as Arc<dyn ToolHookExecutor>)
+        } else {
+            None
+        };
+        
+        match OrchestrationService::initialize(config, mcp_tools, workspace_root, sandbox_manager, context_loader, hook_executor).await {
                 Ok(service) => {
                     self.orchestration_service = Some(Arc::new(service));
+                    tracing::info!("Orchestration service initialized successfully");
                 }
                 Err(e) => {
-                    // Failed to initialize - log and disable orchestration
-                    self.prompt_data.add_output(format!(
-                        "⚠️  Orchestration initialization failed: {}",
-                        e
-                    ));
-                    self.orchestration_enabled = false;
+                    // Failed to initialize - log error but don't disable orchestration
+                    // This allows user to fix the issue (e.g., set API key) and try again
+                    // Only disable if this is a persistent critical error
+                    let error_msg = format!("⚠️  Orchestration initialization failed: {}", e);
+                    tracing::error!("{}", error_msg);
+                    
+                    // Add to output so user sees the error
+                    // If we're in Chat context (orchestration was started), add to conversation
+                    // Otherwise add to output
+                    if matches!(self.prompt_data.context, DisplayContext::Chat { .. }) {
+                        let max_history = self.config.performance.max_conversation_history;
+                        self.prompt_data.add_conversation_message(error_msg.clone(), max_history);
+                        self.prompt_data.add_conversation_message(
+                            "💡 Tip: Check your API keys and configuration. Use '/orchestrator status' to check configuration.".to_string(),
+                            max_history
+                        );
+                    } else {
+                        self.prompt_data.add_output(error_msg.clone());
+                        self.prompt_data.add_output(
+                            "💡 Tip: Check your API keys and configuration. Use '/orchestrator status' to check configuration.".to_string()
+                        );
+                    }
+                    
+                    // Don't disable orchestration - allow user to fix and retry
+                    // Only disable if it's a critical error that can't be recovered
+                    // For now, we'll keep orchestration enabled so user can fix config and retry
                 }
             }
         }
@@ -675,11 +815,9 @@ impl App {
                 }
                 
                 // Handle execution view shortcuts when no view is active
-                // Only process single-letter hotkeys if input field doesn't have focus
-                // In Chat context: check if prompt has focus (dual-pane)
-                // In other contexts: never process hotkeys since input is always active
-                let should_process_hotkeys = matches!(self.prompt_data.context, DisplayContext::Chat { .. })
-                    && !self.prompt_data.is_prompt_focused();
+                // Only process hotkeys when input is empty (user is not actively typing)
+                let input_is_empty = self.prompt_data.input_text().trim().is_empty();
+                let should_process_hotkeys = input_is_empty;
 
                 if should_process_hotkeys {
                     match key {
@@ -711,61 +849,36 @@ impl App {
             }
         }
 
-        // Handle dual-pane focus switching and scrolling for Chat context
+        // Handle chat history scrolling for Chat context (input is always in status footer)
         if matches!(self.prompt_data.context, DisplayContext::Chat { .. }) {
-            // Focus switching shortcuts (only when not in command state or command palette)
+            // Scroll routing for chat history (only when not in command state or command palette)
             if !self.prompt_data.command_state.is_active && !self.prompt_data.command_palette_active {
-                // Tab or Ctrl+W: Toggle focus between panes
-                if matches!(key, KeyCode::Tab) && !modifiers.contains(KeyModifiers::CONTROL) {
-                    self.prompt_data.toggle_focus();
-                    return Ok(());
-                }
-                if modifiers.contains(KeyModifiers::CONTROL) && matches!(key, KeyCode::Char('w')) {
-                    self.prompt_data.toggle_focus();
-                    return Ok(());
-                }
-
-                // Enter in chat history switches to prompt editor
-                if self.prompt_data.is_chat_focused() && matches!(key, KeyCode::Enter) && !modifiers.contains(KeyModifiers::META) && !modifiers.contains(KeyModifiers::CONTROL) {
-                    self.prompt_data.toggle_focus();
-                    return Ok(());
-                }
-
-                // Escape in prompt editor switches to chat history
-                if self.prompt_data.is_prompt_focused() && matches!(key, KeyCode::Esc) {
-                    self.prompt_data.toggle_focus();
-                    return Ok(());
-                }
-
-                // Scroll routing when chat history focused
-                if self.prompt_data.is_chat_focused() {
-                    match key {
-                        KeyCode::Up => {
-                            self.prompt_data.scroll_chat_up(1);
-                            return Ok(());
-                        }
-                        KeyCode::Down => {
-                            self.prompt_data.scroll_chat_down(1);
-                            return Ok(());
-                        }
-                        KeyCode::PageUp => {
-                            self.prompt_data.scroll_chat_up(10);
-                            return Ok(());
-                        }
-                        KeyCode::PageDown => {
-                            self.prompt_data.scroll_chat_down(10);
-                            return Ok(());
-                        }
-                        _ => {}
+                match key {
+                    KeyCode::Up => {
+                        self.prompt_data.scroll_chat_up(1);
+                        return Ok(());
                     }
+                    KeyCode::Down => {
+                        self.prompt_data.scroll_chat_down(1);
+                        return Ok(());
+                    }
+                    KeyCode::PageUp => {
+                        self.prompt_data.scroll_chat_up(10);
+                        return Ok(());
+                    }
+                    KeyCode::PageDown => {
+                        self.prompt_data.scroll_chat_down(10);
+                        return Ok(());
+                    }
+                    _ => {}
                 }
             }
         }
 
         // Normal key handling
         match key {
-            // Show shortcuts overlay
-            KeyCode::Char('?') | KeyCode::F(1) => {
+            // Show shortcuts overlay (only when input is empty)
+            KeyCode::Char('?') | KeyCode::F(1) if self.prompt_data.input_text().trim().is_empty() => {
                 self.show_shortcuts = true;
                 return Ok(());
             }
@@ -1060,47 +1173,34 @@ impl App {
                 return Ok(());
             }
 
-            // Enter - handle Cmd+Enter for submission, plain Enter for newline
+            // Enter - handle submission: plain Enter submits, Shift+Enter adds newline
+            // Input is always in status footer, so always handle Enter for input
             KeyCode::Enter if !self.prompt_data.command_palette_active => {
-                // Only process Enter for prompt input when prompt editor is focused
-                // (Chat context focus switching is handled above)
-                let should_handle_prompt = !matches!(self.prompt_data.context, DisplayContext::Chat { .. }) 
-                    || self.prompt_data.is_prompt_focused();
+                // Check for Shift+Enter for newline (multiline input)
+                let is_newline = modifiers.contains(KeyModifiers::SHIFT);
                 
-                if should_handle_prompt {
-                    // Check for Cmd/Ctrl+Enter for submission
-                    // On macOS: META (Cmd), on others: CONTROL (Ctrl)
-                    let is_submit = modifiers.contains(KeyModifiers::META) 
-                        || modifiers.contains(KeyModifiers::CONTROL);
-                    
-                    if is_submit {
-                        // Submit the input
-                        if self.prompt_data.command_state.is_active && !self.prompt_data.command_state.suggestions.is_empty() {
-                            // Autocomplete selected suggestion
-                            self.autocomplete_selected_command();
-                            // Then execute it
-                            self.handle_enter().await?;
-                        } else {
-                            self.handle_enter().await?;
-                        }
+                if is_newline {
+                    // Shift+Enter - insert newline via TextArea
+                    self.prompt_data.input.handle_key(key, modifiers);
+                    self.update_command_suggestions();
+                } else {
+                    // Plain Enter - submit the input
+                    if self.prompt_data.command_state.is_active && !self.prompt_data.command_state.suggestions.is_empty() {
+                        // Autocomplete selected suggestion
+                        self.autocomplete_selected_command();
+                        // Then execute it
+                        self.handle_enter().await?;
                     } else {
-                        // Plain Enter - insert newline via TextArea
-                        self.prompt_data.input.handle_key(key, modifiers);
-                        self.update_command_suggestions();
+                        self.handle_enter().await?;
                     }
                 }
             }
 
             // Backspace (unless in command palette) - delegate to TextArea
+            // Input is always in status footer, so always handle Backspace for input
             KeyCode::Backspace if !self.prompt_data.command_palette_active => {
-                // Only process Backspace for prompt input when prompt editor is focused
-                let should_handle_prompt = !matches!(self.prompt_data.context, DisplayContext::Chat { .. }) 
-                    || self.prompt_data.is_prompt_focused();
-                
-                if should_handle_prompt {
-                    self.prompt_data.input.handle_key(key, modifiers);
-                    self.update_command_suggestions();
-                }
+                self.prompt_data.input.handle_key(key, modifiers);
+                self.update_command_suggestions();
             }
 
             // Panel navigation (when orchestration is running)
@@ -1212,34 +1312,22 @@ impl App {
                     self.prompt_data.command_palette_query.push(c);
                     self.update_command_palette();
                 } else {
-                    // Only process text input when prompt editor is focused (or not in Chat context)
-                    let should_handle_prompt = !matches!(self.prompt_data.context, DisplayContext::Chat { .. }) 
-                        || self.prompt_data.is_prompt_focused();
-                    
-                    if should_handle_prompt {
-                        // Delegate to TextArea for text input
-                        self.prompt_data.input.handle_key(key, modifiers);
-                        self.update_command_suggestions();
-                    }
+                    // Input is always in status footer, so always handle text input
+                    self.prompt_data.input.handle_key(key, modifiers);
+                    self.update_command_suggestions();
                 }
             }
 
             // Delegate other navigation/editing keys to TextArea when not in special modes
-            // Only when prompt editor is focused (or not in Chat context)
+            // Input is always in status footer, so always handle
             KeyCode::Left | KeyCode::Right | KeyCode::Delete | KeyCode::Tab
             if !self.prompt_data.command_palette_active 
                 && !self.dialog_manager.is_open()
                 && self.prompt_data.command_state.suggestions.is_empty() => {
-                let should_handle_prompt = !matches!(self.prompt_data.context, DisplayContext::Chat { .. }) 
-                    || self.prompt_data.is_prompt_focused();
-                
-                if should_handle_prompt {
-                    // For Up/Down in Chat context, only handle if prompt is focused
-                    // (Chat history scrolling is handled above)
-                    if !matches!(self.prompt_data.context, DisplayContext::Chat { .. }) || 
-                       (matches!(key, KeyCode::Left | KeyCode::Right | KeyCode::Delete | KeyCode::Tab)) {
-                        self.prompt_data.input.handle_key(key, modifiers);
-                    }
+                // For Up/Down in Chat context, don't handle here (Chat history scrolling is handled above)
+                if !matches!(self.prompt_data.context, DisplayContext::Chat { .. }) || 
+                   (matches!(key, KeyCode::Left | KeyCode::Right | KeyCode::Delete | KeyCode::Tab)) {
+                    self.prompt_data.input.handle_key(key, modifiers);
                 }
             }
 
@@ -1358,11 +1446,31 @@ impl App {
 
         // Try to parse as command (starts with /)
         if let Some(cmd) = Command::parse(&input) {
+            // Show feedback that command is executing
+            let cmd_display = format!("/{}", cmd.name);
+            if matches!(self.prompt_data.context, DisplayContext::Chat { .. }) {
+                let max_history = self.config.performance.max_conversation_history;
+                self.prompt_data.add_conversation_message(
+                    format!("⚡ Executing command: {}", cmd_display),
+                    max_history
+                );
+            } else {
+                self.prompt_data.add_output(format!("⚡ Executing command: {}", cmd_display));
+            }
             self.execute_command(cmd).await?;
         } else {
             // Non-command input - route through orchestration if enabled
             if self.orchestration_enabled {
-                self.handle_orchestrated_input(input).await?;
+                if let Err(e) = self.handle_orchestrated_input(input).await {
+                    // Show error to user in conversation
+                    let max_history = self.config.performance.max_conversation_history;
+                    let error_msg = format!("❌ Error: {}", e);
+                    self.prompt_data.add_conversation_message(error_msg, max_history);
+                    self.prompt_data.add_conversation_message(
+                        "💡 Tip: Check your API keys and configuration. Use '/orchestrator status' to check configuration.".to_string(),
+                        max_history
+                    );
+                }
             } else {
                 // Fallback to regular chat
                 self.send_chat_message(input).await?;
@@ -1385,7 +1493,13 @@ impl App {
             "models" => self.show_models().await?,
             "chat" => {
                 if cmd.args.is_empty() {
-                    self.prompt_data.add_output("Usage: /chat <agent-id>".to_string());
+                    let error_msg = "❌ Usage: /chat <agent-id>\n\n💡 Example: /chat code-agent\n\nType /agents to see available agents.";
+                    if matches!(self.prompt_data.context, DisplayContext::Chat { .. }) {
+                        let max_history = self.config.performance.max_conversation_history;
+                        self.prompt_data.add_conversation_message(error_msg.to_string(), max_history);
+                    } else {
+                        self.prompt_data.add_output(error_msg.to_string());
+                    }
                 } else {
                     self.start_chat(&cmd.args[0]).await?;
                 }
@@ -1451,8 +1565,17 @@ impl App {
                     if let Some(prompt) = mcp_prompt {
                         self.execute_mcp_prompt(&full_command, &prompt, &cmd.args).await?;
                     } else {
-                        self.prompt_data
-                            .add_output(format!("Unknown command: /{}. Type /help for help.", cmd.name));
+                        // Provide helpful error message with suggestions
+                        let error_msg = format!(
+                            "❌ Unknown command: /{}\n\n💡 Did you mean one of these?\n  /help - Show all commands\n  /agents - List available agents\n  /chat <agent> - Start a chat\n\nType /help to see all available commands.",
+                            cmd.name
+                        );
+                        if matches!(self.prompt_data.context, DisplayContext::Chat { .. }) {
+                            let max_history = self.config.performance.max_conversation_history;
+                            self.prompt_data.add_conversation_message(error_msg, max_history);
+                        } else {
+                            self.prompt_data.add_output(error_msg);
+                        }
                     }
                 }
             }
@@ -1850,6 +1973,44 @@ impl App {
         }
 
         let partial = &input[1..]; // Remove the '/'
+        
+        // Special case: if user just typed '/', immediately show all commands
+        if partial.is_empty() {
+            // User just typed '/' - show all commands immediately
+            // Bypass min_chars and trigger_mode checks for immediate feedback
+            self.prompt_data.command_state.is_active = true;
+            
+            // Build list of all available commands
+            let mut suggestions: Vec<CommandSuggestion> = Vec::new();
+            
+            // Add built-in commands
+            for (cmd, desc) in &self.available_commands {
+                suggestions.push(CommandSuggestion::new(
+                    format!("/{}", cmd),
+                    desc.to_string(),
+                    100, // High score for exact match
+                    SuggestionSource::BuiltIn,
+                ));
+            }
+            
+            // Add MCP commands
+            for (cmd_name, _prompt) in self.mcp_slash_registry.get_all_commands() {
+                suggestions.push(CommandSuggestion::new(
+                    cmd_name.clone(),
+                    "MCP command".to_string(),
+                    90, // Slightly lower score than built-in
+                    SuggestionSource::MCP,
+                ));
+            }
+            
+            // Sort by score (highest first)
+            suggestions.sort_by(|a, b| b.score.cmp(&a.score));
+            
+            // Update state with suggestions
+            self.prompt_data.command_state.set_suggestions(suggestions);
+            return;
+        }
+
         let trigger_mode = self.config.completion.trigger_mode_enum();
         let min_chars = self.config.completion.min_chars;
 
@@ -2178,15 +2339,23 @@ impl App {
 
     /// Handle input through orchestration
     async fn handle_orchestrated_input(&mut self, input: String) -> Result<()> {
-        // Ensure service is initialized
-        self.ensure_orchestration_service().await?;
-
-        // Get or create session ID
+        // Get or create session ID first (needed for Chat context)
         let session_id = self.current_session.clone().unwrap_or_else(|| {
             let id = format!("session_{}", chrono::Utc::now().format("%Y%m%d_%H%M%S"));
             self.current_session = Some(id.clone());
             id
         });
+
+        // Set context to Chat so conversation messages are displayed
+        // This ensures the chat view is rendered and messages are visible
+        self.prompt_data.context = DisplayContext::Chat {
+            agent_id: "orchestrator".to_string(),
+            session_id: session_id.clone(),
+        };
+
+        // Mark orchestration as running BEFORE adding messages
+        // This ensures the orchestrator view is rendered
+        self.orchestration_running = true;
 
         let max_history = self.config.performance.max_conversation_history;
 
@@ -2199,12 +2368,37 @@ impl App {
         // Record start time for elapsed time calculation
         let start_time = std::time::Instant::now();
 
-        // Mark orchestration as running
-        self.orchestration_running = true;
+        // Ensure service is initialized
+        // If initialization fails, we'll show error but keep orchestration enabled
+        // so user can fix config and retry
+        if let Err(e) = self.ensure_orchestration_service().await {
+            // Initialization failed - the error was already added to conversation in ensure_orchestration_service
+            // Remove thinking indicator since we're not proceeding
+            self.prompt_data.conversation.pop();
+            // Return error so caller can handle it
+            return Err(e);
+        }
+        
+        // If service is still None after ensure, something went wrong
+        if self.orchestration_service.is_none() {
+            // Remove thinking indicator
+            self.prompt_data.conversation.pop();
+            let error_msg = "Orchestration service not available. Check configuration and API keys.";
+            self.prompt_data.add_conversation_message(
+                format!("❌ {}", error_msg),
+                max_history
+            );
+            return Err(anyhow::anyhow!(error_msg));
+        }
 
         // Execute orchestration
         if let Some(ref service) = self.orchestration_service {
-            match service.handle_input(&session_id, &input).await {
+            // Get current working directory for context file loading
+            let current_dir = self.workspace_status.as_ref()
+                .and_then(|ws| ws.root.as_ref())
+                .map(|p| p.as_path());
+            
+            match service.handle_input(&session_id, &input, current_dir).await {
                 Ok(result) => {
                     // Remove thinking indicator
                     self.prompt_data.conversation.pop();
@@ -2407,9 +2601,16 @@ impl App {
             }
             "switch" => {
                 if args.len() < 2 {
-                    self.prompt_data.add_output("Usage: /orchestrator switch <provider>".to_string());
-                    self.prompt_data
-                        .add_output("Available providers: gemini, claude, openai, prompt_based".to_string());
+                    if matches!(self.prompt_data.context, DisplayContext::Chat { .. }) {
+                        let max_history = self.config.performance.max_conversation_history;
+                        self.prompt_data.add_conversation_message("Usage: /orchestrator switch <provider>".to_string(), max_history);
+                        self.prompt_data
+                            .add_conversation_message("Available providers: gemini, claude, openai, prompt_based".to_string(), max_history);
+                    } else {
+                        self.prompt_data.add_output("Usage: /orchestrator switch <provider>".to_string());
+                        self.prompt_data
+                            .add_output("Available providers: gemini, claude, openai, prompt_based".to_string());
+                    }
                 } else {
                     self.switch_orchestrator_provider(&args[1]).await?;
                 }
@@ -2421,16 +2622,30 @@ impl App {
                 self.refresh_orchestrator_tools().await?;
             }
             _ => {
-                self.prompt_data.add_output(format!("Unknown orchestrator command: {}", args[0]));
-                self.prompt_data.add_output("Available commands:".to_string());
-                self.prompt_data.add_output("  /orchestrator          - Show status".to_string());
-                self.prompt_data.add_output("  /orchestrator toggle   - Enable/disable".to_string());
-                self.prompt_data
-                    .add_output("  /orchestrator switch <provider>  - Switch provider".to_string());
-                self.prompt_data
-                    .add_output("  /orchestrator config   - Show full configuration".to_string());
-                self.prompt_data
-                    .add_output("  /orchestrator refresh  - Reload agent tool registry".to_string());
+                if matches!(self.prompt_data.context, DisplayContext::Chat { .. }) {
+                    let max_history = self.config.performance.max_conversation_history;
+                    self.prompt_data.add_conversation_message(format!("Unknown orchestrator command: {}", args[0]), max_history);
+                    self.prompt_data.add_conversation_message("Available commands:".to_string(), max_history);
+                    self.prompt_data.add_conversation_message("  /orchestrator          - Show status".to_string(), max_history);
+                    self.prompt_data.add_conversation_message("  /orchestrator toggle   - Enable/disable".to_string(), max_history);
+                    self.prompt_data
+                        .add_conversation_message("  /orchestrator switch <provider>  - Switch provider".to_string(), max_history);
+                    self.prompt_data
+                        .add_conversation_message("  /orchestrator config   - Show full configuration".to_string(), max_history);
+                    self.prompt_data
+                        .add_conversation_message("  /orchestrator refresh  - Reload agent tool registry".to_string(), max_history);
+                } else {
+                    self.prompt_data.add_output(format!("Unknown orchestrator command: {}", args[0]));
+                    self.prompt_data.add_output("Available commands:".to_string());
+                    self.prompt_data.add_output("  /orchestrator          - Show status".to_string());
+                    self.prompt_data.add_output("  /orchestrator toggle   - Enable/disable".to_string());
+                    self.prompt_data
+                        .add_output("  /orchestrator switch <provider>  - Switch provider".to_string());
+                    self.prompt_data
+                        .add_output("  /orchestrator config   - Show full configuration".to_string());
+                    self.prompt_data
+                        .add_output("  /orchestrator refresh  - Reload agent tool registry".to_string());
+                }
             }
         }
 
@@ -2439,31 +2654,62 @@ impl App {
 
     /// Show orchestrator status
     fn show_orchestrator_status(&mut self) {
-        self.prompt_data.add_output("Orchestration Status:".to_string());
-        self.prompt_data.add_output("".to_string());
-        self.prompt_data.add_output(format!(
-            "  Enabled: {}",
-            if self.orchestration_enabled { "✓ Yes" } else { "✗ No" }
-        ));
+        // Check if we're in Chat context - use conversation messages if so
+        if matches!(self.prompt_data.context, DisplayContext::Chat { .. }) {
+            let max_history = self.config.performance.max_conversation_history;
+            self.prompt_data.add_conversation_message("Orchestration Status:".to_string(), max_history);
+            self.prompt_data.add_conversation_message("".to_string(), max_history);
+            self.prompt_data.add_conversation_message(format!(
+                "  Enabled: {}",
+                if self.orchestration_enabled { "✓ Yes" } else { "✗ No" }
+            ), max_history);
 
-        if let Some(ref service) = self.orchestration_service {
-            self.prompt_data.add_output(format!("  Provider: {}", service.provider_name()));
-            let config = service.config();
-            self.prompt_data.add_output(format!("  Default: {}", config.default_provider));
+            if let Some(ref service) = self.orchestration_service {
+                self.prompt_data.add_conversation_message(format!("  Provider: {}", service.provider_name()), max_history);
+                let config = service.config();
+                self.prompt_data.add_conversation_message(format!("  Default: {}", config.default_provider), max_history);
+            } else {
+                self.prompt_data.add_conversation_message("  Service: Not initialized".to_string(), max_history);
+            }
+
+            self.prompt_data.add_conversation_message("".to_string(), max_history);
+            self.prompt_data.add_conversation_message("Commands:".to_string(), max_history);
+            self.prompt_data.add_conversation_message("  /orchestrator          - Show status".to_string(), max_history);
+            self.prompt_data.add_conversation_message("  /orchestrator toggle   - Enable/disable orchestration".to_string(), max_history);
+            self.prompt_data
+                .add_conversation_message("  /orchestrator switch <provider>  - Switch AI provider".to_string(), max_history);
+            self.prompt_data
+                .add_conversation_message("  /orchestrator config   - Show full configuration".to_string(), max_history);
+            self.prompt_data
+                .add_conversation_message("  /orchestrator refresh  - Reload agent tool registry".to_string(), max_history);
         } else {
-            self.prompt_data.add_output("  Service: Not initialized".to_string());
-        }
+            // Not in Chat context - use output
+            self.prompt_data.add_output("Orchestration Status:".to_string());
+            self.prompt_data.add_output("".to_string());
+            self.prompt_data.add_output(format!(
+                "  Enabled: {}",
+                if self.orchestration_enabled { "✓ Yes" } else { "✗ No" }
+            ));
 
-        self.prompt_data.add_output("".to_string());
-        self.prompt_data.add_output("Commands:".to_string());
-        self.prompt_data.add_output("  /orchestrator          - Show status".to_string());
-        self.prompt_data.add_output("  /orchestrator toggle   - Enable/disable orchestration".to_string());
-        self.prompt_data
-            .add_output("  /orchestrator switch <provider>  - Switch AI provider".to_string());
-        self.prompt_data
-            .add_output("  /orchestrator config   - Show full configuration".to_string());
-        self.prompt_data
-            .add_output("  /orchestrator refresh  - Reload agent tool registry".to_string());
+            if let Some(ref service) = self.orchestration_service {
+                self.prompt_data.add_output(format!("  Provider: {}", service.provider_name()));
+                let config = service.config();
+                self.prompt_data.add_output(format!("  Default: {}", config.default_provider));
+            } else {
+                self.prompt_data.add_output("  Service: Not initialized".to_string());
+            }
+
+            self.prompt_data.add_output("".to_string());
+            self.prompt_data.add_output("Commands:".to_string());
+            self.prompt_data.add_output("  /orchestrator          - Show status".to_string());
+            self.prompt_data.add_output("  /orchestrator toggle   - Enable/disable orchestration".to_string());
+            self.prompt_data
+                .add_output("  /orchestrator switch <provider>  - Switch AI provider".to_string());
+            self.prompt_data
+                .add_output("  /orchestrator config   - Show full configuration".to_string());
+            self.prompt_data
+                .add_output("  /orchestrator refresh  - Reload agent tool registry".to_string());
+        }
     }
 
     /// Switch orchestrator provider
@@ -2477,14 +2723,27 @@ impl App {
             "openai" => ProviderType::OpenAI,
             "prompt_based" | "prompt-based" => ProviderType::PromptBased,
             _ => {
-                self.prompt_data.add_output(format!("❌ Invalid provider: {}", provider_name));
-                self.prompt_data.add_output("".to_string());
-                self.prompt_data.add_output("Available providers:".to_string());
-                self.prompt_data.add_output("  • gemini       - Google Gemini models".to_string());
-                self.prompt_data.add_output("  • claude       - Anthropic Claude models".to_string());
-                self.prompt_data.add_output("  • openai       - OpenAI GPT models".to_string());
-                self.prompt_data
-                    .add_output("  • prompt_based - Prompt-based fallback".to_string());
+                // Check if we're in Chat context
+                if matches!(self.prompt_data.context, DisplayContext::Chat { .. }) {
+                    let max_history = self.config.performance.max_conversation_history;
+                    self.prompt_data.add_conversation_message(format!("❌ Invalid provider: {}", provider_name), max_history);
+                    self.prompt_data.add_conversation_message("".to_string(), max_history);
+                    self.prompt_data.add_conversation_message("Available providers:".to_string(), max_history);
+                    self.prompt_data.add_conversation_message("  • gemini       - Google Gemini models".to_string(), max_history);
+                    self.prompt_data.add_conversation_message("  • claude       - Anthropic Claude models".to_string(), max_history);
+                    self.prompt_data.add_conversation_message("  • openai       - OpenAI GPT models".to_string(), max_history);
+                    self.prompt_data
+                        .add_conversation_message("  • prompt_based - Prompt-based fallback".to_string(), max_history);
+                } else {
+                    self.prompt_data.add_output(format!("❌ Invalid provider: {}", provider_name));
+                    self.prompt_data.add_output("".to_string());
+                    self.prompt_data.add_output("Available providers:".to_string());
+                    self.prompt_data.add_output("  • gemini       - Google Gemini models".to_string());
+                    self.prompt_data.add_output("  • claude       - Anthropic Claude models".to_string());
+                    self.prompt_data.add_output("  • openai       - OpenAI GPT models".to_string());
+                    self.prompt_data
+                        .add_output("  • prompt_based - Prompt-based fallback".to_string());
+                }
                 return Ok(());
             }
         };
@@ -2493,7 +2752,12 @@ impl App {
         let config = OrchestrationConfig::default().with_provider(provider_type);
 
         // Reinitialize service with new provider
-        self.prompt_data.add_output(format!("🔄 Switching to {}...", provider_type));
+        if matches!(self.prompt_data.context, DisplayContext::Chat { .. }) {
+            let max_history = self.config.performance.max_conversation_history;
+            self.prompt_data.add_conversation_message(format!("🔄 Switching to {}...", provider_type), max_history);
+        } else {
+            self.prompt_data.add_output(format!("🔄 Switching to {}...", provider_type));
+        }
 
         // Discover MCP tools if available
         let mcp_tools = if let Some(ref mcp_integration) = self.mcp_integration {
@@ -2505,7 +2769,41 @@ impl App {
             None
         };
 
-        match OrchestrationService::initialize(config.clone(), mcp_tools).await {
+        // Extract workspace root and sandbox manager
+        let workspace_root = self.workspace_status.as_ref()
+            .and_then(|ws| ws.root.clone());
+        // TODO: Get sandbox manager from workspace if available
+        let sandbox_manager: Option<Arc<dyn radium_orchestrator::orchestration::terminal_tool::SandboxManager>> = None;
+
+        // Create context loader if workspace root is available
+        let context_loader: Option<Arc<dyn ContextFileLoaderTrait>> = workspace_root.as_ref().map(|root| {
+            struct TuiContextLoader {
+                loader: CoreContextFileLoader,
+            }
+            
+            impl ContextFileLoaderTrait for TuiContextLoader {
+                fn load_hierarchical(&self, path: &std::path::Path) -> Result<String, String> {
+                    self.loader.load_hierarchical(path)
+                        .map_err(|e| format!("Failed to load context files: {}", e))
+                }
+            }
+            
+            Arc::new(TuiContextLoader {
+                loader: CoreContextFileLoader::new(root),
+            }) as Arc<dyn ContextFileLoaderTrait>
+        });
+
+        // Create hook executor if workspace is available
+        let hook_executor: Option<Arc<dyn ToolHookExecutor>> = workspace_root.as_ref().and_then(|root| {
+            let registry = Arc::new(HookRegistry::new());
+            let _ = HookLoader::load_from_workspace(root, &registry);
+            let _ = HookLoader::load_from_extensions(&registry);
+            Some(Arc::new(TuiToolHookExecutor {
+                hooks: OrchestratorHooks::new(Arc::clone(&registry)),
+            }) as Arc<dyn ToolHookExecutor>)
+        });
+
+        match OrchestrationService::initialize(config.clone(), mcp_tools, workspace_root, sandbox_manager, context_loader, hook_executor).await {
             Ok(service) => {
                 self.orchestration_service = Some(Arc::new(service));
                 
@@ -2629,7 +2927,41 @@ impl App {
             None
         };
 
-        match OrchestrationService::initialize(config.clone(), mcp_tools).await {
+        // Extract workspace root and sandbox manager
+        let workspace_root = self.workspace_status.as_ref()
+            .and_then(|ws| ws.root.clone());
+        // TODO: Get sandbox manager from workspace if available
+        let sandbox_manager: Option<Arc<dyn radium_orchestrator::orchestration::terminal_tool::SandboxManager>> = None;
+
+        // Create context loader if workspace root is available
+        let context_loader: Option<Arc<dyn ContextFileLoaderTrait>> = workspace_root.as_ref().map(|root| {
+            struct TuiContextLoader {
+                loader: CoreContextFileLoader,
+            }
+            
+            impl ContextFileLoaderTrait for TuiContextLoader {
+                fn load_hierarchical(&self, path: &std::path::Path) -> Result<String, String> {
+                    self.loader.load_hierarchical(path)
+                        .map_err(|e| format!("Failed to load context files: {}", e))
+                }
+            }
+            
+            Arc::new(TuiContextLoader {
+                loader: CoreContextFileLoader::new(root),
+            }) as Arc<dyn ContextFileLoaderTrait>
+        });
+
+        // Create hook executor if workspace is available
+        let hook_executor: Option<Arc<dyn ToolHookExecutor>> = workspace_root.as_ref().and_then(|root| {
+            let registry = Arc::new(HookRegistry::new());
+            let _ = HookLoader::load_from_workspace(root, &registry);
+            let _ = HookLoader::load_from_extensions(&registry);
+            Some(Arc::new(TuiToolHookExecutor {
+                hooks: OrchestratorHooks::new(Arc::clone(&registry)),
+            }) as Arc<dyn ToolHookExecutor>)
+        });
+
+        match OrchestrationService::initialize(config.clone(), mcp_tools, workspace_root, sandbox_manager, context_loader, hook_executor).await {
             Ok(service) => {
                 self.orchestration_service = Some(Arc::new(service));
                 

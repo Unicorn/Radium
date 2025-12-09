@@ -34,9 +34,9 @@ impl AppMode {
     /// Returns keyboard shortcuts for the mode.
     pub fn shortcuts(&self) -> &'static str {
         match self {
-            Self::Prompt => "[Ctrl+P] Privacy | [Ctrl+C] Quit | [?] Help",
+            Self::Prompt => "[Enter] Send | [Shift+Enter] Newline | [Ctrl+C] Quit | [?] Help",
             Self::Workflow => "[↑↓] Navigate | [Enter] Select | [Esc] Close | [Ctrl+C] Cancel",
-            Self::Chat => "[Enter] Send | [↑↓] Scroll | [Esc] Back | [Ctrl+C] Quit",
+            Self::Chat => "[Enter] Send | [Shift+Enter] Newline | [↑↓] Scroll | [Esc] Back | [Ctrl+C] Quit",
             Self::History => "[↑↓] Navigate | [Enter] View | [Esc] Back | [Ctrl+C] Quit",
             Self::Setup => "[Enter] Continue | [Esc] Skip | [Ctrl+C] Quit",
             Self::Requirement => "[Ctrl+S] Checkpoint | [↑↓] Scroll | [Esc] Cancel | [Ctrl+C] Force Quit",
@@ -341,8 +341,8 @@ impl StatusFooter {
     }
 
     /// Renders the status bar with fixed input prompt.
-    /// This is the new universal status bar that always includes the input prompt.
-    /// When in Chat context, the TextArea is rendered in the split-pane view instead.
+    /// This is the universal status bar that always includes the input prompt for consistency.
+    /// Layout: Agent/Session info on top row, Input field on bottom row.
     pub fn render_with_input(
         frame: &mut Frame,
         area: Rect,
@@ -354,34 +354,16 @@ impl StatusFooter {
     ) {
         let theme = crate::theme::get_theme();
         
-        // Check if we're in Chat context - if so, don't render TextArea in status bar
-        let is_chat_context = matches!(context, Some(DisplayContext::Chat { .. }));
-        
-        // Adjust layout constraints based on whether we show the input
-        let chunks = if is_chat_context {
-            // In Chat context: context info, privacy, shortcuts (no input)
-            Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints([
-                    Constraint::Min(15),        // Context info
-                    Constraint::Length(25),    // Privacy indicator
-                    Constraint::Min(30),       // Keyboard shortcuts
-                ])
-                .split(area)
-        } else {
-            // Other contexts: context info, input prompt, privacy, shortcuts
-            Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints([
-                    Constraint::Min(15),        // Context info
-                    Constraint::Fill(1),       // Input prompt (flexible, centered)
-                    Constraint::Length(25),    // Privacy indicator
-                    Constraint::Min(30),       // Keyboard shortcuts
-                ])
-                .split(area)
-        };
+        // Split into two rows: agent info on top, input on bottom
+        let rows = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(1),  // Agent/Session info bar
+                Constraint::Length(3),  // Input row (3 lines for bigger input with border)
+            ])
+            .split(area);
 
-        // Left: Context info with model
+        // Top row: Agent/Session/Model info
         let context_text = if let Some(ctx) = context {
             match ctx {
                 DisplayContext::Chat { agent_id, session_id } => {
@@ -454,48 +436,34 @@ impl StatusFooter {
             .style(Style::default().fg(theme.text_muted))
             .block(
                 Block::default()
-                    .borders(Borders::NONE)
-                    .padding(ratatui::widgets::Padding::new(0, 1, 0, 0)),
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(theme.border))
+                    .style(Style::default().bg(theme.bg_panel)),
             );
-        frame.render_widget(context_widget, chunks[0]);
+        frame.render_widget(context_widget, rows[0]);
 
-        // Center: Input prompt (only if not in Chat context)
-        let input_index = if is_chat_context { 0 } else { 1 };
-        if !is_chat_context {
-            // Render TextArea widget directly (it implements Widget)
-            frame.render_widget(input.clone(), chunks[input_index]);
-        }
+        // Bottom row: Input field (full width, bigger) with shortcuts on the right
+        let input_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Fill(1),       // Input prompt (flexible, takes most space)
+                Constraint::Min(30),       // Keyboard shortcuts
+            ])
+            .split(rows[1]);
 
-        // Privacy indicator
-        let privacy_index = if is_chat_context { 1 } else { 2 };
-        let privacy_text = if let Some(privacy) = privacy_state {
-            if privacy.enabled {
-                if privacy.redaction_count > 0 {
-                    format!("Privacy: ON ({})", privacy.redaction_count)
-                } else {
-                    "Privacy: ON".to_string()
-                }
-            } else {
-                "Privacy: OFF".to_string()
-            }
-        } else {
-            "Privacy: OFF".to_string()
-        };
-        let privacy_color = privacy_state
-            .map(|p| if p.enabled { Color::Green } else { Color::DarkGray })
-            .unwrap_or(Color::DarkGray);
-        let privacy_widget = Paragraph::new(privacy_text)
-            .style(Style::default().fg(privacy_color).add_modifier(Modifier::BOLD))
-            .block(
-                Block::default()
-                    .borders(Borders::NONE)
-                    .padding(ratatui::widgets::Padding::new(0, 1, 0, 1)),
-            );
-        frame.render_widget(privacy_widget, chunks[privacy_index]);
+        // Input prompt (always visible, bigger now)
+        // Add a border around the input to make it more visually distinct
+        let input_block = Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(theme.primary))
+            .title(" Input ");
+        let input_area = input_block.inner(input_chunks[0]);
+        frame.render_widget(input_block, input_chunks[0]);
+        // Render TextArea widget inside the bordered area
+        frame.render_widget(input.clone(), input_area);
 
         // Right: Keyboard shortcuts
         let shortcuts_text = mode.shortcuts();
-        let shortcuts_index = if is_chat_context { 2 } else { 3 };
         let shortcuts_widget = Paragraph::new(shortcuts_text)
             .style(Style::default().fg(theme.text_dim))
             .alignment(Alignment::Right)
@@ -504,7 +472,7 @@ impl StatusFooter {
                     .borders(Borders::NONE)
                     .padding(ratatui::widgets::Padding::new(0, 0, 0, 1)),
             );
-        frame.render_widget(shortcuts_widget, chunks[shortcuts_index]);
+        frame.render_widget(shortcuts_widget, input_chunks[1]);
     }
 }
 

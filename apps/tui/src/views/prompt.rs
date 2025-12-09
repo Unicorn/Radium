@@ -401,17 +401,8 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData, model_fil
             }
         }
         DisplayContext::Chat { .. } => {
-            // Render split-pane layout: chat history (top) and prompt editor (bottom)
-            let chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Min(10),    // Chat history (minimum 10 lines)
-                    Constraint::Length(6),  // Prompt editor (fixed 6 lines)
-                ])
-                .split(area);
-
-            // Top pane: Chat history
-            let viewport_height = chunks[0].height.saturating_sub(2) as usize;
+            // Render only chat history (input is in status footer)
+            let viewport_height = area.height.saturating_sub(2) as usize;
             let visible_conversation = data.get_visible_conversation(viewport_height);
 
             // Parse visible conversation lines as markdown
@@ -429,18 +420,10 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData, model_fil
             // Build chat history title with scroll position indicator
             let total_lines = data.conversation.len();
             let scroll_pos = data.chat_scroll_offset + 1;
-            let chat_title = if data.is_chat_focused() {
-                if total_lines > 0 {
-                    format!("{} Chat History [FOCUSED] ↑{}/{}", Icons::CHAT, scroll_pos, total_lines)
-                } else {
-                    format!("{} Chat History [FOCUSED]", Icons::CHAT)
-                }
+            let chat_title = if total_lines > 0 {
+                format!("{} Chat History ↑{}/{}", Icons::CHAT, scroll_pos, total_lines)
             } else {
-                if total_lines > 0 {
-                    format!("{} Chat History ↑{}/{}", Icons::CHAT, scroll_pos, total_lines)
-                } else {
-                    format!("{} Chat History", Icons::CHAT)
-                }
+                format!("{} Chat History", Icons::CHAT)
             };
 
             // Check if there's more content below
@@ -461,41 +444,14 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData, model_fil
                 .block(
                     Block::default()
                         .borders(Borders::ALL)
-                        .border_style(Style::default().fg(
-                            if data.is_chat_focused() {
-                                THEME.primary()
-                            } else {
-                                THEME.border()
-                            }
-                        ))
+                        .border_style(Style::default().fg(THEME.border()))
                         .title(chat_title)
                 )
                 .style(Style::default().fg(THEME.text()))
                 .scroll((0, 0)); // No scroll needed since we're already culling
-            frame.render_widget(chat_widget, chunks[0]);
-
-            // Bottom pane: Prompt editor
-            let prompt_title = if data.is_prompt_focused() {
-                format!("{} Prompt [FOCUSED]", Icons::EDIT)
-            } else {
-                format!("{} Prompt", Icons::EDIT)
-            };
-
-            let prompt_block = Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(
-                    if data.is_prompt_focused() {
-                        THEME.primary()
-                    } else {
-                        THEME.border()
-                    }
-                ))
-                .title(prompt_title);
-
-            // Render TextArea in the prompt pane
-            let prompt_area = prompt_block.inner(chunks[1]);
-            frame.render_widget(prompt_block, chunks[1]);
-            frame.render_widget(data.input.clone(), prompt_area);
+            frame.render_widget(chat_widget, area);
+            
+            // Note: Input is now always in the status footer for consistency
         }
         DisplayContext::Dashboard => {
             // Render dashboard with centered alignment

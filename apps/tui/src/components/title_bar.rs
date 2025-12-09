@@ -7,6 +7,8 @@ use ratatui::{
     widgets::Paragraph,
 };
 
+use crate::state::PrivacyState;
+
 /// Renders the title bar with branding and status information
 pub fn render_title_bar(
     frame: &mut Frame,
@@ -15,6 +17,7 @@ pub fn render_title_bar(
     _model_info: Option<&str>,
     orchestration_status: Option<&str>,
     connected_services: &[String],
+    privacy_state: Option<&PrivacyState>,
 ) {
     let theme = crate::theme::get_theme();
     
@@ -89,6 +92,29 @@ pub fn render_title_bar(
         right_parts.push(Span::styled(
             services_text,
             Style::default().fg(theme.text),
+        ));
+    }
+
+    // Privacy indicator with pipe separator
+    if let Some(privacy) = privacy_state {
+        // Add pipe separator if there's any content before
+        if !right_parts.is_empty() {
+            right_parts.push(Span::styled(" | ", Style::default().fg(divider_color)));
+        }
+        
+        let privacy_text = if privacy.enabled {
+            if privacy.redaction_count > 0 {
+                format!("Privacy: ON ({})", privacy.redaction_count)
+            } else {
+                "Privacy: ON".to_string()
+            }
+        } else {
+            "Privacy: OFF".to_string()
+        };
+        let privacy_color = if privacy.enabled { theme.success } else { Color::DarkGray };
+        right_parts.push(Span::styled(
+            privacy_text,
+            Style::default().fg(privacy_color).add_modifier(Modifier::BOLD),
         ));
     }
 

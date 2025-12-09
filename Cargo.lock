@@ -2922,6 +2922,7 @@ name = "radium-tui"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "chrono",
  "clap",
  "crossterm 0.28.1",
