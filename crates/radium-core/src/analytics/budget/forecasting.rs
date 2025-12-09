@@ -221,7 +221,7 @@ impl BudgetForecaster {
         let mut stmt = conn.prepare(
             "SELECT SUM(estimated_cost) FROM telemetry"
         )?;
-        let total_spent: f64 = stmt.query_row([], |row| row.get::<_, f64>(0))?.unwrap_or(0.0);
+        let total_spent: f64 = stmt.query_row([], |row| row.get::<_, Option<f64>>(0))?.unwrap_or(0.0);
         
         // For confidence interval, we need remaining budget
         // We'll estimate it from the mean velocity and days remaining

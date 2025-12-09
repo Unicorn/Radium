@@ -4,7 +4,7 @@
 //! agent for executing a task based on task description keywords and explicit agent type hints.
 
 use crate::context::braingrid_client::BraingridTask;
-use crate::agents::registry::AgentRegistry;
+use radium_orchestrator::AgentRegistry;
 use std::sync::Arc;
 
 /// Errors that can occur during agent selection.

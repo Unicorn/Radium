@@ -141,7 +141,7 @@ impl RoutingConfig {
             let home_config = PathBuf::from(home).join(".radium/config.toml");
             if home_config.exists() {
                 if let Ok(config) = Self::load_from_file(&home_config) {
-                    return config;
+                    return Ok(config);
                 }
             }
         }
