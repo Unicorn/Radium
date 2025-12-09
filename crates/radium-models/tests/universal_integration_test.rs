@@ -35,7 +35,7 @@
 //! export LMSTUDIO_MODEL_ID=llama-2-7b
 //! ```
 
-use radium_abstraction::ChatMessage;
+use radium_abstraction::{ChatMessage, Model};
 use radium_models::UniversalModel;
 use std::env;
 
