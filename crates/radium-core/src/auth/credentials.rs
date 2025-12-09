@@ -19,7 +19,7 @@ struct CredentialsFile {
     /// Version of the credentials file format.
     version: String,
     /// Map of provider name to provider credentials.
-    providers: HashMap<String, Provider>,
+    pub providers: HashMap<String, Provider>,
 }
 
 /// Manages credential storage and retrieval.
