@@ -862,6 +862,26 @@ impl CheckpointManager {
 
         Ok(total_size)
     }
+
+    /// Evaluates and applies the checkpoint cleanup policy.
+    ///
+    /// # Arguments
+    /// * `policy` - The cleanup policy to apply
+    ///
+    /// # Returns
+    /// Number of checkpoints deleted
+    ///
+    /// # Errors
+    /// Returns error if cleanup operations fail
+    pub fn evaluate_cleanup_policy(&self, _policy: &CheckpointPolicy) -> Result<usize> {
+        // TODO: Implement cleanup policy evaluation
+        // This should:
+        // 1. List all checkpoints
+        // 2. Filter by age if policy.age_days is set
+        // 3. Calculate total size and delete oldest if exceeding policy.max_size_gb
+        // 4. Ensure at least policy.min_keep checkpoints remain
+        Ok(0)
+    }
 }
 
 #[cfg(test)]
