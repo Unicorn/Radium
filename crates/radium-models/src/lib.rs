@@ -6,6 +6,7 @@ pub mod claude;
 pub mod factory;
 pub mod gemini;
 pub mod openai;
+pub mod universal;
 
 use async_trait::async_trait;
 use radium_abstraction::{
@@ -17,6 +18,7 @@ pub use claude::ClaudeModel;
 pub use factory::{ModelConfig, ModelFactory, ModelType};
 pub use gemini::GeminiModel;
 pub use openai::OpenAIModel;
+pub use universal::UniversalModel;
 
 /// A mock implementation of the `Model` trait for testing and demonstration.
 #[derive(Debug, Default)]
