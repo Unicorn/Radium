@@ -111,7 +111,7 @@ impl ProxyServer {
         let catalog = Arc::clone(&self.catalog);
         let security = Arc::clone(&self.security);
         let connection_tasks = Arc::clone(&self.connection_tasks);
-        let listener_addr = listener.local_addr().unwrap();
+        let _listener_addr = listener.local_addr().unwrap();
 
         // Spawn accept loop
         let accept_handle = tokio::spawn(async move {
@@ -150,8 +150,7 @@ impl ProxyServer {
             }
         });
 
-        self.listener = Some(listener);
-        
+        // Note: listener is moved into the async block above
         // Store accept handle for cleanup
         let mut tasks = self.connection_tasks.lock().await;
         tasks.push(accept_handle);
@@ -295,18 +294,30 @@ impl ProxyServer {
             }
             "tools/call" => {
                 let params = request.params.as_ref().and_then(|p| p.as_object());
-                let tool_name = params
+                let tool_name = match params
                     .and_then(|p| p.get("name"))
                     .and_then(|n| n.as_str())
-                    .ok_or_else(|| {
-                        McpError::protocol(
-                            "Missing 'name' parameter in tools/call",
-                            "The tools/call request must include a 'name' parameter specifying the tool to execute.",
-                        )
-                    })?;
+                {
+                    Some(name) => name,
+                    None => {
+                        return JsonRpcResponse {
+                            jsonrpc: "2.0".to_string(),
+                            result: None,
+                            error: Some(JsonRpcError {
+                                code: -32602,
+                                message: "Missing 'name' parameter in tools/call".to_string(),
+                                data: Some(json!({
+                                    "hint": "The tools/call request must include a 'name' parameter specifying the tool to execute."
+                                })),
+                            }),
+                            id: request_id,
+                        };
+                    }
+                };
+                let default_args = json!({});
                 let arguments = params
                     .and_then(|p| p.get("arguments"))
-                    .unwrap_or(&json!({}));
+                    .unwrap_or(&default_args);
 
                 // Check security
                 match security.check_request(tool_name, arguments, agent_id).await {

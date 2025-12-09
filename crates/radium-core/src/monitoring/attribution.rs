@@ -34,8 +34,7 @@ impl AttributionMetadata {
 
         // Try to load Provider metadata from CredentialStore
         let store = CredentialStore::new().ok()?;
-        let creds = store.load().ok()?;
-        let provider = creds.providers.get(provider_type.as_str())?;
+        let provider = store.get_provider(provider_type).ok()??;
 
         Some(Self {
             api_key_id,

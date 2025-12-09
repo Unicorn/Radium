@@ -258,6 +258,27 @@ impl CredentialStore {
         Ok(creds.providers.values().filter(|p| p.enabled).map(|p| p.kind).collect())
     }
 
+    /// Gets provider metadata for cost attribution.
+    ///
+    /// # Arguments
+    ///
+    /// * `provider_type` - The provider to get metadata for
+    ///
+    /// # Returns
+    ///
+    /// The provider information including metadata (team_name, project_name, cost_center)
+    /// if found and enabled, None otherwise.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if file operations fail.
+    pub fn get_provider(&self, provider_type: ProviderType) -> AuthResult<Option<Provider>> {
+        let creds = self.load()?;
+        Ok(creds.providers.get(provider_type.as_str())
+            .filter(|p| p.enabled)
+            .cloned())
+    }
+
     /// Checks if a provider is configured.
     ///
     /// Checks both the credentials file and environment variables.

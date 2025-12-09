@@ -16,8 +16,6 @@ pub struct PolicyReloader {
     engine: Arc<RwLock<PolicyEngine>>,
     /// File system watcher.
     watcher: RecommendedWatcher,
-    /// Current rules snapshot for rollback.
-    rollback_snapshot: Option<PolicyEngine>,
 }
 
 impl PolicyReloader {
@@ -49,7 +47,6 @@ impl PolicyReloader {
             policy_file,
             engine,
             watcher,
-            rollback_snapshot: None,
         })
     }
 
@@ -94,43 +91,23 @@ impl PolicyReloader {
     async fn reload_policy(engine: &Arc<RwLock<PolicyEngine>>, policy_file: &Path) -> PolicyResult<()> {
         info!(policy_file = %policy_file.display(), "Policy file changed, reloading...");
 
-        // Save current state for rollback
-        let current_engine = engine.read().await;
-        let rollback_snapshot = PolicyEngine {
-            approval_mode: current_engine.approval_mode(),
-            rules: current_engine.rules().to_vec(),
-            hook_registry: None, // Don't copy hook registry
-            alert_manager: None, // Don't copy alert manager
-            analytics: None, // Don't copy analytics
-        };
-        drop(current_engine);
-
         // Try to load new policy
         match PolicyEngine::from_file(policy_file) {
-            Ok(mut new_engine) => {
+            Ok(new_engine) => {
                 // Validate the new engine
                 if let Err(e) = Self::validate_policy(&new_engine) {
                     error!(
                         error = %e,
-                        "Policy validation failed, rolling back to previous rules"
+                        "Policy validation failed, keeping previous rules"
                     );
-                    // Rollback
-                    let mut engine_write = engine.write().await;
-                    *engine_write = rollback_snapshot;
                     return Err(e);
                 }
 
-                // Preserve hook registry, alert manager, and analytics from current engine
-                let current_engine = engine.read().await;
-                // Note: We can't easily preserve these without making PolicyEngine Clone,
-                // so for now we'll just update the rules and approval mode
-                drop(current_engine);
-
-                // Apply new rules atomically
+                // Apply new rules atomically using update_from
+                // This preserves hook_registry, alert_manager, and analytics
                 {
                     let mut engine_write = engine.write().await;
                     engine_write.update_from(new_engine);
-                    // Note: hook_registry, alert_manager, analytics are preserved
                 }
 
                 let rule_count = engine.read().await.rules().len();
@@ -144,11 +121,8 @@ impl PolicyReloader {
                 let error_msg = format!("{}", e);
                 error!(
                     error = %error_msg,
-                    "Failed to parse policy file, rolling back to previous rules"
+                    "Failed to parse policy file, keeping previous rules"
                 );
-                // Rollback
-                let mut engine_write = engine.write().await;
-                *engine_write = rollback_snapshot;
                 Err(e)
             }
         }
