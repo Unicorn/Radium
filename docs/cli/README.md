@@ -42,12 +42,17 @@ rad complete spec.md
 
 - **[Workspace Management](commands/workspace.md)** - Initialize, status, clean, doctor
 - **[Plan Execution](commands/plan-execution.md)** - Plan generation and execution
-- **[Agent Management](commands/agents.md)** - List, search, validate agents
+- **[Agent Management](commands/agents.md)** - List, search, validate agents (includes self-hosted model configuration)
 - **[Execution Commands](commands/execution.md)** - Step, run, chat
 - **[MCP Integration](commands/mcp.md)** - Model Context Protocol management
 - **[Extensions](commands/extensions.md)** - Extension package management
 - **[Monitoring](commands/monitoring.md)** - Agent monitoring and analytics
 - **[Advanced Features](commands/advanced.md)** - Autonomous execution, checkpoints
+
+## Related Documentation
+
+- **[Self-Hosted Models](../self-hosted-models/README.md)** - Setup guides for Ollama, vLLM, and LocalAI
+- **[Agent Configuration Guide](../user-guide/agent-configuration.md)** - Complete agent configuration reference
 
 ## Common Workflows
 

@@ -135,6 +135,20 @@ Define the agent's role and responsibilities here.
 Provide step-by-step instructions for the agent.
 ```
 
+### Self-Hosted Models
+
+Radium supports self-hosted AI models (Ollama, vLLM, LocalAI) for cost savings, data privacy, and air-gapped environments. See the [Self-Hosted Models Documentation](docs/self-hosted-models/README.md) for setup guides, configuration examples, and troubleshooting.
+
+**Quick Start:**
+```bash
+# Install Ollama
+curl -fsSL https://ollama.com/install.sh | sh
+ollama pull llama3.2
+
+# Configure agent to use local model
+export UNIVERSAL_BASE_URL="http://localhost:11434/v1"
+```
+
 ### CLI Commands
 
 ```bash
@@ -157,6 +171,7 @@ rad agents create my-agent "My Agent" --category core
 ### Documentation
 
 - [User Guide: Agent Configuration](docs/user-guide/agent-configuration.md) - Complete guide for configuring agents
+- [Self-Hosted Models](docs/self-hosted-models/README.md) - Setup and configuration for Ollama, vLLM, and LocalAI
 - [User Guide: Persona System](docs/user-guide/persona-system.md) - Intelligent model selection and cost optimization
 - [Developer Guide: Agent System Architecture](docs/developer-guide/agent-system-architecture.md) - Technical architecture details
 - [Examples](examples/agents/) - Example agent configurations

@@ -99,6 +99,23 @@ rad doctor [--json]
 
 - `--json` - Output as JSON
 
+### Self-Hosted Model Connectivity
+
+The `rad doctor` command can help verify connectivity to self-hosted model servers. For manual verification:
+
+```bash
+# Ollama
+curl http://localhost:11434/api/tags
+
+# vLLM
+curl http://localhost:8000/v1/models
+
+# LocalAI
+curl http://localhost:8080/v1/models
+```
+
+See the [Self-Hosted Models Troubleshooting Guide](../../self-hosted-models/troubleshooting.md) for detailed diagnostic procedures.
+
 ### Examples
 
 ```bash
