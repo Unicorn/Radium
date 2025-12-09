@@ -1,0 +1,17 @@
+[agent]
+id = "vllm-agent"
+name = "vLLM Agent"
+description = "Example agent using vLLM for high-performance inference"
+prompt_path = "prompts/agents/examples/vllm-agent.md"
+engine = "universal"
+model = "meta-llama/Llama-3-8B-Instruct"
+reasoning_effort = "high"
+
+[agent.persona.models]
+primary = "meta-llama/Llama-3-8B-Instruct"
+fallback = "meta-llama/Llama-3-70B-Instruct"
+
+[agent.persona.performance]
+profile = "thinking"
+estimated_tokens = 4000
+

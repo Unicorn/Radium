@@ -1,0 +1,17 @@
+[agent]
+id = "localai-agent"
+name = "LocalAI Agent"
+description = "Example agent using LocalAI for flexible inference"
+prompt_path = "prompts/agents/examples/localai-agent.md"
+engine = "universal"
+model = "gpt-3.5-turbo"
+reasoning_effort = "medium"
+
+[agent.persona.models]
+primary = "gpt-3.5-turbo"
+fallback = "gpt-4"
+
+[agent.persona.performance]
+profile = "balanced"
+estimated_tokens = 2000
+

@@ -1,0 +1,17 @@
+[agent]
+id = "ollama-agent"
+name = "Ollama Agent"
+description = "Example agent using Ollama for local inference"
+prompt_path = "prompts/agents/examples/ollama-agent.md"
+engine = "universal"
+model = "llama3.2"
+reasoning_effort = "medium"
+
+[agent.persona.models]
+primary = "llama3.2"
+fallback = "llama3.2:13b"
+
+[agent.persona.performance]
+profile = "balanced"
+estimated_tokens = 2000
+
