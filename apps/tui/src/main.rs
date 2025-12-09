@@ -151,6 +151,41 @@ async fn main() -> Result<()> {
         // Poll task list and orchestrator logs will be called from orchestrator view rendering
         // The polling methods check elapsed time internally to avoid excessive calls
 
+        // Poll for streaming tokens (non-blocking)
+        if let Some(stream_ctx) = &mut app.streaming_context {
+            use crate::state::StreamingState;
+            
+            // Update state to Streaming if it was Connecting
+            if stream_ctx.state == StreamingState::Connecting {
+                stream_ctx.state = StreamingState::Streaming;
+            }
+            
+            // Poll for tokens
+            while let Ok(token) = stream_ctx.token_receiver.try_recv() {
+                // Add token to buffer
+                stream_ctx.add_token(token);
+                
+                // Flush buffer if it reaches 5-10 tokens
+                if stream_ctx.should_flush() {
+                    let flushed = stream_ctx.flush_buffer();
+                    if !flushed.is_empty() {
+                        app.prompt_data.add_output(flushed);
+                    }
+                }
+            }
+            
+            // Check if stream ended (receiver disconnected)
+            if stream_ctx.token_receiver.is_closed() && stream_ctx.state == StreamingState::Streaming {
+                // Flush any remaining tokens
+                let remaining = stream_ctx.flush_buffer();
+                if !remaining.is_empty() {
+                    app.prompt_data.add_output(remaining);
+                }
+                // Mark as completed
+                stream_ctx.state = StreamingState::Completed;
+            }
+        }
+
         // Poll for requirement progress updates (non-blocking) - new ProgressMessage system
         if let Some(active_req_progress) = &mut app.active_requirement_progress {
             match active_req_progress.progress_rx.try_recv() {

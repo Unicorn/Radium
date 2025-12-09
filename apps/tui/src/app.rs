@@ -198,6 +198,8 @@ pub struct App {
     pub privacy_state: PrivacyState,
     /// Last executed operation for CTRL+R retry functionality
     pub last_executed_operation: Option<LastOperation>,
+    /// Streaming context for real-time token display
+    pub streaming_context: Option<crate::state::StreamingContext>,
     /// Cancellation state for visual feedback
     pub cancellation_state: Option<CancellationState>,
 }
@@ -375,6 +377,7 @@ impl App {
             privacy_state: PrivacyState::default(),
             last_executed_operation: None,
             cancellation_state: None,
+            streaming_context: None,
         };
 
         // Check for resumable executions on startup
@@ -1935,17 +1938,25 @@ impl App {
         match crate::chat_executor::execute_chat_message(&agent_id, &message, &session_id).await {
             Ok(result) => {
                 if result.success {
-                    let response = result.response.clone();
-                    let max_history = self.config.performance.max_conversation_history;
-                    self.prompt_data.add_conversation_message(format!("Agent: {}", response), max_history);
+                    // Check if streaming is being used
+                    if let Some(stream_ctx) = result.streaming_context {
+                        // Set streaming context - tokens will be added as they arrive
+                        self.streaming_context = Some(stream_ctx);
+                        // Don't add response immediately - it will be streamed
+                    } else {
+                        // Non-streaming: add response immediately
+                        let response = result.response.clone();
+                        let max_history = self.config.performance.max_conversation_history;
+                        self.prompt_data.add_conversation_message(format!("Agent: {}", response), max_history);
 
-                    // Save agent response to session
-                    let workspace_root_clone =
-                        self.workspace_status.as_ref().and_then(|s| s.root.clone());
-                    if let Ok(session_manager) =
-                        crate::session_manager::SessionManager::new(workspace_root_clone)
-                    {
-                        let _ = session_manager.update_session(&session_id, &agent_id, &response, self.current_model_id.clone());
+                        // Save agent response to session
+                        let workspace_root_clone =
+                            self.workspace_status.as_ref().and_then(|s| s.root.clone());
+                        if let Ok(session_manager) =
+                            crate::session_manager::SessionManager::new(workspace_root_clone)
+                        {
+                            let _ = session_manager.update_session(&session_id, &agent_id, &response, self.current_model_id.clone());
+                        }
                     }
                 } else {
                     let error_msg = result.error.unwrap_or_else(|| "Unknown error".to_string());

@@ -26,41 +26,66 @@ pub struct ChatExecutionResult {
     pub streaming_context: Option<StreamingContext>,
 }
 
-/// Attempts to execute using streaming if the model supports it.
+/// Attempts to execute using streaming for Ollama models.
 /// Returns (response, streaming_context) if streaming succeeds, or error if it fails.
 async fn try_streaming_execution(
-    model: &dyn radium_abstraction::Model,
+    model_id: &str,
     prompt: &str,
 ) -> Result<(String, StreamingContext), ModelError> {
-    // Try to use the model as a StreamingModel
-    // We'll use a type check - if it's OllamaModel, we know it implements StreamingModel
-    // For now, we'll use a helper that attempts streaming
+    use radium_models::OllamaModel;
+    
+    // Create OllamaModel directly for streaming
+    let ollama_model = OllamaModel::new(model_id.to_string())?;
     
     // Create channels for token communication
     let (token_tx, token_rx) = tokio::sync::mpsc::channel(100);
     let (cancel_tx, cancel_rx) = tokio::sync::oneshot::channel();
     
-    // Try to get the model as a StreamingModel
-    // Since we can't easily check trait bounds, we'll use a workaround:
-    // Cast to Any and check type, or use engine-specific logic
-    // For now, let's use a simpler approach: check if we can call generate_stream
-    
-    // Actually, the best approach is to use a helper that knows which models support streaming
-    // For now, we'll assume if we get here, the model supports streaming (checked by caller)
-    
     // Spawn task to consume stream
     let prompt_clone = prompt.to_string();
     let mut accumulated_response = String::new();
+    let token_tx_clone = token_tx.clone();
     
-    // We need to get the model as StreamingModel - this is tricky with trait objects
-    // Let's use a different approach: check the model type before calling this function
-    // For now, we'll return an error and let the caller fall back
+    // Start streaming
+    let mut stream = ollama_model.generate_stream(&prompt_clone, None).await?;
     
-    // Since we can't easily check if model implements StreamingModel from a trait object,
-    // we'll need to handle this at the call site by checking engine type
-    // This function will be called only when we know the model supports streaming
+    // Spawn task to consume the stream
+    tokio::spawn(async move {
+        loop {
+            tokio::select! {
+                // Check for cancellation
+                _ = cancel_rx => {
+                    // Cancellation requested
+                    break;
+                }
+                // Get next token from stream
+                token_result = stream.next() => {
+                    match token_result {
+                        Some(Ok(token)) => {
+                            accumulated_response.push_str(&token);
+                            // Send token to channel (ignore errors if receiver is dropped)
+                            let _ = token_tx_clone.send(token).await;
+                        }
+                        Some(Err(e)) => {
+                            // Stream error - send error token and break
+                            let _ = token_tx_clone.send(format!("\n[Stream error: {}]", e)).await;
+                            break;
+                        }
+                        None => {
+                            // Stream ended
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    });
     
-    Err(ModelError::RequestError("Streaming not yet implemented for this model type".to_string()))
+    // Create streaming context
+    let stream_ctx = StreamingContext::new(token_rx, Some(cancel_tx));
+    
+    // Return accumulated response (will be empty initially, filled as stream progresses)
+    Ok((accumulated_response, stream_ctx))
 }
 
 /// Execute a chat message with an agent.
