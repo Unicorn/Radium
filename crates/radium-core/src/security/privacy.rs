@@ -167,11 +167,16 @@ impl PrivacyFilter {
                 for (pattern_type, count) in &stats.patterns {
                     let entry = super::audit::AuditEntry {
                         timestamp: Utc::now().to_rfc3339(),
+                        operation: super::audit::AuditOperation::Get, // Privacy redaction treated as Get
+                        secret_name: pattern_type.clone(), // Pattern type as the "secret name"
+                        success: true,
+                        error_message: None,
+                        session_id: None,
                         agent_id: agent_id.map(String::from),
-                        pattern_type: pattern_type.clone(),
-                        redaction_count: *count,
-                        context: context.to_string(),
-                        mode: format!("{:?}", self.style).to_lowercase(),
+                        pattern_type: Some(pattern_type.clone()),
+                        redaction_count: Some(*count),
+                        context: Some(context.to_string()),
+                        mode: Some(format!("{:?}", self.style).to_lowercase()),
                     };
                     if let Err(e) = logger.log(entry) {
                         // Log error but don't fail redaction

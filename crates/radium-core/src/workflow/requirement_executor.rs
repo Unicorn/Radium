@@ -107,6 +107,8 @@ impl RequirementExecutor {
             enable_reassignment: true,
             enable_learning: true,
             checkpoint_frequency: crate::autonomous::orchestrator::CheckpointFrequency::EveryStep,
+            max_concurrent_per_agent: 10,
+            dispatcher_poll_interval_ms: 100,
         };
 
         let orchestrator = AutonomousOrchestrator::new(

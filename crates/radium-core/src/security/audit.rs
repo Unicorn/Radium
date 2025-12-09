@@ -51,6 +51,21 @@ pub struct AuditEntry {
     /// Session ID (optional).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
+    /// Agent ID for privacy auditing (optional).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_id: Option<String>,
+    /// Pattern type for redaction auditing (optional).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pattern_type: Option<String>,
+    /// Number of redactions for auditing (optional).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub redaction_count: Option<usize>,
+    /// Context for the operation (optional).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context: Option<String>,
+    /// Mode for privacy operations (optional).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<String>,
 }
 
 /// Filter for querying audit log entries.
@@ -150,6 +165,11 @@ impl AuditLogger {
             success,
             error_message: error_message.map(|s| s.to_string()),
             session_id: None, // Could be added later if session tracking is needed
+            agent_id: None,
+            pattern_type: None,
+            redaction_count: None,
+            context: None,
+            mode: None,
         };
 
         // Serialize to JSON
