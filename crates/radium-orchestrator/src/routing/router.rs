@@ -331,6 +331,97 @@ impl ModelRouter {
         }
     }
     
+    /// Selects tier based on cost optimization strategy.
+    fn select_by_cost_optimized(&self, complexity_score: f64) -> RoutingTier {
+        let registry = self.model_registry.read().unwrap();
+        
+        // Get metadata for smart and eco models
+        let smart_metadata = registry.get(&self.smart_model.model_id);
+        let eco_metadata = registry.get(&self.eco_model.model_id);
+        
+        // If complexity requires smart tier, use smart
+        if complexity_score >= self.threshold {
+            return RoutingTier::Smart;
+        }
+        
+        // Otherwise, compare costs
+        if let (Some(smart), Some(eco)) = (smart_metadata, eco_metadata) {
+            // Compare total cost (input + output, using average ratio)
+            // Use input cost as proxy (most models have similar input/output ratios)
+            if smart.cost_per_1m_input < eco.cost_per_1m_input {
+                RoutingTier::Smart
+            } else {
+                RoutingTier::Eco
+            }
+        } else {
+            // Fallback to complexity-based if metadata not available
+            if complexity_score >= self.threshold {
+                RoutingTier::Smart
+            } else {
+                RoutingTier::Eco
+            }
+        }
+    }
+    
+    /// Selects tier based on latency optimization strategy.
+    fn select_by_latency_optimized(&self, complexity_score: f64) -> RoutingTier {
+        let registry = self.model_registry.read().unwrap();
+        
+        // Get metadata for smart and eco models
+        let smart_metadata = registry.get(&self.smart_model.model_id);
+        let eco_metadata = registry.get(&self.eco_model.model_id);
+        
+        // If complexity requires smart tier, use smart
+        if complexity_score >= self.threshold {
+            return RoutingTier::Smart;
+        }
+        
+        // Otherwise, compare latencies
+        if let (Some(smart), Some(eco)) = (smart_metadata, eco_metadata) {
+            if smart.avg_latency_ms < eco.avg_latency_ms {
+                RoutingTier::Smart
+            } else {
+                RoutingTier::Eco
+            }
+        } else {
+            // Fallback to complexity-based if metadata not available
+            if complexity_score >= self.threshold {
+                RoutingTier::Smart
+            } else {
+                RoutingTier::Eco
+            }
+        }
+    }
+    
+    /// Selects tier based on quality optimization strategy.
+    fn select_by_quality_optimized(&self, complexity_score: f64) -> RoutingTier {
+        let registry = self.model_registry.read().unwrap();
+        
+        // Get metadata for smart and eco models
+        let smart_metadata = registry.get(&self.smart_model.model_id);
+        let eco_metadata = registry.get(&self.eco_model.model_id);
+        
+        // Always prefer higher quality, but respect complexity threshold
+        if let (Some(smart), Some(eco)) = (smart_metadata, eco_metadata) {
+            // If complexity is high, use smart (higher quality)
+            if complexity_score >= self.threshold {
+                RoutingTier::Smart
+            } else if smart.quality_tier > eco.quality_tier {
+                // Even for low complexity, prefer higher quality if available
+                RoutingTier::Smart
+            } else {
+                RoutingTier::Eco
+            }
+        } else {
+            // Fallback to complexity-based if metadata not available
+            if complexity_score >= self.threshold {
+                RoutingTier::Smart
+            } else {
+                RoutingTier::Eco
+            }
+        }
+    }
+    
     /// Creates a new model router from model specification strings.
     ///
     /// Parses model specifications in "engine:model" format and creates
