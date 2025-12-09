@@ -17,6 +17,7 @@ impl ThemeAdapter {
             r: 0,
             g: 0,
             b: 0,
+            a: 255,
         })
     }
 
@@ -26,6 +27,7 @@ impl ThemeAdapter {
             r: 255,
             g: 255,
             b: 255,
+            a: 255,
         })
     }
 
@@ -36,7 +38,7 @@ impl ThemeAdapter {
 
     /// Convert RGB tuple to syntect Color.
     pub fn rgb_to_color(r: u8, g: u8, b: u8) -> Color {
-        Color { r, g, b }
+        Color { r, g, b, a: 255 }
     }
 
     /// Load a default syntect theme by name.
@@ -58,7 +60,7 @@ mod tests {
 
     #[test]
     fn test_color_conversion() {
-        let color = Color { r: 100, g: 150, b: 200 };
+        let color = Color { r: 100, g: 150, b: 200, a: 255 };
         let rgb = ThemeAdapter::color_to_rgb(color);
         assert_eq!(rgb, (100, 150, 200));
 
@@ -66,6 +68,7 @@ mod tests {
         assert_eq!(converted.r, 100);
         assert_eq!(converted.g, 150);
         assert_eq!(converted.b, 200);
+        assert_eq!(converted.a, 255);
     }
 
     #[test]

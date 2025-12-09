@@ -110,7 +110,7 @@ impl ParallelExecutor {
         );
 
         // Track completed tasks for dependency checking
-        let mut completed_task_ids = HashSet::new();
+        let mut completed_task_ids: HashSet<String> = HashSet::new();
 
         // Continuously execute ready tasks in batches until all are done
         loop {
@@ -130,7 +130,7 @@ impl ParallelExecutor {
             }
 
             // Filter to tasks that aren't already completed/failed and aren't blocked
-            let mut batch_task_ids = Vec::new();
+            let mut batch_task_ids: Vec<String> = Vec::new();
             for task_id in ready_task_ids {
                 // Check if task is already completed or failed
                 if execution_state.is_completed(&task_id) || execution_state.is_failed(&task_id) {
@@ -163,7 +163,7 @@ impl ParallelExecutor {
             }
 
             // Execute batch of tasks in parallel
-            let mut batch_handles = Vec::new();
+            let mut batch_handles: Vec<tokio::task::JoinHandle<Result<String, String>>> = Vec::new();
             for task_id in batch_task_ids {
                 let task = task_map
                     .get(&task_id)
