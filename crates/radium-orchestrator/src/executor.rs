@@ -913,7 +913,84 @@ impl AgentExecutor {
         // Use model router if available, otherwise use default model
         let (model, routing_decision) = if let Some(ref router) = self.model_router {
             // Route model based on complexity or override
-            // Use provided strategy or default (complexity-based) for backward compatibility
+            // Use default strategy (complexity-based) for backward compatibility
+            let (model_config, decision) = router.select_model(
+                input,
+                Some(agent.id()),
+                self.tier_override,
+            );
+            
+            // Create model from routed config
+            let model = ModelFactory::create(ModelConfig::new(
+                model_config.model_type.clone(),
+                model_config.model_id.clone(),
+            ))?;
+            
+            (model, Some(decision))
+        } else {
+            // Fallback to default model
+            let model = ModelFactory::create_from_str(
+                match &self.default_model_type {
+                    ModelType::Mock => "mock",
+                    ModelType::Claude => "claude",
+                    ModelType::Gemini => "gemini",
+                    ModelType::OpenAI => "openai",
+                },
+                self.default_model_id.clone(),
+            )?;
+            (model, None)
+        };
+
+        // Execute agent
+        let mut result = self.execute_agent(agent.clone(), input, model.clone(), hook_executor).await;
+
+        // Track usage if router is available and execution succeeded
+        if let Some(ref router) = self.model_router {
+            if let Some(ref routing_decision) = routing_decision {
+                if let Some(ref telemetry) = result.telemetry {
+                    // Extract model usage from telemetry
+                    let usage = radium_abstraction::ModelUsage {
+                        prompt_tokens: telemetry.input_tokens as u32,
+                        completion_tokens: telemetry.output_tokens as u32,
+                        total_tokens: telemetry.total_tokens as u32,
+                    };
+                    
+                    // Track usage (non-blocking)
+                    router.track_usage(
+                        routing_decision.tier,
+                        &usage,
+                        &model.model_id(),
+                    );
+                }
+                
+                // Store routing decision in result for telemetry recording
+                result.routing_decision = Some(routing_decision.clone());
+            }
+        }
+
+        Ok(result)
+    }
+    
+    /// Executes an agent with a specific routing strategy.
+    ///
+    /// # Arguments
+    /// * `agent` - The agent to execute
+    /// * `input` - The input for the agent
+    /// * `hook_executor` - Optional hook executor for execution interception
+    /// * `routing_strategy` - Optional routing strategy (uses router default if not provided)
+    ///
+    /// # Errors
+    /// Returns `ModelError` if model creation fails.
+    pub async fn execute_agent_with_routing_strategy(
+        &self,
+        agent: Arc<dyn Agent + Send + Sync>,
+        input: &str,
+        hook_executor: Option<&Arc<dyn HookExecutor>>,
+        routing_strategy: Option<RoutingStrategy>,
+    ) -> Result<ExecutionResult, ModelError> {
+        // Use model router if available, otherwise use default model
+        let (model, routing_decision) = if let Some(ref router) = self.model_router {
+            // Route model based on complexity or override with specified strategy
             let strategy = routing_strategy.unwrap_or(radium_orchestrator::routing::RoutingStrategy::ComplexityBased);
             let (model_config, decision) = router.select_model_with_strategy(
                 input,

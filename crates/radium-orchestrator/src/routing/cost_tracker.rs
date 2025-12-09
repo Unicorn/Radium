@@ -189,6 +189,54 @@ impl CostTracker {
         debug!("Reset cost tracking metrics");
         Ok(())
     }
+    
+    /// Gets metrics for a specific model.
+    ///
+    /// # Arguments
+    /// * `model_id` - Model identifier
+    ///
+    /// # Returns
+    /// ModelMetrics if available, None if model not found
+    ///
+    /// # Note
+    /// This is a placeholder implementation. Full per-model metrics tracking
+    /// would require storing per-model data, not just per-tier data.
+    pub fn get_model_metrics(&self, _model_id: &str) -> Option<ModelMetrics> {
+        // TODO: Implement full per-model tracking when needed
+        // For now, return None as this requires additional data structures
+        None
+    }
+}
+
+/// Metrics for a specific model.
+#[derive(Debug, Clone)]
+pub struct ModelMetrics {
+    /// Model identifier.
+    pub model_id: String,
+    /// Success rate (0.0-1.0).
+    pub success_rate: f64,
+    /// Average latency in milliseconds.
+    pub avg_latency_ms: u64,
+    /// Average cost per request in USD.
+    pub avg_cost: f64,
+    /// Total number of requests.
+    pub request_count: u64,
+    /// Total number of failures.
+    pub failure_count: u64,
+}
+
+impl ModelMetrics {
+    /// Creates new model metrics.
+    pub fn new(model_id: String) -> Self {
+        Self {
+            model_id,
+            success_rate: 1.0,
+            avg_latency_ms: 0,
+            avg_cost: 0.0,
+            request_count: 0,
+            failure_count: 0,
+        }
+    }
 }
 
 impl Default for CostTracker {

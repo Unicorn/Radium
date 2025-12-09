@@ -623,8 +623,21 @@ impl ModelRouter {
             complexity_score = complexity.score,
             threshold = self.threshold,
             selected_tier = ?tier,
+            strategy = ?strategy,
             ab_test_group = ?ab_test_group,
-            "Auto-routing based on complexity"
+            "Routing decision made"
+        );
+        
+        // Log routing decision for metrics
+        info!(
+            tier = ?tier,
+            strategy = ?strategy,
+            complexity_score = complexity.score,
+            decision_type = ?DecisionType::Auto,
+            "Routing decision: {} tier selected with {} strategy (complexity: {:.2})",
+            tier,
+            strategy.to_string(),
+            complexity.score
         );
 
         let model = match tier {
