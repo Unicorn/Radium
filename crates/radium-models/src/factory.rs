@@ -351,7 +351,9 @@ mod tests {
         let config = ModelConfig::new(ModelType::Universal, "test-model".to_string());
         let result = ModelFactory::create(config);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("base_url is required"));
+        if let Err(e) = result {
+            assert!(e.to_string().contains("base_url is required"));
+        }
     }
 
     #[test]

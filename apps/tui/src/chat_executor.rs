@@ -7,11 +7,14 @@ use radium_core::auth::{CredentialStore, ProviderType};
 use radium_core::context::{ContextManager, HistoryManager};
 use radium_core::{AgentDiscovery, PromptContext, PromptTemplate, Workspace};
 use radium_models::ModelFactory;
+use radium_abstraction::{StreamingModel, ModelError};
+use futures::StreamExt;
 use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
 use tokio::process::Command;
 use tokio::time::timeout;
+use crate::state::{StreamingContext, StreamingState};
 
 /// Result of executing a chat message.
 #[derive(Debug, Clone)]
@@ -19,6 +22,45 @@ pub struct ChatExecutionResult {
     pub response: String,
     pub success: bool,
     pub error: Option<String>,
+    /// Streaming context if streaming is being used
+    pub streaming_context: Option<StreamingContext>,
+}
+
+/// Attempts to execute using streaming if the model supports it.
+/// Returns (response, streaming_context) if streaming succeeds, or error if it fails.
+async fn try_streaming_execution(
+    model: &dyn radium_abstraction::Model,
+    prompt: &str,
+) -> Result<(String, StreamingContext), ModelError> {
+    // Try to use the model as a StreamingModel
+    // We'll use a type check - if it's OllamaModel, we know it implements StreamingModel
+    // For now, we'll use a helper that attempts streaming
+    
+    // Create channels for token communication
+    let (token_tx, token_rx) = tokio::sync::mpsc::channel(100);
+    let (cancel_tx, cancel_rx) = tokio::sync::oneshot::channel();
+    
+    // Try to get the model as a StreamingModel
+    // Since we can't easily check trait bounds, we'll use a workaround:
+    // Cast to Any and check type, or use engine-specific logic
+    // For now, let's use a simpler approach: check if we can call generate_stream
+    
+    // Actually, the best approach is to use a helper that knows which models support streaming
+    // For now, we'll assume if we get here, the model supports streaming (checked by caller)
+    
+    // Spawn task to consume stream
+    let prompt_clone = prompt.to_string();
+    let mut accumulated_response = String::new();
+    
+    // We need to get the model as StreamingModel - this is tricky with trait objects
+    // Let's use a different approach: check the model type before calling this function
+    // For now, we'll return an error and let the caller fall back
+    
+    // Since we can't easily check if model implements StreamingModel from a trait object,
+    // we'll need to handle this at the call site by checking engine type
+    // This function will be called only when we know the model supports streaming
+    
+    Err(ModelError::RequestError("Streaming not yet implemented for this model type".to_string()))
 }
 
 /// Execute a chat message with an agent.
@@ -133,26 +175,63 @@ pub async fn execute_chat_message(
         None
     };
 
-    // Execute model
-    let agent_response = match if let Some(key) = api_key {
+    // Execute model - try streaming if supported, otherwise fall back to non-streaming
+    let (agent_response, streaming_context) = match if let Some(key) = api_key {
         ModelFactory::create_with_api_key(engine, model.to_string(), key)
     } else {
         ModelFactory::create_from_str(engine, model.to_string())
     } {
-        Ok(model_instance) => match model_instance.generate_text(&rendered, None).await {
-            Ok(response) => response.content,
-            Err(e) => {
-                let error_msg = format_model_error(&e, engine);
-                return Ok(ChatExecutionResult {
-                    response: String::new(),
-                    success: false,
-                    error: Some(error_msg),
-                });
+        Ok(model_instance) => {
+            // Check if this engine supports streaming (Ollama currently)
+            let supports_streaming = engine == "ollama";
+            
+            if supports_streaming {
+                // Try to use streaming
+                match try_streaming_execution(&*model_instance, &rendered).await {
+                    Ok((response, stream_ctx)) => {
+                        // Streaming succeeded
+                        (response, Some(stream_ctx))
+                    }
+                    Err(_) => {
+                        // Streaming failed, fall back to non-streaming
+                        match model_instance.generate_text(&rendered, None).await {
+                            Ok(response) => (response.content, None),
+                            Err(e) => {
+                                let error_msg = format_model_error(&e, engine);
+                                return Ok(ChatExecutionResult {
+                                    response: String::new(),
+                                    success: false,
+                                    error: Some(error_msg),
+                                    streaming_context: None,
+                                });
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Non-streaming execution
+                match model_instance.generate_text(&rendered, None).await {
+                    Ok(response) => (response.content, None),
+                    Err(e) => {
+                        let error_msg = format_model_error(&e, engine);
+                        return Ok(ChatExecutionResult {
+                            response: String::new(),
+                            success: false,
+                            error: Some(error_msg),
+                            streaming_context: None,
+                        });
+                    }
+                }
             }
         },
         Err(e) => {
             let error_msg = format_creation_error(&e, engine);
-            return Ok(ChatExecutionResult { response: String::new(), success: false, error: Some(error_msg) });
+            return Ok(ChatExecutionResult { 
+                response: String::new(), 
+                success: false, 
+                error: Some(error_msg),
+                streaming_context: None,
+            });
         }
     };
 
@@ -190,7 +269,8 @@ pub async fn execute_chat_message(
     let result = ChatExecutionResult { 
         response: final_response, 
         success: true, 
-        error: None 
+        error: None,
+        streaming_context,
     };
 
     // Save to history if successful

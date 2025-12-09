@@ -3,9 +3,9 @@
 use super::ab_testing::{ABTestGroup, ABTestSampler};
 use super::complexity::ComplexityEstimator;
 use super::cost_tracker::CostTracker;
-use super::types::{ComplexityScore, ComplexityWeights, RoutingTier};
+use super::types::{ComplexityScore, ComplexityWeights, FailureRecord, FallbackChain, RoutingError, RoutingTier};
 use radium_models::{ModelConfig, ModelType};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use tracing::{debug, warn};
 
 /// Parses model specification string into engine and model parts.
@@ -47,6 +47,10 @@ pub struct ModelRouter {
     cost_tracker: Arc<CostTracker>,
     /// Optional A/B test sampler for routing validation.
     ab_test_sampler: Option<Arc<ABTestSampler>>,
+    /// Optional fallback chain for multi-model retry logic.
+    fallback_chain: Option<FallbackChain>,
+    /// Track which models have been tried in the current fallback sequence (thread-safe).
+    tried_models: Arc<RwLock<Vec<String>>>,
 }
 
 impl ModelRouter {
@@ -69,6 +73,8 @@ impl ModelRouter {
             auto_route: true,
             cost_tracker: Arc::new(CostTracker::new()),
             ab_test_sampler: None,
+            fallback_chain: None,
+            tried_models: Vec::new(),
         }
     }
 
@@ -88,6 +94,8 @@ impl ModelRouter {
             auto_route: true,
             cost_tracker: Arc::new(CostTracker::new()),
             ab_test_sampler: None,
+            fallback_chain: None,
+            tried_models: Vec::new(),
         }
     }
     
@@ -98,6 +106,74 @@ impl ModelRouter {
     pub fn with_ab_testing(mut self, sampler: ABTestSampler) -> Self {
         self.ab_test_sampler = Some(Arc::new(sampler));
         self
+    }
+    
+    /// Sets the fallback chain for multi-model retry logic.
+    ///
+    /// # Arguments
+    /// * `chain` - Fallback chain with ordered list of models
+    pub fn with_fallback_chain(mut self, chain: FallbackChain) -> Self {
+        self.fallback_chain = Some(chain);
+        self
+    }
+    
+    /// Gets the next model in the fallback chain after a failure.
+    ///
+    /// # Arguments
+    /// * `failed_model_id` - The model ID that failed
+    /// * `error` - Error message describing the failure
+    ///
+    /// # Returns
+    /// - `Ok(Some(ModelConfig))` if there's a next model to try
+    /// - `Ok(None)` if no fallback chain is configured
+    /// - `Err(RoutingError::AllModelsFailed)` if all models in chain have been tried
+    pub fn get_next_fallback_model(
+        &mut self,
+        failed_model_id: &str,
+        error: &str,
+    ) -> Result<Option<ModelConfig>, RoutingError> {
+        // Record the failure
+        self.tried_models.push(failed_model_id.to_string());
+        
+        // If no fallback chain, return None (no fallback available)
+        let chain = match &self.fallback_chain {
+            Some(chain) => chain,
+            None => return Ok(None),
+        };
+        
+        // Find the next model in the chain that hasn't been tried
+        for model_config in &chain.models {
+            // Use model_id directly for comparison
+            if !self.tried_models.contains(&model_config.model_id) {
+                self.tried_models.push(model_config.model_id.clone());
+                return Ok(Some(model_config.clone()));
+            }
+        }
+        
+        // All models have been tried - return error with failure records
+        let failures: Vec<FailureRecord> = self.tried_models
+            .iter()
+            .map(|model_id| FailureRecord::new(
+                model_id.clone(),
+                if model_id == failed_model_id {
+                    error.to_string()
+                } else {
+                    "Model skipped in fallback chain".to_string()
+                }
+            ))
+            .collect();
+        
+        // Reset tried models for next attempt
+        self.tried_models.clear();
+        
+        Err(RoutingError::AllModelsFailed(failures))
+    }
+    
+    /// Resets the fallback chain state (clears tried models).
+    ///
+    /// Call this when starting a new routing sequence.
+    pub fn reset_fallback_state(&mut self) {
+        self.tried_models.clear();
     }
     
     /// Creates a new model router from model specification strings.
@@ -141,6 +217,8 @@ impl ModelRouter {
         );
         
         router.auto_route = auto_route;
+        router.fallback_chain = None;
+        router.tried_models = Arc::new(RwLock::new(Vec::new()));
         
         Ok(router)
     }
