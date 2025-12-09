@@ -867,6 +867,7 @@ mod tests {
                 usage: None,
                 model: "mock-model".to_string(),
                 raw: None,
+                execution_duration: None,
             })
         }
 

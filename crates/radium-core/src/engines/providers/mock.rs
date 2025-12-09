@@ -51,6 +51,9 @@ impl Engine for MockEngine {
     }
 
     async fn execute(&self, request: ExecutionRequest) -> Result<ExecutionResponse> {
+        // Capture start time for duration tracking
+        let start = Instant::now();
+
         // Mock response that echoes the prompt
         let content = format!("Mock response to: {}", request.prompt);
 
@@ -60,11 +63,15 @@ impl Engine for MockEngine {
             total_tokens: (request.prompt.len() + content.len()) as u64,
         };
 
+        // Calculate execution duration
+        let duration = start.elapsed();
+
         Ok(ExecutionResponse {
             content,
             usage: Some(usage),
             model: request.model,
             raw: Some(format!("{{\"prompt\": \"{}\"}}", request.prompt)),
+            execution_duration: Some(duration),
         })
     }
 
@@ -110,6 +117,30 @@ mod tests {
         assert!(response.content.contains("Hello world"));
         assert_eq!(response.model, "mock-model-1");
         assert!(response.usage.is_some());
+        assert!(response.execution_duration.is_some());
+        // Duration should be very small for mock engine, but > 0
+        assert!(response.execution_duration.unwrap().as_nanos() > 0);
+    }
+
+    #[tokio::test]
+    async fn test_mock_engine_duration_accuracy() {
+        let engine = MockEngine::new();
+        let request = ExecutionRequest::new("mock-model-1".to_string(), "Test".to_string());
+
+        // Add a small delay to test duration tracking
+        let start = Instant::now();
+        let response = engine.execute(request).await.unwrap();
+        let elapsed = start.elapsed();
+
+        let reported_duration = response.execution_duration.unwrap();
+        
+        // Reported duration should be close to elapsed time (within 10ms tolerance)
+        let diff = if elapsed > reported_duration {
+            elapsed - reported_duration
+        } else {
+            reported_duration - elapsed
+        };
+        assert!(diff.as_millis() < 10, "Duration should be accurate within 10ms");
     }
 
     #[tokio::test]

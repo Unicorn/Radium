@@ -359,6 +359,9 @@ impl Engine for OllamaEngine {
             Some(options)
         };
 
+        // Capture start time for duration tracking (local engine)
+        let start = Instant::now();
+
         // Determine which endpoint to use based on whether we have a system message
         // Use /api/chat if we have a system message, otherwise /api/generate
         let url = if request.system.is_some() {
@@ -463,11 +466,15 @@ impl Engine for OllamaEngine {
         let raw = serde_json::to_string(&ollama_response)
             .map_err(|e| EngineError::ExecutionError(format!("Failed to serialize response: {}", e)))?;
 
+        // Calculate execution duration for local model cost tracking
+        let duration = start.elapsed();
+
         Ok(ExecutionResponse {
             content: ollama_response.response,
             usage,
             model: ollama_response.model,
             raw: Some(raw),
+            execution_duration: Some(duration),
         })
     }
 

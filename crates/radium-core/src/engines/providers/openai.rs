@@ -164,6 +164,7 @@ impl Engine for OpenAIEngine {
             usage: Self::convert_usage(response.usage),
             model: response.model_id.unwrap_or_else(|| request.model.clone()),
             raw: None, // radium-models doesn't provide raw response
+            execution_duration: None, // Cloud models use token-based costing
         })
     }
 
