@@ -80,6 +80,16 @@ impl ModelConfig {
         self.api_key = Some(api_key);
         self
     }
+
+    /// Sets the base URL for this configuration (required for Universal models).
+    ///
+    /// # Arguments
+    /// * `base_url` - The base URL for the API endpoint (e.g., "http://localhost:8000/v1")
+    #[must_use]
+    pub fn with_base_url(mut self, base_url: String) -> Self {
+        self.base_url = Some(base_url);
+        self
+    }
 }
 
 /// Factory for creating model instances.
@@ -126,6 +136,20 @@ impl ModelFactory {
                     OpenAIModel::with_api_key(config.model_id, api_key)
                 } else {
                     OpenAIModel::new(config.model_id)?
+                };
+                Ok(Arc::new(model))
+            }
+            ModelType::Universal => {
+                let base_url = config.base_url.ok_or_else(|| {
+                    ModelError::UnsupportedModelProvider(
+                        "base_url is required for Universal model type. Use ModelConfig::with_base_url() to set it.".to_string(),
+                    )
+                })?;
+
+                let model = if let Some(api_key) = config.api_key {
+                    UniversalModel::with_api_key(config.model_id, base_url, api_key)
+                } else {
+                    UniversalModel::without_auth(config.model_id, base_url)
                 };
                 Ok(Arc::new(model))
             }

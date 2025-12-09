@@ -3,11 +3,13 @@
 //! This module provides an implementation of the `Model` trait for Ollama's local API.
 
 use async_trait::async_trait;
+use futures::stream::{Stream, StreamExt};
 use radium_abstraction::{
-    ChatMessage, Model, ModelError, ModelParameters, ModelResponse, ModelUsage,
+    ChatMessage, Model, ModelError, ModelParameters, ModelResponse, ModelUsage, StreamingModel,
 };
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::pin::Pin;
 use tracing::{debug, error};
 
 /// Ollama model implementation.
