@@ -4,8 +4,9 @@ use super::ab_testing::{ABTestGroup, ABTestSampler};
 use super::circuit_breaker::CircuitBreaker;
 use super::complexity::ComplexityEstimator;
 use super::cost_tracker::CostTracker;
-use super::types::{ComplexityScore, ComplexityWeights, FailureRecord, FallbackChain, RoutingError, RoutingTier};
+use super::types::{ComplexityScore, ComplexityWeights, FailureRecord, FallbackChain, ModelMetadata, RoutingError, RoutingStrategy, RoutingTier};
 use radium_models::{ModelConfig, ModelType};
+use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use tracing::{debug, warn};
 
@@ -54,9 +55,98 @@ pub struct ModelRouter {
     tried_models: Arc<RwLock<Vec<String>>>,
     /// Optional circuit breaker for failure detection.
     circuit_breaker: Option<Arc<CircuitBreaker>>,
+    /// Model metadata registry for strategy-based routing.
+    model_registry: Arc<RwLock<HashMap<String, ModelMetadata>>>,
+    /// Default routing strategy.
+    default_strategy: RoutingStrategy,
 }
 
 impl ModelRouter {
+    /// Creates default model registry with hardcoded metadata for common models.
+    fn default_model_registry() -> HashMap<String, ModelMetadata> {
+        let mut registry = HashMap::new();
+        
+        // Claude models
+        registry.insert("claude-sonnet-4.5".to_string(), ModelMetadata::new(
+            "claude-sonnet-4.5".to_string(),
+            "claude".to_string(),
+            3.0,   // $3 per 1M input
+            15.0,  // $15 per 1M output
+            2000,  // 2000ms avg latency
+            5,     // Tier 5 (highest)
+        ));
+        registry.insert("claude-sonnet-3.5".to_string(), ModelMetadata::new(
+            "claude-sonnet-3.5".to_string(),
+            "claude".to_string(),
+            3.0,
+            15.0,
+            2000,
+            5,
+        ));
+        registry.insert("claude-haiku-4.5".to_string(), ModelMetadata::new(
+            "claude-haiku-4.5".to_string(),
+            "claude".to_string(),
+            0.25,  // $0.25 per 1M input
+            1.25,  // $1.25 per 1M output
+            500,   // 500ms avg latency
+            3,     // Tier 3
+        ));
+        registry.insert("claude-haiku-3.5".to_string(), ModelMetadata::new(
+            "claude-haiku-3.5".to_string(),
+            "claude".to_string(),
+            0.25,
+            1.25,
+            500,
+            3,
+        ));
+        
+        // OpenAI models
+        registry.insert("gpt-4".to_string(), ModelMetadata::new(
+            "gpt-4".to_string(),
+            "openai".to_string(),
+            30.0,  // $30 per 1M input
+            60.0,  // $60 per 1M output
+            3000,  // 3000ms avg latency
+            5,     // Tier 5
+        ));
+        registry.insert("gpt-4-turbo".to_string(), ModelMetadata::new(
+            "gpt-4-turbo".to_string(),
+            "openai".to_string(),
+            10.0,
+            30.0,
+            2500,
+            5,
+        ));
+        registry.insert("gpt-3.5-turbo".to_string(), ModelMetadata::new(
+            "gpt-3.5-turbo".to_string(),
+            "openai".to_string(),
+            1.5,   // $1.5 per 1M input
+            2.0,   // $2 per 1M output
+            800,   // 800ms avg latency
+            3,     // Tier 3
+        ));
+        
+        // Gemini models
+        registry.insert("gemini-pro".to_string(), ModelMetadata::new(
+            "gemini-pro".to_string(),
+            "gemini".to_string(),
+            0.5,   // $0.5 per 1M input
+            1.5,   // $1.5 per 1M output
+            1200,  // 1200ms avg latency
+            4,     // Tier 4
+        ));
+        registry.insert("gemini-flash".to_string(), ModelMetadata::new(
+            "gemini-flash".to_string(),
+            "gemini".to_string(),
+            0.2,   // $0.2 per 1M input
+            0.8,   // $0.8 per 1M output
+            400,   // 400ms avg latency
+            3,     // Tier 3
+        ));
+        
+        registry
+    }
+    
     /// Creates a new model router.
     ///
     /// # Arguments
@@ -79,6 +169,8 @@ impl ModelRouter {
             fallback_chain: None,
             tried_models: Arc::new(RwLock::new(Vec::new())),
             circuit_breaker: None,
+            model_registry: Arc::new(RwLock::new(Self::default_model_registry())),
+            default_strategy: RoutingStrategy::ComplexityBased,
         }
     }
 
@@ -101,6 +193,8 @@ impl ModelRouter {
             fallback_chain: None,
             tried_models: Arc::new(RwLock::new(Vec::new())),
             circuit_breaker: None,
+            model_registry: Arc::new(RwLock::new(Self::default_model_registry())),
+            default_strategy: RoutingStrategy::ComplexityBased,
         }
     }
     
@@ -281,11 +375,15 @@ impl ModelRouter {
         router.fallback_chain = None;
         router.tried_models = Arc::new(RwLock::new(Vec::new()));
         router.circuit_breaker = None;
+        router.model_registry = Arc::new(RwLock::new(Self::default_model_registry()));
+        router.default_strategy = RoutingStrategy::ComplexityBased;
         
         Ok(router)
     }
 
     /// Selects the appropriate model based on complexity or override.
+    ///
+    /// Uses the default strategy (ComplexityBased).
     ///
     /// # Arguments
     /// * `input` - The input prompt/text
@@ -299,6 +397,26 @@ impl ModelRouter {
         input: &str,
         agent_id: Option<&str>,
         tier_override: Option<RoutingTier>,
+    ) -> (ModelConfig, RoutingDecision) {
+        self.select_model_with_strategy(input, agent_id, tier_override, self.default_strategy)
+    }
+    
+    /// Selects the appropriate model using a specific routing strategy.
+    ///
+    /// # Arguments
+    /// * `input` - The input prompt/text
+    /// * `agent_id` - Optional agent ID for context
+    /// * `tier_override` - Optional manual tier override
+    /// * `strategy` - Routing strategy to use
+    ///
+    /// # Returns
+    /// Selected ModelConfig and routing decision metadata.
+    pub fn select_model_with_strategy(
+        &self,
+        input: &str,
+        agent_id: Option<&str>,
+        tier_override: Option<RoutingTier>,
+        strategy: RoutingStrategy,
     ) -> (ModelConfig, RoutingDecision) {
         // Handle manual override
         if let Some(override_tier) = tier_override {
@@ -367,11 +485,28 @@ impl ModelRouter {
             }
         };
 
-        // Route based on complexity threshold
-        let mut tier = if complexity.score >= self.threshold {
-            RoutingTier::Smart
-        } else {
-            RoutingTier::Eco
+        // Route based on strategy
+        let mut tier = match strategy {
+            RoutingStrategy::ComplexityBased => {
+                // Use complexity threshold (existing behavior)
+                if complexity.score >= self.threshold {
+                    RoutingTier::Smart
+                } else {
+                    RoutingTier::Eco
+                }
+            }
+            RoutingStrategy::CostOptimized => {
+                // Select cheapest model that meets complexity threshold
+                self.select_by_cost_optimized(complexity.score)
+            }
+            RoutingStrategy::LatencyOptimized => {
+                // Select fastest model that meets complexity threshold
+                self.select_by_latency_optimized(complexity.score)
+            }
+            RoutingStrategy::QualityOptimized => {
+                // Select highest tier model that meets complexity threshold
+                self.select_by_quality_optimized(complexity.score)
+            }
         };
 
         // Handle A/B testing: invert routing for Test group

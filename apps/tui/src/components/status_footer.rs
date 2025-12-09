@@ -1,7 +1,8 @@
 //! Status footer component for displaying overall status and help text.
 
 use crate::commands::DisplayContext;
-use crate::state::{PrivacyState, WorkflowStatus};
+use crate::state::{PrivacyState, WorkflowStatus, StreamingState, StreamingContext};
+use crate::components::spinner::Spinner;
 use ratatui::{
     prelude::*,
     widgets::{Block, Borders, Paragraph},
@@ -178,6 +179,97 @@ impl StatusFooter {
             .alignment(Alignment::Center)
             .block(Block::default().borders(Borders::ALL).title(" Help "));
         frame.render_widget(message, chunks[1]);
+    }
+
+    /// Renders streaming footer with progress indicators and statistics.
+    pub fn render_streaming_footer(
+        frame: &mut Frame,
+        area: Rect,
+        stream_ctx: &StreamingContext,
+        frame_counter: usize,
+        animations_enabled: bool,
+        reduced_motion: bool,
+    ) {
+        let theme = crate::theme::get_theme();
+        let spinner = Spinner::new();
+        
+        match &stream_ctx.state {
+            StreamingState::Connecting => {
+                let spinner_frame = spinner.current_frame(frame_counter, animations_enabled, reduced_motion);
+                let text = format!("{} Connecting to model...", spinner_frame);
+                let widget = Paragraph::new(text)
+                    .style(Style::default().fg(theme.primary))
+                    .block(
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .border_style(Style::default().fg(theme.border))
+                            .style(Style::default().bg(theme.bg_panel)),
+                    );
+                frame.render_widget(widget, area);
+            }
+            StreamingState::Streaming => {
+                let spinner_frame = spinner.current_frame(frame_counter, animations_enabled, reduced_motion);
+                let rate = stream_ctx.calculate_tokens_per_second();
+                let rate_text = if rate > 0.0 {
+                    format!(" ({:.1} tok/s)", rate)
+                } else {
+                    String::new()
+                };
+                let text = format!("{} Tokens: {}{}", spinner_frame, stream_ctx.token_count, rate_text);
+                let widget = Paragraph::new(text)
+                    .style(Style::default().fg(theme.primary))
+                    .block(
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .border_style(Style::default().fg(theme.border))
+                            .style(Style::default().bg(theme.bg_panel)),
+                    );
+                frame.render_widget(widget, area);
+            }
+            StreamingState::Completed => {
+                let duration = stream_ctx.start_time.elapsed();
+                let duration_secs = duration.as_secs_f64();
+                let text = format!("✓ Response complete ({:.1}s, {} tokens)", duration_secs, stream_ctx.token_count);
+                let widget = Paragraph::new(text)
+                    .style(Style::default().fg(Color::Green))
+                    .block(
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .border_style(Style::default().fg(theme.border))
+                            .style(Style::default().bg(theme.bg_panel)),
+                    );
+                frame.render_widget(widget, area);
+            }
+            StreamingState::Cancelled => {
+                let duration = stream_ctx.start_time.elapsed();
+                let duration_secs = duration.as_secs_f64();
+                let text = format!("⚠ Cancelled ({:.1}s, {} tokens)", duration_secs, stream_ctx.token_count);
+                let widget = Paragraph::new(text)
+                    .style(Style::default().fg(Color::Yellow))
+                    .block(
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .border_style(Style::default().fg(theme.border))
+                            .style(Style::default().bg(theme.bg_panel)),
+                    );
+                frame.render_widget(widget, area);
+            }
+            StreamingState::Error(err_msg) => {
+                let text = format!("✗ Stream error: {}", err_msg);
+                let widget = Paragraph::new(text)
+                    .style(Style::default().fg(Color::Red))
+                    .block(
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .border_style(Style::default().fg(theme.border))
+                            .style(Style::default().bg(theme.bg_panel)),
+                    );
+                frame.render_widget(widget, area);
+            }
+            StreamingState::Idle => {
+                // Should not render streaming footer when idle
+            }
+        }
     }
 
     /// Returns the color for a workflow status.

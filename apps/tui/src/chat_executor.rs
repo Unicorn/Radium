@@ -26,7 +26,43 @@ pub struct ChatExecutionResult {
     pub streaming_context: Option<StreamingContext>,
 }
 
-/// Attempts to execute using streaming for Ollama models.
+/// Error type classification for retry logic
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ErrorType {
+    Transient,
+    Permanent,
+}
+
+/// Classifies a stream error as transient (retryable) or permanent (non-retryable)
+fn classify_stream_error(error: &ModelError) -> ErrorType {
+    let error_str = error.to_string().to_lowercase();
+    
+    // Transient errors (network, timeouts, rate limits)
+    if error_str.contains("network") 
+        || error_str.contains("connection") 
+        || error_str.contains("timeout")
+        || error_str.contains("429") // Rate limit
+        || error_str.contains("503") // Service unavailable
+        || error_str.contains("502") // Bad gateway
+    {
+        return ErrorType::Transient;
+    }
+    
+    // Permanent errors (auth, quota, unsupported)
+    if error_str.contains("401") // Unauthorized
+        || error_str.contains("403") // Forbidden
+        || error_str.contains("quota")
+        || error_str.contains("unsupported")
+        || error_str.contains("invalid")
+    {
+        return ErrorType::Permanent;
+    }
+    
+    // Default to transient for unknown errors (safer to retry)
+    ErrorType::Transient
+}
+
+/// Attempts to execute using streaming for Ollama models with retry logic.
 /// Returns (response, streaming_context) if streaming succeeds, or error if it fails.
 async fn try_streaming_execution(
     model_id: &str,
@@ -34,58 +70,96 @@ async fn try_streaming_execution(
 ) -> Result<(String, StreamingContext), ModelError> {
     use radium_models::OllamaModel;
     
-    // Create OllamaModel directly for streaming
-    let ollama_model = OllamaModel::new(model_id.to_string())?;
+    // Retry logic with exponential backoff (max 3 attempts)
+    const MAX_RETRIES: usize = 3;
+    let mut last_error = None;
     
-    // Create channels for token communication
-    let (token_tx, token_rx) = tokio::sync::mpsc::channel(100);
-    let (cancel_tx, cancel_rx) = tokio::sync::oneshot::channel();
-    
-    // Spawn task to consume stream
-    let prompt_clone = prompt.to_string();
-    let mut accumulated_response = String::new();
-    let token_tx_clone = token_tx.clone();
-    
-    // Start streaming
-    let mut stream = ollama_model.generate_stream(&prompt_clone, None).await?;
-    
-    // Spawn task to consume the stream
-    tokio::spawn(async move {
-        loop {
-            tokio::select! {
-                // Check for cancellation
-                _ = cancel_rx => {
-                    // Cancellation requested
-                    break;
+    for attempt in 0..MAX_RETRIES {
+        // Create OllamaModel directly for streaming
+        let ollama_model = match OllamaModel::new(model_id.to_string()) {
+            Ok(model) => model,
+            Err(e) => {
+                last_error = Some(e);
+                if attempt < MAX_RETRIES - 1 {
+                    // Wait before retry (exponential backoff: 1s, 2s, 4s)
+                    let delay_secs = 2_u64.pow(attempt as u32);
+                    tokio::time::sleep(std::time::Duration::from_secs(delay_secs)).await;
+                    continue;
                 }
-                // Get next token from stream
-                token_result = stream.next() => {
-                    match token_result {
-                        Some(Ok(token)) => {
-                            accumulated_response.push_str(&token);
-                            // Send token to channel (ignore errors if receiver is dropped)
-                            let _ = token_tx_clone.send(token).await;
-                        }
-                        Some(Err(e)) => {
-                            // Stream error - send error token and break
-                            let _ = token_tx_clone.send(format!("\n[Stream error: {}]", e)).await;
-                            break;
-                        }
-                        None => {
-                            // Stream ended
-                            break;
+                return Err(last_error.unwrap());
+            }
+        };
+        
+        // Create channels for token communication
+        let (token_tx, token_rx) = tokio::sync::mpsc::channel(100);
+        let (cancel_tx, cancel_rx) = tokio::sync::oneshot::channel();
+        
+        // Spawn task to consume stream
+        let prompt_clone = prompt.to_string();
+        let mut accumulated_response = String::new();
+        let token_tx_clone = token_tx.clone();
+        
+        // Start streaming
+        let mut stream = match ollama_model.generate_stream(&prompt_clone, None).await {
+            Ok(stream) => stream,
+            Err(e) => {
+                // Classify error
+                let error_type = classify_stream_error(&e);
+                last_error = Some(e);
+                
+                if error_type == ErrorType::Permanent || attempt >= MAX_RETRIES - 1 {
+                    // Permanent error or max retries reached
+                    return Err(last_error.unwrap());
+                }
+                
+                // Transient error - retry with exponential backoff
+                let delay_secs = 2_u64.pow(attempt as u32);
+                tokio::time::sleep(std::time::Duration::from_secs(delay_secs)).await;
+                continue;
+            }
+        };
+        
+        // Spawn task to consume the stream
+        tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    // Check for cancellation
+                    _ = cancel_rx => {
+                        // Cancellation requested
+                        break;
+                    }
+                    // Get next token from stream
+                    token_result = stream.next() => {
+                        match token_result {
+                            Some(Ok(token)) => {
+                                accumulated_response.push_str(&token);
+                                // Send token to channel (ignore errors if receiver is dropped)
+                                let _ = token_tx_clone.send(token).await;
+                            }
+                            Some(Err(e)) => {
+                                // Stream error - send error token and break
+                                let _ = token_tx_clone.send(format!("\n[Stream error: {}]", e)).await;
+                                break;
+                            }
+                            None => {
+                                // Stream ended
+                                break;
+                            }
                         }
                     }
                 }
             }
-        }
-    });
+        });
+        
+        // Create streaming context
+        let stream_ctx = StreamingContext::new(token_rx, Some(cancel_tx));
+        
+        // Return accumulated response (will be empty initially, filled as stream progresses)
+        return Ok((accumulated_response, stream_ctx));
+    }
     
-    // Create streaming context
-    let stream_ctx = StreamingContext::new(token_rx, Some(cancel_tx));
-    
-    // Return accumulated response (will be empty initially, filled as stream progresses)
-    Ok((accumulated_response, stream_ctx))
+    // Should not reach here, but handle it anyway
+    Err(last_error.unwrap_or_else(|| ModelError::RequestError("Streaming failed after retries".to_string())))
 }
 
 /// Execute a chat message with an agent.

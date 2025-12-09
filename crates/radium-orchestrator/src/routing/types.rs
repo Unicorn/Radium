@@ -128,6 +128,80 @@ pub enum TaskType {
     Simple,
 }
 
+/// Routing strategy for model selection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RoutingStrategy {
+    /// Complexity-based routing (current default).
+    ComplexityBased,
+    /// Cost-optimized: Select cheapest model meeting requirements.
+    CostOptimized,
+    /// Latency-optimized: Select fastest model meeting requirements.
+    LatencyOptimized,
+    /// Quality-optimized: Select highest tier model meeting requirements.
+    QualityOptimized,
+}
+
+impl RoutingStrategy {
+    /// Converts a string to RoutingStrategy.
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s.to_lowercase().as_str() {
+            "complexity_based" | "complexity-based" | "complexity" => Some(RoutingStrategy::ComplexityBased),
+            "cost_optimized" | "cost-optimized" | "cost" => Some(RoutingStrategy::CostOptimized),
+            "latency_optimized" | "latency-optimized" | "latency" => Some(RoutingStrategy::LatencyOptimized),
+            "quality_optimized" | "quality-optimized" | "quality" => Some(RoutingStrategy::QualityOptimized),
+            _ => None,
+        }
+    }
+    
+    /// Converts RoutingStrategy to string.
+    pub fn to_string(&self) -> String {
+        match self {
+            RoutingStrategy::ComplexityBased => "complexity_based".to_string(),
+            RoutingStrategy::CostOptimized => "cost_optimized".to_string(),
+            RoutingStrategy::LatencyOptimized => "latency_optimized".to_string(),
+            RoutingStrategy::QualityOptimized => "quality_optimized".to_string(),
+        }
+    }
+}
+
+/// Metadata about a model for routing decisions.
+#[derive(Debug, Clone)]
+pub struct ModelMetadata {
+    /// Model identifier.
+    pub model_id: String,
+    /// Provider name (e.g., "claude", "openai", "gemini").
+    pub provider: String,
+    /// Cost per 1M input tokens in USD.
+    pub cost_per_1m_input: f64,
+    /// Cost per 1M output tokens in USD.
+    pub cost_per_1m_output: f64,
+    /// Average latency in milliseconds.
+    pub avg_latency_ms: u64,
+    /// Quality tier (1-5 scale, where 5 is highest quality).
+    pub quality_tier: u8,
+}
+
+impl ModelMetadata {
+    /// Creates new model metadata.
+    pub fn new(
+        model_id: String,
+        provider: String,
+        cost_per_1m_input: f64,
+        cost_per_1m_output: f64,
+        avg_latency_ms: u64,
+        quality_tier: u8,
+    ) -> Self {
+        Self {
+            model_id,
+            provider,
+            cost_per_1m_input,
+            cost_per_1m_output,
+            avg_latency_ms,
+            quality_tier,
+        }
+    }
+}
+
 /// Error types for routing operations.
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum RoutingError {

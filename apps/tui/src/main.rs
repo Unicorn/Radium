@@ -164,14 +164,35 @@ async fn main() -> Result<()> {
             loop {
                 match stream_ctx.token_receiver.try_recv() {
                     Ok(token) => {
-                        // Add token to buffer
-                        stream_ctx.add_token(token);
-                        
-                        // Flush buffer if it reaches 5-10 tokens
-                        if stream_ctx.should_flush() {
-                            let flushed = stream_ctx.flush_buffer();
-                            if !flushed.is_empty() {
-                                app.prompt_data.add_output(flushed);
+                        // Check if token is an error message
+                        if token.starts_with("\n[Stream error:") {
+                            // Extract error message
+                            if let Some(error_end) = token.find("]") {
+                                let error_msg = token[16..error_end].to_string();
+                                stream_ctx.state = StreamingState::Error(error_msg);
+                            } else {
+                                stream_ctx.state = StreamingState::Error("Unknown stream error".to_string());
+                            }
+                            // Still add the error token to output
+                            app.prompt_data.add_output(token);
+                        } else {
+                            // Record timestamp for rate calculation
+                            let now = std::time::Instant::now();
+                            if stream_ctx.token_timestamps.len() >= 10 {
+                                stream_ctx.token_timestamps.pop_front();
+                            }
+                            stream_ctx.token_timestamps.push_back(now);
+                            stream_ctx.token_count += 1;
+                            
+                            // Add token to buffer
+                            stream_ctx.add_token(token);
+                            
+                            // Flush buffer if it reaches 5-10 tokens
+                            if stream_ctx.should_flush() {
+                                let flushed = stream_ctx.flush_buffer();
+                                if !flushed.is_empty() {
+                                    app.prompt_data.add_output(flushed);
+                                }
                             }
                         }
                     }
@@ -180,19 +201,33 @@ async fn main() -> Result<()> {
                         break;
                     }
                     Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
-                        // Stream ended - flush remaining tokens and mark as completed
+                        // Stream ended - flush remaining tokens
                         let remaining = stream_ctx.flush_buffer();
                         if !remaining.is_empty() {
                             app.prompt_data.add_output(remaining);
                         }
-                        stream_ctx.state = StreamingState::Completed;
+                        
+                        // Update state based on current state
+                        match stream_ctx.state {
+                            StreamingState::Cancelled => {
+                                // Already cancelled, keep state
+                            }
+                            StreamingState::Error(_) => {
+                                // Already in error state, keep it
+                            }
+                            _ => {
+                                // Mark as completed if not already in error/cancelled state
+                                stream_ctx.state = StreamingState::Completed;
+                            }
+                        }
                         
                         // Get full response for history saving
                         let full_response = stream_ctx.get_full_response();
                         
                         // Save to history (we'll need to get session info from context)
-                        // For now, just clear the streaming context
+                        // For now, just clear the streaming context after showing completion
                         // TODO: Save to history when streaming completes
+                        // Clear after a brief delay to show completion message
                         app.streaming_context = None;
                         break;
                     }
@@ -506,15 +541,27 @@ async fn main() -> Result<()> {
             } else {
                 AppMode::Prompt
             };
-            StatusFooter::render_with_input(
-                frame,
-                status_area,
-                &app.prompt_data.input,
-                mode,
-                Some(&app.prompt_data.context),
-                app.current_model_id.as_deref(),
-                Some(&app.privacy_state),
-            );
+            // Check if streaming is active - show streaming footer if so
+            if let Some(ref stream_ctx) = app.streaming_context {
+                StatusFooter::render_streaming_footer(
+                    frame,
+                    status_area,
+                    stream_ctx,
+                    app.spinner_frame,
+                    app.config.animations.enabled,
+                    app.config.animations.reduced_motion,
+                );
+            } else {
+                StatusFooter::render_with_input(
+                    frame,
+                    status_area,
+                    &app.prompt_data.input,
+                    mode,
+                    Some(&app.prompt_data.context),
+                    app.current_model_id.as_deref(),
+                    Some(&app.privacy_state),
+                );
+            }
 
             // Render dialogs (on top of everything except shortcuts)
             let dialog_areas = if !app.show_shortcuts {

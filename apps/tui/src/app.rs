@@ -974,6 +974,28 @@ impl App {
             }
             // Quit or cancel orchestration
             KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => {
+                // Check if streaming is active - cancel stream first
+                if let Some(ref mut stream_ctx) = self.streaming_context {
+                    use crate::state::StreamingState;
+                    
+                    // Send cancellation signal
+                    if let Some(cancel_tx) = stream_ctx.cancellation_tx.take() {
+                        let _ = cancel_tx.send(());
+                    }
+                    stream_ctx.is_cancelled = true;
+                    stream_ctx.state = StreamingState::Cancelled;
+                    
+                    // Flush any remaining tokens
+                    let remaining = stream_ctx.flush_buffer();
+                    if !remaining.is_empty() {
+                        self.prompt_data.add_output(remaining);
+                    }
+                    
+                    // Clear streaming context after a brief delay to show cancellation message
+                    // (We'll clear it in the next render cycle)
+                    return Ok(());
+                }
+                
                 if self.orchestration_running {
                     // Set cancellation state for visual feedback
                     self.cancellation_state = Some(CancellationState::Requested);

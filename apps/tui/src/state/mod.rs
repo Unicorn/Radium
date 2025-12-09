@@ -59,6 +59,12 @@ pub struct StreamingContext {
     pub cancellation_tx: Option<tokio::sync::oneshot::Sender<()>>,
     /// Whether cancellation has been requested
     pub is_cancelled: bool,
+    /// Total token count
+    pub token_count: usize,
+    /// Start time of streaming
+    pub start_time: std::time::Instant,
+    /// Timestamps of last 10 tokens for rate calculation
+    pub token_timestamps: std::collections::VecDeque<std::time::Instant>,
 }
 
 impl StreamingContext {
@@ -74,6 +80,26 @@ impl StreamingContext {
             token_receiver,
             cancellation_tx,
             is_cancelled: false,
+            token_count: 0,
+            start_time: std::time::Instant::now(),
+            token_timestamps: std::collections::VecDeque::with_capacity(10),
+        }
+    }
+
+    /// Calculates tokens per second based on recent token timestamps
+    pub fn calculate_tokens_per_second(&self) -> f64 {
+        if self.token_timestamps.len() < 2 {
+            return 0.0;
+        }
+        
+        let first = self.token_timestamps.front().unwrap();
+        let last = self.token_timestamps.back().unwrap();
+        let duration = last.duration_since(*first);
+        
+        if duration.as_secs_f64() > 0.0 {
+            (self.token_timestamps.len() as f64) / duration.as_secs_f64()
+        } else {
+            0.0
         }
     }
 
