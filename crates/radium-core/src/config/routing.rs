@@ -132,7 +132,7 @@ impl RoutingConfig {
         let workspace_config = Path::new("./radium.toml");
         if workspace_config.exists() {
             if let Ok(config) = Self::load_from_file(workspace_config) {
-                return config;
+                return Ok(config);
             }
         }
         

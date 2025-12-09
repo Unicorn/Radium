@@ -83,7 +83,7 @@ impl PatternAnalyzer {
                 
                 if confidence >= self.min_confidence {
                     // Extract arg pattern if consistent
-                    let arg_pattern = self.extract_arg_pattern(events);
+                    let arg_pattern = self.extract_arg_pattern(&events);
                     
                     // Get sample events
                     let sample_events: Vec<PatternEvent> = events

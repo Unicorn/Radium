@@ -84,7 +84,7 @@ impl BudgetForecaster {
             );
 
             if let Ok(mut stmt) = stmt {
-                if let Ok(Some(total)) = stmt.query_row(
+                if let Ok(total) = stmt.query_row(
                     params![start_date, end_date],
                     |row| row.get::<_, f64>(0)
                 ) {

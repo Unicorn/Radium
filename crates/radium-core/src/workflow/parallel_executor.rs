@@ -131,7 +131,7 @@ impl ParallelExecutor {
 
             // Filter to tasks that aren't already completed/failed and aren't blocked
             let mut batch_task_ids: Vec<String> = Vec::new();
-            for task_id in ready_task_ids {
+            for task_id in &ready_task_ids {
                 // Check if task is already completed or failed
                 if execution_state.is_completed(&task_id) || execution_state.is_failed(&task_id) {
                     continue;
