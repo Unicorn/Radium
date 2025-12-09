@@ -50,10 +50,13 @@
 //! ```rust,no_run
 //! use radium_models::OllamaModel;
 //!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let model = OllamaModel::with_base_url(
 //!     "llama2".to_string(),
 //!     "http://192.168.1.100:11434".to_string()
 //! )?;
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! # Configuration
