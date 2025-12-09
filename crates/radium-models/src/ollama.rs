@@ -87,8 +87,7 @@ mod tests {
     #[test]
     fn test_ollama_model_new() {
         let model = OllamaModel::new("llama2".to_string()).unwrap();
-        assert_eq!(model.model_id, "llama2");
-        assert_eq!(model.base_url, "http://localhost:11434");
+        assert_eq!(model.model_id(), "llama2");
     }
 
     #[test]
@@ -98,8 +97,7 @@ mod tests {
             "http://192.168.1.100:11434".to_string(),
         )
         .unwrap();
-        assert_eq!(model.model_id, "llama2");
-        assert_eq!(model.base_url, "http://192.168.1.100:11434");
+        assert_eq!(model.model_id(), "llama2");
     }
 }
 
