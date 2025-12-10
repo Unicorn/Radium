@@ -375,6 +375,7 @@ impl Model for GeminiModel {
             system_instruction: system_instruction.map(|text| GeminiSystemInstruction {
                 parts: vec![GeminiPart::Text { text }],
             }),
+            tool_config: None,
         };
 
         // Apply parameters if provided
@@ -654,6 +655,7 @@ impl StreamingModel for GeminiModel {
             system_instruction: system_instruction.map(|text| GeminiSystemInstruction {
                 parts: vec![GeminiPart::Text { text }],
             }),
+            tool_config: None,
         };
 
         // Apply parameters if provided
@@ -978,6 +980,32 @@ struct GeminiStreamingResponse {
 
 // Gemini API request/response structures
 
+/// Gemini function calling configuration
+#[derive(Debug, Serialize)]
+struct GeminiFunctionCallingConfig {
+    /// Function calling mode: "AUTO", "ANY", or "NONE"
+    mode: String,
+    /// Optional whitelist of allowed function names
+    #[serde(skip_serializing_if = "Option::is_none", rename = "allowedFunctionNames")]
+    allowed_function_names: Option<Vec<String>>,
+}
+
+/// Gemini tool configuration
+#[derive(Debug, Serialize)]
+struct GeminiToolConfig {
+    #[serde(rename = "functionCallingConfig")]
+    function_calling_config: GeminiFunctionCallingConfig,
+}
+
+/// Helper function to convert ToolUseMode to Gemini API mode string
+fn tool_use_mode_to_gemini(mode: radium_abstraction::ToolUseMode) -> String {
+    match mode {
+        radium_abstraction::ToolUseMode::Auto => "AUTO".to_string(),
+        radium_abstraction::ToolUseMode::Any => "ANY".to_string(),
+        radium_abstraction::ToolUseMode::None => "NONE".to_string(),
+    }
+}
+
 #[derive(Debug, Serialize)]
 struct GeminiRequest {
     contents: Vec<GeminiContent>,
@@ -985,6 +1013,9 @@ struct GeminiRequest {
     generation_config: Option<GeminiGenerationConfig>,
     #[serde(skip_serializing_if = "Option::is_none", rename = "systemInstruction")]
     system_instruction: Option<GeminiSystemInstruction>,
+    /// Optional tool configuration for function calling
+    #[serde(skip_serializing_if = "Option::is_none", rename = "toolConfig")]
+    tool_config: Option<GeminiToolConfig>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1641,6 +1672,7 @@ mod tests {
             }],
             generation_config: None,
             system_instruction: Some(system_instruction),
+            tool_config: None,
         };
 
         let json = serde_json::to_string(&request).unwrap();
@@ -1657,6 +1689,7 @@ mod tests {
             }],
             generation_config: None,
             system_instruction: None,
+            tool_config: None,
         };
 
         let json_no_system = serde_json::to_string(&request_no_system).unwrap();
