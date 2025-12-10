@@ -94,6 +94,17 @@ impl Default for ModelParameters {
     }
 }
 
+/// Format for model response output.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ResponseFormat {
+    /// Plain text output (default).
+    Text,
+    /// JSON-formatted output without schema validation.
+    Json,
+    /// JSON output conforming to the provided schema.
+    JsonSchema(String),
+}
+
 /// The response from a text generation or chat completion model.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelResponse {
