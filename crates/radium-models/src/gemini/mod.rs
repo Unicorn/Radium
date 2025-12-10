@@ -295,6 +295,28 @@ impl GeminiModel {
         }
     }
 
+    /// Convert tools to Gemini function declarations format.
+    fn tools_to_gemini_function_declarations(tools: &[radium_abstraction::Tool]) -> Vec<GeminiFunctionDeclaration> {
+        tools
+            .iter()
+            .map(|tool| GeminiFunctionDeclaration {
+                name: tool.name.clone(),
+                description: tool.description.clone(),
+                parameters: tool.parameters.clone(),
+            })
+            .collect()
+    }
+
+    /// Build Gemini tool configuration from ToolConfig.
+    fn build_gemini_tool_config(config: &radium_abstraction::ToolConfig) -> GeminiToolConfig {
+        GeminiToolConfig {
+            function_calling_config: GeminiFunctionCallingConfig {
+                mode: tool_use_mode_to_gemini(config.mode),
+                allowed_function_names: config.allowed_function_names.clone(),
+            },
+        }
+    }
+
     /// Parse tool calls from Gemini content parts.
     ///
     /// Extracts function calls from Gemini response and converts them to ToolCall structs
@@ -397,6 +419,7 @@ impl Model for GeminiModel {
             system_instruction: system_instruction.map(|text| GeminiSystemInstruction {
                 parts: vec![GeminiPart::Text { text }],
             }),
+            tools: None,
             tool_config: None,
         };
 
@@ -630,13 +653,200 @@ impl Model for GeminiModel {
 
     async fn generate_with_tools(
         &self,
-        _messages: &[ChatMessage],
-        _tools: &[radium_abstraction::Tool],
-        _tool_config: Option<&radium_abstraction::ToolConfig>,
+        messages: &[ChatMessage],
+        tools: &[radium_abstraction::Tool],
+        tool_config: Option<&radium_abstraction::ToolConfig>,
     ) -> Result<ModelResponse, ModelError> {
-        Err(ModelError::UnsupportedModelProvider(
-            format!("GeminiModel function calling not yet implemented (Task 7)"),
-        ))
+        debug!(
+            model_id = %self.model_id,
+            message_count = messages.len(),
+            tool_count = tools.len(),
+            "GeminiModel generating with tools"
+        );
+
+        // Build Gemini API request
+        let url = format!(
+            "{}/models/{}:generateContent?key={}",
+            self.base_url, self.model_id, self.api_key
+        );
+
+        // Extract system instruction if present
+        let system_instruction = Self::extract_system_messages(messages);
+
+        // Convert non-system messages to Gemini format
+        let gemini_messages: Result<Vec<GeminiContent>, ModelError> = messages
+            .iter()
+            .filter(|msg| msg.role != "system")
+            .map(Self::to_gemini_content)
+            .collect();
+        let gemini_messages = gemini_messages?;
+
+        // Convert tools to Gemini format
+        let function_declarations = Self::tools_to_gemini_function_declarations(tools);
+        let gemini_tools = if function_declarations.is_empty() {
+            None
+        } else {
+            Some(vec![GeminiTools { function_declarations }])
+        };
+
+        // Build tool configuration if provided
+        let gemini_tool_config = tool_config.map(Self::build_gemini_tool_config);
+
+        // Build request body
+        let mut request_body = GeminiRequest {
+            contents: gemini_messages,
+            generation_config: None,
+            system_instruction: system_instruction.map(|text| GeminiSystemInstruction {
+                parts: vec![GeminiPart::Text { text }],
+            }),
+            tools: gemini_tools,
+            tool_config: gemini_tool_config,
+        };
+
+        // Apply default parameters if needed (temperature, etc.)
+        // For function calling, we can use default parameters
+        request_body.generation_config = Some(GeminiGenerationConfig {
+            temperature: Some(0.7),
+            top_p: Some(1.0),
+            max_output_tokens: Some(8192),
+            top_k: None,
+            frequency_penalty: None,
+            presence_penalty: None,
+            response_mime_type: None,
+            response_schema: None,
+            stop_sequences: None,
+        });
+
+        // Make API request
+        let response = self.client.post(&url).json(&request_body).send().await.map_err(|e| {
+            error!(error = %e, "Failed to send request to Gemini API");
+            ModelError::RequestError(format!("Network error: {}", e))
+        })?;
+
+        // Check status
+        let status = response.status();
+        if !status.is_success() {
+            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            error!(
+                status = %status,
+                error = %error_text,
+                "Gemini API returned error status"
+            );
+            
+            if status == 402 || status == 429 {
+                let is_quota_error = error_text.to_uppercase().contains("RESOURCE_EXHAUSTED")
+                    || error_text.to_lowercase().contains("quota exceeded")
+                    || error_text.to_lowercase().contains("quota")
+                    || error_text.to_lowercase().contains("rate limit");
+                
+                if is_quota_error || status == 402 {
+                    return Err(ModelError::QuotaExceeded {
+                        provider: "gemini".to_string(),
+                        message: Some(error_text),
+                    });
+                }
+            }
+            
+            if status == 429 {
+                return Err(ModelError::QuotaExceeded {
+                    provider: "gemini".to_string(),
+                    message: Some(error_text),
+                });
+            }
+            
+            return Err(ModelError::ModelResponseError(format!(
+                "API error ({}): {}",
+                status, error_text
+            )));
+        }
+
+        // Parse response
+        let gemini_response: GeminiResponse = response.json().await.map_err(|e| {
+            error!(error = %e, "Failed to parse Gemini API response");
+            ModelError::SerializationError(format!("Failed to parse response: {}", e))
+        })?;
+
+        // Extract content from response
+        let candidate = gemini_response
+            .candidates
+            .first()
+            .ok_or_else(|| {
+                error!("No candidates in Gemini API response");
+                ModelError::ModelResponseError("No content in API response".to_string())
+            })?;
+
+        // Parse tool calls from response parts
+        let tool_calls = Self::parse_tool_calls_from_parts(&candidate.content.parts);
+
+        // Extract text from all parts, concatenating multiple text parts
+        let mut text_parts = Vec::new();
+        for part in &candidate.content.parts {
+            match part {
+                GeminiPart::Text { text } => {
+                    text_parts.push(text.clone());
+                }
+                GeminiPart::FunctionCall { .. } => {
+                    // Already parsed above
+                }
+                _ => {
+                    // Other part types (InlineData, FileData, FunctionResponse) are ignored for text extraction
+                }
+            }
+        }
+
+        // Content can be empty if model only calls tools (no text response)
+        let content = if text_parts.is_empty() && tool_calls.is_empty() {
+            error!("No text content or tool calls in Gemini API response");
+            return Err(ModelError::ModelResponseError("No text content or tool calls in API response".to_string()));
+        } else if text_parts.is_empty() {
+            // Model only called tools, no text response
+            String::new()
+        } else {
+            text_parts.join("\n")
+        };
+
+        // Extract usage information
+        let usage = gemini_response.usage_metadata.map(|meta| ModelUsage {
+            prompt_tokens: meta.prompt_token_count.unwrap_or(0),
+            completion_tokens: meta.candidates_token_count.unwrap_or(0),
+            total_tokens: meta.total_token_count.unwrap_or(0),
+        });
+
+        // Extract metadata from candidate
+        let metadata = if candidate.finish_reason.is_some()
+            || candidate.safety_ratings.is_some()
+            || candidate.citation_metadata.is_some()
+            || candidate.grounding_metadata.is_some()
+        {
+            let gemini_meta = GeminiMetadata {
+                finish_reason: candidate.finish_reason.clone(),
+                safety_ratings: candidate.safety_ratings.as_ref().map(|ratings| {
+                    ratings.iter().map(|r| SafetyRating::from(r)).collect()
+                }),
+                citations: candidate.citation_metadata.as_ref().map(|cm| {
+                    cm.citations.iter().map(|c| Citation::from(c)).collect()
+                }),
+                grounding_attributions: candidate.grounding_metadata.as_ref().map(|gm| {
+                    gm.grounding_attributions.clone()
+                }),
+            };
+            let metadata_map: HashMap<String, serde_json::Value> = gemini_meta.into();
+            if metadata_map.is_empty() {
+                None
+            } else {
+                Some(metadata_map)
+            }
+        } else {
+            None
+        };
+
+        Ok(ModelResponse {
+            content,
+            model_id: Some(self.model_id.clone()),
+            usage,
+            metadata,
+            tool_calls: if tool_calls.is_empty() { None } else { Some(tool_calls) },
+        })
     }
 
     fn model_id(&self) -> &str {
@@ -688,6 +898,7 @@ impl StreamingModel for GeminiModel {
             system_instruction: system_instruction.map(|text| GeminiSystemInstruction {
                 parts: vec![GeminiPart::Text { text }],
             }),
+            tools: None,
             tool_config: None,
         };
 
@@ -1039,6 +1250,21 @@ fn tool_use_mode_to_gemini(mode: radium_abstraction::ToolUseMode) -> String {
     }
 }
 
+/// Gemini function declaration (tool definition)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct GeminiFunctionDeclaration {
+    name: String,
+    description: String,
+    parameters: serde_json::Value,
+}
+
+/// Gemini tools wrapper
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct GeminiTools {
+    #[serde(rename = "functionDeclarations")]
+    function_declarations: Vec<GeminiFunctionDeclaration>,
+}
+
 #[derive(Debug, Serialize)]
 struct GeminiRequest {
     contents: Vec<GeminiContent>,
@@ -1046,6 +1272,9 @@ struct GeminiRequest {
     generation_config: Option<GeminiGenerationConfig>,
     #[serde(skip_serializing_if = "Option::is_none", rename = "systemInstruction")]
     system_instruction: Option<GeminiSystemInstruction>,
+    /// Optional tools for function calling
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tools: Option<Vec<GeminiTools>>,
     /// Optional tool configuration for function calling
     #[serde(skip_serializing_if = "Option::is_none", rename = "toolConfig")]
     tool_config: Option<GeminiToolConfig>,
@@ -1723,6 +1952,7 @@ mod tests {
             }],
             generation_config: None,
             system_instruction: Some(system_instruction),
+            tools: None,
             tool_config: None,
         };
 
@@ -1740,6 +1970,7 @@ mod tests {
             }],
             generation_config: None,
             system_instruction: None,
+            tools: None,
             tool_config: None,
         };
 
