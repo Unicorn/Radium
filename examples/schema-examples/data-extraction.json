@@ -1,0 +1,58 @@
+{
+  "type": "object",
+  "properties": {
+    "entities": {
+      "type": "array",
+      "description": "Extracted entities from the text",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Entity type (person, organization, location, etc.)"
+          },
+          "value": {
+            "type": "string",
+            "description": "Extracted entity value"
+          },
+          "confidence": {
+            "type": "number",
+            "description": "Confidence score between 0 and 1",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "start_index": {
+            "type": "number",
+            "description": "Start position in source text",
+            "minimum": 0
+          },
+          "end_index": {
+            "type": "number",
+            "description": "End position in source text",
+            "minimum": 0
+          }
+        },
+        "required": ["type", "value"]
+      }
+    },
+    "summary": {
+      "type": "string",
+      "description": "Brief summary of extracted information"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string",
+          "description": "Source document or text identifier"
+        },
+        "extraction_date": {
+          "type": "string",
+          "description": "ISO 8601 date of extraction"
+        }
+      }
+    }
+  },
+  "required": ["entities"]
+}
+
