@@ -5,6 +5,7 @@
 use async_trait::async_trait;
 use futures::stream::Stream;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::pin::Pin;
 use thiserror::Error;
 
@@ -139,6 +140,11 @@ pub struct ModelResponse {
 
     /// Optional: Usage statistics for the request.
     pub usage: Option<ModelUsage>,
+
+    /// Optional: Provider-specific metadata (e.g., finish_reason, safety_ratings, citations, logprobs).
+    /// This field enables debugging, cost tracking, safety monitoring, and citation tracking.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<HashMap<String, serde_json::Value>>,
 }
 
 /// Usage statistics for a model request.
