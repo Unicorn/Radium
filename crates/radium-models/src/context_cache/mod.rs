@@ -56,10 +56,12 @@ pub mod types;
 pub mod claude;
 pub mod openai;
 pub mod gemini;
+pub mod registry;
 
 pub use r#trait::ContextCache;
 pub use types::{CacheError, CacheHandle, CachedContext};
 pub use claude::ClaudeContextCache;
 pub use openai::OpenAIContextCache;
 pub use gemini::GeminiContextCache;
+pub use registry::CacheRegistry;
 
