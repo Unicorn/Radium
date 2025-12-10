@@ -12,6 +12,7 @@
 
 pub mod cache;
 pub mod claude;
+pub mod context_cache;
 pub mod factory;
 pub mod gemini;
 pub mod ollama;
