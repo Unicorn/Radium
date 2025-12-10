@@ -1046,6 +1046,10 @@ mod tests {
             temperature: Some(0.7),
             top_p: Some(0.9),
             max_tokens: Some(2000),
+            top_k: None,
+            frequency_penalty: None,
+            presence_penalty: None,
+            response_format: None,
             stop_sequences: None,
         });
         config.max_iterations = Some(10);

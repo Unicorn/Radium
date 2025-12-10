@@ -4,10 +4,12 @@
 
 use async_trait::async_trait;
 use radium_abstraction::{
-    ChatMessage, Model, ModelError, ModelParameters, ModelResponse, ModelUsage, ResponseFormat,
+    ChatMessage, Citation, Model, ModelError, ModelParameters, ModelResponse, ModelUsage,
+    ResponseFormat, SafetyRating,
 };
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::env;
 use tracing::{debug, error, warn};
 
@@ -272,10 +274,18 @@ impl Model for GeminiModel {
         })?;
 
         // Extract content from response
-        let content = gemini_response
+        let candidate = gemini_response
             .candidates
             .first()
-            .and_then(|c| c.content.parts.first())
+            .ok_or_else(|| {
+                error!("No candidates in Gemini API response");
+                ModelError::ModelResponseError("No content in API response".to_string())
+            })?;
+
+        let content = candidate
+            .content
+            .parts
+            .first()
             .map(|p| p.text.clone())
             .ok_or_else(|| {
                 error!("No content in Gemini API response");
@@ -289,7 +299,40 @@ impl Model for GeminiModel {
             total_tokens: meta.total_token_count.unwrap_or(0),
         });
 
-        Ok(ModelResponse { content, model_id: Some(self.model_id.clone()), usage })
+        // Extract metadata from candidate
+        let metadata = if candidate.finish_reason.is_some()
+            || candidate.safety_ratings.is_some()
+            || candidate.citation_metadata.is_some()
+            || candidate.grounding_metadata.is_some()
+        {
+            let gemini_meta = GeminiMetadata {
+                finish_reason: candidate.finish_reason.clone(),
+                safety_ratings: candidate.safety_ratings.as_ref().map(|ratings| {
+                    ratings.iter().map(|r| SafetyRating::from(r)).collect()
+                }),
+                citations: candidate.citation_metadata.as_ref().map(|cm| {
+                    cm.citations.iter().map(|c| Citation::from(c)).collect()
+                }),
+                grounding_attributions: candidate.grounding_metadata.as_ref().map(|gm| {
+                    gm.grounding_attributions.clone()
+                }),
+            };
+            let metadata_map: HashMap<String, serde_json::Value> = gemini_meta.into();
+            if metadata_map.is_empty() {
+                None
+            } else {
+                Some(metadata_map)
+            }
+        } else {
+            None
+        };
+
+        Ok(ModelResponse {
+            content,
+            model_id: Some(self.model_id.clone()),
+            usage,
+            metadata,
+        })
     }
 
     fn model_id(&self) -> &str {
@@ -356,6 +399,14 @@ struct GeminiResponse {
 #[derive(Debug, Deserialize)]
 struct GeminiCandidate {
     content: GeminiContent,
+    #[serde(rename = "finishReason")]
+    finish_reason: Option<String>,
+    #[serde(rename = "safetyRatings")]
+    safety_ratings: Option<Vec<GeminiSafetyRating>>,
+    #[serde(rename = "citationMetadata")]
+    citation_metadata: Option<GeminiCitationMetadata>,
+    #[serde(rename = "groundingMetadata")]
+    grounding_metadata: Option<GeminiGroundingMetadata>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -367,6 +418,85 @@ struct GeminiUsageMetadata {
     candidates_token_count: Option<u32>,
     #[serde(rename = "totalTokenCount")]
     total_token_count: Option<u32>,
+}
+
+// Gemini-specific metadata structures
+
+#[derive(Debug, Deserialize)]
+struct GeminiSafetyRating {
+    category: String,
+    probability: String,
+    blocked: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GeminiCitationMetadata {
+    citations: Vec<GeminiCitation>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GeminiCitation {
+    #[serde(rename = "startIndex")]
+    start_index: Option<u32>,
+    #[serde(rename = "endIndex")]
+    end_index: Option<u32>,
+    uri: Option<String>,
+    title: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GeminiGroundingMetadata {
+    #[serde(rename = "groundingAttributions")]
+    grounding_attributions: Vec<serde_json::Value>,
+}
+
+// Common metadata structure for Gemini
+#[derive(Debug, Clone, Serialize)]
+struct GeminiMetadata {
+    finish_reason: Option<String>,
+    safety_ratings: Option<Vec<SafetyRating>>,
+    citations: Option<Vec<Citation>>,
+    grounding_attributions: Option<Vec<serde_json::Value>>,
+}
+
+impl From<GeminiMetadata> for HashMap<String, serde_json::Value> {
+    fn from(meta: GeminiMetadata) -> Self {
+        let mut map = HashMap::new();
+        if let Some(finish_reason) = meta.finish_reason {
+            map.insert("finish_reason".to_string(), serde_json::Value::String(finish_reason));
+        }
+        if let Some(safety_ratings) = meta.safety_ratings {
+            map.insert("safety_ratings".to_string(), serde_json::to_value(safety_ratings).unwrap());
+        }
+        if let Some(citations) = meta.citations {
+            map.insert("citations".to_string(), serde_json::to_value(citations).unwrap());
+        }
+        if let Some(attributions) = meta.grounding_attributions {
+            map.insert("grounding_attributions".to_string(), serde_json::to_value(attributions).unwrap());
+        }
+        map
+    }
+}
+
+impl From<&GeminiSafetyRating> for SafetyRating {
+    fn from(rating: &GeminiSafetyRating) -> Self {
+        SafetyRating {
+            category: rating.category.clone(),
+            probability: rating.probability.clone(),
+            blocked: rating.blocked.unwrap_or(false),
+        }
+    }
+}
+
+impl From<&GeminiCitation> for Citation {
+    fn from(citation: &GeminiCitation) -> Self {
+        Citation {
+            start_index: citation.start_index,
+            end_index: citation.end_index,
+            uri: citation.uri.clone(),
+            title: citation.title.clone(),
+        }
+    }
 }
 
 #[cfg(test)]

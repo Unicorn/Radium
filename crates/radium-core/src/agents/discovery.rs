@@ -388,6 +388,7 @@ mod tests {
         fs::write(&prompt_path_category, format!("# Test Agent: {}", id)).unwrap();
 
         let config = AgentConfigFile {
+            model: None,
             agent: AgentConfig::new(id, format!("{} Agent", id), PathBuf::from("prompts/test.md"))
                 .with_description(format!("Test agent {}", id))
                 .with_engine("gemini")
@@ -504,6 +505,7 @@ mod tests {
         fs::write(&root_prompt_file, "# Test").unwrap();
 
         let config = AgentConfigFile {
+            model: None,
             agent: AgentConfig::new("test-agent", "Test Agent", PathBuf::from("prompts/test.md"))
                 .with_description("Test")
                 .with_file_path(agents_dir.join("test-agent.toml")),

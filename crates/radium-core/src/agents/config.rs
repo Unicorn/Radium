@@ -5,6 +5,7 @@
 use crate::sandbox::SandboxConfig;
 use radium_abstraction::{ModelParameters, ResponseFormat};
 use serde::{Deserialize, Serialize};
+use serde_json;
 use std::path::PathBuf;
 use thiserror::Error;
 
@@ -245,17 +246,19 @@ pub struct ModelConfigToml {
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentConfigFile {
+            model: None,
     /// Agent configuration.
     pub agent: AgentConfig,
     /// Optional persona configuration.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub persona: Option<PersonaConfigToml>,
     /// Optional model configuration.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
     pub model: Option<ModelConfigToml>,
 }
 
 impl AgentConfigFile {
+            model: None,
     /// Load agent configuration from a TOML file.
     ///
     /// # Errors
@@ -757,6 +760,7 @@ impl AgentConfig {
             mirror_path: None,
             engine: None,
             model: None,
+            
             reasoning_effort: None,
             loop_behavior: None,
             trigger_behavior: None,
@@ -912,6 +916,7 @@ reasoning_effort = "medium"
         fs::write(&prompt_path, "# Test Agent").unwrap();
 
         let config = AgentConfigFile {
+            model: None,
             agent: AgentConfig::new("test-agent", "Test Agent", PathBuf::from("prompts/test.md"))
                 .with_description("A test agent")
                 .with_engine("gemini")
@@ -1165,6 +1170,7 @@ trigger_agent_id = "helper-agent"
             let config_path = temp_dir.path().join("test.toml");
 
             let config = AgentConfigFile {
+            model: None,
                 agent: AgentConfig::new(id, "Test", prompt_path.clone())
                     .with_file_path(config_path),
             persona: None,
@@ -1182,6 +1188,7 @@ trigger_agent_id = "helper-agent"
         ];
         for (id, reason) in invalid_ids {
             let config = AgentConfigFile {
+            model: None,
                 agent: AgentConfig::new(id, "Test", PathBuf::from("prompts/test.md")),
             persona: None,
             };
@@ -1207,6 +1214,7 @@ trigger_agent_id = "helper-agent"
             let config_path = temp_dir.path().join("test.toml");
 
             let config = AgentConfigFile {
+            model: None,
                 agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                     .with_engine(engine)
                     .with_file_path(config_path),
@@ -1228,6 +1236,7 @@ trigger_agent_id = "helper-agent"
             let config_path = temp_dir.path().join("test.toml");
 
             let config = AgentConfigFile {
+            model: None,
                 agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                     .with_engine(engine)
                     .with_file_path(config_path),
@@ -1252,6 +1261,7 @@ trigger_agent_id = "helper-agent"
         let config_path = temp_dir.path().join("test.toml");
 
         let config = AgentConfigFile {
+            model: None,
             agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                 .with_loop_behavior(AgentLoopBehavior {
                     steps: 2,
@@ -1265,6 +1275,7 @@ trigger_agent_id = "helper-agent"
 
         // Invalid: steps = 0
         let config = AgentConfigFile {
+            model: None,
             agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                 .with_loop_behavior(AgentLoopBehavior {
                     steps: 0,
@@ -1278,6 +1289,7 @@ trigger_agent_id = "helper-agent"
 
         // Invalid: max_iterations = 0
         let config = AgentConfigFile {
+            model: None,
             agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                 .with_loop_behavior(AgentLoopBehavior {
                     steps: 2,
@@ -1301,6 +1313,7 @@ trigger_agent_id = "helper-agent"
         let config_path = temp_dir.path().join("test.toml");
 
         let config = AgentConfigFile {
+            model: None,
             agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                 .with_trigger_behavior(AgentTriggerBehavior {
                     trigger_agent_id: Some("fallback-agent".to_string()),
@@ -1312,6 +1325,7 @@ trigger_agent_id = "helper-agent"
 
         // Invalid: empty trigger_agent_id
         let config = AgentConfigFile {
+            model: None,
             agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                 .with_trigger_behavior(AgentTriggerBehavior {
                     trigger_agent_id: Some("".to_string()),
@@ -1326,6 +1340,7 @@ trigger_agent_id = "helper-agent"
         for invalid_id in invalid_ids {
             let test_config_path = config_path.clone();
             let config = AgentConfigFile {
+            model: None,
                 agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                     .with_trigger_behavior(AgentTriggerBehavior {
                         trigger_agent_id: Some(invalid_id.to_string()),
@@ -1357,6 +1372,7 @@ trigger_agent_id = "helper-agent"
 
         // Valid: relative path from config directory
         let config = AgentConfigFile {
+            model: None,
             agent: AgentConfig::new("test-agent", "Test", PathBuf::from("../prompts/test.md"))
                 .with_file_path(config_dir.join("test-agent.toml")),
         persona: None,
@@ -1365,6 +1381,7 @@ trigger_agent_id = "helper-agent"
 
         // Valid: absolute path
         let config = AgentConfigFile {
+            model: None,
             agent: AgentConfig::new("test-agent", "Test", prompt_file.clone())
                 .with_file_path(config_dir.join("test-agent.toml")),
         persona: None,
@@ -1373,6 +1390,7 @@ trigger_agent_id = "helper-agent"
 
         // Invalid: non-existent file
         let config = AgentConfigFile {
+            model: None,
             agent: AgentConfig::new("test-agent", "Test", PathBuf::from("nonexistent.md"))
                 .with_file_path(config_dir.join("test-agent.toml")),
         persona: None,
@@ -1390,6 +1408,7 @@ trigger_agent_id = "helper-agent"
 
         // Test: Empty agent ID
         let config = AgentConfigFile {
+            model: None,
             agent: AgentConfig {
                 id: String::new(),
                 name: "Test Agent".to_string(),
@@ -1398,6 +1417,7 @@ trigger_agent_id = "helper-agent"
                 mirror_path: None,
                 engine: None,
                 model: None,
+            
                 reasoning_effort: None,
                 loop_behavior: None,
                 trigger_behavior: None,
@@ -1415,6 +1435,7 @@ trigger_agent_id = "helper-agent"
 
         // Test: Empty agent name
         let config = AgentConfigFile {
+            model: None,
             agent: AgentConfig {
                 id: "test-agent".to_string(),
                 name: String::new(),
@@ -1423,6 +1444,7 @@ trigger_agent_id = "helper-agent"
                 mirror_path: None,
                 engine: None,
                 model: None,
+            
                 reasoning_effort: None,
                 loop_behavior: None,
                 trigger_behavior: None,
@@ -1440,6 +1462,7 @@ trigger_agent_id = "helper-agent"
 
         // Test: Empty prompt path
         let config = AgentConfigFile {
+            model: None,
             agent: AgentConfig {
                 id: "test-agent".to_string(),
                 name: "Test Agent".to_string(),
@@ -1448,6 +1471,7 @@ trigger_agent_id = "helper-agent"
                 mirror_path: None,
                 engine: None,
                 model: None,
+            
                 reasoning_effort: None,
                 loop_behavior: None,
                 trigger_behavior: None,
@@ -1535,6 +1559,7 @@ reasoning_effort = "invalid"
         }
         
         let config = AgentConfigFile {
+            model: None,
             agent: AgentConfig::new("test", "Test", PathBuf::from("test.md")),
             persona: None,
         };
@@ -1564,6 +1589,7 @@ reasoning_effort = "invalid"
     #[test]
     fn test_agent_config_save_to_nonexistent_directory() {
         let config = AgentConfigFile {
+            model: None,
             agent: AgentConfig::new("test", "Test", PathBuf::from("test.md")),
             persona: None,
         };
@@ -1640,6 +1666,7 @@ cost_tier = "invalid"
 
         // Valid capabilities
         let config = AgentConfigFile {
+            model: None,
             agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                 .with_file_path(config_path.clone()),
         persona: None,
@@ -1655,6 +1682,7 @@ cost_tier = "invalid"
             max_concurrent_tasks: 10,
         };
         let config = AgentConfigFile {
+            model: None,
             agent: agent.with_file_path(config_path),
         persona: None,
         };
@@ -1687,6 +1715,7 @@ cost_tier = "invalid"
 
         for invalid_id in invalid_ids {
             let config = AgentConfigFile {
+            model: None,
                 agent: AgentConfig::new(invalid_id, "Test", prompt_path.clone())
                     .with_file_path(config_path.clone()),
             persona: None,
@@ -1709,6 +1738,7 @@ cost_tier = "invalid"
         let config_path = temp_dir.path().join("test.toml");
 
         let config = AgentConfigFile {
+            model: None,
             agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                 .with_loop_behavior(AgentLoopBehavior {
                     steps: 2,
@@ -1719,5 +1749,116 @@ cost_tier = "invalid"
             persona: None,
         };
         assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_parse_response_format() {
+        use super::AgentConfigFile;
+
+        // Test text format
+        let result = AgentConfigFile::parse_response_format("text").unwrap();
+        assert_eq!(result, ResponseFormat::Text);
+
+        // Test json format
+        let result = AgentConfigFile::parse_response_format("json").unwrap();
+        assert_eq!(result, ResponseFormat::Json);
+
+        // Test JSON schema format
+        let valid_schema = "{\"type\":\"object\"}";
+        let result = AgentConfigFile::parse_response_format(valid_schema).unwrap();
+        assert!(matches!(result, ResponseFormat::JsonSchema(_)));
+
+        // Test invalid format
+        assert!(AgentConfigFile::parse_response_format("xml").is_err());
+        assert!(AgentConfigFile::parse_response_format("invalid").is_err());
+
+        // Test invalid JSON schema
+        assert!(AgentConfigFile::parse_response_format("{invalid json}").is_err());
+    }
+
+    #[test]
+    fn test_model_config_validation() {
+        use std::fs;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let prompt_path = temp_dir.path().join("test.md");
+        fs::write(&prompt_path, "# Test").unwrap();
+        let config_path = temp_dir.path().join("test.toml");
+
+        // Valid top_k
+        let mut config = AgentConfigFile {
+            model: None,
+            agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
+                .with_file_path(config_path.clone()),
+            persona: None,
+        };
+        config.model = Some(ModelConfigToml {
+            top_k: Some(50),
+            frequency_penalty: None,
+            presence_penalty: None,
+            response_format: None,
+        });
+        assert!(config.validate().is_ok());
+
+        // Invalid top_k (out of range)
+        config.model = Some(ModelConfigToml {
+            top_k: Some(101),
+            frequency_penalty: None,
+            presence_penalty: None,
+            response_format: None,
+        });
+        assert!(config.validate().is_err());
+
+        // Invalid frequency_penalty (out of range)
+        config.model = Some(ModelConfigToml {
+            top_k: None,
+            frequency_penalty: Some(3.0),
+            presence_penalty: None,
+            response_format: None,
+        });
+        assert!(config.validate().is_err());
+
+        // Valid penalties
+        config.model = Some(ModelConfigToml {
+            top_k: Some(40),
+            frequency_penalty: Some(0.5),
+            presence_penalty: Some(0.3),
+            response_format: Some("json".to_string()),
+        });
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_to_model_parameters() {
+        use std::fs;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let prompt_path = temp_dir.path().join("test.md");
+        fs::write(&prompt_path, "# Test").unwrap();
+        let config_path = temp_dir.path().join("test.toml");
+
+        let mut config = AgentConfigFile {
+            model: None,
+            agent: AgentConfig::new("test-agent", "Test", prompt_path)
+                .with_file_path(config_path),
+            persona: None,
+        };
+
+        // Test without model config
+        assert!(config.to_model_parameters().is_none());
+
+        // Test with model config
+        config.model = Some(ModelConfigToml {
+            top_k: Some(40),
+            frequency_penalty: Some(0.5),
+            presence_penalty: Some(0.3),
+            response_format: Some("json".to_string()),
+        });
+
+        let params = config.to_model_parameters().unwrap();
+        assert_eq!(params.top_k, Some(40));
+        assert_eq!(params.frequency_penalty, Some(0.5));
+        assert_eq!(params.presence_penalty, Some(0.3));
+        assert_eq!(params.response_format, Some(ResponseFormat::Json));
     }
 }
