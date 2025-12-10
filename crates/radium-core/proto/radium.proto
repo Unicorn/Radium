@@ -296,6 +296,17 @@ message ExecuteAgentResponse {
   bool success = 1;
   string output = 2;
   optional string error = 3;
+  optional ResponseMetadata metadata = 4;
+}
+
+// Metadata from model response (e.g., finish_reason, safety_ratings, citations, logprobs).
+message ResponseMetadata {
+  optional string finish_reason = 1;  // e.g., "stop", "length", "safety"
+  bool safety_blocked = 2;  // Whether content was blocked by safety filters
+  optional int32 citation_count = 3;  // Number of citations in the response
+  optional string model_version = 4;  // Model version identifier
+  // Raw metadata as JSON string for provider-specific fields
+  optional string raw_metadata_json = 5;
 }
 
 message StartAgentRequest {

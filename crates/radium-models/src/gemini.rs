@@ -5,9 +5,10 @@
 use async_trait::async_trait;
 use futures::stream::Stream;
 use radium_abstraction::{
-    ChatMessage, Citation, Model, ModelError, ModelParameters, ModelResponse, ModelUsage,
-    ResponseFormat, SafetyRating, StreamingModel,
+    ChatMessage, ContentBlock, ImageSource, MessageContent, Citation, Model, ModelError,
+    ModelParameters, ModelResponse, ModelUsage, ResponseFormat, SafetyRating, StreamingModel,
 };
+use std::path::PathBuf;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -91,7 +92,18 @@ impl GeminiModel {
         let system_messages: Vec<String> = messages
             .iter()
             .filter(|msg| msg.role == "system")
-            .map(|msg| msg.content.clone())
+            .filter_map(|msg| match &msg.content {
+                MessageContent::Text(text) => Some(text.clone()),
+                MessageContent::Blocks(blocks) => {
+                    // Extract first text block if available
+                    blocks
+                        .iter()
+                        .find_map(|block| match block {
+                            ContentBlock::Text { text } => Some(text.clone()),
+                            _ => None,
+                        })
+                }
+            })
             .collect();
 
         if system_messages.is_empty() {
@@ -99,6 +111,80 @@ impl GeminiModel {
         } else {
             Some(system_messages.join("\n\n"))
         }
+    }
+
+    /// Reads a file and encodes it to Base64.
+    fn read_and_encode_file(path: &PathBuf) -> Result<String, ModelError> {
+        use base64::Engine;
+        let engine = base64::engine::general_purpose::STANDARD;
+        let bytes = std::fs::read(path).map_err(|e| {
+            ModelError::InvalidMediaSource {
+                media_source: path.display().to_string(),
+                reason: format!("Failed to read file: {}", e),
+            }
+        })?;
+        Ok(engine.encode(&bytes))
+    }
+
+    /// Converts a ContentBlock to Gemini's part format.
+    fn content_block_to_gemini_part(
+        block: &ContentBlock,
+    ) -> Result<GeminiPart, ModelError> {
+        match block {
+            ContentBlock::Text { text } => Ok(GeminiPart::Text {
+                text: text.clone(),
+            }),
+            ContentBlock::Image { source, media_type } => {
+                let (mime_type, data) = match source {
+                    ImageSource::Base64 { data } => (media_type.clone(), data.clone()),
+                    ImageSource::File { path } => {
+                        let encoded = Self::read_and_encode_file(path)?;
+                        (media_type.clone(), encoded)
+                    }
+                    ImageSource::Url { .. } => {
+                        return Err(ModelError::UnsupportedContentType {
+                            content_type: "image (URL)".to_string(),
+                            model: "gemini".to_string(),
+                        });
+                    }
+                };
+                Ok(GeminiPart::InlineData {
+                    inline_data: GeminiInlineData { mime_type, data },
+                })
+            }
+            ContentBlock::Audio { .. } => Err(ModelError::UnsupportedContentType {
+                content_type: "audio".to_string(),
+                model: "gemini".to_string(),
+            }),
+            ContentBlock::Video { .. } => Err(ModelError::UnsupportedContentType {
+                content_type: "video".to_string(),
+                model: "gemini".to_string(),
+            }),
+            ContentBlock::Document { .. } => Err(ModelError::UnsupportedContentType {
+                content_type: "document".to_string(),
+                model: "gemini".to_string(),
+            }),
+        }
+    }
+
+    /// Converts our ChatMessage to Gemini format.
+    fn to_gemini_content(msg: &ChatMessage) -> Result<GeminiContent, ModelError> {
+        let role = Self::role_to_gemini(&msg.role);
+
+        let parts = match &msg.content {
+            MessageContent::Text(text) => vec![GeminiPart::Text {
+                text: text.clone(),
+            }],
+            MessageContent::Blocks(blocks) => {
+                let gemini_parts: Result<Vec<GeminiPart>, ModelError> = blocks
+                    .iter()
+                    .map(Self::content_block_to_gemini_part)
+                    .collect();
+                gemini_parts?
+            }
+        };
+
+        Ok(GeminiContent { role, parts })
     }
 }
 
@@ -117,7 +203,10 @@ impl Model for GeminiModel {
         );
 
         // Convert single prompt to chat format for Gemini
-        let messages = vec![ChatMessage { role: "user".to_string(), content: prompt.to_string() }];
+        let messages = vec![ChatMessage {
+            role: "user".to_string(),
+            content: MessageContent::Text(prompt.to_string()),
+        }];
 
         self.generate_chat_completion(&messages, parameters).await
     }
@@ -144,21 +233,19 @@ impl Model for GeminiModel {
         let system_instruction = Self::extract_system_messages(messages);
 
         // Convert non-system messages to Gemini format
-        let gemini_messages: Vec<GeminiContent> = messages
+        let gemini_messages: Result<Vec<GeminiContent>, ModelError> = messages
             .iter()
             .filter(|msg| msg.role != "system")
-            .map(|msg| GeminiContent {
-                role: Self::role_to_gemini(&msg.role),
-                parts: vec![GeminiPart { text: msg.content.clone() }],
-            })
+            .map(Self::to_gemini_content)
             .collect();
+        let gemini_messages = gemini_messages?;
 
         // Build request body
         let mut request_body = GeminiRequest {
             contents: gemini_messages,
             generation_config: None,
             system_instruction: system_instruction.map(|text| GeminiSystemInstruction {
-                parts: vec![GeminiPart { text }],
+                parts: vec![GeminiPart::Text { text }],
             }),
         };
 
@@ -289,10 +376,13 @@ impl Model for GeminiModel {
             .content
             .parts
             .first()
-            .map(|p| p.text.clone())
+            .and_then(|p| match p {
+                GeminiPart::Text { text } => Some(text.clone()),
+                GeminiPart::InlineData { .. } => None, // Images in response are not extracted as text
+            })
             .ok_or_else(|| {
-                error!("No content in Gemini API response");
-                ModelError::ModelResponseError("No content in API response".to_string())
+                error!("No text content in Gemini API response");
+                ModelError::ModelResponseError("No text content in API response".to_string())
             })?;
 
         // Extract usage information
@@ -376,7 +466,7 @@ impl StreamingModel for GeminiModel {
         // Convert single prompt to chat format for Gemini
         let messages = vec![ChatMessage {
             role: "user".to_string(),
-            content: prompt.to_string(),
+            content: MessageContent::Text(prompt.to_string()),
         }];
 
         // Build Gemini streaming API request
@@ -389,23 +479,19 @@ impl StreamingModel for GeminiModel {
         let system_instruction = Self::extract_system_messages(&messages);
 
         // Convert non-system messages to Gemini format
-        let gemini_messages: Vec<GeminiContent> = messages
+        let gemini_messages: Result<Vec<GeminiContent>, ModelError> = messages
             .iter()
             .filter(|msg| msg.role != "system")
-            .map(|msg| GeminiContent {
-                role: Self::role_to_gemini(&msg.role),
-                parts: vec![GeminiPart {
-                    text: msg.content.clone(),
-                }],
-            })
+            .map(Self::to_gemini_content)
             .collect();
+        let gemini_messages = gemini_messages?;
 
         // Build request body
         let mut request_body = GeminiRequest {
             contents: gemini_messages,
             generation_config: None,
             system_instruction: system_instruction.map(|text| GeminiSystemInstruction {
-                parts: vec![GeminiPart { text }],
+                parts: vec![GeminiPart::Text { text }],
             }),
         };
 
@@ -602,9 +688,11 @@ impl Stream for GeminiSSEStream {
                                             // Extract text from candidates[0].content.parts[0].text
                                             if let Some(candidate) = streaming_response.candidates.first() {
                                                 if let Some(part) = candidate.content.parts.first() {
-                                                    if !part.text.is_empty() {
-                                                        self.accumulated.push_str(&part.text);
-                                                        return Poll::Ready(Some(Ok(self.accumulated.clone())));
+                                                    if let GeminiPart::Text { text } = part {
+                                                        if !text.is_empty() {
+                                                            self.accumulated.push_str(text);
+                                                            return Poll::Ready(Some(Ok(self.accumulated.clone())));
+                                                        }
                                                     }
                                                 }
                                             }
@@ -656,8 +744,10 @@ impl Stream for GeminiSSEStream {
                             {
                                 if let Some(candidate) = streaming_response.candidates.first() {
                                     if let Some(part) = candidate.content.parts.first() {
-                                        if !part.text.is_empty() {
-                                            self.accumulated.push_str(&part.text);
+                                        if let GeminiPart::Text { text } = part {
+                                            if !text.is_empty() {
+                                                self.accumulated.push_str(text);
+                                            }
                                         }
                                     }
                                 }
@@ -707,8 +797,17 @@ struct GeminiContent {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct GeminiPart {
-    text: String,
+#[serde(untagged)]
+enum GeminiPart {
+    Text { text: String },
+    InlineData { inline_data: GeminiInlineData },
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct GeminiInlineData {
+    #[serde(rename = "mime_type")]
+    mime_type: String,
+    data: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -861,42 +960,78 @@ mod tests {
 
         // Test single system message
         let messages = vec![
-            ChatMessage { role: "system".to_string(), content: "You are helpful.".to_string() },
-            ChatMessage { role: "user".to_string(), content: "Hello".to_string() },
+            ChatMessage {
+                role: "system".to_string(),
+                content: MessageContent::Text("You are helpful.".to_string()),
+            },
+            ChatMessage {
+                role: "user".to_string(),
+                content: MessageContent::Text("Hello".to_string()),
+            },
         ];
         let system = GeminiModel::extract_system_messages(&messages);
         assert_eq!(system, Some("You are helpful.".to_string()));
 
         // Test multiple system messages (should be concatenated)
         let messages = vec![
-            ChatMessage { role: "system".to_string(), content: "First instruction.".to_string() },
-            ChatMessage { role: "system".to_string(), content: "Second instruction.".to_string() },
-            ChatMessage { role: "user".to_string(), content: "Hello".to_string() },
+            ChatMessage {
+                role: "system".to_string(),
+                content: MessageContent::Text("First instruction.".to_string()),
+            },
+            ChatMessage {
+                role: "system".to_string(),
+                content: MessageContent::Text("Second instruction.".to_string()),
+            },
+            ChatMessage {
+                role: "user".to_string(),
+                content: MessageContent::Text("Hello".to_string()),
+            },
         ];
         let system = GeminiModel::extract_system_messages(&messages);
         assert_eq!(system, Some("First instruction.\n\nSecond instruction.".to_string()));
 
         // Test no system messages
         let messages = vec![
-            ChatMessage { role: "user".to_string(), content: "Hello".to_string() },
-            ChatMessage { role: "assistant".to_string(), content: "Hi there!".to_string() },
+            ChatMessage {
+                role: "user".to_string(),
+                content: MessageContent::Text("Hello".to_string()),
+            },
+            ChatMessage {
+                role: "assistant".to_string(),
+                content: MessageContent::Text("Hi there!".to_string()),
+            },
         ];
         let system = GeminiModel::extract_system_messages(&messages);
         assert_eq!(system, None);
 
         // Test mixed message types
         let messages = vec![
-            ChatMessage { role: "system".to_string(), content: "System message.".to_string() },
-            ChatMessage { role: "user".to_string(), content: "User message.".to_string() },
-            ChatMessage { role: "assistant".to_string(), content: "Assistant message.".to_string() },
+            ChatMessage {
+                role: "system".to_string(),
+                content: MessageContent::Text("System message.".to_string()),
+            },
+            ChatMessage {
+                role: "user".to_string(),
+                content: MessageContent::Text("User message.".to_string()),
+            },
+            ChatMessage {
+                role: "assistant".to_string(),
+                content: MessageContent::Text("Assistant message.".to_string()),
+            },
         ];
         let system = GeminiModel::extract_system_messages(&messages);
         assert_eq!(system, Some("System message.".to_string()));
 
         // Test empty system message content
         let messages = vec![
-            ChatMessage { role: "system".to_string(), content: "".to_string() },
-            ChatMessage { role: "user".to_string(), content: "Hello".to_string() },
+            ChatMessage {
+                role: "system".to_string(),
+                content: MessageContent::Text("".to_string()),
+            },
+            ChatMessage {
+                role: "user".to_string(),
+                content: MessageContent::Text("Hello".to_string()),
+            },
         ];
         let system = GeminiModel::extract_system_messages(&messages);
         assert_eq!(system, Some("".to_string()));
@@ -908,9 +1043,18 @@ mod tests {
 
         // Test that system messages are filtered from contents array
         let messages = vec![
-            ChatMessage { role: "system".to_string(), content: "System instruction.".to_string() },
-            ChatMessage { role: "user".to_string(), content: "User message.".to_string() },
-            ChatMessage { role: "assistant".to_string(), content: "Assistant message.".to_string() },
+            ChatMessage {
+                role: "system".to_string(),
+                content: MessageContent::Text("System instruction.".to_string()),
+            },
+            ChatMessage {
+                role: "user".to_string(),
+                content: MessageContent::Text("User message.".to_string()),
+            },
+            ChatMessage {
+                role: "assistant".to_string(),
+                content: MessageContent::Text("Assistant message.".to_string()),
+            },
         ];
 
         // Filter system messages (simulating what happens in generate_chat_completion)
@@ -929,13 +1073,17 @@ mod tests {
         // Test that systemInstruction field is included when system messages are present
         let system_text = "You are a helpful assistant.";
         let system_instruction = GeminiSystemInstruction {
-            parts: vec![GeminiPart { text: system_text.to_string() }],
+            parts: vec![GeminiPart::Text {
+                text: system_text.to_string(),
+            }],
         };
 
         let request = GeminiRequest {
             contents: vec![GeminiContent {
                 role: "user".to_string(),
-                parts: vec![GeminiPart { text: "Hello".to_string() }],
+                parts: vec![GeminiPart::Text {
+                    text: "Hello".to_string(),
+                }],
             }],
             generation_config: None,
             system_instruction: Some(system_instruction),
@@ -949,7 +1097,9 @@ mod tests {
         let request_no_system = GeminiRequest {
             contents: vec![GeminiContent {
                 role: "user".to_string(),
-                parts: vec![GeminiPart { text: "Hello".to_string() }],
+                parts: vec![GeminiPart::Text {
+                    text: "Hello".to_string(),
+                }],
             }],
             generation_config: None,
             system_instruction: None,
@@ -1029,6 +1179,10 @@ mod tests {
         
         assert_eq!(response.candidates.len(), 1);
         assert_eq!(response.candidates[0].content.parts.len(), 1);
-        assert_eq!(response.candidates[0].content.parts[0].text, "Hello");
+        if let GeminiPart::Text { text } = &response.candidates[0].content.parts[0] {
+            assert_eq!(text, "Hello");
+        } else {
+            panic!("Expected text part");
+        }
     }
 }

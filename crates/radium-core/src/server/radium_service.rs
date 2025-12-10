@@ -42,7 +42,7 @@ use crate::proto::{
     PingResponse, RegisterAgentRequest, RegisterAgentResponse, RegisteredAgent,
     ReleaseResourceLockRequest, ReleaseResourceLockResponse, ReportProgressRequest,
     ReportProgressResponse, RequestResourceLockRequest, RequestResourceLockResponse,
-    SendMessageRequest, SendMessageResponse, SpawnWorkerAgentRequest, SpawnWorkerAgentResponse,
+    ResponseMetadata, SendMessageRequest, SendMessageResponse, SpawnWorkerAgentRequest, SpawnWorkerAgentResponse,
     StartAgentRequest, StartAgentResponse, StopAgentRequest, StopAgentResponse,
     StopWorkflowExecutionRequest, StopWorkflowExecutionResponse, UpdateAgentRequest,
     UpdateAgentResponse, UpdateTaskRequest, UpdateTaskResponse, UpdateWorkflowRequest,
@@ -144,6 +144,53 @@ impl RadiumService {
     /// Gets a reference to the message bus.
     pub fn get_message_bus(&self) -> Arc<crate::collaboration::MessageBus> {
         Arc::clone(&self.message_bus)
+    }
+
+    /// Converts metadata from ExecutionResponse to gRPC ResponseMetadata.
+    fn convert_metadata(
+        metadata: Option<&std::collections::HashMap<String, serde_json::Value>>,
+    ) -> Option<ResponseMetadata> {
+        let metadata = metadata?;
+        let mut response_metadata = ResponseMetadata {
+            finish_reason: None,
+            safety_blocked: false,
+            citation_count: None,
+            model_version: None,
+            raw_metadata_json: None,
+        };
+
+        // Extract finish_reason
+        if let Some(finish_reason) = metadata.get("finish_reason").and_then(|v| v.as_str()) {
+            response_metadata.finish_reason = Some(finish_reason.to_string());
+        }
+
+        // Extract safety_blocked from safety_ratings
+        if let Some(safety_ratings_val) = metadata.get("safety_ratings") {
+            if let Ok(safety_ratings) = serde_json::from_value::<Vec<serde_json::Value>>(safety_ratings_val.clone()) {
+                response_metadata.safety_blocked = safety_ratings.iter().any(|r| {
+                    r.get("blocked").and_then(|v| v.as_bool()).unwrap_or(false)
+                });
+            }
+        }
+
+        // Extract citation_count
+        if let Some(citations_val) = metadata.get("citations") {
+            if let Ok(citations) = serde_json::from_value::<Vec<serde_json::Value>>(citations_val.clone()) {
+                response_metadata.citation_count = Some(citations.len() as i32);
+            }
+        }
+
+        // Extract model_version
+        if let Some(model_version) = metadata.get("model_version").and_then(|v| v.as_str()) {
+            response_metadata.model_version = Some(model_version.to_string());
+        }
+
+        // Store raw metadata as JSON for provider-specific fields
+        if let Ok(raw_json) = serde_json::to_string(metadata) {
+            response_metadata.raw_metadata_json = Some(raw_json);
+        }
+
+        Some(response_metadata)
     }
 
     /// Gets a reference to the lock manager.
@@ -809,6 +856,9 @@ impl Radium for RadiumService {
                     radium_orchestrator::AgentOutput::Terminate => "Terminated".to_string(),
                 },
                 error: exec_result.error,
+                // TODO: Extract metadata from ExecutionResult when it's available
+                // For now, metadata is None since ExecutionResult doesn't include it yet
+                metadata: None,
             })),
             Err(e) => Ok(Response::new(ExecuteAgentResponse {
                 success: false,
