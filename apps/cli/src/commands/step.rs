@@ -1161,10 +1161,29 @@ async fn execute_agent_with_engine(
                 
                 let mut accumulated = String::new();
                 let mut last_content = String::new();
+                let mut in_thinking_phase = false;
                 
                 while let Some(result) = stream.next().await {
                     match result {
-                        Ok(content) => {
+                        Ok(radium_abstraction::StreamItem::ThinkingToken(token)) => {
+                            if !in_thinking_phase {
+                                println!();
+                                println!("{}", "Thinking Process:".bold().cyan().dimmed());
+                                println!("{}", "─".repeat(60).dimmed());
+                                in_thinking_phase = true;
+                            }
+                            print!("{}", token.dimmed());
+                            std::io::stdout().flush().map_err(|e| anyhow::anyhow!("Failed to flush stdout: {}", e))?;
+                        }
+                        Ok(radium_abstraction::StreamItem::AnswerToken(content)) => {
+                            if in_thinking_phase {
+                                println!();
+                                println!("{}", "─".repeat(60).dimmed());
+                                println!();
+                                println!("{}", "Answer:".bold().green());
+                                println!("{}", "─".repeat(60).dimmed());
+                                in_thinking_phase = false;
+                            }
                             if content.len() > last_content.len() {
                                 let delta = &content[last_content.len()..];
                                 print!("{}", delta);
@@ -1172,6 +1191,9 @@ async fn execute_agent_with_engine(
                                 accumulated = content.clone();
                                 last_content = content;
                             }
+                        }
+                        Ok(radium_abstraction::StreamItem::Metadata(_)) => {
+                            // Metadata updates
                         }
                         Err(e) => {
                             println!();

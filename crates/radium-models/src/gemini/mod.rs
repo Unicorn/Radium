@@ -794,7 +794,26 @@ impl Model for GeminiModel {
                         debug!("Received code_execution function response");
                         // Extract code execution results from response
                         // The response field contains the execution results
-                        code_execution_results.push(function_response.response.clone());
+                        let response_value = function_response.response.clone();
+                        
+                        // Check for errors in the response
+                        if let Some(error_obj) = response_value.get("error") {
+                            let error_message = error_obj
+                                .get("message")
+                                .and_then(|m| m.as_str())
+                                .unwrap_or("Unknown execution error");
+                            error!(
+                                error = %error_message,
+                                "Code execution failed"
+                            );
+                        } else if let Some(error_str) = response_value.get("error").and_then(|e| e.as_str()) {
+                            error!(
+                                error = %error_str,
+                                "Code execution failed"
+                            );
+                        }
+                        
+                        code_execution_results.push(response_value);
                     }
                 }
             }
