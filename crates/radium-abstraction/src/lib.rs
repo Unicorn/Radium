@@ -136,6 +136,80 @@ pub enum MessageContent {
     Blocks(Vec<ContentBlock>),
 }
 
+impl MessageContent {
+    /// Creates a new `MessageContent::Text` from a string or string-like type.
+    ///
+    /// # Examples
+    /// ```
+    /// use radium_abstraction::MessageContent;
+    ///
+    /// let content = MessageContent::text("Hello, world!");
+    /// ```
+    pub fn text<S: Into<String>>(s: S) -> Self {
+        MessageContent::Text(s.into())
+    }
+
+    /// Returns `true` if this content is simple text (not multimodal blocks).
+    ///
+    /// # Examples
+    /// ```
+    /// use radium_abstraction::MessageContent;
+    ///
+    /// let text_content = MessageContent::text("Hello");
+    /// assert!(text_content.is_text_only());
+    /// ```
+    pub fn is_text_only(&self) -> bool {
+        matches!(self, MessageContent::Text(_))
+    }
+
+    /// Returns a reference to the text content if this is a `Text` variant, `None` otherwise.
+    ///
+    /// # Examples
+    /// ```
+    /// use radium_abstraction::MessageContent;
+    ///
+    /// let text_content = MessageContent::text("Hello");
+    /// assert_eq!(text_content.as_text(), Some("Hello"));
+    /// ```
+    pub fn as_text(&self) -> Option<&str> {
+        match self {
+            MessageContent::Text(text) => Some(text),
+            MessageContent::Blocks(_) => None,
+        }
+    }
+}
+
+/// Enables automatic conversion from `String` to `MessageContent` for backward compatibility.
+///
+/// This trait implementation allows existing code that uses `String` for message content
+/// to continue working without modification. The string is automatically converted to
+/// `MessageContent::Text`.
+///
+/// # Examples
+/// ```
+/// use radium_abstraction::{ChatMessage, MessageContent};
+///
+/// // Old code still works:
+/// let msg = ChatMessage {
+///     role: "user".to_string(),
+///     content: "Hello".to_string().into(), // Automatic conversion
+/// };
+///
+/// // Or with explicit conversion:
+/// let content: MessageContent = "Hello".to_string().into();
+/// ```
+impl From<String> for MessageContent {
+    fn from(text: String) -> Self {
+        MessageContent::Text(text)
+    }
+}
+
+impl From<&str> for MessageContent {
+    fn from(text: &str) -> Self {
+        MessageContent::Text(text.to_string())
+    }
+}
+
 /// A content block within a multimodal message.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -1089,5 +1163,67 @@ mod tests {
         let result = validate_base64_size(invalid_base64, DEFAULT_SIZE_LIMIT);
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), ModelError::InvalidMediaSource { .. }));
+    }
+
+    #[test]
+    fn test_from_string_conversion() {
+        let content: MessageContent = "Hello".to_string().into();
+        assert!(matches!(content, MessageContent::Text(_)));
+        if let MessageContent::Text(text) = content {
+            assert_eq!(text, "Hello");
+        }
+    }
+
+    #[test]
+    fn test_from_str_conversion() {
+        let content: MessageContent = "Hello".into();
+        assert!(matches!(content, MessageContent::Text(_)));
+    }
+
+    #[test]
+    fn test_message_content_text_constructor() {
+        let content = MessageContent::text("Hello");
+        assert!(matches!(content, MessageContent::Text(_)));
+        if let MessageContent::Text(text) = content {
+            assert_eq!(text, "Hello");
+        }
+    }
+
+    #[test]
+    fn test_is_text_only() {
+        let text_content = MessageContent::Text("Hello".to_string());
+        assert!(text_content.is_text_only());
+
+        let blocks_content = MessageContent::Blocks(vec![
+            ContentBlock::Text {
+                text: "Hello".to_string(),
+            },
+        ]);
+        assert!(!blocks_content.is_text_only());
+    }
+
+    #[test]
+    fn test_as_text() {
+        let text_content = MessageContent::Text("Hello".to_string());
+        assert_eq!(text_content.as_text(), Some("Hello"));
+
+        let blocks_content = MessageContent::Blocks(vec![
+            ContentBlock::Text {
+                text: "Hello".to_string(),
+            },
+        ]);
+        assert_eq!(blocks_content.as_text(), None);
+    }
+
+    #[test]
+    fn test_backward_compatibility_chat_message() {
+        // This test verifies that existing code patterns still work
+        let msg = ChatMessage {
+            role: "user".to_string(),
+            content: "Hello".to_string().into(), // Automatic conversion via From<String>
+        };
+        assert_eq!(msg.role, "user");
+        assert!(matches!(msg.content, MessageContent::Text(_)));
+        assert_eq!(msg.content.as_text(), Some("Hello"));
     }
 }
