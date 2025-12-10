@@ -41,6 +41,23 @@ pub enum OrchestrationError {
     #[error("Orchestration cancelled by user")]
     Cancelled,
 
+    /// Invalid tool mode configuration
+    ///
+    /// This error occurs when tool configuration is invalid, such as:
+    /// - Mode is ANY but no tools are provided
+    /// - Invalid mode value
+    /// - Conflicting configuration options
+    #[error("Invalid tool mode: {0}")]
+    InvalidToolMode(String),
+
+    /// Tool mode constraint violated
+    ///
+    /// This error occurs when the model's behavior violates the configured mode:
+    /// - Mode is ANY but model returned no tool calls
+    /// - Mode is NONE but model attempted to call tools
+    #[error("Tool mode violation: {0}")]
+    ModeViolation(String),
+
     /// Other error
     #[error("Orchestration error: {0}")]
     Other(String),
