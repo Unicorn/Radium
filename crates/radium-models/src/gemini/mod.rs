@@ -295,6 +295,28 @@ impl GeminiModel {
         }
     }
 
+    /// Parse tool calls from Gemini content parts.
+    ///
+    /// Extracts function calls from Gemini response and converts them to ToolCall structs
+    /// with unique IDs.
+    fn parse_tool_calls_from_parts(parts: &[GeminiPart]) -> Vec<radium_abstraction::ToolCall> {
+        let mut tool_calls = Vec::new();
+        let mut call_index = 0;
+
+        for part in parts {
+            if let GeminiPart::FunctionCall { function_call } = part {
+                tool_calls.push(radium_abstraction::ToolCall {
+                    id: format!("call_{}", call_index),
+                    name: function_call.name.clone(),
+                    arguments: function_call.args.clone(),
+                });
+                call_index += 1;
+            }
+        }
+
+        tool_calls
+    }
+
     /// Converts our ChatMessage to Gemini format.
     fn to_gemini_content(msg: &ChatMessage) -> Result<GeminiContent, ModelError> {
         let role = Self::role_to_gemini(&msg.role);
@@ -501,7 +523,7 @@ impl Model for GeminiModel {
                 ModelError::ModelResponseError("No content in API response".to_string())
             })?;
 
-        // Extract text from all parts, concatenating multiple text parts
+        // Extract text and function calls from all parts
         let mut text_parts = Vec::new();
         for part in &candidate.content.parts {
             match part {
@@ -523,14 +545,25 @@ impl Model for GeminiModel {
                     );
                 }
                 GeminiPart::FunctionCall { .. } => {
-                    debug!("Received function_call in response (not yet processed)");
+                    debug!("Received function_call in response - will be parsed");
+                }
+                GeminiPart::FunctionResponse { .. } => {
+                    debug!("Received function_response in response (tool result)");
                 }
             }
         }
 
-        let content = if text_parts.is_empty() {
-            error!("No text content in Gemini API response");
-            return Err(ModelError::ModelResponseError("No text content in API response".to_string()));
+        // Parse tool calls from response parts
+        let tool_calls = Self::parse_tool_calls_from_parts(&candidate.content.parts);
+        let has_tool_calls = !tool_calls.is_empty();
+
+        // Content can be empty if model only calls tools (no text response)
+        let content = if text_parts.is_empty() && !has_tool_calls {
+            error!("No text content or tool calls in Gemini API response");
+            return Err(ModelError::ModelResponseError("No text content or tool calls in API response".to_string()));
+        } else if text_parts.is_empty() {
+            // Model only called tools, no text response
+            String::new()
         } else {
             text_parts.join("\n")
         };
@@ -591,7 +624,7 @@ impl Model for GeminiModel {
             model_id: Some(self.model_id.clone()),
             usage,
             metadata,
-            tool_calls: None,
+            tool_calls: if tool_calls.is_empty() { None } else { Some(tool_calls) },
         })
     }
 
@@ -1043,8 +1076,26 @@ enum GeminiPart {
     },
     FunctionCall {
         #[serde(rename = "function_call")]
-        function_call: serde_json::Value,  // Placeholder for future tool use
+        function_call: GeminiFunctionCall,
     },
+    FunctionResponse {
+        #[serde(rename = "function_response")]
+        function_response: GeminiFunctionResponse,
+    },
+}
+
+/// Gemini function call from API response
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct GeminiFunctionCall {
+    name: String,
+    args: serde_json::Value,
+}
+
+/// Gemini function response (for providing tool results back to model)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct GeminiFunctionResponse {
+    name: String,
+    response: serde_json::Value,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
