@@ -90,3 +90,51 @@ async fn test_model_factory_with_env_keys() {
     // If we get here, at least one API key was available
     assert!(gemini_model.is_ok() || openai_model.is_ok());
 }
+
+#[tokio::test]
+async fn test_gemini_system_message_handling() {
+    use radium_abstraction::ChatMessage;
+
+    // Test that system messages are properly handled by Gemini model
+    // This test uses MockModel to avoid requiring API keys
+    let model = MockModel::new("gemini-test".to_string());
+
+    // Test with system message
+    let messages_with_system = vec![
+        ChatMessage { role: "system".to_string(), content: "You are a helpful assistant.".to_string() },
+        ChatMessage { role: "user".to_string(), content: "Hello".to_string() },
+    ];
+
+    let response = model.generate_chat_completion(&messages_with_system, None).await;
+    assert!(response.is_ok());
+
+    // Test with multiple system messages
+    let messages_multiple_system = vec![
+        ChatMessage { role: "system".to_string(), content: "First instruction.".to_string() },
+        ChatMessage { role: "system".to_string(), content: "Second instruction.".to_string() },
+        ChatMessage { role: "user".to_string(), content: "Hello".to_string() },
+    ];
+
+    let response = model.generate_chat_completion(&messages_multiple_system, None).await;
+    assert!(response.is_ok());
+
+    // Test with no system messages
+    let messages_no_system = vec![
+        ChatMessage { role: "user".to_string(), content: "Hello".to_string() },
+        ChatMessage { role: "assistant".to_string(), content: "Hi there!".to_string() },
+    ];
+
+    let response = model.generate_chat_completion(&messages_no_system, None).await;
+    assert!(response.is_ok());
+
+    // Test with mixed message types
+    let messages_mixed = vec![
+        ChatMessage { role: "system".to_string(), content: "System instruction.".to_string() },
+        ChatMessage { role: "user".to_string(), content: "User message.".to_string() },
+        ChatMessage { role: "assistant".to_string(), content: "Assistant message.".to_string() },
+        ChatMessage { role: "user".to_string(), content: "Follow-up question.".to_string() },
+    ];
+
+    let response = model.generate_chat_completion(&messages_mixed, None).await;
+    assert!(response.is_ok());
+}

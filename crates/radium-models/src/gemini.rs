@@ -258,7 +258,7 @@ struct GeminiRequest {
     system_instruction: Option<GeminiSystemInstruction>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 struct GeminiSystemInstruction {
     parts: Vec<GeminiPart>,
 }
@@ -269,7 +269,7 @@ struct GeminiContent {
     parts: Vec<GeminiPart>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct GeminiPart {
     text: String,
 }
@@ -358,6 +358,71 @@ mod tests {
         ];
         let system = GeminiModel::extract_system_messages(&messages);
         assert_eq!(system, Some("System message.".to_string()));
+
+        // Test empty system message content
+        let messages = vec![
+            ChatMessage { role: "system".to_string(), content: "".to_string() },
+            ChatMessage { role: "user".to_string(), content: "Hello".to_string() },
+        ];
+        let system = GeminiModel::extract_system_messages(&messages);
+        assert_eq!(system, Some("".to_string()));
+    }
+
+    #[test]
+    fn test_system_message_filtering_from_contents() {
+        use radium_abstraction::ChatMessage;
+
+        // Test that system messages are filtered from contents array
+        let messages = vec![
+            ChatMessage { role: "system".to_string(), content: "System instruction.".to_string() },
+            ChatMessage { role: "user".to_string(), content: "User message.".to_string() },
+            ChatMessage { role: "assistant".to_string(), content: "Assistant message.".to_string() },
+        ];
+
+        // Filter system messages (simulating what happens in generate_chat_completion)
+        let filtered: Vec<&ChatMessage> = messages.iter().filter(|msg| msg.role != "system").collect();
+
+        assert_eq!(filtered.len(), 2);
+        assert_eq!(filtered[0].role, "user");
+        assert_eq!(filtered[1].role, "assistant");
+        assert!(!filtered.iter().any(|msg| msg.role == "system"));
+    }
+
+    #[test]
+    fn test_request_serialization_with_system_instruction() {
+        use serde_json;
+
+        // Test that systemInstruction field is included when system messages are present
+        let system_text = "You are a helpful assistant.";
+        let system_instruction = GeminiSystemInstruction {
+            parts: vec![GeminiPart { text: system_text.to_string() }],
+        };
+
+        let request = GeminiRequest {
+            contents: vec![GeminiContent {
+                role: "user".to_string(),
+                parts: vec![GeminiPart { text: "Hello".to_string() }],
+            }],
+            generation_config: None,
+            system_instruction: Some(system_instruction),
+        };
+
+        let json = serde_json::to_string(&request).unwrap();
+        assert!(json.contains("systemInstruction"));
+        assert!(json.contains(system_text));
+
+        // Test that systemInstruction field is omitted when None
+        let request_no_system = GeminiRequest {
+            contents: vec![GeminiContent {
+                role: "user".to_string(),
+                parts: vec![GeminiPart { text: "Hello".to_string() }],
+            }],
+            generation_config: None,
+            system_instruction: None,
+        };
+
+        let json_no_system = serde_json::to_string(&request_no_system).unwrap();
+        assert!(!json_no_system.contains("systemInstruction"));
     }
 
     #[test]
