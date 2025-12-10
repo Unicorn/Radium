@@ -39,6 +39,32 @@ Cache effectiveness is shown in session reports:
 - Reuse prompts and templates when possible
 - Enable caching in your agent configuration
 
+#### Context Caching
+
+Context caching reduces token costs by 50%+ for repeated context by caching processed tokens at the provider level. This is different from model instance caching - it caches the actual prompt tokens, not the model objects.
+
+**Enable Context Caching:**
+
+```rust
+use radium_models::{ModelConfig, ModelType};
+use std::time::Duration;
+
+let config = ModelConfig::new(ModelType::Claude, "claude-3-sonnet".to_string())
+    .with_context_caching(true)
+    .with_cache_ttl(Duration::from_secs(300));
+```
+
+**Provider-Specific Notes:**
+- **Claude**: Use cache breakpoints to mark stable context boundaries
+- **OpenAI**: Automatic for GPT-4+ models (just enable caching)
+- **Gemini**: Use cache identifiers to reuse cached content
+
+**Monitor Cache Performance:**
+
+Check `cache_usage` in `ModelResponse` to see cache hit rates and cost savings. Aim for >50% cache hit rate for optimal cost reduction.
+
+See [Context Caching Documentation](../features/context-caching.md) for detailed information.
+
 ### 2. Model Selection
 
 Different models have different costs:
