@@ -30,6 +30,8 @@ pub struct GeminiModel {
     base_url: String,
     /// HTTP client for making requests.
     client: Client,
+    /// Optional safety settings for content filtering.
+    safety_settings: Option<Vec<GeminiSafetySetting>>,
 }
 
 impl GeminiModel {
@@ -53,6 +55,7 @@ impl GeminiModel {
             api_key,
             base_url: "https://generativelanguage.googleapis.com/v1beta".to_string(),
             client: Client::new(),
+            safety_settings: None,
         })
     }
 
@@ -68,7 +71,20 @@ impl GeminiModel {
             api_key,
             base_url: "https://generativelanguage.googleapis.com/v1beta".to_string(),
             client: Client::new(),
+            safety_settings: None,
         }
+    }
+
+    /// Sets safety settings for content filtering.
+    ///
+    /// # Arguments
+    /// * `settings` - Optional vector of safety settings. If `None` or empty, no safety settings will be applied.
+    ///
+    /// # Returns
+    /// Returns `self` for method chaining.
+    pub fn with_safety_settings(mut self, settings: Option<Vec<GeminiSafetySetting>>) -> Self {
+        self.safety_settings = settings;
+        self
     }
 
     /// Converts our ChatMessage role to Gemini API role format.
@@ -317,6 +333,28 @@ impl GeminiModel {
         }
     }
 
+    /// Build Google Search grounding tool with dynamic retrieval configuration.
+    ///
+    /// # Arguments
+    /// * `threshold` - Optional dynamic threshold (0.0-1.0). Defaults to 0.3 if None.
+    ///
+    /// # Returns
+    /// `GeminiTool::GoogleSearch` with configured dynamic retrieval settings.
+    fn build_grounding_tool(threshold: Option<f32>) -> GeminiTool {
+        let clamped_threshold = threshold
+            .map(|t| t.clamp(0.0, 1.0))
+            .unwrap_or(0.3);
+
+        GeminiTool::GoogleSearch {
+            google_search: GeminiGoogleSearch {
+                dynamic_retrieval_config: Some(GeminiDynamicRetrievalConfig {
+                    mode: "MODE_DYNAMIC".to_string(),
+                    dynamic_threshold: clamped_threshold,
+                }),
+            },
+        }
+    }
+
     /// Parse tool calls from Gemini content parts.
     ///
     /// Extracts function calls from Gemini response and converts them to ToolCall structs
@@ -412,6 +450,22 @@ impl Model for GeminiModel {
             .collect();
         let gemini_messages = gemini_messages?;
 
+        // Check if grounding is enabled via parameters
+        let enable_grounding = parameters
+            .as_ref()
+            .and_then(|p| p.enable_grounding)
+            .unwrap_or(false);
+        let grounding_threshold = parameters
+            .as_ref()
+            .and_then(|p| p.grounding_threshold);
+
+        // Build tools array - add grounding tool if enabled
+        let mut tools: Vec<GeminiTool> = Vec::new();
+        
+        if enable_grounding {
+            tools.push(Self::build_grounding_tool(grounding_threshold));
+        }
+
         // Build request body
         let mut request_body = GeminiRequest {
             contents: gemini_messages,
@@ -419,10 +473,19 @@ impl Model for GeminiModel {
             system_instruction: system_instruction.map(|text| GeminiSystemInstruction {
                 parts: vec![GeminiPart::Text { text }],
             }),
-            tools: None,
+            tools: if tools.is_empty() { None } else { Some(tools) },
             tool_config: None,
-            safety_settings: None,
+            safety_settings: self.safety_settings.clone(),
         };
+
+        if let Some(ref settings) = request_body.safety_settings {
+            debug!(
+                model_id = %self.model_id,
+                setting_count = settings.len(),
+                "Applying {} Gemini safety settings",
+                settings.len()
+            );
+        }
 
         // Apply parameters if provided
         if let Some(params) = parameters {
@@ -597,6 +660,7 @@ impl Model for GeminiModel {
             prompt_tokens: meta.prompt_token_count.unwrap_or(0),
             completion_tokens: meta.candidates_token_count.unwrap_or(0),
             total_tokens: meta.total_token_count.unwrap_or(0),
+            cache_usage: None,
         });
 
         // Extract metadata from candidate
@@ -684,13 +748,19 @@ impl Model for GeminiModel {
 
         // Convert tools to Gemini format
         let function_declarations = Self::tools_to_gemini_function_declarations(tools);
-        let gemini_tools = if function_declarations.is_empty() {
-            None
-        } else {
-            Some(vec![GeminiTool::FunctionDeclarations {
+        
+        // Build tools array - combine function declarations with grounding if enabled
+        let mut gemini_tools: Vec<GeminiTool> = Vec::new();
+        
+        // Add function declarations if present
+        if !function_declarations.is_empty() {
+            gemini_tools.push(GeminiTool::FunctionDeclarations {
                 function_declarations,
-            }])
-        };
+            });
+        }
+        
+        // Note: grounding is not supported in generate_with_tools as it uses default parameters
+        // Users should use generate_chat_completion with parameters.enable_grounding for grounding
 
         // Build tool configuration if provided
         let gemini_tool_config = tool_config.map(Self::build_gemini_tool_config);
@@ -702,10 +772,19 @@ impl Model for GeminiModel {
             system_instruction: system_instruction.map(|text| GeminiSystemInstruction {
                 parts: vec![GeminiPart::Text { text }],
             }),
-            tools: gemini_tools,
+            tools: if gemini_tools.is_empty() { None } else { Some(gemini_tools) },
             tool_config: gemini_tool_config,
-            safety_settings: None,
+            safety_settings: self.safety_settings.clone(),
         };
+
+        if let Some(ref settings) = request_body.safety_settings {
+            debug!(
+                model_id = %self.model_id,
+                setting_count = settings.len(),
+                "Applying {} Gemini safety settings",
+                settings.len()
+            );
+        }
 
         // Apply default parameters if needed (temperature, etc.)
         // For function calling, we can use default parameters
@@ -814,6 +893,7 @@ impl Model for GeminiModel {
             prompt_tokens: meta.prompt_token_count.unwrap_or(0),
             completion_tokens: meta.candidates_token_count.unwrap_or(0),
             total_tokens: meta.total_token_count.unwrap_or(0),
+            cache_usage: None,
         });
 
         // Extract metadata from candidate
@@ -904,8 +984,17 @@ impl StreamingModel for GeminiModel {
             }),
             tools: None,
             tool_config: None,
-            safety_settings: None,
+            safety_settings: self.safety_settings.clone(),
         };
+
+        if let Some(ref settings) = request_body.safety_settings {
+            debug!(
+                model_id = %self.model_id,
+                setting_count = settings.len(),
+                "Applying {} Gemini safety settings",
+                settings.len()
+            );
+        }
 
         // Apply parameters if provided
         if let Some(params) = parameters {
