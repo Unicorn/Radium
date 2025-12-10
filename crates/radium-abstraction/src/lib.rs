@@ -78,6 +78,15 @@ pub enum ModelError {
         model: String,
     },
 
+    /// Unsupported MIME type for multimodal content (provider-specific validation).
+    #[error("Unsupported content type '{mime_type}'. Supported types: {}", supported_types.join(", "))]
+    UnsupportedMimeType {
+        /// The MIME type that is not supported.
+        mime_type: String,
+        /// List of supported MIME types for the current provider.
+        supported_types: Vec<String>,
+    },
+
     /// Invalid media source (file path doesn't exist, URL is malformed, etc.).
     #[error("Invalid media source '{media_source}': {reason}")]
     InvalidMediaSource {
@@ -105,6 +114,35 @@ pub enum ModelError {
         format: String,
         /// List of expected MIME types (formatted as comma-separated string).
         expected: String,
+    },
+
+    /// Content too large for inline transmission (multimodal validation).
+    #[error("Content too large: {actual_size} bytes exceeds maximum of {max_size} bytes for {content_type}. Consider using file URI for large content.")]
+    ContentTooLarge {
+        /// The actual size in bytes (after base64 encoding if applicable).
+        actual_size: usize,
+        /// The maximum allowed size in bytes.
+        max_size: usize,
+        /// The content type/MIME type.
+        content_type: String,
+    },
+
+    /// Invalid content format (corrupted or malformed file).
+    #[error("Invalid {content_type} format: {reason}")]
+    InvalidContentFormat {
+        /// The content type that failed validation.
+        content_type: String,
+        /// Reason why the format is invalid.
+        reason: String,
+    },
+
+    /// Invalid file URI (malformed or unsupported scheme).
+    #[error("Invalid file URI '{uri}': {reason}. Supported schemes: file://, gs://, s3://, https://")]
+    InvalidFileUri {
+        /// The file URI that is invalid.
+        uri: String,
+        /// Reason why the URI is invalid.
+        reason: String,
     },
 
     /// Other unexpected errors.
