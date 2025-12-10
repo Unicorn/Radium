@@ -731,6 +731,77 @@ pub struct ToolCall {
     pub arguments: serde_json::Value,
 }
 
+/// Mode for controlling tool/function calling behavior.
+///
+/// This enum specifies how the model should handle function calling:
+/// - `Auto`: The model decides whether to call functions based on context
+/// - `Any`: The model MUST call at least one function (validation error if none called)
+/// - `None`: The model MUST NOT call any functions (validation error if any called)
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use radium_abstraction::ToolUseMode;
+///
+/// // Let the model decide
+/// let mode = ToolUseMode::Auto;
+///
+/// // Force at least one tool call
+/// let mode = ToolUseMode::Any;
+///
+/// // Disable tool calls
+/// let mode = ToolUseMode::None;
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum ToolUseMode {
+    /// Model decides whether to call functions based on context.
+    /// No validation errors regardless of whether tools are called.
+    Auto,
+    /// Model MUST call at least one function.
+    /// Validation error if no tools are available or if model returns no tool calls.
+    Any,
+    /// Model MUST NOT call any functions.
+    /// Validation error if model attempts to call tools.
+    None,
+}
+
+/// Configuration for tool/function calling behavior.
+///
+/// Controls how models handle function calling, including mode enforcement
+/// and function name filtering (whitelist).
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use radium_abstraction::{ToolConfig, ToolUseMode};
+///
+/// // Auto mode with no filtering
+/// let config = ToolConfig {
+///     mode: ToolUseMode::Auto,
+///     allowed_function_names: None,
+/// };
+///
+/// // Force tool use, but only allow specific functions
+/// let config = ToolConfig {
+///     mode: ToolUseMode::Any,
+///     allowed_function_names: Some(vec!["search".to_string(), "calculate".to_string()]),
+/// };
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ToolConfig {
+    /// Tool use mode (Auto, Any, or None).
+    pub mode: ToolUseMode,
+    /// Optional whitelist of allowed function names.
+    ///
+    /// If `Some(names)`, only functions with names in this list can be called.
+    /// If `None`, all provided tools can be called.
+    ///
+    /// This is a whitelist-only filter - functions not in the list are not callable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allowed_function_names: Option<Vec<String>>,
+}
+
 /// A trait for interacting with different AI models.
 ///
 /// All models must be `Send + Sync` to allow concurrent use across threads.
