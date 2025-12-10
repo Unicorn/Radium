@@ -23,8 +23,8 @@
 use async_trait::async_trait;
 use futures::stream::Stream;
 use radium_abstraction::{
-    ChatMessage, LogProb, Model, ModelError, ModelParameters, ModelResponse, ModelUsage,
-    SafetyRating, StreamingModel,
+    ChatMessage, ContentBlock, ImageSource, MessageContent, LogProb, Model, ModelError,
+    ModelParameters, ModelResponse, ModelUsage, SafetyRating, StreamingModel,
 };
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -105,6 +105,83 @@ impl OpenAIModel {
             _ => role.to_string(),
         }
     }
+
+    /// Checks if the model is vision-capable (supports image content).
+    fn is_vision_capable(&self) -> bool {
+        const VISION_MODELS: &[&str] = &["gpt-4-vision-preview", "gpt-4o", "gpt-4-turbo", "gpt-4o-mini"];
+        VISION_MODELS.iter().any(|&model| self.model_id.starts_with(model))
+    }
+
+    /// Converts a ContentBlock to OpenAI's content format.
+    fn content_block_to_openai(
+        &self,
+        block: &ContentBlock,
+    ) -> Result<OpenAIContentBlock, ModelError> {
+        match block {
+            ContentBlock::Text { text } => Ok(OpenAIContentBlock::Text {
+                text: text.clone(),
+            }),
+            ContentBlock::Image { source, .. } => {
+                if !self.is_vision_capable() {
+                    return Err(ModelError::UnsupportedContentType {
+                        content_type: "image".to_string(),
+                        model: self.model_id.clone(),
+                    });
+                }
+
+                match source {
+                    ImageSource::Url { url } => Ok(OpenAIContentBlock::ImageUrl {
+                        image_url: OpenAIImageUrl { url: url.clone() },
+                    }),
+                    ImageSource::Base64 { .. } | ImageSource::File { .. } => {
+                        Err(ModelError::UnsupportedContentType {
+                            content_type: "image (Base64/File)".to_string(),
+                            model: self.model_id.clone(),
+                        })
+                    }
+                }
+            }
+            ContentBlock::Audio { .. } => Err(ModelError::UnsupportedContentType {
+                content_type: "audio".to_string(),
+                model: self.model_id.clone(),
+            }),
+            ContentBlock::Video { .. } => Err(ModelError::UnsupportedContentType {
+                content_type: "video".to_string(),
+                model: self.model_id.clone(),
+            }),
+            ContentBlock::Document { .. } => Err(ModelError::UnsupportedContentType {
+                content_type: "document".to_string(),
+                model: self.model_id.clone(),
+            }),
+        }
+    }
+
+    /// Converts our ChatMessage to OpenAI API message format.
+    fn to_openai_message(&self, msg: &ChatMessage) -> Result<OpenAIMessage, ModelError> {
+        let role = Self::role_to_openai(&msg.role);
+
+        let content = match &msg.content {
+            MessageContent::Text(text) => OpenAIMessageContent::String(text.clone()),
+            MessageContent::Blocks(blocks) => {
+                // Check if blocks contain images and model is not vision-capable
+                let has_images = blocks.iter().any(|b| matches!(b, ContentBlock::Image { .. }));
+                if has_images && !self.is_vision_capable() {
+                    return Err(ModelError::UnsupportedContentType {
+                        content_type: "image".to_string(),
+                        model: self.model_id.clone(),
+                    });
+                }
+
+                let openai_blocks: Result<Vec<OpenAIContentBlock>, ModelError> = blocks
+                    .iter()
+                    .map(|block| self.content_block_to_openai(block))
+                    .collect();
+                OpenAIMessageContent::Blocks(openai_blocks?)
+            }
+        };
+
+        Ok(OpenAIMessage { role, content })
+    }
 }
 
 #[async_trait]
@@ -122,7 +199,10 @@ impl Model for OpenAIModel {
         );
 
         // Convert single prompt to chat format for OpenAI
-        let messages = vec![ChatMessage { role: "user".to_string(), content: prompt.to_string() }];
+        let messages = vec![ChatMessage {
+            role: "user".to_string(),
+            content: MessageContent::Text(prompt.to_string()),
+        }];
 
         self.generate_chat_completion(&messages, parameters).await
     }
@@ -145,13 +225,11 @@ impl Model for OpenAIModel {
         // Convert messages to OpenAI format
         // Note: OpenAI uses an inline approach - system messages are included in the messages
         // array with role: "system", unlike Claude/Gemini which extract them to dedicated fields.
-        let openai_messages: Vec<OpenAIMessage> = messages
+        let openai_messages: Result<Vec<OpenAIMessage>, ModelError> = messages
             .iter()
-            .map(|msg| OpenAIMessage {
-                role: Self::role_to_openai(&msg.role),
-                content: msg.content.clone(),
-            })
+            .map(|msg| self.to_openai_message(msg))
             .collect();
+        let openai_messages = openai_messages?;
 
         // Build request body
         let mut request_body = OpenAIRequest {
@@ -614,9 +692,30 @@ struct OpenAIRequest {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+enum OpenAIMessageContent {
+    String(String),
+    Blocks(Vec<OpenAIContentBlock>),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 struct OpenAIMessage {
     role: String,
-    content: String,
+    content: OpenAIMessageContent,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "type")]
+enum OpenAIContentBlock {
+    #[serde(rename = "text")]
+    Text { text: String },
+    #[serde(rename = "image_url")]
+    ImageUrl { image_url: OpenAIImageUrl },
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct OpenAIImageUrl {
+    url: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -731,22 +830,41 @@ mod tests {
         use radium_abstraction::ChatMessage;
 
         // Test that system messages preserve their role when converted to OpenAI format
-        let system_msg = ChatMessage { role: "system".to_string(), content: "You are helpful.".to_string() };
+        let system_msg = ChatMessage {
+            role: "system".to_string(),
+            content: MessageContent::Text("You are helpful.".to_string()),
+        };
         let role = OpenAIModel::role_to_openai(&system_msg.role);
         assert_eq!(role, "system");
 
         // Test that system messages are included in messages array (not filtered)
         let messages = vec![
-            ChatMessage { role: "system".to_string(), content: "System instruction.".to_string() },
-            ChatMessage { role: "user".to_string(), content: "User message.".to_string() },
-            ChatMessage { role: "assistant".to_string(), content: "Assistant message.".to_string() },
+            ChatMessage {
+                role: "system".to_string(),
+                content: MessageContent::Text("System instruction.".to_string()),
+            },
+            ChatMessage {
+                role: "user".to_string(),
+                content: MessageContent::Text("User message.".to_string()),
+            },
+            ChatMessage {
+                role: "assistant".to_string(),
+                content: MessageContent::Text("Assistant message.".to_string()),
+            },
         ];
 
         // Simulate message conversion (as done in generate_chat_completion)
-        let openai_messages: Vec<_> = messages
+        let model = OpenAIModel::with_api_key("gpt-4".to_string(), "test-key".to_string());
+        let openai_messages: Result<Vec<_>, _> = messages
             .iter()
-            .map(|msg| (OpenAIModel::role_to_openai(&msg.role), msg.content.clone()))
+            .map(|msg| {
+                model.to_openai_message(msg).map(|om| (om.role, match om.content {
+                    OpenAIMessageContent::String(s) => s,
+                    OpenAIMessageContent::Blocks(_) => "blocks".to_string(),
+                }))
+            })
             .collect();
+        let openai_messages = openai_messages.unwrap();
 
         // Verify system message is present with correct role
         assert_eq!(openai_messages.len(), 3);
@@ -761,16 +879,32 @@ mod tests {
 
         // Test that multiple system messages are preserved (OpenAI supports this)
         let messages = vec![
-            ChatMessage { role: "system".to_string(), content: "First system message.".to_string() },
-            ChatMessage { role: "system".to_string(), content: "Second system message.".to_string() },
-            ChatMessage { role: "user".to_string(), content: "User message.".to_string() },
+            ChatMessage {
+                role: "system".to_string(),
+                content: MessageContent::Text("First system message.".to_string()),
+            },
+            ChatMessage {
+                role: "system".to_string(),
+                content: MessageContent::Text("Second system message.".to_string()),
+            },
+            ChatMessage {
+                role: "user".to_string(),
+                content: MessageContent::Text("User message.".to_string()),
+            },
         ];
 
         // Simulate message conversion
-        let openai_messages: Vec<_> = messages
+        let model = OpenAIModel::with_api_key("gpt-4".to_string(), "test-key".to_string());
+        let openai_messages: Result<Vec<_>, _> = messages
             .iter()
-            .map(|msg| (OpenAIModel::role_to_openai(&msg.role), msg.content.clone()))
+            .map(|msg| {
+                model.to_openai_message(msg).map(|om| (om.role, match om.content {
+                    OpenAIMessageContent::String(s) => s,
+                    OpenAIMessageContent::Blocks(_) => "blocks".to_string(),
+                }))
+            })
             .collect();
+        let openai_messages = openai_messages.unwrap();
 
         // Verify both system messages are preserved
         assert_eq!(openai_messages.len(), 3);

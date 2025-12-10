@@ -254,6 +254,27 @@ impl TelemetryRecord {
         self
     }
 
+    /// Sets finish reason from model response.
+    #[must_use]
+    pub fn with_finish_reason(mut self, finish_reason: String) -> Self {
+        self.finish_reason = Some(finish_reason);
+        self
+    }
+
+    /// Sets whether content was blocked by safety filters.
+    #[must_use]
+    pub fn with_safety_blocked(mut self, blocked: bool) -> Self {
+        self.safety_blocked = blocked;
+        self
+    }
+
+    /// Sets the number of citations in the response.
+    #[must_use]
+    pub fn with_citation_count(mut self, count: u32) -> Self {
+        self.citation_count = Some(count);
+        self
+    }
+
     /// Sets local model cost based on execution duration.
     ///
     /// This method calculates cost for local/self-hosted models using duration-based
