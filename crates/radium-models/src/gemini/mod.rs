@@ -2258,9 +2258,7 @@ mod tests {
             tools: None,
             tool_config: None,
             safety_settings: None,
-            tools: None,
-            tool_config: None,
-            safety_settings: None,
+            cached_content: None,
         };
 
         let json_no_system = serde_json::to_string(&request_no_system).unwrap();

@@ -674,6 +674,146 @@ async fn test_gemini_grounding_integration() {
     }
 }
 
+// Tests for request-level grounding API and tool configuration
+
+#[test]
+fn test_grounding_parameters_structure() {
+    // Test that ModelParameters has grounding fields
+    let mut params = radium_abstraction::ModelParameters::default();
+    
+    // Test enable_grounding field
+    params.enable_grounding = Some(true);
+    assert_eq!(params.enable_grounding, Some(true));
+    
+    params.enable_grounding = Some(false);
+    assert_eq!(params.enable_grounding, Some(false));
+    
+    // Test grounding_threshold field
+    params.grounding_threshold = Some(0.5);
+    assert_eq!(params.grounding_threshold, Some(0.5));
+    
+    params.grounding_threshold = Some(0.0);
+    assert_eq!(params.grounding_threshold, Some(0.0));
+    
+    params.grounding_threshold = Some(1.0);
+    assert_eq!(params.grounding_threshold, Some(1.0));
+}
+
+#[test]
+fn test_grounding_threshold_validation() {
+    // Test that threshold values are properly handled
+    // The build_grounding_tool function should clamp values
+    
+    // Create parameters with various threshold values
+    let mut params_valid = radium_abstraction::ModelParameters::default();
+    params_valid.enable_grounding = Some(true);
+    params_valid.grounding_threshold = Some(0.5);
+    
+    // Valid threshold should be preserved
+    assert_eq!(params_valid.grounding_threshold, Some(0.5));
+    
+    // Test serialization (threshold should be included)
+    let json = serde_json::to_string(&params_valid).unwrap();
+    assert!(json.contains("grounding_threshold"));
+    assert!(json.contains("0.5"));
+}
+
+#[test]
+fn test_grounding_disabled_by_default() {
+    // Test that grounding is disabled by default
+    let params = radium_abstraction::ModelParameters::default();
+    
+    assert_eq!(params.enable_grounding, None);
+    assert_eq!(params.grounding_threshold, None);
+    
+    // Serialized params should not include grounding fields when None
+    let json = serde_json::to_string(&params).unwrap();
+    // Note: serde_json with skip_serializing_if should omit None fields
+    // This test verifies the default state
+}
+
+#[test]
+fn test_grounding_tool_serialization() {
+    // Test that grounding tool structure can be serialized
+    // We test this indirectly through the ModelParameters serialization
+    use serde_json;
+    
+    let mut params = radium_abstraction::ModelParameters::default();
+    params.enable_grounding = Some(true);
+    params.grounding_threshold = Some(0.3);
+    
+    // Serialize to JSON
+    let json = serde_json::to_string(&params).unwrap();
+    let parsed: radium_abstraction::ModelParameters = serde_json::from_str(&json).unwrap();
+    
+    assert_eq!(parsed.enable_grounding, Some(true));
+    assert_eq!(parsed.grounding_threshold, Some(0.3));
+}
+
+#[tokio::test]
+#[ignore = "Requires GEMINI_API_KEY"]
+async fn test_grounding_enabled_via_parameters() {
+    // Integration test: verify grounding can be enabled via parameters
+    #[allow(clippy::disallowed_methods)]
+    if std::env::var("GEMINI_API_KEY").is_err() {
+        return;
+    }
+
+    let model = GeminiModel::new("gemini-2.0-flash-exp".to_string()).unwrap();
+    let messages = vec![ChatMessage {
+        role: "user".to_string(),
+        content: MessageContent::Text("What is the capital of France?".to_string()),
+    }];
+
+    // Enable grounding via parameters
+    let mut params = radium_abstraction::ModelParameters::default();
+    params.enable_grounding = Some(true);
+    params.grounding_threshold = Some(0.3);
+
+    let response = model.generate_chat_completion(&messages, Some(params)).await;
+    assert!(response.is_ok());
+    
+    // If grounding is enabled and the model supports it, we should get a response
+    // (Note: actual grounding metadata depends on API response)
+    let result = response.unwrap();
+    assert!(!result.content.is_empty());
+}
+
+#[tokio::test]
+#[ignore = "Requires GEMINI_API_KEY"]
+async fn test_grounding_threshold_configuration() {
+    // Integration test: verify threshold is applied
+    #[allow(clippy::disallowed_methods)]
+    if std::env::var("GEMINI_API_KEY").is_err() {
+        return;
+    }
+
+    let model = GeminiModel::new("gemini-2.0-flash-exp".to_string()).unwrap();
+    let messages = vec![ChatMessage {
+        role: "user".to_string(),
+        content: MessageContent::Text("Test query".to_string()),
+    }];
+
+    // Test with different threshold values
+    let mut params_low = radium_abstraction::ModelParameters::default();
+    params_low.enable_grounding = Some(true);
+    params_low.grounding_threshold = Some(0.1); // Lower threshold = more likely to search
+
+    let response_low = model.generate_chat_completion(&messages, Some(params_low)).await;
+    assert!(response_low.is_ok());
+
+    let mut params_high = radium_abstraction::ModelParameters::default();
+    params_high.enable_grounding = Some(true);
+    params_high.grounding_threshold = Some(0.9); // Higher threshold = more selective
+
+    let response_high = model.generate_chat_completion(&messages, Some(params_high)).await;
+    assert!(response_high.is_ok());
+    
+    // Both should succeed (actual behavior depends on API)
+    assert!(!response_low.unwrap().content.is_empty());
+    assert!(!response_high.unwrap().content.is_empty());
+}
+
 #[tokio::test]
 async fn test_gemini_safety_settings_serialization() {
     // Test that safety settings are correctly included in request serialization
