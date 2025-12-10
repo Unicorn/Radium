@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::Semaphore;
 use tokio::time::timeout;
-use tracing::{debug, error, warn};
+use tracing::{debug, error};
 
 /// Generic batch processor for parallel execution of async operations.
 ///
@@ -30,7 +30,7 @@ pub struct BatchProcessor<T, R> {
 impl<T, R> BatchProcessor<T, R>
 where
     T: Send + Sync + Clone + Debug + 'static,
-    R: Send + 'static,
+    R: Send + Clone + 'static,
 {
     /// Create a new batch processor.
     ///

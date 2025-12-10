@@ -62,6 +62,14 @@ pub struct ModelConfig {
     pub cache_breakpoints: Option<Vec<usize>>,
     /// Cache identifier for reusing existing cache (Gemini-specific).
     pub cache_identifier: Option<String>,
+    /// Enable code execution for providers that support it (e.g., Gemini).
+    /// 
+    /// When `None`, uses provider default (true for Gemini, false for others).
+    /// When `Some(true)`, enables code execution.
+    /// When `Some(false)`, disables code execution.
+    /// 
+    /// Configuration precedence: Agent config > Model config > Provider default
+    pub enable_code_execution: Option<bool>,
 }
 
 impl ModelConfig {
@@ -81,6 +89,7 @@ impl ModelConfig {
             cache_ttl: None,
             cache_breakpoints: None,
             cache_identifier: None,
+            enable_code_execution: None,
         }
     }
 
@@ -151,6 +160,19 @@ impl ModelConfig {
     #[must_use]
     pub fn with_cache_identifier(mut self, identifier: String) -> Self {
         self.cache_identifier = Some(identifier);
+        self
+    }
+
+    /// Enables or disables code execution for this model.
+    ///
+    /// Code execution allows the model to execute code in provider sandboxes
+    /// (e.g., Gemini's code execution tool). When `None`, uses provider default.
+    ///
+    /// # Arguments
+    /// * `enabled` - Whether to enable code execution
+    #[must_use]
+    pub fn with_code_execution(mut self, enabled: bool) -> Self {
+        self.enable_code_execution = Some(enabled);
         self
     }
 }
@@ -328,6 +350,7 @@ mod tests {
         assert_eq!(config.cache_ttl, None);
         assert_eq!(config.cache_breakpoints, None);
         assert_eq!(config.cache_identifier, None);
+        assert_eq!(config.enable_code_execution, None);
 
         let config = config.with_api_key("test-key".to_string());
         assert_eq!(config.api_key, Some("test-key".to_string()));
@@ -346,6 +369,9 @@ mod tests {
 
         let config = config.with_cache_identifier("cachedContents/abc123".to_string());
         assert_eq!(config.cache_identifier, Some("cachedContents/abc123".to_string()));
+
+        let config = config.with_code_execution(true);
+        assert_eq!(config.enable_code_execution, Some(true));
     }
 
     #[test]

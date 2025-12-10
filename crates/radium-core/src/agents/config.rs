@@ -944,6 +944,16 @@ pub struct AgentConfig {
     /// Determines how to handle content that is filtered/blocked by safety systems.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub safety_behavior: Option<radium_abstraction::SafetyBlockBehavior>,
+    
+    /// Enable code execution for this agent.
+    ///
+    /// When `None`, uses model config or provider default (true for Gemini, false for others).
+    /// When `Some(true)`, enables code execution.
+    /// When `Some(false)`, disables code execution.
+    ///
+    /// Configuration precedence: Agent config > Model config > Provider default
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code_execution_enabled: Option<bool>,
 }
 
 impl AgentConfig {
@@ -968,6 +978,7 @@ impl AgentConfig {
             persona_config: None,
             routing: None,
             safety_behavior: None,
+            code_execution_enabled: None,
         }
     }
 
