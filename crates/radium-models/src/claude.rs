@@ -285,6 +285,7 @@ impl Model for ClaudeModel {
             temperature: None,
             top_p: None,
             stop_sequences: None,
+            thinking: None,
         };
 
         // Apply parameters if provided
@@ -480,6 +481,7 @@ struct ClaudeThinkingConfig {
     thinking_budget: Option<f32>,
 }
 
+#[derive(Debug, Serialize)]
 struct ClaudeRequest {
     model: String,
     messages: Vec<ClaudeMessage>,

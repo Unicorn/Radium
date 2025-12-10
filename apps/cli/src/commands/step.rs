@@ -1299,6 +1299,44 @@ fn format_metadata_display(response: &ExecutionResponse) {
     use radium_abstraction::{Citation, LogProb, SafetyRating};
     
     if let Some(ref metadata) = response.metadata {
+        // Thinking process (display first if present)
+        if let Some(thinking_val) = metadata.get("thinking_process") {
+            println!();
+            println!("{}", "─".repeat(60).dimmed());
+            println!("{}", "Thinking Process:".bold().cyan());
+            println!("{}", "─".repeat(60).dimmed());
+            
+            // Handle different thinking process formats
+            match thinking_val {
+                serde_json::Value::String(s) => {
+                    // Simple string format - display with indentation
+                    for line in s.lines() {
+                        println!("  {}", line.dimmed());
+                    }
+                }
+                serde_json::Value::Object(obj) => {
+                    // Structured format - display as JSON
+                    if let Ok(json_str) = serde_json::to_string_pretty(obj) {
+                        for line in json_str.lines() {
+                            println!("  {}", line.dimmed());
+                        }
+                    }
+                }
+                serde_json::Value::Array(arr) => {
+                    // Array format - display each item
+                    for (i, item) in arr.iter().enumerate() {
+                        println!("  [{}] {}", i + 1, serde_json::to_string(item).unwrap_or_default().dimmed());
+                    }
+                }
+                _ => {
+                    // Fallback: display as string representation
+                    println!("  {}", thinking_val.to_string().dimmed());
+                }
+            }
+            
+            println!("{}", "─".repeat(60).dimmed());
+        }
+        
         // Finish reason
         if let Some(finish_reason) = metadata.get("finish_reason").and_then(|v| v.as_str()) {
             println!("  {} Finish Reason: {}", "•".dimmed(), finish_reason.cyan());
