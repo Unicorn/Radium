@@ -888,4 +888,41 @@ mod tests {
         assert_eq!(metrics.completed, 0);
         assert_eq!(metrics.running, 0);
     }
+
+    #[test]
+    fn test_code_execution_result_serialization() {
+        let result = CodeExecutionResult {
+            code: "print('hello')".to_string(),
+            stdout: Some("hello\n".to_string()),
+            stderr: None,
+            return_value: Some(serde_json::json!(null)),
+            error: None,
+        };
+
+        // Test serialization
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains("hello"));
+
+        // Test deserialization
+        let deserialized: CodeExecutionResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.code, "print('hello')");
+        assert_eq!(deserialized.stdout, Some("hello\n".to_string()));
+        assert_eq!(deserialized.stderr, None);
+        assert_eq!(deserialized.error, None);
+    }
+
+    #[test]
+    fn test_code_execution_result_with_error() {
+        let result = CodeExecutionResult {
+            code: "invalid syntax".to_string(),
+            stdout: None,
+            stderr: Some("SyntaxError: invalid syntax".to_string()),
+            return_value: None,
+            error: Some("SyntaxError: invalid syntax".to_string()),
+        };
+
+        let json = serde_json::to_string(&result).unwrap();
+        let deserialized: CodeExecutionResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.error, Some("SyntaxError: invalid syntax".to_string()));
+    }
 }
