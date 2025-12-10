@@ -1226,4 +1226,81 @@ mod tests {
         assert!(matches!(msg.content, MessageContent::Text(_)));
         assert_eq!(msg.content.as_text(), Some("Hello"));
     }
+
+    #[test]
+    fn test_content_block_video() {
+        let video_block = ContentBlock::Video {
+            source: MediaSource::File {
+                path: PathBuf::from("video.mp4"),
+            },
+            media_type: "video/mp4".to_string(),
+        };
+        assert!(matches!(video_block, ContentBlock::Video { .. }));
+    }
+
+    #[test]
+    fn test_content_block_document() {
+        let doc_block = ContentBlock::Document {
+            source: MediaSource::File {
+                path: PathBuf::from("doc.pdf"),
+            },
+            media_type: "application/pdf".to_string(),
+            filename: Some("document.pdf".to_string()),
+        };
+        assert!(matches!(doc_block, ContentBlock::Document { .. }));
+    }
+
+    #[test]
+    fn test_message_content_blocks_serialization() {
+        let blocks = MessageContent::Blocks(vec![
+            ContentBlock::Text {
+                text: "Analyze this".to_string(),
+            },
+            ContentBlock::Image {
+                source: ImageSource::Url {
+                    url: "https://example.com/image.jpg".to_string(),
+                },
+                media_type: "image/jpeg".to_string(),
+            },
+        ]);
+        let json = serde_json::to_string(&blocks).unwrap();
+        let deserialized: MessageContent = serde_json::from_str(&json).unwrap();
+        assert_eq!(blocks, deserialized);
+    }
+
+    #[test]
+    fn test_error_serialization() {
+        let err = ModelError::UnsupportedContentType {
+            content_type: "audio".to_string(),
+            model: "gpt-3.5-turbo".to_string(),
+        };
+        let json = serde_json::to_string(&err).unwrap();
+        let deserialized: ModelError = serde_json::from_str(&json).unwrap();
+        assert_eq!(err, deserialized);
+    }
+
+    #[test]
+    fn test_validate_mime_type_video() {
+        let video_block = ContentBlock::Video {
+            source: MediaSource::Url {
+                url: "https://example.com/video.mp4".to_string(),
+            },
+            media_type: "video/mp4".to_string(),
+        };
+        assert!(validate_mime_type("video/mp4", &video_block).is_ok());
+        assert!(validate_mime_type("video/avi", &video_block).is_err());
+    }
+
+    #[test]
+    fn test_validate_mime_type_document() {
+        let doc_block = ContentBlock::Document {
+            source: MediaSource::File {
+                path: PathBuf::from("doc.pdf"),
+            },
+            media_type: "application/pdf".to_string(),
+            filename: None,
+        };
+        assert!(validate_mime_type("application/pdf", &doc_block).is_ok());
+        assert!(validate_mime_type("application/zip", &doc_block).is_err());
+    }
 }
