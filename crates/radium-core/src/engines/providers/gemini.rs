@@ -104,6 +104,10 @@ impl GeminiEngine {
                 temperature: request.temperature,
                 top_p: None,
                 max_tokens: request.max_tokens.map(|t| t as u32),
+                top_k: None,
+                frequency_penalty: None,
+                presence_penalty: None,
+                response_format: None,
                 stop_sequences: None,
             })
         } else {

@@ -3,6 +3,7 @@
 //! Defines the TOML configuration format for agents.
 
 use crate::sandbox::SandboxConfig;
+use radium_abstraction::{ModelParameters, ResponseFormat};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use thiserror::Error;
@@ -198,6 +199,23 @@ pub struct PersonaPerformanceToml {
     pub estimated_tokens: Option<u64>,
 }
 
+/// Model configuration for TOML.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModelConfigToml {
+    /// Top-k sampling parameter (1-100).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub top_k: Option<u32>,
+    /// Frequency penalty (-2.0 to 2.0).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub frequency_penalty: Option<f32>,
+    /// Presence penalty (-2.0 to 2.0).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub presence_penalty: Option<f32>,
+    /// Response format: "text", "json", or JSON schema string.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_format: Option<String>,
+}
+
 /// Agent configuration file (TOML format).
 ///
 /// This is the structure of an agent configuration file, typically stored at
@@ -232,6 +250,9 @@ pub struct AgentConfigFile {
     /// Optional persona configuration.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub persona: Option<PersonaConfigToml>,
+    /// Optional model configuration.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<ModelConfigToml>,
 }
 
 impl AgentConfigFile {
@@ -434,6 +455,11 @@ impl AgentConfigFile {
             self.validate_trigger_behavior(trigger_behavior)?;
         }
 
+        // Validate model configuration if present
+        if let Some(model_config) = &self.model {
+            self.validate_model_config(model_config)?;
+        }
+
         Ok(())
     }
 
@@ -513,6 +539,88 @@ impl AgentConfigFile {
         }
 
         Ok(())
+    }
+
+    /// Validate model configuration.
+    fn validate_model_config(&self, model_config: &ModelConfigToml) -> Result<()> {
+        // Validate top_k range
+        if let Some(k) = model_config.top_k {
+            if !(1..=100).contains(&k) {
+                return Err(AgentConfigError::Invalid(format!(
+                    "top_k must be between 1 and 100, got {}",
+                    k
+                )));
+            }
+        }
+
+        // Validate frequency_penalty range
+        if let Some(p) = model_config.frequency_penalty {
+            if !(-2.0..=2.0).contains(&p) {
+                return Err(AgentConfigError::Invalid(format!(
+                    "frequency_penalty must be between -2.0 and 2.0, got {}",
+                    p
+                )));
+            }
+        }
+
+        // Validate presence_penalty range
+        if let Some(p) = model_config.presence_penalty {
+            if !(-2.0..=2.0).contains(&p) {
+                return Err(AgentConfigError::Invalid(format!(
+                    "presence_penalty must be between -2.0 and 2.0, got {}",
+                    p
+                )));
+            }
+        }
+
+        // Validate response_format if provided
+        if let Some(ref format_str) = model_config.response_format {
+            Self::parse_response_format(format_str)?;
+        }
+
+        Ok(())
+    }
+
+    /// Parse response format string into ResponseFormat enum.
+    fn parse_response_format(value: &str) -> Result<ResponseFormat> {
+        match value.to_lowercase().as_str() {
+            "text" => Ok(ResponseFormat::Text),
+            "json" => Ok(ResponseFormat::Json),
+            schema if schema.starts_with('{') => {
+                // Validate JSON schema
+                serde_json::from_str::<serde_json::Value>(schema).map_err(|e| {
+                    AgentConfigError::Invalid(format!(
+                        "Invalid JSON schema in response_format: {}",
+                        e
+                    ))
+                })?;
+                Ok(ResponseFormat::JsonSchema(schema.to_string()))
+            }
+            _ => Err(AgentConfigError::Invalid(format!(
+                "Invalid response_format '{}'. Must be 'text', 'json', or a JSON schema",
+                value
+            ))),
+        }
+    }
+
+    /// Convert ModelConfigToml to ModelParameters.
+    pub fn to_model_parameters(&self) -> Option<ModelParameters> {
+        self.model.as_ref().map(|model_config| {
+            let response_format = model_config.response_format.as_ref().and_then(|s| {
+                Self::parse_response_format(s).ok()
+            });
+
+            ModelParameters {
+                temperature: None,
+                top_p: None,
+                max_tokens: None,
+                top_k: model_config.top_k,
+                frequency_penalty: model_config.frequency_penalty,
+                presence_penalty: model_config.presence_penalty,
+                response_format,
+                stop_sequences: None,
+            }
+        })
     }
 
     /// Validate trigger behavior configuration.
