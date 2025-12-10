@@ -135,22 +135,68 @@ impl GeminiModel {
                 text: text.clone(),
             }),
             ContentBlock::Image { source, media_type } => {
-                let (mime_type, data) = match source {
-                    ImageSource::Base64 { data } => (media_type.clone(), data.clone()),
-                    ImageSource::File { path } => {
-                        let encoded = Self::read_and_encode_file(path)?;
-                        (media_type.clone(), encoded)
+                match source {
+                    ImageSource::Base64 { data } => {
+                        // For base64 data, check if it's already encoded size exceeds limit
+                        // Base64 data is already encoded, so we check the encoded size directly
+                        let encoded_size = data.len();
+                        if encoded_size > validation_utils::MAX_INLINE_SIZE {
+                            return Err(ModelError::ContentTooLarge {
+                                actual_size: encoded_size,
+                                max_size: validation_utils::MAX_INLINE_SIZE,
+                                content_type: media_type.clone(),
+                            });
+                        }
+                        Ok(GeminiPart::InlineData {
+                            inline_data: GeminiInlineData {
+                                mime_type: media_type.clone(),
+                                data,
+                            },
+                        })
                     }
-                    ImageSource::Url { .. } => {
-                        return Err(ModelError::UnsupportedContentType {
+                    ImageSource::File { path } => {
+                        // Check file size before reading
+                        let metadata = std::fs::metadata(path).map_err(|e| {
+                            ModelError::InvalidMediaSource {
+                                media_source: path.display().to_string(),
+                                reason: format!("Failed to read file metadata: {}", e),
+                            }
+                        })?;
+                        let file_size = metadata.len() as usize;
+
+                        // Check if we should use file URI (for FileApi) or inline data
+                        // For now, if file is too large, we'll need FileApi (REQ-220)
+                        // For files that fit, use inline data
+                        if validation_utils::should_use_file_uri(file_size) {
+                            // File is too large for inline - would need FileApi
+                            // For now, return error suggesting FileApi usage
+                            return Err(ModelError::ContentTooLarge {
+                                actual_size: validation_utils::calculate_base64_size(file_size),
+                                max_size: validation_utils::MAX_INLINE_SIZE,
+                                content_type: media_type.clone(),
+                            });
+                        }
+
+                        // File is small enough for inline transmission
+                        let encoded = Self::read_and_encode_file(path)?;
+                        Ok(GeminiPart::InlineData {
+                            inline_data: GeminiInlineData {
+                                mime_type: media_type.clone(),
+                                data: encoded,
+                            },
+                        })
+                    }
+                    ImageSource::Url { url } => {
+                        // URL images - validate URI format
+                        validation_utils::validate_file_uri(&url)?;
+                        // For URL images, we'd need to download and encode, or use as-is
+                        // For now, return error as URL support needs more work
+                        Err(ModelError::UnsupportedContentType {
                             content_type: "image (URL)".to_string(),
                             model: "gemini".to_string(),
-                        });
+                        })
                     }
-                };
-                Ok(GeminiPart::InlineData {
-                    inline_data: GeminiInlineData { mime_type, data },
-                })
+                }
             }
             ContentBlock::Audio { source, media_type } => {
                 match source {
@@ -194,8 +240,54 @@ impl GeminiModel {
                             },
                         })
                     }
+                    radium_abstraction::MediaSource::File { path } => {
+                        // Check file size before reading
+                        let metadata = std::fs::metadata(path).map_err(|e| {
+                            ModelError::InvalidMediaSource {
+                                media_source: path.display().to_string(),
+                                reason: format!("Failed to read file metadata: {}", e),
+                            }
+                        })?;
+                        let file_size = metadata.len() as usize;
+
+                        // Check if we should use file URI or inline data
+                        if validation_utils::should_use_file_uri(file_size) {
+                            // File is too large for inline - would need FileApi
+                            return Err(ModelError::ContentTooLarge {
+                                actual_size: validation_utils::calculate_base64_size(file_size),
+                                max_size: validation_utils::MAX_INLINE_SIZE,
+                                content_type: media_type.clone(),
+                            });
+                        }
+
+                        // File is small enough for inline transmission
+                        let encoded = Self::read_and_encode_file(path)?;
+                        Ok(GeminiPart::InlineData {
+                            inline_data: GeminiInlineData {
+                                mime_type: media_type.clone(),
+                                data: encoded,
+                            },
+                        })
+                    }
+                    radium_abstraction::MediaSource::Base64 { data } => {
+                        // For base64 data, check encoded size
+                        let encoded_size = data.len();
+                        if encoded_size > validation_utils::MAX_INLINE_SIZE {
+                            return Err(ModelError::ContentTooLarge {
+                                actual_size: encoded_size,
+                                max_size: validation_utils::MAX_INLINE_SIZE,
+                                content_type: media_type.clone(),
+                            });
+                        }
+                        Ok(GeminiPart::InlineData {
+                            inline_data: GeminiInlineData {
+                                mime_type: media_type.clone(),
+                                data,
+                            },
+                        })
+                    }
                     _ => Err(ModelError::UnsupportedContentType {
-                        content_type: "document (non-FileAPI)".to_string(),
+                        content_type: "document (URL or unsupported source)".to_string(),
                         model: "gemini".to_string(),
                     }),
                 }
