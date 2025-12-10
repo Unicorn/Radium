@@ -223,6 +223,10 @@ enum Command {
         #[arg(long)]
         resume: bool,
 
+        /// Stream responses in real-time
+        #[arg(long)]
+        stream: bool,
+
         /// List available sessions
         #[arg(long)]
         list: bool,
@@ -617,11 +621,11 @@ async fn main() -> anyhow::Result<()> {
         Command::Step { id, prompt, model, engine, reasoning, model_tier, stream } => {
             step::execute(id, prompt, model, engine, reasoning, model_tier, None, stream).await?;
         }
-        Command::Chat { agent_id, session, resume, list } => {
+        Command::Chat { agent_id, session, resume, list, stream } => {
             if list {
                 chat::list_sessions().await?;
             } else if let Some(id) = agent_id {
-                chat::execute(id, session, resume).await?;
+                chat::execute(id, session, resume, stream).await?;
             } else {
                 anyhow::bail!("Agent ID is required when not using --list");
             }
