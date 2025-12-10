@@ -20,6 +20,7 @@ pub mod tool_registry;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::time::Duration;
 
 use self::context::OrchestrationContext;
 use self::tool::{Tool, ToolCall};
@@ -77,6 +78,143 @@ impl OrchestrationResult {
     /// Check if there are tool calls to execute
     pub fn has_tool_calls(&self) -> bool {
         !self.tool_calls.is_empty()
+    }
+}
+
+/// Strategy for executing multiple tool calls.
+///
+/// Controls how tool calls are executed when multiple tools are requested in parallel.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum FunctionExecutionStrategy {
+    /// Execute all tool calls concurrently (in parallel).
+    ///
+    /// All tools start executing at the same time, which is fastest
+    /// but may consume more resources.
+    Concurrent,
+    /// Execute tool calls sequentially (one after another).
+    ///
+    /// Tools execute in order, waiting for each to complete before
+    /// starting the next. Slower but more predictable.
+    Sequential,
+    /// Execute tool calls in batches of specified size.
+    ///
+    /// Tools are grouped into batches of `batch_size` and each batch
+    /// executes concurrently, but batches execute sequentially.
+    /// This balances speed and resource usage.
+    ConcurrentBatched {
+        /// Number of tools to execute concurrently per batch
+        batch_size: usize,
+    },
+}
+
+/// Behavior for continuing tool execution loops.
+///
+/// Controls whether and how to automatically continue sending tool results
+/// back to the model for multi-turn agent orchestration.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ContinuationBehavior {
+    /// Return tool results to caller without auto-continuation.
+    ///
+    /// The caller is responsible for manually sending results back to
+    /// the model if continuation is desired.
+    Manual,
+    /// Automatically continue for a fixed number of rounds.
+    ///
+    /// The system will automatically send tool results back to the model
+    /// and continue the conversation for up to `max_rounds` iterations.
+    AutoContinue {
+        /// Maximum number of continuation rounds
+        max_rounds: usize,
+    },
+    /// Automatically continue until a specific condition is met.
+    ///
+    /// The system will continue until the specified condition is satisfied
+    /// (e.g., no more tool calls, token limit reached, timeout).
+    AutoContinueUntil {
+        /// Condition that stops continuation
+        condition: ContinuationCondition,
+    },
+}
+
+/// Condition that stops automatic continuation.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ContinuationCondition {
+    /// Stop when model stops calling tools (returns no tool_calls).
+    NoToolCalls,
+    /// Stop when total tokens exceed the specified limit.
+    MaxTokens(usize),
+    /// Stop when total execution time exceeds the specified duration.
+    Timeout(Duration),
+}
+
+/// Strategy for handling tool execution errors.
+///
+/// Controls how the system responds when a tool execution fails.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ToolErrorHandling {
+    /// Return error as tool result to the model.
+    ///
+    /// The model receives the error and can retry, use alternative tools,
+    /// or report to the user. This is the default and most robust approach.
+    ReturnToModel,
+    /// Retry failed tool calls with exponential backoff.
+    ///
+    /// The system will retry the failed tool call up to `max_retries` times,
+    /// with delays increasing exponentially (initial_delay * 2^attempt).
+    RetryWithBackoff {
+        /// Maximum number of retry attempts
+        max_retries: usize,
+        /// Initial delay before first retry
+        initial_delay: Duration,
+    },
+    /// Fail immediately and propagate error.
+    ///
+    /// Any tool execution failure immediately stops execution and returns
+    /// an error. No retries or error recovery.
+    FailFast,
+    /// Skip failed tools and continue with successful ones.
+    ///
+    /// Failed tool calls are skipped (marked as failed) but execution
+    /// continues with other tools. Partial results are returned.
+    SkipAndContinue,
+}
+
+/// Unified configuration for tool execution.
+///
+/// Combines all tool execution settings including execution strategy,
+/// continuation behavior, error handling, and resource limits.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolExecutionConfig {
+    /// Strategy for executing multiple tool calls
+    pub execution_strategy: FunctionExecutionStrategy,
+    /// Behavior for continuing tool execution loops
+    pub continuation: ContinuationBehavior,
+    /// Strategy for handling tool execution errors
+    pub error_handling: ToolErrorHandling,
+    /// Per-call timeout for individual tool executions
+    pub timeout_per_call: Duration,
+    /// Maximum number of parallel tool executions (None = unlimited)
+    ///
+    /// When using Concurrent or ConcurrentBatched strategies, this limits
+    /// the maximum number of tools that execute simultaneously.
+    pub max_parallel: Option<usize>,
+    /// Maximum number of continuation rounds
+    ///
+    /// Used as a safety limit regardless of continuation behavior to prevent
+    /// infinite loops.
+    pub max_rounds: usize,
+}
+
+impl Default for ToolExecutionConfig {
+    fn default() -> Self {
+        Self {
+            execution_strategy: FunctionExecutionStrategy::Concurrent,
+            continuation: ContinuationBehavior::AutoContinue { max_rounds: 5 },
+            error_handling: ToolErrorHandling::ReturnToModel,
+            timeout_per_call: Duration::from_secs(30),
+            max_parallel: Some(10),
+            max_rounds: 5,
+        }
     }
 }
 
