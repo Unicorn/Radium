@@ -602,6 +602,7 @@ impl TelemetryTracking for MonitoringService {
                     finish_reason: row.get(28).ok(),
                     safety_blocked: row.get(29).unwrap_or(false),
                     citation_count: row.get(30).ok(),
+                    code_executions: row.get(31).unwrap_or(0),
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -718,6 +719,7 @@ impl TelemetryTracking for MonitoringService {
                 finish_reason: row.get(28).ok(),
                 safety_blocked: row.get(29).unwrap_or(false),
                 citation_count: row.get(30).ok(),
+                code_executions: row.get(31).unwrap_or(0),
             })
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -770,6 +772,7 @@ impl TelemetryTracking for MonitoringService {
                 finish_reason: row.get(28).ok(),
                 safety_blocked: row.get(29).unwrap_or(false),
                 citation_count: row.get(30).ok(),
+                code_executions: row.get(31).unwrap_or(0),
             })
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;
