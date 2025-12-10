@@ -4,12 +4,12 @@
 
 use async_trait::async_trait;
 use radium_abstraction::{
-    ChatMessage, Model, ModelError, ModelParameters, ModelResponse, ModelUsage,
+    ChatMessage, Model, ModelError, ModelParameters, ModelResponse, ModelUsage, ResponseFormat,
 };
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::env;
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 
 /// Google Gemini model implementation.
 #[derive(Debug, Clone)]
@@ -159,16 +159,61 @@ impl Model for GeminiModel {
 
         // Apply parameters if provided
         if let Some(params) = parameters {
+            // Handle response format (mime type and schema)
+            let (mime_type, schema) = match &params.response_format {
+                Some(ResponseFormat::Json) => (Some("application/json".to_string()), None),
+                Some(ResponseFormat::JsonSchema(schema_str)) => {
+                    match serde_json::from_str::<serde_json::Value>(schema_str) {
+                        Ok(parsed_schema) => {
+                            (Some("application/json".to_string()), Some(parsed_schema))
+                        }
+                        Err(e) => {
+                            error!(error = %e, schema = schema_str, "Invalid JSON schema in response_format");
+                            return Err(ModelError::SerializationError(format!(
+                                "Invalid JSON schema: {}",
+                                e
+                            )));
+                        }
+                    }
+                }
+                _ => (None, None),
+            };
+
+            // Clamp penalty values to Gemini's 0.0-2.0 range
+            let frequency_penalty = params.frequency_penalty.map(|p| {
+                let clamped = p.clamp(0.0, 2.0);
+                if clamped != p {
+                    warn!(
+                        original = p,
+                        clamped = clamped,
+                        "Clamping frequency_penalty to Gemini range [0.0, 2.0]"
+                    );
+                }
+                clamped
+            });
+
+            let presence_penalty = params.presence_penalty.map(|p| {
+                let clamped = p.clamp(0.0, 2.0);
+                if clamped != p {
+                    warn!(
+                        original = p,
+                        clamped = clamped,
+                        "Clamping presence_penalty to Gemini range [0.0, 2.0]"
+                    );
+                }
+                clamped
+            });
+
             request_body.generation_config = Some(GeminiGenerationConfig {
                 temperature: params.temperature,
                 top_p: params.top_p,
                 max_output_tokens: params.max_tokens,
+                top_k: params.top_k,
+                frequency_penalty,
+                presence_penalty,
+                response_mime_type: mime_type,
+                response_schema: schema,
                 stop_sequences: params.stop_sequences,
-                top_k: None, // Not yet mapped from ModelParameters
-                frequency_penalty: None, // Not yet mapped from ModelParameters
-                presence_penalty: None, // Not yet mapped from ModelParameters
-                response_mime_type: None, // Not yet mapped from ModelParameters
-                response_schema: None, // Not yet mapped from ModelParameters
             });
         }
 
