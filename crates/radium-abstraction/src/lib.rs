@@ -802,6 +802,43 @@ pub struct ToolConfig {
     pub allowed_function_names: Option<Vec<String>>,
 }
 
+/// A tool/function definition for function calling.
+///
+/// This is a simplified representation of a tool that can be called by models
+/// supporting function calling. It includes the tool's name, description, and
+/// parameter schema.
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use radium_abstraction::Tool;
+/// use serde_json::json;
+///
+/// let tool = Tool {
+///     name: "search_web".to_string(),
+///     description: "Search the web for information".to_string(),
+///     parameters: json!({
+///         "type": "object",
+///         "properties": {
+///             "query": {
+///                 "type": "string",
+///                 "description": "The search query"
+///             }
+///         },
+///         "required": ["query"]
+///     }),
+/// };
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Tool {
+    /// Name of the tool/function.
+    pub name: String,
+    /// Description of what the tool does.
+    pub description: String,
+    /// JSON schema for the tool's parameters.
+    pub parameters: serde_json::Value,
+}
+
 /// A trait for interacting with different AI models.
 ///
 /// All models must be `Send + Sync` to allow concurrent use across threads.
@@ -833,6 +870,75 @@ pub trait Model: Send + Sync {
         &self,
         messages: &[ChatMessage],
         parameters: Option<ModelParameters>,
+    ) -> Result<ModelResponse, ModelError>;
+
+    /// Generates a response with function calling support.
+    ///
+    /// This method enables models to request execution of tools/functions during
+    /// text generation. The model can analyze the conversation and available tools,
+    /// then request one or more tools to be executed. Tool calls are returned in
+    /// the `tool_calls` field of the response.
+    ///
+    /// # When to Use
+    ///
+    /// - Use `generate_with_tools` when you need the model to call external tools
+    ///   (e.g., search, calculations, file operations)
+    /// - Use `generate_chat_completion` for regular text generation without tools
+    ///
+    /// # Tool Configuration
+    ///
+    /// The optional `tool_config` parameter controls tool calling behavior:
+    /// - `mode: Auto` - Model decides whether to use tools (default behavior)
+    /// - `mode: Any` - Model must call at least one tool (validation error if none)
+    /// - `mode: None` - Model must not call any tools (validation error if any called)
+    /// - `allowed_function_names` - Optional whitelist to restrict which tools can be called
+    ///
+    /// # Response
+    ///
+    /// The response contains:
+    /// - `content`: Text response from the model
+    /// - `tool_calls`: Optional list of tools the model requested to execute
+    ///
+    /// If the model decides to call tools, `tool_calls` will contain one or more
+    /// tool calls with IDs, names, and arguments. The caller should execute these
+    /// tools and potentially send results back to the model for continuation.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use radium_abstraction::{Model, Tool, ToolConfig, ToolUseMode};
+    /// # use serde_json::json;
+    /// # async fn example(model: &dyn Model) -> Result<(), Box<dyn std::error::Error>> {
+    /// let tools = vec![
+    ///     Tool {
+    ///         name: "search".to_string(),
+    ///         description: "Search the web".to_string(),
+    ///         parameters: json!({"type": "object", "properties": {"query": {"type": "string"}}}),
+    ///     },
+    /// ];
+    ///
+    /// let config = ToolConfig {
+    ///     mode: ToolUseMode::Auto,
+    ///     allowed_function_names: None,
+    /// };
+    ///
+    /// let messages = vec![/* ... */];
+    /// let response = model.generate_with_tools(&messages, &tools, Some(&config)).await?;
+    ///
+    /// if let Some(tool_calls) = response.tool_calls {
+    ///     // Execute tools and continue conversation
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    /// Returns a `ModelError` if generation fails or if tool configuration is invalid.
+    async fn generate_with_tools(
+        &self,
+        messages: &[ChatMessage],
+        tools: &[Tool],
+        tool_config: Option<&ToolConfig>,
     ) -> Result<ModelResponse, ModelError>;
 
     /// Returns the ID of the model.

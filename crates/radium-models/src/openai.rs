@@ -376,6 +376,17 @@ impl Model for OpenAIModel {
         })
     }
 
+    async fn generate_with_tools(
+        &self,
+        _messages: &[ChatMessage],
+        _tools: &[radium_abstraction::Tool],
+        _tool_config: Option<&radium_abstraction::ToolConfig>,
+    ) -> Result<ModelResponse, ModelError> {
+        Err(ModelError::UnsupportedModelProvider(
+            format!("OpenAIModel does not support function calling yet"),
+        ))
+    }
+
     fn model_id(&self) -> &str {
         &self.model_id
     }
