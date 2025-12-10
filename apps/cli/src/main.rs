@@ -250,6 +250,14 @@ enum Command {
         /// Force File API upload regardless of file size
         #[arg(long)]
         auto_upload: bool,
+
+        /// Response format for model output (text, json, json-schema)
+        #[arg(long, value_name = "FORMAT")]
+        response_format: Option<String>,
+
+        /// JSON schema file path or inline JSON string for structured output
+        #[arg(long, value_name = "SCHEMA")]
+        response_schema: Option<String>,
     },
 
     /// Interactive chat mode with an agent
@@ -675,8 +683,8 @@ async fn main() -> anyhow::Result<()> {
         Command::Run { script, model, dir, model_tier, show_metadata, json, safety_behavior } => {
             run::execute(script, model, dir, model_tier, show_metadata, json, safety_behavior).await?;
         }
-        Command::Step { id, prompt, model, engine, reasoning, model_tier, stream, show_metadata, json, safety_behavior, image, audio, video, file, auto_upload } => {
-            step::execute(id, prompt, model, engine, reasoning, model_tier, None, stream, show_metadata, json, safety_behavior, image, audio, video, file, auto_upload).await?;
+        Command::Step { id, prompt, model, engine, reasoning, model_tier, stream, show_metadata, json, safety_behavior, image, audio, video, file, auto_upload, response_format, response_schema } => {
+            step::execute(id, prompt, model, engine, reasoning, model_tier, None, stream, show_metadata, json, safety_behavior, image, audio, video, file, auto_upload, response_format, response_schema).await?;
         }
         Command::Chat { agent_id, session, resume, list, stream, show_metadata, json, safety_behavior } => {
             if list {

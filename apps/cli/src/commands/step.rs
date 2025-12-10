@@ -6,7 +6,7 @@ use anyhow::{Context, bail};
 use chrono::Utc;
 use colored::Colorize;
 use futures::StreamExt;
-use radium_abstraction::{ContentBlock, ImageSource, MediaSource, MessageContent, ModelError, ModelParameters, StreamingModel};
+use radium_abstraction::{ContentBlock, ImageSource, MediaSource, MessageContent, ModelError, ModelParameters, ResponseFormat, StreamingModel};
 use radium_core::engines::ExecutionResponse;
 use radium_models::gemini::file_api::GeminiFileApi;
 use serde_json;
@@ -28,6 +28,66 @@ use std::sync::Arc;
 use std::fs;
 use uuid::Uuid;
 
+/// Parse response format arguments and construct ResponseFormat enum.
+///
+/// Handles:
+/// - `--response-format text` → ResponseFormat::Text
+/// - `--response-format json` → ResponseFormat::Json
+/// - `--response-format json-schema` with `--response-schema` → ResponseFormat::JsonSchema
+///
+/// Returns error if format is invalid or schema file cannot be read.
+fn parse_response_format(
+    response_format: Option<String>,
+    response_schema: Option<String>,
+) -> anyhow::Result<Option<ResponseFormat>> {
+    match response_format.as_deref() {
+        Some("text") => Ok(Some(ResponseFormat::Text)),
+        Some("json") => {
+            if response_schema.is_some() {
+                return Err(anyhow::anyhow!(
+                    "--response-schema cannot be used with --response-format json. Use --response-format json-schema instead."
+                ));
+            }
+            Ok(Some(ResponseFormat::Json))
+        }
+        Some("json-schema") => {
+            let schema = response_schema.ok_or_else(|| {
+                anyhow::anyhow!("--response-schema is required when using --response-format json-schema")
+            })?;
+            
+            // Try to detect if it's a file path or inline JSON
+            let schema_content = if std::path::Path::new(&schema).exists() {
+                // It's a file path
+                std::fs::read_to_string(&schema).with_context(|| {
+                    format!("Failed to read schema file: {}", schema)
+                })?
+            } else {
+                // Assume it's inline JSON
+                schema
+            };
+            
+            // Validate that it's valid JSON
+            serde_json::from_str::<serde_json::Value>(&schema_content)
+                .with_context(|| format!("Invalid JSON schema: {}", schema_content))?;
+            
+            Ok(Some(ResponseFormat::JsonSchema(schema_content)))
+        }
+        Some(format) => Err(anyhow::anyhow!(
+            "Invalid response format: '{}'. Must be one of: text, json, json-schema",
+            format
+        )),
+        None => {
+            // If no format specified but schema is provided, that's an error
+            if response_schema.is_some() {
+                return Err(anyhow::anyhow!(
+                    "--response-schema requires --response-format json-schema"
+                ));
+            }
+            Ok(None)
+        }
+    }
+}
+
 /// Execute the step command.
 ///
 /// Executes a single workflow step (agent from configuration).
@@ -48,9 +108,15 @@ pub async fn execute(
     video: Vec<PathBuf>,
     file: Vec<PathBuf>,
     auto_upload: bool,
+    response_format: Option<String>,
+    response_schema: Option<String>,
 ) -> anyhow::Result<()> {
     println!("{}", "rad step".bold().cyan());
     println!();
+    
+    // Parse response format arguments
+    let response_format = parse_response_format(response_format, response_schema)
+        .context("Failed to parse response format arguments")?;
     
     // Use provided session ID or generate new one
     let session_id = session_id.unwrap_or_else(|| Uuid::new_v4().to_string());
@@ -307,7 +373,7 @@ pub async fn execute(
                 top_k: None,
                 frequency_penalty: None,
                 presence_penalty: None,
-                response_format: None,
+                response_format: response_format.clone(),
                 stop_sequences: None,
             })
         };
@@ -341,7 +407,7 @@ pub async fn execute(
         }
     } else {
         // Use existing text-only path
-        execute_agent_with_engine(&registry, &agent.id, &rendered, selected_engine_id, selected_model, stream).await
+        execute_agent_with_engine(&registry, &agent.id, &rendered, selected_engine_id, selected_model, stream, response_format.as_ref()).await
     };
     
     // Handle response display based on flags
@@ -895,6 +961,7 @@ async fn execute_agent_with_engine(
     engine_id: &str,
     model: &str,
     stream: bool,
+    response_format: Option<&ResponseFormat>,
 ) -> anyhow::Result<radium_core::engines::ExecutionResponse> {
     println!("  {} Executing agent with {}...", "•".cyan(), engine_id);
     println!("  {} Agent: {}", "•".dimmed(), agent_id.cyan());
@@ -946,7 +1013,7 @@ async fn execute_agent_with_engine(
                 let gemini_model = GeminiModel::with_api_key(model.to_string(), api_key);
                 
                 // Check if model implements StreamingModel (it does)
-                let parameters = if request.temperature.is_some() || request.max_tokens.is_some() {
+                let parameters = if request.temperature.is_some() || request.max_tokens.is_some() || response_format.is_some() {
                     Some(ModelParameters {
                         temperature: request.temperature,
                         top_p: None,
@@ -954,7 +1021,7 @@ async fn execute_agent_with_engine(
                         top_k: None,
                         frequency_penalty: None,
                         presence_penalty: None,
-                        response_format: None,
+                        response_format: response_format.cloned(),
                         stop_sequences: None,
                     })
                 } else {
@@ -1016,7 +1083,7 @@ async fn execute_agent_with_engine(
                     .map_err(|e| anyhow::anyhow!("Failed to get API key: {}", e))?;
                 let openai_model = OpenAIModel::with_api_key(model.to_string(), api_key);
                 
-                let parameters = if request.temperature.is_some() || request.max_tokens.is_some() {
+                let parameters = if request.temperature.is_some() || request.max_tokens.is_some() || response_format.is_some() {
                     Some(ModelParameters {
                         temperature: request.temperature,
                         top_p: None,
@@ -1024,7 +1091,7 @@ async fn execute_agent_with_engine(
                         top_k: None,
                         frequency_penalty: None,
                         presence_penalty: None,
-                        response_format: None,
+                        response_format: response_format.cloned(),
                         stop_sequences: None,
                     })
                 } else {
@@ -1075,7 +1142,7 @@ async fn execute_agent_with_engine(
             "mock" => {
                 let mock_model = MockModel::new(model.to_string());
                 
-                let parameters = if request.temperature.is_some() || request.max_tokens.is_some() {
+                let parameters = if request.temperature.is_some() || request.max_tokens.is_some() || response_format.is_some() {
                     Some(ModelParameters {
                         temperature: request.temperature,
                         top_p: None,
@@ -1083,7 +1150,7 @@ async fn execute_agent_with_engine(
                         top_k: None,
                         frequency_penalty: None,
                         presence_penalty: None,
-                        response_format: None,
+                        response_format: response_format.cloned(),
                         stop_sequences: None,
                     })
                 } else {
