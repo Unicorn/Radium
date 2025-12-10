@@ -153,6 +153,36 @@ impl GeminiModel {
         }
     }
 
+    /// Checks if the model ID indicates a thinking model.
+    ///
+    /// Thinking models (e.g., gemini-2.0-flash-thinking) support thinking mode configuration.
+    fn is_thinking_model(model_id: &str) -> bool {
+        model_id.to_lowercase().contains("thinking")
+    }
+
+    /// Maps reasoning effort to thinking budget for thinking models.
+    ///
+    /// Returns thinking config if reasoning effort is specified and model supports thinking.
+    fn map_reasoning_effort_to_thinking_config(
+        model_id: &str,
+        reasoning_effort: Option<radium_abstraction::ReasoningEffort>,
+    ) -> Option<GeminiThinkingConfig> {
+        if !Self::is_thinking_model(model_id) {
+            return None;
+        }
+
+        reasoning_effort.map(|effort| {
+            let thinking_budget = match effort {
+                radium_abstraction::ReasoningEffort::Low => 0.3,   // Minimal thinking
+                radium_abstraction::ReasoningEffort::Medium => 0.6, // Standard thinking
+                radium_abstraction::ReasoningEffort::High => 1.0,   // Maximum thinking
+            };
+            GeminiThinkingConfig {
+                thinking_budget: Some(thinking_budget),
+            }
+        })
+    }
+
     /// Sets safety settings for content filtering.
     ///
     /// # Arguments
@@ -615,6 +645,12 @@ impl Model for GeminiModel {
                 clamped
             });
 
+            // Map reasoning effort to thinking config for thinking models
+            let thinking_config = Self::map_reasoning_effort_to_thinking_config(
+                &self.model_id,
+                params.reasoning_effort,
+            );
+
             request_body.generation_config = Some(GeminiGenerationConfig {
                 temperature: params.temperature,
                 top_p: params.top_p,
@@ -625,6 +661,7 @@ impl Model for GeminiModel {
                 response_mime_type: mime_type,
                 response_schema: schema,
                 stop_sequences: params.stop_sequences,
+                thinking_config,
             });
         }
 
@@ -745,10 +782,12 @@ impl Model for GeminiModel {
         });
 
         // Extract metadata from candidate
-        let metadata = if candidate.finish_reason.is_some()
+        let mut metadata = if candidate.finish_reason.is_some()
             || candidate.safety_ratings.is_some()
             || candidate.citation_metadata.is_some()
             || candidate.grounding_metadata.is_some()
+            || candidate.thinking.is_some()
+            || gemini_response.thinking.is_some()
         {
             let gemini_meta = GeminiMetadata {
                 finish_reason: candidate.finish_reason.clone(),
@@ -762,7 +801,14 @@ impl Model for GeminiModel {
                     gm.grounding_attributions.clone()
                 }),
             };
-            let metadata_map: HashMap<String, serde_json::Value> = gemini_meta.into();
+            let mut metadata_map: HashMap<String, serde_json::Value> = gemini_meta.into();
+            
+            // Extract thinking process for thinking models
+            // Check candidate first, then response level
+            if let Some(thinking) = candidate.thinking.as_ref().or(gemini_response.thinking.as_ref()) {
+                metadata_map.insert("thinking_process".to_string(), thinking.clone());
+            }
+            
             if metadata_map.is_empty() {
                 None
             } else {
@@ -880,6 +926,7 @@ impl Model for GeminiModel {
             response_mime_type: None,
             response_schema: None,
             stop_sequences: None,
+            thinking_config: None, // No reasoning effort in generate_with_tools default
         });
 
         // Make API request
@@ -979,10 +1026,12 @@ impl Model for GeminiModel {
         });
 
         // Extract metadata from candidate
-        let metadata = if candidate.finish_reason.is_some()
+        let mut metadata = if candidate.finish_reason.is_some()
             || candidate.safety_ratings.is_some()
             || candidate.citation_metadata.is_some()
             || candidate.grounding_metadata.is_some()
+            || candidate.thinking.is_some()
+            || gemini_response.thinking.is_some()
         {
             let gemini_meta = GeminiMetadata {
                 finish_reason: candidate.finish_reason.clone(),
@@ -996,7 +1045,14 @@ impl Model for GeminiModel {
                     gm.grounding_attributions.clone()
                 }),
             };
-            let metadata_map: HashMap<String, serde_json::Value> = gemini_meta.into();
+            let mut metadata_map: HashMap<String, serde_json::Value> = gemini_meta.into();
+            
+            // Extract thinking process for thinking models
+            // Check candidate first, then response level
+            if let Some(thinking) = candidate.thinking.as_ref().or(gemini_response.thinking.as_ref()) {
+                metadata_map.insert("thinking_process".to_string(), thinking.clone());
+            }
+            
             if metadata_map.is_empty() {
                 None
             } else {
@@ -1126,6 +1182,12 @@ impl StreamingModel for GeminiModel {
                 clamped
             });
 
+            // Map reasoning effort to thinking config for thinking models
+            let thinking_config = Self::map_reasoning_effort_to_thinking_config(
+                &self.model_id,
+                params.reasoning_effort,
+            );
+
             request_body.generation_config = Some(GeminiGenerationConfig {
                 temperature: params.temperature,
                 top_p: params.top_p,
@@ -1136,6 +1198,7 @@ impl StreamingModel for GeminiModel {
                 response_mime_type: mime_type,
                 response_schema: schema,
                 stop_sequences: params.stop_sequences,
+                thinking_config,
             });
         }
 
@@ -1624,6 +1687,14 @@ struct GeminiFileData {
 }
 
 #[derive(Debug, Serialize)]
+struct GeminiThinkingConfig {
+    /// Thinking budget multiplier (0.0 to 1.0).
+    /// Higher values allow more thinking tokens.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thinking_budget: Option<f32>,
+}
+
+#[derive(Debug, Serialize)]
 struct GeminiGenerationConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     temperature: Option<f32>,
@@ -1643,6 +1714,9 @@ struct GeminiGenerationConfig {
     response_schema: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     stop_sequences: Option<Vec<String>>,
+    /// Thinking configuration for thinking models (e.g., gemini-2.0-flash-thinking).
+    #[serde(rename = "thinkingConfig", skip_serializing_if = "Option::is_none")]
+    thinking_config: Option<GeminiThinkingConfig>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1650,6 +1724,9 @@ struct GeminiResponse {
     candidates: Vec<GeminiCandidate>,
     #[serde(rename = "usageMetadata")]
     usage_metadata: Option<GeminiUsageMetadata>,
+    /// Thinking process for thinking models (may be present in response)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thinking: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1663,6 +1740,9 @@ struct GeminiCandidate {
     citation_metadata: Option<GeminiCitationMetadata>,
     #[serde(rename = "groundingMetadata")]
     grounding_metadata: Option<GeminiGroundingMetadata>,
+    /// Thinking process for thinking models (may be present in candidate)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thinking: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]
