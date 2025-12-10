@@ -118,6 +118,7 @@ impl ClaudeModel {
     /// # Example
     /// ```
     /// use radium_abstraction::ChatMessage;
+    /// use radium_models::ClaudeModel;
     /// let messages = vec![
     ///     ChatMessage { role: "system".to_string(), content: "You are helpful.".to_string() },
     ///     ChatMessage { role: "user".to_string(), content: "Hello".to_string() },
