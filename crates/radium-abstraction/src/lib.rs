@@ -528,6 +528,14 @@ pub struct ModelParameters {
     /// Defaults to 0.3 if grounding is enabled but threshold is not specified.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub grounding_threshold: Option<f32>,
+
+    /// Reasoning effort level for thinking models.
+    /// Controls the depth of reasoning the model should perform before providing an answer.
+    /// This is used by thinking models (e.g., Gemini Flash Thinking, Claude with extended thinking)
+    /// to control how much internal reasoning to perform.
+    /// When `None`, the model uses its default reasoning behavior.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<ReasoningEffort>,
 }
 
 impl Default for ModelParameters {
@@ -543,6 +551,7 @@ impl Default for ModelParameters {
             stop_sequences: None,
             enable_grounding: None,
             grounding_threshold: None,
+            reasoning_effort: None,
         }
     }
 }
@@ -556,6 +565,34 @@ pub enum ResponseFormat {
     Json,
     /// JSON output conforming to the provided schema.
     JsonSchema(String),
+}
+
+/// Reasoning effort levels for model generation.
+///
+/// Controls the depth of reasoning the model should perform before providing an answer.
+/// This is used by thinking models (e.g., Gemini Flash Thinking, Claude with extended thinking)
+/// to control how much internal reasoning to perform.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[derive(Default)]
+pub enum ReasoningEffort {
+    /// Minimal reasoning effort for simple tasks.
+    Low,
+    /// Moderate reasoning effort for balanced performance.
+    #[default]
+    Medium,
+    /// Maximum reasoning effort for complex problems.
+    High,
+}
+
+impl std::fmt::Display for ReasoningEffort {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Low => write!(f, "low"),
+            Self::Medium => write!(f, "medium"),
+            Self::High => write!(f, "high"),
+        }
+    }
 }
 
 /// The response from a text generation or chat completion model.
@@ -1064,6 +1101,9 @@ mod tests {
             presence_penalty: Some(0.3),
             response_format: Some(ResponseFormat::Json),
             stop_sequences: None,
+            enable_grounding: None,
+            grounding_threshold: None,
+            reasoning_effort: None,
         };
 
         let json = serde_json::to_string(&params).unwrap();

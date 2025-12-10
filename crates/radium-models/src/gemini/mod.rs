@@ -855,6 +855,7 @@ impl Model for GeminiModel {
             }),
             tools: if gemini_tools.is_empty() { None } else { Some(gemini_tools) },
             tool_config: gemini_tool_config,
+            cached_content: None,
             safety_settings: self.safety_settings.clone(),
         };
 
@@ -1065,6 +1066,7 @@ impl StreamingModel for GeminiModel {
             }),
             tools: None,
             tool_config: None,
+            cached_content: None,
             safety_settings: self.safety_settings.clone(),
         };
 
@@ -1550,10 +1552,10 @@ struct GeminiRequest {
     tools: Option<Vec<GeminiTool>>,
     /// Optional tool configuration for function calling
     #[serde(skip_serializing_if = "Option::is_none", rename = "toolConfig")]
+    tool_config: Option<GeminiToolConfig>,
     /// Optional reference to cached content (cachedContent API)
     #[serde(skip_serializing_if = "Option::is_none", rename = "cachedContent")]
     cached_content: Option<String>,
-    tool_config: Option<GeminiToolConfig>,
     /// Optional safety settings for content filtering
     #[serde(skip_serializing_if = "Option::is_none", rename = "safetySettings")]
     safety_settings: Option<Vec<GeminiSafetySetting>>,

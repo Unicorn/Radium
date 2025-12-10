@@ -6,7 +6,7 @@ use anyhow::{Context, bail};
 use chrono::Utc;
 use colored::Colorize;
 use futures::StreamExt;
-use radium_abstraction::{ContentBlock, ImageSource, MediaSource, MessageContent, ModelError, ModelParameters, ResponseFormat, StreamingModel};
+use radium_abstraction::{ContentBlock, ImageSource, MediaSource, MessageContent, ModelError, ModelParameters, ReasoningEffort, ResponseFormat, StreamingModel};
 use radium_core::engines::ExecutionResponse;
 use radium_models::gemini::file_api::GeminiFileApi;
 use serde_json;
@@ -202,12 +202,22 @@ pub async fn execute(
     let selected_model = model.as_deref()
         .or_else(|| agent.model.as_deref())
         .unwrap_or_else(|| default_model.as_str());
-    let selected_reasoning =
-        reasoning.as_deref().unwrap_or_else(|| match agent.reasoning_effort.unwrap_or_default() {
-            radium_core::ReasoningEffort::Low => "low",
-            radium_core::ReasoningEffort::Medium => "medium",
-            radium_core::ReasoningEffort::High => "high",
-        });
+    // Resolve reasoning effort: CLI flag → agent config → default (Medium)
+    let selected_reasoning_effort = reasoning.as_deref()
+        .and_then(|r| match r.to_lowercase().as_str() {
+            "low" => Some(ReasoningEffort::Low),
+            "medium" => Some(ReasoningEffort::Medium),
+            "high" => Some(ReasoningEffort::High),
+            _ => None,
+        })
+        .or_else(|| agent.reasoning_effort.map(|e| match e {
+            radium_core::ReasoningEffort::Low => ReasoningEffort::Low,
+            radium_core::ReasoningEffort::Medium => ReasoningEffort::Medium,
+            radium_core::ReasoningEffort::High => ReasoningEffort::High,
+        }))
+        .unwrap_or(ReasoningEffort::Medium);
+    
+    let selected_reasoning = selected_reasoning_effort.to_string();
 
     println!();
     println!("{}", "Execution Configuration:".bold());
@@ -375,6 +385,9 @@ pub async fn execute(
                 presence_penalty: None,
                 response_format: response_format.clone(),
                 stop_sequences: None,
+                enable_grounding: None,
+                grounding_threshold: None,
+                reasoning_effort: Some(selected_reasoning_effort),
             })
         };
 
@@ -407,7 +420,7 @@ pub async fn execute(
         }
     } else {
         // Use existing text-only path
-        execute_agent_with_engine(&registry, &agent.id, &rendered, selected_engine_id, selected_model, stream, response_format.as_ref()).await
+        execute_agent_with_engine(&registry, &agent.id, &rendered, selected_engine_id, selected_model, stream, response_format.as_ref(), Some(selected_reasoning_effort)).await
     };
     
     // Handle response display based on flags
@@ -962,6 +975,7 @@ async fn execute_agent_with_engine(
     model: &str,
     stream: bool,
     response_format: Option<&ResponseFormat>,
+    reasoning_effort: Option<ReasoningEffort>,
 ) -> anyhow::Result<radium_core::engines::ExecutionResponse> {
     println!("  {} Executing agent with {}...", "•".cyan(), engine_id);
     println!("  {} Agent: {}", "•".dimmed(), agent_id.cyan());
@@ -994,7 +1008,15 @@ async fn execute_agent_with_engine(
     };
 
     // Create execution request
-    let request = ExecutionRequest::new(model.to_string(), rendered_prompt.to_string());
+    let mut request = ExecutionRequest::new(model.to_string(), rendered_prompt.to_string());
+    
+    // Add reasoning effort to params if specified
+    if let Some(effort) = reasoning_effort {
+        request.params.insert(
+            "reasoning_effort".to_string(),
+            serde_json::Value::String(effort.to_string()),
+        );
+    }
 
     // Handle streaming if requested
     if stream {
@@ -1013,7 +1035,7 @@ async fn execute_agent_with_engine(
                 let gemini_model = GeminiModel::with_api_key(model.to_string(), api_key);
                 
                 // Check if model implements StreamingModel (it does)
-                let parameters = if request.temperature.is_some() || request.max_tokens.is_some() || response_format.is_some() {
+                let parameters = if request.temperature.is_some() || request.max_tokens.is_some() || response_format.is_some() || reasoning_effort.is_some() {
                     Some(ModelParameters {
                         temperature: request.temperature,
                         top_p: None,
@@ -1023,6 +1045,9 @@ async fn execute_agent_with_engine(
                         presence_penalty: None,
                         response_format: response_format.cloned(),
                         stop_sequences: None,
+                        enable_grounding: None,
+                        grounding_threshold: None,
+                        reasoning_effort,
                     })
                 } else {
                     None
@@ -1083,7 +1108,7 @@ async fn execute_agent_with_engine(
                     .map_err(|e| anyhow::anyhow!("Failed to get API key: {}", e))?;
                 let openai_model = OpenAIModel::with_api_key(model.to_string(), api_key);
                 
-                let parameters = if request.temperature.is_some() || request.max_tokens.is_some() || response_format.is_some() {
+                let parameters = if request.temperature.is_some() || request.max_tokens.is_some() || response_format.is_some() || reasoning_effort.is_some() {
                     Some(ModelParameters {
                         temperature: request.temperature,
                         top_p: None,
@@ -1093,6 +1118,9 @@ async fn execute_agent_with_engine(
                         presence_penalty: None,
                         response_format: response_format.cloned(),
                         stop_sequences: None,
+                        enable_grounding: None,
+                        grounding_threshold: None,
+                        reasoning_effort,
                     })
                 } else {
                     None
@@ -1142,7 +1170,7 @@ async fn execute_agent_with_engine(
             "mock" => {
                 let mock_model = MockModel::new(model.to_string());
                 
-                let parameters = if request.temperature.is_some() || request.max_tokens.is_some() || response_format.is_some() {
+                let parameters = if request.temperature.is_some() || request.max_tokens.is_some() || response_format.is_some() || reasoning_effort.is_some() {
                     Some(ModelParameters {
                         temperature: request.temperature,
                         top_p: None,
@@ -1152,6 +1180,9 @@ async fn execute_agent_with_engine(
                         presence_penalty: None,
                         response_format: response_format.cloned(),
                         stop_sequences: None,
+                        enable_grounding: None,
+                        grounding_threshold: None,
+                        reasoning_effort,
                     })
                 } else {
                     None
