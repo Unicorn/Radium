@@ -24,7 +24,7 @@ use async_trait::async_trait;
 use futures::stream::Stream;
 use radium_abstraction::{
     ChatMessage, ContentBlock, ImageSource, MessageContent, LogProb, Model, ModelError,
-    ModelParameters, ModelResponse, ModelUsage, SafetyRating, StreamingModel,
+    ModelParameters, ModelResponse, ModelUsage, ResponseFormat, SafetyRating, StreamingModel,
 };
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -48,6 +48,41 @@ pub struct OpenAIModel {
 }
 
 impl OpenAIModel {
+    /// Converts ResponseFormat to OpenAI's response format structure.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ModelError::SerializationError` if the schema is invalid JSON.
+    fn convert_response_format(
+        &self,
+        response_format: &Option<ResponseFormat>,
+    ) -> Result<Option<OpenAIResponseFormat>, ModelError> {
+        match response_format {
+            Some(ResponseFormat::Text) => Ok(None),
+            Some(ResponseFormat::Json) => Ok(Some(OpenAIResponseFormat::JsonObject {
+                format_type: "json_object".to_string(),
+            })),
+            Some(ResponseFormat::JsonSchema(schema_str)) => {
+                // Parse and validate the schema
+                let parsed_schema = serde_json::from_str::<serde_json::Value>(schema_str)
+                    .map_err(|e| {
+                        error!(error = %e, schema = schema_str, "Invalid JSON schema");
+                        ModelError::SerializationError(format!("Invalid JSON schema: {}", e))
+                    })?;
+
+                Ok(Some(OpenAIResponseFormat::JsonSchema {
+                    format_type: "json_schema".to_string(),
+                    json_schema: OpenAIJsonSchema {
+                        name: "response_schema".to_string(),
+                        schema: parsed_schema,
+                        strict: true,
+                    },
+                }))
+            }
+            None => Ok(None),
+        }
+    }
+
     /// Creates a new `OpenAIModel` with the given model ID.
     ///
     /// # Arguments
@@ -239,6 +274,7 @@ impl Model for OpenAIModel {
             top_p: None,
             max_tokens: None,
             stop: None,
+            response_format: None,
         };
 
         // Apply parameters if provided
@@ -247,6 +283,8 @@ impl Model for OpenAIModel {
             request_body.top_p = params.top_p;
             request_body.max_tokens = params.max_tokens;
             request_body.stop = params.stop_sequences;
+            // Convert ResponseFormat to OpenAI format
+            request_body.response_format = self.convert_response_format(&params.response_format)?;
         }
 
         // Make API request using reqwest
@@ -316,13 +354,21 @@ impl Model for OpenAIModel {
             ModelError::ModelResponseError("No content in API response".to_string())
         })?;
 
-        let content = choice.message.content.clone();
+        // Extract content from OpenAIMessageContent
+        let content = match &choice.message.content {
+            OpenAIMessageContent::String(s) => s.clone(),
+            OpenAIMessageContent::Blocks(_) => {
+                // For blocks, we'll extract text or convert to string representation
+                "Content blocks not yet fully supported".to_string()
+            }
+        };
 
         // Extract usage information
         let usage = openai_response.usage.map(|u| ModelUsage {
             prompt_tokens: u.prompt_tokens,
             completion_tokens: u.completion_tokens,
             total_tokens: u.total_tokens,
+            cache_usage: None,
         });
 
         // Extract metadata from choice and response
@@ -409,20 +455,18 @@ impl StreamingModel for OpenAIModel {
         // Convert single prompt to chat format for OpenAI
         let messages = vec![ChatMessage {
             role: "user".to_string(),
-            content: prompt.to_string(),
+            content: MessageContent::Text(prompt.to_string()),
         }];
 
         // Build OpenAI streaming API request
         let url = format!("{}/chat/completions", self.base_url);
 
         // Convert messages to OpenAI format
-        let openai_messages: Vec<OpenAIMessage> = messages
+        let openai_messages: Result<Vec<OpenAIMessage>, ModelError> = messages
             .iter()
-            .map(|msg| OpenAIMessage {
-                role: Self::role_to_openai(&msg.role),
-                content: msg.content.clone(),
-            })
+            .map(|msg| self.to_openai_message(msg))
             .collect();
+        let openai_messages = openai_messages?;
 
         // Build request body with streaming enabled
         let mut request_body = OpenAIStreamingRequest {
@@ -433,6 +477,7 @@ impl StreamingModel for OpenAIModel {
             top_p: None,
             max_tokens: None,
             stop: None,
+            response_format: None,
         };
 
         // Apply parameters if provided
@@ -441,6 +486,8 @@ impl StreamingModel for OpenAIModel {
             request_body.top_p = params.top_p;
             request_body.max_tokens = params.max_tokens;
             request_body.stop = params.stop_sequences;
+            // Convert ResponseFormat to OpenAI format
+            request_body.response_format = self.convert_response_format(&params.response_format)?;
         }
 
         // Make streaming API request
@@ -667,6 +714,8 @@ struct OpenAIStreamingRequest {
     max_tokens: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     stop: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    response_format: Option<OpenAIResponseFormat>,
 }
 
 // Streaming response structure for OpenAI SSE
@@ -689,6 +738,31 @@ struct OpenAIStreamingDelta {
 
 // OpenAI API request/response structures
 
+/// OpenAI-specific response format structure
+#[derive(Debug, Serialize, Clone)]
+#[serde(untagged)]
+enum OpenAIResponseFormat {
+    /// JSON object format (no schema)
+    JsonObject {
+        #[serde(rename = "type")]
+        format_type: String,
+    },
+    /// JSON schema format with strict enforcement
+    JsonSchema {
+        #[serde(rename = "type")]
+        format_type: String,
+        json_schema: OpenAIJsonSchema,
+    },
+}
+
+/// OpenAI JSON schema structure
+#[derive(Debug, Serialize, Clone)]
+struct OpenAIJsonSchema {
+    name: String,
+    schema: serde_json::Value,
+    strict: bool,
+}
+
 #[derive(Debug, Serialize)]
 struct OpenAIRequest {
     model: String,
@@ -701,22 +775,24 @@ struct OpenAIRequest {
     max_tokens: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     stop: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    response_format: Option<OpenAIResponseFormat>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 enum OpenAIMessageContent {
     String(String),
     Blocks(Vec<OpenAIContentBlock>),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct OpenAIMessage {
     role: String,
     content: OpenAIMessageContent,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 enum OpenAIContentBlock {
     #[serde(rename = "text")]
@@ -725,7 +801,7 @@ enum OpenAIContentBlock {
     ImageUrl { image_url: OpenAIImageUrl },
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct OpenAIImageUrl {
     url: String,
 }
