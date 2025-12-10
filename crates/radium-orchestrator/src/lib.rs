@@ -3,7 +3,7 @@
 //! This module defines the core agent trait and orchestration structures.
 
 pub mod agents;
-pub mod batch_executor;
+// pub mod batch_executor; // TODO: Fix compilation errors - incomplete implementation
 pub mod dispatcher;
 pub mod error;
 pub mod executor;
@@ -30,7 +30,7 @@ use tracing::{debug, error, warn};
 // and pass them through execute_agent method.
 
 pub use agents::{ChatAgent, SimpleAgent};
-pub use batch_executor::BatchExecutor;
+// pub use batch_executor::BatchExecutor; // TODO: Fix compilation errors
 pub use dispatcher::{TaskDispatcher, TaskDispatcherConfig};
 pub use executor::{
     AgentExecutor, ExecutionResult, ExecutionTelemetry, HookExecutor, HookResult, QueueProcessor, QueueProcessorConfig, SandboxManager,

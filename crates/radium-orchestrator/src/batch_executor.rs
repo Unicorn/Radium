@@ -2,10 +2,10 @@
 
 use radium_core::batch::{BatchProcessor, BatchResult, RetryPolicy};
 use radium_core::monitoring::MonitoringService;
-use radium_orchestrator::progress::{ProgressEvent, ProgressReporter};
+use crate::progress::{ProgressEvent, ProgressReporter};
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::{debug, info};
+use tracing::info;
 
 /// Batch executor that integrates with orchestrator and monitoring services.
 pub struct BatchExecutor {
