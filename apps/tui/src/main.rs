@@ -163,18 +163,25 @@ async fn main() -> Result<()> {
             // Poll for tokens
             loop {
                 match stream_ctx.token_receiver.try_recv() {
-                    Ok(token) => {
+                    Ok(stream_item) => {
+                        // Extract string from StreamItem
+                        let token_str = match &stream_item {
+                            radium_abstraction::StreamItem::ThinkingToken(s) => s.clone(),
+                            radium_abstraction::StreamItem::AnswerToken(s) => s.clone(),
+                            radium_abstraction::StreamItem::Metadata(_) => continue, // Skip metadata
+                        };
+
                         // Check if token is an error message
-                        if token.starts_with("\n[Stream error:") {
+                        if token_str.starts_with("\n[Stream error:") {
                             // Extract error message
-                            if let Some(error_end) = token.find("]") {
-                                let error_msg = token[16..error_end].to_string();
+                            if let Some(error_end) = token_str.find("]") {
+                                let error_msg = token_str[16..error_end].to_string();
                                 stream_ctx.state = StreamingState::Error(error_msg);
                             } else {
                                 stream_ctx.state = StreamingState::Error("Unknown stream error".to_string());
                             }
                             // Still add the error token to output
-                            app.prompt_data.add_output(token);
+                            app.prompt_data.add_output(token_str);
                         } else {
                             // Record timestamp for rate calculation
                             let now = std::time::Instant::now();
@@ -183,10 +190,10 @@ async fn main() -> Result<()> {
                             }
                             stream_ctx.token_timestamps.push_back(now);
                             stream_ctx.token_count += 1;
-                            
+
                             // Add token to buffer
-                            stream_ctx.add_token(token);
-                            
+                            stream_ctx.add_token(stream_item);
+
                             // Flush buffer if it reaches 5-10 tokens
                             if stream_ctx.should_flush() {
                                 let flushed = stream_ctx.flush_buffer();

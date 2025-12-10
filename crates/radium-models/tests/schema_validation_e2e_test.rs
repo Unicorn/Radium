@@ -59,6 +59,7 @@ fn test_nested_object_schema_structure() {
         stop_sequences: None,
         enable_grounding: None,
         grounding_threshold: None,
+        reasoning_effort: None,
     };
 
     // Verify schema can be parsed
@@ -107,6 +108,7 @@ fn test_array_schema_with_item_constraints() {
         stop_sequences: None,
         enable_grounding: None,
         grounding_threshold: None,
+        reasoning_effort: None,
     };
 
     // Verify schema structure
@@ -142,6 +144,7 @@ fn test_schema_with_required_optional_fields() {
         stop_sequences: None,
         enable_grounding: None,
         grounding_threshold: None,
+        reasoning_effort: None,
     };
 
     let parsed = serde_json::from_str::<serde_json::Value>(mixed_schema).unwrap();
@@ -183,6 +186,7 @@ fn test_schema_with_enum_constraints() {
         stop_sequences: None,
         enable_grounding: None,
         grounding_threshold: None,
+        reasoning_effort: None,
     };
 
     let parsed = serde_json::from_str::<serde_json::Value>(enum_schema).unwrap();
@@ -224,6 +228,7 @@ fn test_schema_with_string_patterns() {
         stop_sequences: None,
         enable_grounding: None,
         grounding_threshold: None,
+        reasoning_effort: None,
     };
 
     let parsed = serde_json::from_str::<serde_json::Value>(pattern_schema).unwrap();
@@ -264,6 +269,7 @@ fn test_cross_provider_schema_compatibility() {
         stop_sequences: None,
         enable_grounding: None,
         grounding_threshold: None,
+        reasoning_effort: None,
     };
 
     let params_openai = ModelParameters {
@@ -277,6 +283,7 @@ fn test_cross_provider_schema_compatibility() {
         stop_sequences: None,
         enable_grounding: None,
         grounding_threshold: None,
+        reasoning_effort: None,
     };
 
     // Both should have the same schema

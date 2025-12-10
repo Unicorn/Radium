@@ -1051,6 +1051,9 @@ mod tests {
             presence_penalty: None,
             response_format: None,
             stop_sequences: None,
+            enable_grounding: None,
+            grounding_threshold: None,
+            reasoning_effort: None,
         });
         config.max_iterations = Some(10);
         config.timeout_seconds = Some(300);

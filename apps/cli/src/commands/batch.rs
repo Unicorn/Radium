@@ -4,7 +4,21 @@
 
 use anyhow::{Context, bail};
 use clap::Subcommand;
+use colored::Colorize;
+use radium_core::{
+    batch::{
+        parse_input_file, BatchInput, BatchProcessor, BatchProgressTracker, RetryPolicy,
+        render_progress, render_summary,
+    },
+    context::ContextFileLoader,
+    AgentDiscovery, PromptContext, PromptTemplate, Workspace,
+};
+use radium_models::ModelFactory;
+use std::io::Write;
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::signal;
 
 /// Batch command actions.
 #[derive(Subcommand, Debug)]
@@ -47,23 +61,6 @@ pub async fn execute(action: BatchAction) -> anyhow::Result<()> {
 
 /// Execute batch run command.
 async fn execute_run(
-use colored::Colorize;
-use radium_core::{
-    batch::{
-        parse_input_file, BatchInput, BatchProcessor, BatchProgressTracker, RetryPolicy,
-        render_progress, render_summary,
-    },
-    context::ContextFileLoader,
-    AgentDiscovery, PromptContext, PromptTemplate, Workspace,
-};
-use radium_models::ModelFactory;
-use std::io::Write;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::signal;
-
-async fn execute_run(
     agent_id: String,
     input_file: PathBuf,
     concurrency: usize,
@@ -87,7 +84,7 @@ async fn execute_run(
 
     // Load context files if available
     let loader = ContextFileLoader::new(&workspace_root);
-    let current_dir = std::env::current_dir().unwrap_or_else(|| workspace_root.clone());
+    let current_dir = std::env::current_dir().unwrap_or_else(|_| workspace_root.clone());
     let context_files = loader.load_hierarchical(&current_dir).unwrap_or_default();
 
     // Discover agents
@@ -134,23 +131,25 @@ async fn execute_run(
 
     // Create progress tracker
     let mut progress_tracker = BatchProgressTracker::new(inputs.len());
+    let agent_id_for_progress = agent_id.clone();
     let progress_callback: Arc<dyn Fn(usize, usize, usize, usize, usize) + Send + Sync> =
         Arc::new({
-            let mut tracker = progress_tracker.clone();
+            let tracker = Arc::new(std::sync::Mutex::new(progress_tracker.clone()));
             move |index, completed, active, successful, failed| {
-                tracker.update(index, completed, active, successful, failed);
-                let _ = render_progress(&tracker, &agent_id);
+                if let Ok(mut t) = tracker.lock() {
+                    t.update(index, completed, active, successful, failed);
+                    let _ = render_progress(&*t, &agent_id_for_progress);
+                }
             }
         });
 
     // Setup Ctrl+C handler
-    let mut ctrl_c_stream = signal::ctrl_c();
     let cancelled = Arc::new(tokio::sync::Mutex::new(false));
 
     // Spawn cancellation handler
     let cancelled_clone = Arc::clone(&cancelled);
     tokio::spawn(async move {
-        if ctrl_c_stream.recv().await.is_some() {
+        if signal::ctrl_c().await.is_ok() {
             *cancelled_clone.lock().await = true;
             println!("\n{} Cancellation requested, waiting for active requests...", "⚠".yellow());
         }
@@ -182,25 +181,26 @@ async fn execute_run(
             let mut context = PromptContext::new();
             context.set("user_input", input.prompt.clone());
             if let Some(ctx) = input.context.clone() {
-                context.set("context", ctx);
+                context.set("context", ctx.to_string());
             }
             if !context_files.is_empty() {
                 context.set("context_files", context_files.clone());
             }
 
-            let rendered = template.render(&context)?;
+            let rendered = template.render(&context)
+                .map_err(|e| format!("Template rendering failed: {}", e))?;
 
             // Create model and execute
             let engine = "mock"; // Default for now
-            let model = ModelFactory::create_from_str(engine, None)
+            let model = ModelFactory::create_from_str(engine, "mock-model".to_string())
                 .map_err(|e| format!("Failed to create model: {}", e))?;
 
             let response = model
-                .generate(&rendered, None)
+                .generate_text(&rendered, None)
                 .await
                 .map_err(|e| format!("Model generation failed: {}", e))?;
 
-            let result_text = response.text().unwrap_or_default();
+            let result_text = response.content;
 
             // Return result as JSON string (index will be added by batch processor)
             Ok(serde_json::json!({

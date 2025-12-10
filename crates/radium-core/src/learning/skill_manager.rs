@@ -72,8 +72,8 @@ impl SkillManager {
 
         // Create messages for chat completion
         let messages = vec![
-            ChatMessage { role: "system".to_string(), content: Self::build_system_prompt() },
-            ChatMessage { role: "user".to_string(), content: prompt },
+            ChatMessage { role: "system".to_string(), content: Self::build_system_prompt().into() },
+            ChatMessage { role: "user".to_string(), content: prompt.into() },
         ];
 
         // Call model with structured output request
@@ -86,6 +86,9 @@ impl SkillManager {
             presence_penalty: None,
             response_format: None,
             stop_sequences: None,
+            enable_grounding: None,
+            grounding_threshold: None,
+            reasoning_effort: None,
         };
 
         let response = self

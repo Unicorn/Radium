@@ -290,7 +290,7 @@ impl GeminiSafetyConfigToml {
     ///
     /// # Errors
     /// Returns `AgentConfigError::Invalid` if the threshold string is not recognized.
-    pub(crate) fn parse_threshold(s: &str) -> Result<SafetyThreshold, AgentConfigError> {
+    pub(crate) fn parse_threshold(s: &str) -> Result<SafetyThreshold> {
         match s {
             "BLOCK_NONE" => Ok(SafetyThreshold::BlockNone),
             "BLOCK_LOW_AND_ABOVE" => Ok(SafetyThreshold::BlockLowAndAbove),
@@ -310,20 +310,20 @@ impl GeminiSafetyConfigToml {
     ///
     /// # Errors
     /// Returns `AgentConfigError::Invalid` if any threshold string is invalid.
-    pub fn to_safety_settings(&self) -> Result<Vec<GeminiSafetySetting>, AgentConfigError> {
+    pub fn to_safety_settings(&self) -> Result<Vec<GeminiSafetySetting>> {
         let mut settings = Vec::new();
 
         // Helper to get threshold for a category
-        let get_threshold = |category_value: &Option<String>| -> Result<Option<SafetyThreshold>, AgentConfigError> {
+        let get_threshold = |category_value: &Option<String>| -> Result<Option<SafetyThreshold>> {
             match category_value {
-                Some(ref s) => Ok(Some(Self::parse_threshold(s)?)),
+                Some(s) => Ok(Some(Self::parse_threshold(s)?)),
                 None => Ok(None),
             }
         };
 
         // Get default threshold if available
         let default_threshold = match &self.default {
-            Some(ref s) => Some(Self::parse_threshold(s)?),
+            Some(s) => Some(Self::parse_threshold(s)?),
             None => None,
         };
 
@@ -813,6 +813,9 @@ impl AgentConfigFile {
                 presence_penalty: model_config.presence_penalty,
                 response_format,
                 stop_sequences: None,
+                enable_grounding: None,
+                grounding_threshold: None,
+                reasoning_effort: None,
             }
         })
     }
@@ -1652,6 +1655,7 @@ trigger_agent_id = "helper-agent"
                 sandbox: None,
                 persona_config: None,
                 routing: None,
+                code_execution_enabled: None,
             }
             .with_file_path(config_dir.join("empty-id.toml")),
             persona: None,
@@ -1681,6 +1685,7 @@ trigger_agent_id = "helper-agent"
                 persona_config: None,
                 routing: None,
                 safety_behavior: None,
+                code_execution_enabled: None,
             }
             .with_file_path(config_dir.join("empty-name.toml")),
             persona: None,
@@ -1709,6 +1714,8 @@ trigger_agent_id = "helper-agent"
                 sandbox: None,
                 persona_config: None,
                 routing: None,
+                safety_behavior: None,
+                code_execution_enabled: None,
             }
             .with_file_path(config_dir.join("empty-prompt.toml")),
             persona: None,

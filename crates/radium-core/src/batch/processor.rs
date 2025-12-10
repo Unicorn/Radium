@@ -309,17 +309,23 @@ mod tests {
 
     #[tokio::test]
     async fn test_batch_processing_retry() {
-        let mut attempt = std::sync::Arc::new(tokio::sync::Mutex::new(0));
+        let attempt = std::sync::Arc::new(tokio::sync::Mutex::new(0));
 
-        async fn retry_processor(item: usize) -> Result<String, String> {
-            let mut cnt = attempt.lock().await;
-            *cnt += 1;
-            if *cnt < 3 {
-                Err("Temporary error".to_string())
-            } else {
-                Ok(format!("result-{}", item))
+        let retry_processor = {
+            let attempt_clone = Arc::clone(&attempt);
+            move |item: usize| {
+                let attempt = Arc::clone(&attempt_clone);
+                async move {
+                    let mut cnt = attempt.lock().await;
+                    *cnt += 1;
+                    if *cnt < 3 {
+                        Err("Temporary error".to_string())
+                    } else {
+                        Ok(format!("result-{}", item))
+                    }
+                }
             }
-        }
+        };
 
         let retry_policy = RetryPolicy::new(
             3,

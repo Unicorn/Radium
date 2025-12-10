@@ -817,17 +817,18 @@ async fn test_grounding_threshold_configuration() {
 // Tests for configuration file loading and precedence logic
 
 #[test]
+#[allow(unsafe_code)]
 fn test_config_file_parsing() {
     use std::fs;
     use std::path::PathBuf;
     use tempfile::TempDir;
-    
+
     // Create temporary config file
     let temp_dir = TempDir::new().unwrap();
     let config_dir = temp_dir.path().join(".radium");
     fs::create_dir_all(&config_dir).unwrap();
     let config_path = config_dir.join("config.toml");
-    
+
     // Write config with [gemini] section
     let config_content = r#"
 [gemini]
@@ -835,16 +836,18 @@ enable_grounding = true
 grounding_threshold = 0.4
 "#;
     fs::write(&config_path, config_content).unwrap();
-    
+
     // Set HOME to temp directory for config loading
-    std::env::set_var("HOME", temp_dir.path());
-    
+    // SAFETY: Setting env vars in test for config loading test
+    unsafe { std::env::set_var("HOME", temp_dir.path()); }
+
     // Test that config can be loaded (indirectly through model creation)
     // Note: This tests the load_config function indirectly
     // Since load_config is private, we test through model behavior
-    
+
     // Clean up
-    std::env::remove_var("HOME");
+    // SAFETY: Removing env var in test cleanup
+    unsafe { std::env::remove_var("HOME"); }
 }
 
 #[test]

@@ -7,8 +7,9 @@ use radium_core::auth::{CredentialStore, ProviderType};
 use radium_core::context::{ContextManager, HistoryManager};
 use radium_core::{AgentDiscovery, PromptContext, PromptTemplate, Workspace};
 use radium_models::ModelFactory;
-use radium_abstraction::{StreamingModel, ModelError};
+use radium_abstraction::{StreamingModel, ModelError, Tool, ToolCall, ToolConfig, ToolUseMode, ChatMessage, MessageContent, ContentBlock, Model};
 use futures::StreamExt;
+use serde_json::json;
 use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -138,7 +139,7 @@ async fn try_streaming_execution(
                                 }
                                 Some(Err(e)) => {
                                     // Stream error - send error token and break
-                                    let _ = token_tx_clone.send(format!("\n[Stream error: {}]", e)).await;
+                                    let _ = token_tx_clone.send(radium_abstraction::StreamItem::AnswerToken(format!("\n[Stream error: {}]", e))).await;
                                     break;
                                 }
                                 None => {
@@ -155,7 +156,7 @@ async fn try_streaming_execution(
                             let _ = token_tx_clone.send(token).await;
                         }
                         Some(Err(e)) => {
-                            let _ = token_tx_clone.send(format!("\n[Stream error: {}]", e)).await;
+                            let _ = token_tx_clone.send(radium_abstraction::StreamItem::AnswerToken(format!("\n[Stream error: {}]", e))).await;
                             break;
                         }
                         None => {
@@ -183,6 +184,32 @@ pub async fn execute_chat_message(
     message: &str,
     session_id: &str,
 ) -> Result<ChatExecutionResult> {
+    // Check for slash commands first (execute without LLM)
+    if let Some(cmd) = parse_slash_command(message) {
+        let workspace_root = Workspace::discover()
+            .map(|w| w.root().to_path_buf())
+            .unwrap_or_else(|_| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+
+        match execute_slash_command(cmd, &workspace_root).await {
+            Ok(response) => {
+                return Ok(ChatExecutionResult {
+                    response,
+                    success: true,
+                    error: None,
+                    streaming_context: None,
+                });
+            }
+            Err(e) => {
+                return Ok(ChatExecutionResult {
+                    response: String::new(),
+                    success: false,
+                    error: Some(format!("Slash command error: {}", e)),
+                    streaming_context: None,
+                });
+            }
+        }
+    }
+
     // Discover agents
     let discovery = AgentDiscovery::new();
     let agents = discovery.discover_all().context("Failed to discover agents")?;
@@ -289,39 +316,36 @@ pub async fn execute_chat_message(
         None
     };
 
-    // Execute model - try streaming if supported, otherwise fall back to non-streaming
+    // Get workspace root for tool execution
+    let workspace_root = Workspace::discover()
+        .map(|w| w.root().to_path_buf())
+        .unwrap_or_else(|_| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+
+    // Execute model - use tool calling for chat-assistant, otherwise use regular execution
     let (agent_response, streaming_context) = match if let Some(key) = api_key {
         ModelFactory::create_with_api_key(engine, model.to_string(), key)
     } else {
         ModelFactory::create_from_str(engine, model.to_string())
     } {
         Ok(model_instance) => {
-            // Check if this engine supports streaming (Ollama currently)
-            let supports_streaming = engine == "ollama";
-            
-            if supports_streaming {
-                // Try to use streaming for Ollama
-                match try_streaming_execution(model, &rendered).await {
-                    Ok((response, stream_ctx)) => {
-                        // Streaming succeeded - return early with streaming context
-                        // The response will be accumulated in the TUI as tokens arrive
-                        return Ok(ChatExecutionResult {
-                            response,
-                            success: true,
-                            error: None,
-                            streaming_context: Some(stream_ctx),
-                        });
-                    }
-                    Err(_) => {
-                        // Streaming failed, fall back to non-streaming
+            // Check if this agent supports tool calling (currently only chat-assistant)
+            let supports_tool_calling = agent_id == "chat-assistant";
+
+            if supports_tool_calling {
+                // Use tool calling for chat-assistant
+                match execute_with_tools(model_instance.as_ref(), &rendered, message, &workspace_root).await {
+                    Ok(response) => (response, None),
+                    Err(e) => {
+                        let error_msg = format!("❌ Tool Execution Failed\n\n{}\n\nFalling back to non-tool execution...", e);
+                        // Fall back to non-tool execution
                         match model_instance.generate_text(&rendered, None).await {
                             Ok(response) => (response.content, None),
-                            Err(e) => {
-                                let error_msg = format_model_error(&e, engine);
+                            Err(e2) => {
+                                let error_msg2 = format_model_error(&e2, engine);
                                 return Ok(ChatExecutionResult {
                                     response: String::new(),
                                     success: false,
-                                    error: Some(error_msg),
+                                    error: Some(format!("{}\n\n{}", error_msg, error_msg2)),
                                     streaming_context: None,
                                 });
                             }
@@ -329,26 +353,60 @@ pub async fn execute_chat_message(
                     }
                 }
             } else {
-                // Non-streaming execution
-                match model_instance.generate_text(&rendered, None).await {
-                    Ok(response) => (response.content, None),
-                    Err(e) => {
-                        let error_msg = format_model_error(&e, engine);
-                        return Ok(ChatExecutionResult {
-                            response: String::new(),
-                            success: false,
-                            error: Some(error_msg),
-                            streaming_context: None,
-                        });
+                // Check if this engine supports streaming (Ollama currently)
+                let supports_streaming = engine == "ollama";
+
+                if supports_streaming {
+                    // Try to use streaming for Ollama
+                    match try_streaming_execution(model, &rendered).await {
+                        Ok((response, stream_ctx)) => {
+                            // Streaming succeeded - return early with streaming context
+                            // The response will be accumulated in the TUI as tokens arrive
+                            return Ok(ChatExecutionResult {
+                                response,
+                                success: true,
+                                error: None,
+                                streaming_context: Some(stream_ctx),
+                            });
+                        }
+                        Err(_) => {
+                            // Streaming failed, fall back to non-streaming
+                            match model_instance.generate_text(&rendered, None).await {
+                                Ok(response) => (response.content, None),
+                                Err(e) => {
+                                    let error_msg = format_model_error(&e, engine);
+                                    return Ok(ChatExecutionResult {
+                                        response: String::new(),
+                                        success: false,
+                                        error: Some(error_msg),
+                                        streaming_context: None,
+                                    });
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // Non-streaming execution
+                    match model_instance.generate_text(&rendered, None).await {
+                        Ok(response) => (response.content, None),
+                        Err(e) => {
+                            let error_msg = format_model_error(&e, engine);
+                            return Ok(ChatExecutionResult {
+                                response: String::new(),
+                                success: false,
+                                error: Some(error_msg),
+                                streaming_context: None,
+                            });
+                        }
                     }
                 }
             }
         },
         Err(e) => {
             let error_msg = format_creation_error(&e, engine);
-            return Ok(ChatExecutionResult { 
-                response: String::new(), 
-                success: false, 
+            return Ok(ChatExecutionResult {
+                response: String::new(),
+                success: false,
                 error: Some(error_msg),
                 streaming_context: None,
             });
@@ -405,6 +463,7 @@ pub async fn execute_chat_message(
                     message.to_string(),
                     "chat".to_string(),
                     result.response.clone(),
+                    None, // No metadata for basic chat interactions
                 );
             }
         }
@@ -768,4 +827,483 @@ fn format_model_error(error: &radium_abstraction::ModelError, engine: &str) -> S
         The agent encountered an error while processing your message.",
         error_str
     )
+}
+
+// ============================================================================
+// Tool/Function Calling Support
+// ============================================================================
+
+/// Get tool definitions for chat assistant.
+fn get_chat_tools() -> Vec<Tool> {
+    vec![
+        Tool {
+            name: "search_files".to_string(),
+            description: "Search for files matching a glob pattern (e.g. '**/*.rs', '**/*logo*')".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "pattern": {
+                        "type": "string",
+                        "description": "Glob pattern to match files (e.g. '**/*.rs', '**/*test*')"
+                    }
+                },
+                "required": ["pattern"]
+            }),
+        },
+        Tool {
+            name: "grep".to_string(),
+            description: "Search file contents for a pattern using regex".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "pattern": {
+                        "type": "string",
+                        "description": "Regex pattern to search for"
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "Path to search in (empty string for all files)"
+                    }
+                },
+                "required": ["pattern", "path"]
+            }),
+        },
+        Tool {
+            name: "read_file".to_string(),
+            description: "Read the complete contents of a file".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "File path to read"
+                    }
+                },
+                "required": ["path"]
+            }),
+        },
+        Tool {
+            name: "list_directory".to_string(),
+            description: "List contents of a directory".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Directory path to list"
+                    }
+                },
+                "required": ["path"]
+            }),
+        },
+        Tool {
+            name: "git_log".to_string(),
+            description: "Show recent git commit history".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "n": {
+                        "type": "integer",
+                        "description": "Number of commits to show"
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "Optional file path to show commits for (empty for all commits)"
+                    }
+                },
+                "required": ["n", "path"]
+            }),
+        },
+        Tool {
+            name: "git_diff".to_string(),
+            description: "Show uncommitted changes to a file".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "file": {
+                        "type": "string",
+                        "description": "File path to show diff for (empty for all files)"
+                    }
+                },
+                "required": ["file"]
+            }),
+        },
+    ]
+}
+
+/// Execute a tool call and return the result as a string.
+async fn execute_tool_call(tool_call: &ToolCall, workspace_root: &PathBuf) -> Result<String> {
+    match tool_call.name.as_str() {
+        "search_files" => {
+            let pattern = tool_call.arguments["pattern"]
+                .as_str()
+                .ok_or_else(|| anyhow::anyhow!("Missing 'pattern' argument"))?;
+
+            execute_search_files(pattern, workspace_root).await
+        }
+        "grep" => {
+            let pattern = tool_call.arguments["pattern"]
+                .as_str()
+                .ok_or_else(|| anyhow::anyhow!("Missing 'pattern' argument"))?;
+            let path = tool_call.arguments["path"]
+                .as_str()
+                .ok_or_else(|| anyhow::anyhow!("Missing 'path' argument"))?;
+
+            execute_grep(pattern, path, workspace_root).await
+        }
+        "read_file" => {
+            let path = tool_call.arguments["path"]
+                .as_str()
+                .ok_or_else(|| anyhow::anyhow!("Missing 'path' argument"))?;
+
+            execute_read_file(path, workspace_root).await
+        }
+        "list_directory" => {
+            let path = tool_call.arguments["path"]
+                .as_str()
+                .ok_or_else(|| anyhow::anyhow!("Missing 'path' argument"))?;
+
+            execute_list_directory(path, workspace_root).await
+        }
+        "git_log" => {
+            let n = tool_call.arguments["n"]
+                .as_i64()
+                .ok_or_else(|| anyhow::anyhow!("Missing 'n' argument"))? as usize;
+            let path = tool_call.arguments["path"]
+                .as_str()
+                .ok_or_else(|| anyhow::anyhow!("Missing 'path' argument"))?;
+
+            execute_git_log(n, path, workspace_root).await
+        }
+        "git_diff" => {
+            let file = tool_call.arguments["file"]
+                .as_str()
+                .ok_or_else(|| anyhow::anyhow!("Missing 'file' argument"))?;
+
+            execute_git_diff(file, workspace_root).await
+        }
+        _ => Err(anyhow::anyhow!("Unknown tool: {}", tool_call.name)),
+    }
+}
+
+/// Execute search_files tool
+async fn execute_search_files(pattern: &str, workspace_root: &PathBuf) -> Result<String> {
+    use glob::glob;
+
+    let search_pattern = workspace_root.join(pattern).display().to_string();
+    let mut results = Vec::new();
+
+    for entry in glob(&search_pattern).context("Failed to execute glob pattern")? {
+        match entry {
+            Ok(path) => {
+                // Make path relative to workspace root
+                if let Ok(rel_path) = path.strip_prefix(workspace_root) {
+                    results.push(rel_path.display().to_string());
+                } else {
+                    results.push(path.display().to_string());
+                }
+            }
+            Err(e) => {
+                results.push(format!("Error: {}", e));
+            }
+        }
+    }
+
+    if results.is_empty() {
+        Ok(format!("No files found matching pattern: {}", pattern))
+    } else {
+        Ok(format!("Found {} files:\n{}", results.len(), results.join("\n")))
+    }
+}
+
+/// Execute grep tool
+async fn execute_grep(pattern: &str, path: &str, workspace_root: &PathBuf) -> Result<String> {
+    let search_path = if path.is_empty() {
+        workspace_root.to_path_buf()
+    } else {
+        workspace_root.join(path)
+    };
+
+    let cmd = if path.is_empty() {
+        format!("rg -n '{}' .", pattern)
+    } else {
+        format!("rg -n '{}' '{}'", pattern, path)
+    };
+
+    execute_terminal_command(&cmd, workspace_root).await
+}
+
+/// Execute read_file tool
+async fn execute_read_file(path: &str, workspace_root: &PathBuf) -> Result<String> {
+    let file_path = workspace_root.join(path);
+
+    if !file_path.exists() {
+        return Err(anyhow::anyhow!("File not found: {}", path));
+    }
+
+    let content = fs::read_to_string(&file_path)
+        .context(format!("Failed to read file: {}", path))?;
+
+    // Limit output size to prevent overwhelming responses
+    const MAX_SIZE: usize = 10000;
+    if content.len() > MAX_SIZE {
+        Ok(format!("{}\n\n[... truncated, showing first {} characters of {} total]",
+            &content[..MAX_SIZE], MAX_SIZE, content.len()))
+    } else {
+        Ok(content)
+    }
+}
+
+/// Execute list_directory tool
+async fn execute_list_directory(path: &str, workspace_root: &PathBuf) -> Result<String> {
+    let dir_path = if path.is_empty() {
+        workspace_root.to_path_buf()
+    } else {
+        workspace_root.join(path)
+    };
+
+    if !dir_path.exists() {
+        return Err(anyhow::anyhow!("Directory not found: {}", path));
+    }
+
+    let cmd = format!("ls -la '{}'", dir_path.display());
+    execute_terminal_command(&cmd, workspace_root).await
+}
+
+/// Execute git_log tool
+async fn execute_git_log(n: usize, path: &str, workspace_root: &PathBuf) -> Result<String> {
+    let cmd = if path.is_empty() {
+        format!("git log -n {} --oneline", n)
+    } else {
+        format!("git log -n {} --oneline '{}'", n, path)
+    };
+
+    execute_terminal_command(&cmd, workspace_root).await
+}
+
+/// Execute git_diff tool
+async fn execute_git_diff(file: &str, workspace_root: &PathBuf) -> Result<String> {
+    let cmd = if file.is_empty() {
+        "git diff".to_string()
+    } else {
+        format!("git diff '{}'", file)
+    };
+
+    execute_terminal_command(&cmd, workspace_root).await
+}
+
+/// Execute chat message with tool calling support.
+///
+/// This implements the function calling loop:
+/// 1. Call model with tools
+/// 2. If model returns tool calls, execute them
+/// 3. Add tool results to conversation
+/// 4. Repeat until model returns final answer
+async fn execute_with_tools(
+    model: &dyn Model,
+    initial_prompt: &str,
+    user_message: &str,
+    workspace_root: &PathBuf,
+) -> Result<String> {
+    // Build conversation history
+    let mut messages = vec![
+        ChatMessage {
+            role: "system".to_string(),
+            content: MessageContent::Text(initial_prompt.to_string()),
+        },
+        ChatMessage {
+            role: "user".to_string(),
+            content: MessageContent::Text(user_message.to_string()),
+        },
+    ];
+
+    // Get tool definitions
+    let tools = get_chat_tools();
+    let tool_config = ToolConfig {
+        mode: ToolUseMode::Any,  // Force tool usage (was Auto)
+        allowed_function_names: None, // Allow all tools
+    };
+
+    // Debug logging
+    eprintln!("🔧 Tool calling enabled with {} tools", tools.len());
+    eprintln!("🔧 Tool config mode: {:?}", tool_config.mode);
+    for tool in &tools {
+        eprintln!("  - Tool: {}", tool.name);
+    }
+
+    // Function calling loop (max 10 iterations to prevent infinite loops)
+    const MAX_ITERATIONS: usize = 10;
+    for iteration in 0..MAX_ITERATIONS {
+        eprintln!("\n🔄 Function calling iteration {}/{}", iteration + 1, MAX_ITERATIONS);
+
+        // Call model with tools
+        let response = model
+            .generate_with_tools(&messages, &tools, Some(&tool_config))
+            .await?;
+
+        eprintln!("📥 Response received - tool_calls: {:?}", response.tool_calls.as_ref().map(|tc| tc.len()));
+
+        // Check if model returned tool calls
+        if let Some(tool_calls) = &response.tool_calls {
+            if tool_calls.is_empty() {
+                // No tool calls, return the final response
+                return Ok(response.content);
+            }
+
+            // Add assistant's message (with tool calls) to conversation
+            messages.push(ChatMessage {
+                role: "assistant".to_string(),
+                content: MessageContent::Text(response.content.clone()),
+            });
+
+            // Execute all tool calls and add results to conversation
+            for tool_call in tool_calls {
+                let tool_result = match execute_tool_call(tool_call, workspace_root).await {
+                    Ok(result) => result,
+                    Err(e) => format!("Error executing tool {}: {}", tool_call.name, e),
+                };
+
+                // Add tool result as a user message
+                messages.push(ChatMessage {
+                    role: "user".to_string(),
+                    content: MessageContent::Text(format!(
+                        "[Tool result for {}]\n{}",
+                        tool_call.name, tool_result
+                    )),
+                });
+            }
+
+            // Continue loop to get next response with tool results
+        } else {
+            // No tool calls, this is the final response
+            return Ok(response.content);
+        }
+    }
+
+    // Reached max iterations
+    Err(anyhow::anyhow!(
+        "Function calling loop exceeded maximum iterations ({})",
+        MAX_ITERATIONS
+    ))
+}
+
+// ============================================================================
+// Slash Command Support
+// ============================================================================
+
+/// Slash commands for direct tool access.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum SlashCommand {
+    Files(String),      // /files <pattern>
+    Grep(String, String), // /grep <pattern> <path>
+    Read(String),       // /read <path>
+    List(String),       // /list <path>
+    GitLog(usize, String), // /git-log <n> <path>
+    GitDiff(String),    // /git-diff <file>
+    Help,               // /help
+    Clear,              // /clear
+}
+
+/// Parse a slash command from user input.
+fn parse_slash_command(input: &str) -> Option<SlashCommand> {
+    let trimmed = input.trim();
+    if !trimmed.starts_with('/') {
+        return None;
+    }
+
+    let parts: Vec<&str> = trimmed[1..].split_whitespace().collect();
+    if parts.is_empty() {
+        return None;
+    }
+
+    match parts[0] {
+        "files" if parts.len() >= 2 => {
+            Some(SlashCommand::Files(parts[1..].join(" ")))
+        }
+        "grep" if parts.len() >= 2 => {
+            let pattern = parts[1].to_string();
+            let path = if parts.len() >= 3 {
+                parts[2..].join(" ")
+            } else {
+                String::new()
+            };
+            Some(SlashCommand::Grep(pattern, path))
+        }
+        "read" if parts.len() >= 2 => {
+            Some(SlashCommand::Read(parts[1..].join(" ")))
+        }
+        "list" => {
+            let path = if parts.len() >= 2 {
+                parts[1..].join(" ")
+            } else {
+                String::new()
+            };
+            Some(SlashCommand::List(path))
+        }
+        "git-log" => {
+            let n = if parts.len() >= 2 {
+                parts[1].parse::<usize>().unwrap_or(10)
+            } else {
+                10
+            };
+            let path = if parts.len() >= 3 {
+                parts[2..].join(" ")
+            } else {
+                String::new()
+            };
+            Some(SlashCommand::GitLog(n, path))
+        }
+        "git-diff" => {
+            let file = if parts.len() >= 2 {
+                parts[1..].join(" ")
+            } else {
+                String::new()
+            };
+            Some(SlashCommand::GitDiff(file))
+        }
+        "help" => Some(SlashCommand::Help),
+        "clear" => Some(SlashCommand::Clear),
+        _ => None,
+    }
+}
+
+/// Execute a slash command and return the result.
+async fn execute_slash_command(cmd: SlashCommand, workspace_root: &PathBuf) -> Result<String> {
+    match cmd {
+        SlashCommand::Files(pattern) => {
+            execute_search_files(&pattern, workspace_root).await
+        }
+        SlashCommand::Grep(pattern, path) => {
+            execute_grep(&pattern, &path, workspace_root).await
+        }
+        SlashCommand::Read(path) => {
+            execute_read_file(&path, workspace_root).await
+        }
+        SlashCommand::List(path) => {
+            execute_list_directory(&path, workspace_root).await
+        }
+        SlashCommand::GitLog(n, path) => {
+            execute_git_log(n, &path, workspace_root).await
+        }
+        SlashCommand::GitDiff(file) => {
+            execute_git_diff(&file, workspace_root).await
+        }
+        SlashCommand::Help => {
+            Ok(format!(
+                "**Available Slash Commands:**\n\n\
+                - `/files <pattern>` - Search for files (e.g. `/files *.rs`)\n\
+                - `/grep <pattern> [path]` - Search file contents (e.g. `/grep \"logo\"`)\n\
+                - `/read <path>` - Read a file (e.g. `/read apps/tui/src/main.rs`)\n\
+                - `/list [path]` - List directory contents (e.g. `/list apps`)\n\
+                - `/git-log [n] [path]` - Show git commits (e.g. `/git-log 10`)\n\
+                - `/git-diff [file]` - Show uncommitted changes (e.g. `/git-diff`)\n\
+                - `/help` - Show this help message\n\
+                - `/clear` - Clear chat history\n\n\
+                **Note:** Slash commands execute directly without AI processing."
+            ))
+        }
+        SlashCommand::Clear => {
+            Ok("Chat history cleared. (Note: History clearing needs to be implemented in TUI)".to_string())
+        }
+    }
 }

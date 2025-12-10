@@ -586,15 +586,49 @@ impl App {
     }
 
     fn start_default_chat(&mut self) {
-        // Show welcome screen instead of trying to start chat
-        // This avoids the "agent not found" error
-        self.prompt_data.context = DisplayContext::Help;
-        self.prompt_data.clear_output();
+        // Start directly in chat mode with chat-assistant agent
+        let agent_id = "chat-assistant";
+        let session_id = format!("session_{}", chrono::Utc::now().format("%Y%m%d_%H%M%S"));
 
-        self.prompt_data.add_output("Welcome to Radium! 🚀".to_string());
-        self.prompt_data.add_output("".to_string());
-        self.prompt_data.add_output("Radium is your AI-powered development assistant.".to_string());
-        self.prompt_data.add_output("".to_string());
+        self.current_agent = Some(agent_id.to_string());
+        self.current_session = Some(session_id.clone());
+
+        self.prompt_data.context = DisplayContext::Chat {
+            agent_id: agent_id.to_string(),
+            session_id: session_id.clone(),
+        };
+
+        self.prompt_data.conversation.clear();
+        let max_history = self.config.performance.max_conversation_history;
+
+        // Add welcome message to conversation
+        self.prompt_data.add_conversation_message(
+            "Welcome to Radium! 🚀".to_string(),
+            max_history,
+        );
+        self.prompt_data.add_conversation_message("".to_string(), max_history);
+        self.prompt_data.add_conversation_message(
+            "I'm your AI development assistant with access to powerful tools:".to_string(),
+            max_history,
+        );
+        self.prompt_data.add_conversation_message(
+            "  🔍 File search and code navigation".to_string(),
+            max_history,
+        );
+        self.prompt_data.add_conversation_message(
+            "  📖 Reading and analyzing files".to_string(),
+            max_history,
+        );
+        self.prompt_data.add_conversation_message(
+            "  🌳 Git history and diffs".to_string(),
+            max_history,
+        );
+        self.prompt_data.add_conversation_message("".to_string(), max_history);
+        self.prompt_data.add_conversation_message(
+            "💡 Just ask me anything about your codebase!".to_string(),
+            max_history,
+        );
+        self.prompt_data.add_conversation_message("".to_string(), max_history);
 
         // Check if we have any agents available
         let has_agents = crate::chat_executor::get_available_agents()
@@ -602,40 +636,38 @@ impl App {
             .unwrap_or(false);
 
         if has_agents {
-            self.prompt_data.add_output("🤖 Quick Start:".to_string());
-            self.prompt_data.add_output("  /agents - See available AI agents".to_string());
-            self.prompt_data
-                .add_output("  /chat <agent> - Start chatting with an agent".to_string());
-        } else {
-            self.prompt_data.add_output("⚠️  No agents configured yet.".to_string());
-            self.prompt_data.add_output("".to_string());
-            self.prompt_data
-                .add_output("To get started, create an agent configuration:".to_string());
-            self.prompt_data.add_output("  1. Create ~/.radium/agents/ directory".to_string());
-            self.prompt_data
-                .add_output("  2. Add an agent JSON file (see example below)".to_string());
-            self.prompt_data.add_output("".to_string());
-            self.prompt_data
-                .add_output("Example agent config (~/.radium/agents/assistant.json):".to_string());
-            self.prompt_data.add_output("  {".to_string());
-            self.prompt_data.add_output("    \"id\": \"assistant\",".to_string());
-            self.prompt_data.add_output("    \"name\": \"Assistant\",".to_string());
-            self.prompt_data
-                .add_output("    \"description\": \"General purpose AI assistant\",".to_string());
-            self.prompt_data.add_output(
-                "    \"system_prompt\": \"You are a helpful AI assistant.\",".to_string(),
+            self.prompt_data.add_conversation_message(
+                "📝 Available commands:".to_string(),
+                max_history,
             );
-            self.prompt_data.add_output("    \"model\": \"gemini-1.5-flash\"".to_string());
-            self.prompt_data.add_output("  }".to_string());
+            self.prompt_data.add_conversation_message(
+                "  /agents - See all available agents".to_string(),
+                max_history,
+            );
+            self.prompt_data.add_conversation_message(
+                "  /chat <agent> - Switch to a different agent".to_string(),
+                max_history,
+            );
+        } else {
+            self.prompt_data.add_conversation_message(
+                "⚠️  No agents configured yet.".to_string(),
+                max_history,
+            );
+            self.prompt_data.add_conversation_message(
+                "To get started, create an agent configuration.".to_string(),
+                max_history,
+            );
         }
 
-        self.prompt_data.add_output("".to_string());
-        self.prompt_data.add_output("📚 Available Commands:".to_string());
-        self.prompt_data.add_output("  /help - Show all commands".to_string());
-        self.prompt_data.add_output("  /auth - Manage authentication".to_string());
-        self.prompt_data.add_output("  /dashboard - View system status".to_string());
-        self.prompt_data.add_output("".to_string());
-        self.prompt_data.add_output("Type a command to get started!".to_string());
+        self.prompt_data.add_conversation_message("".to_string(), max_history);
+        self.prompt_data.add_conversation_message(
+            "  /help - Show all commands".to_string(),
+            max_history,
+        );
+        self.prompt_data.add_conversation_message(
+            "  /shortcuts - Keyboard shortcuts".to_string(),
+            max_history,
+        );
     }
 
 
@@ -3276,6 +3308,11 @@ impl App {
             model_id: "gemini-2.0-flash-exp".to_string(),
             api_key: std::env::var("GEMINI_API_KEY").ok(),
             base_url: None,
+            enable_context_caching: None,
+            cache_ttl: None,
+            cache_breakpoints: None,
+            cache_identifier: None,
+            enable_code_execution: None,
         };
         let model = match ModelFactory::create(config) {
             Ok(m) => {

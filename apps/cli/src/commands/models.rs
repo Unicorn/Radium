@@ -36,7 +36,7 @@ pub async fn execute(command: ModelsCommand) -> Result<()> {
             clear_cache(provider, model).await
         }
         ModelsCommand::CacheStatus { json } => cache_status(json).await,
-        ModelsCommand::File { command } => handle_file_command(command).await,
+        ModelsCommand::File(command) => handle_file_command(command).await,
     }
 }
 
@@ -701,7 +701,7 @@ async fn file_upload(
     let file_api = GeminiFileApi::with_api_key(api_key);
 
     println!("{}", "Uploading file...".dimmed());
-    println!("  Path: {}", path.display().cyan());
+    println!("  Path: {}", path.display().to_string().cyan());
 
     // Upload file
     let file = file_api
@@ -865,30 +865,6 @@ fn format_file_size(bytes: u64) -> String {
         format!("{:.2} KB", bytes as f64 / KB as f64)
     } else {
         format!("{} B", bytes)
-    }
-}
-
-/// Format duration in human-readable format.
-fn format_duration(duration: std::time::Duration) -> String {
-    let secs = duration.as_secs();
-    if secs < 60 {
-        format!("{}s", secs)
-    } else if secs < 3600 {
-        let mins = secs / 60;
-        let remaining_secs = secs % 60;
-        if remaining_secs > 0 {
-            format!("{}m {}s", mins, remaining_secs)
-        } else {
-            format!("{}m", mins)
-        }
-    } else {
-        let hours = secs / 3600;
-        let remaining_mins = (secs % 3600) / 60;
-        if remaining_mins > 0 {
-            format!("{}h {}m", hours, remaining_mins)
-        } else {
-            format!("{}h", hours)
-        }
     }
 }
 

@@ -23,6 +23,7 @@ use async_trait::async_trait;
 use futures::stream::{self, Stream};
 use radium_abstraction::{
     ChatMessage, Model, ModelError, ModelParameters, ModelResponse, ModelUsage, StreamingModel,
+    StreamItem,
 };
 use std::pin::Pin;
 use std::time::Duration;
@@ -257,11 +258,17 @@ mod tests {
 
         // Should have received at least one chunk
         assert!(!all_content.is_empty());
-        
-        // Last content should be the complete accumulated response
-        let final_content = all_content.last().unwrap();
-        assert!(final_content.contains("test prompt"));
-        assert!(final_content.contains("test-model"));
+
+        // Collect all answer tokens
+        let answer_tokens: String = all_content.iter().filter_map(|item| {
+            match item {
+                StreamItem::AnswerToken(s) => Some(s.as_str()),
+                _ => None,
+            }
+        }).collect();
+
+        assert!(answer_tokens.contains("test prompt"));
+        assert!(answer_tokens.contains("test-model"));
     }
 
     #[tokio::test]
@@ -272,15 +279,16 @@ mod tests {
             .await
             .expect("Should create stream");
 
-        let mut last_len = 0;
+        let mut accumulated_content = String::new();
         while let Some(result) = stream.next().await {
-            let content = result.expect("Stream should not error");
-            // Content should accumulate (each chunk should be longer or equal)
-            assert!(content.len() >= last_len, "Content should accumulate");
-            last_len = content.len();
+            let item = result.expect("Stream should not error");
+            // Accumulate answer tokens
+            if let StreamItem::AnswerToken(s) = item {
+                accumulated_content.push_str(&s);
+            }
         }
-        
+
         // Final content should not be empty
-        assert!(last_len > 0);
+        assert!(!accumulated_content.is_empty());
     }
 }

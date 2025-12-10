@@ -223,6 +223,11 @@ async fn execute(
         model_id: "gemini-2.0-flash-exp".to_string(),
         api_key: std::env::var("GEMINI_API_KEY").ok(),
         base_url: None,
+        enable_context_caching: None,
+        cache_ttl: None,
+        cache_breakpoints: None,
+        cache_identifier: None,
+        enable_code_execution: None,
     };
     let model = ModelFactory::create(config)
         .context("Failed to create model")?;

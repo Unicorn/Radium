@@ -7,7 +7,7 @@
 //! 3. Pull llama2: ollama pull llama2
 //! 4. Run tests: cargo test -p radium-models -- --ignored
 
-use radium_abstraction::{ChatMessage, Model, StreamingModel};
+use radium_abstraction::{ChatMessage, MessageContent, Model, StreamingModel};
 use radium_models::OllamaModel;
 use futures::StreamExt;
 
@@ -62,7 +62,7 @@ async fn test_ollama_chat_completion() {
     let messages = vec![
         ChatMessage {
             role: "user".to_string(),
-            content: "What is 2+2?".to_string(),
+            content: MessageContent::Text("What is 2+2?".to_string()),
         },
     ];
 

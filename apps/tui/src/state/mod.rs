@@ -54,7 +54,7 @@ pub struct StreamingContext {
     /// Full accumulated response (for history saving)
     pub accumulated_response: String,
     /// Receiver for tokens from the streaming task
-    pub token_receiver: tokio::sync::mpsc::Receiver<String>,
+    pub token_receiver: tokio::sync::mpsc::Receiver<radium_abstraction::StreamItem>,
     /// Sender for cancellation signal
     pub cancellation_tx: Option<tokio::sync::oneshot::Sender<()>>,
     /// Whether cancellation has been requested
@@ -70,7 +70,7 @@ pub struct StreamingContext {
 impl StreamingContext {
     /// Creates a new streaming context
     pub fn new(
-        token_receiver: tokio::sync::mpsc::Receiver<String>,
+        token_receiver: tokio::sync::mpsc::Receiver<radium_abstraction::StreamItem>,
         cancellation_tx: Option<tokio::sync::oneshot::Sender<()>>,
     ) -> Self {
         Self {
@@ -112,8 +112,14 @@ impl StreamingContext {
     }
 
     /// Adds a token to the buffer
-    pub fn add_token(&mut self, token: String) {
-        self.token_buffer.push(token);
+    pub fn add_token(&mut self, token: radium_abstraction::StreamItem) {
+        // Extract string from StreamItem
+        let token_str = match token {
+            radium_abstraction::StreamItem::ThinkingToken(s) => s,
+            radium_abstraction::StreamItem::AnswerToken(s) => s,
+            radium_abstraction::StreamItem::Metadata(_) => return, // Ignore metadata
+        };
+        self.token_buffer.push(token_str);
     }
 
     /// Checks if buffer should be flushed (5-10 tokens)

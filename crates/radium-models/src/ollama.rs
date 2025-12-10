@@ -641,7 +641,7 @@ mod tests {
         let messages = vec![
             ChatMessage {
                 role: "user".to_string(),
-                content: "Hello".to_string(),
+                content: MessageContent::Text("Hello".to_string()),
             },
         ];
 

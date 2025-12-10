@@ -23,7 +23,7 @@
 //!
 //! let messages = vec![ChatMessage {
 //!     role: "user".to_string(),
-//!     content: "Say hello".to_string(),
+//!     content: MessageContent::Text("Say hello".to_string()),
 //! }];
 //!
 //! let response = model.generate_chat_completion(&messages, None).await?;
@@ -397,7 +397,7 @@ impl UniversalModel {
     ///
     /// let messages = vec![radium_abstraction::ChatMessage {
     ///     role: "user".to_string(),
-    ///     content: "Say hello".to_string(),
+    ///     content: MessageContent::Text("Say hello".to_string()),
     /// }];
     ///
     /// let mut stream = model.generate_chat_completion_stream(&messages, None).await?;
@@ -790,7 +790,7 @@ mod tests {
 
         let messages = vec![ChatMessage {
             role: "user".to_string(),
-            content: "Say hello".to_string(),
+            content: MessageContent::Text("Say hello".to_string()),
         }];
 
         let response = model.generate_chat_completion(&messages, None).await.unwrap();
@@ -836,7 +836,7 @@ mod tests {
 
         let messages = vec![ChatMessage {
             role: "user".to_string(),
-            content: "Test".to_string(),
+            content: MessageContent::Text("Test".to_string()),
         }];
 
         let response = model.generate_chat_completion(&messages, None).await.unwrap();
@@ -864,7 +864,7 @@ mod tests {
 
         let messages = vec![ChatMessage {
             role: "user".to_string(),
-            content: "Test".to_string(),
+            content: MessageContent::Text("Test".to_string()),
         }];
 
         let result = model.generate_chat_completion(&messages, None).await;
@@ -898,7 +898,7 @@ mod tests {
 
         let messages = vec![ChatMessage {
             role: "user".to_string(),
-            content: "Test".to_string(),
+            content: MessageContent::Text("Test".to_string()),
         }];
 
         let result = model.generate_chat_completion(&messages, None).await;
@@ -932,7 +932,7 @@ mod tests {
 
         let messages = vec![ChatMessage {
             role: "user".to_string(),
-            content: "Test".to_string(),
+            content: MessageContent::Text("Test".to_string()),
         }];
 
         let result = model.generate_chat_completion(&messages, None).await;
@@ -967,7 +967,7 @@ mod tests {
 
         let messages = vec![ChatMessage {
             role: "user".to_string(),
-            content: "Test".to_string(),
+            content: MessageContent::Text("Test".to_string()),
         }];
 
         let result = model.generate_chat_completion(&messages, None).await;
@@ -1000,7 +1000,7 @@ mod tests {
 
         let messages = vec![ChatMessage {
             role: "user".to_string(),
-            content: "Test".to_string(),
+            content: MessageContent::Text("Test".to_string()),
         }];
 
         let result = model.generate_chat_completion(&messages, None).await;
@@ -1076,7 +1076,7 @@ mod tests {
 
         let messages = vec![ChatMessage {
             role: "user".to_string(),
-            content: "Test".to_string(),
+            content: MessageContent::Text("Test".to_string()),
         }];
 
         let params = ModelParameters {
@@ -1088,6 +1088,9 @@ mod tests {
             presence_penalty: None,
             response_format: None,
             stop_sequences: None,
+            enable_grounding: None,
+            grounding_threshold: None,
+            reasoning_effort: None,
         };
 
         let _response = model.generate_chat_completion(&messages, Some(params)).await.unwrap();
@@ -1163,7 +1166,7 @@ mod tests {
 
         let messages = vec![ChatMessage {
             role: "user".to_string(),
-            content: "Test".to_string(),
+            content: MessageContent::Text("Test".to_string()),
         }];
 
         let result = model.generate_chat_completion(&messages, None).await;
@@ -1197,7 +1200,7 @@ mod tests {
 
         let messages = vec![ChatMessage {
             role: "user".to_string(),
-            content: "Test".to_string(),
+            content: MessageContent::Text("Test".to_string()),
         }];
 
         let result = model.generate_chat_completion(&messages, None).await;
@@ -1239,7 +1242,7 @@ mod tests {
 
         let messages = vec![ChatMessage {
             role: "user".to_string(),
-            content: "Hello".to_string(),
+            content: MessageContent::Text("Hello".to_string()),
         }];
 
         let response = model.generate_chat_completion(&messages, None).await.unwrap();
@@ -1282,7 +1285,7 @@ mod tests {
 
         let messages = vec![ChatMessage {
             role: "user".to_string(),
-            content: "Hello".to_string(),
+            content: MessageContent::Text("Hello".to_string()),
         }];
 
         let response = model.generate_chat_completion(&messages, None).await.unwrap();
@@ -1324,19 +1327,19 @@ mod tests {
         let messages = vec![
             ChatMessage {
                 role: "system".to_string(),
-                content: "You are helpful".to_string(),
+                content: MessageContent::Text("You are helpful".to_string()),
             },
             ChatMessage {
                 role: "user".to_string(),
-                content: "Hello".to_string(),
+                content: MessageContent::Text("Hello".to_string()),
             },
             ChatMessage {
                 role: "assistant".to_string(),
-                content: "Hi!".to_string(),
+                content: MessageContent::Text("Hi!".to_string()),
             },
             ChatMessage {
                 role: "user".to_string(),
-                content: "How are you?".to_string(),
+                content: MessageContent::Text("How are you?".to_string()),
             },
         ];
 
@@ -1373,7 +1376,7 @@ mod tests {
 
         let messages = vec![ChatMessage {
             role: "user".to_string(),
-            content: "Say hello".to_string(),
+            content: MessageContent::Text("Say hello".to_string()),
         }];
 
         let mut stream = model
@@ -1419,7 +1422,7 @@ mod tests {
 
         let messages = vec![ChatMessage {
             role: "user".to_string(),
-            content: "Test".to_string(),
+            content: MessageContent::Text("Test".to_string()),
         }];
 
         let mut stream = model
@@ -1462,7 +1465,7 @@ mod tests {
 
         let messages = vec![ChatMessage {
             role: "user".to_string(),
-            content: "Hello".to_string(),
+            content: MessageContent::Text("Hello".to_string()),
         }];
 
         let mut stream = model
@@ -1504,7 +1507,7 @@ mod tests {
 
         let messages = vec![ChatMessage {
             role: "user".to_string(),
-            content: "Hello".to_string(),
+            content: MessageContent::Text("Hello".to_string()),
         }];
 
         let result = model.generate_chat_completion_stream(&messages, None).await;

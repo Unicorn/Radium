@@ -16,7 +16,7 @@
 //!
 //! 3. Run: `cargo test --package radium-models --test universal_integration_test -- --ignored`
 
-use radium_abstraction::{ChatMessage, Model};
+use radium_abstraction::{ChatMessage, MessageContent, Model};
 use radium_models::{ModelFactory, UniversalModel};
 
 /// Get vLLM configuration from environment variables.
@@ -101,7 +101,7 @@ async fn test_vllm_streaming() {
 
     let messages = vec![ChatMessage {
         role: "user".to_string(),
-        content: "Say hello".to_string(),
+        content: MessageContent::Text("Say hello".to_string()),
     }];
 
     let stream_result = model.generate_chat_completion_stream(&messages, None).await;
@@ -177,7 +177,7 @@ async fn test_localai_streaming() {
 
     let messages = vec![ChatMessage {
         role: "user".to_string(),
-        content: "Say hello".to_string(),
+        content: MessageContent::Text("Say hello".to_string()),
     }];
 
     let stream_result = model.generate_chat_completion_stream(&messages, None).await;
@@ -246,7 +246,7 @@ async fn test_lmstudio_streaming() {
 
     let messages = vec![ChatMessage {
         role: "user".to_string(),
-        content: "Say hello".to_string(),
+        content: MessageContent::Text("Say hello".to_string()),
     }];
 
     let stream_result = model.generate_chat_completion_stream(&messages, None).await;

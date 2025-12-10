@@ -283,6 +283,7 @@ mod tests {
                     format!("Goal {}", i),
                     "Plan".to_string(),
                     "Output".to_string(),
+                    None, // metadata
                 )
                 .unwrap();
         }

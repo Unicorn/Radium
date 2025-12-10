@@ -1,0 +1,18 @@
+[agent]
+id = "chat-assistant"
+name = "Chat Assistant"
+description = "Interactive developer assistant with tool access for codebase exploration"
+prompt_path = "prompts/agents/core/chat-assistant.md"
+engine = "claude"
+model = "claude-sonnet-4"
+reasoning_effort = "low"
+
+[agent.persona]
+[agent.persona.models]
+primary = "claude-sonnet-4"
+fallback = "claude-sonnet-3-5"
+premium = "claude-opus-4"
+
+[agent.persona.performance]
+profile = "fast"
+estimated_tokens = 2000

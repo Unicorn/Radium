@@ -88,6 +88,54 @@ impl GeminiEngine {
                     provider, reason
                 ))
             }
+            radium_abstraction::ModelError::UnsupportedContentType { content_type, model } => {
+                EngineError::InvalidConfig(format!(
+                    "Content type '{}' not supported by model '{}'",
+                    content_type, model
+                ))
+            }
+            radium_abstraction::ModelError::UnsupportedMimeType { mime_type, supported_types } => {
+                EngineError::InvalidConfig(format!(
+                    "MIME type '{}' not supported. Supported types: {}",
+                    mime_type, supported_types.join(", ")
+                ))
+            }
+            radium_abstraction::ModelError::InvalidMediaSource { media_source, reason } => {
+                EngineError::InvalidConfig(format!(
+                    "Invalid media source '{}': {}",
+                    media_source, reason
+                ))
+            }
+            radium_abstraction::ModelError::MediaSizeLimitExceeded { size, limit, media_type } => {
+                EngineError::ExecutionError(format!(
+                    "{} media size {} bytes exceeds limit of {} bytes",
+                    media_type, size, limit
+                ))
+            }
+            radium_abstraction::ModelError::InvalidMediaFormat { format, expected } => {
+                EngineError::InvalidConfig(format!(
+                    "Invalid media format '{}'. Expected: {}",
+                    format, expected
+                ))
+            }
+            radium_abstraction::ModelError::ContentTooLarge { actual_size, max_size, content_type } => {
+                EngineError::ExecutionError(format!(
+                    "Content too large: {} bytes exceeds {} bytes for {}",
+                    actual_size, max_size, content_type
+                ))
+            }
+            radium_abstraction::ModelError::InvalidContentFormat { content_type, reason } => {
+                EngineError::InvalidConfig(format!(
+                    "Invalid {} format: {}",
+                    content_type, reason
+                ))
+            }
+            radium_abstraction::ModelError::InvalidFileUri { uri, reason } => {
+                EngineError::InvalidConfig(format!(
+                    "Invalid file URI '{}': {}",
+                    uri, reason
+                ))
+            }
             radium_abstraction::ModelError::Other(msg) => {
                 EngineError::ExecutionError(format!("Other error: {}", msg))
             }
@@ -115,6 +163,9 @@ impl GeminiEngine {
                 presence_penalty: None,
                 response_format: None,
                 stop_sequences: None,
+                enable_grounding: None,
+                grounding_threshold: None,
+                reasoning_effort: None,
             })
         } else {
             None

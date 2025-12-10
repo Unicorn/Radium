@@ -505,7 +505,7 @@ impl GeminiModel {
     }
 
     /// Converts our ChatMessage to Gemini format.
-    fn to_gemini_content(msg: &ChatMessage) -> Result<GeminiContent, ModelError> {
+    pub fn to_gemini_content(msg: &ChatMessage) -> Result<GeminiContent, ModelError> {
         let role = Self::role_to_gemini(&msg.role);
 
         let parts = match &msg.content {
@@ -1751,9 +1751,9 @@ struct GeminiSystemInstruction {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct GeminiContent {
-    role: String,
-    parts: Vec<GeminiPart>,
+pub struct GeminiContent {
+    pub role: String,
+    pub parts: Vec<GeminiPart>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

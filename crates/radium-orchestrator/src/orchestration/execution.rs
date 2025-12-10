@@ -32,7 +32,7 @@ pub async fn execute_tool_calls(
     calls: &[ToolCall],
     tools: &[Tool],
     config: &ToolExecutionConfig,
-) -> Vec<Result<ToolResult, OrchestrationError>> {
+) -> Vec<Result<ToolResult>> {
     if calls.is_empty() {
         return vec![];
     }
@@ -52,12 +52,16 @@ pub async fn execute_tool_calls(
 
     // Apply error handling strategy
     for (i, result) in execution_results.iter_mut().enumerate() {
-        if let Err(error) = result {
+        if result.is_err() {
             let call = &calls[i];
             let tool = tools.iter().find(|t| t.name == call.name);
-            
+
             if let Some(tool_ref) = tool {
-                match handle_tool_error(call, error.clone(), &config.error_handling, tool_ref).await {
+                // Take ownership of the error using std::mem::replace
+                let error = std::mem::replace(result, Ok(ToolResult::success("temporary".to_string())));
+                let error = error.unwrap_err();
+
+                match handle_tool_error(call, error, &config.error_handling, tool_ref).await {
                     Ok(handled_result) => {
                         *result = Ok(handled_result);
                     }
@@ -79,7 +83,7 @@ async fn handle_tool_error(
     error: OrchestrationError,
     strategy: &ToolErrorHandling,
     tool: &Tool,
-) -> Result<ToolResult, OrchestrationError> {
+) -> Result<ToolResult> {
     match strategy {
         ToolErrorHandling::ReturnToModel => {
             Ok(ToolResult::error_for_model(format!("Error: {}", error)))
@@ -102,7 +106,7 @@ async fn retry_with_backoff(
     tool: &Tool,
     max_retries: usize,
     initial_delay: Duration,
-) -> Result<ToolResult, OrchestrationError> {
+) -> Result<ToolResult> {
     let args = ToolArguments::new(call.arguments.clone());
     
     for attempt in 0..=max_retries {
@@ -138,13 +142,17 @@ async fn execute_concurrent(
     calls: &[ToolCall],
     tools: &[Tool],
     config: &ToolExecutionConfig,
-) -> Vec<Result<ToolResult, OrchestrationError>> {
+) -> Vec<Result<ToolResult>> {
     let max_parallel = config.max_parallel.unwrap_or(calls.len());
     let semaphore = Arc::new(Semaphore::new(max_parallel));
     
     // Create a shared vector to store results in order
     use std::sync::Mutex;
-    let results = Arc::new(Mutex::new(vec![None::<Result<ToolResult, OrchestrationError>>; calls.len()]));
+    let mut init_results = Vec::with_capacity(calls.len());
+    for _ in 0..calls.len() {
+        init_results.push(None::<Result<ToolResult>>);
+    }
+    let results = Arc::new(Mutex::new(init_results));
     
     let mut tasks = Vec::new();
     
@@ -230,29 +238,31 @@ async fn execute_sequential(
     calls: &[ToolCall],
     tools: &[Tool],
     config: &ToolExecutionConfig,
-) -> Vec<Result<ToolResult, OrchestrationError>> {
+) -> Vec<Result<ToolResult>> {
     let mut results = Vec::new();
     
     for call in calls {
         // Find tool handler
-        let tool = tools.iter().find(|t| t.name == call.name).ok_or_else(|| {
-            OrchestrationError::Other(format!("Tool '{}' not found", call.name))
-        })?;
-        
-        // Execute with timeout
-        let args = ToolArguments::new(call.arguments.clone());
-        let result = match timeout(config.timeout_per_call, tool.execute(&args)).await {
-            Ok(Ok(result)) => Ok(result),
-            Ok(Err(e)) => Err(OrchestrationError::ToolExecutionFailed(format!(
-                "Tool '{}' execution failed: {}",
-                call.name, e
-            ))),
-            Err(_) => Err(OrchestrationError::Other(format!(
-                "Tool '{}' execution timed out after {:?}",
-                call.name, config.timeout_per_call
-            ))),
+        let tool = tools.iter().find(|t| t.name == call.name);
+
+        let result = if let Some(tool) = tool {
+            // Execute with timeout
+            let args = ToolArguments::new(call.arguments.clone());
+            match timeout(config.timeout_per_call, tool.execute(&args)).await {
+                Ok(Ok(result)) => Ok(result),
+                Ok(Err(e)) => Err(OrchestrationError::ToolExecutionFailed(format!(
+                    "Tool '{}' execution failed: {}",
+                    call.name, e
+                ))),
+                Err(_) => Err(OrchestrationError::Other(format!(
+                    "Tool '{}' execution timed out after {:?}",
+                    call.name, config.timeout_per_call
+                ))),
+            }
+        } else {
+            Err(OrchestrationError::Other(format!("Tool '{}' not found", call.name)))
         };
-        
+
         results.push(result);
     }
     
@@ -265,7 +275,7 @@ async fn execute_batched(
     tools: &[Tool],
     batch_size: usize,
     config: &ToolExecutionConfig,
-) -> Vec<Result<ToolResult, OrchestrationError>> {
+) -> Vec<Result<ToolResult>> {
     let mut all_results = Vec::new();
     
     // Process calls in batches

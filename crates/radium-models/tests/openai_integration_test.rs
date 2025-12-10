@@ -22,6 +22,7 @@ fn test_openai_response_format_json() {
         stop_sequences: None,
         enable_grounding: None,
         grounding_threshold: None,
+        reasoning_effort: None,
     };
 
     // The conversion should produce json_object format
@@ -55,6 +56,7 @@ fn test_openai_response_format_json_schema() {
         stop_sequences: None,
         enable_grounding: None,
         grounding_threshold: None,
+        reasoning_effort: None,
     };
 
     let result = model.convert_response_format(&params.response_format);
@@ -88,6 +90,7 @@ fn test_openai_response_format_invalid_schema() {
         stop_sequences: None,
         enable_grounding: None,
         grounding_threshold: None,
+        reasoning_effort: None,
     };
 
     let result = model.convert_response_format(&params.response_format);
@@ -117,6 +120,7 @@ fn test_openai_response_format_text() {
         stop_sequences: None,
         enable_grounding: None,
         grounding_threshold: None,
+        reasoning_effort: None,
     };
 
     let result = model.convert_response_format(&params.response_format);
@@ -173,6 +177,7 @@ fn test_openai_response_format_complex_schema() {
         stop_sequences: None,
         enable_grounding: None,
         grounding_threshold: None,
+        reasoning_effort: None,
     };
 
     let result = model.convert_response_format(&params.response_format);

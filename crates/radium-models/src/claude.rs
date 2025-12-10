@@ -203,7 +203,7 @@ impl ClaudeModel {
     }
 
     /// Converts our ChatMessage to Claude API message format.
-    fn to_claude_message(msg: &ChatMessage) -> Result<ClaudeMessage, ModelError> {
+    pub fn to_claude_message(msg: &ChatMessage) -> Result<ClaudeMessage, ModelError> {
         let role = if msg.role == "assistant" {
             "assistant"
         } else {
@@ -821,15 +821,15 @@ struct ClaudeStreamingRequest {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
-enum ClaudeMessageContent {
+pub enum ClaudeMessageContent {
     String(String),
     Blocks(Vec<ClaudeContentBlock>),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ClaudeMessage {
-    role: String,
-    content: ClaudeMessageContent,
+pub struct ClaudeMessage {
+    pub role: String,
+    pub content: ClaudeMessageContent,
 }
 
 /// Cache control configuration for Claude prompt caching.

@@ -177,7 +177,7 @@ mod tests {
     fn test_parse_input_file_json() {
         let mut file = NamedTempFile::new().unwrap();
         use std::io::Write;
-        writeln!(file, r#"[{"prompt": "Test"}]"#).unwrap();
+        writeln!(file, r#"[{{"prompt": "Test"}}]"#).unwrap();
         file.flush().unwrap();
 
         let result = parse_input_file(file.path()).unwrap();

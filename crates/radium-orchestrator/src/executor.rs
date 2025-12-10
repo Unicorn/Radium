@@ -957,6 +957,7 @@ impl AgentExecutor {
                         prompt_tokens: telemetry.input_tokens as u32,
                         completion_tokens: telemetry.output_tokens as u32,
                         total_tokens: telemetry.total_tokens as u32,
+                        cache_usage: None,
                     };
                     
                     // Track usage (non-blocking)
@@ -1038,6 +1039,7 @@ impl AgentExecutor {
                         prompt_tokens: telemetry.input_tokens as u32,
                         completion_tokens: telemetry.output_tokens as u32,
                         total_tokens: telemetry.total_tokens as u32,
+                        cache_usage: None,
                     };
                     
                     // Track usage (non-blocking)

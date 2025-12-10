@@ -14,6 +14,9 @@ fn test_backward_compatibility() {
         presence_penalty: None,
         response_format: None,
         stop_sequences: None,
+        enable_grounding: None,
+        grounding_threshold: None,
+        reasoning_effort: None,
     };
 
     // Should compile and work without new parameters
@@ -35,6 +38,9 @@ fn test_penalty_clamping_integration() {
         presence_penalty: Some(-0.5), // Under Gemini limit
         response_format: None,
         stop_sequences: None,
+        enable_grounding: None,
+        grounding_threshold: None,
+        reasoning_effort: None,
     };
 
     // Verify parameters are created (clamping happens in provider)

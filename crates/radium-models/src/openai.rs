@@ -53,7 +53,7 @@ impl OpenAIModel {
     /// # Errors
     ///
     /// Returns `ModelError::SerializationError` if the schema is invalid JSON.
-    pub(crate) fn convert_response_format(
+    pub fn convert_response_format(
         &self,
         response_format: &Option<ResponseFormat>,
     ) -> Result<Option<OpenAIResponseFormat>, ModelError> {
@@ -142,7 +142,7 @@ impl OpenAIModel {
     }
 
     /// Checks if the model is vision-capable (supports image content).
-    fn is_vision_capable(&self) -> bool {
+    pub fn is_vision_capable(&self) -> bool {
         const VISION_MODELS: &[&str] = &["gpt-4-vision-preview", "gpt-4o", "gpt-4-turbo", "gpt-4o-mini"];
         VISION_MODELS.iter().any(|&model| self.model_id.starts_with(model))
     }
@@ -192,7 +192,7 @@ impl OpenAIModel {
     }
 
     /// Converts our ChatMessage to OpenAI API message format.
-    fn to_openai_message(&self, msg: &ChatMessage) -> Result<OpenAIMessage, ModelError> {
+    pub fn to_openai_message(&self, msg: &ChatMessage) -> Result<OpenAIMessage, ModelError> {
         let role = Self::role_to_openai(&msg.role);
 
         let content = match &msg.content {
@@ -759,7 +759,7 @@ struct OpenAIStreamingDelta {
 /// OpenAI-specific response format structure
 #[derive(Debug, Serialize, Clone)]
 #[serde(untagged)]
-enum OpenAIResponseFormat {
+pub enum OpenAIResponseFormat {
     /// JSON object format (no schema)
     JsonObject {
         #[serde(rename = "type")]
@@ -799,15 +799,15 @@ struct OpenAIRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-enum OpenAIMessageContent {
+pub enum OpenAIMessageContent {
     String(String),
     Blocks(Vec<OpenAIContentBlock>),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct OpenAIMessage {
-    role: String,
-    content: OpenAIMessageContent,
+pub struct OpenAIMessage {
+    pub role: String,
+    pub content: OpenAIMessageContent,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

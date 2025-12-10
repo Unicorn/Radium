@@ -6,6 +6,7 @@
 //! implementation.
 
 pub mod agent;
+pub mod batch;
 pub mod plan;
 pub mod proto_convert;
 pub mod selector;

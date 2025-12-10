@@ -7,7 +7,8 @@ pub mod agent_tools;
 pub mod config;
 pub mod context;
 pub mod context_loader;
-pub mod continuation;
+// TODO: Fix type mismatch between radium_abstraction::Tool and orchestration::tool::Tool
+// pub mod continuation;
 pub mod engine;
 pub mod execution;
 pub mod file_tools;
@@ -26,7 +27,8 @@ use std::time::Duration;
 
 use self::context::OrchestrationContext;
 use self::tool::{Tool, ToolCall};
-pub use self::continuation::execute_with_continuation;
+// TODO: Fix type mismatch
+// pub use self::continuation::execute_with_continuation;
 pub use self::execution::execute_tool_calls;
 use crate::error::Result;
 

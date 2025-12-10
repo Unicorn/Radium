@@ -139,6 +139,7 @@ impl TerminalCommandHandler {
                     Ok(ToolResult {
                         success,
                         output: output_text,
+                        is_error: false,
                         metadata: std::collections::HashMap::from([
                             ("exit_code".to_string(), exit_code.to_string()),
                             ("command".to_string(), command.to_string()),
@@ -191,6 +192,7 @@ impl TerminalCommandHandler {
                     Ok(ToolResult {
                         success,
                         output: output_text,
+                        is_error: false,
                         metadata: std::collections::HashMap::from([
                             ("exit_code".to_string(), exit_code.to_string()),
                             ("command".to_string(), command.to_string()),

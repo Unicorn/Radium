@@ -297,6 +297,13 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
             show_metadata, // show_metadata
             json, // json
             safety_behavior.clone(), // safety_behavior
+            Vec::new(), // image
+            Vec::new(), // audio
+            Vec::new(), // video
+            Vec::new(), // file
+            false, // auto_upload
+            None, // response_format
+            None, // response_schema
         )
         .await
         {

@@ -408,9 +408,9 @@ pub async fn execute(
             Ok(radium_core::engines::ExecutionResponse {
                 content: response.content,
                 usage: response.usage.map(|u| radium_core::engines::TokenUsage {
-                    prompt_tokens: u.prompt_tokens as usize,
-                    completion_tokens: u.completion_tokens as usize,
-                    total_tokens: u.total_tokens as usize,
+                    input_tokens: u.prompt_tokens as u64,
+                    output_tokens: u.completion_tokens as u64,
+                    total_tokens: u.total_tokens as u64,
                 }),
                 model: response.model_id.unwrap_or_else(|| selected_model.to_string()),
                 raw: None,
@@ -1248,7 +1248,14 @@ async fn execute_agent_with_engine(
                 
                 while let Some(result) = stream.next().await {
                     match result {
-                        Ok(content) => {
+                        Ok(stream_item) => {
+                            // Extract string from StreamItem
+                            let content = match stream_item {
+                                radium_abstraction::StreamItem::ThinkingToken(s) => s,
+                                radium_abstraction::StreamItem::AnswerToken(s) => s,
+                                radium_abstraction::StreamItem::Metadata(_) => continue, // Skip metadata
+                            };
+
                             if content.len() > last_content.len() {
                                 let delta = &content[last_content.len()..];
                                 print!("{}", delta);
