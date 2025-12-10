@@ -115,18 +115,6 @@ impl ClaudeModel {
     /// # Returns
     /// `Some(String)` containing the system message content, or `None` if no system messages found
     ///
-    /// # Example
-    /// ```
-    /// use radium_abstraction::ChatMessage;
-    /// use radium_models::ClaudeModel;
-    /// let messages = vec![
-    ///     ChatMessage { role: "system".to_string(), content: "You are helpful.".to_string() },
-    ///     ChatMessage { role: "user".to_string(), content: "Hello".to_string() },
-    /// ];
-    /// let system = ClaudeModel::extract_system_prompt(&messages);
-    /// assert_eq!(system, Some("You are helpful.".to_string()));
-    /// ```
-    ///
     /// **Reference:** This pattern is used as a reference for Gemini's `extract_system_messages()`
     /// implementation in `crates/radium-models/src/gemini.rs`.
     fn extract_system_prompt(messages: &[ChatMessage]) -> Option<String> {
