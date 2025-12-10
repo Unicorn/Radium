@@ -6,6 +6,7 @@ use async_trait::async_trait;
 use futures::stream::Stream;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::pin::Pin;
 use thiserror::Error;
 
@@ -125,13 +126,124 @@ impl ModelError {
     }
 }
 
+/// Represents the content of a chat message, supporting both simple text and multimodal content blocks.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum MessageContent {
+    /// Simple text content (backward compatible).
+    Text(String),
+    /// Multimodal content blocks (text, images, audio, video, documents).
+    Blocks(Vec<ContentBlock>),
+}
+
+/// A content block within a multimodal message.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum ContentBlock {
+    /// Text content block.
+    #[serde(rename = "text")]
+    Text {
+        /// The text content.
+        text: String,
+    },
+    /// Image content block.
+    #[serde(rename = "image")]
+    Image {
+        /// The image source.
+        source: ImageSource,
+        /// The MIME type of the image (e.g., "image/jpeg", "image/png").
+        media_type: String,
+    },
+    /// Audio content block.
+    #[serde(rename = "audio")]
+    Audio {
+        /// The audio source.
+        source: MediaSource,
+        /// The MIME type of the audio (e.g., "audio/mp3", "audio/wav").
+        media_type: String,
+    },
+    /// Video content block.
+    #[serde(rename = "video")]
+    Video {
+        /// The video source.
+        source: MediaSource,
+        /// The MIME type of the video (e.g., "video/mp4", "video/webm").
+        media_type: String,
+    },
+    /// Document content block.
+    #[serde(rename = "document")]
+    Document {
+        /// The document source.
+        source: MediaSource,
+        /// The MIME type of the document (e.g., "application/pdf", "text/plain").
+        media_type: String,
+        /// Optional filename for the document.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        filename: Option<String>,
+    },
+}
+
+/// Source for image content.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum ImageSource {
+    /// Base64-encoded image data.
+    #[serde(rename = "base64")]
+    Base64 {
+        /// The base64-encoded image data.
+        data: String,
+    },
+    /// Image from a URL.
+    #[serde(rename = "url")]
+    Url {
+        /// The URL of the image.
+        url: String,
+    },
+    /// Image from a local file path.
+    #[serde(rename = "file")]
+    File {
+        /// The path to the image file.
+        path: PathBuf,
+    },
+}
+
+/// Source for media content (audio, video, documents).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum MediaSource {
+    /// Base64-encoded media data.
+    #[serde(rename = "base64")]
+    Base64 {
+        /// The base64-encoded media data.
+        data: String,
+    },
+    /// Media from a URL.
+    #[serde(rename = "url")]
+    Url {
+        /// The URL of the media.
+        url: String,
+    },
+    /// Media from a local file path.
+    #[serde(rename = "file")]
+    File {
+        /// The path to the media file.
+        path: PathBuf,
+    },
+    /// Media from a provider's file API (e.g., Gemini File API).
+    #[serde(rename = "file_api")]
+    FileApi {
+        /// The file ID from the provider's file API.
+        file_id: String,
+    },
+}
+
 /// Represents a message in a conversation with a chat model.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChatMessage {
     /// The role of the message sender (e.g., "user", "assistant", "system").
     pub role: String,
-    /// The content of the message.
-    pub content: String,
+    /// The content of the message (supports both text and multimodal content).
+    pub content: MessageContent,
 }
 
 /// Parameters for controlling the model's generation.
@@ -667,5 +779,101 @@ mod tests {
         let err4_str = err4.to_string();
         assert!(err4_str.contains("image/svg+xml"));
         assert!(err4_str.contains("image/jpeg"));
+    }
+
+    #[test]
+    fn test_message_content_enum() {
+        // Test Text variant
+        let text_content = MessageContent::Text("Hello".to_string());
+        assert!(matches!(text_content, MessageContent::Text(_)));
+
+        // Test Blocks variant
+        let blocks_content = MessageContent::Blocks(vec![
+            ContentBlock::Text {
+                text: "Analyze this".to_string(),
+            },
+            ContentBlock::Image {
+                source: ImageSource::File {
+                    path: PathBuf::from("test.jpg"),
+                },
+                media_type: "image/jpeg".to_string(),
+            },
+        ]);
+        assert!(matches!(blocks_content, MessageContent::Blocks(_)));
+    }
+
+    #[test]
+    fn test_content_block_enum() {
+        // Test Text block
+        let text_block = ContentBlock::Text {
+            text: "Hello".to_string(),
+        };
+        assert!(matches!(text_block, ContentBlock::Text { .. }));
+
+        // Test Image block with Base64
+        let image_block = ContentBlock::Image {
+            source: ImageSource::Base64 {
+                data: "base64data".to_string(),
+            },
+            media_type: "image/png".to_string(),
+        };
+        assert!(matches!(image_block, ContentBlock::Image { .. }));
+
+        // Test Audio block
+        let audio_block = ContentBlock::Audio {
+            source: MediaSource::Url {
+                url: "https://example.com/audio.mp3".to_string(),
+            },
+            media_type: "audio/mp3".to_string(),
+        };
+        assert!(matches!(audio_block, ContentBlock::Audio { .. }));
+    }
+
+    #[test]
+    fn test_image_source_enum() {
+        let base64_source = ImageSource::Base64 {
+            data: "data".to_string(),
+        };
+        assert!(matches!(base64_source, ImageSource::Base64 { .. }));
+
+        let url_source = ImageSource::Url {
+            url: "https://example.com/image.jpg".to_string(),
+        };
+        assert!(matches!(url_source, ImageSource::Url { .. }));
+
+        let file_source = ImageSource::File {
+            path: PathBuf::from("image.jpg"),
+        };
+        assert!(matches!(file_source, ImageSource::File { .. }));
+    }
+
+    #[test]
+    fn test_media_source_enum() {
+        let file_api_source = MediaSource::FileApi {
+            file_id: "file123".to_string(),
+        };
+        assert!(matches!(file_api_source, MediaSource::FileApi { .. }));
+    }
+
+    #[test]
+    fn test_chat_message_with_message_content() {
+        let msg = ChatMessage {
+            role: "user".to_string(),
+            content: MessageContent::Text("Hello".to_string()),
+        };
+        assert_eq!(msg.role, "user");
+        assert!(matches!(msg.content, MessageContent::Text(_)));
+    }
+
+    #[test]
+    fn test_serialization_round_trip() {
+        let content = MessageContent::Blocks(vec![
+            ContentBlock::Text {
+                text: "Test".to_string(),
+            },
+        ]);
+        let json = serde_json::to_string(&content).unwrap();
+        let deserialized: MessageContent = serde_json::from_str(&json).unwrap();
+        assert_eq!(content, deserialized);
     }
 }

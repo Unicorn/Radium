@@ -634,7 +634,6 @@ mod tests {
             persona_config: None,
             routing: None,
             safety_behavior: None,
-            routing: None,
         }
     }
 
