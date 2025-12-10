@@ -32,6 +32,7 @@ use radium_abstraction::{
 };
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::env;
 use tracing::{debug, error};
 
@@ -294,6 +295,18 @@ impl Model for ClaudeModel {
                 request_body.max_tokens = max_tokens;
             }
             request_body.stop_sequences = params.stop_sequences;
+            
+            // Map reasoning effort to thinking config for Claude models
+            if let Some(effort) = params.reasoning_effort {
+                let thinking_budget = match effort {
+                    radium_abstraction::ReasoningEffort::Low => 0.3,   // Minimal extended thinking
+                    radium_abstraction::ReasoningEffort::Medium => 0.6, // Standard extended thinking
+                    radium_abstraction::ReasoningEffort::High => 1.0,   // Maximum extended thinking
+                };
+                request_body.thinking = Some(ClaudeThinkingConfig {
+                    thinking_budget: Some(thinking_budget),
+                });
+            }
         }
 
         // Make API request using reqwest
@@ -423,11 +436,20 @@ impl Model for ClaudeModel {
             cache_usage,
         });
 
+        // Extract thinking process if present
+        let metadata = if let Some(thinking) = claude_response.thinking {
+            let mut metadata_map = HashMap::new();
+            metadata_map.insert("thinking_process".to_string(), thinking);
+            Some(metadata_map)
+        } else {
+            None
+        };
+
         Ok(ModelResponse {
             content,
             model_id: Some(self.model_id.clone()),
             usage,
-            metadata: None,
+            metadata,
             tool_calls: None,
         })
     }
@@ -451,6 +473,13 @@ impl Model for ClaudeModel {
 // Claude API request/response structures
 
 #[derive(Debug, Serialize)]
+struct ClaudeThinkingConfig {
+    /// Thinking budget for extended thinking (0.0 to 1.0).
+    /// Higher values allow more thinking tokens.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thinking_budget: Option<f32>,
+}
+
 struct ClaudeRequest {
     model: String,
     messages: Vec<ClaudeMessage>,
@@ -463,6 +492,9 @@ struct ClaudeRequest {
     top_p: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     stop_sequences: Option<Vec<String>>,
+    /// Thinking configuration for extended thinking models.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thinking: Option<ClaudeThinkingConfig>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -520,6 +552,9 @@ enum ClaudeImageSource {
 struct ClaudeResponse {
     content: Vec<ClaudeContent>,
     usage: ClaudeUsage,
+    /// Thinking process for extended thinking models (may be present in response)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thinking: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]
