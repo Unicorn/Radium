@@ -150,7 +150,7 @@ impl GeminiModel {
                         Ok(GeminiPart::InlineData {
                             inline_data: GeminiInlineData {
                                 mime_type: media_type.clone(),
-                                data,
+                                data: data.clone(),
                             },
                         })
                     }
@@ -282,7 +282,7 @@ impl GeminiModel {
                         Ok(GeminiPart::InlineData {
                             inline_data: GeminiInlineData {
                                 mime_type: media_type.clone(),
-                                data,
+                                data: data.clone(),
                             },
                         })
                     }
@@ -421,6 +421,7 @@ impl Model for GeminiModel {
             }),
             tools: None,
             tool_config: None,
+            safety_settings: None,
         };
 
         // Apply parameters if provided
@@ -686,7 +687,9 @@ impl Model for GeminiModel {
         let gemini_tools = if function_declarations.is_empty() {
             None
         } else {
-            Some(vec![GeminiTools { function_declarations }])
+            Some(vec![GeminiTool::FunctionDeclarations {
+                function_declarations,
+            }])
         };
 
         // Build tool configuration if provided
@@ -701,6 +704,7 @@ impl Model for GeminiModel {
             }),
             tools: gemini_tools,
             tool_config: gemini_tool_config,
+            safety_settings: None,
         };
 
         // Apply default parameters if needed (temperature, etc.)
@@ -900,6 +904,7 @@ impl StreamingModel for GeminiModel {
             }),
             tools: None,
             tool_config: None,
+            safety_settings: None,
         };
 
         // Apply parameters if provided
@@ -1119,6 +1124,9 @@ impl Stream for GeminiSSEStream {
                                                 GeminiPart::FunctionCall { .. } => {
                                                     debug!("Received function_call in streaming response (not yet processed)");
                                                 }
+                                                GeminiPart::FunctionResponse { .. } => {
+                                                    debug!("Received function_response in streaming response (not yet processed)");
+                                                }
                                             }
                                         }
                                         if has_text {
@@ -1196,6 +1204,9 @@ impl Stream for GeminiSSEStream {
                                             GeminiPart::FunctionCall { .. } => {
                                                 debug!("Received function_call in streaming response (not yet processed)");
                                             }
+                                            GeminiPart::FunctionResponse { .. } => {
+                                                debug!("Received function_response in streaming response (not yet processed)");
+                                            }
                                         }
                                     }
                                 }
@@ -1258,11 +1269,103 @@ struct GeminiFunctionDeclaration {
     parameters: serde_json::Value,
 }
 
-/// Gemini tools wrapper
+/// Dynamic retrieval configuration for Google Search grounding
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct GeminiDynamicRetrievalConfig {
+    /// Retrieval mode: "MODE_DYNAMIC" or "MODE_UNSPECIFIED"
+    #[serde(rename = "mode")]
+    mode: String,
+    /// Dynamic threshold for retrieval (0.0 to 1.0)
+    #[serde(rename = "dynamicThreshold")]
+    dynamic_threshold: f32,
+}
+
+/// Google Search tool configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct GeminiGoogleSearch {
+    /// Optional dynamic retrieval configuration
+    #[serde(skip_serializing_if = "Option::is_none", rename = "dynamicRetrievalConfig")]
+    dynamic_retrieval_config: Option<GeminiDynamicRetrievalConfig>,
+}
+
+/// Retrieval tool configuration (placeholder for future retrieval support)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct GeminiRetrieval {
+    // Placeholder for future retrieval configuration fields
+}
+
+/// Gemini tool type enum - supports function declarations, Google Search, and Retrieval
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+enum GeminiTool {
+    /// Function declarations tool
+    FunctionDeclarations {
+        #[serde(rename = "functionDeclarations")]
+        function_declarations: Vec<GeminiFunctionDeclaration>,
+    },
+    /// Google Search grounding tool
+    GoogleSearch {
+        #[serde(rename = "googleSearch")]
+        google_search: GeminiGoogleSearch,
+    },
+    /// Retrieval tool
+    Retrieval {
+        #[serde(rename = "retrieval")]
+        retrieval: GeminiRetrieval,
+    },
+}
+
+/// Gemini tools wrapper (kept for backward compatibility during migration)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct GeminiTools {
     #[serde(rename = "functionDeclarations")]
     function_declarations: Vec<GeminiFunctionDeclaration>,
+}
+
+/// Safety category for Gemini API harm classification.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SafetyCategory {
+    /// Hate speech and harassment.
+    #[serde(rename = "HARM_CATEGORY_HATE_SPEECH")]
+    HateSpeech,
+    /// Sexually explicit content.
+    #[serde(rename = "HARM_CATEGORY_SEXUALLY_EXPLICIT")]
+    SexuallyExplicit,
+    /// Dangerous content.
+    #[serde(rename = "HARM_CATEGORY_DANGEROUS_CONTENT")]
+    DangerousContent,
+    /// Harassment.
+    #[serde(rename = "HARM_CATEGORY_HARASSMENT")]
+    Harassment,
+    /// Civic integrity violations.
+    #[serde(rename = "HARM_CATEGORY_CIVIC_INTEGRITY")]
+    CivicIntegrity,
+}
+
+/// Safety threshold for blocking content based on harm probability.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SafetyThreshold {
+    /// Disable blocking for this category.
+    #[serde(rename = "BLOCK_NONE")]
+    BlockNone,
+    /// Block content with LOW, MEDIUM, or HIGH probability.
+    #[serde(rename = "BLOCK_LOW_AND_ABOVE")]
+    BlockLowAndAbove,
+    /// Block content with MEDIUM or HIGH probability.
+    #[serde(rename = "BLOCK_MEDIUM_AND_ABOVE")]
+    BlockMediumAndAbove,
+    /// Block only content with HIGH probability.
+    #[serde(rename = "BLOCK_ONLY_HIGH")]
+    BlockOnlyHigh,
+}
+
+/// Safety setting pairing a category with a threshold.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GeminiSafetySetting {
+    /// The safety category to configure.
+    pub category: SafetyCategory,
+    /// The blocking threshold for this category.
+    pub threshold: SafetyThreshold,
 }
 
 #[derive(Debug, Serialize)]
@@ -1272,12 +1375,15 @@ struct GeminiRequest {
     generation_config: Option<GeminiGenerationConfig>,
     #[serde(skip_serializing_if = "Option::is_none", rename = "systemInstruction")]
     system_instruction: Option<GeminiSystemInstruction>,
-    /// Optional tools for function calling
+    /// Optional tools for function calling, Google Search grounding, or Retrieval
     #[serde(skip_serializing_if = "Option::is_none")]
-    tools: Option<Vec<GeminiTools>>,
+    tools: Option<Vec<GeminiTool>>,
     /// Optional tool configuration for function calling
     #[serde(skip_serializing_if = "Option::is_none", rename = "toolConfig")]
     tool_config: Option<GeminiToolConfig>,
+    /// Optional safety settings for content filtering
+    #[serde(skip_serializing_if = "Option::is_none", rename = "safetySettings")]
+    safety_settings: Option<Vec<GeminiSafetySetting>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1603,13 +1709,13 @@ mod provider_capabilities {
 
             // Check which providers support this MIME type
             if mime_type.starts_with("audio/") {
-                providers.extend_from_slice(&["gemini", "openai"]);
+                providers.extend(vec!["gemini".to_string(), "openai".to_string()]);
             } else if mime_type.starts_with("video/") {
-                providers.push("gemini");
+                providers.push("gemini".to_string());
             } else if mime_type == "application/pdf" {
-                providers.extend_from_slice(&["gemini", "claude"]);
+                providers.extend(vec!["gemini".to_string(), "claude".to_string()]);
             } else if mime_type.starts_with("image/") {
-                providers.extend_from_slice(&["gemini", "claude", "openai"]);
+                providers.extend(vec!["gemini".to_string(), "claude".to_string(), "openai".to_string()]);
             }
 
             // Remove current provider from suggestions
@@ -1954,6 +2060,10 @@ mod tests {
             system_instruction: Some(system_instruction),
             tools: None,
             tool_config: None,
+            safety_settings: None,
+            tools: None,
+            tool_config: None,
+            safety_settings: None,
         };
 
         let json = serde_json::to_string(&request).unwrap();
@@ -1972,6 +2082,10 @@ mod tests {
             system_instruction: None,
             tools: None,
             tool_config: None,
+            safety_settings: None,
+            tools: None,
+            tool_config: None,
+            safety_settings: None,
         };
 
         let json_no_system = serde_json::to_string(&request_no_system).unwrap();
