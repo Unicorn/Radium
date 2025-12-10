@@ -64,11 +64,35 @@ impl GeminiModel {
     }
 
     /// Converts our ChatMessage role to Gemini API role format.
+    ///
+    /// Note: System messages should be filtered out before calling this function,
+    /// as they are handled separately via the `systemInstruction` field.
     fn role_to_gemini(role: &str) -> String {
         match role {
             "assistant" => "model".to_string(),
-            "system" | "user" => "user".to_string(), // Gemini doesn't have system role, map to user
+            "user" => "user".to_string(),
+            // System messages are filtered out before this function is called
             _ => role.to_string(),
+        }
+    }
+
+    /// Extracts system messages from the chat history and concatenates them.
+    ///
+    /// Multiple system messages are joined with "\n\n" separator.
+    /// Returns `None` if no system messages are present.
+    ///
+    /// This follows the same pattern as Claude's `extract_system_prompt()` function.
+    fn extract_system_messages(messages: &[ChatMessage]) -> Option<String> {
+        let system_messages: Vec<String> = messages
+            .iter()
+            .filter(|msg| msg.role == "system")
+            .map(|msg| msg.content.clone())
+            .collect();
+
+        if system_messages.is_empty() {
+            None
+        } else {
+            Some(system_messages.join("\n\n"))
         }
     }
 }
@@ -111,9 +135,13 @@ impl Model for GeminiModel {
             self.base_url, self.model_id, self.api_key
         );
 
-        // Convert messages to Gemini format
+        // Extract system instruction if present
+        let system_instruction = Self::extract_system_messages(messages);
+
+        // Convert non-system messages to Gemini format
         let gemini_messages: Vec<GeminiContent> = messages
             .iter()
+            .filter(|msg| msg.role != "system")
             .map(|msg| GeminiContent {
                 role: Self::role_to_gemini(&msg.role),
                 parts: vec![GeminiPart { text: msg.content.clone() }],
@@ -121,7 +149,13 @@ impl Model for GeminiModel {
             .collect();
 
         // Build request body
-        let mut request_body = GeminiRequest { contents: gemini_messages, generation_config: None };
+        let mut request_body = GeminiRequest {
+            contents: gemini_messages,
+            generation_config: None,
+            system_instruction: system_instruction.map(|text| GeminiSystemInstruction {
+                parts: vec![GeminiPart { text }],
+            }),
+        };
 
         // Apply parameters if provided
         if let Some(params) = parameters {
@@ -220,6 +254,13 @@ struct GeminiRequest {
     contents: Vec<GeminiContent>,
     #[serde(skip_serializing_if = "Option::is_none")]
     generation_config: Option<GeminiGenerationConfig>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "systemInstruction")]
+    system_instruction: Option<GeminiSystemInstruction>,
+}
+
+#[derive(Debug, Serialize)]
+struct GeminiSystemInstruction {
+    parts: Vec<GeminiPart>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -276,7 +317,47 @@ mod tests {
     fn test_role_conversion() {
         assert_eq!(GeminiModel::role_to_gemini("user"), "user");
         assert_eq!(GeminiModel::role_to_gemini("assistant"), "model");
-        assert_eq!(GeminiModel::role_to_gemini("system"), "user");
+        // Note: System messages are filtered out before role_to_gemini() is called,
+        // so they are handled separately via systemInstruction field
+    }
+
+    #[test]
+    fn test_extract_system_messages() {
+        use radium_abstraction::ChatMessage;
+
+        // Test single system message
+        let messages = vec![
+            ChatMessage { role: "system".to_string(), content: "You are helpful.".to_string() },
+            ChatMessage { role: "user".to_string(), content: "Hello".to_string() },
+        ];
+        let system = GeminiModel::extract_system_messages(&messages);
+        assert_eq!(system, Some("You are helpful.".to_string()));
+
+        // Test multiple system messages (should be concatenated)
+        let messages = vec![
+            ChatMessage { role: "system".to_string(), content: "First instruction.".to_string() },
+            ChatMessage { role: "system".to_string(), content: "Second instruction.".to_string() },
+            ChatMessage { role: "user".to_string(), content: "Hello".to_string() },
+        ];
+        let system = GeminiModel::extract_system_messages(&messages);
+        assert_eq!(system, Some("First instruction.\n\nSecond instruction.".to_string()));
+
+        // Test no system messages
+        let messages = vec![
+            ChatMessage { role: "user".to_string(), content: "Hello".to_string() },
+            ChatMessage { role: "assistant".to_string(), content: "Hi there!".to_string() },
+        ];
+        let system = GeminiModel::extract_system_messages(&messages);
+        assert_eq!(system, None);
+
+        // Test mixed message types
+        let messages = vec![
+            ChatMessage { role: "system".to_string(), content: "System message.".to_string() },
+            ChatMessage { role: "user".to_string(), content: "User message.".to_string() },
+            ChatMessage { role: "assistant".to_string(), content: "Assistant message.".to_string() },
+        ];
+        let system = GeminiModel::extract_system_messages(&messages);
+        assert_eq!(system, Some("System message.".to_string()));
     }
 
     #[test]
