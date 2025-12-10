@@ -3,14 +3,17 @@
 //! This module provides an implementation of the `Model` trait for Google's Gemini API.
 
 use async_trait::async_trait;
+use futures::stream::{Stream, StreamExt};
 use radium_abstraction::{
     ChatMessage, Citation, Model, ModelError, ModelParameters, ModelResponse, ModelUsage,
-    ResponseFormat, SafetyRating,
+    ResponseFormat, SafetyRating, StreamingModel,
 };
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use tracing::{debug, error, warn};
 
 /// Google Gemini model implementation.

@@ -21,12 +21,17 @@
 //! This inline approach is the native OpenAI API pattern and is fully supported by all OpenAI models.
 
 use async_trait::async_trait;
+use futures::stream::{Stream, StreamExt};
 use radium_abstraction::{
-    ChatMessage, Model, ModelError, ModelParameters, ModelResponse, ModelUsage,
+    ChatMessage, LogProb, Model, ModelError, ModelParameters, ModelResponse, ModelUsage,
+    SafetyRating, StreamingModel,
 };
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::env;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use tracing::{debug, error};
 
 /// OpenAI model implementation.
@@ -228,13 +233,12 @@ impl Model for OpenAIModel {
         })?;
 
         // Extract content from response
-        let content =
-            openai_response.choices.first().map(|c| c.message.content.clone()).ok_or_else(
-                || {
-                    error!("No content in OpenAI API response");
-                    ModelError::ModelResponseError("No content in API response".to_string())
-                },
-            )?;
+        let choice = openai_response.choices.first().ok_or_else(|| {
+            error!("No content in OpenAI API response");
+            ModelError::ModelResponseError("No content in API response".to_string())
+        })?;
+
+        let content = choice.message.content.clone();
 
         // Extract usage information
         let usage = openai_response.usage.map(|u| ModelUsage {
@@ -243,11 +247,37 @@ impl Model for OpenAIModel {
             total_tokens: u.total_tokens,
         });
 
+        // Extract metadata from choice and response
+        let metadata = if choice.finish_reason.is_some()
+            || choice.logprobs.is_some()
+            || choice.content_filter_results.is_some()
+            || openai_response.system_fingerprint.is_some()
+        {
+            let openai_meta = OpenAIMetadata {
+                finish_reason: choice.finish_reason.clone(),
+                logprobs: choice.logprobs.as_ref().map(|lp| {
+                    lp.content.iter().map(|c| LogProb::from(c)).collect()
+                }),
+                content_filter_results: choice.content_filter_results.as_ref().map(|cfr| {
+                    vec![SafetyRating::from(cfr)]
+                }),
+                model_version: openai_response.system_fingerprint.clone(),
+            };
+            let metadata_map: HashMap<String, serde_json::Value> = openai_meta.into();
+            if metadata_map.is_empty() {
+                None
+            } else {
+                Some(metadata_map)
+            }
+        } else {
+            None
+        };
+
         Ok(ModelResponse {
             content,
             model_id: Some(self.model_id.clone()),
             usage,
-            metadata: None,
+            metadata,
         })
     }
 
@@ -282,11 +312,19 @@ struct OpenAIMessage {
 struct OpenAIResponse {
     choices: Vec<OpenAIChoice>,
     usage: Option<OpenAIUsage>,
+    #[serde(rename = "system_fingerprint")]
+    system_fingerprint: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 struct OpenAIChoice {
     message: OpenAIMessage,
+    #[serde(rename = "finish_reason")]
+    finish_reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    logprobs: Option<OpenAILogProbs>,
+    #[serde(rename = "content_filter_results", skip_serializing_if = "Option::is_none")]
+    content_filter_results: Option<OpenAIContentFilter>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -295,6 +333,75 @@ struct OpenAIUsage {
     prompt_tokens: u32,
     completion_tokens: u32,
     total_tokens: u32,
+}
+
+// OpenAI-specific metadata structures
+
+#[derive(Debug, Deserialize)]
+struct OpenAILogProbs {
+    content: Vec<OpenAILogProbContent>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenAILogProbContent {
+    token: String,
+    logprob: f64,
+    bytes: Option<Vec<u8>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenAIContentFilter {
+    category: String,
+    severity: String,
+    filtered: bool,
+}
+
+// Common metadata structure for OpenAI
+#[derive(Debug, Clone, Serialize)]
+struct OpenAIMetadata {
+    finish_reason: Option<String>,
+    logprobs: Option<Vec<LogProb>>,
+    content_filter_results: Option<Vec<SafetyRating>>,
+    model_version: Option<String>,
+}
+
+impl From<OpenAIMetadata> for HashMap<String, serde_json::Value> {
+    fn from(meta: OpenAIMetadata) -> Self {
+        let mut map = HashMap::new();
+        if let Some(finish_reason) = meta.finish_reason {
+            map.insert("finish_reason".to_string(), serde_json::Value::String(finish_reason));
+        }
+        if let Some(logprobs) = meta.logprobs {
+            map.insert("logprobs".to_string(), serde_json::to_value(logprobs).unwrap());
+        }
+        if let Some(content_filter_results) = meta.content_filter_results {
+            map.insert("safety_ratings".to_string(), serde_json::to_value(content_filter_results).unwrap());
+        }
+        if let Some(model_version) = meta.model_version {
+            map.insert("model_version".to_string(), serde_json::Value::String(model_version));
+        }
+        map
+    }
+}
+
+impl From<&OpenAILogProbContent> for LogProb {
+    fn from(logprob: &OpenAILogProbContent) -> Self {
+        LogProb {
+            token: logprob.token.clone(),
+            logprob: logprob.logprob,
+            bytes: logprob.bytes.clone(),
+        }
+    }
+}
+
+impl From<&OpenAIContentFilter> for SafetyRating {
+    fn from(filter: &OpenAIContentFilter) -> Self {
+        SafetyRating {
+            category: filter.category.clone(),
+            probability: filter.severity.clone(),
+            blocked: filter.filtered,
+        }
+    }
 }
 
 #[cfg(test)]
