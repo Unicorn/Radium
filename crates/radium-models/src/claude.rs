@@ -130,10 +130,14 @@ impl ClaudeModel {
     }
 
     /// Converts a ContentBlock to Claude's content block format.
-    fn content_block_to_claude(block: &ContentBlock) -> Result<ClaudeContentBlock, ModelError> {
+    fn content_block_to_claude(
+        block: &ContentBlock,
+        cache_control: Option<CacheControl>,
+    ) -> Result<ClaudeContentBlock, ModelError> {
         match block {
             ContentBlock::Text { text } => Ok(ClaudeContentBlock::Text {
                 text: text.clone(),
+                cache_control,
             }),
             ContentBlock::Image { source, media_type } => {
                 let claude_source = match source {
@@ -162,6 +166,7 @@ impl ClaudeModel {
                 };
                 Ok(ClaudeContentBlock::Image {
                     source: claude_source,
+                    cache_control,
                 })
             }
             ContentBlock::Audio { .. } => Err(ModelError::UnsupportedContentType {
@@ -193,7 +198,7 @@ impl ClaudeModel {
             MessageContent::Blocks(blocks) => {
                 let claude_blocks: Result<Vec<ClaudeContentBlock>, ModelError> = blocks
                     .iter()
-                    .map(Self::content_block_to_claude)
+                    .map(|b| Self::content_block_to_claude(b, None))
                     .collect();
                 ClaudeMessageContent::Blocks(claude_blocks?)
             }
@@ -377,11 +382,31 @@ impl Model for ClaudeModel {
             })?;
 
         // Extract usage information
+        let cache_usage = if claude_response.usage.cache_creation_input_tokens.is_some()
+            || claude_response.usage.cache_read_input_tokens.is_some()
+        {
+            Some(radium_abstraction::CacheUsage {
+                cache_creation_tokens: claude_response
+                    .usage
+                    .cache_creation_input_tokens
+                    .unwrap_or(0),
+                cache_read_tokens: claude_response
+                    .usage
+                    .cache_read_input_tokens
+                    .unwrap_or(0),
+                regular_tokens: claude_response.usage.input_tokens
+                    - claude_response.usage.cache_creation_input_tokens.unwrap_or(0)
+                    - claude_response.usage.cache_read_input_tokens.unwrap_or(0),
+            })
+        } else {
+            None
+        };
+
         let usage = Some(ModelUsage {
             prompt_tokens: claude_response.usage.input_tokens,
             completion_tokens: claude_response.usage.output_tokens,
             total_tokens: claude_response.usage.input_tokens + claude_response.usage.output_tokens,
-            cache_usage: None,
+            cache_usage,
         });
 
         Ok(ModelResponse {
@@ -439,13 +464,29 @@ struct ClaudeMessage {
     content: ClaudeMessageContent,
 }
 
+/// Cache control configuration for Claude prompt caching.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+struct CacheControl {
+    /// Cache type - "ephemeral" for prompt caching.
+    #[serde(rename = "type")]
+    cache_type: String,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
 enum ClaudeContentBlock {
     #[serde(rename = "text")]
-    Text { text: String },
+    Text {
+        text: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cache_control: Option<CacheControl>,
+    },
     #[serde(rename = "image")]
-    Image { source: ClaudeImageSource },
+    Image {
+        source: ClaudeImageSource,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cache_control: Option<CacheControl>,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -478,6 +519,10 @@ struct ClaudeContent {
 struct ClaudeUsage {
     input_tokens: u32,
     output_tokens: u32,
+    #[serde(default)]
+    cache_creation_input_tokens: Option<u32>,
+    #[serde(default)]
+    cache_read_input_tokens: Option<u32>,
 }
 
 #[cfg(test)]

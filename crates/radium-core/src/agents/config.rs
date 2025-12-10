@@ -290,7 +290,7 @@ impl GeminiSafetyConfigToml {
     ///
     /// # Errors
     /// Returns `AgentConfigError::Invalid` if the threshold string is not recognized.
-    fn parse_threshold(s: &str) -> Result<SafetyThreshold, AgentConfigError> {
+    pub(crate) fn parse_threshold(s: &str) -> Result<SafetyThreshold, AgentConfigError> {
         match s {
             "BLOCK_NONE" => Ok(SafetyThreshold::BlockNone),
             "BLOCK_LOW_AND_ABOVE" => Ok(SafetyThreshold::BlockLowAndAbove),
@@ -2063,5 +2063,240 @@ cost_tier = "invalid"
         assert_eq!(params.frequency_penalty, Some(0.5));
         assert_eq!(params.presence_penalty, Some(0.3));
         assert_eq!(params.response_format, Some(ResponseFormat::Json));
+    }
+
+    #[test]
+    fn test_parse_threshold_valid() {
+        use radium_models::{SafetyThreshold};
+
+        // Test all valid threshold values
+        assert_eq!(
+            GeminiSafetyConfigToml::parse_threshold("BLOCK_NONE").unwrap(),
+            SafetyThreshold::BlockNone
+        );
+        assert_eq!(
+            GeminiSafetyConfigToml::parse_threshold("BLOCK_LOW_AND_ABOVE").unwrap(),
+            SafetyThreshold::BlockLowAndAbove
+        );
+        assert_eq!(
+            GeminiSafetyConfigToml::parse_threshold("BLOCK_MEDIUM_AND_ABOVE").unwrap(),
+            SafetyThreshold::BlockMediumAndAbove
+        );
+        assert_eq!(
+            GeminiSafetyConfigToml::parse_threshold("BLOCK_ONLY_HIGH").unwrap(),
+            SafetyThreshold::BlockOnlyHigh
+        );
+    }
+
+    #[test]
+    fn test_parse_threshold_invalid() {
+        // Test invalid threshold values
+        assert!(GeminiSafetyConfigToml::parse_threshold("INVALID").is_err());
+        assert!(GeminiSafetyConfigToml::parse_threshold("").is_err());
+        assert!(GeminiSafetyConfigToml::parse_threshold("block_none").is_err()); // case sensitive
+        assert!(GeminiSafetyConfigToml::parse_threshold("BLOCK_LOW").is_err()); // partial match
+    }
+
+    #[test]
+    fn test_to_safety_settings_empty() {
+        // Test empty configuration (all None)
+        let config = GeminiSafetyConfigToml::default();
+        let settings = config.to_safety_settings().unwrap();
+        assert!(settings.is_empty());
+    }
+
+    #[test]
+    fn test_to_safety_settings_with_default() {
+        use radium_models::{SafetyCategory, SafetyThreshold};
+
+        // Test default threshold applies to all categories
+        let config = GeminiSafetyConfigToml {
+            hate_speech: None,
+            harassment: None,
+            sexually_explicit: None,
+            dangerous_content: None,
+            civic_integrity: None,
+            default: Some("BLOCK_MEDIUM_AND_ABOVE".to_string()),
+        };
+
+        let settings = config.to_safety_settings().unwrap();
+        assert_eq!(settings.len(), 5); // All 5 categories should use default
+
+        // Verify all categories are present with default threshold
+        for setting in &settings {
+            assert_eq!(setting.threshold, SafetyThreshold::BlockMediumAndAbove);
+        }
+
+        // Verify all categories are included
+        let categories: Vec<SafetyCategory> = settings.iter().map(|s| s.category).collect();
+        assert!(categories.contains(&SafetyCategory::HateSpeech));
+        assert!(categories.contains(&SafetyCategory::Harassment));
+        assert!(categories.contains(&SafetyCategory::SexuallyExplicit));
+        assert!(categories.contains(&SafetyCategory::DangerousContent));
+        assert!(categories.contains(&SafetyCategory::CivicIntegrity));
+    }
+
+    #[test]
+    fn test_to_safety_settings_partial() {
+        use radium_models::{SafetyCategory, SafetyThreshold};
+
+        // Test partial configuration with default fallback
+        let config = GeminiSafetyConfigToml {
+            hate_speech: Some("INVALID_THRESHOLD".to_string()), // Invalid - should error
+            harassment: Some("BLOCK_LOW_AND_ABOVE".to_string()),
+            sexually_explicit: None,
+            dangerous_content: None,
+            civic_integrity: None,
+            default: Some("BLOCK_MEDIUM_AND_ABOVE".to_string()),
+        };
+
+        // First test should error due to invalid threshold
+        assert!(config.to_safety_settings().is_err());
+
+        // Fix the invalid threshold
+        let config = GeminiSafetyConfigToml {
+            hate_speech: Some("BLOCK_ONLY_HIGH".to_string()),
+            harassment: Some("BLOCK_LOW_AND_ABOVE".to_string()),
+            sexually_explicit: None,
+            dangerous_content: None,
+            civic_integrity: None,
+            default: Some("BLOCK_MEDIUM_AND_ABOVE".to_string()),
+        };
+
+        let settings = config.to_safety_settings().unwrap();
+        assert_eq!(settings.len(), 5); // All 5 categories
+
+        // Verify explicit values override default
+        let hate_speech_setting = settings
+            .iter()
+            .find(|s| s.category == SafetyCategory::HateSpeech)
+            .unwrap();
+        assert_eq!(hate_speech_setting.threshold, SafetyThreshold::BlockOnlyHigh);
+
+        let harassment_setting = settings
+            .iter()
+            .find(|s| s.category == SafetyCategory::Harassment)
+            .unwrap();
+        assert_eq!(harassment_setting.threshold, SafetyThreshold::BlockLowAndAbove);
+
+        // Verify default applies to unspecified categories
+        let sexually_explicit_setting = settings
+            .iter()
+            .find(|s| s.category == SafetyCategory::SexuallyExplicit)
+            .unwrap();
+        assert_eq!(sexually_explicit_setting.threshold, SafetyThreshold::BlockMediumAndAbove);
+    }
+
+    #[test]
+    fn test_to_safety_settings_all_categories() {
+        use radium_models::{SafetyCategory, SafetyThreshold};
+
+        // Test all categories explicitly configured
+        let config = GeminiSafetyConfigToml {
+            hate_speech: Some("BLOCK_MEDIUM_AND_ABOVE".to_string()),
+            harassment: Some("BLOCK_LOW_AND_ABOVE".to_string()),
+            sexually_explicit: Some("BLOCK_MEDIUM_AND_ABOVE".to_string()),
+            dangerous_content: Some("BLOCK_ONLY_HIGH".to_string()),
+            civic_integrity: Some("BLOCK_NONE".to_string()),
+            default: None,
+        };
+
+        let settings = config.to_safety_settings().unwrap();
+        assert_eq!(settings.len(), 5);
+
+        // Verify each category has correct threshold
+        for setting in &settings {
+            match setting.category {
+                SafetyCategory::HateSpeech => {
+                    assert_eq!(setting.threshold, SafetyThreshold::BlockMediumAndAbove);
+                }
+                SafetyCategory::Harassment => {
+                    assert_eq!(setting.threshold, SafetyThreshold::BlockLowAndAbove);
+                }
+                SafetyCategory::SexuallyExplicit => {
+                    assert_eq!(setting.threshold, SafetyThreshold::BlockMediumAndAbove);
+                }
+                SafetyCategory::DangerousContent => {
+                    assert_eq!(setting.threshold, SafetyThreshold::BlockOnlyHigh);
+                }
+                SafetyCategory::CivicIntegrity => {
+                    assert_eq!(setting.threshold, SafetyThreshold::BlockNone);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_to_safety_settings_selective() {
+        use radium_models::{SafetyCategory, SafetyThreshold};
+
+        // Test selective configuration (some categories, no default)
+        let config = GeminiSafetyConfigToml {
+            hate_speech: Some("BLOCK_MEDIUM_AND_ABOVE".to_string()),
+            harassment: Some("BLOCK_LOW_AND_ABOVE".to_string()),
+            sexually_explicit: None,
+            dangerous_content: None,
+            civic_integrity: None,
+            default: None,
+        };
+
+        let settings = config.to_safety_settings().unwrap();
+        assert_eq!(settings.len(), 2); // Only configured categories
+
+        let categories: Vec<SafetyCategory> = settings.iter().map(|s| s.category).collect();
+        assert!(categories.contains(&SafetyCategory::HateSpeech));
+        assert!(categories.contains(&SafetyCategory::Harassment));
+        assert!(!categories.contains(&SafetyCategory::SexuallyExplicit));
+    }
+
+    #[test]
+    fn test_toml_deserialization() {
+        // Test TOML deserialization of GeminiSafetyConfigToml
+        let toml_str = r#"
+hate_speech = "BLOCK_MEDIUM_AND_ABOVE"
+harassment = "BLOCK_LOW_AND_ABOVE"
+default = "BLOCK_MEDIUM_AND_ABOVE"
+"#;
+
+        let config: GeminiSafetyConfigToml = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.hate_speech, Some("BLOCK_MEDIUM_AND_ABOVE".to_string()));
+        assert_eq!(config.harassment, Some("BLOCK_LOW_AND_ABOVE".to_string()));
+        assert_eq!(config.default, Some("BLOCK_MEDIUM_AND_ABOVE".to_string()));
+        assert_eq!(config.sexually_explicit, None);
+        assert_eq!(config.dangerous_content, None);
+        assert_eq!(config.civic_integrity, None);
+    }
+
+    #[test]
+    fn test_toml_deserialization_partial() {
+        // Test TOML deserialization with missing fields (should use defaults)
+        let toml_str = r#"
+default = "BLOCK_NONE"
+"#;
+
+        let config: GeminiSafetyConfigToml = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.default, Some("BLOCK_NONE".to_string()));
+        assert_eq!(config.hate_speech, None);
+        assert_eq!(config.harassment, None);
+    }
+
+    #[test]
+    fn test_safety_config_toml_with_gemini() {
+        // Test SafetyConfigToml with gemini section
+        let toml_str = r#"
+behavior = "return-partial"
+
+[gemini]
+hate_speech = "BLOCK_MEDIUM_AND_ABOVE"
+default = "BLOCK_LOW_AND_ABOVE"
+"#;
+
+        let config: SafetyConfigToml = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.behavior, "return-partial");
+        assert!(config.gemini.is_some());
+
+        let gemini_config = config.gemini.unwrap();
+        assert_eq!(gemini_config.hate_speech, Some("BLOCK_MEDIUM_AND_ABOVE".to_string()));
+        assert_eq!(gemini_config.default, Some("BLOCK_LOW_AND_ABOVE".to_string()));
     }
 }

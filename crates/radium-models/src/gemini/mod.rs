@@ -19,6 +19,15 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use tracing::{debug, error, warn};
 
+/// Gemini configuration loaded from config file
+#[derive(Debug, Clone, Default)]
+struct GeminiConfig {
+    /// Enable Google Search grounding by default
+    enable_grounding: Option<bool>,
+    /// Dynamic retrieval threshold for grounding (0.0-1.0)
+    grounding_threshold: Option<f32>,
+}
+
 /// Google Gemini model implementation.
 #[derive(Debug, Clone)]
 pub struct GeminiModel {
@@ -32,6 +41,8 @@ pub struct GeminiModel {
     client: Client,
     /// Optional safety settings for content filtering.
     safety_settings: Option<Vec<GeminiSafetySetting>>,
+    /// Configuration loaded from config file
+    config: GeminiConfig,
 }
 
 impl GeminiModel {
@@ -50,13 +61,76 @@ impl GeminiModel {
             )
         })?;
 
+        // Load configuration from file (gracefully handle missing file)
+        let config = Self::load_config().unwrap_or_default();
+
         Ok(Self {
             model_id,
             api_key,
             base_url: "https://generativelanguage.googleapis.com/v1beta".to_string(),
             client: Client::new(),
             safety_settings: None,
+            config,
         })
+    }
+
+    /// Load Gemini configuration from config file.
+    ///
+    /// Searches for `[gemini]` section in `~/.radium/config.toml`.
+    /// Returns default config if file doesn't exist or section is missing.
+    fn load_config() -> Result<GeminiConfig, ModelError> {
+        use std::path::PathBuf;
+
+        // Try home directory config
+        let home_config = if let Ok(home) = env::var("HOME") {
+            PathBuf::from(home).join(".radium/config.toml")
+        } else {
+            return Ok(GeminiConfig::default());
+        };
+
+        if !home_config.exists() {
+            return Ok(GeminiConfig::default());
+        }
+
+        let content = std::fs::read_to_string(&home_config).map_err(|e| {
+            ModelError::SerializationError(format!("Failed to read config file: {}", e))
+        })?;
+
+        let toml: toml::Table = toml::from_str(&content).map_err(|e| {
+            ModelError::SerializationError(format!("Failed to parse config file: {}", e))
+        })?;
+
+        // Extract [gemini] section
+        if let Some(gemini_value) = toml.get("gemini") {
+            if let Some(gemini_table) = gemini_value.as_table() {
+                let mut config = GeminiConfig::default();
+
+                if let Some(enable) = gemini_table.get("enable_grounding") {
+                    if let Some(enable_bool) = enable.as_bool() {
+                        config.enable_grounding = Some(enable_bool);
+                    }
+                }
+
+                if let Some(threshold) = gemini_table.get("grounding_threshold") {
+                    if let Some(threshold_float) = threshold.as_float() {
+                        // Clamp threshold to valid range
+                        let clamped = threshold_float.clamp(0.0, 1.0);
+                        if clamped != threshold_float {
+                            warn!(
+                                original = threshold_float,
+                                clamped = clamped,
+                                "Clamping grounding_threshold to valid range [0.0, 1.0]"
+                            );
+                        }
+                        config.grounding_threshold = Some(clamped as f32);
+                    }
+                }
+
+                return Ok(config);
+            }
+        }
+
+        Ok(GeminiConfig::default())
     }
 
     /// Creates a new `GeminiModel` with a custom API key.
@@ -66,12 +140,16 @@ impl GeminiModel {
     /// * `api_key` - The API key for authentication
     #[must_use]
     pub fn with_api_key(model_id: String, api_key: String) -> Self {
+        // Load configuration from file (gracefully handle missing file)
+        let config = Self::load_config().unwrap_or_default();
+
         Self {
             model_id,
             api_key,
             base_url: "https://generativelanguage.googleapis.com/v1beta".to_string(),
             client: Client::new(),
             safety_settings: None,
+            config,
         }
     }
 
@@ -450,14 +528,16 @@ impl Model for GeminiModel {
             .collect();
         let gemini_messages = gemini_messages?;
 
-        // Check if grounding is enabled via parameters
+        // Check if grounding is enabled - precedence: request params > config > defaults
         let enable_grounding = parameters
             .as_ref()
             .and_then(|p| p.enable_grounding)
+            .or(self.config.enable_grounding)
             .unwrap_or(false);
         let grounding_threshold = parameters
             .as_ref()
-            .and_then(|p| p.grounding_threshold);
+            .and_then(|p| p.grounding_threshold)
+            .or(self.config.grounding_threshold);
 
         // Build tools array - add grounding tool if enabled
         let mut tools: Vec<GeminiTool> = Vec::new();
