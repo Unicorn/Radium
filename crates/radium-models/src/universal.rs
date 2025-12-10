@@ -50,7 +50,7 @@
 use async_trait::async_trait;
 use futures::Stream;
 use radium_abstraction::{
-    ChatMessage, Model, ModelError, ModelParameters, ModelResponse, ModelUsage,
+    ChatMessage, MessageContent, Model, ModelError, ModelParameters, ModelResponse, ModelUsage,
 };
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -183,7 +183,7 @@ impl Model for UniversalModel {
         // Convert single prompt to chat format
         let messages = vec![ChatMessage {
             role: "user".to_string(),
-            content: prompt.to_string(),
+            content: MessageContent::Text(prompt.to_string()),
         }];
 
         self.generate_chat_completion(&messages, parameters).await
@@ -205,13 +205,26 @@ impl Model for UniversalModel {
         let url = format!("{}/chat/completions", self.base_url);
 
         // Convert messages to OpenAI format
-        let openai_messages: Vec<OpenAIMessage> = messages
+        // Note: Universal model only supports text content for now
+        let openai_messages: Result<Vec<OpenAIMessage>, ModelError> = messages
             .iter()
-            .map(|msg| OpenAIMessage {
-                role: Self::role_to_openai(&msg.role),
-                content: msg.content.clone(),
+            .map(|msg| {
+                let text = match &msg.content {
+                    MessageContent::Text(text) => text.clone(),
+                    MessageContent::Blocks(_) => {
+                        return Err(ModelError::UnsupportedContentType {
+                            content_type: "multimodal blocks".to_string(),
+                            model: "universal".to_string(),
+                        });
+                    }
+                };
+                Ok(OpenAIMessage {
+                    role: Self::role_to_openai(&msg.role),
+                    content: text,
+                })
             })
             .collect();
+        let openai_messages = openai_messages?;
 
         // Build request body
         let mut request_body = OpenAIRequest {
@@ -398,13 +411,26 @@ impl UniversalModel {
         let url = format!("{}/chat/completions", self.base_url);
 
         // Convert messages to OpenAI format
-        let openai_messages: Vec<OpenAIMessage> = messages
+        // Note: Universal model only supports text content for now
+        let openai_messages: Result<Vec<OpenAIMessage>, ModelError> = messages
             .iter()
-            .map(|msg| OpenAIMessage {
-                role: Self::role_to_openai(&msg.role),
-                content: msg.content.clone(),
+            .map(|msg| {
+                let text = match &msg.content {
+                    MessageContent::Text(text) => text.clone(),
+                    MessageContent::Blocks(_) => {
+                        return Err(ModelError::UnsupportedContentType {
+                            content_type: "multimodal blocks".to_string(),
+                            model: "universal".to_string(),
+                        });
+                    }
+                };
+                Ok(OpenAIMessage {
+                    role: Self::role_to_openai(&msg.role),
+                    content: text,
+                })
             })
             .collect();
+        let openai_messages = openai_messages?;
 
         // Build request body with streaming enabled
         let mut request_body = OpenAIStreamingRequest {
