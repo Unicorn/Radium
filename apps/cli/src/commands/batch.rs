@@ -160,32 +160,17 @@ async fn execute_run(
     println!("{}", "Starting batch execution...".bold());
     println!();
 
-    // Define processor function - need to capture index
+    // Define processor function
     let agent_id_clone = agent_id.clone();
     let template_clone = template.clone();
     let context_files_clone = context_files.clone();
-    let output_dir_clone = output_dir.clone();
     let cancelled_check = Arc::clone(&cancelled);
-    let inputs_clone = inputs.clone();
-
-    // Create a map of inputs to indices for saving files
-    let input_to_index: std::collections::HashMap<_, _> = inputs
-        .iter()
-        .enumerate()
-        .map(|(i, input)| {
-            // Use prompt as key (simple approach)
-            (input.prompt.clone(), i)
-        })
-        .collect();
 
     let processor_fn = move |input: BatchInput| {
         let agent_id = agent_id_clone.clone();
         let template = template_clone.clone();
         let context_files = context_files_clone.clone();
-        let output_dir = output_dir_clone.clone();
         let cancelled = cancelled_check.clone();
-        let input_to_index = input_to_index.clone();
-        let index = input_to_index.get(&input.prompt).copied().unwrap_or(0);
 
         async move {
             // Check if cancelled
@@ -217,9 +202,8 @@ async fn execute_run(
 
             let result_text = response.text().unwrap_or_default();
 
-            // Return result with metadata for saving later
+            // Return result as JSON string (index will be added by batch processor)
             Ok(serde_json::json!({
-                "index": index,
                 "prompt": input.prompt,
                 "response": result_text,
                 "context": input.context,
@@ -235,6 +219,20 @@ async fn execute_run(
     // Wait for active requests to complete (with timeout)
     if *cancelled.lock().await {
         tokio::time::sleep(Duration::from_secs(30)).await;
+    }
+
+    // Save results to output directory if specified
+    if let Some(ref dir) = output_dir {
+        for (index, result_json) in &result.successful {
+            let filename = format!("result-{:03}.json", index + 1);
+            let filepath = dir.join(filename);
+            // Parse and add index to JSON
+            let mut json: serde_json::Value = serde_json::from_str(result_json)
+                .unwrap_or_else(|_| serde_json::json!({}));
+            json["index"] = serde_json::Value::Number((*index).into());
+            std::fs::write(&filepath, serde_json::to_string_pretty(&json)?)
+                .with_context(|| format!("Failed to write result file: {}", filepath.display()))?;
+        }
     }
 
     println!();
