@@ -119,7 +119,7 @@ impl Default for ModelParameters {
 }
 
 /// Format for model response output.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ResponseFormat {
     /// Plain text output (default).
     Text,
@@ -147,6 +147,69 @@ pub struct ModelResponse {
     pub metadata: Option<HashMap<String, serde_json::Value>>,
 }
 
+impl ModelResponse {
+    /// Gets the finish reason from metadata, if available.
+    ///
+    /// Common values: "stop", "length", "safety", "tool_use", "max_tokens"
+    pub fn get_finish_reason(&self) -> Option<String> {
+        self.metadata
+            .as_ref()?
+            .get("finish_reason")?
+            .as_str()
+            .map(String::from)
+    }
+
+    /// Gets the safety ratings from metadata, if available.
+    pub fn get_safety_ratings(&self) -> Option<Vec<SafetyRating>> {
+        let ratings = self.metadata.as_ref()?.get("safety_ratings")?;
+        serde_json::from_value(ratings.clone()).ok()
+    }
+
+    /// Gets the citations from metadata, if available.
+    pub fn get_citations(&self) -> Option<Vec<Citation>> {
+        let citations = self.metadata.as_ref()?.get("citations")?;
+        serde_json::from_value(citations.clone()).ok()
+    }
+
+    /// Gets the log probabilities from metadata, if available.
+    pub fn get_logprobs(&self) -> Option<Vec<LogProb>> {
+        let logprobs = self.metadata.as_ref()?.get("logprobs")?;
+        serde_json::from_value(logprobs.clone()).ok()
+    }
+
+    /// Gets the model version from metadata, if available.
+    pub fn get_model_version(&self) -> Option<String> {
+        self.metadata
+            .as_ref()?
+            .get("model_version")?
+            .as_str()
+            .map(String::from)
+    }
+
+    /// Checks if content was filtered/blocked based on safety ratings.
+    ///
+    /// Returns `true` if any safety rating indicates blocked content.
+    pub fn was_content_filtered(&self) -> bool {
+        self.get_safety_ratings()
+            .map(|ratings| ratings.iter().any(|r| r.blocked))
+            .unwrap_or(false)
+    }
+
+    /// Gets provider-specific metadata as a typed struct.
+    ///
+    /// # Type Parameters
+    /// * `T` - The type to deserialize into (must implement `DeserializeOwned`)
+    ///
+    /// # Returns
+    /// `Some(T)` if metadata exists and can be deserialized, `None` otherwise.
+    pub fn get_provider_metadata<T: for<'de> Deserialize<'de>>(&self) -> Option<T> {
+        serde_json::from_value(serde_json::Value::Object(
+            self.metadata.as_ref()?.clone().into_iter().collect(),
+        ))
+        .ok()
+    }
+}
+
 /// Usage statistics for a model request.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelUsage {
@@ -158,6 +221,41 @@ pub struct ModelUsage {
 
     /// Total number of tokens used.
     pub total_tokens: u32,
+}
+
+/// Safety rating for content filtering.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SafetyRating {
+    /// The category of safety concern (e.g., "HARM_CATEGORY_HATE_SPEECH").
+    pub category: String,
+    /// The probability level (e.g., "NEGLIGIBLE", "LOW", "MEDIUM", "HIGH").
+    pub probability: String,
+    /// Whether the content was blocked due to this rating.
+    pub blocked: bool,
+}
+
+/// Citation information for grounded responses.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Citation {
+    /// Start index of the cited text in the response.
+    pub start_index: Option<u32>,
+    /// End index of the cited text in the response.
+    pub end_index: Option<u32>,
+    /// URI of the source document.
+    pub uri: Option<String>,
+    /// Title of the source document.
+    pub title: Option<String>,
+}
+
+/// Log probability information for a token.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct LogProb {
+    /// The token text.
+    pub token: String,
+    /// The log probability of the token.
+    pub logprob: f64,
+    /// The bytes representation of the token (optional).
+    pub bytes: Option<Vec<u8>>,
 }
 
 /// A trait for interacting with different AI models.
@@ -265,4 +363,200 @@ pub trait StreamingModel: Send + Sync {
         prompt: &str,
         parameters: Option<ModelParameters>,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<String, ModelError>> + Send>>, ModelError>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_model_parameters_with_new_fields() {
+        let params = ModelParameters {
+            temperature: Some(0.7),
+            top_p: Some(0.9),
+            max_tokens: Some(100),
+            top_k: Some(40),
+            frequency_penalty: Some(0.5),
+            presence_penalty: Some(0.3),
+            response_format: Some(ResponseFormat::Json),
+            stop_sequences: None,
+        };
+
+        let json = serde_json::to_string(&params).unwrap();
+        let deserialized: ModelParameters = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(deserialized.top_k, Some(40));
+        assert_eq!(deserialized.frequency_penalty, Some(0.5));
+        assert_eq!(deserialized.presence_penalty, Some(0.3));
+        assert!(matches!(deserialized.response_format, Some(ResponseFormat::Json)));
+    }
+
+    #[test]
+    fn test_response_format_variants() {
+        let text = ResponseFormat::Text;
+        let json = ResponseFormat::Json;
+        let schema = ResponseFormat::JsonSchema("{\"type\":\"object\"}".to_string());
+
+        assert!(matches!(text, ResponseFormat::Text));
+        assert!(matches!(json, ResponseFormat::Json));
+        assert!(matches!(schema, ResponseFormat::JsonSchema(_)));
+
+        // Test serialization/deserialization
+        let json_str = serde_json::to_string(&json).unwrap();
+        let deserialized_json: ResponseFormat = serde_json::from_str(&json_str).unwrap();
+        assert_eq!(deserialized_json, ResponseFormat::Json);
+
+        let schema_str = serde_json::to_string(&schema).unwrap();
+        let deserialized_schema: ResponseFormat = serde_json::from_str(&schema_str).unwrap();
+        assert_eq!(deserialized_schema, schema);
+    }
+
+    #[test]
+    fn test_model_parameters_default() {
+        let params = ModelParameters::default();
+        assert_eq!(params.top_k, None);
+        assert_eq!(params.frequency_penalty, None);
+        assert_eq!(params.presence_penalty, None);
+        assert_eq!(params.response_format, None);
+    }
+
+    #[test]
+    fn test_get_finish_reason() {
+        let mut metadata = HashMap::new();
+        metadata.insert("finish_reason".to_string(), serde_json::Value::String("stop".to_string()));
+        
+        let response = ModelResponse {
+            content: "Test".to_string(),
+            model_id: None,
+            usage: None,
+            metadata: Some(metadata),
+        };
+
+        assert_eq!(response.get_finish_reason(), Some("stop".to_string()));
+    }
+
+    #[test]
+    fn test_get_finish_reason_missing() {
+        let response = ModelResponse {
+            content: "Test".to_string(),
+            model_id: None,
+            usage: None,
+            metadata: None,
+        };
+
+        assert_eq!(response.get_finish_reason(), None);
+    }
+
+    #[test]
+    fn test_was_content_filtered() {
+        let mut metadata = HashMap::new();
+        let safety_ratings = vec![
+            SafetyRating {
+                category: "HARM_CATEGORY_HATE_SPEECH".to_string(),
+                probability: "NEGLIGIBLE".to_string(),
+                blocked: false,
+            },
+            SafetyRating {
+                category: "HARM_CATEGORY_DANGEROUS_CONTENT".to_string(),
+                probability: "HIGH".to_string(),
+                blocked: true,
+            },
+        ];
+        metadata.insert("safety_ratings".to_string(), serde_json::to_value(&safety_ratings).unwrap());
+        
+        let response = ModelResponse {
+            content: "Test".to_string(),
+            model_id: None,
+            usage: None,
+            metadata: Some(metadata),
+        };
+
+        assert!(response.was_content_filtered());
+    }
+
+    #[test]
+    fn test_was_content_filtered_not_blocked() {
+        let mut metadata = HashMap::new();
+        let safety_ratings = vec![
+            SafetyRating {
+                category: "HARM_CATEGORY_HATE_SPEECH".to_string(),
+                probability: "NEGLIGIBLE".to_string(),
+                blocked: false,
+            },
+        ];
+        metadata.insert("safety_ratings".to_string(), serde_json::to_value(&safety_ratings).unwrap());
+        
+        let response = ModelResponse {
+            content: "Test".to_string(),
+            model_id: None,
+            usage: None,
+            metadata: Some(metadata),
+        };
+
+        assert!(!response.was_content_filtered());
+    }
+
+    #[test]
+    fn test_get_safety_ratings() {
+        let mut metadata = HashMap::new();
+        let safety_ratings = vec![
+            SafetyRating {
+                category: "HARM_CATEGORY_HATE_SPEECH".to_string(),
+                probability: "NEGLIGIBLE".to_string(),
+                blocked: false,
+            },
+        ];
+        metadata.insert("safety_ratings".to_string(), serde_json::to_value(&safety_ratings).unwrap());
+        
+        let response = ModelResponse {
+            content: "Test".to_string(),
+            model_id: None,
+            usage: None,
+            metadata: Some(metadata),
+        };
+
+        let result = response.get_safety_ratings().unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].category, "HARM_CATEGORY_HATE_SPEECH");
+    }
+
+    #[test]
+    fn test_get_citations() {
+        let mut metadata = HashMap::new();
+        let citations = vec![
+            Citation {
+                start_index: Some(0),
+                end_index: Some(10),
+                uri: Some("https://example.com".to_string()),
+                title: Some("Example".to_string()),
+            },
+        ];
+        metadata.insert("citations".to_string(), serde_json::to_value(&citations).unwrap());
+        
+        let response = ModelResponse {
+            content: "Test".to_string(),
+            model_id: None,
+            usage: None,
+            metadata: Some(metadata),
+        };
+
+        let result = response.get_citations().unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].uri, Some("https://example.com".to_string()));
+    }
+
+    #[test]
+    fn test_get_model_version() {
+        let mut metadata = HashMap::new();
+        metadata.insert("model_version".to_string(), serde_json::Value::String("gemini-1.5-pro-001".to_string()));
+        
+        let response = ModelResponse {
+            content: "Test".to_string(),
+            model_id: None,
+            usage: None,
+            metadata: Some(metadata),
+        };
+
+        assert_eq!(response.get_model_version(), Some("gemini-1.5-pro-001".to_string()));
+    }
 }
