@@ -1,8 +1,9 @@
 //! Integration tests for model providers.
 
-use radium_abstraction::{ChatMessage, ContentBlock, ImageSource, MessageContent, Model, ModelError};
+use radium_abstraction::{ChatMessage, ContentBlock, ImageSource, MessageContent, Model, ModelError, Citation};
 use radium_models::{ClaudeModel, GeminiModel, MockModel, ModelFactory, OpenAIModel};
 use std::path::PathBuf;
+use serde_json;
 
 #[tokio::test]
 async fn test_mock_model_text_generation() {

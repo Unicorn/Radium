@@ -53,13 +53,9 @@
 
 pub mod r#trait;
 pub mod types;
-
-#[cfg(feature = "claude")]
 pub mod claude;
 
 pub use r#trait::ContextCache;
 pub use types::{CacheError, CacheHandle, CachedContext};
-
-#[cfg(feature = "claude")]
 pub use claude::ClaudeContextCache;
 

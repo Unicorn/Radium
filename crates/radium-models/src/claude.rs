@@ -466,7 +466,7 @@ struct ClaudeMessage {
 
 /// Cache control configuration for Claude prompt caching.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-struct CacheControl {
+pub struct CacheControl {
     /// Cache type - "ephemeral" for prompt caching.
     #[serde(rename = "type")]
     cache_type: String,

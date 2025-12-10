@@ -28,49 +28,6 @@ impl ClaudeContextCache {
         Self
     }
 
-    /// Apply cache breakpoints to messages.
-    ///
-    /// This marks messages at the specified indices as cacheable by adding
-    /// cache_control blocks to their content.
-    ///
-    /// # Arguments
-    /// * `messages` - Mutable reference to Claude messages
-    /// * `breakpoints` - Vector of message indices where caching should start
-    pub fn apply_cache_breakpoints(
-        messages: &mut [crate::claude::ClaudeMessage],
-        breakpoints: &[usize],
-    ) {
-        use crate::claude::CacheControl;
-        use crate::claude::ClaudeContentBlock;
-        use crate::claude::ClaudeMessageContent;
-
-        let cache_control = Some(CacheControl {
-            cache_type: "ephemeral".to_string(),
-        });
-
-        for &breakpoint in breakpoints {
-            if breakpoint < messages.len() {
-                match &mut messages[breakpoint].content {
-                    ClaudeMessageContent::String(_) => {
-                        // For string content, we'd need to convert to blocks
-                        // This is a limitation - cache_control only works with blocks
-                    }
-                    ClaudeMessageContent::Blocks(blocks) => {
-                        for block in blocks {
-                            match block {
-                                ClaudeContentBlock::Text { cache_control: ref mut cc, .. } => {
-                                    *cc = cache_control.clone();
-                                }
-                                ClaudeContentBlock::Image { cache_control: ref mut cc, .. } => {
-                                    *cc = cache_control.clone();
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
 
 impl Default for ClaudeContextCache {
