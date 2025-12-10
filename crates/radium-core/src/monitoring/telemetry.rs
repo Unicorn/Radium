@@ -104,6 +104,9 @@ pub struct TelemetryRecord {
     
     /// Number of citations in the response.
     pub citation_count: Option<u32>,
+    
+    /// Number of code executions performed (for providers that support code execution).
+    pub code_executions: u64,
 }
 
 impl TelemetryRecord {
@@ -143,6 +146,7 @@ impl TelemetryRecord {
             finish_reason: None,
             safety_blocked: false,
             citation_count: None,
+            code_executions: 0,
         }
     }
 
@@ -272,6 +276,15 @@ impl TelemetryRecord {
     #[must_use]
     pub fn with_citation_count(mut self, count: u32) -> Self {
         self.citation_count = Some(count);
+        self
+    }
+
+    /// Sets the number of code executions performed.
+    ///
+    /// # Arguments
+    /// * `count` - The number of code executions
+    pub fn with_code_executions(mut self, count: u64) -> Self {
+        self.code_executions = count;
         self
     }
 

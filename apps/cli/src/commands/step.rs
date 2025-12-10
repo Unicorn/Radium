@@ -1062,10 +1062,33 @@ async fn execute_agent_with_engine(
                 
                 let mut accumulated = String::new();
                 let mut last_content = String::new();
+                let mut thinking_accumulated = String::new();
+                let mut in_thinking_phase = false;
                 
                 while let Some(result) = stream.next().await {
                     match result {
-                        Ok(content) => {
+                        Ok(radium_abstraction::StreamItem::ThinkingToken(token)) => {
+                            if !in_thinking_phase {
+                                // Start of thinking phase
+                                println!();
+                                println!("{}", "Thinking Process:".bold().cyan().dimmed());
+                                println!("{}", "─".repeat(60).dimmed());
+                                in_thinking_phase = true;
+                            }
+                            thinking_accumulated.push_str(&token);
+                            print!("{}", token.dimmed());
+                            std::io::stdout().flush().map_err(|e| anyhow::anyhow!("Failed to flush stdout: {}", e))?;
+                        }
+                        Ok(radium_abstraction::StreamItem::AnswerToken(content)) => {
+                            if in_thinking_phase {
+                                // Transition from thinking to answer
+                                println!();
+                                println!("{}", "─".repeat(60).dimmed());
+                                println!();
+                                println!("{}", "Answer:".bold().green());
+                                println!("{}", "─".repeat(60).dimmed());
+                                in_thinking_phase = false;
+                            }
                             // Only print the new part (delta)
                             if content.len() > last_content.len() {
                                 let delta = &content[last_content.len()..];
@@ -1074,6 +1097,9 @@ async fn execute_agent_with_engine(
                                 accumulated = content.clone();
                                 last_content = content;
                             }
+                        }
+                        Ok(radium_abstraction::StreamItem::Metadata(_)) => {
+                            // Metadata updates - can be handled if needed
                         }
                         Err(e) => {
                             println!();

@@ -686,7 +686,7 @@ impl Stream for OpenAISSEStream {
                             if data.trim() == "[DONE]" {
                                 self.done = true;
                                 if !self.accumulated.is_empty() {
-                                    return Poll::Ready(Some(Ok(self.accumulated.clone())));
+                                    return Poll::Ready(Some(Ok(radium_abstraction::StreamItem::AnswerToken(self.accumulated.clone()))));
                                 }
                                 return Poll::Ready(None);
                             }
@@ -708,7 +708,7 @@ impl Stream for OpenAISSEStream {
                     // No more events in buffer
                     self.done = true;
                     if !self.accumulated.is_empty() {
-                        return Poll::Ready(Some(Ok(self.accumulated.clone())));
+                        return Poll::Ready(Some(Ok(radium_abstraction::StreamItem::AnswerToken(self.accumulated.clone()))));
                     }
                     return Poll::Ready(None);
                 }

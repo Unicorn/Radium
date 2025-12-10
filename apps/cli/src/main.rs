@@ -692,6 +692,9 @@ async fn main() -> anyhow::Result<()> {
         Command::Run { script, model, dir, model_tier, show_metadata, json, safety_behavior } => {
             run::execute(script, model, dir, model_tier, show_metadata, json, safety_behavior).await?;
         }
+        Command::Batch { action } => {
+            batch::execute(action).await?;
+        }
         Command::Step { id, prompt, model, engine, reasoning, model_tier, stream, show_metadata, json, safety_behavior, image, audio, video, file, auto_upload, response_format, response_schema } => {
             step::execute(id, prompt, model, engine, reasoning, model_tier, None, stream, show_metadata, json, safety_behavior, image, audio, video, file, auto_upload, response_format, response_schema).await?;
         }
