@@ -117,15 +117,13 @@ impl GeminiModel {
 
     /// Reads a file and encodes it to Base64.
     fn read_and_encode_file(path: &PathBuf) -> Result<String, ModelError> {
-        use base64::Engine;
-        let engine = base64::engine::general_purpose::STANDARD;
         let bytes = std::fs::read(path).map_err(|e| {
             ModelError::InvalidMediaSource {
                 media_source: path.display().to_string(),
                 reason: format!("Failed to read file: {}", e),
             }
         })?;
-        Ok(engine.encode(&bytes))
+        encoding_utils::encode_to_base64(&bytes)
     }
 
     /// Converts a ContentBlock to Gemini's part format.
@@ -1001,6 +999,38 @@ impl From<&GeminiCitation> for Citation {
     }
 }
 
+/// Base64 encoding utilities for multimodal content.
+mod encoding_utils {
+    use base64::Engine;
+    use radium_abstraction::ModelError;
+    use tracing::debug;
+
+    /// Encode binary data to base64 string.
+    ///
+    /// # Arguments
+    /// * `data` - The binary data to encode
+    ///
+    /// # Returns
+    /// `Ok(encoded_string)` if encoding succeeds, `Err` if encoding fails
+    pub fn encode_to_base64(data: &[u8]) -> Result<String, ModelError> {
+        debug!(
+            data_size = data.len(),
+            "Encoding binary data to base64"
+        );
+        
+        let engine = base64::engine::general_purpose::STANDARD;
+        let encoded = engine.encode(data);
+        
+        debug!(
+            original_size = data.len(),
+            encoded_size = encoded.len(),
+            "Successfully encoded data to base64"
+        );
+        
+        Ok(encoded)
+    }
+}
+
 /// Content validation and size checking utilities for multimodal content.
 mod validation_utils {
     use radium_abstraction::ModelError;
@@ -1533,5 +1563,30 @@ mod tests {
         } else {
             panic!("Expected InvalidFileUri error");
         }
+    }
+
+    #[test]
+    fn test_encode_to_base64() {
+        let data = b"Hello, World!";
+        let encoded = encoding_utils::encode_to_base64(data).unwrap();
+        assert!(!encoded.is_empty());
+        // Verify it's valid base64
+        assert!(encoded.chars().all(|c| c.is_alphanumeric() || c == '+' || c == '/' || c == '='));
+    }
+
+    #[test]
+    fn test_encode_to_base64_empty() {
+        let data = b"";
+        let encoded = encoding_utils::encode_to_base64(data).unwrap();
+        assert_eq!(encoded, "");
+    }
+
+    #[test]
+    fn test_encode_to_base64_large_data() {
+        let data = vec![0u8; 1024];
+        let encoded = encoding_utils::encode_to_base64(&data).unwrap();
+        // Base64 encoding of 1024 bytes should be approximately 1366 bytes (1024 * 4/3)
+        assert!(encoded.len() > data.len());
+        assert!(encoded.len() <= (data.len() * 4 / 3 + 4)); // Account for padding
     }
 }
