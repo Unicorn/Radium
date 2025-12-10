@@ -1,6 +1,29 @@
 //! Claude (Anthropic) model implementation.
 //!
 //! This module provides an implementation of the `Model` trait for Anthropic's Claude API.
+//!
+//! ## System Message Handling (Reference Implementation)
+//!
+//! Claude uses a **dedicated system field** approach for system messages, which serves as the
+//! reference pattern for providers that support dedicated system instruction fields (like Gemini).
+//!
+//! **Key characteristics:**
+//! - System messages are extracted from the ChatMessage array before processing
+//! - System messages are filtered out of the main messages array
+//! - System messages are sent via a dedicated `system` field in the API request
+//! - Multiple system messages are concatenated with "\n\n" separator
+//!
+//! **When to use this pattern:**
+//! - APIs that support a dedicated system instruction field (e.g., Claude, Gemini)
+//! - When system context should be separated from conversation history
+//! - When you want to preserve semantic distinction between system instructions and user messages
+//!
+//! **Comparison with other providers:**
+//! - **OpenAI**: Uses inline approach - system messages included in messages array with `role: "system"`
+//! - **Gemini**: Uses dedicated `systemInstruction` field (follows this Claude pattern)
+//! - **Claude**: Uses dedicated `system` field (this implementation)
+//!
+//! See `extract_system_prompt()` and `generate_chat_completion()` for the implementation pattern.
 
 use async_trait::async_trait;
 use radium_abstraction::{
@@ -72,6 +95,39 @@ impl ClaudeModel {
     }
 
     /// Extracts system messages from the chat history.
+    ///
+    /// This function implements the **dedicated system field pattern** used by Claude and Gemini.
+    /// System messages are extracted and concatenated (if multiple exist) before being sent via
+    /// the dedicated `system` field in the API request.
+    ///
+    /// **Pattern details:**
+    /// - Filters messages with `role == "system"`
+    /// - Returns the first system message found (Claude API typically uses single system prompt)
+    /// - Returns `None` if no system messages are present
+    ///
+    /// **Note:** For multiple system messages, this implementation takes the first one.
+    /// If concatenation of multiple system messages is needed, see Gemini's `extract_system_messages()`
+    /// implementation which concatenates with "\n\n" separator.
+    ///
+    /// # Arguments
+    /// * `messages` - Array of ChatMessage objects to extract system messages from
+    ///
+    /// # Returns
+    /// `Some(String)` containing the system message content, or `None` if no system messages found
+    ///
+    /// # Example
+    /// ```
+    /// use radium_abstraction::ChatMessage;
+    /// let messages = vec![
+    ///     ChatMessage { role: "system".to_string(), content: "You are helpful.".to_string() },
+    ///     ChatMessage { role: "user".to_string(), content: "Hello".to_string() },
+    /// ];
+    /// let system = ClaudeModel::extract_system_prompt(&messages);
+    /// assert_eq!(system, Some("You are helpful.".to_string()));
+    /// ```
+    ///
+    /// **Reference:** This pattern is used as a reference for Gemini's `extract_system_messages()`
+    /// implementation in `crates/radium-models/src/gemini.rs`.
     fn extract_system_prompt(messages: &[ChatMessage]) -> Option<String> {
         messages
             .iter()
@@ -115,10 +171,14 @@ impl Model for ClaudeModel {
         // Build Claude API request
         let url = format!("{}/messages", self.base_url);
 
-        // Extract system prompt if present
+        // Extract system prompt if present (dedicated system field pattern)
+        // This follows the reference pattern for providers with dedicated system instruction fields.
+        // System messages are extracted and sent via the `system` field, not included in messages.
         let system = Self::extract_system_prompt(messages);
 
         // Convert non-system messages to Claude format
+        // System messages are filtered out here - they're handled via the dedicated `system` field above.
+        // This pattern is replicated in Gemini's implementation (see gemini.rs).
         let claude_messages: Vec<ClaudeMessage> = messages
             .iter()
             .filter(|msg| msg.role != "system")
