@@ -79,6 +79,25 @@ pub struct ModelParameters {
     /// The maximum number of tokens to generate in the chat completion.
     pub max_tokens: Option<u32>,
 
+    /// The number of highest probability tokens to consider for sampling.
+    /// Valid range: 1-100 (provider-specific limits apply).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub top_k: Option<u32>,
+
+    /// Reduces likelihood of repeating tokens based on frequency.
+    /// Valid range: -2.0 to 2.0 (provider-specific).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub frequency_penalty: Option<f32>,
+
+    /// Reduces likelihood of repeating tokens regardless of frequency.
+    /// Valid range: -2.0 to 2.0 (provider-specific).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub presence_penalty: Option<f32>,
+
+    /// Format for model response output.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_format: Option<ResponseFormat>,
+
     /// Up to 4 sequences where the API will stop generating further tokens.
     pub stop_sequences: Option<Vec<String>>,
 }
@@ -89,6 +108,10 @@ impl Default for ModelParameters {
             temperature: Some(0.7),
             top_p: Some(1.0),
             max_tokens: Some(512),
+            top_k: None,
+            frequency_penalty: None,
+            presence_penalty: None,
+            response_format: None,
             stop_sequences: None,
         }
     }
