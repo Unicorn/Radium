@@ -133,7 +133,7 @@ impl GeminiFileApi {
 
         // Warn if file is smaller than 20MB (File API is intended for large files)
         const SIZE_THRESHOLD: u64 = 20 * 1024 * 1024; // 20MB
-        if file_bytes.len() as u64 < SIZE_THRESHOLD {
+        if (file_bytes.len() as u64) < SIZE_THRESHOLD {
             warn!(
                 path = %file_path.display(),
                 size = file_bytes.len(),

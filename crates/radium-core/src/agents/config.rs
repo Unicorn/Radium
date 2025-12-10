@@ -4,6 +4,7 @@
 
 use crate::sandbox::SandboxConfig;
 use radium_abstraction::{ModelParameters, ResponseFormat, SafetyBlockBehavior};
+use radium_models::{GeminiSafetySetting, SafetyCategory, SafetyThreshold};
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::path::PathBuf;
@@ -244,12 +245,152 @@ pub struct ModelConfigToml {
 /// profile = "thinking"
 /// estimated_tokens = 2000
 /// ```
+/// Gemini-specific safety configuration for TOML.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct GeminiSafetyConfigToml {
+    /// Threshold for hate speech: "BLOCK_NONE", "BLOCK_LOW_AND_ABOVE", "BLOCK_MEDIUM_AND_ABOVE", or "BLOCK_ONLY_HIGH"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hate_speech: Option<String>,
+    /// Threshold for harassment: "BLOCK_NONE", "BLOCK_LOW_AND_ABOVE", "BLOCK_MEDIUM_AND_ABOVE", or "BLOCK_ONLY_HIGH"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub harassment: Option<String>,
+    /// Threshold for sexually explicit content: "BLOCK_NONE", "BLOCK_LOW_AND_ABOVE", "BLOCK_MEDIUM_AND_ABOVE", or "BLOCK_ONLY_HIGH"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sexually_explicit: Option<String>,
+    /// Threshold for dangerous content: "BLOCK_NONE", "BLOCK_LOW_AND_ABOVE", "BLOCK_MEDIUM_AND_ABOVE", or "BLOCK_ONLY_HIGH"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dangerous_content: Option<String>,
+    /// Threshold for civic integrity: "BLOCK_NONE", "BLOCK_LOW_AND_ABOVE", "BLOCK_MEDIUM_AND_ABOVE", or "BLOCK_ONLY_HIGH"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub civic_integrity: Option<String>,
+    /// Default threshold for categories not explicitly specified: "BLOCK_NONE", "BLOCK_LOW_AND_ABOVE", "BLOCK_MEDIUM_AND_ABOVE", or "BLOCK_ONLY_HIGH"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default: Option<String>,
+}
+
+impl Default for GeminiSafetyConfigToml {
+    fn default() -> Self {
+        Self {
+            hate_speech: None,
+            harassment: None,
+            sexually_explicit: None,
+            dangerous_content: None,
+            civic_integrity: None,
+            default: None,
+        }
+    }
+}
+
+impl GeminiSafetyConfigToml {
+    /// Parse a threshold string into a SafetyThreshold enum.
+    ///
+    /// # Arguments
+    /// * `s` - Threshold string (e.g., "BLOCK_MEDIUM_AND_ABOVE")
+    ///
+    /// # Errors
+    /// Returns `AgentConfigError::Invalid` if the threshold string is not recognized.
+    fn parse_threshold(s: &str) -> Result<SafetyThreshold, AgentConfigError> {
+        match s {
+            "BLOCK_NONE" => Ok(SafetyThreshold::BlockNone),
+            "BLOCK_LOW_AND_ABOVE" => Ok(SafetyThreshold::BlockLowAndAbove),
+            "BLOCK_MEDIUM_AND_ABOVE" => Ok(SafetyThreshold::BlockMediumAndAbove),
+            "BLOCK_ONLY_HIGH" => Ok(SafetyThreshold::BlockOnlyHigh),
+            _ => Err(AgentConfigError::Invalid(format!(
+                "Invalid safety threshold: '{}'. Must be one of: BLOCK_NONE, BLOCK_LOW_AND_ABOVE, BLOCK_MEDIUM_AND_ABOVE, BLOCK_ONLY_HIGH",
+                s
+            ))),
+        }
+    }
+
+    /// Convert this TOML configuration to a vector of GeminiSafetySetting.
+    ///
+    /// Applies default threshold to categories not explicitly configured.
+    /// Returns an empty vector if no categories are configured and no default is set.
+    ///
+    /// # Errors
+    /// Returns `AgentConfigError::Invalid` if any threshold string is invalid.
+    pub fn to_safety_settings(&self) -> Result<Vec<GeminiSafetySetting>, AgentConfigError> {
+        let mut settings = Vec::new();
+
+        // Helper to get threshold for a category
+        let get_threshold = |category_value: &Option<String>| -> Result<Option<SafetyThreshold>, AgentConfigError> {
+            match category_value {
+                Some(ref s) => Ok(Some(Self::parse_threshold(s)?)),
+                None => Ok(None),
+            }
+        };
+
+        // Get default threshold if available
+        let default_threshold = match &self.default {
+            Some(ref s) => Some(Self::parse_threshold(s)?),
+            None => None,
+        };
+
+        // Process each category
+        // Hate Speech
+        let threshold = get_threshold(&self.hate_speech)?
+            .or(default_threshold);
+        if let Some(threshold) = threshold {
+            settings.push(GeminiSafetySetting {
+                category: SafetyCategory::HateSpeech,
+                threshold,
+            });
+        }
+
+        // Harassment
+        let threshold = get_threshold(&self.harassment)?
+            .or(default_threshold);
+        if let Some(threshold) = threshold {
+            settings.push(GeminiSafetySetting {
+                category: SafetyCategory::Harassment,
+                threshold,
+            });
+        }
+
+        // Sexually Explicit
+        let threshold = get_threshold(&self.sexually_explicit)?
+            .or(default_threshold);
+        if let Some(threshold) = threshold {
+            settings.push(GeminiSafetySetting {
+                category: SafetyCategory::SexuallyExplicit,
+                threshold,
+            });
+        }
+
+        // Dangerous Content
+        let threshold = get_threshold(&self.dangerous_content)?
+            .or(default_threshold);
+        if let Some(threshold) = threshold {
+            settings.push(GeminiSafetySetting {
+                category: SafetyCategory::DangerousContent,
+                threshold,
+            });
+        }
+
+        // Civic Integrity
+        let threshold = get_threshold(&self.civic_integrity)?
+            .or(default_threshold);
+        if let Some(threshold) = threshold {
+            settings.push(GeminiSafetySetting {
+                category: SafetyCategory::CivicIntegrity,
+                threshold,
+            });
+        }
+
+        Ok(settings)
+    }
+}
+
 /// Safety configuration for TOML.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SafetyConfigToml {
     /// Safety block behavior: "return-partial", "error", or "log".
     #[serde(default = "default_safety_behavior")]
     pub behavior: String,
+    /// Optional Gemini-specific safety settings.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gemini: Option<GeminiSafetyConfigToml>,
 }
 
 fn default_safety_behavior() -> String {

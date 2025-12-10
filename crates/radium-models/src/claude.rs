@@ -381,6 +381,7 @@ impl Model for ClaudeModel {
             prompt_tokens: claude_response.usage.input_tokens,
             completion_tokens: claude_response.usage.output_tokens,
             total_tokens: claude_response.usage.input_tokens + claude_response.usage.output_tokens,
+            cache_usage: None,
         });
 
         Ok(ModelResponse {

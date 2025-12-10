@@ -31,7 +31,7 @@ use tracing::debug;
 pub use cache::{CacheConfig, CacheKey, CacheStats, CachedModel, ModelCache};
 pub use claude::ClaudeModel;
 pub use factory::{ModelConfig, ModelFactory, ModelType};
-pub use gemini::GeminiModel;
+pub use gemini::{GeminiModel, GeminiSafetySetting, SafetyCategory, SafetyThreshold};
 pub use ollama::OllamaModel;
 pub use openai::OpenAIModel;
 pub use universal::UniversalModel;
@@ -76,7 +76,12 @@ impl Model for MockModel {
         Ok(ModelResponse {
             content: response_content,
             model_id: Some(self.id.clone()),
-            usage: Some(ModelUsage { prompt_tokens, completion_tokens, total_tokens }),
+            usage: Some(ModelUsage {
+                prompt_tokens,
+                completion_tokens,
+                total_tokens,
+                cache_usage: None,
+            }),
             metadata: None,
             tool_calls: None,
         })
@@ -139,7 +144,12 @@ impl Model for MockModel {
         Ok(ModelResponse {
             content: response_content,
             model_id: Some(self.id.clone()),
-            usage: Some(ModelUsage { prompt_tokens, completion_tokens, total_tokens }),
+            usage: Some(ModelUsage {
+                prompt_tokens,
+                completion_tokens,
+                total_tokens,
+                cache_usage: None,
+            }),
             metadata: None,
             tool_calls: None,
         })

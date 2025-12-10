@@ -7,7 +7,9 @@ pub mod agent_tools;
 pub mod config;
 pub mod context;
 pub mod context_loader;
+pub mod continuation;
 pub mod engine;
+pub mod execution;
 pub mod file_tools;
 pub mod hooks;
 pub mod mcp_tools;
@@ -24,6 +26,8 @@ use std::time::Duration;
 
 use self::context::OrchestrationContext;
 use self::tool::{Tool, ToolCall};
+pub use self::continuation::execute_with_continuation;
+pub use self::execution::execute_tool_calls;
 use crate::error::Result;
 
 /// Reasons why orchestration finished
@@ -218,6 +222,83 @@ impl Default for ToolExecutionConfig {
     }
 }
 
+/// Validate tool mode constraints.
+///
+/// This function validates that the model's behavior matches the configured tool mode.
+/// It performs both configuration validation (checking if mode is valid given available tools)
+/// and response validation (checking if model's response matches mode constraints).
+///
+/// # Arguments
+/// * `mode` - The configured tool use mode (Auto, Any, or None)
+/// * `available_tools` - Tools that were available to the model
+/// * `response` - The model's response to validate
+///
+/// # Returns
+/// `Ok(())` if validation passes, `Err(OrchestrationError)` with actionable error message if validation fails.
+///
+/// # Errors
+/// - `InvalidToolMode` - Configuration error (e.g., ANY mode but no tools available)
+/// - `ModeViolation` - Runtime violation (e.g., ANY mode but model didn't call tools)
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use radium_orchestrator::orchestration::validate_tool_mode;
+/// use radium_abstraction::{ToolUseMode, ModelResponse};
+///
+/// let mode = ToolUseMode::Any;
+/// let tools = &[];
+/// let response = ModelResponse { /* ... */ };
+///
+/// // This will return InvalidToolMode error since ANY mode requires tools
+/// validate_tool_mode(&mode, tools, &response)?;
+/// ```
+pub fn validate_tool_mode(
+    mode: &radium_abstraction::ToolUseMode,
+    available_tools: &[Tool],
+    response: &radium_abstraction::ModelResponse,
+) -> crate::error::Result<()> {
+    match mode {
+        radium_abstraction::ToolUseMode::Any => {
+            // Mode ANY requires tools to be available
+            if available_tools.is_empty() {
+                return Err(crate::error::OrchestrationError::InvalidToolMode(
+                    "Mode is ANY but no tools are available. Either provide tools or use AUTO/NONE mode.".to_string()
+                ));
+            }
+            
+            // Mode ANY requires model to call at least one tool
+            let has_tool_calls = response.tool_calls.as_ref()
+                .map(|calls| !calls.is_empty())
+                .unwrap_or(false);
+            
+            if !has_tool_calls {
+                return Err(crate::error::OrchestrationError::ModeViolation(
+                    "Mode is ANY but model did not call any tools. Try AUTO mode or add more specific instructions.".to_string()
+                ));
+            }
+        }
+        radium_abstraction::ToolUseMode::None => {
+            // Mode NONE requires model to not call any tools
+            let has_tool_calls = response.tool_calls.as_ref()
+                .map(|calls| !calls.is_empty())
+                .unwrap_or(false);
+            
+            if has_tool_calls {
+                return Err(crate::error::OrchestrationError::ModeViolation(
+                    "Mode is NONE but model attempted to call tools. This should not happen.".to_string()
+                ));
+            }
+        }
+        radium_abstraction::ToolUseMode::Auto => {
+            // AUTO mode has no constraints - model decides whether to use tools
+            // No validation needed
+        }
+    }
+    
+    Ok(())
+}
+
 /// Model-agnostic orchestration provider trait
 ///
 /// Implementations of this trait provide orchestration capabilities using
@@ -265,6 +346,202 @@ mod tests {
         assert_eq!(FinishReason::ToolError.to_string(), "tool_error");
         assert_eq!(FinishReason::Cancelled.to_string(), "cancelled");
         assert_eq!(FinishReason::Error.to_string(), "error");
+    }
+
+    #[test]
+    fn test_validate_tool_mode_auto() {
+        use radium_abstraction::{ModelResponse, ToolUseMode};
+        use std::sync::Arc;
+
+        // AUTO mode should always pass validation
+        let mode = ToolUseMode::Auto;
+        let tools = vec![];
+        let response_with_tools = ModelResponse {
+            content: "test".to_string(),
+            model_id: None,
+            usage: None,
+            metadata: None,
+            tool_calls: Some(vec![
+                radium_abstraction::ToolCall {
+                    id: "call_1".to_string(),
+                    name: "test_tool".to_string(),
+                    arguments: serde_json::json!({}),
+                }
+            ]),
+        };
+        let response_without_tools = ModelResponse {
+            content: "test".to_string(),
+            model_id: None,
+            usage: None,
+            metadata: None,
+            tool_calls: None,
+        };
+
+        // AUTO mode should pass regardless of tool calls
+        assert!(validate_tool_mode(&mode, &tools, &response_with_tools).is_ok());
+        assert!(validate_tool_mode(&mode, &tools, &response_without_tools).is_ok());
+    }
+
+    #[test]
+    fn test_validate_tool_mode_any_no_tools() {
+        use radium_abstraction::{ModelResponse, ToolUseMode};
+        use crate::orchestration::tool::Tool;
+        use std::sync::Arc;
+
+        // ANY mode without tools should fail
+        let mode = ToolUseMode::Any;
+        let tools = vec![]; // No tools available
+        let response = ModelResponse {
+            content: "test".to_string(),
+            model_id: None,
+            usage: None,
+            metadata: None,
+            tool_calls: None,
+        };
+
+        let result = validate_tool_mode(&mode, &tools, &response);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            crate::error::OrchestrationError::InvalidToolMode(msg) => {
+                assert!(msg.contains("no tools are available"));
+            }
+            _ => panic!("Expected InvalidToolMode error"),
+        }
+    }
+
+    #[test]
+    fn test_validate_tool_mode_any_no_calls() {
+        use radium_abstraction::{ModelResponse, ToolUseMode};
+        use crate::orchestration::tool::{Tool, ToolParameters, ToolArguments, ToolResult};
+        use crate::orchestration::tool::ToolHandler;
+        use std::sync::Arc;
+        use async_trait::async_trait;
+
+        // Create a mock tool
+        struct MockToolHandler;
+        #[async_trait]
+        impl ToolHandler for MockToolHandler {
+            async fn execute(&self, _args: &ToolArguments) -> crate::error::Result<ToolResult> {
+                Ok(ToolResult::success("ok"))
+            }
+        }
+
+        let mode = ToolUseMode::Any;
+        let tools = vec![Tool::new(
+            "test_tool",
+            "test_tool",
+            "A test tool",
+            ToolParameters::new(),
+            Arc::new(MockToolHandler),
+        )];
+        let response = ModelResponse {
+            content: "test".to_string(),
+            model_id: None,
+            usage: None,
+            metadata: None,
+            tool_calls: None, // Model didn't call any tools
+        };
+
+        let result = validate_tool_mode(&mode, &tools, &response);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            crate::error::OrchestrationError::ModeViolation(msg) => {
+                assert!(msg.contains("did not call any tools"));
+            }
+            _ => panic!("Expected ModeViolation error"),
+        }
+    }
+
+    #[test]
+    fn test_validate_tool_mode_any_with_calls() {
+        use radium_abstraction::{ModelResponse, ToolUseMode};
+        use crate::orchestration::tool::{Tool, ToolParameters, ToolArguments, ToolResult};
+        use crate::orchestration::tool::ToolHandler;
+        use std::sync::Arc;
+        use async_trait::async_trait;
+
+        // Create a mock tool
+        struct MockToolHandler;
+        #[async_trait]
+        impl ToolHandler for MockToolHandler {
+            async fn execute(&self, _args: &ToolArguments) -> crate::error::Result<ToolResult> {
+                Ok(ToolResult::success("ok"))
+            }
+        }
+
+        let mode = ToolUseMode::Any;
+        let tools = vec![Tool::new(
+            "test_tool",
+            "test_tool",
+            "A test tool",
+            ToolParameters::new(),
+            Arc::new(MockToolHandler),
+        )];
+        let response = ModelResponse {
+            content: "test".to_string(),
+            model_id: None,
+            usage: None,
+            metadata: None,
+            tool_calls: Some(vec![
+                radium_abstraction::ToolCall {
+                    id: "call_1".to_string(),
+                    name: "test_tool".to_string(),
+                    arguments: serde_json::json!({}),
+                }
+            ]),
+        };
+
+        // ANY mode with tools and tool calls should pass
+        assert!(validate_tool_mode(&mode, &tools, &response).is_ok());
+    }
+
+    #[test]
+    fn test_validate_tool_mode_none_with_calls() {
+        use radium_abstraction::{ModelResponse, ToolUseMode};
+
+        // NONE mode with tool calls should fail
+        let mode = ToolUseMode::None;
+        let tools = vec![];
+        let response = ModelResponse {
+            content: "test".to_string(),
+            model_id: None,
+            usage: None,
+            metadata: None,
+            tool_calls: Some(vec![
+                radium_abstraction::ToolCall {
+                    id: "call_1".to_string(),
+                    name: "test_tool".to_string(),
+                    arguments: serde_json::json!({}),
+                }
+            ]),
+        };
+
+        let result = validate_tool_mode(&mode, &tools, &response);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            crate::error::OrchestrationError::ModeViolation(msg) => {
+                assert!(msg.contains("attempted to call tools"));
+            }
+            _ => panic!("Expected ModeViolation error"),
+        }
+    }
+
+    #[test]
+    fn test_validate_tool_mode_none_without_calls() {
+        use radium_abstraction::{ModelResponse, ToolUseMode};
+
+        // NONE mode without tool calls should pass
+        let mode = ToolUseMode::None;
+        let tools = vec![];
+        let response = ModelResponse {
+            content: "test".to_string(),
+            model_id: None,
+            usage: None,
+            metadata: None,
+            tool_calls: None,
+        };
+
+        assert!(validate_tool_mode(&mode, &tools, &response).is_ok());
     }
 
     #[test]

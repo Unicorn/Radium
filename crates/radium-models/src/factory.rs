@@ -7,6 +7,7 @@ use crate::{ClaudeModel, GeminiModel, MockModel, OpenAIModel, UniversalModel};
 use radium_abstraction::{Model, ModelError};
 use std::str::FromStr;
 use std::sync::Arc;
+use std::time::Duration;
 use tracing::{debug, error};
 
 /// Model type enumeration.
@@ -53,6 +54,14 @@ pub struct ModelConfig {
     pub api_key: Option<String>,
     /// Optional base URL for Universal models (required for Universal type).
     pub base_url: Option<String>,
+    /// Enable context caching for this model (reduces token costs for repeated context).
+    pub enable_context_caching: Option<bool>,
+    /// Time-to-live for cached contexts (provider-specific defaults if not set).
+    pub cache_ttl: Option<Duration>,
+    /// Message indices where caching should start (Claude-specific, for cache breakpoints).
+    pub cache_breakpoints: Option<Vec<usize>>,
+    /// Cache identifier for reusing existing cache (Gemini-specific).
+    pub cache_identifier: Option<String>,
 }
 
 impl ModelConfig {
@@ -68,6 +77,10 @@ impl ModelConfig {
             model_id,
             api_key: None,
             base_url: None,
+            enable_context_caching: None,
+            cache_ttl: None,
+            cache_breakpoints: None,
+            cache_identifier: None,
         }
     }
 
@@ -88,6 +101,56 @@ impl ModelConfig {
     #[must_use]
     pub fn with_base_url(mut self, base_url: String) -> Self {
         self.base_url = Some(base_url);
+        self
+    }
+
+    /// Enables or disables context caching for this model.
+    ///
+    /// Context caching reduces token costs by 50%+ for repeated context by caching
+    /// processed tokens at the provider level.
+    ///
+    /// # Arguments
+    /// * `enabled` - Whether to enable context caching
+    #[must_use]
+    pub fn with_context_caching(mut self, enabled: bool) -> Self {
+        self.enable_context_caching = Some(enabled);
+        self
+    }
+
+    /// Sets the time-to-live (TTL) for cached contexts.
+    ///
+    /// # Arguments
+    /// * `ttl` - The TTL duration (provider-specific defaults apply if not set)
+    #[must_use]
+    pub fn with_cache_ttl(mut self, ttl: Duration) -> Self {
+        self.cache_ttl = Some(ttl);
+        self
+    }
+
+    /// Sets cache breakpoints for Claude models.
+    ///
+    /// Cache breakpoints mark message indices where caching should start.
+    /// This is Claude-specific and allows fine-grained control over which
+    /// parts of a conversation are cached.
+    ///
+    /// # Arguments
+    /// * `breakpoints` - Vector of message indices where caching should start
+    #[must_use]
+    pub fn with_cache_breakpoints(mut self, breakpoints: Vec<usize>) -> Self {
+        self.cache_breakpoints = Some(breakpoints);
+        self
+    }
+
+    /// Sets the cache identifier for Gemini models.
+    ///
+    /// This allows reusing an existing cached content resource created via
+    /// the Gemini cachedContent API.
+    ///
+    /// # Arguments
+    /// * `identifier` - The cache identifier (e.g., "cachedContents/abc123")
+    #[must_use]
+    pub fn with_cache_identifier(mut self, identifier: String) -> Self {
+        self.cache_identifier = Some(identifier);
         self
     }
 }
@@ -247,12 +310,28 @@ mod tests {
         assert_eq!(config.model_id, "test-model");
         assert_eq!(config.api_key, None);
         assert_eq!(config.base_url, None);
+        assert_eq!(config.enable_context_caching, None);
+        assert_eq!(config.cache_ttl, None);
+        assert_eq!(config.cache_breakpoints, None);
+        assert_eq!(config.cache_identifier, None);
 
         let config = config.with_api_key("test-key".to_string());
         assert_eq!(config.api_key, Some("test-key".to_string()));
 
         let config = config.with_base_url("http://localhost:8000/v1".to_string());
         assert_eq!(config.base_url, Some("http://localhost:8000/v1".to_string()));
+
+        let config = config.with_context_caching(true);
+        assert_eq!(config.enable_context_caching, Some(true));
+
+        let config = config.with_cache_ttl(Duration::from_secs(300));
+        assert_eq!(config.cache_ttl, Some(Duration::from_secs(300)));
+
+        let config = config.with_cache_breakpoints(vec![0, 2]);
+        assert_eq!(config.cache_breakpoints, Some(vec![0, 2]));
+
+        let config = config.with_cache_identifier("cachedContents/abc123".to_string());
+        assert_eq!(config.cache_identifier, Some("cachedContents/abc123".to_string()));
     }
 
     #[test]

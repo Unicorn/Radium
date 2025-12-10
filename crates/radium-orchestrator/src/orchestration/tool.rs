@@ -135,6 +135,12 @@ pub struct ToolResult {
     pub success: bool,
     /// Output from the tool
     pub output: String,
+    /// Whether this result represents an error (for ReturnToModel error handling)
+    ///
+    /// When `is_error` is true, the result represents a tool execution error
+    /// that should be sent back to the model for handling.
+    #[serde(default)]
+    pub is_error: bool,
     /// Additional metadata
     #[serde(default)]
     pub metadata: HashMap<String, String>,
@@ -143,12 +149,32 @@ pub struct ToolResult {
 impl ToolResult {
     /// Create a successful result
     pub fn success(output: impl Into<String>) -> Self {
-        Self { success: true, output: output.into(), metadata: HashMap::new() }
+        Self {
+            success: true,
+            output: output.into(),
+            is_error: false,
+            metadata: HashMap::new(),
+        }
     }
 
     /// Create an error result
     pub fn error(output: impl Into<String>) -> Self {
-        Self { success: false, output: output.into(), metadata: HashMap::new() }
+        Self {
+            success: false,
+            output: output.into(),
+            is_error: false, // Normal error, not ReturnToModel error
+            metadata: HashMap::new(),
+        }
+    }
+
+    /// Create an error result for ReturnToModel strategy (with is_error flag)
+    pub fn error_for_model(output: impl Into<String>) -> Self {
+        Self {
+            success: false,
+            output: output.into(),
+            is_error: true,
+            metadata: HashMap::new(),
+        }
     }
 
     /// Add metadata to the result

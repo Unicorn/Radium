@@ -82,7 +82,7 @@
 use async_trait::async_trait;
 use futures::stream::{Stream, StreamExt};
 use radium_abstraction::{
-    ChatMessage, Model, ModelError, ModelParameters, ModelResponse, ModelUsage, StreamingModel,
+    ChatMessage, MessageContent, Model, ModelError, ModelParameters, ModelResponse, ModelUsage, StreamingModel,
 };
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -191,9 +191,17 @@ impl OllamaModel {
 
     /// Convert ChatMessage to OllamaMessage format
     fn to_ollama_message(msg: &ChatMessage) -> OllamaMessage {
+        let content_str = match &msg.content {
+            MessageContent::Text(text) => text.clone(),
+            MessageContent::Blocks(_) => {
+                // For now, extract text from blocks or convert to string
+                // This is a simplification - full multimodal support would need more work
+                String::new()
+            }
+        };
         OllamaMessage {
             role: msg.role.clone(),
-            content: msg.content.clone(),
+            content: content_str,
         }
     }
 }
@@ -296,6 +304,7 @@ impl Model for OllamaModel {
                 prompt_tokens,
                 completion_tokens,
                 total_tokens,
+                cache_usage: None,
             }),
             metadata: None,
             tool_calls: None,
@@ -404,6 +413,7 @@ impl Model for OllamaModel {
                 prompt_tokens,
                 completion_tokens,
                 total_tokens,
+                cache_usage: None,
             }),
             metadata: None,
             tool_calls: None,
