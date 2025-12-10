@@ -27,7 +27,8 @@
 
 use async_trait::async_trait;
 use radium_abstraction::{
-    ChatMessage, Model, ModelError, ModelParameters, ModelResponse, ModelUsage,
+    ChatMessage, ContentBlock, ImageSource, MessageContent, Model, ModelError, ModelParameters,
+    ModelResponse, ModelUsage,
 };
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -86,14 +87,6 @@ impl ClaudeModel {
         }
     }
 
-    /// Converts our ChatMessage to Claude API message format.
-    fn to_claude_message(msg: &ChatMessage) -> ClaudeMessage {
-        ClaudeMessage {
-            role: if msg.role == "assistant" { "assistant" } else { "user" }.to_string(),
-            content: msg.content.clone(),
-        }
-    }
-
     /// Extracts system messages from the chat history.
     ///
     /// This function implements the **dedicated system field pattern** used by Claude and Gemini.
@@ -104,6 +97,7 @@ impl ClaudeModel {
     /// - Filters messages with `role == "system"`
     /// - Returns the first system message found (Claude API typically uses single system prompt)
     /// - Returns `None` if no system messages are present
+    /// - Extracts text from MessageContent::Text or first text block from MessageContent::Blocks
     ///
     /// **Note:** For multiple system messages, this implementation takes the first one.
     /// If concatenation of multiple system messages is needed, see Gemini's `extract_system_messages()`
@@ -121,7 +115,91 @@ impl ClaudeModel {
         messages
             .iter()
             .find(|msg| msg.role == "system")
-            .map(|msg| msg.content.clone())
+            .and_then(|msg| match &msg.content {
+                MessageContent::Text(text) => Some(text.clone()),
+                MessageContent::Blocks(blocks) => {
+                    // Extract first text block if available
+                    blocks
+                        .iter()
+                        .find_map(|block| match block {
+                            ContentBlock::Text { text } => Some(text.clone()),
+                            _ => None,
+                        })
+                }
+            })
+    }
+
+    /// Converts a ContentBlock to Claude's content block format.
+    fn content_block_to_claude(block: &ContentBlock) -> Result<ClaudeContentBlock, ModelError> {
+        match block {
+            ContentBlock::Text { text } => Ok(ClaudeContentBlock::Text {
+                text: text.clone(),
+            }),
+            ContentBlock::Image { source, media_type } => {
+                let claude_source = match source {
+                    ImageSource::Base64 { data } => ClaudeImageSource::Base64 {
+                        media_type: media_type.clone(),
+                        data: data.clone(),
+                    },
+                    ImageSource::Url { url } => ClaudeImageSource::Url {
+                        url: url.clone(),
+                    },
+                    ImageSource::File { path } => {
+                        // Read file and encode to Base64
+                        let bytes = std::fs::read(path).map_err(|e| {
+                            ModelError::InvalidMediaSource {
+                                media_source: path.display().to_string(),
+                                reason: format!("Failed to read file: {}", e),
+                            }
+                        })?;
+                        use base64::Engine;
+                        let engine = base64::engine::general_purpose::STANDARD;
+                        ClaudeImageSource::Base64 {
+                            media_type: media_type.clone(),
+                            data: engine.encode(&bytes),
+                        }
+                    }
+                };
+                Ok(ClaudeContentBlock::Image {
+                    source: claude_source,
+                })
+            }
+            ContentBlock::Audio { .. } => Err(ModelError::UnsupportedContentType {
+                content_type: "audio".to_string(),
+                model: "claude".to_string(),
+            }),
+            ContentBlock::Video { .. } => Err(ModelError::UnsupportedContentType {
+                content_type: "video".to_string(),
+                model: "claude".to_string(),
+            }),
+            ContentBlock::Document { .. } => Err(ModelError::UnsupportedContentType {
+                content_type: "document".to_string(),
+                model: "claude".to_string(),
+            }),
+        }
+    }
+
+    /// Converts our ChatMessage to Claude API message format.
+    fn to_claude_message(msg: &ChatMessage) -> Result<ClaudeMessage, ModelError> {
+        let role = if msg.role == "assistant" {
+            "assistant"
+        } else {
+            "user"
+        }
+        .to_string();
+
+        let content = match &msg.content {
+            MessageContent::Text(text) => ClaudeMessageContent::String(text.clone()),
+            MessageContent::Blocks(blocks) => {
+                let claude_blocks: Result<Vec<ClaudeContentBlock>, ModelError> = blocks
+                    .iter()
+                    .map(Self::content_block_to_claude)
+                    .collect();
+                ClaudeMessageContent::Blocks(claude_blocks?)
+            }
+        };
+
+        Ok(ClaudeMessage { role, content })
     }
 }
 
@@ -140,7 +218,10 @@ impl Model for ClaudeModel {
         );
 
         // Convert single prompt to chat format for Claude
-        let messages = vec![ChatMessage { role: "user".to_string(), content: prompt.to_string() }];
+        let messages = vec![ChatMessage {
+            role: "user".to_string(),
+            content: MessageContent::Text(prompt.to_string()),
+        }];
 
         self.generate_chat_completion(&messages, parameters).await
     }
@@ -168,11 +249,12 @@ impl Model for ClaudeModel {
         // Convert non-system messages to Claude format
         // System messages are filtered out here - they're handled via the dedicated `system` field above.
         // This pattern is replicated in Gemini's implementation (see gemini.rs).
-        let claude_messages: Vec<ClaudeMessage> = messages
+        let claude_messages: Result<Vec<ClaudeMessage>, ModelError> = messages
             .iter()
             .filter(|msg| msg.role != "system")
             .map(Self::to_claude_message)
             .collect();
+        let claude_messages = claude_messages?;
 
         // Build request body
         let mut request_body = ClaudeRequest {
@@ -332,9 +414,38 @@ struct ClaudeRequest {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+enum ClaudeMessageContent {
+    String(String),
+    Blocks(Vec<ClaudeContentBlock>),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 struct ClaudeMessage {
     role: String,
-    content: String,
+    content: ClaudeMessageContent,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "type")]
+enum ClaudeContentBlock {
+    #[serde(rename = "text")]
+    Text { text: String },
+    #[serde(rename = "image")]
+    Image { source: ClaudeImageSource },
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "type")]
+enum ClaudeImageSource {
+    #[serde(rename = "base64")]
+    Base64 {
+        #[serde(rename = "media_type")]
+        media_type: String,
+        data: String,
+    },
+    #[serde(rename = "url")]
+    Url { url: String },
 }
 
 #[derive(Debug, Deserialize)]
@@ -369,8 +480,14 @@ mod tests {
     #[test]
     fn test_system_prompt_extraction() {
         let messages = vec![
-            ChatMessage { role: "system".to_string(), content: "You are helpful".to_string() },
-            ChatMessage { role: "user".to_string(), content: "Hello".to_string() },
+            ChatMessage {
+                role: "system".to_string(),
+                content: MessageContent::Text("You are helpful".to_string()),
+            },
+            ChatMessage {
+                role: "user".to_string(),
+                content: MessageContent::Text("Hello".to_string()),
+            },
         ];
         let system = ClaudeModel::extract_system_prompt(&messages);
         assert_eq!(system, Some("You are helpful".to_string()));

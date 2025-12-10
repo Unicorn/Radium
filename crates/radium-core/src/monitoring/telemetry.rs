@@ -680,7 +680,10 @@ impl TelemetryTracking for MonitoringService {
                 model_tier: row.get(24).ok(),
                 routing_decision: row.get(25).ok(),
                 complexity_score: row.get(26).ok(),
-                ab_test_group: None,  // Not queried in this path
+                ab_test_group: row.get(27).ok(),
+                finish_reason: row.get(28).ok(),
+                safety_blocked: row.get(29).unwrap_or(false),
+                citation_count: row.get(30).ok(),
             })
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -695,7 +698,8 @@ impl TelemetryTracking for MonitoringService {
                     estimated_cost, model, provider, tool_name, tool_args, tool_approved, tool_approval_type, engine_id,
                     behavior_type, behavior_invocation_count, behavior_duration_ms, behavior_outcome,
                     api_key_id, team_name, project_name, cost_center,
-                    model_tier, routing_decision, complexity_score
+                    model_tier, routing_decision, complexity_score, ab_test_group,
+                    finish_reason, safety_blocked, citation_count
              FROM telemetry WHERE behavior_type = ?1 ORDER BY timestamp DESC",
         )?;
         
@@ -728,7 +732,10 @@ impl TelemetryTracking for MonitoringService {
                 model_tier: row.get(24).ok(),
                 routing_decision: row.get(25).ok(),
                 complexity_score: row.get(26).ok(),
-                ab_test_group: None,  // Not queried in this path
+                ab_test_group: row.get(27).ok(),
+                finish_reason: row.get(28).ok(),
+                safety_blocked: row.get(29).unwrap_or(false),
+                citation_count: row.get(30).ok(),
             })
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;

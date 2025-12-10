@@ -18,6 +18,9 @@ radium-abstraction.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 
+# Base64 encoding/decoding
+base64.workspace = true
+
 # Async traits
 async-trait.workspace = true
 
