@@ -201,6 +201,10 @@ enum Command {
         /// Model tier override (smart, eco, auto)
         #[arg(long)]
         model_tier: Option<String>,
+
+        /// Stream output in real-time
+        #[arg(long)]
+        stream: bool,
     },
 
     /// Interactive chat mode with an agent
@@ -610,8 +614,8 @@ async fn main() -> anyhow::Result<()> {
         Command::Run { script, model, dir, model_tier } => {
             run::execute(script, model, dir, model_tier).await?;
         }
-        Command::Step { id, prompt, model, engine, reasoning, model_tier } => {
-            step::execute(id, prompt, model, engine, reasoning, model_tier, None).await?;
+        Command::Step { id, prompt, model, engine, reasoning, model_tier, stream } => {
+            step::execute(id, prompt, model, engine, reasoning, model_tier, None, stream).await?;
         }
         Command::Chat { agent_id, session, resume, list } => {
             if list {

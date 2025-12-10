@@ -3,7 +3,7 @@
 //! This module provides an implementation of the `Model` trait for Google's Gemini API.
 
 use async_trait::async_trait;
-use futures::stream::{Stream, StreamExt};
+use futures::stream::Stream;
 use radium_abstraction::{
     ChatMessage, Citation, Model, ModelError, ModelParameters, ModelResponse, ModelUsage,
     ResponseFormat, SafetyRating, StreamingModel,
@@ -329,6 +329,22 @@ impl Model for GeminiModel {
         } else {
             None
         };
+
+        // Check for safety blocks (behavior will be applied at higher level)
+        let safety_ratings = metadata
+            .as_ref()
+            .and_then(|m| m.get("safety_ratings"))
+            .and_then(|v| serde_json::from_value::<Vec<SafetyRating>>(v.clone()).ok());
+        
+        if let Some(ref ratings) = safety_ratings {
+            let blocked = ratings.iter().any(|r| r.blocked);
+            if blocked {
+                warn!(
+                    provider = "gemini",
+                    "Content was blocked by safety filters. Metadata contains safety_ratings."
+                );
+            }
+        }
 
         Ok(ModelResponse {
             content,

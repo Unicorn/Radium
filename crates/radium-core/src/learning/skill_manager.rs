@@ -81,6 +81,10 @@ impl SkillManager {
             temperature: Some(0.3),
             top_p: Some(0.9),
             max_tokens: Some(2048),
+            top_k: None,
+            frequency_penalty: None,
+            presence_penalty: None,
+            response_format: None,
             stop_sequences: None,
         };
 

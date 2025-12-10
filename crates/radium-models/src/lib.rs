@@ -19,9 +19,12 @@ pub mod openai;
 pub mod universal;
 
 use async_trait::async_trait;
+use futures::stream::{self, Stream};
 use radium_abstraction::{
-    ChatMessage, Model, ModelError, ModelParameters, ModelResponse, ModelUsage,
+    ChatMessage, Model, ModelError, ModelParameters, ModelResponse, ModelUsage, StreamingModel,
 };
+use std::pin::Pin;
+use std::time::Duration;
 use tracing::debug;
 
 pub use cache::{CacheConfig, CacheKey, CacheStats, CachedModel, ModelCache};
@@ -115,6 +118,63 @@ impl Model for MockModel {
 
     fn model_id(&self) -> &str {
         &self.id
+    }
+}
+
+#[async_trait]
+impl StreamingModel for MockModel {
+    async fn generate_stream(
+        &self,
+        prompt: &str,
+        parameters: Option<ModelParameters>,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<String, ModelError>> + Send>>, ModelError> {
+        debug!(
+            model_id = %self.id,
+            prompt = %prompt,
+            parameters = ?parameters,
+            "MockModel generating streaming text"
+        );
+
+        // Generate mock response (reuse existing logic)
+        let response_content = format!(
+            "Mock response for: {prompt}\nModel ID: {}\nParameters: {parameters:?}",
+            self.id
+        );
+
+        // Split response into words for realistic streaming
+        let words: Vec<String> = response_content
+            .split_whitespace()
+            .map(|w| w.to_string())
+            .collect();
+
+        // Create stream that yields accumulated content with delays
+        let stream = stream::unfold((0, String::new()), move |(mut index, mut accumulated)| {
+            let words = words.clone();
+            async move {
+                if index >= words.len() {
+                    return None;
+                }
+
+                // Add 50ms delay between tokens
+                tokio::time::sleep(Duration::from_millis(50)).await;
+
+                let word = words[index].clone();
+                index += 1;
+
+                // Add space after word (except for last word)
+                let token = if index < words.len() {
+                    format!("{} ", word)
+                } else {
+                    word
+                };
+
+                accumulated.push_str(&token);
+
+                Some((Ok(accumulated.clone()), (index, accumulated)))
+            }
+        });
+
+        Ok(Box::pin(stream))
     }
 }
 

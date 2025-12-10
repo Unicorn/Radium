@@ -5,8 +5,11 @@
 use anyhow::{Context, bail};
 use chrono::Utc;
 use colored::Colorize;
+use futures::StreamExt;
+use radium_abstraction::{ModelParameters, StreamingModel};
 use radium_core::{
     analytics::{ReportFormatter, SessionAnalytics, SessionReport, SessionStorage},
+    auth::{CredentialStore, ProviderType},
     context::{ContextFileLoader, ContextManager}, AgentDiscovery, monitoring::MonitoringService, PromptContext,
     PromptTemplate, Workspace,
     engines::{EngineRegistry, ExecutionRequest},
@@ -15,6 +18,8 @@ use radium_core::{
     code_blocks::{CodeBlockParser, CodeBlockStore},
     terminal::{TerminalCapabilities, ColorSupport},
 };
+use radium_models::{GeminiModel, MockModel, OpenAIModel};
+use std::io::Write;
 use std::sync::Arc;
 use std::fs;
 use uuid::Uuid;
@@ -30,6 +35,7 @@ pub async fn execute(
     reasoning: Option<String>,
     model_tier: Option<String>,
     session_id: Option<String>,
+    stream: bool,
 ) -> anyhow::Result<()> {
     println!("{}", "rad step".bold().cyan());
     println!();
@@ -222,7 +228,7 @@ pub async fn execute(
     println!("{}", "Executing agent...".bold());
     println!();
 
-    let execution_result = execute_agent_with_engine(&registry, &agent.id, &rendered, selected_engine_id, selected_model).await;
+    let execution_result = execute_agent_with_engine(&registry, &agent.id, &rendered, selected_engine_id, selected_model, stream).await;
     
     // Parse and store code blocks from response
     if let Ok(ref response) = execution_result {
@@ -560,6 +566,7 @@ async fn execute_agent_with_engine(
     rendered_prompt: &str,
     engine_id: &str,
     model: &str,
+    stream: bool,
 ) -> anyhow::Result<radium_core::engines::ExecutionResponse> {
     println!("  {} Executing agent with {}...", "•".cyan(), engine_id);
     println!("  {} Agent: {}", "•".dimmed(), agent_id.cyan());
@@ -594,6 +601,244 @@ async fn execute_agent_with_engine(
     // Create execution request
     let request = ExecutionRequest::new(model.to_string(), rendered_prompt.to_string());
 
+    // Handle streaming if requested
+    if stream {
+        // Try to create model directly for streaming
+        let model_result: anyhow::Result<radium_core::engines::ExecutionResponse> = match engine_id {
+            "gemini" => {
+                let credential_store = Arc::new(
+                    CredentialStore::new().unwrap_or_else(|_| {
+                        let temp_path = std::env::temp_dir().join("radium_credentials.json");
+                        CredentialStore::with_path(temp_path)
+                    })
+                );
+                let api_key = credential_store
+                    .get(ProviderType::Gemini)
+                    .map_err(|e| anyhow::anyhow!("Failed to get API key: {}", e))?;
+                let gemini_model = GeminiModel::with_api_key(model.to_string(), api_key);
+                
+                // Check if model implements StreamingModel (it does)
+                let parameters = if request.temperature.is_some() || request.max_tokens.is_some() {
+                    Some(ModelParameters {
+                        temperature: request.temperature,
+                        top_p: None,
+                        max_tokens: request.max_tokens.map(|t| t as u32),
+                        top_k: None,
+                        frequency_penalty: None,
+                        presence_penalty: None,
+                        response_format: None,
+                        stop_sequences: None,
+                    })
+                } else {
+                    None
+                };
+
+                let mut stream = gemini_model.generate_stream(&rendered_prompt, parameters)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Streaming failed: {}", e))?;
+
+                println!("{}", "Response:".bold().green());
+                println!("{}", "─".repeat(60).dimmed());
+                
+                let mut accumulated = String::new();
+                let mut last_content = String::new();
+                
+                while let Some(result) = stream.next().await {
+                    match result {
+                        Ok(content) => {
+                            // Only print the new part (delta)
+                            if content.len() > last_content.len() {
+                                let delta = &content[last_content.len()..];
+                                print!("{}", delta);
+                                std::io::stdout().flush().map_err(|e| anyhow::anyhow!("Failed to flush stdout: {}", e))?;
+                                accumulated = content.clone();
+                                last_content = content;
+                            }
+                        }
+                        Err(e) => {
+                            println!();
+                            println!("  {} {}", "✗".red(), format!("Streaming error: {}", e).red());
+                            return Err(anyhow::anyhow!("Streaming error: {}", e));
+                        }
+                    }
+                }
+                
+                println!();
+                println!("{}", "─".repeat(60).dimmed());
+                
+                // Return response with accumulated content
+                Ok(radium_core::engines::ExecutionResponse {
+                    content: accumulated,
+                    usage: None, // Token usage not available during streaming
+                    model: model.to_string(),
+                    raw: None,
+                    execution_duration: None,
+                })
+            }
+            "openai" => {
+                let credential_store = Arc::new(
+                    CredentialStore::new().unwrap_or_else(|_| {
+                        let temp_path = std::env::temp_dir().join("radium_credentials.json");
+                        CredentialStore::with_path(temp_path)
+                    })
+                );
+                let api_key = credential_store
+                    .get(ProviderType::OpenAI)
+                    .map_err(|e| anyhow::anyhow!("Failed to get API key: {}", e))?;
+                let openai_model = OpenAIModel::with_api_key(model.to_string(), api_key);
+                
+                let parameters = if request.temperature.is_some() || request.max_tokens.is_some() {
+                    Some(ModelParameters {
+                        temperature: request.temperature,
+                        top_p: None,
+                        max_tokens: request.max_tokens.map(|t| t as u32),
+                        top_k: None,
+                        frequency_penalty: None,
+                        presence_penalty: None,
+                        response_format: None,
+                        stop_sequences: None,
+                    })
+                } else {
+                    None
+                };
+
+                let mut stream = openai_model.generate_stream(&rendered_prompt, parameters)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Streaming failed: {}", e))?;
+
+                println!("{}", "Response:".bold().green());
+                println!("{}", "─".repeat(60).dimmed());
+                
+                let mut accumulated = String::new();
+                let mut last_content = String::new();
+                
+                while let Some(result) = stream.next().await {
+                    match result {
+                        Ok(content) => {
+                            if content.len() > last_content.len() {
+                                let delta = &content[last_content.len()..];
+                                print!("{}", delta);
+                                std::io::stdout().flush().map_err(|e| anyhow::anyhow!("Failed to flush stdout: {}", e))?;
+                                accumulated = content.clone();
+                                last_content = content;
+                            }
+                        }
+                        Err(e) => {
+                            println!();
+                            println!("  {} {}", "✗".red(), format!("Streaming error: {}", e).red());
+                            return Err(anyhow::anyhow!("Streaming error: {}", e));
+                        }
+                    }
+                }
+                
+                println!();
+                println!("{}", "─".repeat(60).dimmed());
+                
+                Ok(radium_core::engines::ExecutionResponse {
+                    content: accumulated,
+                    usage: None,
+                    model: model.to_string(),
+                    raw: None,
+                    execution_duration: None,
+                })
+            }
+            "mock" => {
+                let mock_model = MockModel::new(model.to_string());
+                
+                let parameters = if request.temperature.is_some() || request.max_tokens.is_some() {
+                    Some(ModelParameters {
+                        temperature: request.temperature,
+                        top_p: None,
+                        max_tokens: request.max_tokens.map(|t| t as u32),
+                        top_k: None,
+                        frequency_penalty: None,
+                        presence_penalty: None,
+                        response_format: None,
+                        stop_sequences: None,
+                    })
+                } else {
+                    None
+                };
+
+                let mut stream = mock_model.generate_stream(&rendered_prompt, parameters)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Streaming failed: {}", e))?;
+
+                println!("{}", "Response:".bold().green());
+                println!("{}", "─".repeat(60).dimmed());
+                
+                let mut accumulated = String::new();
+                let mut last_content = String::new();
+                
+                while let Some(result) = stream.next().await {
+                    match result {
+                        Ok(content) => {
+                            if content.len() > last_content.len() {
+                                let delta = &content[last_content.len()..];
+                                print!("{}", delta);
+                                std::io::stdout().flush().map_err(|e| anyhow::anyhow!("Failed to flush stdout: {}", e))?;
+                                accumulated = content.clone();
+                                last_content = content;
+                            }
+                        }
+                        Err(e) => {
+                            println!();
+                            println!("  {} {}", "✗".red(), format!("Streaming error: {}", e).red());
+                            return Err(anyhow::anyhow!("Streaming error: {}", e));
+                        }
+                    }
+                }
+                
+                println!();
+                println!("{}", "─".repeat(60).dimmed());
+                
+                Ok(radium_core::engines::ExecutionResponse {
+                    content: accumulated,
+                    usage: None,
+                    model: model.to_string(),
+                    raw: None,
+                    execution_duration: None,
+                })
+            }
+            _ => {
+                // Engine doesn't support streaming, fall back to non-streaming
+                println!("  {} Streaming not supported for engine '{}', using standard mode", "⚠".yellow(), engine_id);
+                // Fall through to normal execution
+                return execute_normal(engine, request).await;
+            }
+        };
+
+        match model_result {
+            Ok(response) => {
+                if let Some(usage) = &response.usage {
+                    println!();
+                    println!("{}", "Token Usage:".bold().dimmed());
+                    println!("  Input: {} tokens", usage.input_tokens.to_string().dimmed());
+                    println!(
+                        "  Output: {} tokens",
+                        usage.output_tokens.to_string().dimmed()
+                    );
+                    println!("  Total: {} tokens", usage.total_tokens.to_string().cyan());
+                }
+                return Ok(response);
+            }
+            Err(e) => {
+                println!();
+                println!("  {} {}", "⚠".yellow(), format!("Streaming failed: {}, falling back to standard mode", e).yellow());
+                // Fall through to normal execution
+            }
+        }
+    }
+
+    // Normal (non-streaming) execution
+    execute_normal(engine, request).await
+}
+
+/// Execute the engine normally (non-streaming).
+async fn execute_normal(
+    engine: &Arc<dyn radium_core::engines::Engine>,
+    request: ExecutionRequest,
+) -> anyhow::Result<radium_core::engines::ExecutionResponse> {
     // Execute the engine
     match engine.execute(request).await {
         Ok(response) => {

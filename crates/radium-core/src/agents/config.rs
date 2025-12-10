@@ -3,7 +3,7 @@
 //! Defines the TOML configuration format for agents.
 
 use crate::sandbox::SandboxConfig;
-use radium_abstraction::{ModelParameters, ResponseFormat};
+use radium_abstraction::{ModelParameters, ResponseFormat, SafetyBlockBehavior};
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::path::PathBuf;
@@ -244,9 +244,20 @@ pub struct ModelConfigToml {
 /// profile = "thinking"
 /// estimated_tokens = 2000
 /// ```
+/// Safety configuration for TOML.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SafetyConfigToml {
+    /// Safety block behavior: "return-partial", "error", or "log".
+    #[serde(default = "default_safety_behavior")]
+    pub behavior: String,
+}
+
+fn default_safety_behavior() -> String {
+    "return-partial".to_string()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentConfigFile {
-            model: None,
     /// Agent configuration.
     pub agent: AgentConfig,
     /// Optional persona configuration.
@@ -255,10 +266,12 @@ pub struct AgentConfigFile {
     /// Optional model configuration.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub model: Option<ModelConfigToml>,
+    /// Optional safety configuration.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub safety: Option<SafetyConfigToml>,
 }
 
 impl AgentConfigFile {
-            model: None,
     /// Load agent configuration from a TOML file.
     ///
     /// # Errors
@@ -277,6 +290,21 @@ impl AgentConfigFile {
         // Convert persona TOML to PersonaConfig if present
         if let Some(ref persona_toml) = config.persona {
             config.agent.persona_config = Some(config.parse_persona_config(persona_toml)?);
+        }
+        
+        // Parse safety configuration if present
+        if let Some(ref safety_toml) = config.safety {
+            config.agent.safety_behavior = Some(match safety_toml.behavior.as_str() {
+                "return-partial" => SafetyBlockBehavior::ReturnPartial,
+                "error" => SafetyBlockBehavior::ThrowError,
+                "log" => SafetyBlockBehavior::LogWarning,
+                _ => {
+                    return Err(AgentConfigError::Invalid(format!(
+                        "Invalid safety.behavior '{}'. Must be 'return-partial', 'error', or 'log'",
+                        safety_toml.behavior
+                    )));
+                }
+            });
         }
         
         Ok(config)
@@ -747,6 +775,12 @@ pub struct AgentConfig {
     /// Optional routing configuration for model selection.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub routing: Option<AgentRoutingConfig>,
+    
+    /// Safety block behavior configuration.
+    ///
+    /// Determines how to handle content that is filtered/blocked by safety systems.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub safety_behavior: Option<radium_abstraction::SafetyBlockBehavior>,
 }
 
 impl AgentConfig {
@@ -770,6 +804,7 @@ impl AgentConfig {
             sandbox: None,
             persona_config: None,
             routing: None,
+            safety_behavior: None,
         }
     }
 

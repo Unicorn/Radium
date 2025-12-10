@@ -260,6 +260,10 @@ impl MetacognitiveService {
             temperature: Some(0.2),
             top_p: Some(0.9),
             max_tokens: Some(1024),
+            top_k: None,
+            frequency_penalty: None,
+            presence_penalty: None,
+            response_format: None,
             stop_sequences: None,
         };
 

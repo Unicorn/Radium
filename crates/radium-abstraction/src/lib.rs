@@ -9,6 +9,24 @@ use std::collections::HashMap;
 use std::pin::Pin;
 use thiserror::Error;
 
+/// Behavior for handling safety-filtered content.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SafetyBlockBehavior {
+    /// Return available content with metadata (default, backward compatible).
+    ReturnPartial,
+    /// Throw ContentFiltered error when content is blocked.
+    ThrowError,
+    /// Log warning and continue with available content.
+    LogWarning,
+}
+
+impl Default for SafetyBlockBehavior {
+    fn default() -> Self {
+        Self::ReturnPartial
+    }
+}
+
 /// Represents an error that can occur when interacting with an AI model.
 #[derive(Error, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ModelError {
@@ -36,6 +54,18 @@ pub enum ModelError {
         /// Optional error message from the provider.
         #[serde(skip_serializing_if = "Option::is_none")]
         message: Option<String>,
+    },
+
+    /// Content was filtered/blocked by the provider's safety system.
+    #[error("Content filtered by {provider}: {reason}")]
+    ContentFiltered {
+        /// The provider name (e.g., "openai", "gemini").
+        provider: String,
+        /// Reason for filtering.
+        reason: String,
+        /// Safety ratings that caused the filtering (optional).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        safety_ratings: Option<Vec<SafetyRating>>,
     },
 
     /// Other unexpected errors.

@@ -21,7 +21,7 @@
 //! This inline approach is the native OpenAI API pattern and is fully supported by all OpenAI models.
 
 use async_trait::async_trait;
-use futures::stream::{Stream, StreamExt};
+use futures::stream::Stream;
 use radium_abstraction::{
     ChatMessage, LogProb, Model, ModelError, ModelParameters, ModelResponse, ModelUsage,
     SafetyRating, StreamingModel,
@@ -32,7 +32,7 @@ use std::collections::HashMap;
 use std::env;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 
 /// OpenAI model implementation.
 #[derive(Debug, Clone)]
@@ -273,6 +273,22 @@ impl Model for OpenAIModel {
             None
         };
 
+        // Check for safety blocks (behavior will be applied at higher level)
+        let safety_ratings = metadata
+            .as_ref()
+            .and_then(|m| m.get("safety_ratings"))
+            .and_then(|v| serde_json::from_value::<Vec<SafetyRating>>(v.clone()).ok());
+        
+        if let Some(ref ratings) = safety_ratings {
+            let blocked = ratings.iter().any(|r| r.blocked);
+            if blocked {
+                warn!(
+                    provider = "openai",
+                    "Content was filtered by safety system. Metadata contains safety_ratings."
+                );
+            }
+        }
+
         Ok(ModelResponse {
             content,
             model_id: Some(self.model_id.clone()),
@@ -284,6 +300,301 @@ impl Model for OpenAIModel {
     fn model_id(&self) -> &str {
         &self.model_id
     }
+}
+
+#[async_trait]
+impl StreamingModel for OpenAIModel {
+    async fn generate_stream(
+        &self,
+        prompt: &str,
+        parameters: Option<ModelParameters>,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<String, ModelError>> + Send>>, ModelError> {
+        debug!(
+            model_id = %self.model_id,
+            prompt_len = prompt.len(),
+            parameters = ?parameters,
+            "OpenAIModel generating streaming text"
+        );
+
+        // Convert single prompt to chat format for OpenAI
+        let messages = vec![ChatMessage {
+            role: "user".to_string(),
+            content: prompt.to_string(),
+        }];
+
+        // Build OpenAI streaming API request
+        let url = format!("{}/chat/completions", self.base_url);
+
+        // Convert messages to OpenAI format
+        let openai_messages: Vec<OpenAIMessage> = messages
+            .iter()
+            .map(|msg| OpenAIMessage {
+                role: Self::role_to_openai(&msg.role),
+                content: msg.content.clone(),
+            })
+            .collect();
+
+        // Build request body with streaming enabled
+        let mut request_body = OpenAIStreamingRequest {
+            model: self.model_id.clone(),
+            messages: openai_messages,
+            stream: true,
+            temperature: None,
+            top_p: None,
+            max_tokens: None,
+            stop: None,
+        };
+
+        // Apply parameters if provided
+        if let Some(params) = parameters {
+            request_body.temperature = params.temperature;
+            request_body.top_p = params.top_p;
+            request_body.max_tokens = params.max_tokens;
+            request_body.stop = params.stop_sequences;
+        }
+
+        // Make streaming API request
+        let response = self
+            .client
+            .post(&url)
+            .bearer_auth(&self.api_key)
+            .json(&request_body)
+            .send()
+            .await
+            .map_err(|e| {
+                error!(error = %e, "Failed to send streaming request to OpenAI API");
+                ModelError::RequestError(format!("Network error: {}", e))
+            })?;
+
+        // Check status before streaming
+        let status = response.status();
+        if !status.is_success() {
+            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            error!(
+                status = %status,
+                error = %error_text,
+                "OpenAI API returned error status for streaming request"
+            );
+
+            // Map quota/rate limit errors to QuotaExceeded
+            if status == 402 || status == 429 {
+                let is_quota_error = error_text.to_lowercase().contains("exceeded your current quota")
+                    || error_text.to_lowercase().contains("insufficient_quota")
+                    || error_text.to_lowercase().contains("quota")
+                    || error_text.to_lowercase().contains("rate limit");
+
+                if is_quota_error || status == 402 {
+                    return Err(ModelError::QuotaExceeded {
+                        provider: "openai".to_string(),
+                        message: Some(error_text),
+                    });
+                }
+            }
+
+            // For 429, if it's a rate limit (not quota), we still treat it as QuotaExceeded
+            if status == 429 {
+                return Err(ModelError::QuotaExceeded {
+                    provider: "openai".to_string(),
+                    message: Some(error_text),
+                });
+            }
+
+            // Map authentication errors (401, 403) to UnsupportedModelProvider
+            if status == 401 || status == 403 {
+                return Err(ModelError::UnsupportedModelProvider(format!(
+                    "Authentication failed ({}): {}",
+                    status, error_text
+                )));
+            }
+
+            // Map server errors (500-599) to ModelResponseError
+            if (500..=599).contains(&status.as_u16()) {
+                return Err(ModelError::ModelResponseError(format!(
+                    "Server error ({}): {}",
+                    status, error_text
+                )));
+            }
+
+            // Other errors
+            return Err(ModelError::ModelResponseError(format!(
+                "API error ({}): {}",
+                status, error_text
+            )));
+        }
+
+        // Create SSE stream parser
+        Ok(Box::pin(OpenAISSEStream::new(response)))
+    }
+}
+
+// SSE stream parser for OpenAI format
+struct OpenAISSEStream {
+    stream: Pin<Box<dyn Stream<Item = Result<bytes::Bytes, reqwest::Error>> + Send>>,
+    buffer: String,
+    accumulated: String,
+    done: bool,
+}
+
+impl OpenAISSEStream {
+    fn new(response: reqwest::Response) -> Self {
+        Self {
+            stream: Box::pin(response.bytes_stream()),
+            buffer: String::new(),
+            accumulated: String::new(),
+            done: false,
+        }
+    }
+}
+
+impl Stream for OpenAISSEStream {
+    type Item = Result<String, ModelError>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if self.done {
+            return Poll::Ready(None);
+        }
+
+        loop {
+            // Poll the underlying byte stream
+            match self.stream.as_mut().poll_next(cx) {
+                Poll::Ready(Some(Ok(bytes))) => {
+                    // Convert bytes to string and append to buffer
+                    match String::from_utf8(bytes.to_vec()) {
+                        Ok(chunk) => {
+                            self.buffer.push_str(&chunk);
+
+                            // Process complete SSE events (separated by \n\n)
+                            while let Some(end_idx) = self.buffer.find("\n\n") {
+                                let event = self.buffer[..end_idx].to_string();
+                                self.buffer = self.buffer[end_idx + 2..].to_string();
+
+                                // Parse SSE event
+                                if event.starts_with("data: ") {
+                                    let data = &event[6..]; // Skip "data: " prefix
+
+                                    // Check for [DONE] signal
+                                    if data.trim() == "[DONE]" {
+                                        self.done = true;
+                                        if !self.accumulated.is_empty() {
+                                            return Poll::Ready(Some(Ok(self.accumulated.clone())));
+                                        }
+                                        return Poll::Ready(None);
+                                    }
+
+                                    // Parse JSON chunk
+                                    match serde_json::from_str::<OpenAIStreamingResponse>(data) {
+                                        Ok(streaming_response) => {
+                                            // Extract content from choices[0].delta.content
+                                            if let Some(choice) = streaming_response.choices.first() {
+                                                if let Some(content) = &choice.delta.content {
+                                                    if !content.is_empty() {
+                                                        self.accumulated.push_str(content);
+                                                        return Poll::Ready(Some(Ok(self.accumulated.clone())));
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        Err(e) => {
+                                            // Skip malformed JSON chunks (some servers send empty chunks)
+                                            debug!("Failed to parse SSE chunk: {}", e);
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Continue polling for more data
+                            continue;
+                        }
+                        Err(e) => {
+                            return Poll::Ready(Some(Err(ModelError::SerializationError(format!(
+                                "Failed to decode SSE chunk: {}",
+                                e
+                            )))));
+                        }
+                    }
+                }
+                Poll::Ready(Some(Err(e))) => {
+                    return Poll::Ready(Some(Err(ModelError::RequestError(format!(
+                        "Stream error: {}",
+                        e
+                    )))));
+                }
+                Poll::Ready(None) => {
+                    // Stream ended - process any remaining events in buffer
+                    while let Some(end_idx) = self.buffer.find("\n\n") {
+                        let event = self.buffer[..end_idx].to_string();
+                        self.buffer = self.buffer[end_idx + 2..].to_string();
+
+                        if event.starts_with("data: ") {
+                            let data = &event[6..];
+
+                            if data.trim() == "[DONE]" {
+                                self.done = true;
+                                if !self.accumulated.is_empty() {
+                                    return Poll::Ready(Some(Ok(self.accumulated.clone())));
+                                }
+                                return Poll::Ready(None);
+                            }
+
+                            if let Ok(streaming_response) =
+                                serde_json::from_str::<OpenAIStreamingResponse>(data)
+                            {
+                                if let Some(choice) = streaming_response.choices.first() {
+                                    if let Some(content) = &choice.delta.content {
+                                        if !content.is_empty() {
+                                            self.accumulated.push_str(content);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // No more events in buffer
+                    self.done = true;
+                    if !self.accumulated.is_empty() {
+                        return Poll::Ready(Some(Ok(self.accumulated.clone())));
+                    }
+                    return Poll::Ready(None);
+                }
+                Poll::Pending => return Poll::Pending,
+            }
+        }
+    }
+}
+
+// Streaming request structure for OpenAI
+#[derive(Debug, Serialize)]
+struct OpenAIStreamingRequest {
+    model: String,
+    messages: Vec<OpenAIMessage>,
+    stream: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    temperature: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    top_p: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_tokens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stop: Option<Vec<String>>,
+}
+
+// Streaming response structure for OpenAI SSE
+#[derive(Debug, Deserialize)]
+struct OpenAIStreamingResponse {
+    choices: Vec<OpenAIStreamingChoice>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    usage: Option<OpenAIUsage>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenAIStreamingChoice {
+    delta: OpenAIStreamingDelta,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenAIStreamingDelta {
+    content: Option<String>,
 }
 
 // OpenAI API request/response structures

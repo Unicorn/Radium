@@ -82,6 +82,12 @@ impl GeminiEngine {
                     message.unwrap_or_else(|| "Unknown".to_string())
                 ))
             }
+            radium_abstraction::ModelError::ContentFiltered { provider, reason, .. } => {
+                EngineError::ExecutionError(format!(
+                    "Content filtered by {}: {}",
+                    provider, reason
+                ))
+            }
             radium_abstraction::ModelError::Other(msg) => {
                 EngineError::ExecutionError(format!("Other error: {}", msg))
             }
