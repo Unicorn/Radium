@@ -301,7 +301,12 @@ impl Model for ClaudeModel {
             total_tokens: claude_response.usage.input_tokens + claude_response.usage.output_tokens,
         });
 
-        Ok(ModelResponse { content, model_id: Some(self.model_id.clone()), usage })
+        Ok(ModelResponse {
+            content,
+            model_id: Some(self.model_id.clone()),
+            usage,
+            metadata: None,
+        })
     }
 
     fn model_id(&self) -> &str {

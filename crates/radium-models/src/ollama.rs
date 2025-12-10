@@ -297,6 +297,7 @@ impl Model for OllamaModel {
                 completion_tokens,
                 total_tokens,
             }),
+            metadata: None,
         })
     }
 
@@ -403,6 +404,7 @@ impl Model for OllamaModel {
                 completion_tokens,
                 total_tokens,
             }),
+            metadata: None,
         })
     }
 

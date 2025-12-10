@@ -336,6 +336,7 @@ impl Model for UniversalModel {
             content,
             model_id: Some(self.model_id.clone()),
             usage,
+            metadata: None,
         })
     }
 

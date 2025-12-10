@@ -73,6 +73,7 @@ impl Model for MockModel {
             content: response_content,
             model_id: Some(self.id.clone()),
             usage: Some(ModelUsage { prompt_tokens, completion_tokens, total_tokens }),
+            metadata: None,
         })
     }
 
@@ -108,6 +109,7 @@ impl Model for MockModel {
             content: response_content,
             model_id: Some(self.id.clone()),
             usage: Some(ModelUsage { prompt_tokens, completion_tokens, total_tokens }),
+            metadata: None,
         })
     }
 

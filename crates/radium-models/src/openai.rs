@@ -243,7 +243,12 @@ impl Model for OpenAIModel {
             total_tokens: u.total_tokens,
         });
 
-        Ok(ModelResponse { content, model_id: Some(self.model_id.clone()), usage })
+        Ok(ModelResponse {
+            content,
+            model_id: Some(self.model_id.clone()),
+            usage,
+            metadata: None,
+        })
     }
 
     fn model_id(&self) -> &str {
