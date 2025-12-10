@@ -1043,6 +1043,10 @@ mod tests {
             temperature: Some(0.7),
             max_tokens: Some(100),
             top_p: None,
+            top_k: None,
+            frequency_penalty: None,
+            presence_penalty: None,
+            response_format: None,
             stop_sequences: None,
         };
 

@@ -1,6 +1,24 @@
 //! OpenAI model implementation.
 //!
 //! This module provides an implementation of the `Model` trait for OpenAI's API.
+//!
+//! ## System Message Handling
+//!
+//! OpenAI uses an **inline approach** for system messages, where system messages are included
+//! directly in the messages array with `role: "system"`. This differs from Claude and Gemini,
+//! which use dedicated system instruction fields.
+//!
+//! **Key characteristics:**
+//! - System messages are preserved with their `role: "system"` intact
+//! - System messages are included in the messages array (not filtered out)
+//! - Multiple system messages are supported and sent as separate message objects
+//! - System messages are typically placed at the beginning of the conversation
+//!
+//! **Comparison with other providers:**
+//! - **Claude/Gemini**: Extract system messages and send via dedicated `system`/`systemInstruction` field
+//! - **OpenAI**: Include system messages inline in the messages array
+//!
+//! This inline approach is the native OpenAI API pattern and is fully supported by all OpenAI models.
 
 use async_trait::async_trait;
 use radium_abstraction::{
@@ -64,10 +82,20 @@ impl OpenAIModel {
     }
 
     /// Converts our ChatMessage role to OpenAI API role format.
+    ///
+    /// OpenAI natively supports `role: "system"` messages, so system messages are preserved
+    /// with their role intact. This differs from providers like Gemini that require system
+    /// messages to be extracted and sent via a dedicated field.
+    ///
+    /// # Arguments
+    /// * `role` - The message role ("system", "user", "assistant")
+    ///
+    /// # Returns
+    /// The OpenAI API role string, preserving system role as-is.
     fn role_to_openai(role: &str) -> String {
         match role {
             "assistant" => "assistant".to_string(),
-            "system" => "system".to_string(),
+            "system" => "system".to_string(), // Preserved as-is (inline approach)
             "user" => "user".to_string(),
             _ => role.to_string(),
         }
@@ -110,6 +138,8 @@ impl Model for OpenAIModel {
         let url = format!("{}/chat/completions", self.base_url);
 
         // Convert messages to OpenAI format
+        // Note: OpenAI uses an inline approach - system messages are included in the messages
+        // array with role: "system", unlike Claude/Gemini which extract them to dedicated fields.
         let openai_messages: Vec<OpenAIMessage> = messages
             .iter()
             .map(|msg| OpenAIMessage {
@@ -271,6 +301,61 @@ mod tests {
         assert_eq!(OpenAIModel::role_to_openai("user"), "user");
         assert_eq!(OpenAIModel::role_to_openai("assistant"), "assistant");
         assert_eq!(OpenAIModel::role_to_openai("system"), "system");
+    }
+
+    #[test]
+    fn test_system_message_role_preservation() {
+        use radium_abstraction::ChatMessage;
+
+        // Test that system messages preserve their role when converted to OpenAI format
+        let system_msg = ChatMessage { role: "system".to_string(), content: "You are helpful.".to_string() };
+        let role = OpenAIModel::role_to_openai(&system_msg.role);
+        assert_eq!(role, "system");
+
+        // Test that system messages are included in messages array (not filtered)
+        let messages = vec![
+            ChatMessage { role: "system".to_string(), content: "System instruction.".to_string() },
+            ChatMessage { role: "user".to_string(), content: "User message.".to_string() },
+            ChatMessage { role: "assistant".to_string(), content: "Assistant message.".to_string() },
+        ];
+
+        // Simulate message conversion (as done in generate_chat_completion)
+        let openai_messages: Vec<_> = messages
+            .iter()
+            .map(|msg| (OpenAIModel::role_to_openai(&msg.role), msg.content.clone()))
+            .collect();
+
+        // Verify system message is present with correct role
+        assert_eq!(openai_messages.len(), 3);
+        assert_eq!(openai_messages[0].0, "system");
+        assert_eq!(openai_messages[1].0, "user");
+        assert_eq!(openai_messages[2].0, "assistant");
+    }
+
+    #[test]
+    fn test_multiple_system_messages() {
+        use radium_abstraction::ChatMessage;
+
+        // Test that multiple system messages are preserved (OpenAI supports this)
+        let messages = vec![
+            ChatMessage { role: "system".to_string(), content: "First system message.".to_string() },
+            ChatMessage { role: "system".to_string(), content: "Second system message.".to_string() },
+            ChatMessage { role: "user".to_string(), content: "User message.".to_string() },
+        ];
+
+        // Simulate message conversion
+        let openai_messages: Vec<_> = messages
+            .iter()
+            .map(|msg| (OpenAIModel::role_to_openai(&msg.role), msg.content.clone()))
+            .collect();
+
+        // Verify both system messages are preserved
+        assert_eq!(openai_messages.len(), 3);
+        assert_eq!(openai_messages[0].0, "system");
+        assert_eq!(openai_messages[0].1, "First system message.");
+        assert_eq!(openai_messages[1].0, "system");
+        assert_eq!(openai_messages[1].1, "Second system message.");
+        assert_eq!(openai_messages[2].0, "user");
     }
 
     #[test]

@@ -164,6 +164,11 @@ impl Model for GeminiModel {
                 top_p: params.top_p,
                 max_output_tokens: params.max_tokens,
                 stop_sequences: params.stop_sequences,
+                top_k: None, // Not yet mapped from ModelParameters
+                frequency_penalty: None, // Not yet mapped from ModelParameters
+                presence_penalty: None, // Not yet mapped from ModelParameters
+                response_mime_type: None, // Not yet mapped from ModelParameters
+                response_schema: None, // Not yet mapped from ModelParameters
             });
         }
 
@@ -282,6 +287,16 @@ struct GeminiGenerationConfig {
     top_p: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     max_output_tokens: Option<u32>,
+    #[serde(rename = "topK", skip_serializing_if = "Option::is_none")]
+    top_k: Option<u32>,
+    #[serde(rename = "frequencyPenalty", skip_serializing_if = "Option::is_none")]
+    frequency_penalty: Option<f32>,
+    #[serde(rename = "presencePenalty", skip_serializing_if = "Option::is_none")]
+    presence_penalty: Option<f32>,
+    #[serde(rename = "responseMimeType", skip_serializing_if = "Option::is_none")]
+    response_mime_type: Option<String>,
+    #[serde(rename = "responseSchema", skip_serializing_if = "Option::is_none")]
+    response_schema: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     stop_sequences: Option<Vec<String>>,
 }
