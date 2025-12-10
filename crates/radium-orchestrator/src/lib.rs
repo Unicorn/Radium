@@ -58,6 +58,9 @@ pub use selector::{AgentSelector, ModelClass, SelectionCriteria, SelectionError}
 // Re-export orchestration error separately to avoid conflicts
 pub use error::{CriticalError, OrchestrationError};
 
+// Re-export CodeExecutionResult for use in tests and other crates
+pub use CodeExecutionResult;
+
 /// Represents the context provided to an agent during its execution.
 #[derive(Clone)]
 pub struct AgentContext<'a> {
