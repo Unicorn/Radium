@@ -6,7 +6,7 @@ use anyhow::{Context, bail};
 use chrono::Utc;
 use colored::Colorize;
 use futures::StreamExt;
-use radium_abstraction::{ContentBlock, ImageSource, MediaSource, MessageContent, ModelError, ModelParameters, ReasoningEffort, ResponseFormat, StreamingModel};
+use radium_abstraction::{ContentBlock, ImageSource, MediaSource, MessageContent, ModelError, ModelParameters, ReasoningEffort, ResponseFormat, StreamItem, StreamingModel};
 use radium_core::engines::ExecutionResponse;
 use radium_models::gemini::file_api::GeminiFileApi;
 use serde_json;
