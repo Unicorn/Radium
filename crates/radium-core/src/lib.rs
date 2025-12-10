@@ -21,6 +21,7 @@ pub mod agents;
 pub mod analytics;
 pub mod autonomous;
 pub mod auth;
+pub mod batch;
 pub mod checkpoint;
 pub mod clipboard;
 pub mod code_blocks;
