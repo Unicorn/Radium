@@ -53,7 +53,6 @@ impl OpenAIModel {
     /// # Errors
     ///
     /// Returns `ModelError::SerializationError` if the schema is invalid JSON.
-    #[cfg_attr(test, visibility::make(pub))]
     pub(crate) fn convert_response_format(
         &self,
         response_format: &Option<ResponseFormat>,
