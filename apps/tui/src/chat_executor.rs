@@ -8,6 +8,7 @@ use radium_core::context::{ContextManager, HistoryManager};
 use radium_core::{AgentDiscovery, PromptContext, PromptTemplate, Workspace};
 use radium_models::ModelFactory;
 use radium_abstraction::{StreamingModel, ModelError, Tool, ToolCall, ToolConfig, ToolUseMode, ChatMessage, MessageContent, ContentBlock, Model};
+use radium_orchestrator;
 use futures::StreamExt;
 use serde_json::json;
 use std::fs;
@@ -183,6 +184,7 @@ pub async fn execute_chat_message(
     agent_id: &str,
     message: &str,
     session_id: &str,
+    confirmation_tx: Option<tokio::sync::mpsc::Sender<crate::components::ConfirmationRequest>>,
 ) -> Result<ChatExecutionResult> {
     // Check for slash commands first (execute without LLM)
     if let Some(cmd) = parse_slash_command(message) {
@@ -257,6 +259,7 @@ pub async fn execute_chat_message(
     };
 
     // If analysis plan was created, prepend it to the prompt content
+    // LLM-driven tool selection: The LLM will decide which tools to call based on the system prompt
     let final_prompt_content = if let Some(ref plan) = analysis_plan {
         // Check if this is a general question that needs deep analysis
         match plan.question_type {
@@ -264,9 +267,12 @@ pub async fn execute_chat_message(
             | radium_core::context::QuestionType::TechnologyStack
             | radium_core::context::QuestionType::Architecture
             | radium_core::context::QuestionType::General => {
-                // Prepend analysis plan directly to prompt
-                let plan_section = format!("\n\n{}\n\n---\n\n", plan.to_context_string());
-                format!("{}{}", plan_section, prompt_content)
+                // Prepend analysis plan, then prompt
+                // The LLM will see available tools (project_scan, search_files, etc.) and decide which to use
+                let mut content = String::new();
+                content.push_str(&format!("\n\n{}\n\n---\n\n", plan.to_context_string()));
+                content.push_str(&prompt_content);
+                content
             }
             _ => prompt_content,
         }
@@ -333,7 +339,7 @@ pub async fn execute_chat_message(
 
             if supports_tool_calling {
                 // Use tool calling for chat-assistant
-                match execute_with_tools(model_instance.as_ref(), &rendered, message, &workspace_root).await {
+                match execute_with_tools(model_instance.as_ref(), &rendered, message, &workspace_root, confirmation_tx.as_ref()).await {
                     Ok(response) => (response, None),
                     Err(e) => {
                         let error_msg = format!("❌ Tool Execution Failed\n\n{}\n\nFalling back to non-tool execution...", e);
@@ -928,11 +934,133 @@ fn get_chat_tools() -> Vec<Tool> {
                 "required": ["file"]
             }),
         },
+        Tool {
+            name: "run_command".to_string(),
+            description: "Execute a shell command. Safe read-only commands (ls, git status, cat, etc.) execute automatically. Commands that modify state (rm, sudo, npm install, etc.) require user confirmation.".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "command": {
+                        "type": "string",
+                        "description": "The shell command to execute"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Brief explanation of what this command does (optional)"
+                    }
+                },
+                "required": ["command"]
+            }),
+        },
+        Tool {
+            name: "project_scan".to_string(),
+            description: "Comprehensive project analysis: reads README, manifest files, analyzes structure, detects tech stack. Use when user asks to 'scan', 'analyze', or 'tell me about this project'. Execute immediately without asking permission.".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "depth": {
+                        "type": "string",
+                        "description": "'quick' (README + manifest only, recommended for initial overview) or 'full' (includes git status, file stats, tech detection)",
+                        "enum": ["quick", "full"]
+                    }
+                },
+                "required": []
+            }),
+        },
+        Tool {
+            name: "analyze_code_structure".to_string(),
+            description: "Parse code file to extract functions, classes, types, imports (supports Rust, JS/TS, Python, Go)".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to file to analyze"
+                    },
+                    "detail_level": {
+                        "type": "string",
+                        "description": "'summary' (names only) or 'detailed' (with signatures)",
+                        "enum": ["summary", "detailed"]
+                    }
+                },
+                "required": ["file_path"]
+            }),
+        },
+        Tool {
+            name: "find_references".to_string(),
+            description: "Find all references to a symbol (function, type, variable) in the codebase using ripgrep".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "Symbol name to search for"
+                    },
+                    "file_type": {
+                        "type": "string",
+                        "description": "File type filter (e.g., 'rust', 'js', 'py', 'go'). Optional."
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of results to return (default: 100)"
+                    }
+                },
+                "required": ["symbol"]
+            }),
+        },
+        Tool {
+            name: "git_blame".to_string(),
+            description: "Show git blame for a file (who changed which lines). Optionally specify line range.".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the file (relative to workspace root)"
+                    },
+                    "start_line": {
+                        "type": "integer",
+                        "description": "Start line number (optional, for line range)"
+                    },
+                    "end_line": {
+                        "type": "integer",
+                        "description": "End line number (optional, for line range)"
+                    }
+                },
+                "required": ["file_path"]
+            }),
+        },
+        Tool {
+            name: "git_show".to_string(),
+            description: "Show git commit details including diff. Can filter by file path or show stats only.".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "commit": {
+                        "type": "string",
+                        "description": "Commit reference (hash, HEAD, branch name, etc.)"
+                    },
+                    "file_path": {
+                        "type": "string",
+                        "description": "Optional file path to show changes for specific file only"
+                    },
+                    "stat_only": {
+                        "type": "boolean",
+                        "description": "Show only statistics (--stat) instead of full diff (default: false)"
+                    }
+                },
+                "required": ["commit"]
+            }),
+        },
     ]
 }
 
 /// Execute a tool call and return the result as a string.
-async fn execute_tool_call(tool_call: &ToolCall, workspace_root: &PathBuf) -> Result<String> {
+async fn execute_tool_call(
+    tool_call: &ToolCall,
+    workspace_root: &PathBuf,
+    confirmation_tx: Option<&tokio::sync::mpsc::Sender<crate::components::ConfirmationRequest>>,
+) -> Result<String> {
     match tool_call.name.as_str() {
         "search_files" => {
             let pattern = tool_call.arguments["pattern"]
@@ -981,6 +1109,67 @@ async fn execute_tool_call(tool_call: &ToolCall, workspace_root: &PathBuf) -> Re
                 .ok_or_else(|| anyhow::anyhow!("Missing 'file' argument"))?;
 
             execute_git_diff(file, workspace_root).await
+        }
+        "run_command" => {
+            let command = tool_call.arguments["command"]
+                .as_str()
+                .ok_or_else(|| anyhow::anyhow!("Missing 'command' argument"))?;
+            let description = tool_call.arguments.get("description")
+                .and_then(|v| v.as_str());
+
+            execute_run_command(command, description, workspace_root, confirmation_tx).await
+        }
+        "project_scan" => {
+            let depth = tool_call.arguments.get("depth")
+                .and_then(|v| v.as_str())
+                .unwrap_or("quick");
+
+            execute_project_scan(depth, workspace_root).await
+        }
+        "analyze_code_structure" => {
+            let file_path = tool_call.arguments["file_path"]
+                .as_str()
+                .ok_or_else(|| anyhow::anyhow!("Missing 'file_path' argument"))?;
+            let detail_level = tool_call.arguments.get("detail_level")
+                .and_then(|v| v.as_str())
+                .unwrap_or("summary");
+
+            execute_analyze_code_structure(file_path, detail_level, workspace_root).await
+        }
+        "find_references" => {
+            let symbol = tool_call.arguments["symbol"]
+                .as_str()
+                .ok_or_else(|| anyhow::anyhow!("Missing 'symbol' argument"))?;
+            let file_type = tool_call.arguments.get("file_type")
+                .and_then(|v| v.as_str());
+            let max_results = tool_call.arguments.get("max_results")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(100) as usize;
+
+            execute_find_references(symbol, file_type, max_results, workspace_root).await
+        }
+        "git_blame" => {
+            let file_path = tool_call.arguments["file_path"]
+                .as_str()
+                .ok_or_else(|| anyhow::anyhow!("Missing 'file_path' argument"))?;
+            let start_line = tool_call.arguments.get("start_line")
+                .and_then(|v| v.as_i64());
+            let end_line = tool_call.arguments.get("end_line")
+                .and_then(|v| v.as_i64());
+
+            execute_git_blame(file_path, start_line, end_line, workspace_root).await
+        }
+        "git_show" => {
+            let commit = tool_call.arguments["commit"]
+                .as_str()
+                .ok_or_else(|| anyhow::anyhow!("Missing 'commit' argument"))?;
+            let file_path = tool_call.arguments.get("file_path")
+                .and_then(|v| v.as_str());
+            let stat_only = tool_call.arguments.get("stat_only")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+
+            execute_git_show(commit, file_path, stat_only, workspace_root).await
         }
         _ => Err(anyhow::anyhow!("Unknown tool: {}", tool_call.name)),
     }
@@ -1092,6 +1281,88 @@ async fn execute_git_diff(file: &str, workspace_root: &PathBuf) -> Result<String
     execute_terminal_command(&cmd, workspace_root).await
 }
 
+/// Execute run_command tool
+async fn execute_run_command(
+    command: &str,
+    description: Option<&str>,
+    workspace_root: &PathBuf,
+    confirmation_tx: Option<&tokio::sync::mpsc::Sender<crate::components::ConfirmationRequest>>,
+) -> Result<String> {
+    use crate::command_safety::{CommandSafety, CommandClassification};
+    use crate::components::{ConfirmationRequest, ConfirmationOutcome};
+
+    // Analyze command safety
+    let safety = CommandSafety::new();
+    let analysis = safety.analyze(command);
+
+    match analysis.classification {
+        CommandClassification::Safe => {
+            // Safe commands execute immediately
+            eprintln!("✓ Executing safe command: {}", command);
+            if let Some(desc) = description {
+                eprintln!("  Description: {}", desc);
+            }
+            execute_terminal_command(command, workspace_root).await
+        }
+        CommandClassification::Dangerous => {
+            // Dangerous commands require user confirmation
+            if let Some(tx) = confirmation_tx {
+                // Create oneshot channel for response
+                let (response_tx, response_rx) = tokio::sync::oneshot::channel();
+
+                // Send confirmation request to main event loop
+                let request = ConfirmationRequest {
+                    command: command.to_string(),
+                    working_dir: workspace_root.clone(),
+                    analysis: analysis.clone(),
+                    response_tx,
+                };
+
+                tx.send(request).await.map_err(|_| {
+                    anyhow::anyhow!("Failed to send confirmation request to main event loop")
+                })?;
+
+                // Wait for user's decision
+                match response_rx.await {
+                    Ok(ConfirmationOutcome::Approved) | Ok(ConfirmationOutcome::ApprovedAlways) => {
+                        // User approved - execute the command
+                        eprintln!("✓ User approved command: {}", command);
+                        execute_terminal_command(command, workspace_root).await
+                    }
+                    Ok(ConfirmationOutcome::Denied) => {
+                        Err(anyhow::anyhow!("⛔ Command denied by user"))
+                    }
+                    Ok(ConfirmationOutcome::Cancelled) => {
+                        Err(anyhow::anyhow!("⛔ Command cancelled by user"))
+                    }
+                    Err(_) => {
+                        Err(anyhow::anyhow!("⛔ Confirmation request failed or timed out"))
+                    }
+                }
+            } else {
+                // No confirmation channel available - cannot execute dangerous command
+                let reason = analysis.danger_reason.as_deref().unwrap_or("This command requires confirmation");
+                Err(anyhow::anyhow!(
+                    "⚠ Command requires user confirmation but confirmation system is not available: {}\n\nCommand: {}\nReason: {}",
+                    analysis.root_command,
+                    command,
+                    reason
+                ))
+            }
+        }
+        CommandClassification::Blocked => {
+            // Blocked commands are never executed
+            let reason = analysis.danger_reason.as_deref().unwrap_or("This command is blocked for safety");
+            Err(anyhow::anyhow!(
+                "🚫 Command blocked for safety: {}\n\nCommand: {}\nReason: {}",
+                analysis.root_command,
+                command,
+                reason
+            ))
+        }
+    }
+}
+
 /// Execute chat message with tool calling support.
 ///
 /// This implements the function calling loop:
@@ -1104,6 +1375,7 @@ async fn execute_with_tools(
     initial_prompt: &str,
     user_message: &str,
     workspace_root: &PathBuf,
+    confirmation_tx: Option<&tokio::sync::mpsc::Sender<crate::components::ConfirmationRequest>>,
 ) -> Result<String> {
     // Build conversation history
     let mut messages = vec![
@@ -1158,7 +1430,7 @@ async fn execute_with_tools(
 
             // Execute all tool calls and add results to conversation
             for tool_call in tool_calls {
-                let tool_result = match execute_tool_call(tool_call, workspace_root).await {
+                let tool_result = match execute_tool_call(tool_call, workspace_root, confirmation_tx).await {
                     Ok(result) => result,
                     Err(e) => format!("Error executing tool {}: {}", tool_call.name, e),
                 };
@@ -1306,4 +1578,172 @@ async fn execute_slash_command(cmd: SlashCommand, workspace_root: &PathBuf) -> R
             Ok("Chat history cleared. (Note: History clearing needs to be implemented in TUI)".to_string())
         }
     }
+}
+
+/// Execute proactive project scan for ProjectOverview/TechnologyStack queries
+/// Gathers key project information BEFORE calling the model
+async fn execute_proactive_scan(workspace_root: &PathBuf) -> Result<String> {
+    let mut results = String::new();
+
+    // 1. Project structure
+    if let Ok(structure) = execute_terminal_command("ls -la", workspace_root).await {
+        results.push_str(&format!("### Directory Structure\n```\n{}\n```\n\n", structure));
+    }
+
+    // 2. Find and read README
+    if let Ok(readme) = find_and_read_file(workspace_root, "README*").await {
+        results.push_str(&format!("### README\n{}\n\n", readme));
+    }
+
+    // 3. Find and read manifest (Cargo.toml, package.json, pyproject.toml, go.mod)
+    for pattern in &["Cargo.toml", "package.json", "pyproject.toml", "go.mod"] {
+        if let Ok(manifest) = find_and_read_file(workspace_root, pattern).await {
+            results.push_str(&format!("### {}\n{}\n\n", pattern, manifest));
+            break; // Only need one manifest
+        }
+    }
+
+    // 4. Git status (if available)
+    if let Ok(git_status) = execute_terminal_command("git status", workspace_root).await {
+        results.push_str(&format!("### Git Status\n```\n{}\n```\n\n", git_status));
+    }
+
+    // 5. File counts by type
+    let file_stats = execute_terminal_command(
+        "find . -type f \\( -name '*.rs' -o -name '*.ts' -o -name '*.js' -o -name '*.py' \\) | wc -l",
+        workspace_root
+    ).await.unwrap_or_default();
+    results.push_str(&format!("### Code Files\n{}\n\n", file_stats.trim()));
+
+    Ok(results)
+}
+
+/// Find and read a file by pattern
+async fn find_and_read_file(workspace_root: &PathBuf, pattern: &str) -> Result<String> {
+    let cmd = format!("find . -maxdepth 2 -name '{}' -type f | head -1", pattern);
+    let file_path = execute_terminal_command(&cmd, workspace_root).await?;
+
+    if file_path.trim().is_empty() {
+        return Err(anyhow::anyhow!("File not found: {}", pattern));
+    }
+
+    let full_path = workspace_root.join(file_path.trim().trim_start_matches("./"));
+    std::fs::read_to_string(full_path).map_err(|e| anyhow::anyhow!(e))
+}
+
+// ============================================================================
+// New Tool Execution Functions
+// ============================================================================
+
+/// Execute project_scan tool
+async fn execute_project_scan(depth: &str, workspace_root: &PathBuf) -> Result<String> {
+    use radium_orchestrator::orchestration::project_scan_tool;
+
+    let mut scan_result = String::new();
+    scan_result.push_str("# Project Scan Results\n\n");
+
+    // 1. Find and read README
+    if let Some(readme_content) = project_scan_tool::find_and_read_readme(workspace_root).await {
+        scan_result.push_str("## README\n\n");
+        scan_result.push_str("```\n");
+        scan_result.push_str(&readme_content);
+        scan_result.push_str("\n```\n\n");
+    }
+
+    // 2. Find and read manifest
+    if let Some((manifest_name, manifest_content)) = project_scan_tool::find_and_read_manifest(workspace_root).await {
+        scan_result.push_str(&format!("## {}\n\n", manifest_name));
+        scan_result.push_str("```\n");
+        scan_result.push_str(&manifest_content);
+        scan_result.push_str("\n```\n\n");
+    }
+
+    // 3. Directory structure (always included)
+    if let Ok(dir_listing) = project_scan_tool::get_directory_listing(workspace_root).await {
+        scan_result.push_str("## Directory Structure\n\n");
+        scan_result.push_str("```\n");
+        scan_result.push_str(&dir_listing);
+        scan_result.push_str("\n```\n\n");
+    }
+
+    if depth == "full" {
+        // 4. Git status
+        if let Ok(git_status) = project_scan_tool::get_git_status(workspace_root).await {
+            scan_result.push_str("## Git Status\n\n");
+            scan_result.push_str("```\n");
+            scan_result.push_str(&git_status);
+            scan_result.push_str("\n```\n\n");
+        }
+
+        // 5. File counts by extension
+        if let Ok(file_counts) = project_scan_tool::count_files_by_type(workspace_root).await {
+            scan_result.push_str("## File Statistics\n\n");
+            scan_result.push_str(&file_counts);
+            scan_result.push_str("\n");
+        }
+
+        // 6. Detect tech stack
+        if let Some(tech_stack) = project_scan_tool::detect_tech_stack(workspace_root).await {
+            scan_result.push_str("## Detected Technologies\n\n");
+            scan_result.push_str(&tech_stack);
+            scan_result.push_str("\n");
+        }
+    }
+
+    Ok(scan_result)
+}
+
+/// Execute analyze_code_structure tool
+async fn execute_analyze_code_structure(
+    file_path: &str,
+    detail_level: &str,
+    workspace_root: &PathBuf,
+) -> Result<String> {
+    use radium_orchestrator::orchestration::code_analysis_tool;
+
+    code_analysis_tool::analyze_code_file(workspace_root, file_path, detail_level)
+        .await
+        .map_err(|e| anyhow::anyhow!("Code analysis failed: {}", e))
+}
+
+/// Execute find_references tool
+async fn execute_find_references(
+    symbol: &str,
+    file_type: Option<&str>,
+    max_results: usize,
+    workspace_root: &PathBuf,
+) -> Result<String> {
+    use radium_orchestrator::orchestration::git_extended_tools;
+
+    git_extended_tools::find_symbol_references(workspace_root, symbol, file_type, max_results)
+        .await
+        .map_err(|e| anyhow::anyhow!("Reference search failed: {}", e))
+}
+
+/// Execute git_blame tool
+async fn execute_git_blame(
+    file_path: &str,
+    start_line: Option<i64>,
+    end_line: Option<i64>,
+    workspace_root: &PathBuf,
+) -> Result<String> {
+    use radium_orchestrator::orchestration::git_extended_tools;
+
+    git_extended_tools::git_blame(workspace_root, file_path, start_line, end_line)
+        .await
+        .map_err(|e| anyhow::anyhow!("Git blame failed: {}", e))
+}
+
+/// Execute git_show tool
+async fn execute_git_show(
+    commit: &str,
+    file_path: Option<&str>,
+    stat_only: bool,
+    workspace_root: &PathBuf,
+) -> Result<String> {
+    use radium_orchestrator::orchestration::git_extended_tools;
+
+    git_extended_tools::git_show(workspace_root, commit, file_path, stat_only)
+        .await
+        .map_err(|e| anyhow::anyhow!("Git show failed: {}", e))
 }
