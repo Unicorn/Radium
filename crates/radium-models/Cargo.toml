@@ -25,7 +25,7 @@ base64.workspace = true
 async-trait.workspace = true
 
 # HTTP client - using reqwest (simpler than raw hyper)
-reqwest = { version = "0.12", features = ["json", "stream"] }
+reqwest = { version = "0.12", features = ["json", "stream", "multipart"] }
 tokio = { version = "1", features = ["rt", "net", "macros"] }
 futures = "0.3"
 bytes = "1.5"
@@ -39,6 +39,9 @@ anyhow.workspace = true
 
 # Hashing
 sha2 = "0.10"
+
+# Date/time handling
+chrono = { version = "0.4", features = ["serde"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
