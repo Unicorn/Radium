@@ -68,6 +68,44 @@ pub enum ModelError {
         safety_ratings: Option<Vec<SafetyRating>>,
     },
 
+    /// The model does not support the requested content block type.
+    #[error("Unsupported content type '{content_type}' for model '{model}'")]
+    UnsupportedContentType {
+        /// The content block type that is not supported (e.g., "audio", "video").
+        content_type: String,
+        /// The model ID that does not support this content type.
+        model: String,
+    },
+
+    /// Invalid media source (file path doesn't exist, URL is malformed, etc.).
+    #[error("Invalid media source '{media_source}': {reason}")]
+    InvalidMediaSource {
+        /// The media source that is invalid (file path or URL).
+        media_source: String,
+        /// Reason why the source is invalid.
+        reason: String,
+    },
+
+    /// Media content exceeds the model's size limit.
+    #[error("Media size {size} bytes exceeds limit of {limit} bytes for {media_type}")]
+    MediaSizeLimitExceeded {
+        /// The actual size in bytes.
+        size: usize,
+        /// The maximum allowed size in bytes.
+        limit: usize,
+        /// The media type (e.g., "image", "audio").
+        media_type: String,
+    },
+
+    /// Invalid media format (MIME type not supported).
+    #[error("Invalid media format '{format}'. Expected one of: {expected}")]
+    InvalidMediaFormat {
+        /// The MIME type that was provided.
+        format: String,
+        /// List of expected MIME types (formatted as comma-separated string).
+        expected: String,
+    },
+
     /// Other unexpected errors.
     #[error("Other Model Error: {0}")]
     Other(String),
@@ -588,5 +626,46 @@ mod tests {
         };
 
         assert_eq!(response.get_model_version(), Some("gemini-1.5-pro-001".to_string()));
+    }
+
+    #[test]
+    fn test_multimodal_error_types() {
+        // Test UnsupportedContentType
+        let err1 = ModelError::UnsupportedContentType {
+            content_type: "audio".to_string(),
+            model: "gpt-3.5-turbo".to_string(),
+        };
+        let err1_str = err1.to_string();
+        assert!(err1_str.contains("audio"));
+        assert!(err1_str.contains("gpt-3.5-turbo"));
+
+        // Test InvalidMediaSource
+        let err2 = ModelError::InvalidMediaSource {
+            media_source: "/path/to/missing/file.jpg".to_string(),
+            reason: "File does not exist".to_string(),
+        };
+        let err2_str = err2.to_string();
+        assert!(err2_str.contains("/path/to/missing/file.jpg"));
+        assert!(err2_str.contains("File does not exist"));
+
+        // Test MediaSizeLimitExceeded
+        let err3 = ModelError::MediaSizeLimitExceeded {
+            size: 25_000_000,
+            limit: 20_000_000,
+            media_type: "image".to_string(),
+        };
+        let err3_str = err3.to_string();
+        assert!(err3_str.contains("25000000"));
+        assert!(err3_str.contains("20000000"));
+        assert!(err3_str.contains("image"));
+
+        // Test InvalidMediaFormat
+        let err4 = ModelError::InvalidMediaFormat {
+            format: "image/svg+xml".to_string(),
+            expected: "image/jpeg, image/png, image/gif".to_string(),
+        };
+        let err4_str = err4.to_string();
+        assert!(err4_str.contains("image/svg+xml"));
+        assert!(err4_str.contains("image/jpeg"));
     }
 }

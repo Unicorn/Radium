@@ -633,6 +633,8 @@ mod tests {
             sandbox: None,
             persona_config: None,
             routing: None,
+            safety_behavior: None,
+            routing: None,
         }
     }
 

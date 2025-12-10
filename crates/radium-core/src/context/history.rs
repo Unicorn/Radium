@@ -28,6 +28,9 @@ pub struct Interaction {
     pub output: String,
     /// Timestamp when this interaction occurred.
     pub timestamp: DateTime<Utc>,
+    /// Optional metadata from the model response (e.g., finish_reason, safety_ratings, citations).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<HashMap<String, serde_json::Value>>,
 }
 
 /// Errors that can occur during history operations.
@@ -82,6 +85,7 @@ impl HistoryManager {
     /// * `goal` - Goal or objective
     /// * `plan` - Plan or approach
     /// * `output` - Output or guidance
+    /// * `metadata` - Optional metadata from the model response
     ///
     /// # Errors
     /// Returns error if save fails
@@ -91,9 +95,10 @@ impl HistoryManager {
         goal: String,
         plan: String,
         output: String,
+        metadata: Option<HashMap<String, serde_json::Value>>,
     ) -> Result<()> {
         let session_id = session_id.unwrap_or("default").to_string();
-        let interaction = Interaction { goal, plan, output, timestamp: Utc::now() };
+        let interaction = Interaction { goal, plan, output, timestamp: Utc::now(), metadata };
 
         let session_history = self.histories.entry(session_id).or_default();
         session_history.push(interaction);
@@ -220,6 +225,7 @@ mod tests {
                 "Build feature".to_string(),
                 "Use React".to_string(),
                 "Guidance here".to_string(),
+                None,
             )
             .unwrap();
 
@@ -234,7 +240,7 @@ mod tests {
         let mut manager = HistoryManager::new(temp_dir.path()).unwrap();
 
         manager
-            .add_interaction(None, "Goal".to_string(), "Plan".to_string(), "Output".to_string())
+            .add_interaction(None, "Goal".to_string(), "Plan".to_string(), "Output".to_string(), None)
             .unwrap();
 
         let interactions = manager.get_interactions(None);
@@ -253,6 +259,7 @@ mod tests {
                     format!("Goal {}", i),
                     format!("Plan {}", i),
                     format!("Output {}", i),
+                    None,
                 )
                 .unwrap();
         }
@@ -299,6 +306,7 @@ mod tests {
                 "Goal".to_string(),
                 "Plan".to_string(),
                 "Output".to_string(),
+                None,
             )
             .unwrap();
 

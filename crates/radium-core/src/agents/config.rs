@@ -952,6 +952,7 @@ reasoning_effort = "medium"
 
         let config = AgentConfigFile {
             model: None,
+            safety: None,
             agent: AgentConfig::new("test-agent", "Test Agent", PathBuf::from("prompts/test.md"))
                 .with_description("A test agent")
                 .with_engine("gemini")
@@ -1206,6 +1207,7 @@ trigger_agent_id = "helper-agent"
 
             let config = AgentConfigFile {
             model: None,
+            safety: None,
                 agent: AgentConfig::new(id, "Test", prompt_path.clone())
                     .with_file_path(config_path),
             persona: None,
@@ -1224,6 +1226,7 @@ trigger_agent_id = "helper-agent"
         for (id, reason) in invalid_ids {
             let config = AgentConfigFile {
             model: None,
+            safety: None,
                 agent: AgentConfig::new(id, "Test", PathBuf::from("prompts/test.md")),
             persona: None,
             };
@@ -1248,13 +1251,14 @@ trigger_agent_id = "helper-agent"
             fs::write(&prompt_path, "# Test").unwrap();
             let config_path = temp_dir.path().join("test.toml");
 
-            let config = AgentConfigFile {
+        let config = AgentConfigFile {
             model: None,
-                agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
-                    .with_engine(engine)
-                    .with_file_path(config_path),
+            safety: None,
+            agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
+                .with_engine(engine)
+                .with_file_path(config_path),
             persona: None,
-            };
+        };
             assert!(
                 config.validate().is_ok(),
                 "Engine '{}' should be valid",
@@ -1270,13 +1274,14 @@ trigger_agent_id = "helper-agent"
             fs::write(&prompt_path, "# Test").unwrap();
             let config_path = temp_dir.path().join("test.toml");
 
-            let config = AgentConfigFile {
+        let config = AgentConfigFile {
             model: None,
-                agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
-                    .with_engine(engine)
-                    .with_file_path(config_path),
+            safety: None,
+            agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
+                .with_engine(engine)
+                .with_file_path(config_path),
             persona: None,
-            };
+        };
             assert!(
                 config.validate().is_err(),
                 "Engine '{}' should be invalid",
@@ -1297,6 +1302,7 @@ trigger_agent_id = "helper-agent"
 
         let config = AgentConfigFile {
             model: None,
+            safety: None,
             agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                 .with_loop_behavior(AgentLoopBehavior {
                     steps: 2,
@@ -1311,6 +1317,7 @@ trigger_agent_id = "helper-agent"
         // Invalid: steps = 0
         let config = AgentConfigFile {
             model: None,
+            safety: None,
             agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                 .with_loop_behavior(AgentLoopBehavior {
                     steps: 0,
@@ -1325,6 +1332,7 @@ trigger_agent_id = "helper-agent"
         // Invalid: max_iterations = 0
         let config = AgentConfigFile {
             model: None,
+            safety: None,
             agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                 .with_loop_behavior(AgentLoopBehavior {
                     steps: 2,
@@ -1349,6 +1357,7 @@ trigger_agent_id = "helper-agent"
 
         let config = AgentConfigFile {
             model: None,
+            safety: None,
             agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                 .with_trigger_behavior(AgentTriggerBehavior {
                     trigger_agent_id: Some("fallback-agent".to_string()),
@@ -1361,6 +1370,7 @@ trigger_agent_id = "helper-agent"
         // Invalid: empty trigger_agent_id
         let config = AgentConfigFile {
             model: None,
+            safety: None,
             agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                 .with_trigger_behavior(AgentTriggerBehavior {
                     trigger_agent_id: Some("".to_string()),
@@ -1376,6 +1386,7 @@ trigger_agent_id = "helper-agent"
             let test_config_path = config_path.clone();
             let config = AgentConfigFile {
             model: None,
+            safety: None,
                 agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                     .with_trigger_behavior(AgentTriggerBehavior {
                         trigger_agent_id: Some(invalid_id.to_string()),
@@ -1408,6 +1419,7 @@ trigger_agent_id = "helper-agent"
         // Valid: relative path from config directory
         let config = AgentConfigFile {
             model: None,
+            safety: None,
             agent: AgentConfig::new("test-agent", "Test", PathBuf::from("../prompts/test.md"))
                 .with_file_path(config_dir.join("test-agent.toml")),
         persona: None,
@@ -1417,6 +1429,7 @@ trigger_agent_id = "helper-agent"
         // Valid: absolute path
         let config = AgentConfigFile {
             model: None,
+            safety: None,
             agent: AgentConfig::new("test-agent", "Test", prompt_file.clone())
                 .with_file_path(config_dir.join("test-agent.toml")),
         persona: None,
@@ -1426,6 +1439,7 @@ trigger_agent_id = "helper-agent"
         // Invalid: non-existent file
         let config = AgentConfigFile {
             model: None,
+            safety: None,
             agent: AgentConfig::new("test-agent", "Test", PathBuf::from("nonexistent.md"))
                 .with_file_path(config_dir.join("test-agent.toml")),
         persona: None,
@@ -1444,9 +1458,11 @@ trigger_agent_id = "helper-agent"
         // Test: Empty agent ID
         let config = AgentConfigFile {
             model: None,
+            safety: None,
             agent: AgentConfig {
                 id: String::new(),
                 name: "Test Agent".to_string(),
+                safety_behavior: None,
                 prompt_path: PathBuf::from("test.md"),
                 description: String::new(),
                 mirror_path: None,
@@ -1471,6 +1487,7 @@ trigger_agent_id = "helper-agent"
         // Test: Empty agent name
         let config = AgentConfigFile {
             model: None,
+            safety: None,
             agent: AgentConfig {
                 id: "test-agent".to_string(),
                 name: String::new(),
@@ -1489,6 +1506,7 @@ trigger_agent_id = "helper-agent"
                 sandbox: None,
                 persona_config: None,
                 routing: None,
+                safety_behavior: None,
             }
             .with_file_path(config_dir.join("empty-name.toml")),
             persona: None,
@@ -1498,6 +1516,7 @@ trigger_agent_id = "helper-agent"
         // Test: Empty prompt path
         let config = AgentConfigFile {
             model: None,
+            safety: None,
             agent: AgentConfig {
                 id: "test-agent".to_string(),
                 name: "Test Agent".to_string(),
@@ -1595,6 +1614,7 @@ reasoning_effort = "invalid"
         
         let config = AgentConfigFile {
             model: None,
+            safety: None,
             agent: AgentConfig::new("test", "Test", PathBuf::from("test.md")),
             persona: None,
         };
@@ -1625,6 +1645,7 @@ reasoning_effort = "invalid"
     fn test_agent_config_save_to_nonexistent_directory() {
         let config = AgentConfigFile {
             model: None,
+            safety: None,
             agent: AgentConfig::new("test", "Test", PathBuf::from("test.md")),
             persona: None,
         };
@@ -1702,6 +1723,7 @@ cost_tier = "invalid"
         // Valid capabilities
         let config = AgentConfigFile {
             model: None,
+            safety: None,
             agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                 .with_file_path(config_path.clone()),
         persona: None,
@@ -1718,6 +1740,7 @@ cost_tier = "invalid"
         };
         let config = AgentConfigFile {
             model: None,
+            safety: None,
             agent: agent.with_file_path(config_path),
         persona: None,
         };
@@ -1751,6 +1774,7 @@ cost_tier = "invalid"
         for invalid_id in invalid_ids {
             let config = AgentConfigFile {
             model: None,
+            safety: None,
                 agent: AgentConfig::new(invalid_id, "Test", prompt_path.clone())
                     .with_file_path(config_path.clone()),
             persona: None,
@@ -1774,6 +1798,7 @@ cost_tier = "invalid"
 
         let config = AgentConfigFile {
             model: None,
+            safety: None,
             agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                 .with_loop_behavior(AgentLoopBehavior {
                     steps: 2,
@@ -1823,6 +1848,7 @@ cost_tier = "invalid"
         // Valid top_k
         let mut config = AgentConfigFile {
             model: None,
+            safety: None,
             agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                 .with_file_path(config_path.clone()),
             persona: None,
@@ -1874,6 +1900,7 @@ cost_tier = "invalid"
 
         let mut config = AgentConfigFile {
             model: None,
+            safety: None,
             agent: AgentConfig::new("test-agent", "Test", prompt_path)
                 .with_file_path(config_path),
             persona: None,

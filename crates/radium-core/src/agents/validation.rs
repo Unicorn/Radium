@@ -199,6 +199,7 @@ mod tests {
             persona_config: None,
             sandbox: None,
             routing: None,
+            safety_behavior: None,
         }
     }
 

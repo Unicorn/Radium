@@ -313,6 +313,7 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
                     input.to_string(),
                     "chat".to_string(),
                     "Response logged".to_string(),
+                    None, // metadata - would need to extract from step::execute response
                 )?;
             }
             Err(e) => {
