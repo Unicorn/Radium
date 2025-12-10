@@ -42,6 +42,7 @@ tonic.workspace = true
 
 # Async runtime
 tokio.workspace = true
+futures = "0.3"
 
 # Internal crates
 radium-core = { workspace = true, features = ["monitoring", "workflow", "mcp-progress", "syntax"] }

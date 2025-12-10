@@ -23,6 +23,9 @@ pub async fn execute(
     model: Option<String>,
     dir: Option<String>,
     model_tier: Option<String>,
+    show_metadata: bool,
+    json: bool,
+    safety_behavior: Option<String>,
 ) -> anyhow::Result<()> {
     println!("{}", "rad run".bold().cyan());
     println!();

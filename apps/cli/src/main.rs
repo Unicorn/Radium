@@ -173,6 +173,18 @@ enum Command {
         /// Model tier override (smart, eco, auto)
         #[arg(long)]
         model_tier: Option<String>,
+
+        /// Show metadata in human-readable format
+        #[arg(long)]
+        show_metadata: bool,
+
+        /// Output complete response as JSON with nested metadata
+        #[arg(long)]
+        json: bool,
+
+        /// Override safety behavior (return-partial, error, log)
+        #[arg(long)]
+        safety_behavior: Option<String>,
     },
 
     /// Execute a single workflow step
@@ -242,6 +254,18 @@ enum Command {
         /// List available sessions
         #[arg(long)]
         list: bool,
+
+        /// Show metadata in human-readable format
+        #[arg(long)]
+        show_metadata: bool,
+
+        /// Output complete response as JSON with nested metadata
+        #[arg(long)]
+        json: bool,
+
+        /// Override safety behavior (return-partial, error, log)
+        #[arg(long)]
+        safety_behavior: Option<String>,
     },
 
     /// Clipboard mode for universal editor support
@@ -633,7 +657,7 @@ async fn main() -> anyhow::Result<()> {
         Command::Step { id, prompt, model, engine, reasoning, model_tier, stream, show_metadata, json, safety_behavior } => {
             step::execute(id, prompt, model, engine, reasoning, model_tier, None, stream, show_metadata, json, safety_behavior).await?;
         }
-        Command::Chat { agent_id, session, resume, list, stream } => {
+        Command::Chat { agent_id, session, resume, list, stream, show_metadata, json, safety_behavior } => {
             if list {
                 chat::list_sessions().await?;
             } else if let Some(id) = agent_id {

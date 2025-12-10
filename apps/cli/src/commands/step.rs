@@ -843,7 +843,7 @@ async fn execute_agent_with_engine(
                 // Engine doesn't support streaming, fall back to non-streaming
                 println!("  {} Streaming not supported for engine '{}', using standard mode", "⚠".yellow(), engine_id);
                 // Fall through to normal execution
-                return execute_normal(engine, request).await;
+                return execute_normal(&engine, request).await;
             }
         };
 
@@ -870,7 +870,7 @@ async fn execute_agent_with_engine(
     }
 
     // Normal (non-streaming) execution
-    execute_normal(engine, request).await
+    execute_normal(&engine, request).await
 }
 
 /// Execute the engine normally (non-streaming).

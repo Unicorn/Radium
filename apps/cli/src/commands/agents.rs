@@ -1469,6 +1469,8 @@ async fn create_agent(
         let mut config_file = AgentConfigFile { 
             agent: agent.clone(),
             persona: None,
+            model: None,
+            safety: None,
         };
         
         // Add persona configuration if requested

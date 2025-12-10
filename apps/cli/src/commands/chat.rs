@@ -27,7 +27,7 @@ use super::step;
 /// * `agent_id` - The agent to chat with
 /// * `session_name` - Optional session name (defaults to timestamp-based)
 /// * `resume` - Whether to resume an existing session
-pub async fn execute(agent_id: String, session_name: Option<String>, resume: bool, stream: bool) -> Result<()> {
+pub async fn execute(agent_id: String, session_name: Option<String>, resume: bool, stream: bool, show_metadata: bool, json: bool, safety_behavior: Option<String>) -> Result<()> {
     // Get workspace
     let workspace =
         Workspace::discover().context("Failed to load workspace. Run 'rad init' first.")?;
@@ -294,6 +294,9 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
             None, // model_tier
             Some(session_id.clone()), // session_id
             stream, // stream
+            show_metadata, // show_metadata
+            json, // json
+            safety_behavior.clone(), // safety_behavior
         )
         .await
         {
