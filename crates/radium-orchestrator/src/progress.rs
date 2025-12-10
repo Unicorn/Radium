@@ -42,6 +42,28 @@ pub enum ProgressEvent {
         /// New queue depth.
         depth: usize,
     },
+    /// A batch execution has started.
+    BatchStarted {
+        /// Agent ID.
+        agent_id: String,
+        /// Total number of items in batch.
+        total_items: usize,
+    },
+    /// A batch execution has completed.
+    BatchCompleted {
+        /// Agent ID.
+        agent_id: String,
+        /// Total number of items.
+        total_items: usize,
+        /// Number of successful items.
+        successful: usize,
+        /// Number of failed items.
+        failed: usize,
+        /// Total tokens used.
+        total_tokens: u64,
+        /// Total cost in USD.
+        total_cost: f64,
+    },
 }
 
 /// Progress metrics snapshot.
