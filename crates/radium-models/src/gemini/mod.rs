@@ -556,6 +556,7 @@ impl Model for GeminiModel {
             tools: if tools.is_empty() { None } else { Some(tools) },
             tool_config: None,
             safety_settings: self.safety_settings.clone(),
+            cached_content: None,
         };
 
         if let Some(ref settings) = request_body.safety_settings {
