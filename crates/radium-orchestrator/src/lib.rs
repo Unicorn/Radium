@@ -84,6 +84,24 @@ pub enum AgentOutput {
     // Future additions: file output, command execution, etc.
 }
 
+/// Result of code execution in a provider sandbox.
+///
+/// This structure captures all outputs from code execution, including
+/// standard output, standard error, return values, and any errors that occurred.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CodeExecutionResult {
+    /// The code that was executed.
+    pub code: String,
+    /// Standard output from execution, if any.
+    pub stdout: Option<String>,
+    /// Standard error from execution, if any.
+    pub stderr: Option<String>,
+    /// Return value if execution succeeded, represented as JSON.
+    pub return_value: Option<serde_json::Value>,
+    /// Error message if execution failed.
+    pub error: Option<String>,
+}
+
 /// A trait that defines the interface for any autonomous agent.
 #[async_trait]
 pub trait Agent {

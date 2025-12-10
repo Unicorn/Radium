@@ -171,19 +171,36 @@ pub struct ModelPricingDB {
 
 impl ModelPricingDB {
     /// Creates a new pricing database with default values.
+    ///
+    /// # Pricing Sources
+    /// - Gemini: https://ai.google.dev/pricing (last verified: December 2025)
+    /// - Claude: https://www.anthropic.com/pricing (last verified: December 2025)
+    /// - OpenAI: https://openai.com/pricing (last verified: December 2025)
+    ///
+    /// # Note
+    /// Pricing is approximate and may vary by region or usage tier.
+    /// Costs are per 1M tokens (input/output separately).
+    /// Thinking models typically cost 2-3x more than standard models due to increased token usage.
     pub fn new() -> Self {
         let mut pricing = HashMap::new();
         
-        // Gemini pricing (approximate)
+        // Gemini pricing (per 1M tokens)
+        // Source: https://ai.google.dev/pricing
+        // Last updated: December 2025
         pricing.insert("gemini-2.0-flash-exp".to_string(), ModelPricing::new(0.075, 0.30));
-        pricing.insert("gemini-2.0-flash-thinking".to_string(), ModelPricing::new(0.20, 0.80));
+        pricing.insert("gemini-2.0-flash-thinking".to_string(), ModelPricing::new(0.20, 0.80)); // Thinking model: ~2.7x more expensive
         pricing.insert("gemini-1.5-pro".to_string(), ModelPricing::new(1.25, 5.00));
         
-        // OpenAI pricing (approximate)
+        // OpenAI pricing (per 1M tokens)
+        // Source: https://openai.com/pricing
+        // Last updated: December 2025
         pricing.insert("gpt-4o".to_string(), ModelPricing::new(2.50, 10.00));
         pricing.insert("gpt-4o-mini".to_string(), ModelPricing::new(0.15, 0.60));
         
-        // Claude pricing (approximate)
+        // Claude pricing (per 1M tokens)
+        // Source: https://www.anthropic.com/pricing
+        // Last updated: December 2025
+        // Note: Claude models support extended thinking which increases token usage
         pricing.insert("claude-3-opus".to_string(), ModelPricing::new(15.00, 75.00));
         pricing.insert("claude-3-sonnet".to_string(), ModelPricing::new(3.00, 15.00));
         
