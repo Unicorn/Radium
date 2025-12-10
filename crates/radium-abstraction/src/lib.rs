@@ -514,6 +514,20 @@ pub struct ModelParameters {
 
     /// Up to 4 sequences where the API will stop generating further tokens.
     pub stop_sequences: Option<Vec<String>>,
+
+    /// Enable Google Search grounding for Gemini API (Gemini-specific).
+    /// When set to `Some(true)`, enables grounding with Google Search to enhance responses with citations.
+    /// Defaults to `None` (disabled) if not specified.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_grounding: Option<bool>,
+
+    /// Dynamic retrieval threshold for Google Search grounding (Gemini-specific).
+    /// Controls when and how aggressively to use search. Valid range: 0.0 to 1.0.
+    /// Lower values (e.g., 0.1) make the model more likely to use search.
+    /// Higher values (e.g., 0.9) make the model more selective about when to search.
+    /// Defaults to 0.3 if grounding is enabled but threshold is not specified.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub grounding_threshold: Option<f32>,
 }
 
 impl Default for ModelParameters {
@@ -527,6 +541,8 @@ impl Default for ModelParameters {
             presence_penalty: None,
             response_format: None,
             stop_sequences: None,
+            enable_grounding: None,
+            grounding_threshold: None,
         }
     }
 }
@@ -655,6 +671,20 @@ impl ModelResponse {
     }
 }
 
+/// Cache usage statistics for context caching.
+///
+/// This structure tracks token usage from cached contexts, which typically
+/// cost significantly less than regular tokens (50-90% reduction).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CacheUsage {
+    /// Number of tokens used to create the cache (one-time cost).
+    pub cache_creation_tokens: u32,
+    /// Number of tokens read from cache (reduced cost).
+    pub cache_read_tokens: u32,
+    /// Number of regular (non-cached) tokens.
+    pub regular_tokens: u32,
+}
+
 /// Usage statistics for a model request.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelUsage {
@@ -666,6 +696,10 @@ pub struct ModelUsage {
 
     /// Total number of tokens used.
     pub total_tokens: u32,
+
+    /// Cache usage statistics (if context caching was used).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_usage: Option<CacheUsage>,
 }
 
 /// Safety rating for content filtering.
