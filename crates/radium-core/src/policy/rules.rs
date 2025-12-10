@@ -21,13 +21,16 @@ pub struct PolicyRule {
     /// Human-readable name for this rule.
     pub name: String,
     /// Glob pattern for matching tool names.
-    /// Examples: "read_*", "bash:*", "mcp:*", "server:tool", "*:dangerous", "server1:*"
+    /// Examples: "read_*", "bash:*", "mcp:*", "server:tool", "*:dangerous", "server1:*", "code_execution"
     /// 
     /// For MCP tools, patterns can match:
     /// - `mcp_*` - All MCP tools (orchestration format: mcp_server_tool)
     /// - `mcp_server1_*` - All tools from server1
     /// - `*:tool` - Tool named "tool" from any server (if using server:tool format)
     /// - `server1:*` - All tools from server1 (if using server:tool format)
+    /// 
+    /// For code execution (provider-specific tools like Gemini's code_execution):
+    /// - `code_execution` - Matches code execution tool requests
     pub tool_pattern: String,
     /// Optional glob pattern for matching tool arguments.
     #[serde(skip_serializing_if = "Option::is_none")]

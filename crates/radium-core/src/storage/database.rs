@@ -211,6 +211,59 @@ impl Database {
             [],
         )?;
 
+        // Create batch_executions table
+        self.conn.execute(
+            r#"
+            CREATE TABLE IF NOT EXISTS batch_executions (
+                batch_id TEXT PRIMARY KEY,
+                agent_id TEXT,
+                total_requests INTEGER NOT NULL,
+                completed_requests INTEGER NOT NULL DEFAULT 0,
+                successful_requests INTEGER NOT NULL DEFAULT 0,
+                failed_requests INTEGER NOT NULL DEFAULT 0,
+                concurrency_limit INTEGER NOT NULL,
+                started_at TEXT NOT NULL,
+                completed_at TEXT,
+                status TEXT NOT NULL
+            )
+            "#,
+            [],
+        )?;
+
+        // Create batch_request_results table
+        self.conn.execute(
+            r#"
+            CREATE TABLE IF NOT EXISTS batch_request_results (
+                id TEXT PRIMARY KEY,
+                batch_id TEXT NOT NULL,
+                request_index INTEGER NOT NULL,
+                input TEXT NOT NULL,
+                output TEXT,
+                status TEXT NOT NULL,
+                error_message TEXT,
+                duration_ms INTEGER NOT NULL,
+                started_at TEXT NOT NULL,
+                completed_at TEXT,
+                FOREIGN KEY (batch_id) REFERENCES batch_executions(batch_id)
+            )
+            "#,
+            [],
+        )?;
+
+        // Create indexes for batch tables
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_batch_executions_agent_id ON batch_executions(agent_id)",
+            [],
+        )?;
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_batch_executions_status ON batch_executions(status)",
+            [],
+        )?;
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_batch_request_results_batch_id ON batch_request_results(batch_id)",
+            [],
+        )?;
+
         info!("Database schema initialized successfully");
         Ok(())
     }

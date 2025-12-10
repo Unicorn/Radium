@@ -596,6 +596,8 @@ impl Model for GeminiModel {
         }
         
         // Check if code execution is enabled - precedence: model field > config file > default (true for Gemini)
+        // Note: PolicyEngine integration happens in the executor layer when processing tool calls.
+        // PolicyEngine recognizes "code_execution" as a tool name and can deny/allow it via policy rules.
         let enable_code_execution = self.enable_code_execution
             .or(self.config.enable_code_execution)
             .unwrap_or(true); // Default to true for Gemini
@@ -1114,10 +1116,8 @@ impl Model for GeminiModel {
                 metadata_map.insert("thinking_process".to_string(), thinking.clone());
             }
             
-            // Store code execution results in metadata if present
-            if !code_execution_results.is_empty() {
-                metadata_map.insert("code_execution_results".to_string(), serde_json::json!(code_execution_results));
-            }
+            // Note: code_execution_results would be extracted here if needed
+            // For now, it's only available in generate_text, not in generate_chat_completion
             
             if metadata_map.is_empty() {
                 None
@@ -1347,6 +1347,7 @@ struct GeminiSSEStream {
     buffer: String,
     accumulated: String,
     done: bool,
+    model_id: String,
 }
 
 impl GeminiSSEStream {
@@ -1400,7 +1401,8 @@ impl Stream for GeminiSSEStream {
                                     match serde_json::from_str::<GeminiStreamingResponse>(data) {
                                         Ok(streaming_response) => {
                                     // Check for thinking process in streaming response (for thinking models)
-                                    let is_thinking_model = GeminiModel::is_thinking_model(&self.model_id);
+                                    let model_id = self.model_id.clone();
+                                    let is_thinking_model = GeminiModel::is_thinking_model(&model_id);
                                     let mut has_thinking = false;
                                     let mut thinking_text = String::new();
                                     
