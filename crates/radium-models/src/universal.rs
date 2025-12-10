@@ -350,6 +350,7 @@ impl Model for UniversalModel {
             model_id: Some(self.model_id.clone()),
             usage,
             metadata: None,
+            tool_calls: None,
         })
     }
 

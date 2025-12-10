@@ -372,6 +372,7 @@ impl Model for OpenAIModel {
             model_id: Some(self.model_id.clone()),
             usage,
             metadata,
+            tool_calls: None,
         })
     }
 

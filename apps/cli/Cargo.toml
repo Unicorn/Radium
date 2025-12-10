@@ -85,6 +85,12 @@ dirs = "5.0"
 # Regex for source extraction
 regex = "1.10"
 
+# MIME type detection
+mime_guess = "2.0"
+
+# Base64 encoding
+base64 = "0.21"
+
 [dev-dependencies]
 tempfile = "3.8"
 assert_cmd = "2.0"

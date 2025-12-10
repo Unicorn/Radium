@@ -590,6 +590,7 @@ impl Model for GeminiModel {
             model_id: Some(self.model_id.clone()),
             usage,
             metadata,
+            tool_calls: None,
         })
     }
 

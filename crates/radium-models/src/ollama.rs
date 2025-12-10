@@ -298,6 +298,7 @@ impl Model for OllamaModel {
                 total_tokens,
             }),
             metadata: None,
+            tool_calls: None,
         })
     }
 
@@ -405,6 +406,7 @@ impl Model for OllamaModel {
                 total_tokens,
             }),
             metadata: None,
+            tool_calls: None,
         })
     }
 

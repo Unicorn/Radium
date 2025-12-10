@@ -6,8 +6,9 @@ use anyhow::{Context, bail};
 use chrono::Utc;
 use colored::Colorize;
 use futures::StreamExt;
-use radium_abstraction::{ModelParameters, StreamingModel};
+use radium_abstraction::{ContentBlock, ImageSource, MediaSource, MessageContent, ModelError, ModelParameters, StreamingModel};
 use radium_core::engines::ExecutionResponse;
+use radium_models::gemini::file_api::GeminiFileApi;
 use serde_json;
 use radium_core::{
     analytics::{ReportFormatter, SessionAnalytics, SessionReport, SessionStorage},
@@ -22,6 +23,7 @@ use radium_core::{
 };
 use radium_models::{GeminiModel, MockModel, OpenAIModel};
 use std::io::Write;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::fs;
 use uuid::Uuid;
@@ -41,6 +43,11 @@ pub async fn execute(
     show_metadata: bool,
     json: bool,
     safety_behavior: Option<String>,
+    image: Vec<PathBuf>,
+    audio: Vec<PathBuf>,
+    video: Vec<PathBuf>,
+    file: Vec<PathBuf>,
+    auto_upload: bool,
 ) -> anyhow::Result<()> {
     println!("{}", "rad step".bold().cyan());
     println!();
@@ -228,12 +235,114 @@ pub async fn execute(
         }
     }
 
-    // Execute agent (simulated)
+    // Check if multimodal input is provided
+    let has_multimodal = !image.is_empty() || !audio.is_empty() || !video.is_empty() || !file.is_empty();
+
+    // Validate engine for multimodal input
+    if has_multimodal {
+        if !selected_engine_id.contains("gemini") {
+            return Err(anyhow::anyhow!(
+                "Multimodal input is only supported with Gemini models. Current engine: {}. Please use --engine gemini",
+                selected_engine_id
+            ));
+        }
+
+        // Check for GEMINI_API_KEY
+        if std::env::var("GEMINI_API_KEY").is_err() {
+            return Err(anyhow::anyhow!(
+                "GEMINI_API_KEY environment variable is required for multimodal input. Please set it and try again."
+            ));
+        }
+    }
+
+    // Execute agent
     println!();
     println!("{}", "Executing agent...".bold());
     println!();
 
-    let execution_result = execute_agent_with_engine(&registry, &agent.id, &rendered, selected_engine_id, selected_model, stream).await;
+    let execution_result = if has_multimodal {
+        // Process multimodal files
+        println!("  {}", "Processing multimodal inputs...".dimmed());
+        let file_blocks = process_all_files(&image, &audio, &video, &file, auto_upload)
+            .await
+            .with_context(|| "Failed to process multimodal files")?;
+        println!("  {} Processed {} content blocks", "✓".green(), file_blocks.len());
+
+        // Combine text prompt with file blocks
+        let mut blocks = Vec::new();
+        if !rendered.is_empty() && rendered != "No additional input provided" {
+            blocks.push(ContentBlock::Text {
+                text: rendered.clone(),
+            });
+        }
+        blocks.extend(file_blocks);
+
+        // Create ChatMessage with multimodal content
+        let message = radium_abstraction::ChatMessage {
+            role: "user".to_string(),
+            content: MessageContent::Blocks(blocks),
+        };
+
+        // Get Gemini model directly
+        let credential_store = Arc::new(
+            CredentialStore::new().unwrap_or_else(|_| {
+                let temp_path = std::env::temp_dir().join("radium_credentials.json");
+                CredentialStore::with_path(temp_path)
+            })
+        );
+        let api_key = credential_store
+            .get(ProviderType::Gemini)
+            .map_err(|e| anyhow::anyhow!("Failed to get Gemini API key: {}", e))?;
+        let gemini_model = GeminiModel::with_api_key(selected_model.to_string(), api_key);
+
+        // Convert parameters
+        let parameters = if stream {
+            // For streaming, we'll handle it differently
+            None
+        } else {
+            Some(ModelParameters {
+                temperature: None,
+                top_p: None,
+                max_tokens: Some(512),
+                top_k: None,
+                frequency_penalty: None,
+                presence_penalty: None,
+                response_format: None,
+                stop_sequences: None,
+            })
+        };
+
+        if stream {
+            // Streaming with multimodal content is not yet supported
+            // Fall back to non-streaming for multimodal
+            println!("  {} Streaming is not supported with multimodal content, using non-streaming mode", "⚠".yellow());
+        }
+
+        {
+            // Use generate_chat_completion for multimodal
+            use radium_abstraction::Model;
+            let response = gemini_model
+                .generate_chat_completion(&[message], parameters)
+                .await
+                .map_err(|e| anyhow::anyhow!("Model execution failed: {}", e))?;
+
+            Ok(radium_core::engines::ExecutionResponse {
+                content: response.content,
+                usage: response.usage.map(|u| radium_core::engines::TokenUsage {
+                    prompt_tokens: u.prompt_tokens as usize,
+                    completion_tokens: u.completion_tokens as usize,
+                    total_tokens: u.total_tokens as usize,
+                }),
+                model: response.model_id.unwrap_or_else(|| selected_model.to_string()),
+                raw: None,
+                execution_duration: None,
+                metadata: response.metadata,
+            })
+        }
+    } else {
+        // Use existing text-only path
+        execute_agent_with_engine(&registry, &agent.id, &rendered, selected_engine_id, selected_model, stream).await
+    };
     
     // Handle response display based on flags
     if let Ok(ref response) = execution_result {
@@ -444,6 +553,165 @@ fn display_session_summary(report: &SessionReport) {
 /// 3. Relative to workspace root
 /// 4. Relative to home directory (.radium/)
 /// 5. Extension prompt directories (project-level, then user-level)
+/// Process a single file: read, detect MIME type, check size, encode or upload.
+async fn process_file(
+    path: &PathBuf,
+    auto_upload: bool,
+    file_api: &GeminiFileApi,
+) -> anyhow::Result<ContentBlock> {
+    use base64::Engine;
+    use std::path::Path;
+
+    // Check file exists
+    if !path.exists() {
+        return Err(anyhow::anyhow!("File not found: {}", path.display()));
+    }
+
+    // Get file metadata to check size
+    let metadata = std::fs::metadata(path)
+        .with_context(|| format!("Failed to read file metadata: {}", path.display()))?;
+    let file_size = metadata.len() as usize;
+
+    // Check 2GB limit
+    const MAX_FILE_SIZE: usize = 2_147_483_648; // 2GB
+    if file_size > MAX_FILE_SIZE {
+        return Err(anyhow::anyhow!(
+            "File exceeds 2GB limit: {} (size: {} bytes)",
+            path.display(),
+            file_size
+        ));
+    }
+
+    // Detect MIME type
+    let mime_type = mime_guess::from_path(path)
+        .first_or_octet_stream()
+        .to_string();
+
+    // Determine if we should use File API or inline base64
+    const INLINE_THRESHOLD: usize = 20 * 1024 * 1024; // 20MB
+    let use_file_api = auto_upload || file_size >= INLINE_THRESHOLD;
+
+    if use_file_api {
+        // Upload via File API
+        let gemini_file = file_api
+            .upload_file(path.as_path(), Some(mime_type.clone()), None)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to upload file {}: {}", path.display(), e))?;
+
+        // Determine content block type based on file extension/MIME type
+        let extension = path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .map(|s| s.to_lowercase())
+            .unwrap_or_default();
+
+        if mime_type.starts_with("image/") {
+            // For images uploaded via File API, use Url with the File API URI
+            // Note: This requires Gemini model to support ImageSource::Url with File API URIs
+            Ok(ContentBlock::Image {
+                source: ImageSource::Url {
+                    url: gemini_file.uri,
+                },
+                media_type: mime_type,
+            })
+        } else if mime_type.starts_with("audio/") {
+            Ok(ContentBlock::Audio {
+                source: MediaSource::FileApi {
+                    file_id: gemini_file.uri,
+                },
+                media_type: mime_type,
+            })
+        } else if mime_type.starts_with("video/") {
+            Ok(ContentBlock::Video {
+                source: MediaSource::FileApi {
+                    file_id: gemini_file.uri,
+                },
+                media_type: mime_type,
+            })
+        } else {
+            // Documents and other files
+            Ok(ContentBlock::Document {
+                source: MediaSource::FileApi {
+                    file_id: gemini_file.uri,
+                },
+                media_type: mime_type,
+                filename: path.file_name().and_then(|n| n.to_str().map(String::from)),
+            })
+        }
+    } else {
+        // Read file and encode to base64
+        let file_bytes = std::fs::read(path)
+            .with_context(|| format!("Failed to read file: {}", path.display()))?;
+
+        let base64_data = base64::engine::general_purpose::STANDARD.encode(&file_bytes);
+
+        // Determine content block type
+        if mime_type.starts_with("image/") {
+            Ok(ContentBlock::Image {
+                source: ImageSource::Base64 {
+                    data: base64_data,
+                },
+                media_type: mime_type,
+            })
+        } else if mime_type.starts_with("audio/") {
+            Ok(ContentBlock::Audio {
+                source: MediaSource::Base64 {
+                    data: base64_data,
+                },
+                media_type: mime_type,
+            })
+        } else if mime_type.starts_with("video/") {
+            Ok(ContentBlock::Video {
+                source: MediaSource::Base64 {
+                    data: base64_data,
+                },
+                media_type: mime_type,
+            })
+        } else {
+            // Documents and other files
+            Ok(ContentBlock::Document {
+                source: MediaSource::Base64 {
+                    data: base64_data,
+                },
+                media_type: mime_type,
+                filename: path.file_name().and_then(|n| n.to_str().map(String::from)),
+            })
+        }
+    }
+}
+
+/// Process all files from the command arguments.
+async fn process_all_files(
+    image: &[PathBuf],
+    audio: &[PathBuf],
+    video: &[PathBuf],
+    file: &[PathBuf],
+    auto_upload: bool,
+) -> anyhow::Result<Vec<ContentBlock>> {
+    // Get Gemini API key
+    let api_key = std::env::var("GEMINI_API_KEY")
+        .map_err(|_| anyhow::anyhow!("GEMINI_API_KEY environment variable not set"))?;
+
+    let file_api = GeminiFileApi::with_api_key(api_key);
+    let mut blocks = Vec::new();
+
+    // Process each file type
+    for path in image {
+        blocks.push(process_file(path, auto_upload, &file_api).await?);
+    }
+    for path in audio {
+        blocks.push(process_file(path, auto_upload, &file_api).await?);
+    }
+    for path in video {
+        blocks.push(process_file(path, auto_upload, &file_api).await?);
+    }
+    for path in file {
+        blocks.push(process_file(path, auto_upload, &file_api).await?);
+    }
+
+    Ok(blocks)
+}
+
 fn load_prompt(prompt_path: &std::path::Path) -> anyhow::Result<String> {
     use radium_core::extensions::integration::get_extension_prompt_dirs;
 

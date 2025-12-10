@@ -558,6 +558,38 @@ pub struct ModelResponse {
     /// This field enables debugging, cost tracking, safety monitoring, and citation tracking.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<HashMap<String, serde_json::Value>>,
+
+    /// Optional: Tool calls requested by the model.
+    ///
+    /// When a model supports function calling and decides to call one or more tools,
+    /// this field contains the list of tool calls to execute. Each tool call includes
+    /// an ID, function name, and arguments.
+    ///
+    /// This field is populated when:
+    /// - The model supports function calling (via `generate_with_tools`)
+    /// - Tools were provided in the request
+    /// - The model decided to call one or more tools
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use radium_abstraction::ModelResponse;
+    /// let response = ModelResponse {
+    ///     content: "I'll search for that information.".to_string(),
+    ///     model_id: Some("gemini-pro".to_string()),
+    ///     usage: None,
+    ///     metadata: None,
+    ///     tool_calls: Some(vec![
+    ///         radium_abstraction::ToolCall {
+    ///             id: "call_1".to_string(),
+    ///             name: "search_web".to_string(),
+    ///             arguments: serde_json::json!({"query": "rust programming"}),
+    ///         }
+    ///     ]),
+    /// };
+    /// ```
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_calls: Option<Vec<ToolCall>>,
 }
 
 impl ModelResponse {
@@ -669,6 +701,34 @@ pub struct LogProb {
     pub logprob: f64,
     /// The bytes representation of the token (optional).
     pub bytes: Option<Vec<u8>>,
+}
+
+/// A tool call from a model response.
+///
+/// Represents a function call that the model requested to execute.
+/// This is used when models support function calling capabilities,
+/// allowing them to request external tool/function execution.
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use radium_abstraction::ToolCall;
+/// use serde_json::json;
+///
+/// let tool_call = ToolCall {
+///     id: "call_123".to_string(),
+///     name: "search".to_string(),
+///     arguments: json!({"query": "rust programming"}),
+/// };
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ToolCall {
+    /// Unique identifier for this tool call.
+    pub id: String,
+    /// Name of the tool/function to call.
+    pub name: String,
+    /// Arguments for the tool call as a JSON value.
+    pub arguments: serde_json::Value,
 }
 
 /// A trait for interacting with different AI models.
@@ -843,6 +903,7 @@ mod tests {
             model_id: None,
             usage: None,
             metadata: Some(metadata),
+            tool_calls: None,
         };
 
         assert_eq!(response.get_finish_reason(), Some("stop".to_string()));
@@ -855,6 +916,7 @@ mod tests {
             model_id: None,
             usage: None,
             metadata: None,
+            tool_calls: None,
         };
 
         assert_eq!(response.get_finish_reason(), None);
@@ -882,6 +944,7 @@ mod tests {
             model_id: None,
             usage: None,
             metadata: Some(metadata),
+            tool_calls: None,
         };
 
         assert!(response.was_content_filtered());
@@ -904,6 +967,7 @@ mod tests {
             model_id: None,
             usage: None,
             metadata: Some(metadata),
+            tool_calls: None,
         };
 
         assert!(!response.was_content_filtered());
@@ -926,6 +990,7 @@ mod tests {
             model_id: None,
             usage: None,
             metadata: Some(metadata),
+            tool_calls: None,
         };
 
         let result = response.get_safety_ratings().unwrap();
@@ -951,6 +1016,7 @@ mod tests {
             model_id: None,
             usage: None,
             metadata: Some(metadata),
+            tool_calls: None,
         };
 
         let result = response.get_citations().unwrap();
@@ -968,6 +1034,7 @@ mod tests {
             model_id: None,
             usage: None,
             metadata: Some(metadata),
+            tool_calls: None,
         };
 
         assert_eq!(response.get_model_version(), Some("gemini-1.5-pro-001".to_string()));

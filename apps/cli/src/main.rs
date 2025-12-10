@@ -10,6 +10,7 @@ mod validation;
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, shells};
 use colored::Colorize;
+use std::path::PathBuf;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
@@ -229,6 +230,26 @@ enum Command {
         /// Override safety behavior (return-partial, error, log)
         #[arg(long)]
         safety_behavior: Option<String>,
+
+        /// Path to image file(s) to include in the prompt
+        #[arg(long, value_name = "PATH")]
+        image: Vec<PathBuf>,
+
+        /// Path to audio file(s) to include in the prompt
+        #[arg(long, value_name = "PATH")]
+        audio: Vec<PathBuf>,
+
+        /// Path to video file(s) to include in the prompt
+        #[arg(long, value_name = "PATH")]
+        video: Vec<PathBuf>,
+
+        /// Path to document/file(s) to include in the prompt
+        #[arg(long, value_name = "PATH")]
+        file: Vec<PathBuf>,
+
+        /// Force File API upload regardless of file size
+        #[arg(long)]
+        auto_upload: bool,
     },
 
     /// Interactive chat mode with an agent
@@ -654,8 +675,8 @@ async fn main() -> anyhow::Result<()> {
         Command::Run { script, model, dir, model_tier, show_metadata, json, safety_behavior } => {
             run::execute(script, model, dir, model_tier, show_metadata, json, safety_behavior).await?;
         }
-        Command::Step { id, prompt, model, engine, reasoning, model_tier, stream, show_metadata, json, safety_behavior } => {
-            step::execute(id, prompt, model, engine, reasoning, model_tier, None, stream, show_metadata, json, safety_behavior).await?;
+        Command::Step { id, prompt, model, engine, reasoning, model_tier, stream, show_metadata, json, safety_behavior, image, audio, video, file, auto_upload } => {
+            step::execute(id, prompt, model, engine, reasoning, model_tier, None, stream, show_metadata, json, safety_behavior, image, audio, video, file, auto_upload).await?;
         }
         Command::Chat { agent_id, session, resume, list, stream, show_metadata, json, safety_behavior } => {
             if list {
