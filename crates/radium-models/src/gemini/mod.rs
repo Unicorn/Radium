@@ -1959,4 +1959,190 @@ mod tests {
             panic!("Expected ContentTooLarge error");
         }
     }
+
+    // Comprehensive integration tests for multimodal support
+
+    #[test]
+    fn test_png_5mb_inline_encoding() {
+        // Test that 5MB PNG would use inline_data
+        let mut data = vec![0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]; // PNG header
+        data.extend(vec![0u8; 5 * 1024 * 1024 - 8]); // ~5MB total
+
+        let mime = mime_utils::detect_mime_type(&data).unwrap();
+        assert_eq!(mime, "image/png");
+
+        let should_use_file = validation_utils::should_use_file_uri(data.len());
+        assert!(!should_use_file, "5MB should use inline_data");
+
+        let encoded = encoding_utils::encode_to_base64(&data).unwrap();
+        assert!(!encoded.is_empty());
+        assert!(encoded.len() > data.len()); // Base64 increases size
+    }
+
+    #[test]
+    fn test_jpeg_25mb_file_uri_routing() {
+        // Test that 25MB JPEG would use file_data
+        let data_size = 25 * 1024 * 1024; // 25MB
+
+        let should_use_file = validation_utils::should_use_file_uri(data_size);
+        assert!(should_use_file, "25MB should use file_data");
+    }
+
+    #[test]
+    fn test_pdf_10mb_inline_encoding() {
+        // Test PDF detection and inline encoding for 10MB PDF
+        let mut data = b"%PDF-1.4".to_vec();
+        data.extend(vec![0u8; 10 * 1024 * 1024 - 8]); // ~10MB total
+
+        let mime = mime_utils::detect_mime_type(&data).unwrap();
+        assert_eq!(mime, "application/pdf");
+
+        let should_use_file = validation_utils::should_use_file_uri(data.len());
+        assert!(!should_use_file, "10MB PDF should use inline_data");
+    }
+
+    #[test]
+    fn test_pdf_50mb_file_uri_routing() {
+        // Test that 50MB PDF would use file_data
+        let data_size = 50 * 1024 * 1024; // 50MB
+
+        let should_use_file = validation_utils::should_use_file_uri(data_size);
+        assert!(should_use_file, "50MB PDF should use file_data");
+    }
+
+    #[test]
+    fn test_mime_type_mismatch_detection() {
+        // Test that we can detect MIME type from content
+        let png_data = b"\x89PNG\r\n\x1a\n";
+        let detected = mime_utils::detect_mime_type(png_data).unwrap();
+        assert_eq!(detected, "image/png");
+
+        // Even if extension suggests something else, magic bytes should win
+        let jpeg_data = b"\xff\xd8\xff";
+        let detected = mime_utils::detect_mime_type(jpeg_data).unwrap();
+        assert_eq!(detected, "image/jpeg");
+    }
+
+    #[test]
+    fn test_unsupported_mime_type_error_message() {
+        // Test that unsupported MIME types return clear error with supported types
+        let result = mime_utils::validate_mime_type("application/zip");
+        assert!(result.is_err());
+        if let Err(ModelError::UnsupportedMimeType { mime_type, supported_types }) = result {
+            assert_eq!(mime_type, "application/zip");
+            assert!(supported_types.contains(&"image/png".to_string()));
+            assert!(supported_types.contains(&"application/pdf".to_string()));
+        } else {
+            panic!("Expected UnsupportedMimeType error");
+        }
+    }
+
+    #[test]
+    fn test_size_edge_cases() {
+        // Test exactly at 20MB limit
+        let size = validation_utils::MAX_INLINE_SIZE;
+        let encoded_size = validation_utils::calculate_base64_size(size);
+        // Encoded size might exceed limit, but original at limit should be close
+        let should_use_file = validation_utils::should_use_file_uri(size);
+        // This is edge case - depends on exact calculation
+        assert!(!should_use_file || encoded_size <= validation_utils::MAX_INLINE_SIZE);
+
+        // Test 20MB + 1 byte
+        let size_plus_one = validation_utils::MAX_INLINE_SIZE + 1;
+        assert!(validation_utils::should_use_file_uri(size_plus_one));
+    }
+
+    #[test]
+    fn test_backward_compatibility_text_only() {
+        // Test that text-only messages still work
+        let part = GeminiPart::Text { text: "Hello, world!".to_string() };
+        let json = serde_json::to_string(&part).unwrap();
+        assert!(json.contains("text"));
+        assert!(json.contains("Hello, world!"));
+    }
+
+    #[test]
+    fn test_gemini_part_serialization() {
+        // Test that all GeminiPart variants serialize correctly
+        let text_part = GeminiPart::Text { text: "test".to_string() };
+        let json = serde_json::to_string(&text_part).unwrap();
+        assert!(json.contains("text"));
+
+        let inline_part = GeminiPart::InlineData {
+            inline_data: GeminiInlineData {
+                mime_type: "image/png".to_string(),
+                data: "base64data".to_string(),
+            },
+        };
+        let json = serde_json::to_string(&inline_part).unwrap();
+        assert!(json.contains("inline_data"));
+        assert!(json.contains("mime_type"));
+
+        let file_part = GeminiPart::FileData {
+            file_data: GeminiFileData {
+                mime_type: "image/png".to_string(),
+                file_uri: "file:///path/to/file".to_string(),
+            },
+        };
+        let json = serde_json::to_string(&file_part).unwrap();
+        assert!(json.contains("file_data"));
+        assert!(json.contains("file_uri"));
+    }
+
+    #[test]
+    fn test_multiple_text_parts_concatenation() {
+        // Test that multiple text parts would be concatenated
+        // This tests the response parsing logic conceptually
+        let parts = vec![
+            GeminiPart::Text { text: "Hello".to_string() },
+            GeminiPart::Text { text: " ".to_string() },
+            GeminiPart::Text { text: "World".to_string() },
+        ];
+        let text_parts: Vec<String> = parts
+            .iter()
+            .filter_map(|p| match p {
+                GeminiPart::Text { text } => Some(text.clone()),
+                _ => None,
+            })
+            .collect();
+        let concatenated = text_parts.join("");
+        assert_eq!(concatenated, "Hello World");
+    }
+
+    #[test]
+    fn test_provider_specific_limits() {
+        // Test that different providers have different limits
+        let gemini = provider_capabilities::ProviderCapabilities::for_gemini();
+        let claude = provider_capabilities::ProviderCapabilities::for_claude();
+
+        assert_eq!(gemini.max_inline_size, 20 * 1024 * 1024);
+        assert_eq!(claude.max_inline_size, 5 * 1024 * 1024);
+
+        // 10MB file
+        let size = 10 * 1024 * 1024;
+        assert!(gemini.validate_size(size, "image/png").is_ok());
+        assert!(claude.validate_size(size, "image/png").is_err());
+    }
+
+    #[test]
+    fn test_file_uri_validation_all_schemes() {
+        // Test all supported URI schemes
+        assert!(validation_utils::validate_file_uri("file:///path/to/file").is_ok());
+        assert!(validation_utils::validate_file_uri("gs://bucket/file").is_ok());
+        assert!(validation_utils::validate_file_uri("s3://bucket/file").is_ok());
+        assert!(validation_utils::validate_file_uri("https://example.com/file").is_ok());
+    }
+
+    #[test]
+    fn test_file_uri_validation_invalid() {
+        // Test invalid URI schemes
+        let result = validation_utils::validate_file_uri("invalid://scheme");
+        assert!(result.is_err());
+        if let Err(ModelError::InvalidFileUri { uri, reason }) = result {
+            assert_eq!(uri, "invalid://scheme");
+            assert!(reason.contains("Unsupported"));
+        } else {
+            panic!("Expected InvalidFileUri error");
+        }
+    }
 }
