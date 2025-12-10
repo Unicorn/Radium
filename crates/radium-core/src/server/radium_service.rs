@@ -853,6 +853,22 @@ impl Radium for RadiumService {
                     radium_orchestrator::AgentOutput::ToolCall { name, args } => {
                         format!("ToolCall: {} with args: {}", name, args)
                     }
+                    radium_orchestrator::AgentOutput::CodeExecution(result) => {
+                        let mut output = format!("Code execution:\nCode: {}\n", result.code);
+                        if let Some(ref stdout) = result.stdout {
+                            output.push_str(&format!("Stdout: {}\n", stdout));
+                        }
+                        if let Some(ref stderr) = result.stderr {
+                            output.push_str(&format!("Stderr: {}\n", stderr));
+                        }
+                        if let Some(ref return_value) = result.return_value {
+                            output.push_str(&format!("Return value: {}\n", return_value));
+                        }
+                        if let Some(ref error) = result.error {
+                            output.push_str(&format!("Error: {}\n", error));
+                        }
+                        output
+                    }
                     radium_orchestrator::AgentOutput::Terminate => "Terminated".to_string(),
                 },
                 error: exec_result.error,

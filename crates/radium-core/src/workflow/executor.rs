@@ -522,6 +522,16 @@ impl WorkflowExecutor {
                                 "args": args
                             })
                         }
+                        radium_orchestrator::AgentOutput::CodeExecution(result) => {
+                            serde_json::json!({
+                                "type": "code_execution",
+                                "code": result.code,
+                                "stdout": result.stdout,
+                                "stderr": result.stderr,
+                                "return_value": result.return_value,
+                                "error": result.error
+                            })
+                        }
                         radium_orchestrator::AgentOutput::Terminate => {
                             serde_json::Value::String("terminated".to_string())
                         }

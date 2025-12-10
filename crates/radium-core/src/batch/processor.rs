@@ -2,6 +2,8 @@
 
 use crate::batch::error::BatchError;
 use crate::batch::types::{BatchResult, RetryPolicy};
+use std::fmt::Debug;
+use std::marker::PhantomData;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::Semaphore;
@@ -21,11 +23,13 @@ pub struct BatchProcessor<T, R> {
     retry_policy: RetryPolicy,
     /// Semaphore for concurrency control.
     semaphore: Arc<Semaphore>,
+    /// Phantom data to hold type parameters.
+    _phantom: PhantomData<(T, R)>,
 }
 
 impl<T, R> BatchProcessor<T, R>
 where
-    T: Send + Sync + Clone + 'static,
+    T: Send + Sync + Clone + Debug + 'static,
     R: Send + 'static,
 {
     /// Create a new batch processor.
@@ -40,6 +44,7 @@ where
             timeout,
             retry_policy,
             semaphore: Arc::new(Semaphore::new(concurrency)),
+            _phantom: PhantomData,
         }
     }
 
@@ -56,7 +61,7 @@ where
         &self,
         items: Vec<T>,
         processor: F,
-        progress_callback: Option<Arc<dyn Fn(usize, usize, usize, usize, usize) + Send + Sync>>,
+        progress_callback: Option<crate::batch::types::ProgressCallback>,
     ) -> BatchResult<R>
     where
         F: Fn(T) -> Fut + Send + Sync + Clone + 'static,
@@ -107,9 +112,10 @@ where
                     Err(e) => {
                         error!(index = index, "Failed to acquire semaphore: {}", e);
                         let mut failed_vec = failed.lock().await;
+                        let input_str = format!("{:?}", item);
                         failed_vec.push(BatchError::ItemError {
                             index,
-                            input: format!("{:?}", item),
+                            input: input_str,
                             error: format!("Semaphore error: {}", e),
                             error_type: "SemaphoreError".to_string(),
                         });
@@ -137,7 +143,7 @@ where
 
                 loop {
                     // Process with timeout
-                    let result = match timeout(timeout_duration, processor(item.clone())).await {
+                    match timeout(timeout_duration, processor(item.clone())).await {
                         Ok(Ok(result)) => {
                             // Success
                             let mut successful_vec = successful.lock().await;
@@ -160,10 +166,11 @@ where
                     if retry_count >= retry_policy.max_retries {
                         // Max retries exceeded, record failure
                         let error_msg = last_error.unwrap_or_else(|| "Unknown error".to_string());
+                        let input_str = format!("{:?}", item);
                         let mut failed_vec = failed.lock().await;
                         failed_vec.push(BatchError::ItemError {
                             index,
-                            input: format!("{:?}", item),
+                            input: input_str,
                             error: error_msg.clone(),
                             error_type: if error_msg.contains("timeout") {
                                 "TimeoutError".to_string()
@@ -221,8 +228,14 @@ where
         }
 
         let total_duration = start_time.elapsed();
-        let successful_vec = successful.lock().await.clone();
-        let failed_vec = failed.lock().await.clone();
+        let successful_vec: Vec<(usize, R)> = {
+            let guard = successful.lock().await;
+            guard.clone()
+        };
+        let failed_vec: Vec<BatchError> = {
+            let guard = failed.lock().await;
+            guard.clone()
+        };
 
         debug!(
             total_items = total,

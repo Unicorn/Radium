@@ -31,7 +31,7 @@ prompt_path = "prompts/agents/my-category/my-agent.md"
 
 - **`engine`** (string): Default AI engine to use (e.g., "gemini", "openai", "claude", "universal" for self-hosted)
 - **`model`** (string): Default model to use (e.g., "gemini-2.0-flash-exp", "gpt-4", "llama3.2" for self-hosted)
-- **`reasoning_effort`** (string): Default reasoning effort level - `"low"`, `"medium"`, or `"high"` (default: `"medium"`)
+- **`reasoning_effort`** (string): Default reasoning effort level - `"low"`, `"medium"`, or `"high"` (default: `"medium"`). Controls the depth of reasoning for thinking models. See [Thinking Mode](../features/thinking-mode.md) for details.
 - **`mirror_path`** (PathBuf): Optional mirror path for RAD-agents
 - **`capabilities`** (object): Agent capabilities for dynamic model selection (see [Capabilities](#capabilities) section)
 - **`sandbox`** (object): Sandbox configuration for safe command execution (see [Sandbox Configuration](#sandbox-configuration) section)
@@ -60,6 +60,44 @@ engine = "gemini"
 model = "gemini-2.0-flash-exp"
 reasoning_effort = "medium"
 ```
+
+## Reasoning Effort and Thinking Mode
+
+The `reasoning_effort` field controls how much internal reasoning thinking models perform before providing answers. This is particularly useful for complex problems requiring deep analysis.
+
+### Reasoning Effort Levels
+
+- **`low`**: Minimal reasoning effort for simple tasks
+- **`medium`**: Moderate reasoning for balanced performance (default)
+- **`high`**: Maximum reasoning effort for complex problems
+
+### Thinking Models
+
+Some models support thinking mode, which shows the model's reasoning process:
+
+- **Gemini**: `gemini-2.0-flash-thinking` supports thinking mode
+- **Claude**: `claude-3-opus` and `claude-3-sonnet` support extended thinking
+
+### Example: Thinking Agent Configuration
+
+```toml
+[agent]
+id = "math-solver"
+name = "Math Problem Solver"
+reasoning_effort = "high"
+engine = "gemini"
+model = "gemini-2.0-flash-thinking"
+```
+
+### Viewing Thinking Process
+
+To see the model's thinking process, use the `--show-metadata` flag:
+
+```bash
+rad step math-solver "Complex problem" --show-metadata
+```
+
+For more details, see the [Thinking Mode](../features/thinking-mode.md) and [Reasoning Configuration](../guides/reasoning-configuration.md) guides.
 
 ## Agent Behaviors
 

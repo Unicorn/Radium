@@ -1,6 +1,7 @@
 //! Data types for batch processing.
 
 use crate::batch::error::BatchError;
+use std::sync::Arc;
 use std::time::Duration;
 
 /// Result of batch processing.
@@ -101,5 +102,5 @@ impl RetryPolicy {
 }
 
 /// Progress callback function type.
-pub type ProgressCallback = Box<dyn Fn(usize, usize, usize, usize, usize) + Send + Sync>;
+pub type ProgressCallback = Arc<dyn Fn(usize, usize, usize, usize, usize) + Send + Sync>;
 

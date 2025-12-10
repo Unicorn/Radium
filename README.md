@@ -19,6 +19,7 @@ Radium is a high-performance, Rust-based platform for creating, managing, and de
 - **📖 ACE Skillbook**: Learn and apply successful strategies from past work
 - **🎭 Persona System**: Intelligent model selection, cost optimization, and automatic fallback chains
 - **🔒 Policy Engine**: Fine-grained tool execution control with rule-based policies and approval modes
+- **🧠 Thinking Mode**: Deep reasoning support for complex problems with transparent thinking process display
 
 ## Quick Start
 

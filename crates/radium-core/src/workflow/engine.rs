@@ -311,6 +311,16 @@ impl WorkflowEngine {
                         "args": args
                     })
                 }
+                AgentOutput::CodeExecution(result) => {
+                    serde_json::json!({
+                        "type": "code_execution",
+                        "code": result.code,
+                        "stdout": result.stdout,
+                        "stderr": result.stderr,
+                        "return_value": result.return_value,
+                        "error": result.error
+                    })
+                }
                 AgentOutput::Terminate => Value::String("terminated".to_string()),
             };
 

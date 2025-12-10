@@ -79,6 +79,8 @@ pub enum AgentOutput {
         /// Arguments to pass to the tool.
         args: serde_json::Value,
     },
+    /// The agent executed code and produced results.
+    CodeExecution(CodeExecutionResult),
     /// The agent decided to terminate.
     Terminate,
     // Future additions: file output, command execution, etc.
