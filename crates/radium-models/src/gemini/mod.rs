@@ -500,20 +500,39 @@ impl Model for GeminiModel {
                 ModelError::ModelResponseError("No content in API response".to_string())
             })?;
 
-        let content = candidate
-            .content
-            .parts
-            .first()
-            .and_then(|p| match p {
-                GeminiPart::Text { text } => Some(text.clone()),
-                GeminiPart::InlineData { .. } => None, // Images in response are not extracted as text
-                GeminiPart::FileData { .. } => None, // File data in response is not extracted as text
-                GeminiPart::FunctionCall { .. } => None, // Function calls in response are not extracted as text
-            })
-            .ok_or_else(|| {
-                error!("No text content in Gemini API response");
-                ModelError::ModelResponseError("No text content in API response".to_string())
-            })?;
+        // Extract text from all parts, concatenating multiple text parts
+        let mut text_parts = Vec::new();
+        for part in &candidate.content.parts {
+            match part {
+                GeminiPart::Text { text } => {
+                    text_parts.push(text.clone());
+                }
+                GeminiPart::InlineData { inline_data } => {
+                    debug!(
+                        mime_type = %inline_data.mime_type,
+                        data_size = inline_data.data.len(),
+                        "Received inline_data in response (not yet processed)"
+                    );
+                }
+                GeminiPart::FileData { file_data } => {
+                    debug!(
+                        mime_type = %file_data.mime_type,
+                        file_uri = %file_data.file_uri,
+                        "Received file_data in response (not yet processed)"
+                    );
+                }
+                GeminiPart::FunctionCall { .. } => {
+                    debug!("Received function_call in response (not yet processed)");
+                }
+            }
+        }
+
+        let content = if text_parts.is_empty() {
+            error!("No text content in Gemini API response");
+            return Err(ModelError::ModelResponseError("No text content in API response".to_string()));
+        } else {
+            text_parts.join("\n")
+        };
 
         // Extract usage information
         let usage = gemini_response.usage_metadata.map(|meta| ModelUsage {
@@ -815,17 +834,39 @@ impl Stream for GeminiSSEStream {
                                     // Parse JSON chunk
                                     match serde_json::from_str::<GeminiStreamingResponse>(data) {
                                         Ok(streaming_response) => {
-                                            // Extract text from candidates[0].content.parts[0].text
-                                            if let Some(candidate) = streaming_response.candidates.first() {
-                                                if let Some(part) = candidate.content.parts.first() {
-                                                    if let GeminiPart::Text { text } = part {
-                                                        if !text.is_empty() {
-                                                            self.accumulated.push_str(text);
-                                                            return Poll::Ready(Some(Ok(self.accumulated.clone())));
-                                                        }
+                                    // Extract text from all parts in candidate
+                                    if let Some(candidate) = streaming_response.candidates.first() {
+                                        let mut has_text = false;
+                                        for part in &candidate.content.parts {
+                                            match part {
+                                                GeminiPart::Text { text } => {
+                                                    if !text.is_empty() {
+                                                        self.accumulated.push_str(text);
+                                                        has_text = true;
                                                     }
                                                 }
+                                                GeminiPart::InlineData { inline_data } => {
+                                                    debug!(
+                                                        mime_type = %inline_data.mime_type,
+                                                        "Received inline_data in streaming response (not yet processed)"
+                                                    );
+                                                }
+                                                GeminiPart::FileData { file_data } => {
+                                                    debug!(
+                                                        mime_type = %file_data.mime_type,
+                                                        file_uri = %file_data.file_uri,
+                                                        "Received file_data in streaming response (not yet processed)"
+                                                    );
+                                                }
+                                                GeminiPart::FunctionCall { .. } => {
+                                                    debug!("Received function_call in streaming response (not yet processed)");
+                                                }
                                             }
+                                        }
+                                        if has_text {
+                                            return Poll::Ready(Some(Ok(self.accumulated.clone())));
+                                        }
+                                    }
                                         }
                                         Err(e) => {
                                             // Skip malformed JSON chunks (some servers send empty chunks)
@@ -873,10 +914,29 @@ impl Stream for GeminiSSEStream {
                                 serde_json::from_str::<GeminiStreamingResponse>(data)
                             {
                                 if let Some(candidate) = streaming_response.candidates.first() {
-                                    if let Some(part) = candidate.content.parts.first() {
-                                        if let GeminiPart::Text { text } = part {
-                                            if !text.is_empty() {
-                                                self.accumulated.push_str(text);
+                                    // Extract text from all parts
+                                    for part in &candidate.content.parts {
+                                        match part {
+                                            GeminiPart::Text { text } => {
+                                                if !text.is_empty() {
+                                                    self.accumulated.push_str(text);
+                                                }
+                                            }
+                                            GeminiPart::InlineData { inline_data } => {
+                                                debug!(
+                                                    mime_type = %inline_data.mime_type,
+                                                    "Received inline_data in streaming response (not yet processed)"
+                                                );
+                                            }
+                                            GeminiPart::FileData { file_data } => {
+                                                debug!(
+                                                    mime_type = %file_data.mime_type,
+                                                    file_uri = %file_data.file_uri,
+                                                    "Received file_data in streaming response (not yet processed)"
+                                                );
+                                            }
+                                            GeminiPart::FunctionCall { .. } => {
+                                                debug!("Received function_call in streaming response (not yet processed)");
                                             }
                                         }
                                     }
