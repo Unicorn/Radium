@@ -927,4 +927,26 @@ mod tests {
         let deserialized: CodeExecutionResult = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.error, Some("SyntaxError: invalid syntax".to_string()));
     }
+
+    #[test]
+    fn test_agent_output_code_execution_variant() {
+        let result = CodeExecutionResult {
+            code: "print('test')".to_string(),
+            stdout: Some("test\n".to_string()),
+            stderr: None,
+            return_value: None,
+            error: None,
+        };
+
+        let output = AgentOutput::CodeExecution(result);
+        
+        // Test pattern matching
+        match output {
+            AgentOutput::CodeExecution(exec_result) => {
+                assert_eq!(exec_result.code, "print('test')");
+                assert_eq!(exec_result.stdout, Some("test\n".to_string()));
+            }
+            _ => panic!("Expected CodeExecution variant"),
+        }
+    }
 }

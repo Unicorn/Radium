@@ -331,6 +331,17 @@ impl HookExecutor for HookRegistryAdapter {
             AgentOutput::ToolCall { name, args } => {
                 serde_json::json!({ "tool_call": { "name": name, "args": args } })
             }
+            AgentOutput::CodeExecution(result) => {
+                serde_json::json!({
+                    "code_execution": {
+                        "code": result.code,
+                        "stdout": result.stdout,
+                        "stderr": result.stderr,
+                        "return_value": result.return_value,
+                        "error": result.error
+                    }
+                })
+            }
             AgentOutput::Terminate => serde_json::json!({ "terminate": true }),
         };
 
