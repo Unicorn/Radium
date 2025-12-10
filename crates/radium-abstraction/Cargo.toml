@@ -24,3 +24,6 @@ serde_json.workspace = true
 # Error handling
 thiserror.workspace = true
 anyhow.workspace = true
+
+# Base64 encoding/decoding
+base64.workspace = true
