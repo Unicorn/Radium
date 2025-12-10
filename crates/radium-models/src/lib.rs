@@ -177,7 +177,7 @@ impl StreamingModel for MockModel {
         &self,
         prompt: &str,
         parameters: Option<ModelParameters>,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<String, ModelError>> + Send>>, ModelError> {
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<radium_abstraction::StreamItem, ModelError>> + Send>>, ModelError> {
         debug!(
             model_id = %self.id,
             prompt = %prompt,
@@ -220,7 +220,7 @@ impl StreamingModel for MockModel {
 
                 accumulated.push_str(&token);
 
-                Some((Ok(accumulated.clone()), (index, accumulated)))
+                Some((Ok(radium_abstraction::StreamItem::AnswerToken(accumulated.clone())), (index, accumulated)))
             }
         });
 

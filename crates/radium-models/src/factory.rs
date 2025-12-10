@@ -223,11 +223,17 @@ impl ModelFactory {
                 Ok(Arc::new(model))
             }
             ModelType::Gemini => {
-                let model = if let Some(api_key) = config.api_key {
+                let mut model = if let Some(api_key) = config.api_key {
                     GeminiModel::with_api_key(config.model_id, api_key)
                 } else {
                     GeminiModel::new(config.model_id)?
                 };
+                
+                // Apply code execution configuration if provided
+                if let Some(enabled) = config.enable_code_execution {
+                    model = model.with_code_execution(enabled);
+                }
+                
                 Ok(Arc::new(model))
             }
             ModelType::OpenAI => {

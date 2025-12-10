@@ -3,6 +3,7 @@
 pub mod agents;
 pub mod auth;
 pub mod autonomous;
+pub mod batch;
 pub mod secret;
 pub mod braingrid;
 pub mod budget;

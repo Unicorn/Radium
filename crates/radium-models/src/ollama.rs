@@ -442,7 +442,7 @@ impl StreamingModel for OllamaModel {
         &self,
         prompt: &str,
         parameters: Option<ModelParameters>,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<String, ModelError>> + Send>>, ModelError> {
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<radium_abstraction::StreamItem, ModelError>> + Send>>, ModelError> {
         debug!(
             model_id = %self.model_id,
             prompt_len = prompt.len(),
@@ -548,14 +548,14 @@ impl StreamingModel for OllamaModel {
                                         if ollama_resp.done {
                                             None // End of stream
                                         } else {
-                                            Some(Ok(ollama_resp.response))
+                                            Some(Ok(radium_abstraction::StreamItem::AnswerToken(ollama_resp.response)))
                                         }
                                     }
                                     Err(_e) => {
                                         // If it's not valid JSON, it might be a partial token
                                         // Just return it as-is
                                         if !line.trim().is_empty() {
-                                            Some(Ok(line))
+                                            Some(Ok(radium_abstraction::StreamItem::AnswerToken(line)))
                                         } else {
                                             None
                                         }

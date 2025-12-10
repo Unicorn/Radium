@@ -462,7 +462,7 @@ impl StreamingModel for OpenAIModel {
         &self,
         prompt: &str,
         parameters: Option<ModelParameters>,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<String, ModelError>> + Send>>, ModelError> {
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<radium_abstraction::StreamItem, ModelError>> + Send>>, ModelError> {
         debug!(
             model_id = %self.model_id,
             prompt_len = prompt.len(),
@@ -602,7 +602,7 @@ impl OpenAISSEStream {
 }
 
 impl Stream for OpenAISSEStream {
-    type Item = Result<String, ModelError>;
+    type Item = Result<radium_abstraction::StreamItem, ModelError>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if self.done {
@@ -631,7 +631,7 @@ impl Stream for OpenAISSEStream {
                                     if data.trim() == "[DONE]" {
                                         self.done = true;
                                         if !self.accumulated.is_empty() {
-                                            return Poll::Ready(Some(Ok(self.accumulated.clone())));
+                                            return Poll::Ready(Some(Ok(radium_abstraction::StreamItem::AnswerToken(self.accumulated.clone()))));
                                         }
                                         return Poll::Ready(None);
                                     }
@@ -644,7 +644,7 @@ impl Stream for OpenAISSEStream {
                                                 if let Some(content) = &choice.delta.content {
                                                     if !content.is_empty() {
                                                         self.accumulated.push_str(content);
-                                                        return Poll::Ready(Some(Ok(self.accumulated.clone())));
+                                                        return Poll::Ready(Some(Ok(radium_abstraction::StreamItem::AnswerToken(self.accumulated.clone()))));
                                                     }
                                                 }
                                             }

@@ -15,7 +15,7 @@ use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 use commands::{
-    agents, auth, budget, capability, checkpoint, clean, clipboard, code, context, cost, craft, doctor, engines, extension, hooks, init, learning, models, monitor, plan, playbook, policy, privacy, requirement, run,
+    agents, auth, batch, budget, capability, checkpoint, clean, clipboard, code, context, cost, craft, doctor, engines, extension, hooks, init, learning, models, monitor, plan, playbook, policy, privacy, requirement, run,
     sandbox, secret, session, stats, status, step, theme, validate,
     // All commands enabled!
     templates, complete, autonomous, vibecheck, chat, mcp, custom, braingrid,
@@ -186,6 +186,15 @@ enum Command {
         /// Override safety behavior (return-partial, error, log)
         #[arg(long)]
         safety_behavior: Option<String>,
+    },
+
+    /// Batch process multiple prompts with an agent
+    ///
+    /// Executes an agent with multiple prompts from an input file in parallel
+    /// with configurable concurrency limits.
+    Batch {
+        #[command(subcommand)]
+        action: batch::BatchAction,
     },
 
     /// Execute a single workflow step

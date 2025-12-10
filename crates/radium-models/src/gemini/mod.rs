@@ -26,6 +26,8 @@ struct GeminiConfig {
     enable_grounding: Option<bool>,
     /// Dynamic retrieval threshold for grounding (0.0-1.0)
     grounding_threshold: Option<f32>,
+    /// Enable code execution tool (default: true for Gemini)
+    enable_code_execution: Option<bool>,
 }
 
 /// Google Gemini model implementation.
@@ -43,6 +45,8 @@ pub struct GeminiModel {
     safety_settings: Option<Vec<GeminiSafetySetting>>,
     /// Configuration loaded from config file
     config: GeminiConfig,
+    /// Enable code execution tool (overrides config file setting)
+    enable_code_execution: Option<bool>,
 }
 
 impl GeminiModel {
@@ -71,6 +75,7 @@ impl GeminiModel {
             client: Client::new(),
             safety_settings: None,
             config,
+            enable_code_execution: None,
         })
     }
 
@@ -150,6 +155,7 @@ impl GeminiModel {
             client: Client::new(),
             safety_settings: None,
             config,
+            enable_code_execution: None,
         }
     }
 
@@ -192,6 +198,19 @@ impl GeminiModel {
     /// Returns `self` for method chaining.
     pub fn with_safety_settings(mut self, settings: Option<Vec<GeminiSafetySetting>>) -> Self {
         self.safety_settings = settings;
+        self
+    }
+
+    /// Enables or disables code execution for this model.
+    ///
+    /// Code execution allows the model to execute code in Gemini's sandbox environment.
+    /// When `None`, uses config file setting or provider default (true for Gemini).
+    ///
+    /// # Arguments
+    /// * `enabled` - Whether to enable code execution
+    #[must_use]
+    pub fn with_code_execution(mut self, enabled: bool) -> Self {
+        self.enable_code_execution = Some(enabled);
         self
     }
 
@@ -575,6 +594,17 @@ impl Model for GeminiModel {
         if enable_grounding {
             tools.push(Self::build_grounding_tool(grounding_threshold));
         }
+        
+        // Check if code execution is enabled - precedence: model field > config file > default (true for Gemini)
+        let enable_code_execution = self.enable_code_execution
+            .or(self.config.enable_code_execution)
+            .unwrap_or(true); // Default to true for Gemini
+        
+        if enable_code_execution {
+            tools.push(GeminiTool::CodeExecution {
+                code_execution: GeminiCodeExecution {},
+            });
+        }
 
         // Build request body
         let mut request_body = GeminiRequest {
@@ -730,6 +760,7 @@ impl Model for GeminiModel {
 
         // Extract text and function calls from all parts
         let mut text_parts = Vec::new();
+        let mut code_execution_results = Vec::new();
         for part in &candidate.content.parts {
             match part {
                 GeminiPart::Text { text } => {
@@ -749,11 +780,22 @@ impl Model for GeminiModel {
                         "Received file_data in response (not yet processed)"
                     );
                 }
-                GeminiPart::FunctionCall { .. } => {
+                GeminiPart::FunctionCall { function_call } => {
                     debug!("Received function_call in response - will be parsed");
+                    // Check if this is a code execution request
+                    if function_call.name == "code_execution" {
+                        debug!("Model requested code execution");
+                    }
                 }
-                GeminiPart::FunctionResponse { .. } => {
+                GeminiPart::FunctionResponse { function_response } => {
                     debug!("Received function_response in response (tool result)");
+                    // Handle code execution results
+                    if function_response.name == "code_execution" {
+                        debug!("Received code_execution function response");
+                        // Extract code execution results from response
+                        // The response field contains the execution results
+                        code_execution_results.push(function_response.response.clone());
+                    }
                 }
             }
         }
@@ -1053,6 +1095,11 @@ impl Model for GeminiModel {
                 metadata_map.insert("thinking_process".to_string(), thinking.clone());
             }
             
+            // Store code execution results in metadata if present
+            if !code_execution_results.is_empty() {
+                metadata_map.insert("code_execution_results".to_string(), serde_json::json!(code_execution_results));
+            }
+            
             if metadata_map.is_empty() {
                 None
             } else {
@@ -1082,7 +1129,7 @@ impl StreamingModel for GeminiModel {
         &self,
         prompt: &str,
         parameters: Option<ModelParameters>,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<String, ModelError>> + Send>>, ModelError> {
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<radium_abstraction::StreamItem, ModelError>> + Send>>, ModelError> {
         debug!(
             model_id = %self.model_id,
             prompt_len = prompt.len(),
@@ -1271,7 +1318,7 @@ impl StreamingModel for GeminiModel {
         }
 
         // Create SSE stream parser
-        Ok(Box::pin(GeminiSSEStream::new(response)))
+        Ok(Box::pin(GeminiSSEStream::new(response, self.model_id.clone())))
     }
 }
 
@@ -1284,18 +1331,19 @@ struct GeminiSSEStream {
 }
 
 impl GeminiSSEStream {
-    fn new(response: reqwest::Response) -> Self {
+    fn new(response: reqwest::Response, model_id: String) -> Self {
         Self {
             stream: Box::pin(response.bytes_stream()),
             buffer: String::new(),
             accumulated: String::new(),
             done: false,
+            model_id,
         }
     }
 }
 
 impl Stream for GeminiSSEStream {
-    type Item = Result<String, ModelError>;
+    type Item = Result<radium_abstraction::StreamItem, ModelError>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if self.done {
@@ -1324,7 +1372,7 @@ impl Stream for GeminiSSEStream {
                                     if data.trim() == "[DONE]" || data.trim().is_empty() {
                                         self.done = true;
                                         if !self.accumulated.is_empty() {
-                                            return Poll::Ready(Some(Ok(self.accumulated.clone())));
+                                            return Poll::Ready(Some(Ok(radium_abstraction::StreamItem::AnswerToken(self.accumulated.clone()))));
                                         }
                                         return Poll::Ready(None);
                                     }
@@ -1332,6 +1380,37 @@ impl Stream for GeminiSSEStream {
                                     // Parse JSON chunk
                                     match serde_json::from_str::<GeminiStreamingResponse>(data) {
                                         Ok(streaming_response) => {
+                                    // Check for thinking process in streaming response (for thinking models)
+                                    let is_thinking_model = GeminiModel::is_thinking_model(&self.model_id);
+                                    let mut has_thinking = false;
+                                    let mut thinking_text = String::new();
+                                    
+                                    // Extract thinking from candidate or response level
+                                    if is_thinking_model {
+                                        if let Some(thinking) = streaming_response.thinking.as_ref() {
+                                            if let Some(thinking_str) = thinking.as_str() {
+                                                thinking_text = thinking_str.to_string();
+                                                has_thinking = true;
+                                            } else if let Some(thinking_obj) = thinking.as_object() {
+                                                // Try to extract text from thinking object
+                                                if let Some(text) = thinking_obj.get("text").and_then(|v| v.as_str()) {
+                                                    thinking_text = text.to_string();
+                                                    has_thinking = true;
+                                                }
+                                            }
+                                        }
+                                        if !has_thinking {
+                                            if let Some(candidate) = streaming_response.candidates.first() {
+                                                if let Some(thinking) = candidate.thinking.as_ref() {
+                                                    if let Some(thinking_str) = thinking.as_str() {
+                                                        thinking_text = thinking_str.to_string();
+                                                        has_thinking = true;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
                                     // Extract text from all parts in candidate
                                     if let Some(candidate) = streaming_response.candidates.first() {
                                         let mut has_text = false;
@@ -1364,8 +1443,15 @@ impl Stream for GeminiSSEStream {
                                                 }
                                             }
                                         }
+                                        
+                                        // Emit thinking token if present
+                                        if has_thinking && !thinking_text.is_empty() {
+                                            return Poll::Ready(Some(Ok(radium_abstraction::StreamItem::ThinkingToken(thinking_text))));
+                                        }
+                                        
+                                        // Emit answer token if text was found
                                         if has_text {
-                                            return Poll::Ready(Some(Ok(self.accumulated.clone())));
+                                            return Poll::Ready(Some(Ok(radium_abstraction::StreamItem::AnswerToken(self.accumulated.clone()))));
                                         }
                                     }
                                         }
@@ -1406,7 +1492,7 @@ impl Stream for GeminiSSEStream {
                             if data.trim() == "[DONE]" || data.trim().is_empty() {
                                 self.done = true;
                                 if !self.accumulated.is_empty() {
-                                    return Poll::Ready(Some(Ok(self.accumulated.clone())));
+                                    return Poll::Ready(Some(Ok(radium_abstraction::StreamItem::AnswerToken(self.accumulated.clone()))));
                                 }
                                 return Poll::Ready(None);
                             }
@@ -1452,7 +1538,7 @@ impl Stream for GeminiSSEStream {
                     // No more events in buffer
                     self.done = true;
                     if !self.accumulated.is_empty() {
-                        return Poll::Ready(Some(Ok(self.accumulated.clone())));
+                        return Poll::Ready(Some(Ok(radium_abstraction::StreamItem::AnswerToken(self.accumulated.clone()))));
                     }
                     return Poll::Ready(None);
                 }
@@ -1466,6 +1552,9 @@ impl Stream for GeminiSSEStream {
 #[derive(Debug, Deserialize)]
 struct GeminiStreamingResponse {
     candidates: Vec<GeminiCandidate>,
+    /// Thinking process for thinking models (may be present in streaming response)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thinking: Option<serde_json::Value>,
 }
 
 // Gemini API request/response structures
@@ -1529,7 +1618,13 @@ struct GeminiRetrieval {
     // Placeholder for future retrieval configuration fields
 }
 
-/// Gemini tool type enum - supports function declarations, Google Search, and Retrieval
+/// Code execution tool configuration (empty struct as code execution has no config)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct GeminiCodeExecution {
+    // Code execution tool has no configuration parameters
+}
+
+/// Gemini tool type enum - supports function declarations, Google Search, Retrieval, and Code Execution
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 enum GeminiTool {
@@ -1547,6 +1642,11 @@ enum GeminiTool {
     Retrieval {
         #[serde(rename = "retrieval")]
         retrieval: GeminiRetrieval,
+    },
+    /// Code execution tool
+    CodeExecution {
+        #[serde(rename = "codeExecution")]
+        code_execution: GeminiCodeExecution,
     },
 }
 
