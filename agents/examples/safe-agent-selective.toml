@@ -1,0 +1,32 @@
+[agent]
+id = "safe-agent-selective"
+name = "Safe Agent (Selective Safety Settings)"
+description = "Agent with selective Gemini safety settings for specific categories"
+prompt_path = "prompts/agents/examples/code-gen-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+
+# Safety configuration with selective Gemini settings
+[safety]
+# How to handle blocked content: "return-partial" (default), "error", or "log"
+behavior = "return-partial"
+
+[safety.gemini]
+# Selectively configure only specific categories
+# Categories not listed will use the default threshold (if specified)
+
+# Strict filtering for hate speech - block all low, medium, and high probability content
+hate_speech = "BLOCK_LOW_AND_ABOVE"
+
+# Medium filtering for harassment
+harassment = "BLOCK_MEDIUM_AND_ABOVE"
+
+# Use default threshold for:
+# - Sexually Explicit
+# - Dangerous Content
+# - Civic Integrity
+default = "BLOCK_MEDIUM_AND_ABOVE"
+
+# Example use case: This configuration is useful when you want stricter
+# control over hate speech while allowing more flexibility for other categories.
+

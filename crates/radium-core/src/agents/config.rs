@@ -413,6 +413,28 @@ pub struct AgentConfigFile {
 }
 
 impl AgentConfigFile {
+    /// Extract Gemini safety settings from this agent configuration.
+    ///
+    /// Returns `Ok(None)` if no Gemini safety settings are configured.
+    /// Returns `Ok(Some(settings))` if safety settings are successfully converted.
+    /// Returns `Err` if safety settings are configured but conversion fails.
+    pub fn gemini_safety_settings(&self) -> Result<Option<Vec<radium_models::GeminiSafetySetting>>> {
+        if let Some(ref safety) = self.safety {
+            if let Some(ref gemini) = safety.gemini {
+                let settings = gemini.to_safety_settings()?;
+                if settings.is_empty() {
+                    Ok(None)
+                } else {
+                    Ok(Some(settings))
+                }
+            } else {
+                Ok(None)
+            }
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Load agent configuration from a TOML file.
     ///
     /// # Errors

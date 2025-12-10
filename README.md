@@ -64,6 +64,9 @@ radium plan --input "Build a web app"
 
 # Execute the plan
 radium craft <plan-id>
+
+# Use structured output with JSON schema
+rad step agent-id "Extract user data" --response-format json-schema --response-schema user-schema.json
 ```
 
 ### Using the Desktop App

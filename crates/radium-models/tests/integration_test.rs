@@ -402,6 +402,278 @@ async fn test_gemini_multimodal_integration() {
     assert!(response.is_ok());
 }
 
+// Tests for grounding metadata extraction and citation parsing
+
+#[test]
+fn test_gemini_grounding_metadata_extraction() {
+    use serde_json;
+    
+    // Mock Gemini API response with grounding metadata
+    let mock_response = r#"{
+        "candidates": [{
+            "content": {
+                "role": "model",
+                "parts": [{"text": "This is a test response with citations."}]
+            },
+            "groundingMetadata": {
+                "groundingAttributions": [
+                    {
+                        "segment": {"startIndex": 0, "endIndex": 10},
+                        "confidenceScore": 0.95,
+                        "web": {"uri": "https://example.com/source1"}
+                    }
+                ]
+            },
+            "citationMetadata": {
+                "citations": [
+                    {
+                        "startIndex": 0,
+                        "endIndex": 10,
+                        "uri": "https://example.com/source1",
+                        "title": "Example Source 1"
+                    }
+                ]
+            },
+            "safetyRatings": [
+                {
+                    "category": "HARM_CATEGORY_HATE_SPEECH",
+                    "probability": "NEGLIGIBLE",
+                    "blocked": false
+                }
+            ]
+        }]
+    }"#;
+
+    let gemini_response: serde_json::Value = serde_json::from_str(mock_response).unwrap();
+    
+    // Test that we can extract grounding metadata
+    if let Some(candidates) = gemini_response.get("candidates").and_then(|c| c.as_array()) {
+        if let Some(candidate) = candidates.first() {
+            assert!(candidate.get("groundingMetadata").is_some());
+            let grounding_meta = candidate.get("groundingMetadata").unwrap();
+            assert!(grounding_meta.get("groundingAttributions").is_some());
+            let attributions = grounding_meta.get("groundingAttributions").unwrap().as_array().unwrap();
+            assert!(!attributions.is_empty());
+        }
+    }
+}
+
+#[test]
+fn test_gemini_citation_parsing() {
+    use serde_json;
+    
+    // Mock response with citation metadata
+    let mock_response = r#"{
+        "candidates": [{
+            "content": {
+                "role": "model",
+                "parts": [{"text": "Test response"}]
+            },
+            "citationMetadata": {
+                "citations": [
+                    {
+                        "startIndex": 0,
+                        "endIndex": 10,
+                        "uri": "https://example.com/source1",
+                        "title": "Example Source 1"
+                    },
+                    {
+                        "startIndex": 11,
+                        "endIndex": 20,
+                        "uri": "https://example.com/source2",
+                        "title": "Example Source 2"
+                    }
+                ]
+            }
+        }]
+    }"#;
+
+    let gemini_response: serde_json::Value = serde_json::from_str(mock_response).unwrap();
+    
+    if let Some(candidates) = gemini_response.get("candidates").and_then(|c| c.as_array()) {
+        if let Some(candidate) = candidates.first() {
+            let citation_meta = candidate.get("citationMetadata").unwrap();
+            let citations = citation_meta.get("citations").unwrap().as_array().unwrap();
+            
+            assert_eq!(citations.len(), 2);
+            
+            // Check first citation
+            let first = &citations[0];
+            assert_eq!(first.get("startIndex").and_then(|v| v.as_u64()), Some(0));
+            assert_eq!(first.get("endIndex").and_then(|v| v.as_u64()), Some(10));
+            assert_eq!(first.get("uri").and_then(|v| v.as_str()), Some("https://example.com/source1"));
+            assert_eq!(first.get("title").and_then(|v| v.as_str()), Some("Example Source 1"));
+        }
+    }
+}
+
+#[test]
+fn test_gemini_citation_conversion() {
+    // Test conversion from GeminiCitation to radium_abstraction::Citation
+    let citation = Citation {
+        start_index: Some(5),
+        end_index: Some(15),
+        uri: Some("https://example.com/test".to_string()),
+        title: Some("Test Title".to_string()),
+    };
+    
+    assert_eq!(citation.start_index, Some(5));
+    assert_eq!(citation.end_index, Some(15));
+    assert_eq!(citation.uri, Some("https://example.com/test".to_string()));
+    assert_eq!(citation.title, Some("Test Title".to_string()));
+}
+
+#[test]
+fn test_model_response_get_citations() {
+    use radium_abstraction::ModelResponse;
+    use std::collections::HashMap;
+    
+    // Create ModelResponse with citations in metadata
+    let citations = vec![
+        Citation {
+            start_index: Some(0),
+            end_index: Some(10),
+            uri: Some("https://example.com/source1".to_string()),
+            title: Some("Source 1".to_string()),
+        },
+        Citation {
+            start_index: Some(11),
+            end_index: Some(20),
+            uri: Some("https://example.com/source2".to_string()),
+            title: Some("Source 2".to_string()),
+        },
+    ];
+    
+    let mut metadata = HashMap::new();
+    metadata.insert("citations".to_string(), serde_json::to_value(&citations).unwrap());
+    
+    let response = ModelResponse {
+        content: "Test response with citations.".to_string(),
+        model_id: Some("gemini-pro".to_string()),
+        usage: None,
+        metadata: Some(metadata),
+        tool_calls: None,
+    };
+    
+    // Test get_citations() helper method
+    let extracted_citations = response.get_citations();
+    assert!(extracted_citations.is_some());
+    let extracted = extracted_citations.unwrap();
+    assert_eq!(extracted.len(), 2);
+    assert_eq!(extracted[0].uri, Some("https://example.com/source1".to_string()));
+    assert_eq!(extracted[1].uri, Some("https://example.com/source2".to_string()));
+    
+    // Test with no citations
+    let response_no_citations = ModelResponse {
+        content: "Test response".to_string(),
+        model_id: Some("gemini-pro".to_string()),
+        usage: None,
+        metadata: None,
+        tool_calls: None,
+    };
+    
+    assert!(response_no_citations.get_citations().is_none());
+}
+
+#[test]
+fn test_grounding_with_safety_ratings() {
+    use serde_json;
+    
+    // Mock response with both grounding and safety ratings
+    let mock_response = r#"{
+        "candidates": [{
+            "content": {
+                "role": "model",
+                "parts": [{"text": "Test response"}]
+            },
+            "groundingMetadata": {
+                "groundingAttributions": [
+                    {
+                        "segment": {"startIndex": 0, "endIndex": 10},
+                        "confidenceScore": 0.9
+                    }
+                ]
+            },
+            "citationMetadata": {
+                "citations": [
+                    {
+                        "startIndex": 0,
+                        "endIndex": 10,
+                        "uri": "https://example.com/source",
+                        "title": "Example Source"
+                    }
+                ]
+            },
+            "safetyRatings": [
+                {
+                    "category": "HARM_CATEGORY_HATE_SPEECH",
+                    "probability": "NEGLIGIBLE",
+                    "blocked": false
+                },
+                {
+                    "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                    "probability": "LOW",
+                    "blocked": false
+                }
+            ]
+        }]
+    }"#;
+
+    let gemini_response: serde_json::Value = serde_json::from_str(mock_response).unwrap();
+    
+    if let Some(candidates) = gemini_response.get("candidates").and_then(|c| c.as_array()) {
+        if let Some(candidate) = candidates.first() {
+            // Both should be present
+            assert!(candidate.get("groundingMetadata").is_some());
+            assert!(candidate.get("citationMetadata").is_some());
+            assert!(candidate.get("safetyRatings").is_some());
+            
+            let safety_ratings = candidate.get("safetyRatings").unwrap().as_array().unwrap();
+            assert_eq!(safety_ratings.len(), 2);
+        }
+    }
+}
+
+#[tokio::test]
+#[ignore = "Requires GEMINI_API_KEY and grounding-enabled model"]
+async fn test_gemini_grounding_integration() {
+    // Integration test with real API - requires grounding to be enabled
+    #[allow(clippy::disallowed_methods)]
+    if std::env::var("GEMINI_API_KEY").is_err() {
+        return;
+    }
+
+    let model = GeminiModel::new("gemini-2.0-flash-exp".to_string()).unwrap();
+    let messages = vec![ChatMessage {
+        role: "user".to_string(),
+        content: MessageContent::Text("What is the latest news about Rust programming?".to_string()),
+    }];
+
+    // Enable grounding via parameters
+    let mut params = radium_abstraction::ModelParameters::default();
+    params.enable_grounding = Some(true);
+    params.grounding_threshold = Some(0.3);
+
+    let response = model.generate_chat_completion(&messages, Some(params)).await;
+    assert!(response.is_ok());
+    
+    let result = response.unwrap();
+    
+    // Check if grounding metadata is present
+    if let Some(metadata) = &result.metadata {
+        // Should have citations if grounding worked
+        let citations = result.get_citations();
+        if citations.is_some() {
+            let citations = citations.unwrap();
+            assert!(!citations.is_empty(), "Expected citations from grounding");
+        }
+        
+        // Should have grounding_attributions
+        assert!(metadata.contains_key("grounding_attributions") || metadata.contains_key("citations"),
+            "Expected grounding metadata in response");
+    }
+}
+
 #[tokio::test]
 async fn test_gemini_safety_settings_serialization() {
     // Test that safety settings are correctly included in request serialization

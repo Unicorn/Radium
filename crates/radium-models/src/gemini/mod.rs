@@ -1549,6 +1549,9 @@ struct GeminiRequest {
     tools: Option<Vec<GeminiTool>>,
     /// Optional tool configuration for function calling
     #[serde(skip_serializing_if = "Option::is_none", rename = "toolConfig")]
+    /// Optional reference to cached content (cachedContent API)
+    #[serde(skip_serializing_if = "Option::is_none", rename = "cachedContent")]
+    cached_content: Option<String>,
     tool_config: Option<GeminiToolConfig>,
     /// Optional safety settings for content filtering
     #[serde(skip_serializing_if = "Option::is_none", rename = "safetySettings")]
