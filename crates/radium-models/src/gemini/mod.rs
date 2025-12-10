@@ -1151,6 +1151,151 @@ impl From<&GeminiCitation> for Citation {
     }
 }
 
+/// Provider capability detection for multimodal content support.
+mod provider_capabilities {
+    use radium_abstraction::ModelError;
+
+    /// Provider capabilities for multimodal content.
+    #[derive(Debug, Clone)]
+    pub struct ProviderCapabilities {
+        pub provider_name: String,
+        pub supports_images: bool,
+        pub supports_audio: bool,
+        pub supports_video: bool,
+        pub supports_pdf: bool,
+        pub max_inline_size: u64,
+        pub supports_file_api: bool,
+    }
+
+    impl ProviderCapabilities {
+        /// Get capabilities for Gemini provider.
+        pub fn for_gemini() -> Self {
+            Self {
+                provider_name: "gemini".to_string(),
+                supports_images: true,
+                supports_audio: true,
+                supports_video: true,
+                supports_pdf: true,
+                max_inline_size: 20 * 1024 * 1024, // 20MB
+                supports_file_api: true,
+            }
+        }
+
+        /// Get capabilities for Claude provider.
+        pub fn for_claude() -> Self {
+            Self {
+                provider_name: "claude".to_string(),
+                supports_images: true,
+                supports_audio: false,
+                supports_video: false,
+                supports_pdf: true,
+                max_inline_size: 5 * 1024 * 1024, // 5MB
+                supports_file_api: false,
+            }
+        }
+
+        /// Get capabilities for OpenAI provider.
+        pub fn for_openai() -> Self {
+            Self {
+                provider_name: "openai".to_string(),
+                supports_images: true,
+                supports_audio: true,
+                supports_video: false,
+                supports_pdf: false,
+                max_inline_size: 20 * 1024 * 1024, // 20MB
+                supports_file_api: false,
+            }
+        }
+
+        /// Validate if a MIME type is supported by this provider.
+        ///
+        /// # Arguments
+        /// * `mime_type` - The MIME type to validate
+        ///
+        /// # Returns
+        /// `Ok(())` if supported, `Err(UnsupportedMimeType)` with alternative providers if not
+        pub fn validate_mime_type(&self, mime_type: &str) -> Result<(), ModelError> {
+            let supported = match mime_type {
+                "image/png" | "image/jpeg" | "image/webp" => self.supports_images,
+                "application/pdf" => self.supports_pdf,
+                "audio/mpeg" | "audio/wav" | "audio/aac" => self.supports_audio,
+                "video/mp4" | "video/quicktime" => self.supports_video,
+                _ => false,
+            };
+
+            if !supported {
+                // Find providers that support this type
+                let alternatives = self.find_supporting_providers(mime_type);
+                let mut supported_types = self.get_supported_types();
+                
+                Err(ModelError::UnsupportedMimeType {
+                    mime_type: mime_type.to_string(),
+                    supported_types,
+                })
+            } else {
+                Ok(())
+            }
+        }
+
+        /// Validate content size against provider's inline limit.
+        ///
+        /// # Arguments
+        /// * `size` - The content size in bytes
+        /// * `mime_type` - The MIME type
+        ///
+        /// # Returns
+        /// `Ok(())` if size is valid, `Err(ContentTooLarge)` if exceeds limit
+        pub fn validate_size(&self, size: u64, mime_type: &str) -> Result<(), ModelError> {
+            if size > self.max_inline_size && !self.supports_file_api {
+                return Err(ModelError::ContentTooLarge {
+                    actual_size: size as usize,
+                    max_size: self.max_inline_size as usize,
+                    content_type: mime_type.to_string(),
+                });
+            }
+            Ok(())
+        }
+
+        /// Get list of supported MIME types for this provider.
+        fn get_supported_types(&self) -> Vec<String> {
+            let mut types = Vec::new();
+            if self.supports_images {
+                types.extend_from_slice(&["image/png".to_string(), "image/jpeg".to_string(), "image/webp".to_string()]);
+            }
+            if self.supports_pdf {
+                types.push("application/pdf".to_string());
+            }
+            if self.supports_audio {
+                types.extend_from_slice(&["audio/mpeg".to_string(), "audio/wav".to_string(), "audio/aac".to_string()]);
+            }
+            if self.supports_video {
+                types.extend_from_slice(&["video/mp4".to_string(), "video/quicktime".to_string()]);
+            }
+            types
+        }
+
+        /// Find providers that support a given MIME type.
+        fn find_supporting_providers(&self, mime_type: &str) -> Vec<String> {
+            let mut providers = Vec::new();
+
+            // Check which providers support this MIME type
+            if mime_type.starts_with("audio/") {
+                providers.extend_from_slice(&["gemini", "openai"]);
+            } else if mime_type.starts_with("video/") {
+                providers.push("gemini");
+            } else if mime_type == "application/pdf" {
+                providers.extend_from_slice(&["gemini", "claude"]);
+            } else if mime_type.starts_with("image/") {
+                providers.extend_from_slice(&["gemini", "claude", "openai"]);
+            }
+
+            // Remove current provider from suggestions
+            providers.retain(|p| p != &self.provider_name);
+            providers
+        }
+    }
+}
+
 /// Base64 encoding utilities for multimodal content.
 mod encoding_utils {
     use base64::Engine;
@@ -1740,5 +1885,78 @@ mod tests {
         // Base64 encoding of 1024 bytes should be approximately 1366 bytes (1024 * 4/3)
         assert!(encoded.len() > data.len());
         assert!(encoded.len() <= (data.len() * 4 / 3 + 4)); // Account for padding
+    }
+
+    #[test]
+    fn test_provider_capabilities_gemini() {
+        let caps = provider_capabilities::ProviderCapabilities::for_gemini();
+        assert_eq!(caps.provider_name, "gemini");
+        assert!(caps.supports_images);
+        assert!(caps.supports_audio);
+        assert!(caps.supports_video);
+        assert!(caps.supports_pdf);
+        assert_eq!(caps.max_inline_size, 20 * 1024 * 1024);
+        assert!(caps.supports_file_api);
+    }
+
+    #[test]
+    fn test_provider_capabilities_claude() {
+        let caps = provider_capabilities::ProviderCapabilities::for_claude();
+        assert_eq!(caps.provider_name, "claude");
+        assert!(caps.supports_images);
+        assert!(!caps.supports_audio);
+        assert!(!caps.supports_video);
+        assert!(caps.supports_pdf);
+        assert_eq!(caps.max_inline_size, 5 * 1024 * 1024);
+        assert!(!caps.supports_file_api);
+    }
+
+    #[test]
+    fn test_provider_capabilities_openai() {
+        let caps = provider_capabilities::ProviderCapabilities::for_openai();
+        assert_eq!(caps.provider_name, "openai");
+        assert!(caps.supports_images);
+        assert!(caps.supports_audio);
+        assert!(!caps.supports_video);
+        assert!(!caps.supports_pdf);
+        assert_eq!(caps.max_inline_size, 20 * 1024 * 1024);
+        assert!(!caps.supports_file_api);
+    }
+
+    #[test]
+    fn test_validate_mime_type_supported() {
+        let caps = provider_capabilities::ProviderCapabilities::for_gemini();
+        assert!(caps.validate_mime_type("image/png").is_ok());
+        assert!(caps.validate_mime_type("application/pdf").is_ok());
+    }
+
+    #[test]
+    fn test_validate_mime_type_unsupported() {
+        let caps = provider_capabilities::ProviderCapabilities::for_claude();
+        let result = caps.validate_mime_type("audio/mpeg");
+        assert!(result.is_err());
+        if let Err(ModelError::UnsupportedMimeType { mime_type, .. }) = result {
+            assert_eq!(mime_type, "audio/mpeg");
+        } else {
+            panic!("Expected UnsupportedMimeType error");
+        }
+    }
+
+    #[test]
+    fn test_validate_size_within_limit() {
+        let caps = provider_capabilities::ProviderCapabilities::for_gemini();
+        assert!(caps.validate_size(10 * 1024 * 1024, "image/png").is_ok());
+    }
+
+    #[test]
+    fn test_validate_size_exceeds_limit_no_file_api() {
+        let caps = provider_capabilities::ProviderCapabilities::for_claude();
+        let result = caps.validate_size(10 * 1024 * 1024, "image/png"); // 10MB > 5MB limit
+        assert!(result.is_err());
+        if let Err(ModelError::ContentTooLarge { .. }) = result {
+            // Expected
+        } else {
+            panic!("Expected ContentTooLarge error");
+        }
     }
 }
