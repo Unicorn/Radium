@@ -2234,6 +2234,8 @@ mod tests {
             tools: None,
             tool_config: None,
             safety_settings: None,
+            cached_content: None,
+            safety_settings: None,
             tools: None,
             tool_config: None,
             safety_settings: None,
