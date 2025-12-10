@@ -340,6 +340,331 @@ impl Model for GeminiModel {
     }
 }
 
+#[async_trait]
+impl StreamingModel for GeminiModel {
+    async fn generate_stream(
+        &self,
+        prompt: &str,
+        parameters: Option<ModelParameters>,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<String, ModelError>> + Send>>, ModelError> {
+        debug!(
+            model_id = %self.model_id,
+            prompt_len = prompt.len(),
+            parameters = ?parameters,
+            "GeminiModel generating streaming text"
+        );
+
+        // Convert single prompt to chat format for Gemini
+        let messages = vec![ChatMessage {
+            role: "user".to_string(),
+            content: prompt.to_string(),
+        }];
+
+        // Build Gemini streaming API request
+        let url = format!(
+            "{}/models/{}:streamGenerateContent?alt=sse&key={}",
+            self.base_url, self.model_id, self.api_key
+        );
+
+        // Extract system instruction if present
+        let system_instruction = Self::extract_system_messages(&messages);
+
+        // Convert non-system messages to Gemini format
+        let gemini_messages: Vec<GeminiContent> = messages
+            .iter()
+            .filter(|msg| msg.role != "system")
+            .map(|msg| GeminiContent {
+                role: Self::role_to_gemini(&msg.role),
+                parts: vec![GeminiPart {
+                    text: msg.content.clone(),
+                }],
+            })
+            .collect();
+
+        // Build request body
+        let mut request_body = GeminiRequest {
+            contents: gemini_messages,
+            generation_config: None,
+            system_instruction: system_instruction.map(|text| GeminiSystemInstruction {
+                parts: vec![GeminiPart { text }],
+            }),
+        };
+
+        // Apply parameters if provided
+        if let Some(params) = parameters {
+            // Handle response format (mime type and schema)
+            let (mime_type, schema) = match &params.response_format {
+                Some(ResponseFormat::Json) => (Some("application/json".to_string()), None),
+                Some(ResponseFormat::JsonSchema(schema_str)) => {
+                    match serde_json::from_str::<serde_json::Value>(schema_str) {
+                        Ok(parsed_schema) => {
+                            (Some("application/json".to_string()), Some(parsed_schema))
+                        }
+                        Err(e) => {
+                            error!(error = %e, schema = schema_str, "Invalid JSON schema in response_format");
+                            return Err(ModelError::SerializationError(format!(
+                                "Invalid JSON schema: {}",
+                                e
+                            )));
+                        }
+                    }
+                }
+                _ => (None, None),
+            };
+
+            // Clamp penalty values to Gemini's 0.0-2.0 range
+            let frequency_penalty = params.frequency_penalty.map(|p| {
+                let clamped = p.clamp(0.0, 2.0);
+                if clamped != p {
+                    warn!(
+                        original = p,
+                        clamped = clamped,
+                        "Clamping frequency_penalty to Gemini range [0.0, 2.0]"
+                    );
+                }
+                clamped
+            });
+
+            let presence_penalty = params.presence_penalty.map(|p| {
+                let clamped = p.clamp(0.0, 2.0);
+                if clamped != p {
+                    warn!(
+                        original = p,
+                        clamped = clamped,
+                        "Clamping presence_penalty to Gemini range [0.0, 2.0]"
+                    );
+                }
+                clamped
+            });
+
+            request_body.generation_config = Some(GeminiGenerationConfig {
+                temperature: params.temperature,
+                top_p: params.top_p,
+                max_output_tokens: params.max_tokens,
+                top_k: params.top_k,
+                frequency_penalty,
+                presence_penalty,
+                response_mime_type: mime_type,
+                response_schema: schema,
+                stop_sequences: params.stop_sequences,
+            });
+        }
+
+        // Make streaming API request
+        let response = self
+            .client
+            .post(&url)
+            .json(&request_body)
+            .send()
+            .await
+            .map_err(|e| {
+                error!(error = %e, "Failed to send streaming request to Gemini API");
+                ModelError::RequestError(format!("Network error: {}", e))
+            })?;
+
+        // Check status before streaming
+        let status = response.status();
+        if !status.is_success() {
+            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            error!(
+                status = %status,
+                error = %error_text,
+                "Gemini API returned error status for streaming request"
+            );
+
+            // Map quota/rate limit errors to QuotaExceeded
+            if status == 402 || status == 429 {
+                let is_quota_error = error_text.to_uppercase().contains("RESOURCE_EXHAUSTED")
+                    || error_text.to_lowercase().contains("quota exceeded")
+                    || error_text.to_lowercase().contains("quota")
+                    || error_text.to_lowercase().contains("rate limit");
+
+                if is_quota_error || status == 402 {
+                    return Err(ModelError::QuotaExceeded {
+                        provider: "gemini".to_string(),
+                        message: Some(error_text),
+                    });
+                }
+            }
+
+            // For 429, if it's a rate limit (not quota), we still treat it as QuotaExceeded
+            if status == 429 {
+                return Err(ModelError::QuotaExceeded {
+                    provider: "gemini".to_string(),
+                    message: Some(error_text),
+                });
+            }
+
+            // Map authentication errors (401, 403) to UnsupportedModelProvider
+            if status == 401 || status == 403 {
+                return Err(ModelError::UnsupportedModelProvider(format!(
+                    "Authentication failed ({}): {}",
+                    status, error_text
+                )));
+            }
+
+            // Map server errors (500-599) to ModelResponseError
+            if (500..=599).contains(&status.as_u16()) {
+                return Err(ModelError::ModelResponseError(format!(
+                    "Server error ({}): {}",
+                    status, error_text
+                )));
+            }
+
+            // Other errors
+            return Err(ModelError::ModelResponseError(format!(
+                "API error ({}): {}",
+                status, error_text
+            )));
+        }
+
+        // Create SSE stream parser
+        Ok(Box::pin(GeminiSSEStream::new(response)))
+    }
+}
+
+// SSE stream parser for Gemini format
+struct GeminiSSEStream {
+    stream: Pin<Box<dyn Stream<Item = Result<bytes::Bytes, reqwest::Error>> + Send>>,
+    buffer: String,
+    accumulated: String,
+    done: bool,
+}
+
+impl GeminiSSEStream {
+    fn new(response: reqwest::Response) -> Self {
+        Self {
+            stream: Box::pin(response.bytes_stream()),
+            buffer: String::new(),
+            accumulated: String::new(),
+            done: false,
+        }
+    }
+}
+
+impl Stream for GeminiSSEStream {
+    type Item = Result<String, ModelError>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if self.done {
+            return Poll::Ready(None);
+        }
+
+        loop {
+            // Poll the underlying byte stream
+            match self.stream.as_mut().poll_next(cx) {
+                Poll::Ready(Some(Ok(bytes))) => {
+                    // Convert bytes to string and append to buffer
+                    match String::from_utf8(bytes.to_vec()) {
+                        Ok(chunk) => {
+                            self.buffer.push_str(&chunk);
+
+                            // Process complete SSE events (separated by \n\n)
+                            while let Some(end_idx) = self.buffer.find("\n\n") {
+                                let event = self.buffer[..end_idx].to_string();
+                                self.buffer = self.buffer[end_idx + 2..].to_string();
+
+                                // Parse SSE event
+                                if event.starts_with("data: ") {
+                                    let data = &event[6..]; // Skip "data: " prefix
+
+                                    // Check for [DONE] signal or empty data
+                                    if data.trim() == "[DONE]" || data.trim().is_empty() {
+                                        self.done = true;
+                                        if !self.accumulated.is_empty() {
+                                            return Poll::Ready(Some(Ok(self.accumulated.clone())));
+                                        }
+                                        return Poll::Ready(None);
+                                    }
+
+                                    // Parse JSON chunk
+                                    match serde_json::from_str::<GeminiStreamingResponse>(data) {
+                                        Ok(streaming_response) => {
+                                            // Extract text from candidates[0].content.parts[0].text
+                                            if let Some(candidate) = streaming_response.candidates.first() {
+                                                if let Some(part) = candidate.content.parts.first() {
+                                                    if !part.text.is_empty() {
+                                                        self.accumulated.push_str(&part.text);
+                                                        return Poll::Ready(Some(Ok(self.accumulated.clone())));
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        Err(e) => {
+                                            // Skip malformed JSON chunks (some servers send empty chunks)
+                                            debug!("Failed to parse SSE chunk: {}", e);
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Continue polling for more data
+                            continue;
+                        }
+                        Err(e) => {
+                            return Poll::Ready(Some(Err(ModelError::SerializationError(format!(
+                                "Failed to decode SSE chunk: {}",
+                                e
+                            )))));
+                        }
+                    }
+                }
+                Poll::Ready(Some(Err(e))) => {
+                    return Poll::Ready(Some(Err(ModelError::RequestError(format!(
+                        "Stream error: {}",
+                        e
+                    )))));
+                }
+                Poll::Ready(None) => {
+                    // Stream ended - process any remaining events in buffer
+                    while let Some(end_idx) = self.buffer.find("\n\n") {
+                        let event = self.buffer[..end_idx].to_string();
+                        self.buffer = self.buffer[end_idx + 2..].to_string();
+
+                        if event.starts_with("data: ") {
+                            let data = &event[6..];
+
+                            if data.trim() == "[DONE]" || data.trim().is_empty() {
+                                self.done = true;
+                                if !self.accumulated.is_empty() {
+                                    return Poll::Ready(Some(Ok(self.accumulated.clone())));
+                                }
+                                return Poll::Ready(None);
+                            }
+
+                            if let Ok(streaming_response) =
+                                serde_json::from_str::<GeminiStreamingResponse>(data)
+                            {
+                                if let Some(candidate) = streaming_response.candidates.first() {
+                                    if let Some(part) = candidate.content.parts.first() {
+                                        if !part.text.is_empty() {
+                                            self.accumulated.push_str(&part.text);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // No more events in buffer
+                    self.done = true;
+                    if !self.accumulated.is_empty() {
+                        return Poll::Ready(Some(Ok(self.accumulated.clone())));
+                    }
+                    return Poll::Ready(None);
+                }
+                Poll::Pending => return Poll::Pending,
+            }
+        }
+    }
+}
+
+// Streaming response structure for Gemini SSE
+#[derive(Debug, Deserialize)]
+struct GeminiStreamingResponse {
+    candidates: Vec<GeminiCandidate>,
+}
+
 // Gemini API request/response structures
 
 #[derive(Debug, Serialize)]
