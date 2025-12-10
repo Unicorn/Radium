@@ -96,7 +96,20 @@ impl Model for MockModel {
 
         let mut conversation_summary = String::from("Conversation Summary:\n");
         for message in messages {
-            let _ = writeln!(conversation_summary, "  {}: {}", message.role, message.content);
+            let content_str = match &message.content {
+                radium_abstraction::MessageContent::Text(text) => text.clone(),
+                radium_abstraction::MessageContent::Blocks(blocks) => {
+                    // Extract text from blocks for summary
+                    blocks.iter()
+                        .filter_map(|b| match b {
+                            radium_abstraction::ContentBlock::Text { text } => Some(text.clone()),
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                }
+            };
+            let _ = writeln!(conversation_summary, "  {}: {}", message.role, content_str);
         }
 
         let response_content = format!(
@@ -104,7 +117,20 @@ impl Model for MockModel {
             self.id
         );
 
-        let prompt_tokens = messages.iter().map(|m| count_tokens(&m.content)).sum::<u32>();
+        let prompt_tokens = messages.iter().map(|m| {
+            match &m.content {
+                radium_abstraction::MessageContent::Text(text) => count_tokens(text),
+                radium_abstraction::MessageContent::Blocks(blocks) => {
+                    // Count tokens from text blocks only
+                    blocks.iter()
+                        .filter_map(|b| match b {
+                            radium_abstraction::ContentBlock::Text { text } => Some(count_tokens(text)),
+                            _ => None,
+                        })
+                        .sum()
+                }
+            }
+        }).sum::<u32>();
         let completion_tokens = count_tokens(&response_content);
         let total_tokens = prompt_tokens + completion_tokens;
 

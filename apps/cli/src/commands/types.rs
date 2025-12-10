@@ -982,4 +982,30 @@ pub enum ModelsCommand {
         #[arg(long)]
         json: bool,
     },
+
+    /// File management operations for Gemini File API
+    #[command(subcommand)]
+    File(FileCommand),
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum FileCommand {
+    /// Upload a file to Gemini File API
+    Upload {
+        /// Path to the file to upload
+        path: std::path::PathBuf,
+        /// MIME type (auto-detected from extension if not provided)
+        #[arg(long)]
+        mime_type: Option<String>,
+        /// Display name for the file
+        #[arg(long)]
+        display_name: Option<String>,
+    },
+    /// List all uploaded files
+    List,
+    /// Delete a file by ID
+    Delete {
+        /// File ID (format: files/{file-id})
+        file_id: String,
+    },
 }

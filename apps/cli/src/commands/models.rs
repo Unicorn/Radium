@@ -1,14 +1,17 @@
 //! Models command implementation.
 
-use super::types::ModelsCommand;
+use super::types::{FileCommand, ModelsCommand};
 use anyhow::{Context, Result};
+use chrono::Utc;
 use colored::Colorize;
+use radium_core::auth::{CredentialStore, ProviderType};
 use radium_core::config::model_cache::load_cache_config;
 use radium_core::engines::{
     CredentialStatus, EngineRegistry, ValidationStatus,
 };
 use radium_core::engines::providers::{ClaudeEngine, GeminiEngine, MockEngine, OpenAIEngine};
 use radium_core::workspace::Workspace;
+use radium_models::gemini::file_api::GeminiFileApi;
 use radium_models::{CacheKey, ModelCache, ModelConfig, ModelType};
 use serde_json::json;
 use std::collections::HashSet;
@@ -33,6 +36,7 @@ pub async fn execute(command: ModelsCommand) -> Result<()> {
             clear_cache(provider, model).await
         }
         ModelsCommand::CacheStatus { json } => cache_status(json).await,
+        ModelsCommand::File { command } => handle_file_command(command).await,
     }
 }
 
@@ -661,6 +665,230 @@ fn format_relative_time(duration: Duration) -> String {
     } else {
         let hours = secs / 3600;
         format!("{}h ago", hours)
+    }
+}
+
+/// Handle file management commands.
+async fn handle_file_command(command: FileCommand) -> Result<()> {
+    match command {
+        FileCommand::Upload {
+            path,
+            mime_type,
+            display_name,
+        } => file_upload(path, mime_type, display_name).await,
+        FileCommand::List => file_list().await,
+        FileCommand::Delete { file_id } => file_delete(file_id).await,
+    }
+}
+
+/// Upload a file to Gemini File API.
+async fn file_upload(
+    path: PathBuf,
+    mime_type: Option<String>,
+    display_name: Option<String>,
+) -> Result<()> {
+    println!("{}", "rad models file upload".bold().cyan());
+    println!();
+
+    // Get API key
+    let credential_store = CredentialStore::new()
+        .context("Failed to initialize credential store")?;
+    let api_key = credential_store
+        .get(ProviderType::Gemini)
+        .context("Gemini API key not found. Use 'rad auth set gemini' to set it.")?;
+
+    // Create file API client
+    let file_api = GeminiFileApi::with_api_key(api_key);
+
+    println!("{}", "Uploading file...".dimmed());
+    println!("  Path: {}", path.display().cyan());
+
+    // Upload file
+    let file = file_api
+        .upload_file(&path, mime_type, display_name)
+        .await
+        .context("Failed to upload file")?;
+
+    println!();
+    println!("  {} File uploaded successfully", "✓".green());
+    println!();
+    println!("{}", "File Details:".bold());
+    println!("  Name: {}", file.name.cyan());
+    println!("  URI: {}", file.uri.cyan());
+    println!("  State: {}", format!("{:?}", file.state).green());
+    println!("  Size: {}", format_file_size(file.size_bytes));
+    println!("  MIME Type: {}", file.mime_type.cyan());
+    if let Some(display) = &file.display_name {
+        println!("  Display Name: {}", display.cyan());
+    }
+    let expires_in = file.expire_time.signed_duration_since(Utc::now());
+    if expires_in.num_seconds() > 0 {
+        println!("  Expires In: {}", format_duration(expires_in.to_std().unwrap()));
+    } else {
+        println!("  Expires In: {}", "Expired".red());
+    }
+    println!();
+
+    Ok(())
+}
+
+/// List all uploaded files.
+async fn file_list() -> Result<()> {
+    println!("{}", "rad models file list".bold().cyan());
+    println!();
+
+    // Get API key
+    let credential_store = CredentialStore::new()
+        .context("Failed to initialize credential store")?;
+    let api_key = credential_store
+        .get(ProviderType::Gemini)
+        .context("Gemini API key not found. Use 'rad auth set gemini' to set it.")?;
+
+    // Create file API client
+    let file_api = GeminiFileApi::with_api_key(api_key);
+
+    println!("{}", "Fetching files...".dimmed());
+
+    // List files
+    let files = file_api
+        .list_files()
+        .await
+        .context("Failed to list files")?;
+
+    println!();
+    if files.is_empty() {
+        println!("  {} No files found", "ℹ".blue());
+        println!();
+        return Ok(());
+    }
+
+    println!(
+        "{}",
+        format!("📋 Uploaded Files ({})", files.len())
+            .bold()
+            .cyan()
+    );
+    println!();
+
+    // Print table header
+    println!(
+        "{:<30} {:<12} {:<12} {:<20}",
+        "Name".bold(),
+        "State".bold(),
+        "Size".bold(),
+        "Expires In".bold()
+    );
+    println!("{}", "-".repeat(80));
+
+    // Print files
+    for file in files {
+        let name = if file.name.len() > 28 {
+            format!("{}..", &file.name[..26])
+        } else {
+            file.name.clone()
+        };
+
+        let state_str = match file.state {
+            radium_models::gemini::file_api::FileState::Active => {
+                format!("{:?}", file.state).green().to_string()
+            }
+            radium_models::gemini::file_api::FileState::Processing => {
+                format!("{:?}", file.state).yellow().to_string()
+            }
+            radium_models::gemini::file_api::FileState::Failed => {
+                format!("{:?}", file.state).red().to_string()
+            }
+        };
+
+        let expires_in = file.expire_time.signed_duration_since(Utc::now());
+        let expires_str = if expires_in.num_seconds() > 0 {
+            format_duration(expires_in.to_std().unwrap())
+        } else {
+            "Expired".red().to_string()
+        };
+
+        println!(
+            "{:<30} {:<12} {:<12} {:<20}",
+            name.cyan(),
+            state_str,
+            format_file_size(file.size_bytes),
+            expires_str
+        );
+    }
+
+    println!();
+    Ok(())
+}
+
+/// Delete a file from Gemini File API.
+async fn file_delete(file_id: String) -> Result<()> {
+    println!("{}", "rad models file delete".bold().cyan());
+    println!();
+
+    // Get API key
+    let credential_store = CredentialStore::new()
+        .context("Failed to initialize credential store")?;
+    let api_key = credential_store
+        .get(ProviderType::Gemini)
+        .context("Gemini API key not found. Use 'rad auth set gemini' to set it.")?;
+
+    // Create file API client
+    let file_api = GeminiFileApi::with_api_key(api_key);
+
+    println!("{}", "Deleting file...".dimmed());
+    println!("  File ID: {}", file_id.cyan());
+
+    // Delete file
+    file_api
+        .delete_file(&file_id)
+        .await
+        .context("Failed to delete file")?;
+
+    println!();
+    println!("  {} File deleted successfully", "✓".green());
+    println!();
+
+    Ok(())
+}
+
+/// Format file size in human-readable format.
+fn format_file_size(bytes: u64) -> String {
+    const KB: u64 = 1024;
+    const MB: u64 = KB * 1024;
+    const GB: u64 = MB * 1024;
+
+    if bytes >= GB {
+        format!("{:.2} GB", bytes as f64 / GB as f64)
+    } else if bytes >= MB {
+        format!("{:.2} MB", bytes as f64 / MB as f64)
+    } else if bytes >= KB {
+        format!("{:.2} KB", bytes as f64 / KB as f64)
+    } else {
+        format!("{} B", bytes)
+    }
+}
+
+/// Format duration in human-readable format.
+fn format_duration(duration: std::time::Duration) -> String {
+    let secs = duration.as_secs();
+    if secs < 60 {
+        format!("{}s", secs)
+    } else if secs < 3600 {
+        let mins = secs / 60;
+        let remaining_secs = secs % 60;
+        if remaining_secs > 0 {
+            format!("{}m {}s", mins, remaining_secs)
+        } else {
+            format!("{}m", mins)
+        }
+    } else {
+        let hours = secs / 3600;
+        let remaining_mins = (secs % 3600) / 60;
+        if remaining_mins > 0 {
+            format!("{}h {}m", hours, remaining_mins)
+        } else {
+            format!("{}h", hours)
+        }
     }
 }
 
