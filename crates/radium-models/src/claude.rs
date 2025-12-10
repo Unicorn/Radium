@@ -46,6 +46,8 @@ pub struct ClaudeModel {
     base_url: String,
     /// HTTP client for making requests.
     client: Client,
+    /// Optional cache configuration for context caching.
+    cache_config: Option<crate::context_cache::CacheConfig>,
 }
 
 impl ClaudeModel {
@@ -69,6 +71,7 @@ impl ClaudeModel {
             api_key,
             base_url: "https://api.anthropic.com/v1".to_string(),
             client: Client::new(),
+            cache_config: None,
         })
     }
 
@@ -84,7 +87,18 @@ impl ClaudeModel {
             api_key,
             base_url: "https://api.anthropic.com/v1".to_string(),
             client: Client::new(),
+            cache_config: None,
         }
+    }
+
+    /// Sets the cache configuration for this model.
+    ///
+    /// # Arguments
+    /// * `cache_config` - The cache configuration
+    #[must_use]
+    pub fn with_cache_config(mut self, cache_config: crate::context_cache::CacheConfig) -> Self {
+        self.cache_config = Some(cache_config);
+        self
     }
 
     /// Extracts system messages from the chat history.

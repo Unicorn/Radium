@@ -179,11 +179,25 @@ impl ModelFactory {
                 Ok(Arc::new(model))
             }
             ModelType::Claude => {
-                let model = if let Some(api_key) = config.api_key {
+                let mut model = if let Some(api_key) = config.api_key {
                     ClaudeModel::with_api_key(config.model_id, api_key)
                 } else {
                     ClaudeModel::new(config.model_id)?
                 };
+
+                // Apply cache configuration if provided
+                if config.enable_context_caching.unwrap_or(false) {
+                    use crate::context_cache::CacheConfig;
+                    let mut cache_config = CacheConfig::new(true);
+                    if let Some(ttl) = config.cache_ttl {
+                        cache_config = cache_config.with_ttl(ttl);
+                    }
+                    if let Some(breakpoints) = config.cache_breakpoints {
+                        cache_config = cache_config.with_breakpoints(breakpoints);
+                    }
+                    model = model.with_cache_config(cache_config);
+                }
+
                 Ok(Arc::new(model))
             }
             ModelType::Gemini => {
