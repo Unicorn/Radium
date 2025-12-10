@@ -7,6 +7,8 @@ use chrono::Utc;
 use colored::Colorize;
 use futures::StreamExt;
 use radium_abstraction::{ModelParameters, StreamingModel};
+use radium_core::engines::ExecutionResponse;
+use serde_json;
 use radium_core::{
     analytics::{ReportFormatter, SessionAnalytics, SessionReport, SessionStorage},
     auth::{CredentialStore, ProviderType},
@@ -36,6 +38,9 @@ pub async fn execute(
     model_tier: Option<String>,
     session_id: Option<String>,
     stream: bool,
+    show_metadata: bool,
+    json: bool,
+    safety_behavior: Option<String>,
 ) -> anyhow::Result<()> {
     println!("{}", "rad step".bold().cyan());
     println!();
@@ -229,6 +234,37 @@ pub async fn execute(
     println!();
 
     let execution_result = execute_agent_with_engine(&registry, &agent.id, &rendered, selected_engine_id, selected_model, stream).await;
+    
+    // Handle response display based on flags
+    if let Ok(ref response) = execution_result {
+        if json {
+            // Output as JSON - convert ExecutionResponse to a serializable format
+            let json_response = serde_json::json!({
+                "content": response.content,
+                "model": response.model,
+                "usage": response.usage,
+                "metadata": response.metadata,
+            });
+            let json_output = serde_json::to_string_pretty(&json_response)?;
+            println!("{}", json_output);
+            return Ok(());
+        }
+        
+        // Display response content
+        println!("{}", "Response:".bold().green());
+        println!("{}", "─".repeat(60).dimmed());
+        print_highlighted_output(&response.content);
+        println!("{}", "─".repeat(60).dimmed());
+        
+        // Display metadata if requested
+        if show_metadata {
+            if let Some(ref metadata) = response.metadata {
+                println!();
+                println!("{}", "Metadata:".bold().dimmed());
+                format_metadata_display(response);
+            }
+        }
+    }
     
     // Parse and store code blocks from response
     if let Ok(ref response) = execution_result {
@@ -673,6 +709,7 @@ async fn execute_agent_with_engine(
                     model: model.to_string(),
                     raw: None,
                     execution_duration: None,
+                    metadata: None,
                 })
             }
             "openai" => {
@@ -740,6 +777,7 @@ async fn execute_agent_with_engine(
                     model: model.to_string(),
                     raw: None,
                     execution_duration: None,
+                    metadata: None,
                 })
             }
             "mock" => {
@@ -798,6 +836,7 @@ async fn execute_agent_with_engine(
                     model: model.to_string(),
                     raw: None,
                     execution_duration: None,
+                    metadata: None,
                 })
             }
             _ => {
@@ -842,11 +881,6 @@ async fn execute_normal(
     // Execute the engine
     match engine.execute(request).await {
         Ok(response) => {
-            println!("{}", "Response:".bold().green());
-            println!("{}", "─".repeat(60).dimmed());
-            print_highlighted_output(&response.content);
-            println!("{}", "─".repeat(60).dimmed());
-
             if let Some(usage) = &response.usage {
                 println!();
                 println!("{}", "Token Usage:".bold().dimmed());
@@ -866,6 +900,56 @@ async fn execute_normal(
             println!();
             println!("  {} Check your API key and engine configuration", "i".yellow());
             Err(anyhow::anyhow!("Engine execution failed: {}", e))
+        }
+    }
+}
+
+/// Format metadata for human-readable display.
+fn format_metadata_display(response: &ExecutionResponse) {
+    use radium_abstraction::{Citation, LogProb, SafetyRating};
+    
+    if let Some(ref metadata) = response.metadata {
+        // Finish reason
+        if let Some(finish_reason) = metadata.get("finish_reason").and_then(|v| v.as_str()) {
+            println!("  {} Finish Reason: {}", "•".dimmed(), finish_reason.cyan());
+        }
+        
+        // Safety ratings
+        if let Some(safety_ratings_val) = metadata.get("safety_ratings") {
+            if let Ok(safety_ratings) = serde_json::from_value::<Vec<SafetyRating>>(safety_ratings_val.clone()) {
+                println!("  {} Safety Ratings:", "•".dimmed());
+                for rating in &safety_ratings {
+                    let blocked_indicator = if rating.blocked { "BLOCKED".red() } else { "OK".green() };
+                    println!("    - {}: {} ({})", rating.category.dimmed(), rating.probability.cyan(), blocked_indicator);
+                }
+            }
+        }
+        
+        // Citations
+        if let Some(citations_val) = metadata.get("citations") {
+            if let Ok(citations) = serde_json::from_value::<Vec<Citation>>(citations_val.clone()) {
+                println!("  {} Citations: {}", "•".dimmed(), citations.len().to_string().cyan());
+                for (i, citation) in citations.iter().enumerate().take(3) {
+                    if let Some(ref uri) = citation.uri {
+                        println!("    {}. {}", i + 1, uri.dimmed());
+                    }
+                }
+                if citations.len() > 3 {
+                    println!("    ... and {} more", (citations.len() - 3).to_string().dimmed());
+                }
+            }
+        }
+        
+        // Log probabilities
+        if let Some(logprobs_val) = metadata.get("logprobs") {
+            if let Ok(logprobs) = serde_json::from_value::<Vec<LogProb>>(logprobs_val.clone()) {
+                println!("  {} Log Probabilities: {} tokens", "•".dimmed(), logprobs.len().to_string().cyan());
+            }
+        }
+        
+        // Model version
+        if let Some(model_version) = metadata.get("model_version").and_then(|v| v.as_str()) {
+            println!("  {} Model Version: {}", "•".dimmed(), model_version.cyan());
         }
     }
 }

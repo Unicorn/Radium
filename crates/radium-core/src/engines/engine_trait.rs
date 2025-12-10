@@ -150,6 +150,9 @@ pub struct ExecutionResponse {
     /// duration-based cost calculation for local models. Set to `None` for
     /// failed executions or if duration tracking is not available.
     pub execution_duration: Option<std::time::Duration>,
+
+    /// Provider-specific metadata (e.g., finish_reason, safety_ratings, citations, logprobs).
+    pub metadata: Option<std::collections::HashMap<String, serde_json::Value>>,
 }
 
 /// Token usage information.

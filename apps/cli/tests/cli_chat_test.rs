@@ -192,3 +192,64 @@ fn test_chat_help_shown_in_interactive_mode() {
     // Command should start (may timeout waiting for input)
     assert!(result.get_output().status.code().is_some());
 }
+
+#[test]
+fn test_chat_stream_flag_parsing() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+    create_test_agent(&temp_dir, "test-agent", "Test Agent");
+
+    // Test that --stream flag is accepted
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    let result = cmd
+        .current_dir(temp_dir.path())
+        .arg("chat")
+        .arg("--stream")
+        .arg("test-agent")
+        .timeout(std::time::Duration::from_secs(1))
+        .assert();
+
+    // Command should start (may timeout waiting for input)
+    assert!(result.get_output().status.code().is_some());
+}
+
+#[test]
+fn test_chat_stream_with_session_name() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+    create_test_agent(&temp_dir, "test-agent", "Test Agent");
+
+    // Test that --stream flag works with --session
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    let result = cmd
+        .current_dir(temp_dir.path())
+        .arg("chat")
+        .arg("--stream")
+        .arg("--session")
+        .arg("test-session")
+        .arg("test-agent")
+        .timeout(std::time::Duration::from_secs(1))
+        .assert();
+
+    // Command should start (may timeout waiting for input)
+    assert!(result.get_output().status.code().is_some());
+}
+
+#[test]
+fn test_chat_stream_backward_compatibility() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+    create_test_agent(&temp_dir, "test-agent", "Test Agent");
+
+    // Test that chat works without --stream flag (backward compatibility)
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    let result = cmd
+        .current_dir(temp_dir.path())
+        .arg("chat")
+        .arg("test-agent")
+        .timeout(std::time::Duration::from_secs(1))
+        .assert();
+
+    // Command should start (may timeout waiting for input)
+    assert!(result.get_output().status.code().is_some());
+}

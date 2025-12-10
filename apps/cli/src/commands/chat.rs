@@ -292,10 +292,8 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
             None, // engine
             None, // reasoning
             None, // model_tier
-            None, // session_id
-            stream, // stream
-            None, // model_tier
             Some(session_id.clone()), // session_id
+            stream, // stream
         )
         .await
         {

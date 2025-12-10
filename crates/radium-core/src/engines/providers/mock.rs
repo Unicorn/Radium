@@ -72,6 +72,7 @@ impl Engine for MockEngine {
             model: request.model,
             raw: Some(format!("{{\"prompt\": \"{}\"}}", request.prompt)),
             execution_duration: Some(duration),
+            metadata: None,
         })
     }
 

@@ -347,6 +347,7 @@ impl Engine for ClaudeEngine {
             model: anthropic_response.model,
             raw: Some(raw),
             execution_duration: None, // Cloud models use token-based costing
+            metadata: None,
         })
     }
 

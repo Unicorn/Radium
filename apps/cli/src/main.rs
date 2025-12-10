@@ -205,6 +205,18 @@ enum Command {
         /// Stream output in real-time
         #[arg(long)]
         stream: bool,
+
+        /// Show metadata in human-readable format
+        #[arg(long)]
+        show_metadata: bool,
+
+        /// Output complete response as JSON with nested metadata
+        #[arg(long)]
+        json: bool,
+
+        /// Override safety behavior (return-partial, error, log)
+        #[arg(long)]
+        safety_behavior: Option<String>,
     },
 
     /// Interactive chat mode with an agent
@@ -615,17 +627,17 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
         }
-        Command::Run { script, model, dir, model_tier } => {
-            run::execute(script, model, dir, model_tier).await?;
+        Command::Run { script, model, dir, model_tier, show_metadata, json, safety_behavior } => {
+            run::execute(script, model, dir, model_tier, show_metadata, json, safety_behavior).await?;
         }
-        Command::Step { id, prompt, model, engine, reasoning, model_tier, stream } => {
-            step::execute(id, prompt, model, engine, reasoning, model_tier, None, stream).await?;
+        Command::Step { id, prompt, model, engine, reasoning, model_tier, stream, show_metadata, json, safety_behavior } => {
+            step::execute(id, prompt, model, engine, reasoning, model_tier, None, stream, show_metadata, json, safety_behavior).await?;
         }
         Command::Chat { agent_id, session, resume, list, stream } => {
             if list {
                 chat::list_sessions().await?;
             } else if let Some(id) = agent_id {
-                chat::execute(id, session, resume, stream).await?;
+                chat::execute(id, session, resume, stream, show_metadata, json, safety_behavior).await?;
             } else {
                 anyhow::bail!("Agent ID is required when not using --list");
             }

@@ -475,6 +475,7 @@ impl Engine for OllamaEngine {
             model: ollama_response.model,
             raw: Some(raw),
             execution_duration: Some(duration),
+            metadata: None,
         })
     }
 

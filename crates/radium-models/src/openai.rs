@@ -807,4 +807,41 @@ mod tests {
             assert_eq!(response.model_id, Some("gpt-3.5-turbo".to_string()));
         });
     }
+
+    #[test]
+    fn test_openai_streaming_response_deserialization() {
+        // Test that OpenAIStreamingResponse can deserialize correctly
+        let json = r#"{"choices":[{"delta":{"content":"Hello"}}]}"#;
+        let response: OpenAIStreamingResponse = serde_json::from_str(json)
+            .expect("Should deserialize OpenAI streaming response");
+        
+        assert_eq!(response.choices.len(), 1);
+        assert_eq!(response.choices[0].delta.content, Some("Hello".to_string()));
+    }
+
+    #[test]
+    fn test_openai_streaming_response_with_usage() {
+        // Test that OpenAIStreamingResponse can deserialize with usage field
+        let json = r#"{"choices":[{"delta":{"content":"Hello"}}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}"#;
+        let response: OpenAIStreamingResponse = serde_json::from_str(json)
+            .expect("Should deserialize OpenAI streaming response with usage");
+        
+        assert_eq!(response.choices.len(), 1);
+        assert!(response.usage.is_some());
+        let usage = response.usage.unwrap();
+        assert_eq!(usage.prompt_tokens, 10);
+        assert_eq!(usage.completion_tokens, 5);
+        assert_eq!(usage.total_tokens, 15);
+    }
+
+    #[test]
+    fn test_openai_streaming_response_empty_delta() {
+        // Test that OpenAIStreamingResponse handles empty delta content
+        let json = r#"{"choices":[{"delta":{}}]}"#;
+        let response: OpenAIStreamingResponse = serde_json::from_str(json)
+            .expect("Should deserialize OpenAI streaming response with empty delta");
+        
+        assert_eq!(response.choices.len(), 1);
+        assert_eq!(response.choices[0].delta.content, None);
+    }
 }

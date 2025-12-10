@@ -185,3 +185,52 @@ impl StreamingModel for MockModel {
 fn count_tokens(text: &str) -> u32 {
     text.split_whitespace().count() as u32
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures::StreamExt;
+
+    #[tokio::test]
+    async fn test_mock_model_streaming() {
+        let model = MockModel::new("test-model".to_string());
+        let mut stream = model
+            .generate_stream("test prompt", None)
+            .await
+            .expect("Should create stream");
+
+        let mut all_content = Vec::new();
+        while let Some(result) = stream.next().await {
+            let content = result.expect("Stream should not error");
+            all_content.push(content);
+        }
+
+        // Should have received at least one chunk
+        assert!(!all_content.is_empty());
+        
+        // Last content should be the complete accumulated response
+        let final_content = all_content.last().unwrap();
+        assert!(final_content.contains("test prompt"));
+        assert!(final_content.contains("test-model"));
+    }
+
+    #[tokio::test]
+    async fn test_mock_model_streaming_accumulation() {
+        let model = MockModel::new("test-model".to_string());
+        let mut stream = model
+            .generate_stream("hello", None)
+            .await
+            .expect("Should create stream");
+
+        let mut last_len = 0;
+        while let Some(result) = stream.next().await {
+            let content = result.expect("Stream should not error");
+            // Content should accumulate (each chunk should be longer or equal)
+            assert!(content.len() >= last_len, "Content should accumulate");
+            last_len = content.len();
+        }
+        
+        // Final content should not be empty
+        assert!(last_len > 0);
+    }
+}
