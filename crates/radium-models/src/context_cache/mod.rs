@@ -54,8 +54,10 @@
 pub mod r#trait;
 pub mod types;
 pub mod claude;
+pub mod openai;
 
 pub use r#trait::ContextCache;
 pub use types::{CacheError, CacheHandle, CachedContext};
 pub use claude::ClaudeContextCache;
+pub use openai::OpenAIContextCache;
 

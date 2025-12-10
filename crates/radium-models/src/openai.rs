@@ -364,11 +364,29 @@ impl Model for OpenAIModel {
         };
 
         // Extract usage information
+        let cache_usage = if let Some(ref details) = openai_response.usage.as_ref().and_then(|u| u.prompt_tokens_details.as_ref()) {
+            if let Some(cached) = details.cached_tokens {
+                if cached > 0 {
+                    Some(radium_abstraction::CacheUsage {
+                        cache_creation_tokens: 0, // OpenAI doesn't report this separately
+                        cache_read_tokens: cached,
+                        regular_tokens: openai_response.usage.as_ref().unwrap().prompt_tokens.saturating_sub(cached),
+                    })
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
         let usage = openai_response.usage.map(|u| ModelUsage {
             prompt_tokens: u.prompt_tokens,
             completion_tokens: u.completion_tokens,
             total_tokens: u.total_tokens,
-            cache_usage: None,
+            cache_usage,
         });
 
         // Extract metadata from choice and response

@@ -401,3 +401,134 @@ async fn test_gemini_multimodal_integration() {
     let response = model.generate_chat_completion(&messages, None).await;
     assert!(response.is_ok());
 }
+
+#[tokio::test]
+async fn test_gemini_safety_settings_serialization() {
+    // Test that safety settings are correctly included in request serialization
+    use radium_models::{GeminiSafetySetting, SafetyCategory, SafetyThreshold};
+    use serde_json;
+
+    // Test JSON serialization of safety settings
+    let settings = vec![
+        GeminiSafetySetting {
+            category: SafetyCategory::HateSpeech,
+            threshold: SafetyThreshold::BlockMediumAndAbove,
+        },
+        GeminiSafetySetting {
+            category: SafetyCategory::Harassment,
+            threshold: SafetyThreshold::BlockLowAndAbove,
+        },
+    ];
+
+    let json = serde_json::to_string(&settings).unwrap();
+    let parsed: Vec<serde_json::Value> = serde_json::from_str(&json).unwrap();
+
+    assert_eq!(parsed.len(), 2);
+    assert_eq!(parsed[0]["category"], "HARM_CATEGORY_HATE_SPEECH");
+    assert_eq!(parsed[0]["threshold"], "BLOCK_MEDIUM_AND_ABOVE");
+    assert_eq!(parsed[1]["category"], "HARM_CATEGORY_HARASSMENT");
+    assert_eq!(parsed[1]["threshold"], "BLOCK_LOW_AND_ABOVE");
+}
+
+#[tokio::test]
+async fn test_gemini_safety_settings_all_categories() {
+    // Test all safety categories serialize correctly
+    use radium_models::{GeminiSafetySetting, SafetyCategory, SafetyThreshold};
+    use serde_json;
+
+    let settings = vec![
+        GeminiSafetySetting {
+            category: SafetyCategory::HateSpeech,
+            threshold: SafetyThreshold::BlockNone,
+        },
+        GeminiSafetySetting {
+            category: SafetyCategory::SexuallyExplicit,
+            threshold: SafetyThreshold::BlockLowAndAbove,
+        },
+        GeminiSafetySetting {
+            category: SafetyCategory::DangerousContent,
+            threshold: SafetyThreshold::BlockMediumAndAbove,
+        },
+        GeminiSafetySetting {
+            category: SafetyCategory::Harassment,
+            threshold: SafetyThreshold::BlockOnlyHigh,
+        },
+        GeminiSafetySetting {
+            category: SafetyCategory::CivicIntegrity,
+            threshold: SafetyThreshold::BlockNone,
+        },
+    ];
+
+    let json = serde_json::to_string(&settings).unwrap();
+    let parsed: Vec<serde_json::Value> = serde_json::from_str(&json).unwrap();
+
+    assert_eq!(parsed.len(), 5);
+
+    // Verify each category has correct API string
+    let categories: Vec<&str> = parsed.iter()
+        .map(|s| s["category"].as_str().unwrap())
+        .collect();
+    assert!(categories.contains(&"HARM_CATEGORY_HATE_SPEECH"));
+    assert!(categories.contains(&"HARM_CATEGORY_SEXUALLY_EXPLICIT"));
+    assert!(categories.contains(&"HARM_CATEGORY_DANGEROUS_CONTENT"));
+    assert!(categories.contains(&"HARM_CATEGORY_HARASSMENT"));
+    assert!(categories.contains(&"HARM_CATEGORY_CIVIC_INTEGRITY"));
+}
+
+#[tokio::test]
+async fn test_gemini_safety_settings_all_thresholds() {
+    // Test all threshold levels serialize correctly
+    use radium_models::{GeminiSafetySetting, SafetyCategory, SafetyThreshold};
+    use serde_json;
+
+    let settings = vec![
+        GeminiSafetySetting {
+            category: SafetyCategory::HateSpeech,
+            threshold: SafetyThreshold::BlockNone,
+        },
+        GeminiSafetySetting {
+            category: SafetyCategory::Harassment,
+            threshold: SafetyThreshold::BlockLowAndAbove,
+        },
+        GeminiSafetySetting {
+            category: SafetyCategory::SexuallyExplicit,
+            threshold: SafetyThreshold::BlockMediumAndAbove,
+        },
+        GeminiSafetySetting {
+            category: SafetyCategory::DangerousContent,
+            threshold: SafetyThreshold::BlockOnlyHigh,
+        },
+    ];
+
+    let json = serde_json::to_string(&settings).unwrap();
+    let parsed: Vec<serde_json::Value> = serde_json::from_str(&json).unwrap();
+
+    assert_eq!(parsed.len(), 4);
+
+    // Verify each threshold has correct API string
+    let thresholds: Vec<&str> = parsed.iter()
+        .map(|s| s["threshold"].as_str().unwrap())
+        .collect();
+    assert!(thresholds.contains(&"BLOCK_NONE"));
+    assert!(thresholds.contains(&"BLOCK_LOW_AND_ABOVE"));
+    assert!(thresholds.contains(&"BLOCK_MEDIUM_AND_ABOVE"));
+    assert!(thresholds.contains(&"BLOCK_ONLY_HIGH"));
+}
+
+#[tokio::test]
+async fn test_gemini_safety_settings_builder() {
+    // Test that with_safety_settings builder method works
+    use radium_models::{GeminiSafetySetting, SafetyCategory, SafetyThreshold};
+
+    // Model with safety settings
+    let model = GeminiModel::with_api_key("gemini-pro".to_string(), "test-key".to_string())
+        .with_safety_settings(Some(vec![
+            GeminiSafetySetting {
+                category: SafetyCategory::HateSpeech,
+                threshold: SafetyThreshold::BlockMediumAndAbove,
+            },
+        ]));
+
+    // Builder pattern should work
+    assert_eq!(model.model_id(), "gemini-pro");
+}
