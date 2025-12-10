@@ -312,6 +312,30 @@ pub async fn execute(
             if let Some(ref usage) = response.usage {
                 telemetry = telemetry.with_tokens(usage.input_tokens, usage.output_tokens);
             }
+            
+            // Extract metadata from response
+            if let Some(ref metadata) = response.metadata {
+                use radium_abstraction::{Citation, SafetyRating};
+                
+                // Extract finish_reason
+                if let Some(finish_reason) = metadata.get("finish_reason").and_then(|v| v.as_str()) {
+                    telemetry.finish_reason = Some(finish_reason.to_string());
+                }
+                
+                // Extract safety_blocked
+                if let Some(safety_ratings_val) = metadata.get("safety_ratings") {
+                    if let Ok(safety_ratings) = serde_json::from_value::<Vec<SafetyRating>>(safety_ratings_val.clone()) {
+                        telemetry.safety_blocked = safety_ratings.iter().any(|r| r.blocked);
+                    }
+                }
+                
+                // Extract citation_count
+                if let Some(citations_val) = metadata.get("citations") {
+                    if let Ok(citations) = serde_json::from_value::<Vec<Citation>>(citations_val.clone()) {
+                        telemetry.citation_count = Some(citations.len() as u32);
+                    }
+                }
+            }
 
             // Try to add attribution metadata based on provider type
             if let Some(provider_type) = match selected_engine_id {

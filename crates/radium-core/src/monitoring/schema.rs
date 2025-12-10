@@ -118,6 +118,20 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
         "ALTER TABLE telemetry ADD COLUMN ab_test_group TEXT",
         [],
     );
+    
+    // Migrate existing tables to add metadata columns if they don't exist
+    let _ = conn.execute(
+        "ALTER TABLE telemetry ADD COLUMN finish_reason TEXT",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE telemetry ADD COLUMN safety_blocked BOOLEAN DEFAULT 0",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE telemetry ADD COLUMN citation_count INTEGER",
+        [],
+    );
 
     // Indexes for efficient queries
     conn.execute(

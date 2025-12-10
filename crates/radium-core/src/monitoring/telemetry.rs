@@ -95,6 +95,15 @@ pub struct TelemetryRecord {
     
     /// A/B test group assignment ("control" | "test") if A/B testing was used.
     pub ab_test_group: Option<String>,
+    
+    /// Finish reason from model response (e.g., "stop", "length", "safety").
+    pub finish_reason: Option<String>,
+    
+    /// Whether content was blocked by safety filters.
+    pub safety_blocked: bool,
+    
+    /// Number of citations in the response.
+    pub citation_count: Option<u32>,
 }
 
 impl TelemetryRecord {
@@ -131,6 +140,9 @@ impl TelemetryRecord {
             routing_decision: None,
             complexity_score: None,
             ab_test_group: None,
+            finish_reason: None,
+            safety_blocked: false,
+            citation_count: None,
         }
     }
 

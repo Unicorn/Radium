@@ -237,6 +237,127 @@ pub enum MediaSource {
     },
 }
 
+/// Constants for allowed MIME types per content block type.
+pub mod mime_types {
+    /// Allowed MIME types for image content blocks.
+    pub const IMAGE_FORMATS: &[&str] = &["image/jpeg", "image/png", "image/gif", "image/webp"];
+
+    /// Allowed MIME types for audio content blocks.
+    pub const AUDIO_FORMATS: &[&str] = &["audio/mp3", "audio/wav", "audio/ogg"];
+
+    /// Allowed MIME types for video content blocks.
+    pub const VIDEO_FORMATS: &[&str] = &["video/mp4", "video/webm"];
+
+    /// Allowed MIME types for document content blocks.
+    pub const DOCUMENT_FORMATS: &[&str] = &["application/pdf", "text/plain", "text/markdown"];
+}
+
+/// Default size limit for Base64-encoded media content (20MB).
+pub const DEFAULT_SIZE_LIMIT: usize = 20 * 1024 * 1024;
+
+/// Validates a MIME type against allowed formats for a content block type.
+///
+/// # Arguments
+/// * `media_type` - The MIME type to validate
+/// * `content_block` - The content block type to validate against
+///
+/// # Returns
+/// `Ok(())` if the MIME type is valid, `Err(ModelError::InvalidMediaFormat)` otherwise.
+pub fn validate_mime_type(media_type: &str, content_block: &ContentBlock) -> Result<(), ModelError> {
+    let allowed_formats = match content_block {
+        ContentBlock::Text { .. } => return Ok(()), // Text blocks don't need MIME type validation
+        ContentBlock::Image { .. } => mime_types::IMAGE_FORMATS,
+        ContentBlock::Audio { .. } => mime_types::AUDIO_FORMATS,
+        ContentBlock::Video { .. } => mime_types::VIDEO_FORMATS,
+        ContentBlock::Document { .. } => mime_types::DOCUMENT_FORMATS,
+    };
+
+    if allowed_formats.contains(&media_type) {
+        Ok(())
+    } else {
+        Err(ModelError::InvalidMediaFormat {
+            format: media_type.to_string(),
+            expected: allowed_formats.iter().map(|s| (*s).to_string()).collect::<Vec<_>>().join(", "),
+        })
+    }
+}
+
+/// Validates that a file path exists and is readable.
+///
+/// # Arguments
+/// * `path` - The file path to validate
+///
+/// # Returns
+/// `Ok(())` if the file exists and is readable, `Err(ModelError::InvalidMediaSource)` otherwise.
+pub fn validate_file_path(path: &PathBuf) -> Result<(), ModelError> {
+    match std::fs::metadata(path) {
+        Ok(metadata) => {
+            if metadata.is_file() {
+                Ok(())
+            } else {
+                Err(ModelError::InvalidMediaSource {
+                    media_source: path.display().to_string(),
+                    reason: "Path is not a file".to_string(),
+                })
+            }
+        }
+        Err(e) => Err(ModelError::InvalidMediaSource {
+            media_source: path.display().to_string(),
+            reason: format!("File does not exist or is not readable: {}", e),
+        }),
+    }
+}
+
+/// Validates that a URL has a valid format (http:// or https://).
+///
+/// # Arguments
+/// * `url` - The URL to validate
+///
+/// # Returns
+/// `Ok(())` if the URL format is valid, `Err(ModelError::InvalidMediaSource)` otherwise.
+pub fn validate_url(url: &str) -> Result<(), ModelError> {
+    if url.starts_with("http://") || url.starts_with("https://") {
+        Ok(())
+    } else {
+        Err(ModelError::InvalidMediaSource {
+            media_source: url.to_string(),
+            reason: "URL must start with http:// or https://".to_string(),
+        })
+    }
+}
+
+/// Validates that Base64-encoded data does not exceed the size limit.
+///
+/// # Arguments
+/// * `data` - The Base64-encoded data string
+/// * `limit` - The maximum allowed size in bytes (after decoding)
+///
+/// # Returns
+/// `Ok(())` if the decoded data size is within the limit, `Err(ModelError::MediaSizeLimitExceeded)` otherwise.
+pub fn validate_base64_size(data: &str, limit: usize) -> Result<(), ModelError> {
+    use base64::Engine;
+    let engine = base64::engine::general_purpose::STANDARD;
+    
+    match engine.decode(data) {
+        Ok(decoded) => {
+            let size = decoded.len();
+            if size <= limit {
+                Ok(())
+            } else {
+                Err(ModelError::MediaSizeLimitExceeded {
+                    size,
+                    limit,
+                    media_type: "base64".to_string(),
+                })
+            }
+        }
+        Err(e) => Err(ModelError::InvalidMediaSource {
+            media_source: "base64 data".to_string(),
+            reason: format!("Invalid Base64 encoding: {}", e),
+        }),
+    }
+}
+
 /// Represents a message in a conversation with a chat model.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChatMessage {
@@ -875,5 +996,98 @@ mod tests {
         let json = serde_json::to_string(&content).unwrap();
         let deserialized: MessageContent = serde_json::from_str(&json).unwrap();
         assert_eq!(content, deserialized);
+    }
+
+    #[test]
+    fn test_validate_mime_type_valid() {
+        let image_block = ContentBlock::Image {
+            source: ImageSource::Base64 {
+                data: "data".to_string(),
+            },
+            media_type: "image/jpeg".to_string(),
+        };
+        assert!(validate_mime_type("image/jpeg", &image_block).is_ok());
+
+        let audio_block = ContentBlock::Audio {
+            source: MediaSource::Url {
+                url: "https://example.com/audio.mp3".to_string(),
+            },
+            media_type: "audio/mp3".to_string(),
+        };
+        assert!(validate_mime_type("audio/mp3", &audio_block).is_ok());
+    }
+
+    #[test]
+    fn test_validate_mime_type_invalid() {
+        let image_block = ContentBlock::Image {
+            source: ImageSource::Base64 {
+                data: "data".to_string(),
+            },
+            media_type: "image/svg+xml".to_string(),
+        };
+        let result = validate_mime_type("image/svg+xml", &image_block);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ModelError::InvalidMediaFormat { .. }));
+    }
+
+    #[test]
+    fn test_validate_file_path_exists() {
+        // Create a temporary file for testing
+        let temp_file = std::env::temp_dir().join("radium_test_file.txt");
+        std::fs::write(&temp_file, "test content").unwrap();
+        
+        let result = validate_file_path(&temp_file);
+        assert!(result.is_ok());
+
+        // Cleanup
+        std::fs::remove_file(&temp_file).ok();
+    }
+
+    #[test]
+    fn test_validate_file_path_missing() {
+        let missing_file = PathBuf::from("/nonexistent/path/file.jpg");
+        let result = validate_file_path(&missing_file);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ModelError::InvalidMediaSource { .. }));
+    }
+
+    #[test]
+    fn test_validate_url_valid() {
+        assert!(validate_url("https://example.com/image.jpg").is_ok());
+        assert!(validate_url("http://example.com/image.jpg").is_ok());
+    }
+
+    #[test]
+    fn test_validate_url_invalid() {
+        let result = validate_url("not-a-url");
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ModelError::InvalidMediaSource { .. }));
+    }
+
+    #[test]
+    fn test_validate_base64_size_under_limit() {
+        use base64::Engine;
+        // Create a small Base64 string (well under 20MB)
+        let small_data = base64::engine::general_purpose::STANDARD.encode(b"small test data");
+        assert!(validate_base64_size(&small_data, DEFAULT_SIZE_LIMIT).is_ok());
+    }
+
+    #[test]
+    fn test_validate_base64_size_over_limit() {
+        use base64::Engine;
+        // Create a Base64 string that decodes to more than the limit
+        // We'll use a large string that when decoded exceeds 20MB
+        let large_data = base64::engine::general_purpose::STANDARD.encode(&vec![0u8; DEFAULT_SIZE_LIMIT + 1]);
+        let result = validate_base64_size(&large_data, DEFAULT_SIZE_LIMIT);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ModelError::MediaSizeLimitExceeded { .. }));
+    }
+
+    #[test]
+    fn test_validate_base64_invalid_encoding() {
+        let invalid_base64 = "not-valid-base64!!!";
+        let result = validate_base64_size(invalid_base64, DEFAULT_SIZE_LIMIT);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ModelError::InvalidMediaSource { .. }));
     }
 }
