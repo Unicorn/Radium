@@ -965,6 +965,79 @@ impl From<&GeminiCitation> for Citation {
     }
 }
 
+/// MIME type detection and validation utilities for multimodal content.
+mod mime_utils {
+    use radium_abstraction::ModelError;
+
+    /// Supported image MIME types.
+    pub const SUPPORTED_IMAGE_TYPES: &[&str] = &["image/png", "image/jpeg", "image/webp"];
+    
+    /// Supported document MIME types.
+    pub const SUPPORTED_DOCUMENT_TYPES: &[&str] = &["application/pdf"];
+
+    /// Detect MIME type from file content using magic bytes.
+    ///
+    /// # Arguments
+    /// * `data` - The file content bytes
+    ///
+    /// # Returns
+    /// `Some(mime_type)` if detected, `None` if unknown
+    pub fn detect_mime_type(data: &[u8]) -> Option<String> {
+        // PNG: \x89PNG\r\n\x1a\n
+        if data.starts_with(b"\x89PNG\r\n\x1a\n") {
+            Some("image/png".to_string())
+        }
+        // JPEG: \xff\xd8\xff
+        else if data.starts_with(b"\xff\xd8\xff") {
+            Some("image/jpeg".to_string())
+        }
+        // WebP: RIFF...WEBP
+        else if data.starts_with(b"RIFF") && data.len() > 12 && &data[8..12] == b"WEBP" {
+            Some("image/webp".to_string())
+        }
+        // PDF: %PDF
+        else if data.starts_with(b"%PDF") {
+            Some("application/pdf".to_string())
+        }
+        else {
+            None
+        }
+    }
+
+    /// Check if a MIME type is supported for images or documents.
+    ///
+    /// # Arguments
+    /// * `mime_type` - The MIME type to check
+    ///
+    /// # Returns
+    /// `true` if supported, `false` otherwise
+    pub fn is_supported_mime_type(mime_type: &str) -> bool {
+        SUPPORTED_IMAGE_TYPES.contains(&mime_type) 
+            || SUPPORTED_DOCUMENT_TYPES.contains(&mime_type)
+    }
+
+    /// Validate a MIME type against supported types.
+    ///
+    /// # Arguments
+    /// * `mime_type` - The MIME type to validate
+    ///
+    /// # Returns
+    /// `Ok(())` if valid, `Err(ModelError::UnsupportedMimeType)` if not supported
+    pub fn validate_mime_type(mime_type: &str) -> Result<(), ModelError> {
+        if is_supported_mime_type(mime_type) {
+            Ok(())
+        } else {
+            let mut supported = Vec::new();
+            supported.extend_from_slice(SUPPORTED_IMAGE_TYPES);
+            supported.extend_from_slice(SUPPORTED_DOCUMENT_TYPES);
+            Err(ModelError::UnsupportedMimeType {
+                mime_type: mime_type.to_string(),
+                supported_types: supported.iter().map(|s| s.to_string()).collect(),
+            })
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1206,6 +1279,56 @@ mod tests {
             assert_eq!(text, "Hello");
         } else {
             panic!("Expected text part");
+        }
+    }
+
+    #[test]
+    fn test_mime_type_detection_png() {
+        let png_data = b"\x89PNG\r\n\x1a\n";
+        let mime = mime_utils::detect_mime_type(png_data);
+        assert_eq!(mime, Some("image/png".to_string()));
+    }
+
+    #[test]
+    fn test_mime_type_detection_jpeg() {
+        let jpeg_data = b"\xff\xd8\xff\xe0";
+        let mime = mime_utils::detect_mime_type(jpeg_data);
+        assert_eq!(mime, Some("image/jpeg".to_string()));
+    }
+
+    #[test]
+    fn test_mime_type_detection_webp() {
+        let mut webp_data = b"RIFF".to_vec();
+        webp_data.extend_from_slice(&[0u8; 4]);
+        webp_data.extend_from_slice(b"WEBP");
+        let mime = mime_utils::detect_mime_type(&webp_data);
+        assert_eq!(mime, Some("image/webp".to_string()));
+    }
+
+    #[test]
+    fn test_mime_type_detection_pdf() {
+        let pdf_data = b"%PDF-1.4";
+        let mime = mime_utils::detect_mime_type(pdf_data);
+        assert_eq!(mime, Some("application/pdf".to_string()));
+    }
+
+    #[test]
+    fn test_mime_type_validation_supported() {
+        assert!(mime_utils::validate_mime_type("image/png").is_ok());
+        assert!(mime_utils::validate_mime_type("image/jpeg").is_ok());
+        assert!(mime_utils::validate_mime_type("image/webp").is_ok());
+        assert!(mime_utils::validate_mime_type("application/pdf").is_ok());
+    }
+
+    #[test]
+    fn test_mime_type_validation_unsupported() {
+        let result = mime_utils::validate_mime_type("application/zip");
+        assert!(result.is_err());
+        if let Err(ModelError::UnsupportedMimeType { mime_type, supported_types }) = result {
+            assert_eq!(mime_type, "application/zip");
+            assert!(supported_types.contains(&"image/png".to_string()));
+        } else {
+            panic!("Expected UnsupportedMimeType error");
         }
     }
 }
