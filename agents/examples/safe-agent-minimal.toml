@@ -1,0 +1,26 @@
+[agent]
+id = "safe-agent-minimal"
+name = "Safe Agent (Minimal Safety Settings)"
+description = "Agent with minimal Gemini safety settings using default threshold only"
+prompt_path = "prompts/agents/examples/code-gen-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+
+# Safety configuration with minimal Gemini settings
+[safety]
+# How to handle blocked content: "return-partial" (default), "error", or "log"
+behavior = "return-partial"
+
+[safety.gemini]
+# Use default threshold for all categories
+# This applies the same threshold to all five safety categories:
+# - Hate Speech
+# - Harassment
+# - Sexually Explicit
+# - Dangerous Content
+# - Civic Integrity
+#
+# Threshold options: "BLOCK_NONE", "BLOCK_LOW_AND_ABOVE", "BLOCK_MEDIUM_AND_ABOVE", "BLOCK_ONLY_HIGH"
+# BLOCK_MEDIUM_AND_ABOVE is a good default for most use cases
+default = "BLOCK_MEDIUM_AND_ABOVE"
+

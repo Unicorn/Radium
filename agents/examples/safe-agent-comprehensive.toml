@@ -1,0 +1,41 @@
+[agent]
+id = "safe-agent-comprehensive"
+name = "Safe Agent (Comprehensive Safety Settings)"
+description = "Agent with comprehensive Gemini safety settings configured for all categories"
+prompt_path = "prompts/agents/examples/code-gen-agent.md"
+engine = "gemini"
+model = "gemini-2.0-flash-exp"
+
+# Safety configuration with comprehensive Gemini settings
+[safety]
+# How to handle blocked content: "return-partial" (default), "error", or "log"
+behavior = "return-partial"
+
+[safety.gemini]
+# Configure safety thresholds for each harm category
+# Threshold options: "BLOCK_NONE", "BLOCK_LOW_AND_ABOVE", "BLOCK_MEDIUM_AND_ABOVE", "BLOCK_ONLY_HIGH"
+#
+# BLOCK_NONE: Disable blocking for this category
+# BLOCK_LOW_AND_ABOVE: Block content with LOW, MEDIUM, or HIGH probability
+# BLOCK_MEDIUM_AND_ABOVE: Block content with MEDIUM or HIGH probability (recommended default)
+# BLOCK_ONLY_HIGH: Block only content with HIGH probability
+
+# Hate speech filtering - medium threshold (block medium and high probability)
+hate_speech = "BLOCK_MEDIUM_AND_ABOVE"
+
+# Harassment filtering - low threshold (block low, medium, and high probability)
+harassment = "BLOCK_LOW_AND_ABOVE"
+
+# Sexually explicit content - medium threshold
+sexually_explicit = "BLOCK_MEDIUM_AND_ABOVE"
+
+# Dangerous content - medium threshold
+dangerous_content = "BLOCK_MEDIUM_AND_ABOVE"
+
+# Civic integrity - no blocking (allow all content)
+civic_integrity = "BLOCK_NONE"
+
+# Default threshold for any categories not explicitly specified
+# If a category is not listed above, it will use this threshold
+default = "BLOCK_MEDIUM_AND_ABOVE"
+
