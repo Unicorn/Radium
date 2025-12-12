@@ -3,18 +3,19 @@ import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
 /**
  * Radium Documentation Sidebar Structure
  *
- * Complete 11-section structure serving both end users and developers:
+ * Complete 12-section structure serving both end users and developers:
  * 1. Getting Started - Installation, quick start, core concepts
- * 2. User Guide - Agent configuration, workflows, persona system
- * 3. Features - Orchestration, policy engine, planning, sandboxing
- * 4. CLI Reference - All CLI commands and usage
- * 5. Extensions - Creating and managing extensions
- * 6. Hooks - Development hooks and lifecycle
- * 7. MCP Integration - Model Context Protocol integration
- * 8. Self-Hosted Models - Running local/self-hosted AI models
- * 9. Developer Guide - Architecture, extending Radium
- * 10. API Reference - Rust API documentation
- * 11. Examples - Agent examples, workflows, policies
+ * 2. Roadmap - Open-source roadmap and vision
+ * 3. User Guide - Agent configuration, workflows, persona system
+ * 4. Features - Orchestration, policy engine, planning, sandboxing
+ * 5. CLI Reference - All CLI commands and usage
+ * 6. Extensions - Creating and managing extensions
+ * 7. Hooks - Development hooks and lifecycle
+ * 8. MCP Integration - Model Context Protocol integration
+ * 9. Self-Hosted Models - Running local/self-hosted AI models
+ * 10. Developer Guide - Architecture, extending Radium
+ * 11. API Reference - Rust API documentation
+ * 12. Examples - Agent examples, workflows, policies
  */
 const sidebars: SidebarsConfig = {
   docsSidebar: [
@@ -34,7 +35,21 @@ const sidebars: SidebarsConfig = {
       ],
     },
 
-    // 2. User Guide
+    // 2. Roadmap
+    {
+      type: 'category',
+      label: '🗺️ Roadmap',
+      collapsed: false,
+      items: [
+        'roadmap/index',
+        'roadmap/vision',
+        'roadmap/technical-architecture',
+        'roadmap/protocol-specifications',
+        'roadmap/governance-operations',
+      ],
+    },
+
+    // 3. User Guide
     {
       type: 'category',
       label: '📖 User Guide',
@@ -70,7 +85,7 @@ const sidebars: SidebarsConfig = {
       ],
     },
 
-    // 3. Features
+    // 4. Features
     {
       type: 'category',
       label: '✨ Features',
@@ -148,7 +163,7 @@ const sidebars: SidebarsConfig = {
       ],
     },
 
-    // 4. CLI Reference
+    // 5. CLI Reference
     {
       type: 'category',
       label: '⌨️ CLI Reference',
@@ -182,7 +197,7 @@ const sidebars: SidebarsConfig = {
       ],
     },
 
-    // 5. Extensions
+    // 6. Extensions
     {
       type: 'category',
       label: '🔌 Extensions',
@@ -212,7 +227,7 @@ const sidebars: SidebarsConfig = {
       ],
     },
 
-    // 6. Hooks
+    // 7. Hooks
     {
       type: 'category',
       label: '🪝 Hooks',
@@ -234,7 +249,7 @@ const sidebars: SidebarsConfig = {
       ],
     },
 
-    // 7. MCP Integration
+    // 8. MCP Integration
     {
       type: 'category',
       label: '🔗 MCP Integration',
@@ -263,7 +278,7 @@ const sidebars: SidebarsConfig = {
       ],
     },
 
-    // 8. Self-Hosted Models
+    // 9. Self-Hosted Models
     {
       type: 'category',
       label: '🖥️ Self-Hosted Models',
@@ -295,7 +310,7 @@ const sidebars: SidebarsConfig = {
       ],
     },
 
-    // 9. Developer Guide
+    // 10. Developer Guide
     {
       type: 'category',
       label: '🛠️ Developer Guide',
@@ -355,7 +370,7 @@ const sidebars: SidebarsConfig = {
       ],
     },
 
-    // 10. API Reference
+    // 11. API Reference
     {
       type: 'category',
       label: '📚 API Reference',
@@ -370,7 +385,7 @@ const sidebars: SidebarsConfig = {
       ],
     },
 
-    // 11. Examples
+    // 12. Examples
     {
       type: 'category',
       label: '💡 Examples',

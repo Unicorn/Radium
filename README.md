@@ -569,6 +569,7 @@ rad learning tag-skill --skill-id "skill-00001" --tag "helpful"
 - [Architecture](docs/architecture/)
 - [Agent Enhancement Guide](docs/AGENT_ENHANCEMENT_GUIDE.md)
 - [Agent Creation Guide](docs/guides/agent-creation-guide.md)
+- [Roadmap](website/docs/roadmap/index.md) - Open-source roadmap and vision
 
 ## Development
 
@@ -621,4 +622,5 @@ MIT License - see LICENSE file for details
 
 - [Documentation](docs/)
 - [Architecture Overview](docs/architecture/architecture-backend.md)
+- [Roadmap](website/docs/roadmap/index.md) - Open-source roadmap, vision, and implementation plan
 - [Project Roadmap](docs/project/02-now-next-later.md)

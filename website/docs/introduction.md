@@ -29,6 +29,7 @@ Radium provides a comprehensive framework for:
 - [Developer Guide](./developer-guide/overview.md) - Extend Radium's capabilities
 - [API Reference](./api/overview.md) - Complete Rust API documentation
 - [Architecture](./developer-guide/architecture/overview.md) - Understand how Radium works
+- [Roadmap](./roadmap/index.md) - View our open-source roadmap and vision
 
 ## Key Features
 
@@ -83,6 +84,10 @@ That's it! You're now ready to explore the full power of Radium.
 - **Issues**: [Report bugs or request features](https://github.com/clay-curry/RAD/issues)
 - **Discussions**: [Ask questions and share ideas](https://github.com/clay-curry/RAD/discussions)
 
+## Roadmap & Vision
+
+Radium is evolving toward a comprehensive composable intelligence infrastructure. Check out our [open-source roadmap](./roadmap/index.md) to see our vision, technical architecture plans, and implementation milestones.
+
 ## What's Next?
 
-Continue to [Installation](./getting-started/installation.md) to set up Radium on your system.
+Continue to [Installation](./getting-started/installation.md) to set up Radium on your system, or explore our [Roadmap](./roadmap/index.md) to see where we're heading.
