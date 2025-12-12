@@ -10,9 +10,12 @@ use radium_core::context::braingrid_client::{
 use std::process::Command;
 use std::path::PathBuf;
 
+use crate::colors::RadiumBrandColors;
+
 /// Create a new requirement (Braingrid `specify`)
 pub async fn specify(text: Vec<String>, file: Option<PathBuf>, project_id: Option<String>) -> Result<()> {
-    println!("{}", "rad braingrid specify".bold().cyan());
+    let colors = RadiumBrandColors::new();
+    println!("{}", "rad braingrid specify".bold().color(colors.primary()));
     println!();
 
     let project_id = get_project_id(project_id)?;
@@ -30,8 +33,8 @@ pub async fn specify(text: Vec<String>, file: Option<PathBuf>, project_id: Optio
     };
 
     println!("{}", "Configuration:".bold());
-    println!("  Project ID: {}", project_id.cyan());
-    println!("  Input: {}", if spec_text.len() > 80 { "text (truncated)".dimmed() } else { spec_text.clone().cyan() });
+    println!("  Project ID: {}", project_id.color(colors.primary()));
+    println!("  Input: {}", if spec_text.len() > 80 { "text (truncated)".dimmed() } else { spec_text.clone().color(colors.primary()) });
     println!();
 
     println!("{}", "Creating requirement via Braingrid...".dimmed());
@@ -41,7 +44,7 @@ pub async fn specify(text: Vec<String>, file: Option<PathBuf>, project_id: Optio
         .await
         .map_err(|e| map_braingrid_error(e, "specify"))?;
 
-    println!("  {} Created requirement {}", "✓".green(), created.cyan());
+    println!("  {} Created requirement {}", "✓".color(colors.success()), created.color(colors.primary()));
     println!();
     println!("Next steps:");
     println!("  - View:     {}", format!("rad braingrid read {}", created).dimmed());
@@ -54,14 +57,15 @@ pub async fn specify(text: Vec<String>, file: Option<PathBuf>, project_id: Optio
 
 /// Read a requirement with all tasks
 pub async fn read(req_id: String, project_id: Option<String>) -> Result<()> {
-    println!("{}", "rad braingrid read".bold().cyan());
+    let colors = RadiumBrandColors::new();
+    println!("{}", "rad braingrid read".bold().color(colors.primary()));
     println!();
 
     let project_id = get_project_id(project_id)?;
 
     println!("{}", "Configuration:".bold());
-    println!("  Requirement ID: {}", req_id.cyan());
-    println!("  Project ID: {}", project_id.cyan());
+    println!("  Requirement ID: {}", req_id.color(colors.primary()));
+    println!("  Project ID: {}", project_id.color(colors.primary()));
     println!();
 
     println!("{}", "Fetching requirement...".dimmed());
@@ -71,12 +75,12 @@ pub async fn read(req_id: String, project_id: Option<String>) -> Result<()> {
         .await
         .map_err(|e| map_braingrid_error(e, &req_id))?;
 
-    println!("  {} Requirement loaded", "✓".green());
+    println!("  {} Requirement loaded", "✓".color(colors.success()));
     println!();
 
     // Display requirement details
     println!("{}", "─".repeat(80).dimmed());
-    println!("{}", format!("Requirement: {}", requirement.id).bold().cyan());
+    println!("{}", format!("Requirement: {}", requirement.id).bold().color(colors.primary()));
     println!("{}", "─".repeat(80).dimmed());
     println!();
     println!("  Name: {}", requirement.name);
@@ -92,15 +96,15 @@ pub async fn read(req_id: String, project_id: Option<String>) -> Result<()> {
         println!("{}", "─".repeat(80).dimmed());
         for (idx, task) in requirement.tasks.iter().enumerate() {
             let status_color = match task.status {
-                TaskStatus::Completed => "✓".green(),
-                TaskStatus::InProgress => "→".cyan(),
-                TaskStatus::Planned => "○".yellow(),
-                TaskStatus::Cancelled => "✗".red(),
+                TaskStatus::Completed => "✓".color(colors.success()),
+                TaskStatus::InProgress => "→".color(colors.primary()),
+                TaskStatus::Planned => "○".color(colors.warning()),
+                TaskStatus::Cancelled => "✗".color(colors.error()),
             };
             println!(
                 "  {} {} {} - {}",
                 status_color,
-                task.task_id().cyan(),
+                task.task_id().color(colors.primary()),
                 format!("({})", task.number).dimmed(),
                 task.title
             );
@@ -124,14 +128,15 @@ pub async fn read(req_id: String, project_id: Option<String>) -> Result<()> {
 
 /// List all tasks for a requirement
 pub async fn tasks(req_id: String, project_id: Option<String>) -> Result<()> {
-    println!("{}", "rad braingrid tasks".bold().cyan());
+    let colors = RadiumBrandColors::new();
+    println!("{}", "rad braingrid tasks".bold().color(colors.primary()));
     println!();
 
     let project_id = get_project_id(project_id)?;
 
     println!("{}", "Configuration:".bold());
-    println!("  Requirement ID: {}", req_id.cyan());
-    println!("  Project ID: {}", project_id.cyan());
+    println!("  Requirement ID: {}", req_id.color(colors.primary()));
+    println!("  Project ID: {}", project_id.color(colors.primary()));
     println!();
 
     println!("{}", "Fetching tasks...".dimmed());
@@ -141,11 +146,11 @@ pub async fn tasks(req_id: String, project_id: Option<String>) -> Result<()> {
         .await
         .map_err(|e| map_braingrid_error(e, &req_id))?;
 
-    println!("  {} Found {} tasks", "✓".green(), tasks.len());
+    println!("  {} Found {} tasks", "✓".color(colors.success()), tasks.len());
     println!();
 
     if tasks.is_empty() {
-        println!("  {} No tasks found for requirement {}", "○".dimmed(), req_id.cyan());
+        println!("  {} No tasks found for requirement {}", "○".dimmed(), req_id.color(colors.primary()));
         println!();
         return Ok(());
     }
@@ -164,10 +169,10 @@ pub async fn tasks(req_id: String, project_id: Option<String>) -> Result<()> {
     for task in &tasks {
         let status_str = format!("{:?}", task.status);
         let status_colored = match task.status {
-            TaskStatus::Completed => status_str.green(),
-            TaskStatus::InProgress => status_str.cyan(),
-            TaskStatus::Planned => status_str.yellow(),
-            TaskStatus::Cancelled => status_str.red(),
+            TaskStatus::Completed => status_str.color(colors.success()),
+            TaskStatus::InProgress => status_str.color(colors.primary()),
+            TaskStatus::Planned => status_str.color(colors.warning()),
+            TaskStatus::Cancelled => status_str.color(colors.error()),
         };
 
         let title = if task.title.len() > 48 {
@@ -178,7 +183,7 @@ pub async fn tasks(req_id: String, project_id: Option<String>) -> Result<()> {
 
         println!(
             "{:<15} {:<10} {:<50} {:<15}",
-            task.task_id().cyan(),
+            task.task_id().color(colors.primary()),
             task.number.dimmed(),
             title,
             status_colored
@@ -197,7 +202,8 @@ pub async fn update_task(
     status_str: String,
     project_id: Option<String>,
 ) -> Result<()> {
-    println!("{}", "rad braingrid update-task".bold().cyan());
+    let colors = RadiumBrandColors::new();
+    println!("{}", "rad braingrid update-task".bold().color(colors.primary()));
     println!();
 
     let project_id = get_project_id(project_id)?;
@@ -205,10 +211,10 @@ pub async fn update_task(
     let status = parse_task_status(&status_str)?;
 
     println!("{}", "Configuration:".bold());
-    println!("  Task ID: {}", task_id.cyan());
-    println!("  Requirement ID: {}", req_id.cyan());
+    println!("  Task ID: {}", task_id.color(colors.primary()));
+    println!("  Requirement ID: {}", req_id.color(colors.primary()));
     println!("  Status: {:?}", status);
-    println!("  Project ID: {}", project_id.cyan());
+    println!("  Project ID: {}", project_id.color(colors.primary()));
     println!();
 
     println!("{}", "Updating task status...".dimmed());
@@ -218,7 +224,7 @@ pub async fn update_task(
         .await
         .map_err(|e| map_braingrid_error(e, &task_id))?;
 
-    println!("  {} Task status updated successfully", "✓".green());
+    println!("  {} Task status updated successfully", "✓".color(colors.success()));
     println!();
     Ok(())
 }
@@ -229,7 +235,8 @@ pub async fn update_req(
     status_str: String,
     project_id: Option<String>,
 ) -> Result<()> {
-    println!("{}", "rad braingrid update-req".bold().cyan());
+    let colors = RadiumBrandColors::new();
+    println!("{}", "rad braingrid update-req".bold().color(colors.primary()));
     println!();
 
     let project_id = get_project_id(project_id)?;
@@ -237,9 +244,9 @@ pub async fn update_req(
     let status = parse_requirement_status(&status_str)?;
 
     println!("{}", "Configuration:".bold());
-    println!("  Requirement ID: {}", req_id.cyan());
+    println!("  Requirement ID: {}", req_id.color(colors.primary()));
     println!("  Status: {:?}", status);
-    println!("  Project ID: {}", project_id.cyan());
+    println!("  Project ID: {}", project_id.color(colors.primary()));
     println!();
 
     println!("{}", "Updating requirement status...".dimmed());
@@ -249,21 +256,22 @@ pub async fn update_req(
         .await
         .map_err(|e| map_braingrid_error(e, &req_id))?;
 
-    println!("  {} Requirement status updated successfully", "✓".green());
+    println!("  {} Requirement status updated successfully", "✓".color(colors.success()));
     println!();
     Ok(())
 }
 
 /// Trigger requirement breakdown (create tasks)
 pub async fn breakdown(req_id: String, project_id: Option<String>) -> Result<()> {
-    println!("{}", "rad braingrid breakdown".bold().cyan());
+    let colors = RadiumBrandColors::new();
+    println!("{}", "rad braingrid breakdown".bold().color(colors.primary()));
     println!();
 
     let project_id = get_project_id(project_id)?;
 
     println!("{}", "Configuration:".bold());
-    println!("  Requirement ID: {}", req_id.cyan());
-    println!("  Project ID: {}", project_id.cyan());
+    println!("  Requirement ID: {}", req_id.color(colors.primary()));
+    println!("  Project ID: {}", project_id.color(colors.primary()));
     println!();
 
     println!("{}", "Triggering requirement breakdown...".dimmed());
@@ -273,14 +281,14 @@ pub async fn breakdown(req_id: String, project_id: Option<String>) -> Result<()>
         .await
         .map_err(|e| map_braingrid_error(e, &req_id))?;
 
-    println!("  {} Breakdown completed", "✓".green());
-    println!("  {} Created {} tasks", "→".cyan(), tasks.len());
+    println!("  {} Breakdown completed", "✓".color(colors.success()));
+    println!("  {} Created {} tasks", "→".color(colors.primary()), tasks.len());
     println!();
 
     if !tasks.is_empty() {
         println!("{}", "Created Tasks:".bold());
         for task in &tasks {
-            println!("  {} {}", "•".cyan(), task.task_id().cyan());
+            println!("  {} {}", "•".color(colors.primary()), task.task_id().color(colors.primary()));
             println!("      {}", task.title);
         }
         println!();
@@ -291,7 +299,8 @@ pub async fn breakdown(req_id: String, project_id: Option<String>) -> Result<()>
 
 /// Update requirement with an action (Braingrid `requirement update --action ...`)
 pub async fn action(req_id: String, action: Vec<String>, project_id: Option<String>) -> Result<()> {
-    println!("{}", "rad braingrid action".bold().cyan());
+    let colors = RadiumBrandColors::new();
+    println!("{}", "rad braingrid action".bold().color(colors.primary()));
     println!();
 
     let project_id = get_project_id(project_id)?;
@@ -301,9 +310,9 @@ pub async fn action(req_id: String, action: Vec<String>, project_id: Option<Stri
     }
 
     println!("{}", "Configuration:".bold());
-    println!("  Requirement ID: {}", req_id.cyan());
-    println!("  Project ID: {}", project_id.cyan());
-    println!("  Action: {}", action_text.cyan());
+    println!("  Requirement ID: {}", req_id.color(colors.primary()));
+    println!("  Project ID: {}", project_id.color(colors.primary()));
+    println!("  Action: {}", action_text.color(colors.primary()));
     println!();
 
     println!("{}", "Updating requirement...".dimmed());
@@ -313,21 +322,22 @@ pub async fn action(req_id: String, action: Vec<String>, project_id: Option<Stri
         .await
         .map_err(|e| map_braingrid_error(e, &req_id))?;
 
-    println!("  {} Requirement updated successfully", "✓".green());
+    println!("  {} Requirement updated successfully", "✓".color(colors.success()));
     println!();
     Ok(())
 }
 
 /// Ensure tasks exist for a requirement (trigger breakdown only if empty)
 pub async fn ensure_tasks(req_id: String, project_id: Option<String>) -> Result<()> {
-    println!("{}", "rad braingrid ensure-tasks".bold().cyan());
+    let colors = RadiumBrandColors::new();
+    println!("{}", "rad braingrid ensure-tasks".bold().color(colors.primary()));
     println!();
 
     let project_id = get_project_id(project_id)?;
 
     println!("{}", "Configuration:".bold());
-    println!("  Requirement ID: {}", req_id.cyan());
-    println!("  Project ID: {}", project_id.cyan());
+    println!("  Requirement ID: {}", req_id.color(colors.primary()));
+    println!("  Project ID: {}", project_id.color(colors.primary()));
     println!();
 
     println!("{}", "Fetching requirement...".dimmed());
@@ -338,7 +348,7 @@ pub async fn ensure_tasks(req_id: String, project_id: Option<String>) -> Result<
         .map_err(|e| map_braingrid_error(e, &req_id))?;
 
     if !requirement.tasks.is_empty() {
-        println!("  {} Tasks already exist ({} tasks). No action needed.", "✓".green(), requirement.tasks.len());
+        println!("  {} Tasks already exist ({} tasks). No action needed.", "✓".color(colors.success()), requirement.tasks.len());
         println!();
         return Ok(());
     }
@@ -349,56 +359,58 @@ pub async fn ensure_tasks(req_id: String, project_id: Option<String>) -> Result<
         .await
         .map_err(|e| map_braingrid_error(e, &req_id))?;
 
-    println!("  {} Created {} tasks", "✓".green(), tasks.len());
+    println!("  {} Created {} tasks", "✓".color(colors.success()), tasks.len());
     println!();
     Ok(())
 }
 
 /// Clear Braingrid cache
 pub async fn cache_clear(project_id: Option<String>) -> Result<()> {
-    println!("{}", "rad braingrid cache clear".bold().cyan());
+    let colors = RadiumBrandColors::new();
+    println!("{}", "rad braingrid cache clear".bold().color(colors.primary()));
     println!();
 
     let project_id = get_project_id(project_id)?;
 
     println!("{}", "Configuration:".bold());
-    println!("  Project ID: {}", project_id.cyan());
+    println!("  Project ID: {}", project_id.color(colors.primary()));
     println!();
 
     println!("{}", "Clearing cache...".dimmed());
     let client = BraingridClient::new(project_id);
     client.clear_cache().await;
 
-    println!("  {} Cache cleared", "✓".green());
+    println!("  {} Cache cleared", "✓".color(colors.success()));
     println!();
     Ok(())
 }
 
 /// Show cache statistics
 pub async fn cache_stats(project_id: Option<String>) -> Result<()> {
-    println!("{}", "rad braingrid cache stats".bold().cyan());
+    let colors = RadiumBrandColors::new();
+    println!("{}", "rad braingrid cache stats".bold().color(colors.primary()));
     println!();
 
     let project_id = get_project_id(project_id)?;
 
     println!("{}", "Configuration:".bold());
-    println!("  Project ID: {}", project_id.cyan());
+    println!("  Project ID: {}", project_id.color(colors.primary()));
     println!();
 
     println!("{}", "Fetching cache statistics...".dimmed());
     let client = BraingridClient::new(project_id);
     let stats = client.get_cache_stats().await;
 
-    println!("  {} Cache statistics loaded", "✓".green());
+    println!("  {} Cache statistics loaded", "✓".color(colors.success()));
     println!();
 
     println!("{}", "─".repeat(60).dimmed());
-    println!("{}", "Cache Statistics".bold().cyan());
+    println!("{}", "Cache Statistics".bold().color(colors.primary()));
     println!("{}", "─".repeat(60).dimmed());
     println!();
-    println!("  Hits: {}", stats.hits.to_string().green());
-    println!("  Misses: {}", stats.misses.to_string().yellow());
-    println!("  Size: {} entries", stats.size.to_string().cyan());
+    println!("  Hits: {}", stats.hits.to_string().color(colors.success()));
+    println!("  Misses: {}", stats.misses.to_string().color(colors.warning()));
+    println!("  Size: {} entries", stats.size.to_string().color(colors.primary()));
     println!("  Hit Rate: {:.2}%", stats.hit_rate());
     println!();
     println!("{}", "─".repeat(60).dimmed());
@@ -413,7 +425,8 @@ fn get_project_id(project_id: Option<String>) -> Result<String> {
     Ok(project_id
         .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok())
         .unwrap_or_else(|| {
-            println!("{}", "Warning: No project ID specified, using default PROJ-14".yellow());
+            let colors = RadiumBrandColors::new();
+            println!("{}", "Warning: No project ID specified, using default PROJ-14".color(colors.warning()));
             "PROJ-14".to_string()
         }))
 }
