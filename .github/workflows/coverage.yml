@@ -31,7 +31,7 @@ jobs:
           cargo llvm-cov --locked --workspace --html --output-path ../../coverage-html --tests
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           file: ./coverage.lcov
           flags: hooks
