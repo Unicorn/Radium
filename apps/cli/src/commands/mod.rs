@@ -48,6 +48,7 @@ pub mod theme;
 pub mod tool_execution;
 pub mod tools;
 pub mod train;
+pub mod event_renderer;
 
 // Re-export types for convenience
 pub use types::{AgentsCommand, AuthCommand, EnginesCommand, ExtensionCommand, ToolsCommand};
