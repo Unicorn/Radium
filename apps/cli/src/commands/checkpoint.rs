@@ -396,36 +396,37 @@ async fn show_command(
         ))?;
 
     // Display statistics
+    let colors = RadiumBrandColors::new();
     println!("Statistics:");
     println!("  Files changed: {}", diff.files_changed());
-    println!("  Files added:    {}", diff.added.len().to_string().green());
-    println!("  Files modified: {}", diff.modified.len().to_string().yellow());
-    println!("  Files deleted:  {}", diff.deleted.len().to_string().red());
-    println!("  Insertions:     {}", diff.insertions.to_string().green());
-    println!("  Deletions:      {}", diff.deletions.to_string().red());
+    println!("  Files added:    {}", diff.added.len().to_string().color(colors.success()));
+    println!("  Files modified: {}", diff.modified.len().to_string().color(colors.warning()));
+    println!("  Files deleted:  {}", diff.deleted.len().to_string().color(colors.error()));
+    println!("  Insertions:     {}", diff.insertions.to_string().color(colors.success()));
+    println!("  Deletions:      {}", diff.deletions.to_string().color(colors.error()));
     println!();
 
     // Display file changes
     if !diff.added.is_empty() {
-        println!("{}", "Added files:".green().bold());
+        println!("{}", "Added files:".color(colors.success()).bold());
         for file in &diff.added {
-            println!("  + {}", file.green());
+            println!("  + {}", file.color(colors.success()));
         }
         println!();
     }
 
     if !diff.modified.is_empty() {
-        println!("{}", "Modified files:".yellow().bold());
+        println!("{}", "Modified files:".color(colors.warning()).bold());
         for file in &diff.modified {
-            println!("  ~ {}", file.yellow());
+            println!("  ~ {}", file.color(colors.warning()));
         }
         println!();
     }
 
     if !diff.deleted.is_empty() {
-        println!("{}", "Deleted files:".red().bold());
+        println!("{}", "Deleted files:".color(colors.error()).bold());
         for file in &diff.deleted {
-            println!("  - {}", file.red());
+            println!("  - {}", file.color(colors.error()));
         }
         println!();
     }
