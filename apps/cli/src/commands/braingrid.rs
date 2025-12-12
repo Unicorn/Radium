@@ -5,9 +5,8 @@
 use anyhow::{Context, Result};
 use colored::Colorize;
 use radium_core::context::braingrid_client::{
-    BraingridClient, BraingridError, CacheStats, RequirementStatus, TaskStatus,
+    BraingridClient, BraingridError, RequirementStatus, TaskStatus,
 };
-use std::process::Command;
 use std::path::PathBuf;
 
 use crate::colors::RadiumBrandColors;

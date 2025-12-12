@@ -71,6 +71,11 @@ const config: Config = {
           label: 'Documentation',
         },
         {
+          to: '/features',
+          label: 'Features',
+          position: 'left',
+        },
+        {
           to: '/docs/examples/orchestration-workflows',
           label: 'Examples',
           position: 'left',
