@@ -14,7 +14,7 @@ pub fn render_cost_dashboard(
     frame: &mut Frame,
     area: Rect,
     state: &mut CostDashboardState,
-    analytics: &CostAnalytics,
+    _analytics: &CostAnalytics,
 ) {
     let theme = crate::theme::get_theme();
 
@@ -313,7 +313,7 @@ fn render_provider_breakdown_chart(
     summary: &radium_core::analytics::CostHistorySummary,
     theme: &crate::theme::RadiumTheme,
 ) {
-    let total_cost: f64 = summary
+    let _total_cost: f64 = summary
         .breakdown_by_provider
         .iter()
         .map(|b| b.total_cost)

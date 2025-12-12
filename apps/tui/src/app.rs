@@ -3400,6 +3400,7 @@ impl App {
     }
 
     /// Get display name for current model (truncated if too long)
+    #[allow(dead_code)]
     fn get_model_display_name(&self) -> String {
         self.current_model_id
             .as_ref()

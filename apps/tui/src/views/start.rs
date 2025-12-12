@@ -9,7 +9,7 @@ use crate::components::{help_row::render_help_row, logo::render_logo};
 use crate::views::prompt::PromptData;
 
 /// Renders the start page with logo, commands, and input prompt
-pub fn render_start_page(frame: &mut Frame, area: Rect, prompt_data: &PromptData) {
+pub fn render_start_page(frame: &mut Frame, area: Rect, _prompt_data: &PromptData) {
     let theme = crate::theme::get_theme();
     
     // Create a centered layout
