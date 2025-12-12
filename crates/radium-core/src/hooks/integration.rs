@@ -369,7 +369,7 @@ impl HookExecutor for HookRegistryAdapter {
 
     async fn execute_error_interception(
         &self,
-        agent_id: &str,
+        _agent_id: &str,
         error_message: &str,
         error_type: &str,
         error_source: Option<&str>,
@@ -399,7 +399,7 @@ impl HookExecutor for HookRegistryAdapter {
 
     async fn execute_error_transformation(
         &self,
-        agent_id: &str,
+        _agent_id: &str,
         error_message: &str,
         error_type: &str,
         error_source: Option<&str>,
@@ -434,7 +434,7 @@ impl HookExecutor for HookRegistryAdapter {
 
     async fn execute_error_recovery(
         &self,
-        agent_id: &str,
+        _agent_id: &str,
         error_message: &str,
         error_type: &str,
         error_source: Option<&str>,

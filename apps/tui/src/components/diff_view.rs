@@ -2,7 +2,7 @@
 
 use ratatui::{
     prelude::*,
-    widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarState},
+    widgets::{Block, Borders, Paragraph},
 };
 
 /// Diff view state

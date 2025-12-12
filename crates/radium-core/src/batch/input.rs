@@ -57,7 +57,7 @@ pub fn parse_input_file(file_path: &Path) -> Result<Vec<BatchInput>, BatchError>
 fn parse_line_delimited(content: &str) -> Result<Vec<BatchInput>, BatchError> {
     let mut inputs = Vec::new();
 
-    for (line_num, line) in content.lines().enumerate() {
+    for (_line_num, line) in content.lines().enumerate() {
         let trimmed = line.trim();
         if !trimmed.is_empty() {
             inputs.push(BatchInput {

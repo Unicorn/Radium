@@ -169,7 +169,7 @@ impl ContextCache for GeminiContextCache {
         }
 
         if !response.status().is_success() {
-            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            let _error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
             return Err(CacheError::CacheNotFound {
                 handle: handle.clone(),
             });

@@ -48,7 +48,7 @@ impl SqliteBatchRepository {
     fn row_to_batch_execution(row: &Row) -> rusqlite::Result<BatchExecution> {
         let status_str: String = row.get(9)?;
         let status = BatchStatus::from_str(&status_str)
-            .map_err(|e| rusqlite::Error::InvalidColumnType(9, "status".to_string(), rusqlite::types::Type::Text))?;
+            .map_err(|_e| rusqlite::Error::InvalidColumnType(9, "status".to_string(), rusqlite::types::Type::Text))?;
 
         let started_at_str: String = row.get(7)?;
         let started_at = DateTime::parse_from_rfc3339(&started_at_str)

@@ -166,7 +166,7 @@ impl ProxyConfigManager {
     /// Returns an error if validation fails.
     pub fn validate_config(config: &ProxyConfig) -> Result<()> {
         // Validate port
-        if config.port == 0 || config.port > 65535 {
+        if config.port == 0 {
             return Err(McpError::config(
                 format!("Invalid port: {}. Port must be in range 1-65535", config.port),
                 format!(

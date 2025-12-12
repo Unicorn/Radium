@@ -7,7 +7,7 @@ use radium_core::auth::{CredentialStore, ProviderType};
 use radium_core::context::{ContextManager, HistoryManager};
 use radium_core::{AgentDiscovery, PromptContext, PromptTemplate, Workspace};
 use radium_models::ModelFactory;
-use radium_abstraction::{StreamingModel, ModelError, Tool, ToolCall, ToolConfig, ToolUseMode, ChatMessage, MessageContent, ContentBlock, Model};
+use radium_abstraction::{StreamingModel, ModelError, Tool, ToolCall, ToolConfig, ToolUseMode, ChatMessage, MessageContent, Model};
 use radium_orchestrator;
 use futures::StreamExt;
 use serde_json::json;
@@ -16,7 +16,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 use tokio::process::Command;
 use tokio::time::timeout;
-use crate::state::{StreamingContext, StreamingState};
+use crate::state::StreamingContext;
 
 /// Result of executing a chat message.
 #[derive(Debug)]

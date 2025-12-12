@@ -492,7 +492,7 @@ impl BudgetManager {
             let start_timestamp = now - (days as i64 * 86400);
 
             // Try to use daily summaries first
-            let mut stmt = conn.prepare(
+            let stmt = conn.prepare(
                 "SELECT date, total_cost FROM daily_spend_summary
                  WHERE date >= date('now', '-' || ?1 || ' days')
                  ORDER BY date"

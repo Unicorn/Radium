@@ -3,7 +3,7 @@
 use crate::state::{TelemetryState, WorkflowStatus};
 use ratatui::{
     prelude::*,
-    widgets::{Block, Borders, Gauge, Paragraph, BarChart, Bar},
+    widgets::{Block, Borders, Gauge, Paragraph, BarChart},
 };
 
 /// Telemetry bar component

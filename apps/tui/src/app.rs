@@ -1,7 +1,7 @@
 //! New unified prompt-based application.
 
 use anyhow::{Context, Result};
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyModifiers};
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use std::collections::HashSet;
@@ -21,7 +21,7 @@ use async_trait::async_trait;
 use serde_json::Value;
 use std::sync::Arc;
 use std::time::Instant;
-use tokio::sync::{Mutex, mpsc, broadcast};
+use tokio::sync::{Mutex, broadcast};
 use tokio::task::JoinHandle;
 
 use crate::commands::{Command, DisplayContext};
@@ -32,7 +32,7 @@ use crate::requirement_progress::{ActiveRequirement, ActiveRequirementProgress};
 use crate::requirement_executor::RequirementExecutor as TuiRequirementExecutor;
 use crate::progress_channel::ExecutionResult;
 use crate::setup::SetupWizard;
-use crate::state::{CheckpointBrowserState, CheckpointInterruptState, CommandSuggestion, CommandSuggestionState, ExecutionHistory, ExecutionRecord, InterruptAction, PrivacyState, SuggestionSource, TaskListState, TriggerMode, WorkflowUIState};
+use crate::state::{CheckpointBrowserState, CheckpointInterruptState, CommandSuggestion, ExecutionHistory, ExecutionRecord, InterruptAction, PrivacyState, SuggestionSource, TaskListState, TriggerMode, WorkflowUIState};
 use crate::theme::RadiumTheme;
 use crate::views::PromptData;
 use crate::workspace::WorkspaceStatus;
@@ -4067,7 +4067,6 @@ impl App {
     pub fn check_for_checkpoint_behavior(&mut self, workflow_id: &str, step_number: usize, agent_id: Option<&str>) -> Result<bool> {
         use radium_core::workspace::{Workspace, WorkspaceStructure};
         use radium_core::workflow::behaviors::checkpoint::CheckpointEvaluator;
-        use std::path::Path;
 
         // Only check if not already in interrupt state
         if self.is_interrupt_active() {

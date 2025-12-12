@@ -133,7 +133,7 @@ impl OrchestratorThinkingPanel {
                 scroll_position + 1,
                 total_lines,
                 if total_lines > 0 {
-                    ((scroll_position as f64 / total_lines.saturating_sub(1).max(1) as f64) * 100.0)
+                    (scroll_position as f64 / total_lines.saturating_sub(1).max(1) as f64) * 100.0
                 } else {
                     0.0
                 }

@@ -78,7 +78,7 @@ impl BudgetForecaster {
                 .format("%Y-%m-%d")
                 .to_string();
 
-            let mut stmt = conn.prepare(
+            let stmt = conn.prepare(
                 "SELECT SUM(total_cost) FROM daily_spend_summary 
                  WHERE date >= ?1 AND date <= ?2"
             );

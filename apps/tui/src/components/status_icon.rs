@@ -1,8 +1,10 @@
 //! Status icon rendering component with animation support.
 
-use crate::icons::Icons;
 use crate::state::AgentStatus;
 use crate::theme::RadiumTheme;
+
+#[cfg(test)]
+use crate::icons::Icons;
 use ratatui::style::{Color, Style};
 
 /// Returns the theme color for an agent status.

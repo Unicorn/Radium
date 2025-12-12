@@ -39,7 +39,7 @@ impl BatchProgressTracker {
     }
 
     /// Update progress with a completion event.
-    pub fn update(&mut self, index: usize, completed: usize, active: usize, successful: usize, failed: usize) {
+    pub fn update(&mut self, _index: usize, completed: usize, active: usize, successful: usize, failed: usize) {
         self.completed = completed;
         self.active = active;
         self.queued = self.total.saturating_sub(completed + active);

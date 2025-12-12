@@ -23,7 +23,7 @@ impl CodeBlockParser {
         let mut line_number = 1;
         let mut current_index = 1;
 
-        while let Some((pos, ch)) = chars.next() {
+        while let Some((_pos, ch)) = chars.next() {
             // Look for opening fence: ``` at line start
             if ch == '`' {
                 if let Some((_, '`')) = chars.next() {
