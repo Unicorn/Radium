@@ -11,32 +11,35 @@ type FeatureItem = {
 
 const FeatureList: FeatureItem[] = [
   {
-    title: 'Easy to Use',
+    title: 'Autonomous Orchestration',
     Svg: require('@site/static/img/undraw_docusaurus_mountain.svg').default,
     description: (
       <>
-        Docusaurus was designed from the ground up to be easily installed and
-        used to get your website up and running quickly.
+        YOLO mode enables fully autonomous execution from high-level goals to
+        complete implementations. Intelligent agent selection, resource allocation,
+        and error recovery with multi-agent coordination.
       </>
     ),
   },
   {
-    title: 'Focus on What Matters',
+    title: 'Multi-Agent Workflows',
     Svg: require('@site/static/img/undraw_docusaurus_tree.svg').default,
     description: (
       <>
-        Docusaurus lets you focus on your docs, and we&apos;ll do the chores. Go
-        ahead and move your docs into the <code>docs</code> directory.
+        Define complex DAG workflows with behavior orchestration, checkpoint
+        recovery, and policy-driven execution. Specialized agents collaborate
+        to tackle multi-step tasks with full observability.
       </>
     ),
   },
   {
-    title: 'Powered by React',
+    title: 'Provider Agnostic',
     Svg: require('@site/static/img/undraw_docusaurus_react.svg').default,
     description: (
       <>
-        Extend or customize your website layout by reusing React. Docusaurus can
-        be extended while reusing the same header and footer.
+        Seamlessly switch between Claude, OpenAI, Gemini, and self-hosted models.
+        Built-in cost tracking, quota management, and intelligent fallback chains
+        keep your workflows running efficiently.
       </>
     ),
   },

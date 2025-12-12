@@ -44,19 +44,7 @@ const config: Config = {
           // Edit page links point to the docs folder in the main repo
           editUrl: 'https://github.com/clay-curry/RAD/tree/main/docs/',
         },
-        blog: {
-          showReadingTime: true,
-          feedOptions: {
-            type: ['rss', 'atom'],
-            xslt: true,
-          },
-          // Edit page links point to the website blog folder
-          editUrl: 'https://github.com/clay-curry/RAD/tree/main/website/blog/',
-          // Useful options to enforce blogging best practices
-          onInlineTags: 'warn',
-          onInlineAuthors: 'warn',
-          onUntruncatedBlogPosts: 'warn',
-        },
+        blog: false,
         theme: {
           customCss: './src/css/custom.css',
         },
@@ -65,8 +53,7 @@ const config: Config = {
   ],
 
   themeConfig: {
-    // Replace with your project's social card
-    image: 'img/docusaurus-social-card.jpg',
+    image: 'img/radium-social-card.png',
     colorMode: {
       respectPrefersColorScheme: true,
     },
@@ -93,7 +80,6 @@ const config: Config = {
           label: 'API Reference',
           position: 'left',
         },
-        {to: '/blog', label: 'Blog', position: 'left'},
         {
           type: 'docsVersionDropdown',
           position: 'right',
@@ -137,8 +123,8 @@ const config: Config = {
               to: '/docs/api/radium_core',
             },
             {
-              label: 'Blog',
-              to: '/blog',
+              label: 'CLI Reference',
+              to: '/docs/cli/overview',
             },
           ],
         },
@@ -176,10 +162,9 @@ const config: Config = {
         hashed: true,
         language: ['en'],
         indexDocs: true,
-        indexBlog: true,
+        indexBlog: false,
         indexPages: true,
         docsRouteBasePath: '/docs',
-        blogRouteBasePath: '/blog',
       },
     ],
   ],

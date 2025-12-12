@@ -27,6 +27,7 @@ use radium_orchestrator::AgentExecutor;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use futures::StreamExt;
+use crate::session::SessionState as CoreSessionState;
 use crate::proto::{
     AgentMessage, CancelTaskRequest, CancelTaskResponse, CreateAgentRequest, CreateAgentResponse, CreateTaskRequest, CreateTaskResponse,
     ResumeTaskRequest, ResumeTaskResponse,
@@ -59,6 +60,15 @@ use crate::proto::{
     GetBraingridCacheStatsRequest, GetBraingridCacheStatsResponse,
     BraingridRequirement as ProtoBraingridRequirement, BraingridTask as ProtoBraingridTask,
     RequirementExecutionResult as ProtoRequirementExecutionResult,
+    // Session Management RPCs
+    CreateSessionRequest, CreateSessionResponse,
+    ListSessionsRequest, ListSessionsResponse,
+    AttachSessionRequest, AttachSessionResponse,
+    SendSessionMessageRequest, SendSessionMessageResponse,
+    SessionEvent, Session as ProtoSession,
+    SessionMessage as ProtoSessionMessage,
+    SessionToolCall as ProtoSessionToolCall,
+    SessionApproval as ProtoSessionApproval,
 };
 use crate::storage::{
     AgentRepository, Database, SqliteAgentRepository, SqliteTaskRepository,
@@ -81,6 +91,8 @@ pub struct RadiumService {
     progress_tracker: Arc<crate::collaboration::ProgressTracker>,
     /// Braingrid client for requirement/task operations.
     braingrid_client: Arc<BraingridClient>,
+    /// Session manager for daemon-backed sessions.
+    session_manager: Arc<crate::session::SessionManager>,
 }
 
 impl RadiumService {
@@ -130,6 +142,25 @@ impl RadiumService {
             .unwrap_or_else(|_| "PROJ-14".to_string());
         let braingrid_client = Arc::new(BraingridClient::new(project_id));
 
+        // Initialize session manager
+        let workspace_root = crate::workspace::Workspace::discover()
+            .map(|w| w.root().to_path_buf())
+            .unwrap_or_else(|_| {
+                std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
+            });
+        let session_manager = Arc::new(
+            crate::session::SessionManager::new(&workspace_root)
+                .map_err(|e| {
+                    error!("Failed to initialize session manager: {}", e);
+                    e
+                })
+                .unwrap_or_else(|_| {
+                    // Fallback: create session manager in current directory
+                    crate::session::SessionManager::new(&std::path::PathBuf::from("."))
+                        .expect("Failed to create fallback session manager")
+                }),
+        );
+
         Self {
             db: db_arc,
             orchestrator,
@@ -138,6 +169,7 @@ impl RadiumService {
             delegation_manager,
             progress_tracker,
             braingrid_client,
+            session_manager,
         }
     }
 
@@ -1841,6 +1873,201 @@ impl Radium for RadiumService {
             error: None,
         }))
     }
+
+    // Session Management RPCs
+
+    async fn create_session(
+        &self,
+        request: Request<CreateSessionRequest>,
+    ) -> Result<Response<CreateSessionResponse>, Status> {
+        let req = request.into_inner();
+        info!("CreateSession RPC called");
+
+        let session = self
+            .session_manager
+            .create_session(req.agent_id, req.workspace_root, req.session_name)
+            .await
+            .map_err(|e| Status::internal(format!("Failed to create session: {}", e)))?;
+
+        let proto_session = session_to_proto(&session);
+
+        Ok(Response::new(CreateSessionResponse {
+            session_id: session.id.clone(),
+            session: Some(proto_session),
+            error: None,
+        }))
+    }
+
+    async fn list_sessions(
+        &self,
+        request: Request<ListSessionsRequest>,
+    ) -> Result<Response<ListSessionsResponse>, Status> {
+        let req = request.into_inner();
+        info!("ListSessions RPC called");
+
+        let filter_state = req.filter_state.as_deref().and_then(|s| {
+            match s.to_uppercase().as_str() {
+                "ACTIVE" => Some(crate::session::SessionState::Active),
+                "PAUSED" => Some(crate::session::SessionState::Paused),
+                "COMPLETED" => Some(crate::session::SessionState::Completed),
+                "FAILED" => Some(crate::session::SessionState::Failed),
+                _ => None,
+            }
+        });
+
+        let (sessions, total, page, page_size) = self
+            .session_manager
+            .list_sessions(
+                req.page.map(|p| p as u32),
+                req.page_size.map(|p| p as u32),
+                filter_state,
+                req.filter_agent_id,
+            )
+            .await
+            .map_err(|e| Status::internal(format!("Failed to list sessions: {}", e)))?;
+
+        let proto_sessions: Vec<ProtoSession> = sessions.iter().map(session_to_proto).collect();
+
+        Ok(Response::new(ListSessionsResponse {
+            sessions: proto_sessions,
+            total: total as i32,
+            page: page as i32,
+            page_size: page_size as i32,
+            error: None,
+        }))
+    }
+
+    async fn attach_session(
+        &self,
+        request: Request<AttachSessionRequest>,
+    ) -> Result<Response<AttachSessionResponse>, Status> {
+        let req = request.into_inner();
+        info!(session_id = %req.session_id, "AttachSession RPC called");
+
+        let session = self
+            .session_manager
+            .attach_session(&req.session_id)
+            .await
+            .map_err(|e| Status::not_found(format!("Session not found: {}", e)))?;
+
+        let proto_messages: Vec<ProtoSessionMessage> = session
+            .messages
+            .iter()
+            .map(|m| ProtoSessionMessage {
+                id: m.id.clone(),
+                content: m.content.clone(),
+                role: m.role.clone(),
+                timestamp: m.timestamp.to_rfc3339(),
+            })
+            .collect();
+
+        let proto_tool_calls: Vec<ProtoSessionToolCall> = session
+            .tool_calls
+            .iter()
+            .map(|tc| ProtoSessionToolCall {
+                id: tc.id.clone(),
+                tool_name: tc.tool_name.clone(),
+                arguments_json: tc.arguments_json.clone(),
+                result_json: tc.result_json.clone(),
+                success: tc.success,
+                error: tc.error.clone(),
+                duration_ms: tc.duration_ms as i64,
+                timestamp: tc.timestamp.to_rfc3339(),
+            })
+            .collect();
+
+        let proto_approvals: Vec<ProtoSessionApproval> = session
+            .approvals
+            .iter()
+            .map(|a| ProtoSessionApproval {
+                id: a.id.clone(),
+                tool_name: a.tool_name.clone(),
+                arguments_json: a.arguments_json.clone(),
+                policy_rule: a.policy_rule.clone(),
+                approved: a.approved,
+                reason: a.reason.clone(),
+                timestamp: a.timestamp.to_rfc3339(),
+            })
+            .collect();
+
+        Ok(Response::new(AttachSessionResponse {
+            session: Some(session_to_proto(&session)),
+            messages: proto_messages,
+            tool_calls: proto_tool_calls,
+            approvals: proto_approvals,
+            error: None,
+        }))
+    }
+
+    async fn send_session_message(
+        &self,
+        request: Request<SendSessionMessageRequest>,
+    ) -> Result<Response<SendSessionMessageResponse>, Status> {
+        let req = request.into_inner();
+        info!(session_id = %req.session_id, "SendSessionMessage RPC called");
+
+        let message = crate::session::state::Message {
+            id: uuid::Uuid::new_v4().to_string(),
+            content: req.message.clone(),
+            role: req.role.unwrap_or_else(|| "user".to_string()),
+            timestamp: chrono::Utc::now(),
+        };
+
+        self.session_manager
+            .append_message(&req.session_id, message)
+            .await
+            .map_err(|e| Status::internal(format!("Failed to send message: {}", e)))?;
+
+        // TODO: Trigger agent execution via OrchestrationService
+        // This will be integrated in a future step when we add event streaming
+
+        Ok(Response::new(SendSessionMessageResponse {
+            success: true,
+            error: None,
+        }))
+    }
+
+    type SessionEventsStreamStream = ReceiverStream<Result<SessionEvent, Status>>;
+
+    async fn session_events_stream(
+        &self,
+        request: Request<tonic::Streaming<SessionEvent>>,
+    ) -> Result<Response<Self::SessionEventsStreamStream>, Status> {
+        info!("SessionEventsStream RPC called");
+
+        // Create server-to-client stream channel
+        let (tx, rx) = mpsc::channel(100);
+        let mut client_stream = request.into_inner();
+
+        // Spawn task to handle client messages (approval responses, etc.)
+        let session_manager_clone = Arc::clone(&self.session_manager);
+        tokio::spawn(async move {
+            while let Some(event_result) = client_stream.next().await {
+                match event_result {
+                    Ok(event) => {
+                        // Handle client events (e.g., ApprovalResponseEvent)
+                        if let Some(approval_response) = event.approval_response {
+                            // TODO: Unblock waiting tool execution
+                            info!(
+                                session_id = %approval_response.session_id,
+                                approved = approval_response.approved,
+                                "Received approval response"
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        warn!("Error receiving client event: {}", e);
+                        break;
+                    }
+                }
+            }
+        });
+
+        // Return server-to-client stream
+        // TODO: Integrate with agent execution to emit ToolCallEvent, ToolResultEvent, etc.
+        // For now, return an empty stream that can be extended
+        Ok(Response::new(ReceiverStream::new(rx)))
+    }
 }
 
 // Conversion helper functions
@@ -1905,6 +2132,17 @@ fn parse_requirement_status(status_str: &str) -> Result<RequirementStatus, Statu
             "Invalid requirement status: {}. Valid values: IDEA, PLANNED, IN_PROGRESS, REVIEW, COMPLETED, CANCELLED",
             status_str
         ))),
+    }
+}
+
+fn session_to_proto(session: &crate::session::Session) -> ProtoSession {
+    ProtoSession {
+        id: session.id.clone(),
+        created_at: session.created_at.to_rfc3339(),
+        last_active: session.last_active.to_rfc3339(),
+        state: session.state.to_string(),
+        agent_id: session.agent_id.clone(),
+        workspace_root: session.workspace_root.clone(),
     }
 }
 

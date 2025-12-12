@@ -3,9 +3,9 @@
 use crate::playbooks::error::{PlaybookError, Result};
 use crate::playbooks::parser::PlaybookParser;
 use crate::playbooks::types::Playbook;
+use crate::workspace::IgnoreWalker;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use walkdir::WalkDir;
 
 /// Playbook discovery service.
 ///
@@ -65,25 +65,19 @@ impl PlaybookDiscovery {
         dir: &Path,
         playbooks: &mut HashMap<String, Playbook>,
     ) -> Result<()> {
-        for entry in WalkDir::new(dir)
-            .follow_links(true)
-            .into_iter()
-            .filter_map(|e| e.ok())
-        {
-            let path = entry.path();
-
-            if path.is_file() {
-                // Check if this is a markdown file
-                if let Some(ext) = path.extension() {
-                    if ext == "md" || ext == "markdown" {
-                        // Continue discovery even if a playbook fails to load
-                        if let Err(e) = self.load_playbook(path, playbooks) {
-                            tracing::debug!(
-                                path = %path.display(),
-                                error = %e,
-                                "Skipping invalid playbook file"
-                            );
-                        }
+        let walker = IgnoreWalker::new(dir).follow_links(true);
+        
+        for path in walker.build() {
+            // Check if this is a markdown file
+            if let Some(ext) = path.extension() {
+                if ext == "md" || ext == "markdown" {
+                    // Continue discovery even if a playbook fails to load
+                    if let Err(e) = self.load_playbook(&path, playbooks) {
+                        tracing::debug!(
+                            path = %path.display(),
+                            error = %e,
+                            "Skipping invalid playbook file"
+                        );
                     }
                 }
             }

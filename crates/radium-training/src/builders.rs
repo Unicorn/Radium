@@ -1,7 +1,7 @@
 use crate::dataset::{compute_dataset_id, validate_examples, Dataset, DatasetId, DatasetSource, ScanDepth, TrainingExample};
 use crate::error::{TrainingError, TrainingResult};
+use ignore::WalkBuilder;
 use std::path::{Path, PathBuf};
-use walkdir::WalkDir;
 
 #[derive(Debug, Clone)]
 pub struct DatasetBuildOptions {
@@ -122,17 +122,12 @@ fn build_from_paths(paths: &[PathBuf], options: &DatasetBuildOptions) -> Trainin
 fn collect_text_files(root: &Path, max_files: usize, options: &DatasetBuildOptions) -> TrainingResult<Vec<PathBuf>> {
     let mut files = Vec::new();
 
-    let walker = WalkDir::new(root).follow_links(false).into_iter().filter_entry(|e| {
-        let name = e.file_name().to_string_lossy().to_lowercase();
-        // Skip common heavy/irrelevant dirs
-        if e.file_type().is_dir() {
-            return !matches!(
-                name.as_str(),
-                ".git" | ".radium" | "target" | "node_modules" | "dist" | "build" | ".next"
-            );
-        }
-        true
-    });
+    // Use ignore crate for .gitignore support and standard exclusions
+    let mut builder = WalkBuilder::new(root);
+    builder.follow_links(false);
+    builder.add_custom_ignore_filename(".nxignore");
+
+    let walker = builder.build();
 
     for entry in walker {
         let entry = match entry {
@@ -140,7 +135,7 @@ fn collect_text_files(root: &Path, max_files: usize, options: &DatasetBuildOptio
             Err(_) => continue,
         };
 
-        if !entry.file_type().is_file() {
+        if !entry.file_type().map(|ft| ft.is_file()).unwrap_or(false) {
             continue;
         }
 

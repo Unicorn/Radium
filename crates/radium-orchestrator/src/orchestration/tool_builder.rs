@@ -7,9 +7,12 @@ use std::sync::Arc;
 
 use super::{
     code_analysis_tool,
+    definition_tool,
     file_tools::{self, WorkspaceRootProvider as FileWorkspaceRootProvider},
     git_extended_tools,
     project_scan_tool,
+    search_tool,
+    symbol_search_tool,
     terminal_tool::{self, WorkspaceRootProvider as TerminalWorkspaceRootProvider, SandboxManager as TerminalSandboxManager},
     tool::Tool,
 };
@@ -88,9 +91,27 @@ pub fn build_standard_tools(
     tracing::info!("Added {} git extended tools", git_count);
 
     // Code analysis tool (AST-based structure analysis)
-    let code_tool = code_analysis_tool::create_code_analysis_tool(workspace_provider);
+    let code_tool = code_analysis_tool::create_code_analysis_tool(workspace_provider.clone());
     tools.push(code_tool);
     tracing::info!("Added code analysis tool");
+
+    // Search tools (content search with context and filters)
+    let search_tools = search_tool::create_search_tools(workspace_provider.clone());
+    let search_count = search_tools.len();
+    tools.extend(search_tools);
+    tracing::info!("Added {} search tools", search_count);
+
+    // Symbol search tools (AST-based symbol extraction)
+    let symbol_tools = symbol_search_tool::create_symbol_search_tools(workspace_provider.clone());
+    let symbol_count = symbol_tools.len();
+    tools.extend(symbol_tools);
+    tracing::info!("Added {} symbol search tools", symbol_count);
+
+    // Definition lookup tools
+    let definition_tools = definition_tool::create_definition_tools(workspace_provider.clone());
+    let definition_count = definition_tools.len();
+    tools.extend(definition_tools);
+    tracing::info!("Added {} definition lookup tools", definition_count);
 
     // Terminal command tool
     let terminal_workspace_provider: Arc<dyn TerminalWorkspaceRootProvider> = Arc::new(SimpleWorkspaceRootProvider {

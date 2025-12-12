@@ -554,6 +554,30 @@ impl App {
             let _ = HookLoader::load_from_workspace(root, &registry).await;
             let _ = HookLoader::load_from_extensions(&registry).await;
             
+            // Register policy hook for file operation approvals
+            use radium_core::policy::{PolicyEngine, ApprovalMode};
+            use radium_core::hooks::policy_hook::PolicyHookRegistrar;
+            
+            // Try to load policy from workspace, fallback to default Ask mode
+            let policy_engine = if let Ok(workspace) = radium_core::Workspace::discover() {
+                let policy_file = workspace.radium_dir().join("policy.toml");
+                if policy_file.exists() {
+                    PolicyEngine::from_file(&policy_file)
+                        .unwrap_or_else(|_| PolicyEngine::new(ApprovalMode::Ask).unwrap())
+                } else {
+                    PolicyEngine::new(ApprovalMode::Ask).unwrap()
+                }
+            } else {
+                PolicyEngine::new(ApprovalMode::Ask).unwrap()
+            };
+            
+            // Register policy hook (best effort - don't fail if registration fails)
+            let policy_engine_arc = std::sync::Arc::new(policy_engine);
+            let _ = PolicyHookRegistrar::register_policy_hook(
+                &registry,
+                policy_engine_arc,
+            ).await;
+            
             // Only create executor if we successfully loaded hooks or if we want to support hooks
             // For now, always create executor (it will work even if no hooks are loaded)
             Some(Arc::new(TuiToolHookExecutor {

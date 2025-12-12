@@ -21,6 +21,7 @@ pub mod mcp_tools;
 pub mod planner;
 pub mod project_scan_tool;
 pub mod providers;
+pub mod definition_tool;
 pub mod search_tool;
 pub mod service;
 pub mod symbol_search_tool;

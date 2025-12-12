@@ -7,10 +7,9 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use regex::Regex;
-use walkdir::WalkDir;
 
 use super::error::{SecurityError, SecurityResult};
-use crate::workspace::Workspace;
+use crate::workspace::{IgnoreWalker, Workspace};
 
 /// Severity level for detected credentials.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -290,20 +289,14 @@ impl SecretScanner {
         let mut all_matches = Vec::new();
         let mut total_files = 0;
 
-        // Walk directory tree
-        for entry in WalkDir::new(workspace_root)
-            .follow_links(false)
-            .into_iter()
-            .filter_map(|e| e.ok())
-        {
-            let path = entry.path();
+        // Walk directory tree with ignore support
+        let walker = IgnoreWalker::new(workspace_root).follow_links(false);
+        
+        for path in walker.build() {
+            total_files += 1;
 
-            if path.is_file() {
-                total_files += 1;
-
-                if let Ok(matches) = self.scan_file(path) {
-                    all_matches.extend(matches);
-                }
+            if let Ok(matches) = self.scan_file(&path) {
+                all_matches.extend(matches);
             }
         }
 

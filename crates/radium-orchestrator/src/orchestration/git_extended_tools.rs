@@ -46,62 +46,51 @@ impl ToolHandler for FindReferencesHandler {
     }
 }
 
-/// Find all references to a symbol using ripgrep
+/// Find all references to a symbol using internal search
 pub async fn find_symbol_references(
     workspace_root: &Path,
     symbol: &str,
     file_type: Option<&str>,
     max_results: usize,
 ) -> Result<String> {
-    let mut cmd = Command::new("rg");
-
-    // Word boundary search for exact symbol matches
-    cmd.arg("--word-regexp");
-
-    // Show line numbers and file names
-    cmd.arg("--line-number");
-    cmd.arg("--with-filename");
-
-    // Color output
-    cmd.arg("--color=never");
-
-    // Limit results
-    cmd.arg("--max-count");
-    cmd.arg(max_results.to_string());
-
-    // Filter by file type if specified
-    if let Some(ftype) = file_type {
-        cmd.arg("--type");
-        cmd.arg(ftype);
-    }
-
-    // The symbol to search for
-    cmd.arg(symbol);
-
-    cmd.current_dir(workspace_root);
-
-    let output = cmd.output().await.map_err(|e| {
-        OrchestrationError::Other(format!("Failed to run ripgrep: {}. Make sure 'rg' is installed.", e))
-    })?;
-
-    if output.status.success() || output.status.code() == Some(1) {
-        // Code 1 means no matches found, which is not an error
-        let result = String::from_utf8_lossy(&output.stdout);
-
-        if result.trim().is_empty() {
-            Ok(format!("No references found for symbol '{}'", symbol))
-        } else {
-            let line_count = result.lines().count();
-            let mut formatted = format!("# References to '{}' ({} found)\n\n", symbol, line_count);
-            formatted.push_str("```\n");
-            formatted.push_str(&result);
-            formatted.push_str("```\n");
-            Ok(formatted)
-        }
+    use super::search_tool;
+    
+    // Use word boundary pattern for exact symbol matches
+    let pattern = format!(r"\b{}\b", regex::escape(symbol));
+    
+    // Convert file_type to filter string
+    let file_types = if let Some(ftype) = file_type {
+        format!("language:{}", ftype)
     } else {
-        let error = String::from_utf8_lossy(&output.stderr);
-        Err(OrchestrationError::Other(format!("ripgrep failed: {}", error)))
+        "*".to_string()
+    };
+
+    // Use internal search implementation
+    let results = search_tool::search_code_internal(
+        workspace_root,
+        &pattern,
+        0, // No context for find_references
+        &file_types,
+        max_results,
+    ).map_err(|e| OrchestrationError::Other(format!("Search failed: {}", e)))?;
+
+    if results.is_empty() {
+        return Ok(format!("No references found for symbol '{}'", symbol));
     }
+
+    // Format results similar to ripgrep output
+    let mut formatted = format!("# References to '{}' ({} found)\n\n", symbol, results.len());
+    formatted.push_str("```\n");
+    
+    for result in results {
+        formatted.push_str(&format!("{}:{}:{}\n", 
+            result.file_path.display(), 
+            result.line_number, 
+            result.line.trim()));
+    }
+    
+    formatted.push_str("```\n");
+    Ok(formatted)
 }
 
 /// Create the find_references tool

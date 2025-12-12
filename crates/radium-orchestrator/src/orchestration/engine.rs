@@ -379,6 +379,20 @@ impl OrchestrationEngine {
                         tracing::debug!("BeforeTool hooks modified arguments for tool: {}", tool_call.name);
                     }
                     Err(e) => {
+                        // Check if this is an approval request (from policy hook)
+                        if e.starts_with("APPROVAL_REQUIRED:") {
+                            let reason = e.strip_prefix("APPROVAL_REQUIRED:").unwrap_or(&e).trim().to_string();
+                            self.emit(OrchestrationEvent::ApprovalRequired {
+                                correlation_id: correlation_id.to_string(),
+                                tool_name: tool_call.name.clone(),
+                                reason,
+                            });
+                            // Return error to pause execution - user must approve via CLI/TUI
+                            return Err(OrchestrationError::Other(format!(
+                                "Tool execution requires approval: {}",
+                                tool_call.name
+                            )));
+                        }
                         // Hook requested to abort execution
                         tracing::warn!("BeforeTool hook aborted execution for tool {}: {}", tool_call.name, e);
                         return Err(OrchestrationError::Other(format!(

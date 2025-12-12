@@ -54,6 +54,8 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::workspace::IgnoreWalker;
+
 use super::error::{ContextError, Result};
 
 /// Default context file name.
@@ -373,25 +375,25 @@ impl ContextFileLoader {
             return Ok(());
         }
 
-        // Check if this directory has a context file
-        let context_path = dir.join(file_name);
-        if context_path.exists() && context_path.is_file() {
-            files.push(context_path);
-        }
-
-        // Recursively scan subdirectories
-        let entries = fs::read_dir(dir)?;
-        for entry in entries {
-            let entry = entry?;
+        // Use IgnoreWalker to respect .gitignore and other ignore patterns
+        let walker = IgnoreWalker::new(dir);
+        
+        // Collect all directories that might contain context files
+        let mut directories = std::collections::HashSet::new();
+        directories.insert(dir.to_path_buf());
+        
+        for entry in walker.build_entries() {
             let path = entry.path();
             if path.is_dir() {
-                // Skip .radium and other hidden directories
-                if let Some(name) = path.file_name() {
-                    if name.to_string_lossy().starts_with('.') {
-                        continue;
-                    }
-                }
-                self.scan_directory(&path, file_name, files)?;
+                directories.insert(path.to_path_buf());
+            }
+        }
+
+        // Check each directory for context files
+        for dir_path in directories {
+            let context_path = dir_path.join(file_name);
+            if context_path.exists() && context_path.is_file() {
+                files.push(context_path);
             }
         }
 
