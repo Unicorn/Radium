@@ -45,7 +45,7 @@ async fn check_file(file_path: &PathBuf) -> anyhow::Result<()> {
         .map_err(|e| anyhow::anyhow!("Failed to read file {}: {}", file_path.display(), e))?;
 
     // Load config from workspace to get custom patterns
-    let workspace = Workspace::discover().ok();
+    let _workspace = Workspace::discover().ok();
     let pattern_library = PatternLibrary::default();
 
     // TODO: Load custom patterns from config if workspace found

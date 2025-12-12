@@ -84,7 +84,7 @@ pub async fn execute(
         .context("Failed to create model for oversight")?;
 
     let metacognitive = MetacognitiveService::new(model);
-    let constitution_manager = ConstitutionManager::new();
+    let _constitution_manager = ConstitutionManager::new();
 
     // Build oversight request
     let mut oversight_request = OversightRequest::new(oversight_phase, goal, plan);
