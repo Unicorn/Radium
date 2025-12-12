@@ -362,7 +362,7 @@ fn render_chat_log(
             ));
         } else if line.starts_with("Error: ") || line.starts_with("❌") {
             // Error message - error color
-            Line::from(Span::styled(
+            let _ = Line::from(Span::styled(
                 line.clone(),
                 Style::default().fg(theme.error),
             ));

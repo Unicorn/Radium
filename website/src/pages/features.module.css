@@ -1,0 +1,122 @@
+.featuresPage {
+  min-height: calc(100vh - var(--ifm-navbar-height));
+}
+
+.hero {
+  padding: 4rem 0 3rem;
+  text-align: center;
+  background: linear-gradient(
+    180deg,
+    var(--ifm-color-primary-lightest) 0%,
+    transparent 100%
+  );
+}
+
+.heroTitle {
+  font-size: var(--marketing-heading-xl);
+  font-weight: 700;
+  margin-bottom: 1rem;
+  background: var(--marketing-gradient-hero);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.heroSubtitle {
+  font-size: var(--marketing-body-lg);
+  color: var(--ifm-color-emphasis-700);
+  max-width: 800px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+.tabsSection {
+  padding: 3rem 0;
+}
+
+.categoryContent {
+  padding: 2rem 0;
+}
+
+.categoryDescription {
+  font-size: var(--marketing-body-lg);
+  color: var(--ifm-color-emphasis-700);
+  text-align: center;
+  max-width: 700px;
+  margin: 0 auto 3rem;
+  line-height: 1.6;
+}
+
+.featureGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 2rem;
+  margin: 0 auto;
+}
+
+.comparisonSection {
+  padding: 3rem 0;
+  background: var(--ifm-background-surface-color);
+}
+
+.ctaSection {
+  padding: 4rem 0;
+}
+
+/* Dark mode support */
+[data-theme='dark'] .hero {
+  background: linear-gradient(
+    180deg,
+    var(--ifm-color-primary-darkest) 0%,
+    transparent 100%
+  );
+}
+
+[data-theme='dark'] .heroSubtitle,
+[data-theme='dark'] .categoryDescription {
+  color: var(--ifm-color-emphasis-600);
+}
+
+/* Responsive */
+@media (max-width: 996px) {
+  .hero {
+    padding: 3rem 0 2rem;
+  }
+
+  .heroTitle {
+    font-size: var(--marketing-heading-lg);
+  }
+
+  .heroSubtitle,
+  .categoryDescription {
+    font-size: var(--marketing-body-md);
+  }
+
+  .tabsSection,
+  .comparisonSection {
+    padding: 2rem 0;
+  }
+
+  .ctaSection {
+    padding: 3rem 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .hero {
+    padding: 2rem 0 1.5rem;
+  }
+
+  .heroTitle {
+    font-size: var(--marketing-heading-md);
+  }
+
+  .featureGrid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .categoryContent {
+    padding: 1.5rem 0;
+  }
+}

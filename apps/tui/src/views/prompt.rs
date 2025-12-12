@@ -17,6 +17,7 @@ use crate::theme::THEME;
 use ratatui::layout::Constraint;
 use tachyonfx::{EffectTimer, Interpolation};
 
+#[allow(dead_code)]
 fn create_table_timer(duration_ms: u64) -> EffectTimer {
     EffectTimer::from_ms(duration_ms as u32, Interpolation::QuadOut)
 }
