@@ -20,6 +20,7 @@ use super::{
     git_extended_tools,
     hooks::ToolHookExecutor,
     project_scan_tool,
+    search_tool,
     terminal_tool::{self, WorkspaceRootProvider as TerminalWorkspaceRootProvider, SandboxManager as TerminalSandboxManager},
     tool::Tool,
     providers::{
@@ -141,6 +142,12 @@ impl OrchestrationService {
             let code_tool = code_analysis_tool::create_code_analysis_tool(workspace_provider.clone());
             tools.push(code_tool);
             tracing::info!("Added code analysis tool to orchestration");
+
+            // Add search tools
+            let search_tools = search_tool::create_search_tools(workspace_provider.clone());
+            let search_tool_count = search_tools.len();
+            tools.extend(search_tools);
+            tracing::info!("Added {} search tools to orchestration", search_tool_count);
 
             // Add terminal command tool
             let terminal_workspace_provider: Arc<dyn TerminalWorkspaceRootProvider> = Arc::new(SimpleWorkspaceRootProvider {
