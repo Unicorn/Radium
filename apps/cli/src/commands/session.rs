@@ -434,6 +434,7 @@ async fn delete_command(
         
         deleted_count = 1;
         println!("Deleted session: {}", sid);
+        let _ = deleted_count; // Variable is assigned but compiler thinks it's unused in this branch
     } else if let Some(before_date_str) = before {
         // Batch deletion by date
         let before_date = chrono::DateTime::parse_from_rfc3339(before_date_str)
