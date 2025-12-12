@@ -27,6 +27,7 @@ pub mod patch;
 pub mod plan_discovery;
 pub mod requirement_id;
 pub mod structure;
+pub mod transaction;
 
 use std::path::{Path, PathBuf};
 use thiserror::Error;
@@ -43,6 +44,7 @@ pub use patch::{
     PatchSummary,
 };
 pub use plan_discovery::{DiscoveredPlan, PlanDiscovery, PlanDiscoveryOptions, SortBy, SortOrder};
+pub use transaction::{FileOperation as TransactionFileOperation, FileTransaction};
 pub use requirement_id::{RequirementId, RequirementIdError};
 pub use structure::{
     DIR_INTERNALS, DIR_PLAN, DIR_RADIUM, STAGE_BACKLOG, STAGE_DEVELOPMENT, STAGE_DOCS,

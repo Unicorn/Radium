@@ -234,6 +234,11 @@ impl FileOperations {
     pub fn workspace_root(&self) -> &Path {
         &self.workspace_root
     }
+
+    /// Get the boundary validator (for use by transactions).
+    pub(crate) fn boundary_validator(&self) -> &BoundaryValidator {
+        &self.boundary_validator
+    }
 }
 
 #[cfg(test)]
