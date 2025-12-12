@@ -61,7 +61,7 @@ impl BraingridReader {
         let mut cmd = TokioCommand::new("braingrid");
         cmd.args(args);
 
-        if let Some(ref token) = self.token {
+        if let Some(ref _token) = self.token {
             // If token is provided, we'd need to pass it via env or CLI arg
             // For now, assume it's set in environment or CLI config
         }

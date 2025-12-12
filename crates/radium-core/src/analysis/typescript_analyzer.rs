@@ -1,7 +1,7 @@
 //! TypeScript-specific symbol extraction using tree-sitter.
 
 use std::path::PathBuf;
-use tree_sitter::{Language, Node, Parser};
+use tree_sitter::{Node, Parser};
 use tree_sitter_typescript::{language_tsx, language_typescript};
 use crate::analysis::symbols::{Symbol, SymbolKind, SymbolSearchResult};
 
@@ -120,7 +120,7 @@ impl TypeScriptAnalyzer {
         }
     }
 
-    fn create_function_symbol(&self, node: &Node, name: String, source: &str, file_path: &PathBuf) -> Symbol {
+    fn create_function_symbol(&self, node: &Node, name: String, _source: &str, file_path: &PathBuf) -> Symbol {
         let mut metadata = Vec::new();
         let mut visibility = None;
 
@@ -156,7 +156,7 @@ impl TypeScriptAnalyzer {
         .with_metadata(metadata)
     }
 
-    fn create_class_symbol(&self, node: &Node, name: String, source: &str, file_path: &PathBuf) -> Symbol {
+    fn create_class_symbol(&self, node: &Node, name: String, _source: &str, file_path: &PathBuf) -> Symbol {
         let visibility = self.extract_visibility(node);
         Symbol::new(
             name,
@@ -169,7 +169,7 @@ impl TypeScriptAnalyzer {
         .with_metadata(vec!["class".to_string()])
     }
 
-    fn create_interface_symbol(&self, node: &Node, name: String, source: &str, file_path: &PathBuf) -> Symbol {
+    fn create_interface_symbol(&self, node: &Node, name: String, _source: &str, file_path: &PathBuf) -> Symbol {
         let visibility = self.extract_visibility(node);
         Symbol::new(
             name,
@@ -182,7 +182,7 @@ impl TypeScriptAnalyzer {
         .with_metadata(vec!["interface".to_string()])
     }
 
-    fn create_type_symbol(&self, node: &Node, name: String, source: &str, file_path: &PathBuf) -> Symbol {
+    fn create_type_symbol(&self, node: &Node, name: String, _source: &str, file_path: &PathBuf) -> Symbol {
         let visibility = self.extract_visibility(node);
         Symbol::new(
             name,
@@ -195,7 +195,7 @@ impl TypeScriptAnalyzer {
         .with_metadata(vec!["type".to_string()])
     }
 
-    fn create_enum_symbol(&self, node: &Node, name: String, source: &str, file_path: &PathBuf) -> Symbol {
+    fn create_enum_symbol(&self, node: &Node, name: String, _source: &str, file_path: &PathBuf) -> Symbol {
         let visibility = self.extract_visibility(node);
         Symbol::new(
             name,

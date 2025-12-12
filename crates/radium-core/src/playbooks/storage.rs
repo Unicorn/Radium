@@ -4,7 +4,7 @@ use crate::playbooks::error::{PlaybookError, Result};
 use crate::playbooks::parser::PlaybookParser;
 use crate::playbooks::types::Playbook;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// File storage for playbooks.
 pub struct PlaybookStorage;
@@ -63,7 +63,7 @@ impl PlaybookStorage {
         use serde_yaml;
 
         // Build frontmatter
-        let mut frontmatter = serde_yaml::to_string(&serde_json::json!({
+        let frontmatter = serde_yaml::to_string(&serde_json::json!({
             "uri": playbook.uri,
             "description": playbook.description,
             "tags": playbook.tags,

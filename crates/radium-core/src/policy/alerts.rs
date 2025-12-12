@@ -1,8 +1,7 @@
 //! Real-time policy violation alerts with webhook support.
 
-use super::types::{PolicyAction, PolicyDecision, PolicyError, PolicyResult};
+use super::types::{PolicyAction, PolicyDecision};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;

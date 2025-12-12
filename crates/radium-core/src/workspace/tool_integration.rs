@@ -6,9 +6,9 @@
 use crate::policy::PolicyEngine;
 use crate::workspace::approval_flow::ApprovalFlow;
 use crate::workspace::boundary::BoundaryValidator;
-use crate::workspace::errors::{ErrorContext, FileOperationError, FileOperationResult};
+use crate::workspace::errors::{FileOperationError, FileOperationResult};
 use crate::workspace::file_ops::FileOperations;
-use crate::workspace::patch::{PatchApplicator, PatchInput, PatchResult};
+use crate::workspace::patch::{PatchApplicator, PatchInput};
 use crate::workspace::transaction::FileTransaction;
 use std::path::{Path, PathBuf};
 

@@ -23,7 +23,6 @@ use async_trait::async_trait;
 use futures::stream::{self, Stream};
 use radium_abstraction::{
     ChatMessage, Model, ModelError, ModelParameters, ModelResponse, ModelUsage, StreamingModel,
-    StreamItem,
 };
 use std::pin::Pin;
 use std::time::Duration;

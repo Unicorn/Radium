@@ -445,7 +445,7 @@ impl AutonomousOrchestrator {
         }
 
         // Step 5.5: Setup time-based checkpointing if configured
-        let (checkpoint_cancel_tx, mut checkpoint_cancel_rx) = tokio::sync::oneshot::channel::<()>();
+        let (checkpoint_cancel_tx, checkpoint_cancel_rx) = tokio::sync::oneshot::channel::<()>();
         
         if let CheckpointFrequency::TimeInterval(interval) = &self.config.checkpoint_frequency {
             let interval = *interval;
@@ -473,7 +473,7 @@ impl AutonomousOrchestrator {
                         tokio::select! {
                             _ = interval_timer.tick() => {
                                 // Create checkpoint
-                                if let Ok(mut mgr) = manager_clone.lock() {
+                                if let Ok(mgr) = manager_clone.lock() {
                                     let description = format!(
                                         "Time-based checkpoint for workflow: {}",
                                         workflow_id_clone
@@ -811,8 +811,8 @@ impl AutonomousOrchestrator {
     async fn attempt_reassignment(
         &self,
         workflow: &crate::models::Workflow,
-        reassignment: &AgentReassignment,
-        db: Arc<std::sync::Mutex<crate::storage::Database>>,
+        _reassignment: &AgentReassignment,
+        _db: Arc<std::sync::Mutex<crate::storage::Database>>,
     ) -> Result<ExecutionContext> {
         
         use tracing::{info, warn};

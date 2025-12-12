@@ -1,7 +1,7 @@
 //! Local model cost tracker for duration-based cost calculation.
 
 use crate::config::engine_costs::{EngineConfig, EngineCostsConfig};
-use crate::monitoring::{MonitoringError, Result};
+use crate::monitoring::Result;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;

@@ -1,7 +1,5 @@
 //! Question type detection and analysis planning for intelligent context building.
 
-use std::path::PathBuf;
-
 /// Types of questions that can be asked, each requiring different analysis strategies.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum QuestionType {

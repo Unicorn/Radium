@@ -845,7 +845,7 @@ impl Model for GeminiModel {
         });
 
         // Extract metadata from candidate
-        let mut metadata = if candidate.finish_reason.is_some()
+        let metadata = if candidate.finish_reason.is_some()
             || candidate.safety_ratings.is_some()
             || candidate.citation_metadata.is_some()
             || candidate.grounding_metadata.is_some()
@@ -1096,7 +1096,7 @@ impl Model for GeminiModel {
         });
 
         // Extract metadata from candidate
-        let mut metadata = if candidate.finish_reason.is_some()
+        let metadata = if candidate.finish_reason.is_some()
             || candidate.safety_ratings.is_some()
             || candidate.citation_metadata.is_some()
             || candidate.grounding_metadata.is_some()
@@ -2037,8 +2037,8 @@ mod provider_capabilities {
 
             if !supported {
                 // Find providers that support this type
-                let alternatives = self.find_supporting_providers(mime_type);
-                let mut supported_types = self.get_supported_types();
+                let _alternatives = self.find_supporting_providers(mime_type);
+                let supported_types = self.get_supported_types();
                 
                 Err(ModelError::UnsupportedMimeType {
                     mime_type: mime_type.to_string(),

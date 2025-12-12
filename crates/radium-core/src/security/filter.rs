@@ -6,7 +6,7 @@
 use std::sync::Arc;
 use regex::Regex;
 
-use super::error::{SecurityError, SecurityResult};
+use super::error::SecurityResult;
 use super::secret_manager::SecretManager;
 
 /// Credential match found during pattern detection.
@@ -146,7 +146,7 @@ impl SecretFilter {
         }
 
         // Then, detect and redact unregistered credentials using patterns
-        for (pattern_name, pattern, cred_type) in &self.patterns {
+        for (pattern_name, pattern, _cred_type) in &self.patterns {
             // Find all matches
             let mut replacements = Vec::new();
             for cap in pattern.captures_iter(&filtered) {
@@ -218,7 +218,7 @@ impl SecretFilter {
         }
 
         // Detect unregistered credentials using patterns
-        for (pattern_name, pattern, cred_type) in &self.patterns {
+        for (_pattern_name, pattern, cred_type) in &self.patterns {
             for cap in pattern.captures_iter(content) {
                 if let Some(matched) = cap.get(0) {
                     let matched_text = matched.as_str();

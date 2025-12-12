@@ -1,6 +1,7 @@
 //! Token-based authentication for daemon connections.
 
 use anyhow::{Context, Result};
+use base64::{Engine as _, engine::general_purpose};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -27,7 +28,7 @@ impl Token {
         let id = Uuid::new_v4().to_string();
         let mut secret_bytes = [0u8; 32];
         rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut secret_bytes);
-        let secret = base64::encode(secret_bytes);
+        let secret = general_purpose::STANDARD.encode(secret_bytes);
 
         Self {
             id,

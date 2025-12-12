@@ -1,6 +1,6 @@
 //! Network-level policy interception for blocking operations at the network layer.
 
-use super::types::{PolicyError, PolicyResult};
+use super::types::PolicyResult;
 use std::net::IpAddr;
 use std::sync::Arc;
 use tokio::sync::RwLock;

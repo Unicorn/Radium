@@ -8,10 +8,7 @@ use crate::mcp::proxy::types::{
     ProxyConfig, SecurityLayer as SecurityLayerTrait,
     ToolCatalog as ToolCatalogTrait, ToolRouter as ToolRouterTrait,
 };
-use crate::mcp::proxy::{
-    DefaultSecurityLayer, DefaultToolCatalog, DefaultToolRouter, UpstreamPool,
-};
-use crate::mcp::{McpError, McpToolResult, Result};
+use crate::mcp::{McpError, Result};
 use http_body_util::{BodyExt, Full};
 use hyper::body::Bytes;
 use hyper::server::conn::http1;
@@ -19,7 +16,6 @@ use hyper::service::service_fn;
 use hyper::{Method, Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
 use serde_json::{json, Value};
-use std::collections::HashMap;
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::Arc;

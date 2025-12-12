@@ -4,7 +4,7 @@
 //! to prevent cost overruns during agent execution.
 
 #[cfg(feature = "monitoring")]
-use crate::analytics::budget::{AnomalyDetector, BudgetForecaster, CostAnomaly, ForecastResult};
+use crate::analytics::budget::{CostAnomaly, ForecastResult};
 use crate::monitoring::{MonitoringService, Result as MonitoringResult};
 use chrono::{DateTime, Utc};
 use rusqlite::params;

@@ -130,7 +130,7 @@ impl TypeScriptAnalyzer {
         }
     }
 
-    fn create_function_symbol(&self, node: &Node, name: String, source: &str, file_path: &PathBuf) -> Symbol {
+    fn create_function_symbol(&self, node: &Node, name: String, _source: &str, file_path: &PathBuf) -> Symbol {
         let mut metadata = Vec::new();
         let mut visibility = None;
 
@@ -161,7 +161,7 @@ impl TypeScriptAnalyzer {
         }
     }
 
-    fn create_class_symbol(&self, node: &Node, name: String, source: &str, file_path: &PathBuf) -> Symbol {
+    fn create_class_symbol(&self, node: &Node, name: String, _source: &str, file_path: &PathBuf) -> Symbol {
         let visibility = self.extract_visibility(node);
         Symbol {
             name,
@@ -174,7 +174,7 @@ impl TypeScriptAnalyzer {
         }
     }
 
-    fn create_interface_symbol(&self, node: &Node, name: String, source: &str, file_path: &PathBuf) -> Symbol {
+    fn create_interface_symbol(&self, node: &Node, name: String, _source: &str, file_path: &PathBuf) -> Symbol {
         let visibility = self.extract_visibility(node);
         Symbol {
             name,
@@ -187,7 +187,7 @@ impl TypeScriptAnalyzer {
         }
     }
 
-    fn create_type_symbol(&self, node: &Node, name: String, source: &str, file_path: &PathBuf) -> Symbol {
+    fn create_type_symbol(&self, node: &Node, name: String, _source: &str, file_path: &PathBuf) -> Symbol {
         let visibility = self.extract_visibility(node);
         Symbol {
             name,
@@ -200,7 +200,7 @@ impl TypeScriptAnalyzer {
         }
     }
 
-    fn create_enum_symbol(&self, node: &Node, name: String, source: &str, file_path: &PathBuf) -> Symbol {
+    fn create_enum_symbol(&self, node: &Node, name: String, _source: &str, file_path: &PathBuf) -> Symbol {
         let visibility = self.extract_visibility(node);
         Symbol {
             name,
@@ -385,7 +385,7 @@ impl RustAnalyzer {
         }
     }
 
-    fn create_impl_symbol(&self, node: Node, name: String, source: &str, file_path: &PathBuf, is_trait: bool) -> Symbol {
+    fn create_impl_symbol(&self, node: Node, name: String, _source: &str, file_path: &PathBuf, is_trait: bool) -> Symbol {
         Symbol {
             name,
             kind: SymbolKind::Impl,

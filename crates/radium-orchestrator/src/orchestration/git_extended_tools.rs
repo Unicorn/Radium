@@ -6,7 +6,7 @@
 //! - git_show: Show git commit details
 
 use async_trait::async_trait;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 use tokio::process::Command;
 

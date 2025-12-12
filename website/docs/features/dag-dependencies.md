@@ -190,7 +190,7 @@ T1 → T5
 
 - **CycleDetected**: Circular dependency found (includes cycle path)
 - **DependencyNotFound**: Referenced dependency doesn't exist
-- **InvalidTaskId**: Task ID has invalid format (should be "I{N}.T{N}")
+- **InvalidTaskId**: Task ID has invalid format (should be "I[number].T[number]")
 - **TopologicalSortFailed**: Sort failed (should not happen if cycle detection passed)
 
 ### Handling Errors
@@ -212,7 +212,7 @@ match DependencyGraph::from_manifest(&manifest) {
     }
     Err(DagError::InvalidTaskId(id)) => {
         println!("Invalid task ID format: {}", id);
-        // Fix task ID to match "I{N}.T{N}" format
+        // Fix task ID to match "I[number].T[number]" format
     }
     Err(e) => {
         println!("Unexpected error: {}", e);

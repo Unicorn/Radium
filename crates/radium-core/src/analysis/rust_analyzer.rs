@@ -1,7 +1,7 @@
 //! Rust-specific symbol extraction using tree-sitter.
 
 use std::path::PathBuf;
-use tree_sitter::{Node, Tree};
+use tree_sitter::Node;
 use crate::analysis::symbols::{Symbol, SymbolKind, SymbolSearchResult};
 use crate::analysis::tree_sitter::TreeSitterParser;
 
@@ -229,7 +229,7 @@ impl RustAnalyzer {
         .with_visibility(visibility.unwrap_or_else(|| "private".to_string()))
     }
 
-    fn create_impl_symbol(&self, node: Node, name: String, source: &str, file_path: &PathBuf, is_trait: bool) -> Symbol {
+    fn create_impl_symbol(&self, node: Node, name: String, _source: &str, file_path: &PathBuf, is_trait: bool) -> Symbol {
         Symbol::new(
             name,
             SymbolKind::Impl,

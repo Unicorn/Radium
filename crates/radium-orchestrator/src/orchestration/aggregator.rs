@@ -273,7 +273,7 @@ impl Aggregator {
     fn generate_action_plan(findings: &[Finding]) -> Vec<Action> {
         let mut actions = Vec::new();
 
-        for (idx, finding) in findings.iter().enumerate() {
+        for (_idx, finding) in findings.iter().enumerate() {
             // Determine priority based on category
             let priority = match finding.category.as_str() {
                 "critical" | "error" | "bug" => 1,

@@ -1,10 +1,9 @@
 //! Grep-like content search implementation using grep-searcher.
 
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use grep_regex::RegexMatcher;
 use grep_searcher::{Searcher, SearcherBuilder, Sink, SinkMatch};
-use regex::Regex;
 use crate::workspace::IgnoreWalker;
 use super::filters::FileTypeFilter;
 

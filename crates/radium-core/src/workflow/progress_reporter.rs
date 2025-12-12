@@ -4,10 +4,9 @@
 //! task status, completion percentage, and streaming agent output.
 
 use crate::context::braingrid_client::BraingridRequirement;
-use crate::workflow::execution_state::{ExecutionState, TaskExecutionStatus};
+use crate::workflow::execution_state::TaskExecutionStatus;
 use crate::workflow::parallel_executor::ExecutionReport;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use std::sync::Arc;
 
 /// Progress reporter for terminal display.
 pub struct ProgressReporter {
