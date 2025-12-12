@@ -19,6 +19,7 @@
 //! ```
 
 pub mod ignore;
+pub mod approval_flow;
 pub mod boundary;
 pub mod error_recovery;
 pub mod errors;
@@ -27,12 +28,14 @@ pub mod patch;
 pub mod plan_discovery;
 pub mod requirement_id;
 pub mod structure;
+pub mod tool_integration;
 pub mod transaction;
 
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 pub use ignore::IgnoreWalker;
+pub use approval_flow::ApprovalFlow;
 pub use boundary::{BoundaryError, BoundaryValidator};
 pub use error_recovery::{ErrorRecovery, ErrorSummary};
 pub use errors::{
@@ -44,6 +47,7 @@ pub use patch::{
     PatchSummary,
 };
 pub use plan_discovery::{DiscoveredPlan, PlanDiscovery, PlanDiscoveryOptions, SortBy, SortOrder};
+pub use tool_integration::{FileOperationRequest, FileOperationResult as IntegrationResult, ToolIntegration};
 pub use transaction::{FileOperation as TransactionFileOperation, FileTransaction};
 pub use requirement_id::{RequirementId, RequirementIdError};
 pub use structure::{
