@@ -187,7 +187,7 @@ async fn execute(
     println!("{}", "Initializing workspace...".dimmed());
     let workspace = Workspace::discover().context("Failed to discover workspace")?;
     workspace.ensure_structure().context("Failed to ensure workspace structure")?;
-    println!("  {} Workspace initialized", "✓".green());
+    println!("  {} Workspace initialized", "✓".color(colors.success()));
     println!();
 
     // Initialize database
@@ -196,7 +196,7 @@ async fn execute(
     let db = Arc::new(std::sync::Mutex::new(
         Database::open(db_path.to_str().unwrap()).context("Failed to open database")?,
     ));
-    println!("  {} Database initialized", "✓".green());
+    println!("  {} Database initialized", "✓".color(colors.success()));
     println!();
 
     // Initialize orchestrator and executor
@@ -208,14 +208,14 @@ async fn execute(
         radium_models::ModelType::Gemini,
         "gemini-2.0-flash-exp".to_string(),
     ));
-    println!("  {} Orchestrator initialized", "✓".green());
+    println!("  {} Orchestrator initialized", "✓".color(colors.success()));
     println!();
 
     // Initialize agent registry
     println!("{}", "Loading agent registry...".dimmed());
     let agent_registry = Arc::new(AgentRegistry::new());
     // TODO: Load agents from workspace
-    println!("  {} Agent registry loaded", "✓".green());
+    println!("  {} Agent registry loaded", "✓".color(colors.success()));
     println!();
 
     // Initialize model
@@ -234,7 +234,7 @@ async fn execute(
     };
     let model = ModelFactory::create(config)
         .context("Failed to create model")?;
-    println!("  {} Model initialized", "✓".green());
+    println!("  {} Model initialized", "✓".color(colors.success()));
     println!();
 
     // Initialize Braingrid client
@@ -246,7 +246,7 @@ async fn execute(
         .fetch_requirement_tree(&req_id)
         .await
         .context("Failed to fetch requirement")?;
-    println!("  {} Requirement loaded: {}", "✓".green(), requirement.name);
+    println!("  {} Requirement loaded: {}", "✓".color(colors.success()), requirement.name);
     println!();
 
     // Check if tasks exist, trigger breakdown if needed
@@ -259,7 +259,7 @@ async fn execute(
             .breakdown_requirement(&req_id)
             .await
             .context("Failed to trigger breakdown")?;
-        println!("  {} Generated {} tasks", "✓".green(), requirement.tasks.len());
+        println!("  {} Generated {} tasks", "✓".color(colors.success()), requirement.tasks.len());
         println!();
     }
 
@@ -272,12 +272,12 @@ async fn execute(
     dep_graph.detect_cycles()
         .map_err(|e| anyhow::anyhow!("Circular dependency detected: {}", e))?;
     
-    println!("  {} Dependency graph validated", "✓".green());
+    println!("  {} Dependency graph validated", "✓".color(colors.success()));
     println!();
 
     // Dry-run mode: show execution plan
     if dry_run {
-        println!("{}", "Execution Plan (Dry-Run)".bold().cyan());
+        println!("{}", "Execution Plan (Dry-Run)".bold().color(colors.primary()));
         println!("{}", "─".repeat(60).dimmed());
         println!();
         
@@ -301,7 +301,7 @@ async fn execute(
         }
         println!();
         
-        println!("  {} Dry-run complete. Use without --dry-run to execute.", "ℹ".cyan());
+        println!("  {} Dry-run complete. Use without --dry-run to execute.", "ℹ".color(colors.info()));
         return Ok(());
     }
 
@@ -360,7 +360,7 @@ async fn execute(
         .save_report(&completion_report, &req_id)
         .context("Failed to save completion report")?;
     
-    println!("  {} Completion report saved to: {}", "✓".green(), report_path.display());
+    println!("  {} Completion report saved to: {}", "✓".color(colors.success()), report_path.display());
 
     // Update requirement status
     let final_status = if execution_report.success {
@@ -438,7 +438,7 @@ pub async fn list(project_id: Option<String>) -> anyhow::Result<()> {
     let response: RequirementListResponse = serde_json::from_str(json_str)
         .context("Failed to parse requirement list JSON")?;
 
-    println!("  {} Fetched {} requirements", "✓".green(), response.requirements.len());
+    println!("  {} Fetched {} requirements", "✓".color(colors.success()), response.requirements.len());
     println!();
 
     // Display requirements table
@@ -528,7 +528,8 @@ async fn resume_command(
     project_id: Option<String>,
     from_checkpoint: Option<String>,
 ) -> anyhow::Result<()> {
-    println!("{}", format!("rad requirement resume {}", req_id).bold().cyan());
+    let colors = RadiumBrandColors::new();
+    println!("{}", format!("rad requirement resume {}", req_id).bold().color(colors.primary()));
     println!();
 
     // Validate requirement ID format
