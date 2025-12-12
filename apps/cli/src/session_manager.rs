@@ -38,6 +38,7 @@ pub struct Session {
 }
 
 /// Manages session persistence
+#[allow(dead_code)]
 pub struct SessionManager {
     /// Directory where sessions are stored
     sessions_dir: PathBuf,
@@ -45,6 +46,7 @@ pub struct SessionManager {
 
 impl SessionManager {
     /// Create a new session manager
+    #[allow(dead_code)]
     pub fn new(workspace_root: &Path) -> Result<Self> {
         let sessions_dir = workspace_root.join(".radium").join("sessions");
 
@@ -72,6 +74,7 @@ impl SessionManager {
     }
 
     /// Load a session from disk
+    #[allow(dead_code)]
     pub fn load_session(&self, session_id: &str) -> Result<Session> {
         let filename = format!("{}.json", session_id);
         let path = self.sessions_dir.join(&filename);
@@ -118,6 +121,7 @@ impl SessionManager {
     }
 
     /// Load just the metadata for a session (faster than loading full session)
+    #[allow(dead_code)]
     fn load_session_info(&self, path: &Path) -> Result<SessionInfo> {
         let json = fs::read_to_string(path)?;
         let session: Session = serde_json::from_str(&json)?;
@@ -146,6 +150,7 @@ impl SessionManager {
     }
 
     /// Generate a new unique session ID
+    #[allow(dead_code)]
     pub fn generate_session_id(agent_id: &str) -> String {
         let timestamp = Utc::now().format("%Y%m%d_%H%M%S");
         format!("{}_{}", agent_id, timestamp)

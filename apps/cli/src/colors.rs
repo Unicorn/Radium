@@ -59,6 +59,7 @@ impl RadiumBrandColors {
     }
 
     /// Get the detected terminal color support level.
+    #[allow(dead_code)]
     pub fn color_support(&self) -> ColorSupport {
         self.color_support
     }
@@ -67,6 +68,7 @@ impl RadiumBrandColors {
     /// Primary brand color RGB: Cyan (#00D9FF)
     pub const PRIMARY_RGB: (u8, u8, u8) = (0, 217, 255);
     /// Secondary brand color RGB: Purple (#A78BFA)
+    #[allow(dead_code)]
     pub const SECONDARY_RGB: (u8, u8, u8) = (167, 139, 250);
     /// Purple accent color RGB: (#6250d0)
     pub const PURPLE_RGB: (u8, u8, u8) = (98, 80, 208);
@@ -140,6 +142,7 @@ impl RadiumBrandColors {
     }
 
     /// Get secondary brand color (purple #A78BFA).
+    #[allow(dead_code)]
     pub fn secondary(&self) -> Color {
         self.rgb_to_color(Self::SECONDARY_RGB)
     }
@@ -171,6 +174,7 @@ impl RadiumBrandColors {
 
     // Convenience aliases for common usage patterns
     /// Alias for primary() - for backward compatibility with .cyan() usage.
+    #[allow(dead_code)]
     pub fn primary_color(&self) -> Color {
         self.primary()
     }
@@ -181,6 +185,7 @@ impl RadiumBrandColors {
     }
 
     /// Alias for error() - for backward compatibility with .red() usage.
+    #[allow(dead_code)]
     pub fn error_color(&self) -> Color {
         self.error()
     }
@@ -191,6 +196,7 @@ impl RadiumBrandColors {
     }
 
     /// Alias for info() - for backward compatibility with .blue() usage.
+    #[allow(dead_code)]
     pub fn info_color(&self) -> Color {
         self.info()
     }
