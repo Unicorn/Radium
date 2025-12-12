@@ -18,12 +18,11 @@ use radium_core::{
 };
 use radium_orchestrator::orchestration::tool_builder::build_standard_tools;
 use std::io::{self, Write};
-use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
-use super::{step, tool_execution};
+use super::tool_execution;
 use crate::conversation_context::ConversationContext;
 
 /// Execute the chat command

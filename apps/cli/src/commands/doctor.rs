@@ -3,7 +3,7 @@
 //! Validates environment, configuration, and workspace setup.
 
 use colored::Colorize;
-use radium_core::{Workspace, engines::{EngineRegistry, HealthStatus, ValidationStatus}, engines::providers::{BurnEngine, ClaudeEngine, GeminiEngine, MockEngine, OpenAIEngine}};
+use radium_core::{Workspace, engines::EngineRegistry, engines::providers::{BurnEngine, ClaudeEngine, GeminiEngine, MockEngine, OpenAIEngine}};
 use serde_json::json;
 use std::net::TcpListener;
 use std::path::PathBuf;

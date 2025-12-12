@@ -7,7 +7,7 @@ use colored::Colorize;
 use radium_core::auth::{CredentialStore, ProviderType};
 use radium_core::config::model_cache::load_cache_config;
 use radium_core::engines::{
-    CredentialStatus, EngineRegistry, ValidationStatus,
+    CredentialStatus, EngineRegistry,
 };
 use radium_core::engines::providers::{BurnEngine, ClaudeEngine, GeminiEngine, MockEngine, OpenAIEngine};
 use radium_core::workspace::Workspace;

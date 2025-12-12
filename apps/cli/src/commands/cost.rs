@@ -5,7 +5,7 @@ use chrono::{DateTime, Utc};
 use clap::Subcommand;
 use colored::Colorize;
 use radium_core::{
-    analytics::{CostQueryService, ExportOptions, ExportFormat, ExportError},
+    analytics::{CostQueryService, ExportOptions, ExportFormat},
     monitoring::MonitoringService,
     Workspace,
 };
