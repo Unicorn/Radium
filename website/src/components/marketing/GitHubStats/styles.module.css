@@ -1,0 +1,79 @@
+.githubStats {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 3rem;
+  padding: 2rem 0;
+  flex-wrap: wrap;
+}
+
+.stat {
+  text-align: center;
+  min-width: 100px;
+}
+
+.statValue {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--ifm-color-primary);
+  display: block;
+  line-height: 1;
+  margin-bottom: 0.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.statLabel {
+  font-size: 0.875rem;
+  color: var(--ifm-color-emphasis-600);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+.loading,
+.error {
+  text-align: center;
+  padding: 2rem;
+  color: var(--ifm-color-emphasis-600);
+  font-style: italic;
+}
+
+.error {
+  color: var(--ifm-color-danger);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .githubStats {
+    gap: 2rem;
+  }
+
+  .statValue {
+    font-size: 2rem;
+  }
+
+  .statLabel {
+    font-size: 0.75rem;
+  }
+}
+
+/* Animation for when stats load */
+.stat {
+  animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Dark mode adjustments */
+[data-theme='dark'] .statLabel {
+  color: var(--ifm-color-emphasis-500);
+}

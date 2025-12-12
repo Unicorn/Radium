@@ -1,0 +1,268 @@
+.hero {
+  background: var(--marketing-gradient-hero);
+  color: white;
+  padding: 6rem 2rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background:
+    radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+.heroContent {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 3rem;
+  align-items: center;
+  position: relative;
+  z-index: 1;
+}
+
+.heroText {
+  text-align: center;
+}
+
+.tagline {
+  display: inline-block;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 0.5rem 1rem;
+  border-radius: 24px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 1.5rem;
+  backdrop-filter: blur(10px);
+}
+
+.title {
+  font-size: 3.5rem;
+  font-weight: 800;
+  line-height: 1.2;
+  margin-bottom: 1.5rem;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.description {
+  font-size: 1.25rem;
+  line-height: 1.6;
+  opacity: 0.95;
+  max-width: 700px;
+  margin: 0 auto 2.5rem;
+}
+
+.ctaButtons {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.primaryCta {
+  background: white;
+  color: var(--ifm-color-primary);
+  border-color: white;
+}
+
+.primaryCta:hover {
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--ifm-color-primary-dark);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.githubButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: white;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(10px);
+}
+
+.githubButton:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  color: white;
+}
+
+.githubIcon {
+  width: 20px;
+  height: 20px;
+}
+
+.starCount {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 0.25rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Terminal */
+.heroTerminal {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.terminalHeader {
+  background: rgba(0, 0, 0, 0.2);
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.terminalButtons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.terminalButton {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.terminalButton:nth-child(1) {
+  background: #ff5f56;
+}
+
+.terminalButton:nth-child(2) {
+  background: #ffbd2e;
+}
+
+.terminalButton:nth-child(3) {
+  background: #27c93f;
+}
+
+.terminalTitle {
+  font-size: 0.875rem;
+  opacity: 0.7;
+  font-weight: 500;
+}
+
+.terminalBody {
+  padding: 1.5rem;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.terminalCode {
+  margin: 0;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.terminalCode code {
+  color: inherit;
+  background: none;
+  padding: 0;
+}
+
+/* Responsive */
+@media (min-width: 997px) {
+  .heroContent {
+    grid-template-columns: 1fr 1fr;
+    text-align: left;
+  }
+
+  .heroText {
+    text-align: left;
+  }
+
+  .ctaButtons {
+    justify-content: flex-start;
+  }
+
+  .description {
+    margin: 0 0 2.5rem;
+  }
+}
+
+@media (max-width: 996px) {
+  .hero {
+    padding: 4rem 1.5rem;
+  }
+
+  .title {
+    font-size: 2.5rem;
+  }
+
+  .description {
+    font-size: 1.125rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .hero {
+    padding: 3rem 1rem;
+  }
+
+  .title {
+    font-size: 2rem;
+  }
+
+  .description {
+    font-size: 1rem;
+  }
+
+  .ctaButtons {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .ctaButtons > * {
+    width: 100%;
+  }
+}
+
+/* Animation */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.heroText {
+  animation: slideUp 0.6s ease-out;
+}
+
+.heroTerminal {
+  animation: slideUp 0.6s ease-out 0.2s backwards;
+}

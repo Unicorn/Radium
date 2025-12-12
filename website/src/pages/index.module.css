@@ -21,3 +21,26 @@
   align-items: center;
   justify-content: center;
 }
+
+/* Problem/Solution Section */
+.problemSolution {
+  padding: 4rem 2rem;
+  background: var(--ifm-background-surface-color);
+}
+
+.problemSolutionContent {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+/* CTA Section */
+.ctaSection {
+  padding: 4rem 2rem;
+}
+
+@media screen and (max-width: 996px) {
+  .problemSolution,
+  .ctaSection {
+    padding: 3rem 1.5rem;
+  }
+}
