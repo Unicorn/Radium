@@ -514,7 +514,7 @@ pub async fn execute(
     }
     
     // Extract token usage from response for telemetry
-    let token_usage = execution_result.as_ref().ok().and_then(|r| r.usage.as_ref());
+    let _token_usage = execution_result.as_ref().ok().and_then(|r| r.usage.as_ref());
 
     // Record telemetry if execution was successful
     if let Ok(ref response) = execution_result {
@@ -1535,7 +1535,7 @@ fn convert_to_execution_response(
 async fn execute_tool_call(
     tool_call: &ToolCall,
     tools: &[OrchestrationTool],
-    workspace_root: &PathBuf,
+    _workspace_root: &PathBuf,
 ) -> anyhow::Result<String> {
     // Find the tool by name
     let tool = tools.iter()
