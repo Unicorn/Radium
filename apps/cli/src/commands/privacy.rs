@@ -46,7 +46,7 @@ async fn check_file(file_path: &PathBuf) -> anyhow::Result<()> {
 
     // Load config from workspace to get custom patterns
     let workspace = Workspace::discover().ok();
-    let mut pattern_library = PatternLibrary::default();
+    let pattern_library = PatternLibrary::default();
 
     // TODO: Load custom patterns from config if workspace found
     // For now, just use default patterns

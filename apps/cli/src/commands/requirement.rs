@@ -329,7 +329,7 @@ async fn execute(
     );
 
     // Initialize progress reporter
-    let mut progress_reporter = ProgressReporter::new(requirement.clone(), requirement.tasks.len());
+    let progress_reporter = ProgressReporter::new(requirement.clone(), requirement.tasks.len());
 
     // Update requirement status to IN_PROGRESS
     braingrid_client

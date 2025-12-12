@@ -876,7 +876,7 @@ fn print_highlighted_output(text: &str) {
     
     // Parse code blocks to get indices and languages
     let blocks = CodeBlockParser::parse(text);
-    let mut block_map: std::collections::HashMap<usize, (String, usize)> = blocks
+    let block_map: std::collections::HashMap<usize, (String, usize)> = blocks
         .iter()
         .map(|b| (b.start_line, (b.language.clone().unwrap_or_else(|| "text".to_string()), b.index)))
         .collect();
