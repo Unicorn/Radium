@@ -423,30 +423,70 @@ fn parse_git_status_porcelain_v2(
             continue;
         }
 
-        // Porcelain v2 format: XY <sub> <mH> <mI> <mW> <hH> <hI> <path>
+        // Porcelain v2 format: 
+        // Regular: XY <sub> <mH> <mI> <mW> <hH> <hI> <path>
+        // Renamed: XY <sub> <mH> <mI> <mW> <hH> <hI> <X><score> <path1><sep><path2>
         // X = status of index, Y = status of work tree
-        // X and Y can be: ' ' (unmodified), M (modified), A (added), D (deleted), R (renamed), C (copied), U (unmerged)
+        // X and Y can be: ' ' (unmodified), M (modified), A (added), D (deleted), R (renamed), C (copied), U (unmerged), ? (untracked)
         let parts: Vec<&str> = line.split_whitespace().collect();
         if parts.len() < 2 {
             continue;
         }
 
         let status = parts[0];
-        let path = parts[1..].join(" ");
+        if status.len() < 2 {
+            continue;
+        }
 
-        match (status.chars().nth(0), status.chars().nth(1)) {
-            (Some('A'), _) => staged.push(("A", path)),
-            (Some('M'), _) => staged.push(("M", path)),
-            (Some('D'), _) => staged.push(("D", path)),
-            (Some('R'), _) => {
-                if parts.len() >= 3 {
-                    renamed.push((parts[1].to_string(), parts[2..].join(" ")));
+        let index_status = status.chars().nth(0).unwrap_or(' ');
+        let worktree_status = status.chars().nth(1).unwrap_or(' ');
+
+        // Handle renamed files (format: R <score> <old> -> <new>)
+        if index_status == 'R' || worktree_status == 'R' {
+            // Porcelain v2 renamed format: R <sub> <mH> <mI> <mW> <hH> <hI> <X><score> <path1><sep><path2>
+            // The separator is usually \t (tab) between old and new path
+            if parts.len() >= 8 {
+                let path_part = parts[7..].join(" ");
+                if let Some(sep_pos) = path_part.find('\t') {
+                    let old_path = path_part[..sep_pos].to_string();
+                    let new_path = path_part[sep_pos + 1..].to_string();
+                    renamed.push((old_path, new_path));
+                } else if path_part.contains(" -> ") {
+                    // Fallback for " -> " separator
+                    let paths: Vec<&str> = path_part.split(" -> ").collect();
+                    if paths.len() == 2 {
+                        renamed.push((paths[0].to_string(), paths[1].to_string()));
+                    }
                 }
             }
-            (_, Some('M')) => modified.push(("M", path)),
-            (_, Some('D')) => deleted.push(("D", path)),
-            (_, Some('A')) => modified.push(("A", path)),
-            (Some('?'), _) => untracked.push(("??", path)),
+            continue;
+        }
+
+        // Get path (last part after status and metadata)
+        let path = if parts.len() >= 8 {
+            // Full format with metadata
+            parts[7..].join(" ")
+        } else {
+            // Simplified format
+            parts[1..].join(" ")
+        };
+
+        // Categorize by index status (staged) and worktree status (modified)
+        match (index_status, worktree_status) {
+            ('A', ' ') => staged.push(("A", path)),
+            ('M', ' ') => staged.push(("M", path)),
+            ('D', ' ') => staged.push(("D", path)),
+            (' ', 'M') => modified.push(("M", path)),
+            (' ', 'D') => deleted.push(("D", path)),
+            (' ', 'A') => modified.push(("A", path)),
+            ('?', '?') => untracked.push(("??", path)),
+            ('?', _) => untracked.push(("??", path)),
+            (_, '?') => untracked.push(("??", path)),
+            ('M', 'M') => {
+                // Modified in both index and worktree
+                staged.push(("M", path.clone()));
+                modified.push(("M", path));
+            }
             _ => {}
         }
     }

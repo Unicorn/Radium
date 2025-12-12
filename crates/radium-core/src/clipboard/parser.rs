@@ -1,6 +1,5 @@
 //! Clipboard format parsing and language detection.
 
-use anyhow::{Context, Result};
 use regex::Regex;
 
 /// Parsed clipboard content with metadata
