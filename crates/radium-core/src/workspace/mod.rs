@@ -18,6 +18,10 @@
 //! # }
 //! ```
 
+pub mod ignore;
+pub mod boundary;
+pub mod error_recovery;
+pub mod errors;
 pub mod plan_discovery;
 pub mod requirement_id;
 pub mod structure;
@@ -25,6 +29,12 @@ pub mod structure;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
+pub use ignore::IgnoreWalker;
+pub use boundary::{BoundaryError, BoundaryValidator};
+pub use error_recovery::{ErrorRecovery, ErrorSummary};
+pub use errors::{
+    ErrorContext, FileOperationError, FileOperationResult, RecoveryStrategy,
+};
 pub use plan_discovery::{DiscoveredPlan, PlanDiscovery, PlanDiscoveryOptions, SortBy, SortOrder};
 pub use requirement_id::{RequirementId, RequirementIdError};
 pub use structure::{
