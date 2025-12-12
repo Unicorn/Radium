@@ -290,7 +290,7 @@ Level 2: [T4]        (depends on T2 and T3)
 - **Topological Sort**: O(V + E) using Kahn's algorithm
 - **Execution Levels**: O(V + E) using BFS-like traversal
 
-For typical plans (10-50 tasks, 20-100 dependencies), all operations are very fast (<1ms).
+For typical plans (10-50 tasks, 20-100 dependencies), all operations are very fast (&lt;1ms).
 
 ## Best Practices
 

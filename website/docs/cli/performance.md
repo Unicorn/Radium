@@ -38,9 +38,9 @@ cargo bench -p radium-cli --bench workspace_bench
 
 ### Command Startup
 
-- **Cold start**: <100ms (excluding dependency loading)
-- **Warm start**: <50ms
-- **Command parsing**: <10ms
+- **Cold start**: &lt;100ms (excluding dependency loading)
+- **Warm start**: &lt;50ms
+- **Command parsing**: &lt;10ms
 
 ### Common Operations
 

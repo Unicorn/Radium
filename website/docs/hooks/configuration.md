@@ -289,7 +289,7 @@ This command:
 ### Priority Guidelines
 - Reserve priorities 200+ for critical system hooks
 - Use 100-199 for standard application hooks
-- Use <100 for optional or experimental hooks
+- Use &lt;100 for optional or experimental hooks
 
 ### Organization
 - Group related hooks in the same file

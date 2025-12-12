@@ -24,7 +24,7 @@ Implement fully autonomous execution mode where Radium can complete entire imple
 
 ### User Story
 
-> "As a user, I would like to open Radium desktop, CLI, or TUI and simply execute a single command: 'please complete the entire implementation found in <source> for me.' Radium orchestrator would then verify and analyze source which could be Braingrid, Jira, local MD files, etc. Once it verified it had access and ability to read all source material, it would operate in a mode similar to YOLO mode in Gemini/Claude and would oversee execution entirely to completion."
+> "As a user, I would like to open Radium desktop, CLI, or TUI and simply execute a single command: 'please complete the entire implementation found in &lt;source&gt; for me.' Radium orchestrator would then verify and analyze source which could be Braingrid, Jira, local MD files, etc. Once it verified it had access and ability to read all source material, it would operate in a mode similar to YOLO mode in Gemini/Claude and would oversee execution entirely to completion."
 
 ---
 

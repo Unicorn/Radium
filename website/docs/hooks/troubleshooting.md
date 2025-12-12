@@ -85,7 +85,7 @@ for hook in hooks {
 **Guidelines**:
 - Security/validation: 200+
 - Standard operations: 100-199
-- Optional/monitoring: <100
+- Optional/monitoring: &lt;100
 
 ## Context Serialization Errors
 

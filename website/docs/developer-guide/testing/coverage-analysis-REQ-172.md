@@ -34,7 +34,7 @@ sidebar_label: "Coverage Analysis Report for REQ-172"
 
 ## Module-Level Coverage Analysis
 
-### Modules with Low Coverage (<70%)
+### Modules with Low Coverage (&lt;70%)
 
 These modules require immediate attention:
 

@@ -569,7 +569,6 @@ fn test_agent_list_command() {
 
 ## Related Documentation
 
-<<<<<<<< HEAD:website/docs/developer-guide/testing/testing-guide.md
 - [REQ-164: Comprehensive Test Coverage Strategy](../roadmap/PROGRESS.md)
 - [GitHub Actions CI Workflow](../.github/workflows/test-coverage.yml)
 - [ADR-001: YOLO Mode Architecture](../adr/001-yolo-mode-architecture.md)
@@ -578,14 +577,3 @@ fn test_agent_list_command() {
 ---
 
 **Happy Testing! 🧪**
-
-========
-- [REQ-164: Comprehensive Test Coverage Strategy](../../roadmap/roadmap.md)
-- [GitHub Actions CI Workflow](https://github.com/clay-curry/RAD/blob/main/.github/workflows/test-coverage.yml)
-- [ADR-001: YOLO Mode Architecture](../adr/001-yolo-mode-architecture.md)
-- [Integration Map](../../features/yolo-mode/integration-map.md)
-
----
-
-**Happy Testing!**
->>>>>>>> 86560d3766abfda850b1f43e986ed986540c28d7:website/docs/developer-guide/testing/testing-overview.md

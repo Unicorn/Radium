@@ -1,4 +1,4 @@
-import type {ReactNode} from 'react';
+import React, {type ReactNode} from 'react';
 
 export type UseCaseCategory = 'development' | 'data' | 'enterprise' | 'devops' | 'security';
 
@@ -43,15 +43,15 @@ export const useCases: UseCase[] = [
     id: 'cicd-automation',
     title: 'CI/CD Pipeline Automation',
     category: 'devops',
-    problem: <>
+    problem: <React.Fragment>
       Manual testing and deployment processes slow down release cycles and increase the risk of
       human error in production deployments.
-    </>,
-    solution: <>
+    </React.Fragment>,
+    solution: <React.Fragment>
       Radium orchestrates multiple specialized agents to handle test execution, code quality checks,
       and deployment strategies. The policy engine ensures compliance with deployment rules while
       the cost tracking features monitor cloud resource usage.
-    </>,
+    </React.Fragment>,
     techStack: ['Radium', 'GitHub Actions', 'Kubernetes', 'AWS'],
     results: [
       '60% reduction in deployment time',
@@ -77,15 +77,15 @@ nodes = ["test", "build", "deploy"]`,
     id: 'codebase-refactoring',
     title: 'Automated Codebase Refactoring',
     category: 'development',
-    problem: <>
+    problem: <React.Fragment>
       Legacy codebases with technical debt require extensive manual refactoring efforts,
       often taking weeks of developer time while risking introduction of new bugs.
-    </>,
-    solution: <>
+    </React.Fragment>,
+    solution: <React.Fragment>
       Multi-agent workflows analyze code patterns, identify refactoring opportunities, and
       systematically apply transformations with built-in testing at each step. The vibe check
       system validates changes before committing.
-    </>,
+    </React.Fragment>,
     techStack: ['Radium', 'TypeScript', 'Jest', 'ESLint'],
     results: [
       '80% faster refactoring cycles',
@@ -112,15 +112,15 @@ dependencies = ["analyze"]`,
     id: 'etl-orchestration',
     title: 'ETL Pipeline Orchestration',
     category: 'data',
-    problem: <>
+    problem: <React.Fragment>
       Complex data pipelines with multiple sources require coordinating transformations,
       validations, and load operations across different systems with varying failure modes.
-    </>,
-    solution: <>
+    </React.Fragment>,
+    solution: <React.Fragment>
       Radium coordinates data extraction agents, transformation workers, and loading processes
       with automatic retry logic and error recovery. Real-time monitoring tracks pipeline health
       and data quality metrics.
-    </>,
+    </React.Fragment>,
     techStack: ['Radium', 'PostgreSQL', 'Apache Kafka', 'Snowflake'],
     results: [
       '99.9% pipeline reliability',
@@ -152,15 +152,15 @@ dependencies = ["transform"]`,
     id: 'cloud-cost-optimization',
     title: 'Multi-Cloud Cost Optimization',
     category: 'enterprise',
-    problem: <>
+    problem: <React.Fragment>
       Organizations running workloads across multiple cloud providers struggle to track costs,
       identify waste, and implement optimization strategies consistently.
-    </>,
-    solution: <>
+    </React.Fragment>,
+    solution: <React.Fragment>
       Specialized agents continuously monitor resource usage across AWS, Azure, and GCP,
       identify optimization opportunities, and automatically implement approved cost-saving
       measures while respecting policy constraints.
-    </>,
+    </React.Fragment>,
     techStack: ['Radium', 'AWS', 'Azure', 'GCP', 'Prometheus'],
     results: [
       '40% reduction in cloud spending',
@@ -185,15 +185,15 @@ require_approval = ["resource-deletion", "instance-changes"]`,
     id: 'documentation-generation',
     title: 'Automated Documentation Generation',
     category: 'development',
-    problem: <>
+    problem: <React.Fragment>
       Keeping documentation in sync with code changes is time-consuming and error-prone,
       leading to outdated docs that confuse users and slow down adoption.
-    </>,
-    solution: <>
+    </React.Fragment>,
+    solution: <React.Fragment>
       Agents analyze code structure, extract API signatures, generate usage examples, and
       produce comprehensive documentation in multiple formats. Continuous monitoring ensures
       docs stay synchronized with code changes.
-    </>,
+    </React.Fragment>,
     techStack: ['Radium', 'Docusaurus', 'TypeDoc', 'Markdown'],
     results: [
       '90% reduction in doc maintenance time',
@@ -218,15 +218,15 @@ output_format = ["markdown", "html"]`,
     id: 'security-audit',
     title: 'Continuous Security Auditing',
     category: 'security',
-    problem: <>
+    problem: <React.Fragment>
       Manual security reviews are infrequent, inconsistent, and can't keep pace with rapid
       deployment cycles, leaving vulnerabilities undetected until discovered in production.
-    </>,
-    solution: <>
+    </React.Fragment>,
+    solution: <React.Fragment>
       Security-specialized agents continuously scan code, dependencies, and infrastructure for
       vulnerabilities. The policy engine enforces security standards and blocks deployments
       that violate compliance requirements.
-    </>,
+    </React.Fragment>,
     techStack: ['Radium', 'SAST tools', 'Snyk', 'OWASP ZAP'],
     results: [
       '85% faster vulnerability detection',
@@ -250,15 +250,15 @@ block_on = ["critical-vulnerabilities", "license-violations"]`,
     id: 'infrastructure-provisioning',
     title: 'Infrastructure as Code Automation',
     category: 'devops',
-    problem: <>
+    problem: <React.Fragment>
       Provisioning and managing cloud infrastructure manually leads to configuration drift,
       inconsistencies across environments, and difficulty scaling operations.
-    </>,
-    solution: <>
+    </React.Fragment>,
+    solution: <React.Fragment>
       Radium orchestrates infrastructure provisioning agents that apply Terraform/Pulumi configs,
       validate deployments, and maintain state consistency across multiple environments with
       automatic rollback on failures.
-    </>,
+    </React.Fragment>,
     techStack: ['Radium', 'Terraform', 'AWS', 'Kubernetes'],
     results: [
       '75% faster environment setup',
@@ -283,15 +283,15 @@ require_approval = ["production-changes"]`,
     id: 'data-quality-monitoring',
     title: 'Real-Time Data Quality Monitoring',
     category: 'data',
-    problem: <>
+    problem: <React.Fragment>
       Data quality issues go undetected until they impact business reports or analytics,
       resulting in incorrect decisions and loss of stakeholder trust in data systems.
-    </>,
-    solution: <>
+    </React.Fragment>,
+    solution: <React.Fragment>
       Monitoring agents continuously validate data against quality rules, detect anomalies,
       and alert on issues in real-time. Automated remediation workflows fix common problems
       while escalating complex issues to human operators.
-    </>,
+    </React.Fragment>,
     techStack: ['Radium', 'Great Expectations', 'dbt', 'Airflow'],
     results: [
       '95% reduction in data quality incidents',

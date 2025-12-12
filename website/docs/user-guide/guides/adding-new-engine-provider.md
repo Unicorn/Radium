@@ -350,7 +350,7 @@ mod tests {
 
 ### Performance
 
-- Reuse HTTP clients (Arc<Client>)
+- Reuse HTTP clients (`Arc&lt;Client&gt;`)
 - Use async/await for I/O
 - Cache authentication status when possible
 - Implement timeouts for API calls

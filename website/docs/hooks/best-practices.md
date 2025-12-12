@@ -55,7 +55,7 @@ impl ModelHook for LoggingAndValidationHook {
 **Guidelines**:
 - **High Priority (200+)**: Security checks, critical validation, access control
 - **Medium Priority (100-199)**: Standard operations, logging, transformation
-- **Low Priority (<100)**: Optional monitoring, non-critical telemetry
+- **Low Priority (&lt;100)**: Optional monitoring, non-critical telemetry
 
 **Good**:
 ```rust

@@ -106,7 +106,7 @@ Central manager for MCP server connections:
 - Manages multiple server connections
 - Coordinates tool and prompt discovery
 - Handles configuration precedence (workspace > extension)
-- Thread-safe with Arc<Mutex<>>
+- Thread-safe with `Arc&lt;Mutex&lt;&gt;&gt;`
 
 ### McpClient
 

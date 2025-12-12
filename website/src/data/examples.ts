@@ -1,4 +1,4 @@
-import type {ReactNode} from 'react';
+import React, {type ReactNode} from 'react';
 
 export type DifficultyLevel = 'beginner' | 'intermediate' | 'advanced';
 export type ExampleCategory = 'workflow' | 'integration' | 'automation' | 'development';
@@ -21,10 +21,10 @@ export const examples: Example[] = [
     id: 'multi-agent-workflow',
     title: 'Multi-Agent Code Review Workflow',
     description: (
-      <>
+      <React.Fragment>
         Orchestrate multiple agents to analyze, review, and improve code. Demonstrates DAG
         workflows, agent coordination, and error handling with automatic retries.
-      </>
+      </React.Fragment>
     ),
     category: 'workflow',
     difficulty: 'intermediate',
@@ -51,10 +51,10 @@ steps = [
     id: 'ollama-local',
     title: 'Self-Hosted AI with Ollama',
     description: (
-      <>
+      <React.Fragment>
         Run agents completely locally using Ollama. No API keys required - perfect for privacy-sensitive
         applications or offline development. Supports CodeLlama, Mistral, and more.
-      </>
+      </React.Fragment>
     ),
     category: 'integration',
     difficulty: 'beginner',
@@ -75,10 +75,10 @@ base_url = "http://localhost:11434"`,
     id: 'cost-optimization',
     title: 'Cost-Optimized Agent Selection',
     description: (
-      <>
+      <React.Fragment>
         Automatically select the most cost-effective model for each task. Uses policy-driven
         orchestration to balance cost, speed, and quality based on your requirements.
-      </>
+      </React.Fragment>
     ),
     category: 'workflow',
     difficulty: 'intermediate',
@@ -101,10 +101,10 @@ complex_tasks = ["gpt-4", "claude-sonnet"]`,
     id: 'autonomous-debugging',
     title: 'Autonomous Debugging Agent',
     description: (
-      <>
+      <React.Fragment>
         Enable agents to autonomously debug failing tests. Demonstrates YOLO mode, bounded
         autonomy, and intelligent error recovery with minimal human intervention.
-      </>
+      </React.Fragment>
     ),
     category: 'automation',
     difficulty: 'advanced',
@@ -125,10 +125,10 @@ on_anomaly = "pause-and-notify"`,
     id: 'ci-cd-integration',
     title: 'CI/CD Pipeline Integration',
     description: (
-      <>
+      <React.Fragment>
         Integrate Radium agents into your CI/CD pipeline. Automate code reviews, documentation
         generation, and test creation as part of your build process.
-      </>
+      </React.Fragment>
     ),
     category: 'automation',
     difficulty: 'intermediate',
@@ -147,10 +147,10 @@ on_anomaly = "pause-and-notify"`,
     id: 'custom-extension',
     title: 'Building Custom Extensions',
     description: (
-      <>
+      <React.Fragment>
         Create custom tools and integrations for your agents. This example shows how to build a
         GitHub extension that lets agents search issues, create PRs, and manage repositories.
-      </>
+      </React.Fragment>
     ),
     category: 'development',
     difficulty: 'advanced',
@@ -174,10 +174,10 @@ impl GitHubExtension {
     id: 'persona-customization',
     title: 'Custom Agent Personas',
     description: (
-      <>
+      <React.Fragment>
         Define custom personas to shape agent behavior and expertise. This example creates a
         security-focused reviewer with specific knowledge domains and communication style.
-      </>
+      </React.Fragment>
     ),
     category: 'workflow',
     difficulty: 'beginner',
@@ -201,10 +201,10 @@ application security and the OWASP Top 10...
     id: 'data-pipeline',
     title: 'ETL Data Pipeline Orchestration',
     description: (
-      <>
+      <React.Fragment>
         Build intelligent ETL pipelines with AI-powered data validation and transformation.
         Agents can detect anomalies, suggest optimizations, and handle errors autonomously.
-      </>
+      </React.Fragment>
     ),
     category: 'workflow',
     difficulty: 'advanced',

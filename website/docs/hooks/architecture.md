@@ -101,7 +101,7 @@ The system supports 13 hook types organized into four categories:
 Hooks execute in priority order:
 - **Higher priority (200+)**: Critical hooks that must run first
 - **Medium priority (100-199)**: Standard hooks
-- **Low priority (<100)**: Optional hooks
+- **Low priority (&lt;100)**: Optional hooks
 
 Priority is set when creating a hook and cannot be changed after registration.
 

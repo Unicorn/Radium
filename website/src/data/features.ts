@@ -1,4 +1,4 @@
-import type {ReactNode} from 'react';
+import React, {type ReactNode} from 'react';
 
 export interface Feature {
   id: string;
@@ -32,11 +32,11 @@ export const featureCategories: FeatureCategory[] = [
         id: 'intelligent-orchestration',
         title: 'Intelligent Orchestration',
         description: (
-          <>
+          <React.Fragment>
             Radium automatically selects the best agent for each task based on capabilities,
             cost, and performance. No manual routing required—the orchestrator handles
             agent selection using policy-driven decision making.
-          </>
+          </React.Fragment>
         ),
         codeExample: {
           language: 'toml',
@@ -58,11 +58,11 @@ timeout = 30`,
         id: 'multi-agent-workflows',
         title: 'Multi-Agent DAG Workflows',
         description: (
-          <>
+          <React.Fragment>
             Define complex workflows as directed acyclic graphs (DAGs) with multiple agents
             working in parallel or sequence. Built-in dependency resolution, automatic
             retries, and failure handling ensure reliable execution.
-          </>
+          </React.Fragment>
         ),
         codeExample: {
           language: 'toml',
@@ -91,11 +91,11 @@ parallel = ["security-scan"]`,
         id: 'autonomous-execution',
         title: 'Autonomous Execution (YOLO Mode)',
         description: (
-          <>
+          <React.Fragment>
             Enable agents to run autonomously with minimal human intervention. Agents can
             make decisions, execute tasks, and handle errors independently. Perfect for
             long-running tasks or trusted environments.
-          </>
+          </React.Fragment>
         ),
         codeExample: {
           language: 'bash',
@@ -128,11 +128,11 @@ radium-cli chat code-assistant \\
         id: 'toml-config',
         title: 'TOML-Based Configuration',
         description: (
-          <>
+          <React.Fragment>
             Define agents using simple TOML files. No code required—just declare your
             agent's capabilities, model preferences, and behavior. Version control friendly
             and easy to share.
-          </>
+          </React.Fragment>
         ),
         codeExample: {
           language: 'toml',
@@ -161,11 +161,11 @@ verbosity = "detailed"`,
         id: 'persona-system',
         title: 'Persona System',
         description: (
-          <>
+          <React.Fragment>
             Personas define agent behavior, expertise, and communication style. Mix and
             match personas with different models to find the perfect combination for your
             use case. Extensible and customizable.
-          </>
+          </React.Fragment>
         ),
         codeExample: {
           language: 'toml',
@@ -193,11 +193,11 @@ security vulnerabilities, and test coverage.
         id: 'self-hosted-models',
         title: 'Self-Hosted Model Support',
         description: (
-          <>
+          <React.Fragment>
             Run models locally using Ollama or connect to your own inference servers. Full
             privacy and control over your data. Supports OpenAI-compatible APIs and custom
             providers.
-          </>
+          </React.Fragment>
         ),
         codeExample: {
           language: 'toml',
@@ -230,11 +230,11 @@ api_key = "{{ env.CUSTOM_API_KEY }}"`,
         id: 'policy-engine',
         title: 'Policy Engine',
         description: (
-          <>
+          <React.Fragment>
             Define fine-grained policies to control agent behavior, resource usage, and
             decision-making. Policies can enforce approval workflows, cost limits, rate
             limiting, and more.
-          </>
+          </React.Fragment>
         ),
         codeExample: {
           language: 'toml',
@@ -262,11 +262,11 @@ quarantine_suspicious = true`,
         id: 'workflow-behaviors',
         title: 'Workflow Behaviors',
         description: (
-          <>
+          <React.Fragment>
             Control how workflows handle errors, retries, and edge cases. Built-in behaviors
             include graceful degradation, circuit breakers, exponential backoff, and custom
             error recovery strategies.
-          </>
+          </React.Fragment>
         ),
         codeExample: {
           language: 'toml',
@@ -294,11 +294,11 @@ alert_on_failure = true`,
         id: 'vibe-check',
         title: 'Vibe Check (Metacognitive Oversight)',
         description: (
-          <>
+          <React.Fragment>
             Continuous monitoring of agent behavior and outputs. The vibe check system
             detects anomalies, hallucinations, and unexpected behavior patterns. Acts as a
             second layer of safety for autonomous agents.
-          </>
+          </React.Fragment>
         ),
         codeExample: {
           language: 'toml',
@@ -333,11 +333,11 @@ on_quality_decline = "switch-model"`,
         id: 'multiple-interfaces',
         title: 'Multiple Interfaces (CLI/TUI/Desktop)',
         description: (
-          <>
+          <React.Fragment>
             Choose your preferred interface: CLI for automation and scripting, TUI for
             interactive sessions, or Desktop app for visual workflows. All interfaces share
             the same underlying engine and configuration.
-          </>
+          </React.Fragment>
         ),
         codeExample: {
           language: 'bash',
@@ -363,11 +363,11 @@ cargo add radium-core`,
         id: 'extension-system',
         title: 'Extension System',
         description: (
-          <>
+          <React.Fragment>
             Extend Radium with custom tools, data sources, and integrations. Extensions are
             first-class citizens with full access to the agent runtime. Share your extensions
             with the community.
-          </>
+          </React.Fragment>
         ),
         codeExample: {
           language: 'rust',
@@ -397,11 +397,11 @@ impl GitHubExtension {
         id: 'session-analytics',
         title: 'Session Analytics',
         description: (
-          <>
+          <React.Fragment>
             Track costs, performance, and agent behavior across sessions. Built-in analytics
             help you optimize workflows, reduce costs, and improve agent performance over
             time. Export data for custom analysis.
-          </>
+          </React.Fragment>
         ),
         codeExample: {
           language: 'bash',
