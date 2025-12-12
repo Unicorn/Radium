@@ -67,7 +67,7 @@ dirs = "5.0"
 
 # Enhanced input handling
 tui-input = "0.8"
-unicode-width = "0.1"
+unicode-width = "0.2"
 textwrap = "0.16"
 fuzzy-matcher = "0.3"  # For command palette
 
