@@ -6,7 +6,6 @@ use radium_core::playbooks::{
     discovery::PlaybookDiscovery, parser::PlaybookParser,
     storage::PlaybookStorage, types::PlaybookPriority,
 };
-use radium_core::workspace::Workspace;
 use std::path::PathBuf;
 
 /// Playbook command options.

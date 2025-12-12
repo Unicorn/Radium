@@ -93,7 +93,7 @@ pub async fn read(req_id: String, project_id: Option<String>) -> Result<()> {
     if !requirement.tasks.is_empty() {
         println!("{}", "Tasks:".bold());
         println!("{}", "─".repeat(80).dimmed());
-        for (idx, task) in requirement.tasks.iter().enumerate() {
+        for (_idx, task) in requirement.tasks.iter().enumerate() {
             let status_color = match task.status {
                 TaskStatus::Completed => "✓".color(colors.success()),
                 TaskStatus::InProgress => "→".color(colors.primary()),

@@ -165,7 +165,7 @@ async fn execute_run(
     let cancelled_check = Arc::clone(&cancelled);
 
     let processor_fn = move |input: BatchInput| {
-        let agent_id = agent_id_clone.clone();
+        let _agent_id = agent_id_clone.clone();
         let template = template_clone.clone();
         let context_files = context_files_clone.clone();
         let cancelled = cancelled_check.clone();

@@ -26,6 +26,9 @@ export default function Button({
   onClick,
   className,
   disabled = false,
+  target,
+  rel,
+  ariaLabel,
 }: ButtonProps): ReactNode {
   const classes = clsx(
     styles.button,
@@ -37,7 +40,13 @@ export default function Button({
 
   if (href && !disabled) {
     return (
-      <a href={href} className={classes}>
+      <a
+        href={href}
+        className={classes}
+        target={target}
+        rel={rel}
+        aria-label={ariaLabel}
+      >
         {children}
       </a>
     );
@@ -49,6 +58,7 @@ export default function Button({
       className={classes}
       onClick={onClick}
       disabled={disabled}
+      aria-label={ariaLabel}
     >
       {children}
     </button>
