@@ -7,4 +7,7 @@
 pub mod filters;
 pub mod grep;
 
+#[cfg(test)]
+mod tests;
+
 pub use grep::{search_code, SearchOptions, SearchResult};

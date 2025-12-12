@@ -1,10 +1,12 @@
 //! Unit tests for search functionality.
 
+use super::*;
+use tempfile::TempDir;
+use std::fs;
+
 #[cfg(test)]
 mod tests {
-    use super::super::*;
-    use tempfile::TempDir;
-    use std::fs;
+    use super::*;
 
     #[test]
     fn test_search_code_basic() {
@@ -23,7 +25,7 @@ mod tests {
             root: root.to_path_buf(),
         };
 
-        let results = grep::search_code(options).unwrap();
+        let results = search_code(options).unwrap();
         assert_eq!(results.len(), 2);
     }
 
@@ -44,7 +46,7 @@ mod tests {
             root: root.to_path_buf(),
         };
 
-        let results = grep::search_code(options).unwrap();
+        let results = search_code(options).unwrap();
         assert_eq!(results.len(), 1);
         assert!(results[0].file_path.ends_with("file1.rs"));
     }
@@ -67,7 +69,7 @@ mod tests {
             root: root.to_path_buf(),
         };
 
-        let results = grep::search_code(options).unwrap();
+        let results = search_code(options).unwrap();
         assert!(results.len() <= 3);
     }
 
@@ -87,7 +89,7 @@ mod tests {
             root: root.to_path_buf(),
         };
 
-        let results = grep::search_code(options).unwrap();
+        let results = search_code(options).unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].context_before.len(), 2);
         assert_eq!(results[0].context_after.len(), 2);

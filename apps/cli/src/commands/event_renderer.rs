@@ -139,7 +139,21 @@ pub async fn render_event_stream(
                             reason
                         );
                         println!("  {} Press Enter to approve, or Ctrl+C to cancel", "→".dimmed());
-                        // Note: Actual approval logic should be handled by the caller
+                        
+                        // Wait for user input (simplified - in real implementation, this would
+                        // be handled by the orchestrator service with a callback/channel)
+                        use std::io::{self, BufRead};
+                        let stdin = io::stdin();
+                        let mut line = String::new();
+                        if stdin.lock().read_line(&mut line).is_ok() {
+                            let trimmed = line.trim();
+                            if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("y") || trimmed.eq_ignore_ascii_case("yes") {
+                                println!("  {} Approved", "✓".green());
+                            } else {
+                                println!("  {} Denied", "✗".red());
+                                // Note: In full implementation, this would signal denial to orchestrator
+                            }
+                        }
                     }
                     OrchestrationEvent::Error { message, .. } => {
                         println!("\n  {} Error: {}", "✗".red().bold(), message.red());
