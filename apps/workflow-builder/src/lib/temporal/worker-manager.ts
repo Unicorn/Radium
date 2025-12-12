@@ -14,6 +14,8 @@ import { bundleWorkflowCode } from '@temporalio/worker';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
+import { createActivityTelemetryInterceptor } from './interceptors';
+import { shutdownMetricsCollector } from '../observability';
 
 // Server-side Supabase client
 function getStorageClient() {
@@ -81,17 +83,30 @@ export class ProjectWorkerManager {
       // 4. Write workflow code to temporary files for bundling
       const workflowPath = path.join(bundleDir, 'workflows.ts');
       const activitiesPath = path.join(bundleDir, 'activities.ts');
-      
+
       // Combine all workflow code
       const allWorkflowCode = workflows
-        .map(w => (w as any).compiled_code.workflow_code)
+        .map((w) => (w as any).compiled_code.workflow_code)
         .join('\n\n');
-      
+
       const allActivitiesCode = workflows
-        .map(w => (w as any).compiled_code.activities_code)
+        .map((w) => (w as any).compiled_code.activities_code)
         .join('\n\n');
-      
-      fs.writeFileSync(workflowPath, allWorkflowCode);
+
+      // Wrap workflow code to include context interceptors for traceability
+      // This ensures database IDs (project, workflow, execution) propagate to activities
+      const wrappedWorkflowCode = `
+// Auto-injected workflow context interceptors for billing/analytics traceability
+import { workflowContextInterceptors } from '@/lib/temporal/interceptors';
+
+// Export interceptors so Temporal worker can use them
+export const interceptors = workflowContextInterceptors;
+
+// Original workflow code
+${allWorkflowCode}
+`;
+
+      fs.writeFileSync(workflowPath, wrappedWorkflowCode);
       fs.writeFileSync(activitiesPath, allActivitiesCode);
       
       console.log(`📝 Wrote workflow code to ${workflowPath}`);
@@ -127,6 +142,10 @@ export class ProjectWorkerManager {
         10
       );
 
+      // 8b. Configure telemetry interceptors for performance analytics
+      const metricsEnabled = process.env.METRICS_ENABLED !== 'false';
+      const metricsSampleRate = parseFloat(process.env.METRICS_SAMPLE_RATE || '1.0');
+
       const worker = await Worker.create({
         connection,
         namespace: process.env.TEMPORAL_NAMESPACE || 'default',
@@ -137,6 +156,20 @@ export class ProjectWorkerManager {
         activities,
         maxConcurrentActivityTaskExecutions: maxConcurrentActivities,
         maxConcurrentWorkflowTaskExecutions: maxConcurrentWorkflowTasks,
+        // Performance analytics interceptors
+        interceptors: metricsEnabled
+          ? {
+              activity: [
+                () => ({
+                  inbound: createActivityTelemetryInterceptor({
+                    projectId: (project as any).id,
+                    sampleRate: metricsSampleRate,
+                    capturePayloads: process.env.METRICS_CAPTURE_PAYLOADS === 'true',
+                  }),
+                }),
+              ],
+            }
+          : undefined,
       });
       
       // 9. Generate worker ID
@@ -169,6 +202,7 @@ export class ProjectWorkerManager {
       console.log(`   Workflows: ${workflows.length}`);
       console.log(`   Max Concurrent Activities: ${maxConcurrentActivities}`);
       console.log(`   Max Concurrent Workflow Tasks: ${maxConcurrentWorkflowTasks}`);
+      console.log(`   Performance Analytics: ${metricsEnabled ? `enabled (${metricsSampleRate * 100}% sampling)` : 'disabled'}`);
       
       return worker;
     } catch (error) {
@@ -405,12 +439,14 @@ export const projectWorkerManager = new ProjectWorkerManager();
 process.on('SIGTERM', async () => {
   console.log('📡 SIGTERM received, shutting down workers...');
   await projectWorkerManager.shutdownAll();
+  await shutdownMetricsCollector();
   process.exit(0);
 });
 
 process.on('SIGINT', async () => {
   console.log('📡 SIGINT received, shutting down workers...');
   await projectWorkerManager.shutdownAll();
+  await shutdownMetricsCollector();
   process.exit(0);
 });
 

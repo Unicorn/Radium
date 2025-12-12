@@ -30,6 +30,7 @@ import { stateVariablesRouter } from './routers/stateVariables';
 import { projectLoggingRouter } from './routers/projectLogging';
 import { kongCacheRouter } from './routers/kongCache';
 import { stateMonitoringRouter } from './routers/stateMonitoring';
+import { observabilityRouter } from './routers/observability';
 
 export const appRouter = createTRPCRouter({
   users: usersRouter,
@@ -60,6 +61,7 @@ export const appRouter = createTRPCRouter({
   projectLogging: projectLoggingRouter,
   kongCache: kongCacheRouter,
   stateMonitoring: stateMonitoringRouter,
+  observability: observabilityRouter,
 });
 
 export type AppRouter = typeof appRouter;

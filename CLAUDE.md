@@ -23,3 +23,4 @@ When a user references REQ-XXX:
 5. Mark REQ as REVIEW when complete and tests pass
 
 See `docs/development/agent-instructions.md` for complete instructions.
+- What matters more than anything else in this project is the end user experience, I am willing to spend way more time on every step if it means the end user experience is better.

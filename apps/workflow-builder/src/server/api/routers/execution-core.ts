@@ -1,6 +1,6 @@
 /**
  * Execution Core Router
- * 
+ *
  * Core execution operations: build, start, status, list
  * Split from execution.ts for better organization
  */
@@ -10,6 +10,9 @@ import { createTRPCRouter, protectedProcedure } from '../trpc';
 import { TRPCError } from '@trpc/server';
 import { compileWorkflow } from '@/lib/workflow-compiler/compiler';
 import { storeCompiledCode } from '@/lib/workflow-compiler/storage';
+import { recordWorkflowExecutionMetric } from '@/lib/observability';
+import type { WorkflowStatus, TriggerType } from '@/lib/observability/types';
+import { createWorkflowInput } from '@/lib/temporal/interceptors';
 import type { TemporalWorkflow } from '@/types/advanced-patterns';
 import type { SupabaseClient } from '@supabase/supabase-js';
 // Note: Using direct type assertions instead of castSupabaseClient helper
@@ -55,19 +58,24 @@ async function monitorExecution(
   executionId: string,
   projectId: string,
   workflowId: string,
+  workflowName: string,
+  temporalWorkflowId: string,
+  temporalRunId: string,
+  taskQueueName: string,
+  triggerType: TriggerType,
   startTime: Date,
   supabase: SupabaseClient
 ) {
   try {
     console.log(`👀 Monitoring workflow execution ${executionId}...`);
-    
+
     // Wait for workflow to complete
     const result = await handle.result();
     const endTime = new Date();
     const durationMs = endTime.getTime() - startTime.getTime();
-    
+
     console.log(`✅ Workflow completed in ${durationMs}ms`);
-    
+
     // Update execution record
     await supabase
       .from('workflow_executions')
@@ -77,16 +85,34 @@ async function monitorExecution(
         output: result,
       })
       .eq('id', executionId);
-    
+
     // Record statistics
     await recordWorkflowStats(projectId, workflowId, durationMs, true);
-    
+
+    // Record workflow execution metric for observability/billing
+    const outputSizeBytes = result ? JSON.stringify(result).length : 0;
+    await recordWorkflowExecutionMetric({
+      projectId,
+      workflowId,
+      executionId,
+      workflowName,
+      taskQueueName,
+      temporalWorkflowId,
+      temporalRunId,
+      triggerType,
+      outputSizeBytes,
+      durationMs,
+      status: 'completed' as WorkflowStatus,
+      startedAt: startTime,
+      completedAt: endTime,
+    });
+
     console.log(`📊 Execution recorded successfully`);
   } catch (error: any) {
     console.error(`❌ Workflow execution failed:`, error);
     const endTime = new Date();
     const durationMs = endTime.getTime() - startTime.getTime();
-    
+
     // Update execution with error
     await supabase
       .from('workflow_executions')
@@ -96,9 +122,27 @@ async function monitorExecution(
         error_message: error.message || 'Unknown error',
       })
       .eq('id', executionId);
-    
+
     // Record failed execution statistics
     await recordWorkflowStats(projectId, workflowId, durationMs, false);
+
+    // Record workflow execution metric for observability/billing (failed)
+    await recordWorkflowExecutionMetric({
+      projectId,
+      workflowId,
+      executionId,
+      workflowName,
+      taskQueueName,
+      temporalWorkflowId,
+      temporalRunId,
+      triggerType,
+      durationMs,
+      status: 'failed' as WorkflowStatus,
+      errorType: error.name || 'Error',
+      errorMessage: error.message || 'Unknown error',
+      startedAt: startTime,
+      completedAt: endTime,
+    });
   }
 }
 
@@ -314,42 +358,60 @@ export const executionCoreRouter = createTRPCRouter({
         
         // Step 6: Start workflow execution on Temporal
         console.log(`🚀 Starting workflow execution on Temporal...`);
-        
+
         const wfKebabName = wfData.kebab_name || wfData.name;
-        const workflowId = `${wfKebabName}-${Date.now()}`;
+        const temporalWorkflowId = `${wfKebabName}-${Date.now()}`;
+
+        // Create workflow input with context for billing/analytics traceability
+        // The workflow-context-interceptor will propagate this to all activities
+        const workflowInputWithContext = createWorkflowInput(
+          {
+            projectId: (project as any).id,
+            workflowId: wfData.id,
+            executionId: execData.id,
+          },
+          input.input || {}
+        );
+
         const handle = await client.workflow.start(wfKebabName, {
           taskQueue: (project as any).task_queue_name,
-          workflowId,
-          args: [input.input || {}],
+          workflowId: temporalWorkflowId,
+          args: [workflowInputWithContext],
         });
         
-        console.log(`✅ Workflow started: ${workflowId}`);
+        console.log(`✅ Workflow started: ${temporalWorkflowId}`);
         console.log(`   Run ID: ${handle.firstExecutionRunId}`);
-        
+
         // Update execution with Temporal workflow ID
         await ((ctx.supabase as any)
           .from('workflow_executions')
           .update({
             status: 'running',
-            temporal_workflow_id: workflowId,
+            temporal_workflow_id: temporalWorkflowId,
             temporal_run_id: handle.firstExecutionRunId,
           })
           .eq('id', execData.id));
-        
+
         // Monitor execution in background (don't await)
+        const taskQueueName = (project as any).task_queue_name;
         monitorExecution(
           handle,
           execData.id,
           (project as any).id,
           wfData.id,
+          wfData.display_name || wfKebabName,
+          temporalWorkflowId,
+          handle.firstExecutionRunId,
+          taskQueueName,
+          'api' as TriggerType, // API-triggered execution
           new Date(),
           ctx.supabase as any
-        ).catch(err => console.error('Error monitoring execution:', err));
-        
+        ).catch((err) => console.error('Error monitoring execution:', err));
+
         return {
           success: true,
           executionId: execData.id,
-          workflowId,
+          workflowId: temporalWorkflowId,
           runId: handle.firstExecutionRunId,
           message: 'Workflow execution started successfully!',
         };
