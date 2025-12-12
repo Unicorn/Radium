@@ -428,8 +428,8 @@ async fn warm_from_config(
 
 /// Display warm progress for a model.
 fn display_warm_progress(provider: &str, model: &str, duration: std::time::Duration, success: bool) {
+    let colors = RadiumBrandColors::new();
     let status = if success {
-        let colors = RadiumBrandColors::new();
         "✓".color(colors.success())
     } else {
         "✗".color(colors.error())
