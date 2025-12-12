@@ -1,3 +1,9 @@
+---
+id: llm-driven-tool-selection
+title: LLM-Driven Tool Selection Architecture
+sidebar_label: LLM-Driven Tool Selection
+---
+
 # Implementation Summary: LLM-Driven Tool Selection
 
 **Date**: 2025-12-10
@@ -103,41 +109,6 @@ Tool {
 
 ---
 
-### 2. Documentation Created
-
-#### Architectural Migration Guide
-**File**: `docs/ARCHITECTURE-MIGRATION-LLM-DRIVEN.md` (446 lines)
-
-**Contents**:
-- Executive summary of the migration
-- Root cause analysis of pattern matching problem
-- Technical changes breakdown
-- Architecture comparison (before/after)
-- Design principles (Declarative over Imperative, LLM Agency)
-- Performance characteristics
-- Lessons learned
-
-#### Testing Guide
-**File**: `docs/TESTING-LLM-DRIVEN-TOOLS.md` (334 lines)
-
-**Contents**:
-- Manual testing procedures
-- Test case definitions (5 test scenarios)
-- Expected behavior vs red flags
-- Debugging guide
-- Performance expectations
-- Success criteria
-
----
-
-## Build Status
-
-✅ **Binary Built**: `./dist/target/debug/radium-tui`
-✅ **Compilation**: Success (91 warnings, 0 errors)
-✅ **Changes Included**: All modifications confirmed in binary
-
----
-
 ## Expected Behavior Change
 
 ### Before (Pattern Matching)
@@ -189,36 +160,6 @@ LLM synthesizes response
 
 ---
 
-## Testing Instructions
-
-### Quick Test
-
-```bash
-# Launch TUI
-GEMINI_API_KEY=<your-key> ./dist/target/debug/radium-tui
-
-# Test query
-> Scan my project and tell me what it's about
-```
-
-**Expected**:
-1. ✅ LLM immediately calls `project_scan(depth: "quick")`
-2. ✅ Tool executes and returns README, manifest, structure
-3. ✅ LLM synthesizes comprehensive response about Radium
-4. ❌ LLM does NOT ask "Would you like me to scan?"
-5. ❌ LLM does NOT ask clarifying questions first
-
-### Comprehensive Testing
-
-See `docs/TESTING-LLM-DRIVEN-TOOLS.md` for:
-- 5 detailed test scenarios
-- Success criteria for each test
-- Red flag indicators (failures)
-- Debugging procedures
-- Performance benchmarks
-
----
-
 ## Performance Impact
 
 ### Latency
@@ -240,88 +181,6 @@ See `docs/TESTING-LLM-DRIVEN-TOOLS.md` for:
 - **Before**: 1 LLM call with pre-injected results (~5K tokens)
 - **After**: 1 LLM call with tool use (~5K tokens total)
 - **Trade-off**: Minimal cost increase, massive capability increase
-
----
-
-## Git Commit
-
-**Commit Hash**: `8f86fae`
-**Message**: Architectural migration: Pattern matching → LLM-driven tool selection
-
-**Stats**:
-- 4 files changed
-- 1253 insertions(+)
-- 14 deletions(-)
-
-**Files**:
-1. `apps/tui/src/chat_executor.rs` - Removed proactive scan gate
-2. `prompts/agents/core/chat-assistant.md` - Enhanced system prompt
-3. `docs/ARCHITECTURE-MIGRATION-LLM-DRIVEN.md` - Architecture documentation
-4. `docs/TESTING-LLM-DRIVEN-TOOLS.md` - Testing guide
-
----
-
-## Next Steps
-
-### Immediate
-
-1. **Manual Testing** (Required before Phase 2)
-   - Run test scenarios from `docs/TESTING-LLM-DRIVEN-TOOLS.md`
-   - Verify LLM calls project_scan autonomously
-   - Confirm no intermediate questions
-   - Validate response quality
-
-2. **Build Release Binary** (If tests pass)
-   ```bash
-   cargo build --release --bin radium-tui
-   ```
-
-### Future Work (From Plan)
-
-**Phase 2**: o1/o3 Deep Thinking Model Integration
-- Add OpenAI o1/o1-mini/o3 models
-- Implement ReasoningOptimized routing strategy
-- Track reasoning token costs
-
-**Phase 3**: Additional Analysis Tools
-- Enhance code_structure analysis
-- Add AST parsing for Rust/JS/TS
-
-**Phase 4**: Extended Git Tools
-- find_references (already implemented)
-- git_blame (already implemented)
-- git_show (already implemented)
-
-**Phase 5**: Polish & Cleanup
-- Deprecate pattern matching code
-- Implement tool result caching
-- Progressive disclosure in TUI
-
----
-
-## Success Metrics
-
-### Phase 1 Success Criteria (Current)
-
-✅ **Implementation Complete**:
-- [x] Removed proactive scan gate
-- [x] Enhanced system prompt with project_scan guidance
-- [x] Improved tool descriptions
-- [x] Created comprehensive documentation
-- [x] Built binary with changes
-- [x] Created git commit
-
-⏳ **Testing Pending**:
-- [ ] "Scan my project" triggers project_scan autonomously
-- [ ] No intermediate questions asked
-- [ ] Response includes README/manifest/structure info
-- [ ] <6s latency for scan execution
-- [ ] Works for natural language variations
-
-### Overall Goal (From Plan)
-
-**Target**: 90%+ auto-scan rate for project overview questions
-**Current**: Implementation complete, ready for validation
 
 ---
 
@@ -349,16 +208,6 @@ See `docs/TESTING-LLM-DRIVEN-TOOLS.md` for:
 
 ---
 
-## References
-
-- **Plan File**: `/Users/clay/.claude/plans/happy-riding-pinwheel.md`
-- **Architecture Doc**: `docs/ARCHITECTURE-MIGRATION-LLM-DRIVEN.md`
-- **Testing Guide**: `docs/TESTING-LLM-DRIVEN-TOOLS.md`
-- **Commit**: `8f86fae` on main branch
-
----
-
 **Implementation Date**: 2025-12-10
 **Implementation Status**: ✅ Complete
-**Testing Status**: ⏳ Pending
-**Ready for**: Manual validation and Phase 2 planning
+

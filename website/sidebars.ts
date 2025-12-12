@@ -382,6 +382,7 @@ const sidebars: SidebarsConfig = {
             'developer-guide/architecture/engine-abstraction',
             'developer-guide/architecture/tui-architecture',
             'developer-guide/architecture/architecture-migration-llm-driven',
+            'developer-guide/architecture/llm-driven-tool-selection',
             'developer-guide/architecture/cli-tui-parity-analysis',
           ],
         },
