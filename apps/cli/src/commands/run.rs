@@ -22,7 +22,7 @@ pub async fn execute(
     script: String,
     model: Option<String>,
     dir: Option<String>,
-    _    model_tier: Option<String>,
+    _model_tier: Option<String>,
     _show_metadata: bool,
     _json: bool,
     _safety_behavior: Option<String>,
