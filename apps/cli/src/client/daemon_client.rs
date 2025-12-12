@@ -13,6 +13,7 @@ pub enum ExecutionMode {
     /// Local in-process execution (current default).
     Local,
     /// Remote daemon execution.
+    #[allow(dead_code)]
     Daemon(String), // URL
 }
 

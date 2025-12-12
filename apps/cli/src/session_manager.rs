@@ -186,12 +186,14 @@ impl Session {
     }
 
     /// Add a message to history
+    #[allow(dead_code)]
     pub fn add_message(&mut self, message: ChatMessage) {
         self.history.push(message);
         self.touch();
     }
 
     /// Update conversation context
+    #[allow(dead_code)]
     pub fn update_context(&mut self, context: ConversationContext) {
         self.context = context;
         self.touch();

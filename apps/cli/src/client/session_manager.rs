@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 
 /// CLI session metadata persisted to disk.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct CliSession {
     /// Session ID from daemon
     pub session_id: String,
@@ -18,6 +19,7 @@ pub struct CliSession {
 }
 
 /// Manages CLI session persistence.
+#[allow(dead_code)]
 pub struct CliSessionManager {
     /// Path to session file
     session_file: PathBuf,
@@ -48,6 +50,7 @@ impl CliSessionManager {
     ///
     /// # Returns
     /// Session ID if found, None otherwise.
+    #[allow(dead_code)]
     pub fn load_session(&self) -> Result<Option<CliSession>> {
         if !self.session_file.exists() {
             return Ok(None);
@@ -67,6 +70,7 @@ impl CliSessionManager {
     /// # Arguments
     /// * `session_id` - Session ID to save
     /// * `daemon_url` - Daemon URL this session is associated with
+    #[allow(dead_code)]
     pub fn save_session(&self, session_id: String, daemon_url: String) -> Result<()> {
         let session = CliSession {
             session_id,
@@ -84,6 +88,7 @@ impl CliSessionManager {
     }
 
     /// Clear the saved session.
+    #[allow(dead_code)]
     pub fn clear_session(&self) -> Result<()> {
         if self.session_file.exists() {
             fs::remove_file(&self.session_file)

@@ -14,6 +14,7 @@ use std::io::{self, Write};
 
 /// Policy engine for managing tool execution safety
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct PolicyEngine {
     /// Built-in safety rules
     rules: Vec<PolicyRule>,
@@ -376,6 +377,7 @@ impl UserPolicy {
     }
 
     /// Check if a tool is blacklisted
+    #[allow(dead_code)]
     pub fn is_blacklisted(&self, tool_name: &str) -> bool {
         self.blacklist.iter().any(|pattern| {
             if pattern.ends_with('*') {
