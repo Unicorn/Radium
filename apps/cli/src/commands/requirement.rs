@@ -576,10 +576,11 @@ async fn resume_command(
     }
 
     // Get project ID
+    let colors = RadiumBrandColors::new();
     let project_id = project_id
         .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok())
         .unwrap_or_else(|| {
-            println!("{}", "Warning: No project ID specified, using default PROJ-14".yellow());
+            println!("{}", "Warning: No project ID specified, using default PROJ-14".color(colors.warning()));
             "PROJ-14".to_string()
         });
 
