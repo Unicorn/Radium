@@ -1,0 +1,133 @@
+.featureCard {
+  background: var(--ifm-card-background-color, white);
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-radius: var(--marketing-border-radius);
+  padding: 1.5rem;
+  box-shadow: var(--marketing-shadow-md);
+  transition: all var(--marketing-transition-normal);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.featureCard:hover {
+  box-shadow: var(--marketing-shadow-lg);
+  transform: translateY(-4px);
+  border-color: var(--ifm-color-primary-light);
+}
+
+.featureHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.featureIcon {
+  flex-shrink: 0;
+  font-size: 2rem;
+  color: var(--ifm-color-primary);
+}
+
+.featureTitle {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+  color: var(--ifm-heading-color);
+  line-height: 1.4;
+}
+
+.featureDescription {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--ifm-color-emphasis-700);
+  margin-bottom: 1.5rem;
+  flex-grow: 1;
+}
+
+.codeSection {
+  margin-bottom: 1.5rem;
+  background: var(--ifm-code-background);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.codeBlock {
+  margin: 0;
+  padding: 1rem;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  overflow-x: auto;
+  background: transparent;
+}
+
+.codeBlock code {
+  background: none;
+  padding: 0;
+  color: var(--ifm-font-color-base);
+  font-size: inherit;
+  font-family: inherit;
+}
+
+.featureLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.featureLink {
+  flex: 0 0 auto;
+}
+
+/* Dark mode support */
+[data-theme='dark'] .featureCard {
+  background: var(--ifm-background-surface-color);
+  border-color: var(--ifm-color-emphasis-300);
+}
+
+[data-theme='dark'] .featureCard:hover {
+  border-color: var(--ifm-color-primary);
+}
+
+[data-theme='dark'] .featureDescription {
+  color: var(--ifm-color-emphasis-600);
+}
+
+[data-theme='dark'] .featureLinks {
+  border-color: var(--ifm-color-emphasis-300);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .featureCard {
+    padding: 1.25rem;
+  }
+
+  .featureTitle {
+    font-size: 1.125rem;
+  }
+
+  .featureDescription {
+    font-size: 0.875rem;
+  }
+
+  .codeBlock {
+    font-size: 0.75rem;
+    padding: 0.75rem;
+  }
+}
+
+/* Accessibility: Reduce motion */
+@media (prefers-reduced-motion: reduce) {
+  .featureCard {
+    transition: none;
+  }
+
+  .featureCard:hover {
+    transform: none;
+  }
+}
