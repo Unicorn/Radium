@@ -54,7 +54,7 @@ jobs:
           cargo llvm-cov --workspace --summary-only
 
       - name: Upload coverage reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: coverage-report
           path: target/llvm-cov/html/
