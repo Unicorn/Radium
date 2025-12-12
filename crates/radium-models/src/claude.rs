@@ -562,7 +562,6 @@ impl Model for ClaudeModel {
         // Extract text content and tool calls from response
         let mut text_parts = Vec::new();
         let mut tool_calls = Vec::new();
-        let mut call_index = 0;
 
         for content in &claude_response.content {
             match content {
@@ -575,7 +574,6 @@ impl Model for ClaudeModel {
                         name: name.clone(),
                         arguments: input.clone(),
                     });
-                    call_index += 1;
                 }
             }
         }

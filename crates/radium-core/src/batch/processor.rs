@@ -138,7 +138,7 @@ where
                 }
 
                 // Process with retries
-                let mut last_error: Option<String> = None;
+                let mut last_error = None::<String>;
                 let mut retry_count = 0;
 
                 loop {

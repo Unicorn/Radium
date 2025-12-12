@@ -225,7 +225,7 @@ impl<'a> CostQueryService<'a> {
         let mut breakdown_by_model: HashMap<String, f64> = HashMap::new();
         let mut breakdown_by_plan: HashMap<String, f64> = HashMap::new();
         let mut local_breakdown: HashMap<String, f64> = HashMap::new();
-        let mut local_total_cost = 0.0;
+        let mut _local_total_cost = 0.0;
 
         for record in records {
             // Check if this is a local model
@@ -236,7 +236,7 @@ impl<'a> CostQueryService<'a> {
                 // Aggregate local costs by engine_id
                 if let Some(engine_id) = &record.engine_id {
                     *local_breakdown.entry(engine_id.clone()).or_insert(0.0) += record.estimated_cost;
-                    local_total_cost += record.estimated_cost;
+                    _local_total_cost += record.estimated_cost; // Tracked for potential future use
                 }
                 // Add to provider breakdown as "local" aggregate
                 *breakdown_by_provider.entry("local".to_string()).or_insert(0.0) += record.estimated_cost;

@@ -560,7 +560,7 @@ impl EngineRegistry {
             .read()
             .map_err(|e| EngineError::RegistryError(format!("Lock poisoned: {}", e)))?;
 
-        for (id, engine) in engines.iter() {
+        for (_, engine) in engines.iter() {
             // Check if engine is available and authenticated
             let available = engine.is_available().await;
             if available {
@@ -603,7 +603,7 @@ impl EngineRegistry {
     ) -> Result<Arc<dyn Engine>> {
         // 1. CLI override (highest precedence)
         if let Some(engine_id) = cli_override {
-            return self.get(engine_id).map_err(|e| {
+            return self.get(engine_id).map_err(|_e| {
                 // Provide helpful error with available engines
                 let available = self.list().unwrap_or_default();
                 let engine_ids: Vec<String> = available.iter().map(|m| m.id.clone()).collect();
@@ -637,7 +637,7 @@ impl EngineRegistry {
         }
 
         // 5. First available engine with valid credentials
-        self.get_first_available().await.map_err(|e| {
+        self.get_first_available().await.map_err(|_e| {
             let available = self.list().unwrap_or_default();
             if available.is_empty() {
                 EngineError::NotFound(

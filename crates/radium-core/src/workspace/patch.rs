@@ -4,7 +4,7 @@
 //! supporting both unified diff format and structured hunks.
 
 use crate::workspace::boundary::BoundaryValidator;
-use crate::workspace::errors::{ErrorContext, FileOperationError, FileOperationResult};
+use crate::workspace::errors::{FileOperationError, FileOperationResult};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};

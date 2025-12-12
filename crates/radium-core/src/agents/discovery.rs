@@ -290,7 +290,7 @@ impl AgentDiscovery {
     /// Convert AgentMetadata::RecommendedModels to PersonaConfig.
     fn convert_metadata_to_persona(
         recommended_models: &crate::agents::metadata::RecommendedModels,
-        metadata: &AgentMetadata,
+        _metadata: &AgentMetadata,
     ) -> PersonaConfig {
         // Convert primary model
         let primary = SimpleModelRecommendation {

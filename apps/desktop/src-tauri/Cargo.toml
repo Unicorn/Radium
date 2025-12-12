@@ -31,3 +31,6 @@ tracing = "0.1"
 
 # Date/time
 chrono = { version = "0.4", features = ["serde"] }
+
+# TOML serialization
+toml = "0.8"

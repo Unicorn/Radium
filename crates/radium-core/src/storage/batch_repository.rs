@@ -1,7 +1,7 @@
 //! Batch repository for database persistence.
 
 use crate::models::batch::{BatchExecution, BatchRequestResult, BatchStatus, RequestStatus};
-use crate::storage::error::{StorageError, StorageResult};
+use crate::storage::error::StorageResult;
 use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection, Row};
 use std::path::Path;

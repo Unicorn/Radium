@@ -8,7 +8,7 @@ use chrono::Utc;
 
 use super::error::{SecurityError, SecurityResult};
 use super::secret_manager::SecretManager;
-use crate::auth::{CredentialStore, ProviderType};
+use crate::auth::CredentialStore;
 
 /// Migration report with statistics.
 #[derive(Debug, Clone)]

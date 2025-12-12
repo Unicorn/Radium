@@ -3,7 +3,6 @@
 use radium_core::policy::{ApprovalMode, ConflictDetector, PolicyEngine, PolicyRule, PolicyAction, PolicyPriority};
 use radium_core::workspace::Workspace;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 
 /// Policy rule JSON representation.
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -136,12 +135,12 @@ pub async fn save_policy_config(
     }
 
     // Serialize to TOML
-    use toml::Value;
-    let mut config = toml::map::Map::new();
+    use toml::{Value, map::Map};
+    let mut config = Map::new();
     config.insert("approval_mode".to_string(), Value::String(approval_mode.to_string()));
     
     let rules_array: Vec<Value> = engine.rules().iter().map(|rule| {
-        let mut rule_map = toml::map::Map::new();
+        let mut rule_map = Map::new();
         rule_map.insert("name".to_string(), Value::String(rule.name.clone()));
         rule_map.insert("tool_pattern".to_string(), Value::String(rule.tool_pattern.clone()));
         rule_map.insert("action".to_string(), Value::String(format!("{:?}", rule.action).to_lowercase().replace("askuser", "ask_user")));
@@ -239,8 +238,7 @@ pub async fn detect_policy_conflicts() -> Result<serde_json::Value, String> {
     let engine = PolicyEngine::from_file(&policy_file)
         .map_err(|e| format!("Failed to load policy file: {}", e))?;
 
-    let detector = ConflictDetector::new();
-    let conflicts = detector.detect_conflicts(engine.rules())
+    let conflicts = ConflictDetector::detect_conflicts(engine.rules())
         .map_err(|e| format!("Failed to detect conflicts: {}", e))?;
 
     let conflicts_json: Vec<serde_json::Value> = conflicts.iter().map(|c| {

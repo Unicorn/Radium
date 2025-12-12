@@ -45,7 +45,7 @@ impl Playbook {
     ///
     /// Returns error if URI is invalid or required fields are missing.
     pub fn validate(&self) -> crate::playbooks::error::Result<()> {
-        use crate::playbooks::error::{PlaybookError, Result};
+        use crate::playbooks::error::PlaybookError;
 
         // Validate URI format
         if !self.uri.starts_with("radium://") {

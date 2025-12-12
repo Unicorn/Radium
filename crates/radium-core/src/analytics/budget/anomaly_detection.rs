@@ -208,8 +208,8 @@ impl AnomalyDetector {
     fn categorize_anomaly(
         &self,
         requirement_id: &str,
-        cost: f64,
-        stats: &CostStatistics,
+        _cost: f64,
+        _stats: &CostStatistics,
     ) -> MonitoringResult<AnomalyCategory> {
         let conn = self.telemetry_store.conn();
 

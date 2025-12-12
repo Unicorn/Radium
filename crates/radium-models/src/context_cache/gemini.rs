@@ -223,7 +223,7 @@ impl ContextCache for GeminiContextCache {
 
             // Extend TTL by 1 hour (default refresh)
             let new_expire_time = SystemTime::now() + Duration::from_secs(3600);
-            let expire_time_str = DateTime::<Utc>::from(new_expire_time)
+            let _expire_time_str = DateTime::<Utc>::from(new_expire_time)
                 .to_rfc3339();
 
             let url = format!("{}/{}?key={}", self.base_url, cache_name, self.api_key);

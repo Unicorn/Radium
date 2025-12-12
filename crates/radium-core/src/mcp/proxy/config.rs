@@ -4,7 +4,7 @@
 //! configuration from TOML files.
 
 use crate::mcp::proxy::types::{ConflictStrategy, ProxyConfig, ProxyTransport, SecurityConfig, UpstreamConfig};
-use crate::mcp::{McpError, McpServerConfig, Result, TransportType};
+use crate::mcp::{McpError, Result, TransportType};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use toml::Value as TomlValue;

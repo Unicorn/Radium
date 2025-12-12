@@ -16,6 +16,8 @@ all-features = true
 [advisories]
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
+# Note: RUSTSEC-2025-0009 (ring 0.17.9) is a transitive dependency through rustls 0.23.35
+# This requires an upstream update to rustls. Monitoring for rustls release with ring >=0.17.12
 ignore = []
 
 # =============================================================================

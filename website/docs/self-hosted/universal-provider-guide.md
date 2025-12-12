@@ -1,7 +1,13 @@
 ---
+<<<<<<<< HEAD:website/docs/self-hosted/universal-provider-guide.md
 id: "universal-provider-guide"
 title: "Universal OpenAI-Compatible Provider Guide"
 sidebar_label: "Universal Provider Guide"
+========
+id: "universal-provider"
+title: "Universal OpenAI-Compatible Provider Guide"
+sidebar_label: "Universal Provider"
+>>>>>>>> 86560d3766abfda850b1f43e986ed986540c28d7:website/docs/self-hosted/universal-provider.md
 ---
 
 # Universal OpenAI-Compatible Provider Guide

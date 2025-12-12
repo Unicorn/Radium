@@ -599,10 +599,10 @@ impl AgentExecutor {
                     info!(agent_id = %agent_id, output_type = ?output, provider = %current_provider, "Agent execution completed successfully");
                     
                     // Record cost after successful execution
-                    if let Some(ref budget_manager) = self.budget_manager {
+                    if let Some(ref _budget_manager) = self.budget_manager {
                         // Estimate actual cost from input/output (rough estimate)
                         let input_tokens = effective_input.len() as f64 / 4.0;
-                        let output_tokens = if let AgentOutput::Text(ref text) = output {
+                        let _output_tokens = if let AgentOutput::Text(ref text) = output {
                             text.len() as f64 / 4.0
                         } else {
                             input_tokens * 0.3 / 0.7 // Default estimate

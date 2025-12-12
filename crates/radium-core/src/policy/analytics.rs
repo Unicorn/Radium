@@ -1,7 +1,7 @@
 //! Policy analytics for tracking enforcement patterns and trends.
 
 use super::storage::{PolicyAnalyticsStorage, PolicyEvent};
-use super::types::{PolicyAction, PolicyDecision};
+use super::types::PolicyDecision;
 use rusqlite::Connection;
 use std::sync::{Arc, Mutex};
 

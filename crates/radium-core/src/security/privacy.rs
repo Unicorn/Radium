@@ -6,7 +6,7 @@ use std::sync::{Arc, RwLock};
 
 use super::audit::AuditLogger;
 use super::patterns::PatternLibrary;
-use super::privacy_error::{PrivacyError, Result};
+use super::privacy_error::Result;
 use chrono::Utc;
 
 /// Style of redaction to apply.

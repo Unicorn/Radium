@@ -89,17 +89,17 @@ impl ToolHandler for TerminalCommandHandler {
         };
 
         // Check if sandbox should be used
-        // For now, we'll use a simple approach - if sandbox is available,
-        // we could initialize it, but for terminal commands, we'll just use
-        // the workspace root. Full sandbox integration would require more
-        // complex setup.
-        let _sandbox_path: Option<PathBuf> = if self.sandbox_manager.is_some() {
-            None // TODO: Implement proper sandbox path resolution
-        } else {
-            None
-        };
-
+        // If sandbox manager is available and we have an agent context,
+        // we could use the sandbox path. For now, we'll use the workspace root
+        // as the working directory. Full sandbox integration would require
+        // passing agent_id through the tool execution context.
         let actual_cwd = cwd;
+        
+        // Note: Sandbox integration would require:
+        // 1. Agent ID context passed to tool execution
+        // 2. Sandbox initialization before command execution
+        // 3. Sandbox cleanup after execution
+        // This is deferred to when agent context is available in tool execution
 
         // Execute command
         self.execute_command(&command, &actual_cwd, shell, timeout_secs, &env_vars).await

@@ -360,7 +360,7 @@ impl WorkflowGenerator {
         // Create steps in dependency order
         for task_id in sorted_tasks {
             // Find the task in the plan
-            if let Some((iteration, task)) = self.find_task_in_plan(plan, &task_id) {
+            if let Some((_iteration, task)) = self.find_task_in_plan(plan, &task_id) {
                 let agent_id = task.agent_id.as_deref().unwrap_or("auto");
 
                 let step_config = WorkflowStepConfig {

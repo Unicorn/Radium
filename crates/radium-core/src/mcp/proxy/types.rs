@@ -315,12 +315,12 @@ impl McpProxyServer {
             priorities.insert(upstream.server.name.clone(), upstream.priority);
         }
 
-        let router: Arc<dyn ToolRouter> = Arc::new(DefaultToolRouter::new(Arc::clone(&pool)));
-        let catalog: Arc<dyn ToolCatalog> = Arc::new(DefaultToolCatalog::new(
+        let _router: Arc<dyn ToolRouter> = Arc::new(DefaultToolRouter::new(Arc::clone(&pool)));
+        let _catalog: Arc<dyn ToolCatalog> = Arc::new(DefaultToolCatalog::new(
             config.conflict_strategy,
             priorities,
         ));
-        let security: Arc<dyn SecurityLayer> = Arc::new(DefaultSecurityLayer::new(config.security.clone())?);
+        let _security: Arc<dyn SecurityLayer> = Arc::new(DefaultSecurityLayer::new(config.security.clone())?);
         let health_checker = Arc::new(HealthChecker::new(Arc::clone(&pool)));
 
         // TODO: Add rebuild_catalog method to ToolCatalog trait for initial rebuild

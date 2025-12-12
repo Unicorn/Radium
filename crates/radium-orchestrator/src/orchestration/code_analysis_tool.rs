@@ -233,7 +233,7 @@ fn analyze_rust_code(code: &str, detail_level: &str) -> String {
 }
 
 /// Analyze JavaScript/TypeScript code structure
-fn analyze_js_ts_code(code: &str, detail_level: &str) -> String {
+fn analyze_js_ts_code(code: &str, _detail_level: &str) -> String {
     let mut output = String::new();
     output.push_str("# JavaScript/TypeScript Code Analysis\n\n");
 
@@ -310,7 +310,7 @@ fn analyze_js_ts_code(code: &str, detail_level: &str) -> String {
 }
 
 /// Analyze Python code structure
-fn analyze_python_code(code: &str, detail_level: &str) -> String {
+fn analyze_python_code(code: &str, _detail_level: &str) -> String {
     let mut output = String::new();
     output.push_str("# Python Code Analysis\n\n");
 

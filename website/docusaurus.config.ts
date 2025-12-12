@@ -61,7 +61,7 @@ const config: Config = {
       title: 'Radium',
       logo: {
         alt: 'Radium Logo',
-        src: 'img/logo.svg',
+        src: 'img/logo.png',
       },
       items: [
         {

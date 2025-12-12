@@ -1,6 +1,5 @@
 //! Core types for workflow behaviors.
 
-use crate::monitoring::telemetry::TelemetryTracking;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
@@ -252,7 +251,7 @@ impl BehaviorFileWatcher {
         use notify::{Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
         use std::sync::mpsc;
 
-        let file_path = self.file_path.clone();
+        let _file_path = self.file_path.clone();
         let behavior_state = Arc::clone(&self.behavior_state);
 
         // Create channel for file events

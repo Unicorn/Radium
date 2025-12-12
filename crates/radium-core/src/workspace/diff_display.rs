@@ -3,7 +3,7 @@
 //! This module provides functions to format and display diffs from patch results
 //! and file operation results in a human-readable format.
 
-use crate::workspace::patch::{ChangedFile, PatchResult};
+use crate::workspace::patch::PatchResult;
 use crate::workspace::tool_integration::IntegrationResult;
 use std::fmt::Write;
 

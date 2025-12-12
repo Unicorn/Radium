@@ -3,7 +3,7 @@
 //! This module generates comprehensive markdown reports summarizing task execution results.
 
 use crate::context::braingrid_client::BraingridRequirement;
-use crate::workflow::execution_state::{ExecutionState, TaskResult};
+use crate::workflow::execution_state::ExecutionState;
 use crate::workflow::parallel_executor::ExecutionReport;
 use chrono::Utc;
 use std::path::{Path, PathBuf};

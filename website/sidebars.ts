@@ -151,6 +151,7 @@ const sidebars: SidebarsConfig = {
             'features/editor-integration/architecture',
             'features/editor-integration/vscode',
             'features/editor-integration/neovim',
+            'features/editor-integration/tui-enhanced-chat-interface',
             'features/editor-integration/clipboard',
             'features/editor-integration/troubleshooting',
             'features/editor-integration/tui-enhanced-chat-interface',
@@ -287,6 +288,7 @@ const sidebars: SidebarsConfig = {
       collapsed: true,
       items: [
         'self-hosted/README',
+        'self-hosted/universal-provider-guide',
         'self-hosted/migration',
         'self-hosted/VALIDATION',
         'self-hosted/api-reference',

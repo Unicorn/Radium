@@ -9,7 +9,6 @@ use tokio::process::Command as TokioCommand;
 use tokio::sync::RwLock;
 use tokio::time::{timeout, Duration};
 use std::collections::HashMap;
-use std::fmt;
 use thiserror::Error;
 use regex::Regex;
 
@@ -393,7 +392,7 @@ impl BraingridClient {
         // Update cache
         {
             let mut cache = self.requirement_cache.write().await;
-            let was_new = !cache.contains_key(req_id);
+            let _was_new = !cache.contains_key(req_id);
             cache.insert(
                 req_id.to_string(),
                 CacheEntry {

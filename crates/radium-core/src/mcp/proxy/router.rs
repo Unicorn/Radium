@@ -45,9 +45,9 @@ impl DefaultToolRouter {
             upstreams.push(upstream_name.clone());
             
             // Sort by priority (get from pool config)
-            if let Some(config) = self.pool.get_upstream_config(&upstream_name).await {
+            if let Some(_config) = self.pool.get_upstream_config(&upstream_name).await {
                 // Sort existing upstreams by their priorities
-                upstreams.sort_by_key(|name| {
+                upstreams.sort_by_key(|_name| {
                     // Get priority from pool - we'll need to track this
                     // For now, just maintain insertion order
                     // TODO: Sort by actual priority from config

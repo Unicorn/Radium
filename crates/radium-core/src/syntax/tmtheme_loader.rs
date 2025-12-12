@@ -47,7 +47,7 @@ fn convert_theme(theme: &syntect::highlighting::Theme) -> Result<RadiumTheme> {
     let mut primary = Color::Rgb(0, 217, 255); // Default cyan
     let mut secondary = Color::Rgb(167, 139, 250); // Default purple
     let mut success = Color::Rgb(16, 185, 129); // Default green
-    let mut warning = Color::Rgb(245, 158, 11); // Default yellow
+    let warning = Color::Rgb(245, 158, 11); // Default yellow
     let mut error = Color::Rgb(239, 68, 68); // Default red
     let mut info = Color::Rgb(6, 182, 212); // Default blue
 

@@ -547,7 +547,7 @@ impl MonitoringService {
     /// Returns error if update fails
     pub async fn complete_agent_with_hooks(&self, agent_id: &str, exit_code: i32) -> Result<()> {
         // Get agent record for telemetry
-        let agent_record = self.get_agent(agent_id).ok();
+        let _agent_record = self.get_agent(agent_id).ok();
         let end_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
 
         // Execute telemetry hooks for agent completion

@@ -159,7 +159,7 @@ impl RoutingConfig {
     /// Returns `ConfigError` if file cannot be read, parsed, or validated.
     pub fn load_from_file<P: AsRef<Path>>(path: P) -> Result<Self, ConfigError> {
         let contents = fs::read_to_string(path)?;
-        let mut config: RoutingConfig = toml::from_str(&contents)?;
+        let config: RoutingConfig = toml::from_str(&contents)?;
         config.validate()?;
         Ok(config)
     }

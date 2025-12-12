@@ -1,7 +1,13 @@
 ---
+<<<<<<<< HEAD:website/docs/features/editor-integration/tui-enhanced-chat-interface.md
 id: "tui-enhanced-chat-interface"
 title: "Enhanced TUI Chat Interface"
 sidebar_label: "Enhanced TUI Chat Interface"
+========
+id: "tui-chat"
+title: "Enhanced TUI Chat Interface"
+sidebar_label: "TUI Chat"
+>>>>>>>> 86560d3766abfda850b1f43e986ed986540c28d7:website/docs/features/editor-integration/tui-chat.md
 ---
 
 # Enhanced TUI Chat Interface
@@ -83,7 +89,7 @@ The interface adapts to different terminal sizes:
 
 - **Wide terminals (≥100 cols)**: Three-panel horizontal layout (60/20/20)
 - **Narrow terminals (60-99 cols)**: Vertical stack with chat on top, task/orchestrator split on bottom
-- **Very narrow terminals (<60 cols)**: Chat only with toggle indicators in title
+- **Very narrow terminals (&lt;60 cols)**: Chat only with toggle indicators in title
 
 ## Troubleshooting
 
@@ -155,4 +161,3 @@ To modify orchestrator log highlighting:
 1. Edit `OrchestratorThinkingPanel::apply_syntax_highlighting`
 2. Add new patterns and color mappings
 3. Use theme colors for consistency
-

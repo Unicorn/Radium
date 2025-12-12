@@ -91,7 +91,7 @@ impl MarketplaceClient {
     ///
     /// Note: This is a placeholder implementation. When the marketplace backend
     /// is available, this will make HTTP requests to the API.
-    pub async fn search_hooks(&self, query: &str) -> HookResult<Vec<MarketplaceHook>> {
+    pub async fn search_hooks(&self, _query: &str) -> HookResult<Vec<MarketplaceHook>> {
         // Placeholder: Return empty results for now
         // TODO: Implement actual HTTP client when marketplace backend is available
         #[cfg(feature = "http")]
@@ -143,7 +143,7 @@ impl MarketplaceClient {
     }
 
     /// Get available versions for a hook.
-    pub async fn get_hook_versions(&self, name: &str) -> HookResult<Vec<HookVersion>> {
+    pub async fn get_hook_versions(&self, _name: &str) -> HookResult<Vec<HookVersion>> {
         // Placeholder implementation
         #[cfg(feature = "http")]
         {
@@ -168,7 +168,7 @@ impl MarketplaceClient {
     }
 
     /// Download a hook package.
-    pub async fn download_hook(&self, hook: &MarketplaceHook) -> HookResult<Vec<u8>> {
+    pub async fn download_hook(&self, _hook: &MarketplaceHook) -> HookResult<Vec<u8>> {
         // Placeholder implementation
         #[cfg(feature = "http")]
         {
