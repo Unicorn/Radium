@@ -6,7 +6,7 @@ use anyhow::{Context, bail};
 use chrono::Utc;
 use colored::Colorize;
 use futures::StreamExt;
-use radium_abstraction::{ContentBlock, ImageSource, MediaSource, MessageContent, ModelError, ModelParameters, ReasoningEffort, ResponseFormat, StreamItem, StreamingModel};
+use radium_abstraction::{ContentBlock, ImageSource, MediaSource, MessageContent, ModelParameters, ReasoningEffort, ResponseFormat, StreamItem, StreamingModel};
 use radium_core::engines::ExecutionResponse;
 use radium_models::gemini::file_api::GeminiFileApi;
 use serde_json;
@@ -675,7 +675,6 @@ async fn process_file(
     file_api: &GeminiFileApi,
 ) -> anyhow::Result<ContentBlock> {
     use base64::Engine;
-    use std::path::Path;
 
     // Check file exists
     if !path.exists() {
@@ -950,7 +949,6 @@ fn print_highlighted_output(text: &str) {
 
 /// Print a styled line with ANSI color codes.
 fn print_styled_line(styled_line: &radium_core::syntax::StyledLine, capabilities: ColorSupport) {
-    use radium_core::syntax::StyledSpan;
 
     for span in &styled_line.spans {
         let (r, g, b) = span.foreground;

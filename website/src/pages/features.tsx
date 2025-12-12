@@ -1,5 +1,6 @@
 import type {ReactNode} from 'react';
 import Layout from '@theme/Layout';
+import SEOHead from '@site/src/components/shared/SEOHead';
 import TabInterface from '@site/src/components/marketing/TabInterface';
 import FeatureCard from '@site/src/components/marketing/FeatureCard';
 import ComparisonTable from '@site/src/components/marketing/ComparisonTable';

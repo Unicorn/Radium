@@ -8,14 +8,13 @@ use radium_core::analytics::{
     SessionReport, SessionStorage,
 };
 use radium_core::monitoring::{
-    MonitoringService, ProviderCostBreakdown, TeamCostBreakdown, BudgetManager,
-    ModelTier, ProviderComparison, get_provider_comparison,
+    MonitoringService, BudgetManager,
+    ModelTier, get_provider_comparison,
 };
 use radium_core::workspace::Workspace;
 use chrono::{DateTime, Utc};
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 /// Statistics subcommands
 #[derive(Subcommand, Debug)]
