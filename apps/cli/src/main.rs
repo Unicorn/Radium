@@ -11,6 +11,8 @@ mod policy_engine;
 mod session_manager;
 mod validation;
 
+use colors::RadiumBrandColors;
+
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, shells};
 use colored::Colorize;
@@ -883,7 +885,8 @@ async fn check_and_prompt_resume() -> anyhow::Result<()> {
     }
     
     // Display resumable executions
-    println!("\n{} Found {} interrupted execution(s):", "ℹ".cyan(), resumable_info.len());
+    let colors = RadiumBrandColors::new();
+    println!("\n{} Found {} interrupted execution(s):", "ℹ".color(colors.info()), resumable_info.len());
     println!();
     for (idx, (req_id, state)) in resumable_info.iter().enumerate() {
         let completed = state.completed_tasks.len();
@@ -893,7 +896,7 @@ async fn check_and_prompt_resume() -> anyhow::Result<()> {
             idx + 1, req_id, state.requirement_title, completed, total, last_checkpoint);
     }
     println!();
-    println!("{} To resume, run: rad requirement resume <req-id>", "ℹ".cyan());
+    println!("{} To resume, run: rad requirement resume <req-id>", "ℹ".color(colors.info()));
     println!();
     
     Ok(())

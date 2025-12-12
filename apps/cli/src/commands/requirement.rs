@@ -23,6 +23,8 @@ use std::time::Instant;
 use std::process::Command;
 use serde::Deserialize;
 
+use crate::colors::RadiumBrandColors;
+
 /// Requirement command subcommands.
 #[derive(Subcommand, Debug)]
 pub enum RequirementCommand {
@@ -150,7 +152,8 @@ async fn execute(
     resume: bool,
     skip_breakdown: bool,
 ) -> anyhow::Result<()> {
-    println!("{}", "rad requirement execute".bold().cyan());
+    let colors = RadiumBrandColors::new();
+    println!("{}", "rad requirement execute".bold().color(colors.primary()));
     println!();
 
     let start_time = Instant::now();
@@ -164,19 +167,19 @@ async fn execute(
     let project_id = project_id
         .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok())
         .unwrap_or_else(|| {
-            println!("{}", "Warning: No project ID specified, using default PROJ-14".yellow());
+            println!("{}", "Warning: No project ID specified, using default PROJ-14".color(colors.warning()));
             "PROJ-14".to_string()
         });
 
     println!("{}", "Configuration:".bold());
-    println!("  Requirement ID: {}", req_id.cyan());
-    println!("  Project ID: {}", project_id.cyan());
+    println!("  Requirement ID: {}", req_id.color(colors.primary()));
+    println!("  Project ID: {}", project_id.color(colors.primary()));
     println!("  Max Parallel: {}", max_parallel);
     if dry_run {
-        println!("  {} Dry-run mode (no execution)", "⚠".yellow());
+        println!("  {} Dry-run mode (no execution)", "⚠".color(colors.warning()));
     }
     if resume {
-        println!("  {} Resume mode", "↻".cyan());
+        println!("  {} Resume mode", "↻".color(colors.primary()));
     }
     println!();
 
