@@ -61,7 +61,7 @@ pub async fn execute(cmd: CostCommand) -> Result<()> {
 /// Execute cost report command.
 async fn execute_report(
     plan: Option<String>,
-    workflow: Option<String>,
+    _workflow: Option<String>,
     start: Option<String>,
     end: Option<String>,
     format: String,

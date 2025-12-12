@@ -257,8 +257,8 @@ async fn status_engines(json_output: bool) -> Result<()> {
 async fn set_default_engine(engine_id: &str) -> Result<()> {
     let registry = init_registry();
 
-    // Verify engine exists
-    let engine = registry.get(engine_id)
+    // Verify engine exists - checked but not used directly
+    let _engine = registry.get(engine_id)
         .with_context(|| format!("Engine not found: {}", engine_id))?;
 
     // Set as default (this will also persist to config)
@@ -288,8 +288,8 @@ async fn health_engines(json_output: bool, timeout: u64) -> Result<()> {
             .map(|health| {
                 let status_str = match &health.status {
                     HealthStatus::Healthy => "healthy",
-                    HealthStatus::Warning(msg) => "warning",
-                    HealthStatus::Failed(msg) => "failed",
+                    HealthStatus::Warning(_msg) => "warning",
+                    HealthStatus::Failed(_msg) => "failed",
                 };
                 let status_msg = match &health.status {
                     HealthStatus::Healthy => None,

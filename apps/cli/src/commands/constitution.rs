@@ -108,7 +108,7 @@ async fn get_constitution(
 }
 
 /// List all active sessions.
-async fn list_constitutions(manager: Arc<ConstitutionManager>) -> anyhow::Result<()> {
+async fn list_constitutions(_manager: Arc<ConstitutionManager>) -> anyhow::Result<()> {
     // Note: ConstitutionManager doesn't currently have a method to list all sessions
     // This is a limitation - sessions are tracked internally but not exposed
     // For now, we'll inform the user about this limitation

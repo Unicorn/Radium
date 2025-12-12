@@ -164,7 +164,7 @@ async fn test_model(model_id: &str) -> Result<()> {
         .get(model_id)
         .with_context(|| format!("Model '{}' not found", model_id))?;
 
-    let metadata = engine.metadata();
+    let _metadata = engine.metadata();
 
     // Stage 1: Configuration validation
     println!("  {}", "Stage 1: Configuration validation".dimmed());
