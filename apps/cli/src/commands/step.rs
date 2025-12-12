@@ -888,7 +888,7 @@ fn print_highlighted_output(text: &str) {
     let mut code_block_lang = String::new();
     let mut code_block_content = String::new();
     let mut current_line = 1;
-    let mut current_block_index = 0;
+    let mut _current_block_index = 0;
     
     for line in text.lines() {
         if line.trim().starts_with("```") {
@@ -912,7 +912,7 @@ fn print_highlighted_output(text: &str) {
                 
                 // Find block index for this line
                 if let Some((_, index)) = block_map.get(&current_line) {
-                    current_block_index = *index;
+                    _current_block_index = *index;
                     let lang_display = if code_block_lang.is_empty() {
                         "text".to_string()
                     } else {
