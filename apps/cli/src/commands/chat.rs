@@ -725,7 +725,7 @@ async fn execute_chat_turn_with_tools(
     };
 
     // Create initial messages
-    let mut messages = vec![
+    let messages = vec![
         ChatMessage {
             role: "system".to_string(),
             content: MessageContent::Text(full_system_prompt),
