@@ -21,7 +21,7 @@ use async_trait::async_trait;
 use serde_json::Value;
 use std::sync::Arc;
 use std::time::Instant;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, mpsc, broadcast};
 use tokio::task::JoinHandle;
 
 use crate::commands::{Command, DisplayContext};
@@ -2115,6 +2115,37 @@ impl App {
         self.prompt_data
             .add_conversation_message("🤔 Thinking...".to_string(), max_history);
 
+        // Spawn background task to collect events during execution
+        // Events are collected in a Vec and processed after execution completes
+        let session_id_clone = session_id.clone();
+        let (event_tx, mut event_rx_collected) = tokio::sync::mpsc::unbounded_channel();
+        let event_collector_handle = tokio::spawn(async move {
+            use tokio::time::{timeout, Duration};
+            loop {
+                match timeout(Duration::from_millis(100), event_rx.recv()).await {
+                    Ok(Ok(event)) => {
+                        let event_correlation_id = match &event {
+                            radium_orchestrator::orchestration::events::OrchestrationEvent::UserInput { correlation_id, .. } => correlation_id,
+                            radium_orchestrator::orchestration::events::OrchestrationEvent::AssistantMessage { correlation_id, .. } => correlation_id,
+                            radium_orchestrator::orchestration::events::OrchestrationEvent::ToolCallRequested { correlation_id, .. } => correlation_id,
+                            radium_orchestrator::orchestration::events::OrchestrationEvent::ToolCallStarted { correlation_id, .. } => correlation_id,
+                            radium_orchestrator::orchestration::events::OrchestrationEvent::ToolCallFinished { correlation_id, .. } => correlation_id,
+                            radium_orchestrator::orchestration::events::OrchestrationEvent::ApprovalRequired { correlation_id, .. } => correlation_id,
+                            radium_orchestrator::orchestration::events::OrchestrationEvent::Error { correlation_id, .. } => correlation_id,
+                            radium_orchestrator::orchestration::events::OrchestrationEvent::Done { correlation_id, .. } => correlation_id,
+                        };
+
+                        if event_correlation_id == &session_id_clone {
+                            let _ = event_tx.send(event);
+                        }
+                    }
+                    Ok(Err(broadcast::error::RecvError::Closed)) => break,
+                    Ok(Err(broadcast::error::RecvError::Lagged(_))) => continue,
+                    Err(_) => continue, // Timeout, continue waiting
+                }
+            }
+        });
+
         // Execute orchestration (uses shared runtime and tool loop)
         let current_dir = self
             .workspace_status
@@ -2125,28 +2156,29 @@ impl App {
         let start_time = std::time::Instant::now();
         let result = service.handle_input(&session_id, &message, current_dir).await;
 
+        // Stop event collector
+        event_collector_handle.abort();
+
         // Remove thinking indicator
         let _ = self.prompt_data.conversation.pop();
 
-        // Replay tool lifecycle events captured during this call (best-effort; buffered, not live).
-        while let Ok(event) = event_rx.try_recv() {
+        // Process collected events in order (real-time collection, immediate processing)
+        while let Ok(event) = event_rx_collected.try_recv() {
             match event {
                 radium_orchestrator::orchestration::events::OrchestrationEvent::ToolCallStarted {
-                    correlation_id,
                     tool_name,
-                } if correlation_id == session_id => {
-                    let max_history = self.config.performance.max_conversation_history;
+                    ..
+                } => {
                     self.prompt_data.add_conversation_message(
                         format!("📋 Running tool: {}", tool_name),
                         max_history,
                     );
                 }
                 radium_orchestrator::orchestration::events::OrchestrationEvent::ToolCallFinished {
-                    correlation_id,
                     tool_name,
                     result,
-                } if correlation_id == session_id => {
-                    let max_history = self.config.performance.max_conversation_history;
+                    ..
+                } => {
                     if result.success {
                         self.prompt_data.add_conversation_message(
                             format!("✓ Tool finished: {}", tool_name),
@@ -2160,15 +2192,26 @@ impl App {
                     }
                 }
                 radium_orchestrator::orchestration::events::OrchestrationEvent::ApprovalRequired {
-                    correlation_id,
                     tool_name,
                     reason,
-                } if correlation_id == session_id => {
-                    let max_history = self.config.performance.max_conversation_history;
+                    ..
+                } => {
                     self.prompt_data.add_conversation_message(
                         format!("⚠️ Approval required for {}: {}", tool_name, reason),
                         max_history,
                     );
+                }
+                radium_orchestrator::orchestration::events::OrchestrationEvent::Error { message, .. } => {
+                    self.prompt_data.add_conversation_message(
+                        format!("❌ Error: {}", message),
+                        max_history,
+                    );
+                }
+                radium_orchestrator::orchestration::events::OrchestrationEvent::AssistantMessage { content, .. } => {
+                    if !content.trim().is_empty() {
+                        // Assistant messages are already handled by the result, but we can show intermediate ones
+                        // Skip to avoid duplication
+                    }
                 }
                 _ => {}
             }
