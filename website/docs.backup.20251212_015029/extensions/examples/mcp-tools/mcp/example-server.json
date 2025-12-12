@@ -1,0 +1,8 @@
+{
+  "name": "example-mcp-server",
+  "description": "Example MCP server configuration from extension",
+  "transport": "stdio",
+  "command": "example-mcp-server",
+  "args": ["--config", "config.json"]
+}
+

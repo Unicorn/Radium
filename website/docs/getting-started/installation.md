@@ -1,7 +1,7 @@
 ---
-id: installation
-title: Installation
-sidebar_label: Installation
+id: "installation"
+title: "Installing Radium"
+sidebar_label: "Installing Radium"
 ---
 
 # Installing Radium

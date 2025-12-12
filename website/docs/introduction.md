@@ -1,8 +1,7 @@
 ---
-id: introduction
-title: Introduction to Radium
-sidebar_label: Introduction
-slug: /
+id: "introduction"
+title: "Welcome to Radium"
+sidebar_label: "Welcome to Radium"
 ---
 
 # Welcome to Radium

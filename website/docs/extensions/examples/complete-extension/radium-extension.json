@@ -1,0 +1,14 @@
+{
+  "name": "complete-extension",
+  "version": "1.0.0",
+  "description": "A complete example extension demonstrating all component types",
+  "author": "Radium Team",
+  "components": {
+    "prompts": ["prompts/*.md"],
+    "mcp_servers": ["mcp/*.json"],
+    "commands": ["commands/*.toml"],
+    "hooks": ["hooks/*.toml"]
+  },
+  "dependencies": []
+}
+

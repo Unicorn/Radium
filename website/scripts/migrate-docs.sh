@@ -101,8 +101,8 @@ if [ -d "$SOURCE_DIR/guides" ]; then
     echo -e "\n${BLUE}Merging guides into user-guide...${NC}"
     mkdir -p "$TARGET_DIR/user-guide/guides"
     cp -r "$SOURCE_DIR/guides/"* "$TARGET_DIR/user-guide/guides/" 2>/dev/null || true
-    local count=$(find "$TARGET_DIR/user-guide/guides" -name "*.md" -type f | wc -l)
-    echo -e "${GREEN}✓ Merged $count guides${NC}"
+    guide_count=$(find "$TARGET_DIR/user-guide/guides" -name "*.md" -type f | wc -l)
+    echo -e "${GREEN}✓ Merged $guide_count guides${NC}"
 fi
 
 # Copy standalone root files to appropriate locations

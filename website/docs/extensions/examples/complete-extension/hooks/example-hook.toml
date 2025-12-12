@@ -1,0 +1,9 @@
+name = "example-hook"
+description = "An example hook configuration"
+version = "1.0.0"
+type = "native"
+
+[hook]
+library_path = "./libexample_hook.so"
+entry_point = "hook_init"
+
