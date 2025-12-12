@@ -249,7 +249,7 @@ impl TelemetryBar {
         }
 
         // Create bar chart data
-        let total_cost: f64 = telemetry.provider_breakdown.iter().map(|b| b.total_cost).sum();
+        let _total_cost: f64 = telemetry.provider_breakdown.iter().map(|b| b.total_cost).sum();
         let max_cost = telemetry.provider_breakdown.iter()
             .map(|b| b.total_cost)
             .fold(0.0, f64::max);

@@ -859,7 +859,6 @@ impl SetupWizard {
             }
             SetupState::ValidationResult { .. } => "Validation Result".to_string(),
             SetupState::Complete { .. } => "Setup Complete".to_string(),
-            _ => "Setup".to_string(),
         }
     }
 }

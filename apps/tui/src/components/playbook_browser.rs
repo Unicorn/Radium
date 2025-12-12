@@ -92,7 +92,7 @@ impl PlaybookBrowser {
             .enumerate()
             .map(|(idx, playbook)| {
                 let is_selected = idx == self.selected_index;
-                let priority_color = match playbook.priority {
+                let _priority_color = match playbook.priority {
                     PlaybookPriority::Required => Color::Red,
                     PlaybookPriority::Recommended => Color::Yellow,
                     PlaybookPriority::Optional => Color::Green,
