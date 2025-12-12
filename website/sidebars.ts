@@ -333,6 +333,27 @@ const sidebars: SidebarsConfig = {
           label: 'Protocol',
           items: [
             'specifications/protocol/e1-kor-protocol',
+            'specifications/protocol/e2-marketplace-dynamics',
+            'specifications/protocol/e3-enterprise-financial',
+            'specifications/protocol/kor-economic-model',
+          ],
+        },
+        {
+          type: 'category',
+          label: 'Governance',
+          items: [
+            'specifications/governance/g1-dao-structure',
+            'specifications/governance/g2-phase-evolution',
+            'specifications/governance/b1-federation-structure',
+            'specifications/governance/b2-enterprise-gtm',
+            'specifications/governance/b3-commons-tier',
+          ],
+        },
+        {
+          type: 'category',
+          label: 'Vision',
+          items: [
+            'specifications/vision/whitepaper-architecture',
           ],
         },
       ],
