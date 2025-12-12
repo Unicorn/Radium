@@ -11,8 +11,10 @@ use super::{
     FinishReason, OrchestrationProvider, OrchestrationResult,
     context::{Message, OrchestrationContext},
     events::OrchestrationEvent,
+    execution::execute_tool_calls,
     hooks::ToolHookExecutor,
     tool::{Tool, ToolArguments, ToolCall},
+    ToolExecutionConfig,
 };
 use crate::error::{OrchestrationError, Result};
 use tracing::warn;
@@ -24,11 +26,17 @@ pub struct EngineConfig {
     pub max_iterations: usize,
     /// Maximum time (in seconds) for entire orchestration
     pub timeout_seconds: u64,
+    /// Configuration for executing multiple tool calls (concurrency, batching, timeouts)
+    pub tool_execution: ToolExecutionConfig,
 }
 
 impl Default for EngineConfig {
     fn default() -> Self {
-        Self { max_iterations: 5, timeout_seconds: 120 }
+        Self {
+            max_iterations: 5,
+            timeout_seconds: 120,
+            tool_execution: ToolExecutionConfig::default(),
+        }
     }
 }
 
@@ -114,12 +122,24 @@ impl OrchestrationEngine {
         context: &mut OrchestrationContext,
     ) -> Result<OrchestrationResult> {
         let timeout_duration = Duration::from_secs(self.config.timeout_seconds);
+        let correlation_id = context.session_id.clone();
         
         // Wrap the entire execution in a timeout
         match timeout(timeout_duration, self.execute_internal(input, context)).await {
             Ok(result) => result,
             Err(_) => {
                 // Timeout occurred
+                self.emit(OrchestrationEvent::Error {
+                    correlation_id: correlation_id.clone(),
+                    message: format!(
+                        "Orchestration timed out after {} seconds",
+                        self.config.timeout_seconds
+                    ),
+                });
+                self.emit(OrchestrationEvent::Done {
+                    correlation_id,
+                    finish_reason: FinishReason::Error.to_string(),
+                });
                 Ok(OrchestrationResult::new(
                     format!("Orchestration timed out after {} seconds", self.config.timeout_seconds),
                     vec![],
@@ -286,6 +306,24 @@ impl OrchestrationEngine {
         correlation_id: &str,
         tool_calls: &[ToolCall],
     ) -> Result<Vec<crate::orchestration::tool::ToolResult>> {
+        // Fast path: when no hooks are installed, use the shared parallel execution engine.
+        if self.hook_executor.is_none() {
+            // Emit "started" for each tool call upfront (execution may run concurrently).
+            for call in tool_calls {
+                self.emit(OrchestrationEvent::ToolCallStarted {
+                    correlation_id: correlation_id.to_string(),
+                    tool_name: call.name.clone(),
+                });
+            }
+
+            let raw_results = execute_tool_calls(tool_calls, &self.tools, &self.config.tool_execution).await;
+            let mut results = Vec::with_capacity(raw_results.len());
+            for res in raw_results {
+                results.push(res?);
+            }
+            return Ok(results);
+        }
+
         let mut results = Vec::new();
 
         for tool_call in tool_calls {
@@ -479,12 +517,27 @@ mod tests {
             FinishReason::Stop,
         )]));
 
-        let engine = OrchestrationEngine::with_defaults(provider, vec![]);
+        let (tx, mut rx) = broadcast::channel(16);
+        let mut engine = OrchestrationEngine::with_defaults(provider, vec![]);
+        engine.set_event_sender(Some(tx));
         let mut context = OrchestrationContext::new("test-session");
 
         let result = engine.execute("Test input", &mut context).await.unwrap();
         assert_eq!(result.response, "Done");
         assert_eq!(result.finish_reason, FinishReason::Stop);
+
+        // Verify we emitted basic lifecycle events.
+        let mut seen_user_input = false;
+        let mut seen_done = false;
+        while let Ok(event) = rx.try_recv() {
+            match event {
+                OrchestrationEvent::UserInput { .. } => seen_user_input = true,
+                OrchestrationEvent::Done { .. } => seen_done = true,
+                _ => {}
+            }
+        }
+        assert!(seen_user_input);
+        assert!(seen_done);
     }
 
     #[tokio::test]
@@ -550,7 +603,11 @@ mod tests {
         let engine = OrchestrationEngine::new(
             provider,
             vec![tool],
-            EngineConfig { max_iterations: 3, timeout_seconds: 120 },
+            EngineConfig {
+                max_iterations: 3,
+                timeout_seconds: 120,
+                tool_execution: ToolExecutionConfig::default(),
+            },
         );
 
         let mut context = OrchestrationContext::new("test-session");

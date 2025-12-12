@@ -189,6 +189,7 @@ async fn test_max_iterations_enforcement() {
         EngineConfig {
             max_iterations: 3,
             timeout_seconds: 120,
+            tool_execution: radium_orchestrator::orchestration::ToolExecutionConfig::default(),
         },
     );
     let mut context = OrchestrationContext::new("test-session");

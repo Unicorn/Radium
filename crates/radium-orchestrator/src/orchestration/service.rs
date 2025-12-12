@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::sync::{RwLock, broadcast};
 
 use super::{
     OrchestrationProvider, OrchestrationResult,
@@ -15,6 +15,7 @@ use super::{
     context::{Message, OrchestrationContext},
     context_loader::ContextFileLoaderTrait,
     engine::{EngineConfig, OrchestrationEngine},
+    events::OrchestrationEvent,
     file_tools::{self, WorkspaceRootProvider as FileWorkspaceRootProvider},
     git_extended_tools,
     hooks::ToolHookExecutor,
@@ -78,6 +79,8 @@ pub struct OrchestrationService {
     provider: Arc<dyn OrchestrationProvider>,
     /// Orchestration engine
     engine: Arc<OrchestrationEngine>,
+    /// Broadcast sender for orchestration events (tokens/tool calls/progress/approvals)
+    event_tx: broadcast::Sender<OrchestrationEvent>,
     /// Context file loader (optional)
     context_loader: Option<Arc<dyn ContextFileLoaderTrait>>,
     /// Workspace root for context loading
@@ -102,6 +105,9 @@ impl OrchestrationService {
         context_loader: Option<Arc<dyn ContextFileLoaderTrait>>,
         hook_executor: Option<Arc<dyn ToolHookExecutor>>,
     ) -> Result<Self> {
+        // Event stream channel (consumed by CLI/TUI/daemon clients)
+        let (event_tx, _) = broadcast::channel(1024);
+
         // Initialize tool registry
         let mut tool_registry = AgentToolRegistry::new();
         tool_registry.load_agents()?;
@@ -166,13 +172,16 @@ impl OrchestrationService {
         let engine_config = EngineConfig {
             max_iterations: config.default_provider_config().max_tool_iterations,
             timeout_seconds: 120,
+            tool_execution: super::ToolExecutionConfig::default(),
         };
-        let engine = Arc::new(OrchestrationEngine::with_hook_executor(
+        let mut engine = OrchestrationEngine::with_hook_executor(
             Arc::clone(&provider),
             tools,
             engine_config,
             hook_executor,
-        ));
+        );
+        engine.set_event_sender(Some(event_tx.clone()));
+        let engine = Arc::new(engine);
 
         Ok(Self {
             config,
@@ -180,9 +189,18 @@ impl OrchestrationService {
             sessions: Arc::new(RwLock::new(HashMap::new())),
             provider,
             engine,
+            event_tx,
             context_loader,
             workspace_root,
         })
+    }
+
+    /// Subscribe to orchestration events.
+    ///
+    /// Clients (CLI/TUI/daemon) should consume this stream for tool call lifecycle,
+    /// approvals, progress, and completion.
+    pub fn subscribe_events(&self) -> broadcast::Receiver<OrchestrationEvent> {
+        self.event_tx.subscribe()
     }
 
     /// Create provider based on configuration
@@ -391,6 +409,7 @@ impl OrchestrationService {
         let engine_config = EngineConfig {
             max_iterations: self.config.prompt_based.max_tool_iterations,
             timeout_seconds: self.config.default_provider_config().max_tool_iterations as u64 * 24, // 2 minutes per iteration
+            tool_execution: super::ToolExecutionConfig::default(),
         };
         let fallback_engine = OrchestrationEngine::new(
             fallback_provider,
