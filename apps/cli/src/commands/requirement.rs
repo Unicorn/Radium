@@ -193,7 +193,7 @@ async fn execute(
     // Initialize database
     println!("{}", "Initializing database...".dimmed());
     let db_path = workspace.radium_dir().join("database.db");
-    let db = Arc::new(std::sync::Mutex::new(
+    let _db = Arc::new(std::sync::Mutex::new(
         Database::open(db_path.to_str().unwrap()).context("Failed to open database")?,
     ));
     println!("  {} Database initialized", "✓".color(colors.success()));
@@ -232,7 +232,7 @@ async fn execute(
         cache_identifier: None,
         enable_code_execution: None,
     };
-    let model = ModelFactory::create(config)
+    let _model = ModelFactory::create(config)
         .context("Failed to create model")?;
     println!("  {} Model initialized", "✓".color(colors.success()));
     println!();
@@ -383,7 +383,7 @@ async fn execute(
     progress_reporter.finish(&execution_report);
     report_generator.display_summary(&completion_report);
 
-    let elapsed = start_time.elapsed();
+    let _elapsed = start_time.elapsed();
 
 
     Ok(())
