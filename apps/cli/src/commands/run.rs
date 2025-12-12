@@ -22,10 +22,10 @@ pub async fn execute(
     script: String,
     model: Option<String>,
     dir: Option<String>,
-    _model_tier: Option<String>,
-    show_metadata: bool,
-    json: bool,
-    safety_behavior: Option<String>,
+    _    model_tier: Option<String>,
+    _show_metadata: bool,
+    _json: bool,
+    _safety_behavior: Option<String>,
 ) -> anyhow::Result<()> {
     println!("{}", "rad run".bold().cyan());
     println!();
