@@ -311,7 +311,34 @@ const sidebars: SidebarsConfig = {
       ],
     },
 
-    // 10. Developer Guide
+    // 10. Specifications
+    {
+      type: 'category',
+      label: 'Specifications',
+      collapsed: true,
+      items: [
+        'specifications/specifications-overview',
+        {
+          type: 'category',
+          label: 'Technical',
+          items: [
+            'specifications/technical/t1-core-architecture',
+            'specifications/technical/t2-component-foundry',
+            'specifications/technical/t3-global-component-graph',
+            'specifications/technical/t4-agentic-integration',
+          ],
+        },
+        {
+          type: 'category',
+          label: 'Protocol',
+          items: [
+            'specifications/protocol/e1-kor-protocol',
+          ],
+        },
+      ],
+    },
+
+    // 11. Developer Guide
     {
       type: 'category',
       label: 'Developer',
@@ -372,7 +399,7 @@ const sidebars: SidebarsConfig = {
       ],
     },
 
-    // 11. API Reference
+    // 12. API Reference
     {
       type: 'category',
       label: 'API Reference',
@@ -387,7 +414,7 @@ const sidebars: SidebarsConfig = {
       ],
     },
 
-    // 12. Examples
+    // 13. Examples
     {
       type: 'category',
       label: 'Examples',
