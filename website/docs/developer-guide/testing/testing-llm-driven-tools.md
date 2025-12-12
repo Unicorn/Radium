@@ -1,3 +1,9 @@
+---
+id: "testing-llm-driven-tools"
+title: "Testing LLM-Driven Tool Selection"
+sidebar_label: "Testing LLM-Driven Tools"
+---
+
 # Testing LLM-Driven Tool Selection
 
 ## Architectural Change Summary
@@ -332,3 +338,4 @@ LLM synthesizes response
 ```
 [Space for testing notes]
 ```
+

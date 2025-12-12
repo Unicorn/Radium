@@ -1,3 +1,9 @@
+---
+id: "architecture-migration-llm-driven"
+title: "Architectural Migration: Pattern Matching → LLM-Driven Tool Selection"
+sidebar_label: "LLM-Driven Tool Selection Migration"
+---
+
 # Architectural Migration: Pattern Matching → LLM-Driven Tool Selection
 
 **Date**: 2025-12-10
@@ -444,3 +450,4 @@ See: `docs/TESTING-LLM-DRIVEN-TOOLS.md`
 **Build Status**: ✅ Success
 **Ready for Testing**: ✅ Yes
 **Next Phase**: o1/o3 Integration (Phase 2)
+

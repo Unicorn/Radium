@@ -1,3 +1,9 @@
+---
+id: "universal-provider-guide"
+title: "Universal OpenAI-Compatible Provider Guide"
+sidebar_label: "Universal Provider Guide"
+---
+
 # Universal OpenAI-Compatible Provider Guide
 
 ## Introduction
@@ -450,3 +456,4 @@ See the integration tests in `crates/radium-models/tests/universal_integration_t
 - [LocalAI Documentation](https://localai.io/)
 - [LM Studio Documentation](https://lmstudio.ai/docs)
 - [Ollama Documentation](https://ollama.com/docs)
+

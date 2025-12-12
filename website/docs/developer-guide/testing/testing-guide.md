@@ -1,3 +1,9 @@
+---
+id: "testing-guide"
+title: "Testing Guide for Radium"
+sidebar_label: "Testing Guide"
+---
+
 # Testing Guide for Radium
 
 **Last Updated:** 2025-12-07
@@ -559,9 +565,10 @@ fn test_agent_list_command() {
 
 - [REQ-164: Comprehensive Test Coverage Strategy](../roadmap/PROGRESS.md)
 - [GitHub Actions CI Workflow](../.github/workflows/test-coverage.yml)
-- [ADR-001: YOLO Mode Architecture](adr/001-yolo-mode-architecture.md)
-- [Integration Map](yolo-mode/integration-map.md)
+- [ADR-001: YOLO Mode Architecture](../adr/001-yolo-mode-architecture.md)
+- [Integration Map](../features/yolo-mode/integration-map.md)
 
 ---
 
 **Happy Testing! 🧪**
+

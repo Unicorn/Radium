@@ -153,6 +153,7 @@ const sidebars: SidebarsConfig = {
             'features/editor-integration/neovim',
             'features/editor-integration/clipboard',
             'features/editor-integration/troubleshooting',
+            'features/editor-integration/tui-enhanced-chat-interface',
           ],
         },
         {
@@ -289,6 +290,7 @@ const sidebars: SidebarsConfig = {
         'self-hosted/migration',
         'self-hosted/VALIDATION',
         'self-hosted/api-reference',
+        'self-hosted/universal-provider-guide',
         'self-hosted/troubleshooting',
         {
           type: 'category',
@@ -377,6 +379,8 @@ const sidebars: SidebarsConfig = {
             'developer-guide/architecture/checkpoint-system',
             'developer-guide/architecture/engine-abstraction',
             'developer-guide/architecture/tui-architecture',
+            'developer-guide/architecture/architecture-migration-llm-driven',
+            'developer-guide/architecture/cli-tui-parity-analysis',
           ],
         },
         {
@@ -399,6 +403,8 @@ const sidebars: SidebarsConfig = {
           type: 'category',
           label: 'Testing',
           items: [
+            'developer-guide/testing/testing-guide',
+            'developer-guide/testing/testing-llm-driven-tools',
             'developer-guide/testing/coverage-analysis-REQ-172',
             'developer-guide/testing/coverage-backlog',
           ],

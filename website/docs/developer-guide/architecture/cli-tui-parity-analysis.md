@@ -1,3 +1,9 @@
+---
+id: "cli-tui-parity-analysis"
+title: "CLI vs TUI Feature Parity Analysis"
+sidebar_label: "CLI/TUI Parity Analysis"
+---
+
 # CLI vs TUI Feature Parity Analysis
 
 **Date**: 2025-12-10
@@ -389,3 +395,4 @@ GEMINI_API_KEY=<your-key> ./dist/target/release/radium-cli chat chat-gemini
 Both TUI and CLI can do LLM-driven tool selection, but through **completely different code paths**. Our changes only affected the TUI. The CLI was already using the correct architecture via the orchestrator.
 
 For true parity, we should eventually migrate the TUI to use the orchestrator's tool registry instead of maintaining a separate custom implementation.
+

@@ -1,3 +1,9 @@
+---
+id: "tui-enhanced-chat-interface"
+title: "Enhanced TUI Chat Interface"
+sidebar_label: "Enhanced TUI Chat Interface"
+---
+
 # Enhanced TUI Chat Interface
 
 ## Overview
@@ -42,7 +48,7 @@ The task list panel displays:
 
 The orchestrator thinking panel displays:
 - **Real-time Logs**: Orchestrator decision-making process
-- **Syntax Highlighting**: 
+- **Syntax Highlighting**:
   - `[Orchestrator]` prefix in primary color
   - Keywords like "Analyzing", "Selected", "Executing" in info color
   - Errors in error color
