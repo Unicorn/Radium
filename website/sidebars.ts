@@ -106,6 +106,7 @@ const sidebars: SidebarsConfig = {
         'features/context-files',
         'features/context-caching',
         'features/session-analytics',
+        'features/embedded-server-lifecycle',
         {
           type: 'category',
           label: 'Planning',
