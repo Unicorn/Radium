@@ -55,7 +55,7 @@ too_many_lines = 'allow'                 # Generated proto code can be long
 [workspace.dependencies]
 tokio = { version = '1', features = ['full'] }
 tonic = '0.13'
-tonic-web = '0.13'
+tonic-web = '0.14'
 tonic-build = '0.13'
 prost = '0.13'
 tower = '0.5'
