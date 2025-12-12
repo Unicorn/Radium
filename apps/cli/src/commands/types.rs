@@ -814,6 +814,23 @@ pub enum EngineConfigCommand {
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum BraingridCommand {
+    /// Create a new requirement from a description (Braingrid `specify`)
+    ///
+    /// This is the recommended starting point for new work so progress can be tracked remotely.
+    Specify {
+        /// Requirement description/specification text (if omitted, you must provide --file)
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        text: Vec<String>,
+
+        /// Read requirement description/specification from a local file
+        #[arg(short, long)]
+        file: Option<std::path::PathBuf>,
+
+        /// Braingrid project ID (defaults to BRAINGRID_PROJECT_ID env var or PROJ-14)
+        #[arg(short, long)]
+        project: Option<String>,
+    },
+
     /// Read a requirement with all tasks
     Read {
         /// Requirement ID (e.g., "REQ-173")
@@ -865,6 +882,32 @@ pub enum BraingridCommand {
 
     /// Trigger requirement breakdown (create tasks)
     Breakdown {
+        /// Requirement ID (e.g., "REQ-173")
+        req_id: String,
+
+        /// Braingrid project ID (defaults to BRAINGRID_PROJECT_ID env var or PROJ-14)
+        #[arg(short, long)]
+        project: Option<String>,
+    },
+
+    /// Update requirement with an action (Braingrid `requirement update --action ...`)
+    ///
+    /// Useful for “refresh requirement with latest commits and break into tasks”.
+    Action {
+        /// Requirement ID (e.g., "REQ-173")
+        req_id: String,
+
+        /// Action text passed to Braingrid CLI (e.g. \"Update requirement with latest commits and break requirement into tasks\")
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        action: Vec<String>,
+
+        /// Braingrid project ID (defaults to BRAINGRID_PROJECT_ID env var or PROJ-14)
+        #[arg(short, long)]
+        project: Option<String>,
+    },
+
+    /// Ensure tasks exist for a requirement (only triggers breakdown if empty)
+    EnsureTasks {
         /// Requirement ID (e.g., "REQ-173")
         req_id: String,
 

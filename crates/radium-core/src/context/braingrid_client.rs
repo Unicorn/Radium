@@ -11,6 +11,7 @@ use tokio::time::{timeout, Duration};
 use std::collections::HashMap;
 use std::fmt;
 use thiserror::Error;
+use regex::Regex;
 
 /// Errors that can occur during Braingrid operations
 #[derive(Debug, Error)]
@@ -289,6 +290,59 @@ impl BraingridClient {
         let json_str = &output[json_start..];
         serde_json::from_str(json_str)
             .map_err(|e| BraingridError::ParseError(format!("Failed to parse requirement JSON: {}", e)))
+    }
+
+    /// Create a new requirement using `braingrid specify`.
+    ///
+    /// Returns the created requirement ID (e.g., "REQ-173") when it can be extracted from output.
+    pub async fn specify_requirement(&self, text: &str) -> Result<String> {
+        // `braingrid specify -p PROJ-14 "text..."` returns human output.
+        // We'll robustly extract the first REQ-### occurrence.
+        let output = self
+            .execute_command(&["specify", "-p", &self.project_id, text])
+            .await?;
+
+        let re = Regex::new(r"\bREQ-\d+\b").map_err(|e| {
+            BraingridError::CommandFailed(format!("Failed to compile REQ regex: {}", e))
+        })?;
+
+        if let Some(m) = re.find(&output) {
+            return Ok(m.as_str().to_string());
+        }
+
+        // If output didn't contain a REQ id, surface the output for debugging.
+        Err(BraingridError::ParseError(format!(
+            "Could not find created requirement ID in braingrid output. Output:\n{}",
+            output
+        )))
+    }
+
+    /// Update a requirement with a freeform action (Braingrid `requirement update --action ...`)
+    pub async fn update_requirement_action(&self, req_id: &str, action: &str) -> Result<()> {
+        self.execute_command(&[
+            "requirement",
+            "update",
+            req_id,
+            "-p",
+            &self.project_id,
+            "--action",
+            action,
+        ])
+        .await
+        .map_err(|e| match e {
+            BraingridError::NotFound(_) => BraingridError::NotFound(format!("Requirement {} not found", req_id)),
+            _ => e,
+        })?;
+
+        // Invalidate cache (requirement content/tasks may have changed)
+        {
+            let mut cache = self.requirement_cache.write().await;
+            cache.remove(req_id);
+            let mut stats = self.cache_stats.write().await;
+            stats.size = cache.len();
+        }
+
+        Ok(())
     }
 
     /// Fetch requirement tree (requirement + all tasks) with caching
@@ -601,5 +655,13 @@ mod tests {
         let client = BraingridClient::new("PROJ-14").with_command_timeout(60);
         // Verify timeout is set
         assert_eq!(client.command_timeout().as_secs(), 60);
+    }
+
+    #[test]
+    fn test_extract_req_id_regex() {
+        let re = Regex::new(r"\bREQ-\d+\b").unwrap();
+        let s = "Created requirement REQ-173 successfully";
+        let m = re.find(s).unwrap();
+        assert_eq!(m.as_str(), "REQ-173");
     }
 }

@@ -665,6 +665,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Braingrid(cmd) => {
             match cmd {
+                BraingridCommand::Specify { text, file, project } => {
+                    braingrid::specify(text, file, project).await?;
+                }
                 BraingridCommand::Read { req_id, project } => {
                     braingrid::read(req_id, project).await?;
                 }
@@ -679,6 +682,12 @@ async fn main() -> anyhow::Result<()> {
                 }
                 BraingridCommand::Breakdown { req_id, project } => {
                     braingrid::breakdown(req_id, project).await?;
+                }
+                BraingridCommand::Action { req_id, action, project } => {
+                    braingrid::action(req_id, action, project).await?;
+                }
+                BraingridCommand::EnsureTasks { req_id, project } => {
+                    braingrid::ensure_tasks(req_id, project).await?;
                 }
                 BraingridCommand::Cache(cache_cmd) => {
                     match cache_cmd {

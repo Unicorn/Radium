@@ -8,6 +8,49 @@ use radium_core::context::braingrid_client::{
     BraingridClient, BraingridError, CacheStats, RequirementStatus, TaskStatus,
 };
 use std::process::Command;
+use std::path::PathBuf;
+
+/// Create a new requirement (Braingrid `specify`)
+pub async fn specify(text: Vec<String>, file: Option<PathBuf>, project_id: Option<String>) -> Result<()> {
+    println!("{}", "rad braingrid specify".bold().cyan());
+    println!();
+
+    let project_id = get_project_id(project_id)?;
+
+    let spec_text = if let Some(path) = file {
+        let contents = std::fs::read_to_string(&path)
+            .with_context(|| format!("Failed to read file: {}", path.display()))?;
+        contents
+    } else {
+        let joined = text.join(" ").trim().to_string();
+        if joined.is_empty() {
+            anyhow::bail!("No specification text provided. Pass text args or use --file <path>.");
+        }
+        joined
+    };
+
+    println!("{}", "Configuration:".bold());
+    println!("  Project ID: {}", project_id.cyan());
+    println!("  Input: {}", if spec_text.len() > 80 { "text (truncated)".dimmed() } else { spec_text.clone().cyan() });
+    println!();
+
+    println!("{}", "Creating requirement via Braingrid...".dimmed());
+    let client = BraingridClient::new(project_id);
+    let created = client
+        .specify_requirement(&spec_text)
+        .await
+        .map_err(|e| map_braingrid_error(e, "specify"))?;
+
+    println!("  {} Created requirement {}", "✓".green(), created.cyan());
+    println!();
+    println!("Next steps:");
+    println!("  - View:     {}", format!("rad braingrid read {}", created).dimmed());
+    println!("  - Breakdown:{}", format!("rad braingrid breakdown {}", created).dimmed());
+    println!("  - Execute:  {}", format!("rad requirement execute {}", created).dimmed());
+    println!();
+
+    Ok(())
+}
 
 /// Read a requirement with all tasks
 pub async fn read(req_id: String, project_id: Option<String>) -> Result<()> {
@@ -243,6 +286,71 @@ pub async fn breakdown(req_id: String, project_id: Option<String>) -> Result<()>
         println!();
     }
 
+    Ok(())
+}
+
+/// Update requirement with an action (Braingrid `requirement update --action ...`)
+pub async fn action(req_id: String, action: Vec<String>, project_id: Option<String>) -> Result<()> {
+    println!("{}", "rad braingrid action".bold().cyan());
+    println!();
+
+    let project_id = get_project_id(project_id)?;
+    let action_text = action.join(" ").trim().to_string();
+    if action_text.is_empty() {
+        anyhow::bail!("Action text is required.");
+    }
+
+    println!("{}", "Configuration:".bold());
+    println!("  Requirement ID: {}", req_id.cyan());
+    println!("  Project ID: {}", project_id.cyan());
+    println!("  Action: {}", action_text.cyan());
+    println!();
+
+    println!("{}", "Updating requirement...".dimmed());
+    let client = BraingridClient::new(project_id);
+    client
+        .update_requirement_action(&req_id, &action_text)
+        .await
+        .map_err(|e| map_braingrid_error(e, &req_id))?;
+
+    println!("  {} Requirement updated successfully", "✓".green());
+    println!();
+    Ok(())
+}
+
+/// Ensure tasks exist for a requirement (trigger breakdown only if empty)
+pub async fn ensure_tasks(req_id: String, project_id: Option<String>) -> Result<()> {
+    println!("{}", "rad braingrid ensure-tasks".bold().cyan());
+    println!();
+
+    let project_id = get_project_id(project_id)?;
+
+    println!("{}", "Configuration:".bold());
+    println!("  Requirement ID: {}", req_id.cyan());
+    println!("  Project ID: {}", project_id.cyan());
+    println!();
+
+    println!("{}", "Fetching requirement...".dimmed());
+    let client = BraingridClient::new(project_id);
+    let requirement = client
+        .fetch_requirement_tree(&req_id)
+        .await
+        .map_err(|e| map_braingrid_error(e, &req_id))?;
+
+    if !requirement.tasks.is_empty() {
+        println!("  {} Tasks already exist ({} tasks). No action needed.", "✓".green(), requirement.tasks.len());
+        println!();
+        return Ok(());
+    }
+
+    println!("{}", "No tasks found; triggering breakdown...".dimmed());
+    let tasks = client
+        .breakdown_requirement(&req_id)
+        .await
+        .map_err(|e| map_braingrid_error(e, &req_id))?;
+
+    println!("  {} Created {} tasks", "✓".green(), tasks.len());
+    println!();
     Ok(())
 }
 
