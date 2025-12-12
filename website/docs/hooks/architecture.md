@@ -212,7 +212,7 @@ This adapter bridges the hooks system with the orchestrator without creating cir
 
 The entire hooks system is designed for concurrent access:
 
-- **Arc<RwLock<>>**: Registry uses `Arc<RwLock>` for thread-safe access
+- **`Arc<RwLock<>>`**: Registry uses `Arc<RwLock>` for thread-safe access
 - **Send + Sync**: All hooks must be `Send + Sync`
 - **Async Execution**: All hook execution is async, enabling non-blocking operations
 

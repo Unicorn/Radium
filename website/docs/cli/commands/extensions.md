@@ -22,12 +22,12 @@ List installed extensions.
 rad extension list [--json] [--verbose]
 ```
 
-#### `install `<source>``
+#### `install <source>`
 
 Install an extension from source.
 
 ```bash
-rad extension install `<source>` [--overwrite] [--no-deps]
+rad extension install <source> [--overwrite] [--no-deps]
 ```
 
 Options:
@@ -39,7 +39,7 @@ Options:
 Uninstall an extension.
 
 ```bash
-rad extension uninstall `<name>`
+rad extension uninstall <name>
 ```
 
 #### `info <name>`
@@ -47,7 +47,7 @@ rad extension uninstall `<name>`
 Show extension information.
 
 ```bash
-rad extension info `<name>` [--json]
+rad extension info <name> [--json]
 ```
 
 #### `search <query>`
@@ -63,7 +63,7 @@ rad extension search <query> [--json]
 Create a new extension template.
 
 ```bash
-rad extension create `<name>` [--author <author>] [--description <desc>]
+rad extension create <name> [--author <author>] [--description <desc>]
 ```
 
 ### Examples
