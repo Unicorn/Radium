@@ -251,7 +251,7 @@ impl BehaviorFileWatcher {
         use notify::{Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
         use std::sync::mpsc;
 
-        let file_path = self.file_path.clone();
+        let _file_path = self.file_path.clone();
         let behavior_state = Arc::clone(&self.behavior_state);
 
         // Create channel for file events

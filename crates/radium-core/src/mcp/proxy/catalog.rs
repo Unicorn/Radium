@@ -114,7 +114,7 @@ impl DefaultToolCatalog {
         original_name: &str,
         upstream_name: &str,
         tools_map: &HashMap<String, McpTool>,
-        sources_map: &HashMap<String, String>,
+        _sources_map: &HashMap<String, String>,
     ) -> String {
         match self.conflict_strategy {
             ConflictStrategy::AutoPrefix => {

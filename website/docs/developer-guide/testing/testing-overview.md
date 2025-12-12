@@ -1,3 +1,9 @@
+---
+id: "testing-overview"
+title: "Testing Guide for Radium"
+sidebar_label: "Testing Overview"
+---
+
 # Testing Guide for Radium
 
 **Last Updated:** 2025-12-07
@@ -7,7 +13,7 @@ This document provides comprehensive guidelines for testing Radium components ac
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
 1. [Testing Philosophy](#testing-philosophy)
 2. [Test Infrastructure](#test-infrastructure)
@@ -20,7 +26,7 @@ This document provides comprehensive guidelines for testing Radium components ac
 
 ---
 
-## 🎯 Testing Philosophy
+## Testing Philosophy
 
 Radium follows a comprehensive testing strategy with three layers:
 
@@ -37,8 +43,8 @@ Radium follows a comprehensive testing strategy with three layers:
 ```
 
 **Guidelines:**
-- **Unit Tests**: Test individual functions/methods in isolation. Should be fast (<1ms) and comprehensive.
-- **Integration Tests**: Test component interactions (CLI commands, gRPC endpoints, workflows). Can be slower (<100ms).
+- **Unit Tests**: Test individual functions/methods in isolation. Should be fast (&lt;1ms) and comprehensive.
+- **Integration Tests**: Test component interactions (CLI commands, gRPC endpoints, workflows). Can be slower (&lt;100ms).
 - **E2E Tests**: Test complete user workflows from command input to final output. Allowed to be slow (seconds).
 
 **Coverage Targets:**
@@ -48,7 +54,7 @@ Radium follows a comprehensive testing strategy with three layers:
 
 ---
 
-## 🛠️ Test Infrastructure
+## Test Infrastructure
 
 ### Coverage Tool
 
@@ -84,25 +90,25 @@ cargo install cargo-llvm-cov
 
 ---
 
-## 📊 Test Coverage Requirements
+## Test Coverage Requirements
 
 ### Current Coverage (as of 2025-12-07)
 
 | Crate | Tests | Status | Coverage |
 |-------|-------|--------|----------|
-| **radium-core** | 301 | ✅ Passing | High |
-| - agents | 42 | ✅ Passing | 95%+ |
-| - workflow | 169 | ✅ Passing | 90%+ |
-| - storage | 58 | ✅ Passing | 85%+ |
-| - policy | 32 | ✅ Passing | 90%+ |
-| **radium-orchestrator** | 122 | ✅ Passing | 85%+ |
-| **radium-models** | 10 | ✅ Passing | 80%+ |
-| **radium-cli** | 34 | 🔨 In Progress | TBD |
+| **radium-core** | 301 | Passing | High |
+| - agents | 42 | Passing | 95%+ |
+| - workflow | 169 | Passing | 90%+ |
+| - storage | 58 | Passing | 85%+ |
+| - policy | 32 | Passing | 90%+ |
+| **radium-orchestrator** | 122 | Passing | 85%+ |
+| **radium-models** | 10 | Passing | 80%+ |
+| **radium-cli** | 34 | In Progress | TBD |
 | **Total** | **467+** | | **~88%** |
 
 ---
 
-## 🚀 Running Tests
+## Running Tests
 
 ### Quick Commands
 
@@ -164,7 +170,7 @@ cargo test --package radium-cli --test golden_path_workflow
 
 ---
 
-## ✍️ Writing Tests
+## Writing Tests
 
 ### Unit Test Structure
 
@@ -294,7 +300,7 @@ fn test_register_duplicate_fails() {
 
 ---
 
-## 📈 Code Coverage
+## Code Coverage
 
 ### Coverage Reports
 
@@ -321,10 +327,10 @@ The following are excluded from coverage metrics:
 ### Coverage Interpretation
 
 **Line Coverage Levels:**
-- 🟢 **90-100%**: Excellent - comprehensive testing
-- 🟡 **75-89%**: Good - adequate testing, some gaps
-- 🟠 **60-74%**: Fair - significant gaps, needs improvement
-- 🔴 **<60%**: Poor - insufficient testing
+- **90-100%**: Excellent - comprehensive testing
+- **75-89%**: Good - adequate testing, some gaps
+- **60-74%**: Fair - significant gaps, needs improvement
+- **&lt;60%**: Poor - insufficient testing
 
 **What to focus on:**
 - **Critical paths**: Authentication, data persistence, workflow execution
@@ -333,7 +339,7 @@ The following are excluded from coverage metrics:
 
 ---
 
-## 🔄 Continuous Integration
+## Continuous Integration
 
 ### GitHub Actions Workflow
 
@@ -365,7 +371,7 @@ The following are excluded from coverage metrics:
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -438,32 +444,32 @@ cargo llvm-cov --workspace --html
 
 ---
 
-## 📚 Best Practices
+## Best Practices
 
 ### DO:
 
-✅ Write tests before or alongside implementation (TDD)
-✅ Test both success and error paths
-✅ Use descriptive test names (e.g., `test_agent_selection_with_insufficient_budget`)
-✅ Keep tests focused on a single behavior
-✅ Use test helpers to reduce duplication
-✅ Test edge cases (empty inputs, max limits, boundary conditions)
-✅ Mock external dependencies (AI providers, network calls)
-✅ Update tests when changing implementation
+- Write tests before or alongside implementation (TDD)
+- Test both success and error paths
+- Use descriptive test names (e.g., `test_agent_selection_with_insufficient_budget`)
+- Keep tests focused on a single behavior
+- Use test helpers to reduce duplication
+- Test edge cases (empty inputs, max limits, boundary conditions)
+- Mock external dependencies (AI providers, network calls)
+- Update tests when changing implementation
 
 ### DON'T:
 
-❌ Write tests that depend on execution order
-❌ Use `unwrap()` in test assertions (use `assert!`, `assert_eq!`, `Result`)
-❌ Test implementation details (test behavior, not internals)
-❌ Share mutable state between tests
-❌ Use real API keys or network calls in unit tests
-❌ Ignore test failures ("works on my machine")
-❌ Write tests without assertions
+- Write tests that depend on execution order
+- Use `unwrap()` in test assertions (use `assert!`, `assert_eq!`, `Result`)
+- Test implementation details (test behavior, not internals)
+- Share mutable state between tests
+- Use real API keys or network calls in unit tests
+- Ignore test failures ("works on my machine")
+- Write tests without assertions
 
 ---
 
-## 🎓 Examples
+## Examples
 
 ### Example 1: Unit Test
 
@@ -546,7 +552,7 @@ fn test_agent_list_command() {
 
 ---
 
-## 📞 Getting Help
+## Getting Help
 
 - **Documentation:** `docs/` directory
 - **Examples:** `examples/` directory
@@ -555,13 +561,13 @@ fn test_agent_list_command() {
 
 ---
 
-## 🔗 Related Documentation
+## Related Documentation
 
-- [REQ-164: Comprehensive Test Coverage Strategy](../roadmap/PROGRESS.md)
-- [GitHub Actions CI Workflow](../.github/workflows/test-coverage.yml)
-- [ADR-001: YOLO Mode Architecture](adr/001-yolo-mode-architecture.md)
-- [Integration Map](yolo-mode/integration-map.md)
+- [REQ-164: Comprehensive Test Coverage Strategy](../../roadmap/roadmap.md)
+- [GitHub Actions CI Workflow](https://github.com/clay-curry/RAD/blob/main/.github/workflows/test-coverage.yml)
+- [ADR-001: YOLO Mode Architecture](../adr/001-yolo-mode-architecture.md)
+- [Integration Map](../../features/yolo-mode/integration-map.md)
 
 ---
 
-**Happy Testing! 🧪**
+**Happy Testing!**

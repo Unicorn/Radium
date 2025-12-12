@@ -699,7 +699,7 @@ impl WorkflowExecutor {
             }
 
             // Execute workflow step hooks for behavior evaluation
-            if let Some(ref registry) = self.hook_registry {
+            if let Some(ref _registry) = self.hook_registry {
                 if let Some(workspace) = Workspace::discover().ok() {
                     let ws_structure = WorkspaceStructure::new(workspace.root());
                     let behavior_file = ws_structure.memory_dir().join("behavior.json");
@@ -719,7 +719,7 @@ impl WorkflowExecutor {
                         "workflow_id": workflow.id.clone(),
                         "step_result": serde_json::to_value(&step_result).unwrap_or_default(),
                     });
-                    let hook_context = HookContext::new("workflow_step", hook_data);
+                    let _hook_context = HookContext::new("workflow_step", hook_data);
 
                     // Execute hooks for workflow step completion
                     // Note: Behavior hooks can be registered via BehaviorEvaluatorAdapter

@@ -579,7 +579,7 @@ impl ContextManager {
         let plan_context = analysis_plan.to_context_string();
 
         // Build regular context
-        let mut context = self.build_context(invocation, requirement_id)?;
+        let context = self.build_context(invocation, requirement_id)?;
 
         // Prepend analysis plan to context
         let mut final_context = plan_context;

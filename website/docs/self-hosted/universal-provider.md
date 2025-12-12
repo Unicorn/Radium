@@ -1,3 +1,9 @@
+---
+id: "universal-provider"
+title: "Universal OpenAI-Compatible Provider Guide"
+sidebar_label: "Universal Provider"
+---
+
 # Universal OpenAI-Compatible Provider Guide
 
 ## Introduction

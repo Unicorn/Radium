@@ -151,6 +151,7 @@ const sidebars: SidebarsConfig = {
             'features/editor-integration/architecture',
             'features/editor-integration/vscode',
             'features/editor-integration/neovim',
+            'features/editor-integration/tui-chat',
             'features/editor-integration/clipboard',
             'features/editor-integration/troubleshooting',
           ],
@@ -286,6 +287,7 @@ const sidebars: SidebarsConfig = {
       collapsed: true,
       items: [
         'self-hosted/README',
+        'self-hosted/universal-provider',
         'self-hosted/migration',
         'self-hosted/VALIDATION',
         'self-hosted/api-reference',
@@ -399,6 +401,7 @@ const sidebars: SidebarsConfig = {
           type: 'category',
           label: 'Testing',
           items: [
+            'developer-guide/testing/testing-overview',
             'developer-guide/testing/coverage-analysis-REQ-172',
             'developer-guide/testing/coverage-backlog',
           ],

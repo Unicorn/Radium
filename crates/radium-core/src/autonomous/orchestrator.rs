@@ -424,7 +424,7 @@ impl AutonomousOrchestrator {
             // Set up progress reporting bridge
             let progress_reporter = dispatcher_guard.progress_reporter();
             let monitor_clone = Arc::clone(&self.monitor);
-            let workflow_id_clone = workflow_id.clone();
+            let _workflow_id_clone = workflow_id.clone();
             let mut progress_rx = progress_reporter.subscribe();
 
             // Spawn task to bridge progress events to ExecutionMonitor
