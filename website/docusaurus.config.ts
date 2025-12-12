@@ -71,7 +71,7 @@ const config: Config = {
           label: 'Documentation',
         },
         {
-          to: '/docs/examples/overview',
+          to: '/docs/examples/orchestration-workflows',
           label: 'Examples',
           position: 'left',
         },
@@ -103,11 +103,11 @@ const config: Config = {
             },
             {
               label: 'User Guide',
-              to: '/docs/user-guide/overview',
+              to: '/docs/user-guide/user-guide-overview',
             },
             {
               label: 'Developer Guide',
-              to: '/docs/developer-guide/overview',
+              to: '/docs/developer-guide/developer-guide-overview',
             },
           ],
         },
@@ -116,7 +116,7 @@ const config: Config = {
           items: [
             {
               label: 'Examples',
-              to: '/docs/examples/overview',
+              to: '/docs/examples/orchestration-workflows',
             },
             {
               label: 'API Reference',
@@ -124,7 +124,7 @@ const config: Config = {
             },
             {
               label: 'CLI Reference',
-              to: '/docs/cli/overview',
+              to: '/docs/cli/README',
             },
           ],
         },

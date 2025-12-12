@@ -47,7 +47,7 @@ The technical architecture focuses on building core systems that enable composab
 
 - **Modularity**: Systems designed as composable modules
 - **Extensibility**: Plugin architecture for custom components
-- **Performance**: Low-latency orchestration (<100ms overhead)
+- **Performance**: Low-latency orchestration (&lt;100ms overhead)
 - **Reliability**: Fault-tolerant with automatic recovery
 
 ### Dependencies
@@ -205,7 +205,7 @@ The technical architecture focuses on building core systems that enable composab
 
 ### Technical Requirements
 
-- **Performance**: <50ms component invocation overhead
+- **Performance**: &lt;50ms component invocation overhead
 - **Scalability**: Support 10,000+ concurrent components
 - **Efficiency**: Optimal resource utilization
 - **Monitoring**: Real-time performance insights
