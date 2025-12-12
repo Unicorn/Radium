@@ -121,8 +121,8 @@ ignore = "0.4"
 grep-searcher = "0.1"
 grep-matcher = "0.1"
 grep-regex = "0.1"
-tree-sitter = "0.20"
-tree-sitter-rust = "0.20"
+tree-sitter = "0.20.10"
+tree-sitter-rust = "0.20.4"
 
 # Clipboard operations (cross-platform)
 arboard = "3.3"

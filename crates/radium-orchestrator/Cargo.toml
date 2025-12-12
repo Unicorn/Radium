@@ -59,9 +59,9 @@ ignore = "0.4"
 grep-searcher = "0.1"
 grep-regex = "0.1"
 glob = "0.3"
-# Tree-sitter for AST analysis
-tree-sitter = "0.20"
-tree-sitter-rust = "0.20"
+# Tree-sitter for AST analysis  
+tree-sitter = "0.20.10"
+tree-sitter-rust = "0.20.4"
 
 [dev-dependencies]
 tempfile = "3.8"

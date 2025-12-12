@@ -6,8 +6,7 @@
 use async_trait::async_trait;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tree_sitter::{Language, Node, Parser, Tree};
-use tree_sitter_rust::language;
+use tree_sitter::{Node, Parser};
 
 use super::file_tools::WorkspaceRootProvider;
 use super::tool::{Tool, ToolArguments, ToolHandler, ToolParameters, ToolResult};
@@ -39,24 +38,22 @@ struct Symbol {
 /// Rust analyzer for symbol extraction
 struct RustAnalyzer {
     parser: Parser,
-    rust_language: Language,
 }
 
 impl RustAnalyzer {
     fn new() -> Self {
         let mut parser = Parser::new();
-        let rust_language = language();
-        parser.set_language(&rust_language).expect("Failed to load Rust grammar");
+        let rust_language = tree_sitter_rust::language();
+        parser.set_language(rust_language).expect("Failed to load Rust grammar");
         
         Self {
             parser,
-            rust_language,
         }
     }
 
     fn extract_symbols(&mut self, source: &str, file_path: PathBuf) -> std::result::Result<Vec<Symbol>, String> {
         let tree = self.parser.parse(source, None)
-            .map_err(|e| format!("Parse error: {:?}", e))?;
+            .ok_or_else(|| "Parse error".to_string())?;
 
         let mut symbols = Vec::new();
         let root = tree.root_node();
@@ -77,7 +74,7 @@ impl RustAnalyzer {
         }
     }
 
-    fn extract_from_node(&self, node: Node, source: &str, file_path: &PathBuf, symbols: &mut Vec<Symbol>) {
+    fn extract_from_node(&self, node: &Node, source: &str, file_path: &PathBuf, symbols: &mut Vec<Symbol>) {
         match node.kind() {
             "function_item" => {
                 if let Some(name_node) = node.child_by_field_name("name") {
@@ -122,12 +119,12 @@ impl RustAnalyzer {
 
         for i in 0..node.child_count() {
             if let Some(child) = node.child(i) {
-                self.extract_from_node(child, source, file_path, symbols);
+                self.extract_from_node(&child, source, file_path, symbols);
             }
         }
     }
 
-    fn create_function_symbol(&self, node: Node, name: String, source: &str, file_path: &PathBuf) -> Symbol {
+    fn create_function_symbol(&self, node: &Node, name: String, source: &str, file_path: &PathBuf) -> Symbol {
         let mut metadata = Vec::new();
         let mut visibility = None;
 
@@ -159,7 +156,7 @@ impl RustAnalyzer {
         }
     }
 
-    fn create_struct_symbol(&self, node: Node, name: String, source: &str, file_path: &PathBuf) -> Symbol {
+    fn create_struct_symbol(&self, node: &Node, name: String, source: &str, file_path: &PathBuf) -> Symbol {
         let visibility = self.extract_visibility(node, source);
         Symbol {
             name,
@@ -172,7 +169,7 @@ impl RustAnalyzer {
         }
     }
 
-    fn create_enum_symbol(&self, node: Node, name: String, source: &str, file_path: &PathBuf) -> Symbol {
+    fn create_enum_symbol(&self, node: &Node, name: String, source: &str, file_path: &PathBuf) -> Symbol {
         let visibility = self.extract_visibility(node, source);
         Symbol {
             name,
@@ -185,7 +182,7 @@ impl RustAnalyzer {
         }
     }
 
-    fn create_trait_symbol(&self, node: Node, name: String, source: &str, file_path: &PathBuf) -> Symbol {
+    fn create_trait_symbol(&self, node: &Node, name: String, source: &str, file_path: &PathBuf) -> Symbol {
         let visibility = self.extract_visibility(node, source);
         Symbol {
             name,
@@ -198,7 +195,7 @@ impl RustAnalyzer {
         }
     }
 
-    fn create_impl_symbol(&self, node: Node, name: String, source: &str, file_path: &PathBuf, is_trait: bool) -> Symbol {
+    fn create_impl_symbol(&self, node: &Node, name: String, source: &str, file_path: &PathBuf, is_trait: bool) -> Symbol {
         Symbol {
             name,
             kind: SymbolKind::Impl,
@@ -210,7 +207,7 @@ impl RustAnalyzer {
         }
     }
 
-    fn extract_visibility(&self, node: Node, source: &str) -> Option<String> {
+    fn extract_visibility(&self, node: &Node, source: &str) -> Option<String> {
         for i in 0..node.child_count() {
             if let Some(child) = node.child(i) {
                 if child.kind() == "visibility_modifier" {
@@ -232,12 +229,10 @@ struct SymbolSearchHandler {
 
 #[async_trait]
 impl ToolHandler for SymbolSearchHandler {
-    async fn execute(&self, args: &ToolArguments) -> Result<ToolResult> {
+    async fn execute(&self, args: &ToolArguments) -> crate::error::Result<ToolResult> {
         let workspace_root = self.workspace_root.workspace_root().ok_or_else(|| {
             OrchestrationError::Other("Workspace root not available".to_string())
         })?;
-        
-        use crate::error::Result;
 
         let query = args.get_string("query").unwrap_or_else(|| "*".to_string());
         let language = args.get_string("language").unwrap_or_else(|| "rust".to_string());

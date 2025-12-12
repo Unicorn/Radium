@@ -1,12 +1,10 @@
 //! Tree-sitter parser integration for code analysis.
 
-use std::path::Path;
-use tree_sitter::{Language, Parser, Tree};
+use tree_sitter::{Parser, Tree};
 
 /// Tree-sitter parser wrapper for code analysis.
 pub struct TreeSitterParser {
     parser: Parser,
-    rust_language: Language,
 }
 
 impl TreeSitterParser {
@@ -19,18 +17,12 @@ impl TreeSitterParser {
 
         Self {
             parser,
-            rust_language,
         }
     }
 
     /// Parse a Rust file into an AST.
-    pub fn parse_rust(&mut self, source: &str) -> Result<Tree, tree_sitter::Error> {
+    pub fn parse_rust(&mut self, source: &str) -> Option<Tree> {
         self.parser.parse(source, None)
-    }
-
-    /// Get the Rust language definition.
-    pub fn rust_language(&self) -> Language {
-        self.rust_language
     }
 }
 
@@ -48,7 +40,10 @@ mod tests {
     fn test_parse_rust() {
         let mut parser = TreeSitterParser::new();
         let source = "fn test() {}";
-        let tree = parser.parse_rust(source).unwrap();
-        assert!(tree.root_node().child_count() > 0);
+        if let Some(tree) = parser.parse_rust(source) {
+            assert!(tree.root_node().child_count() > 0);
+        } else {
+            panic!("Failed to parse");
+        }
     }
 }

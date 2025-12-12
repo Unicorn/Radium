@@ -21,7 +21,7 @@ impl RustAnalyzer {
     /// Extract all symbols from a Rust source file.
     pub fn extract_symbols(&mut self, source: &str, file_path: PathBuf) -> Result<Vec<Symbol>, String> {
         let tree = self.parser.parse_rust(source)
-            .map_err(|e| format!("Parse error: {:?}", e))?;
+            .ok_or_else(|| "Parse error".to_string())?;
 
         let mut symbols = Vec::new();
         let root = tree.root_node();
