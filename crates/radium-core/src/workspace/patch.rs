@@ -387,7 +387,7 @@ impl PatchApplicator {
                     }
                 }
 
-                let _                in_hunk = true;
+                in_hunk = true;
 
                 // Parse hunk header
                 let hunk = self.parse_hunk_header(line)?;

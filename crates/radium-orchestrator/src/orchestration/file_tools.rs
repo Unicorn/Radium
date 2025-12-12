@@ -75,9 +75,84 @@ impl FileOperationHandler {
 
         let resolved_path = self.resolve_path(&file_path, workspace_root);
 
+        // Get optional line range parameters
+        let start_line: Option<usize> = args
+            .get("start_line")
+            .and_then(|v| v.as_u64())
+            .map(|n| n as usize);
+        let end_line: Option<usize> = args
+            .get("end_line")
+            .and_then(|v| v.as_u64())
+            .map(|n| n as usize);
+
         match fs::read_to_string(&resolved_path).await {
-            Ok(content) => Ok(ToolResult::success(content)
-                .with_metadata("file_path", resolved_path.display().to_string())),
+            Ok(content) => {
+                let (result_content, metadata) = if let (Some(start), Some(end)) = (start_line, end_line) {
+                    // Read specific line range (1-indexed, inclusive)
+                    let lines: Vec<&str> = content.lines().collect();
+                    let total_lines = lines.len();
+                    
+                    // Validate line numbers (1-indexed)
+                    if start < 1 || end < start || end > total_lines {
+                        return Ok(ToolResult::error(format!(
+                            "Invalid line range: start_line={}, end_line={}, file has {} lines",
+                            start, end, total_lines
+                        )));
+                    }
+                    
+                    // Extract range (convert to 0-indexed)
+                    let start_idx = start - 1;
+                    let end_idx = end; // end is inclusive, so we use it directly
+                    let range_lines = &lines[start_idx..end_idx.min(total_lines)];
+                    let range_content = range_lines.join("\n");
+                    
+                    (
+                        range_content,
+                        vec![
+                            ("file_path", resolved_path.display().to_string()),
+                            ("start_line", start.to_string()),
+                            ("end_line", end.to_string()),
+                            ("total_lines", total_lines.to_string()),
+                        ],
+                    )
+                } else if let Some(start) = start_line {
+                    // Read from start_line to end of file
+                    let lines: Vec<&str> = content.lines().collect();
+                    let total_lines = lines.len();
+                    
+                    if start < 1 || start > total_lines {
+                        return Ok(ToolResult::error(format!(
+                            "Invalid start_line: {}, file has {} lines",
+                            start, total_lines
+                        )));
+                    }
+                    
+                    let start_idx = start - 1;
+                    let range_lines = &lines[start_idx..];
+                    let range_content = range_lines.join("\n");
+                    
+                    (
+                        range_content,
+                        vec![
+                            ("file_path", resolved_path.display().to_string()),
+                            ("start_line", start.to_string()),
+                            ("total_lines", total_lines.to_string()),
+                        ],
+                    )
+                } else {
+                    // Read entire file
+                    (
+                        content,
+                        vec![("file_path", resolved_path.display().to_string())],
+                    )
+                };
+                
+                let mut result = ToolResult::success(result_content);
+                for (key, value) in metadata {
+                    result = result.with_metadata(key, value);
+                }
+                Ok(result)
+            }
             Err(e) => Ok(ToolResult::error(format!(
                 "Failed to read file {}: {}",
                 resolved_path.display(),
@@ -373,7 +448,9 @@ pub fn create_file_operation_tools(
 
 fn create_read_file_tool(workspace_root: Arc<dyn WorkspaceRootProvider>) -> Tool {
     let parameters = ToolParameters::new()
-        .add_property("file_path", "string", "Path to the file to read (relative to workspace root)", true);
+        .add_property("file_path", "string", "Path to the file to read (relative to workspace root)", true)
+        .add_property("start_line", "integer", "Optional start line number (1-indexed) for reading a line range", false)
+        .add_property("end_line", "integer", "Optional end line number (1-indexed, inclusive) for reading a line range", false);
 
     let handler = Arc::new(FileOperationHandler {
         workspace_root,
