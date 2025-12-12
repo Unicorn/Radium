@@ -78,7 +78,7 @@ pub fn convert_to_execution_response(
 pub async fn execute_tool_call(
     tool_call: &ToolCall,
     tools: &[OrchestrationTool],
-    workspace_root: &PathBuf,
+    _workspace_root: &PathBuf,
 ) -> Result<String> {
     // Find the tool by name
     let tool = tools.iter()
