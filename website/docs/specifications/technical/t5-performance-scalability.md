@@ -19,22 +19,22 @@ This specification defines performance requirements, optimization strategies, an
 ### Latency Targets
 
 **Component Operations**
-- Component invocation: <50ms overhead
-- Component lookup: <10ms
-- Component validation: <100ms
-- Component composition: <200ms
+- Component invocation: &lt;50ms overhead
+- Component lookup: &lt;10ms
+- Component validation: &lt;100ms
+- Component composition: &lt;200ms
 
 **System Operations**
-- Orchestration overhead: <100ms
-- Agent selection: <50ms
-- Policy evaluation: <5ms
-- Context gathering: <50ms
+- Orchestration overhead: &lt;100ms
+- Agent selection: &lt;50ms
+- Policy evaluation: &lt;5ms
+- Context gathering: &lt;50ms
 
 **Graph Operations**
-- Graph query: <500ms
-- Component discovery: <200ms
-- Similarity matching: <100ms
-- Recommendation: <300ms
+- Graph query: &lt;500ms
+- Component discovery: &lt;200ms
+- Similarity matching: &lt;100ms
+- Recommendation: &lt;300ms
 
 ### Throughput Targets
 
@@ -51,14 +51,14 @@ This specification defines performance requirements, optimization strategies, an
 ### Resource Limits
 
 **Per Component**
-- Memory: <100MB
-- CPU: <1 core
-- Storage: <10MB
+- Memory: &lt;100MB
+- CPU: &lt;1 core
+- Storage: &lt;10MB
 - Network: Adaptive
 
 **Per Agent**
-- Memory: <500MB
-- CPU: <2 cores
+- Memory: &lt;500MB
+- CPU: &lt;2 cores
 - Concurrent tasks: 10+
 
 ## Performance Optimization

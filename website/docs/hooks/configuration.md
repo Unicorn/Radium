@@ -74,7 +74,7 @@ Execution priority for the hook. Higher priority hooks execute first.
 - **Conventions**:
   - `200+` - Critical hooks that must run first
   - `100-199` - Standard hooks (default)
-  - `<100` - Optional hooks
+  - `&lt;100` - Optional hooks
 
 #### `enabled` (boolean)
 Whether the hook is enabled and will be executed.

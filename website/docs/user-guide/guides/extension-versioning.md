@@ -265,9 +265,9 @@ Radium uses semantic versioning comparison:
 When specifying version requirements (future):
 
 - `>=1.0.0`: Version 1.0.0 or later
-- `<2.0.0`: Before version 2.0.0
-- `~1.0.0`: Compatible with 1.0.x (>=1.0.0, <1.1.0)
-- `^1.0.0`: Compatible with 1.x.x (>=1.0.0, <2.0.0)
+- `&lt;2.0.0`: Before version 2.0.0
+- `~1.0.0`: Compatible with 1.0.x (>=1.0.0, &lt;1.1.0)
+- `^1.0.0`: Compatible with 1.x.x (>=1.0.0, &lt;2.0.0)
 
 ## Troubleshooting Version Issues
 

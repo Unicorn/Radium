@@ -29,7 +29,7 @@ The Core Architecture Specification defines the foundation systems and patterns 
 - API-first design
 
 ### Performance
-- Low-latency orchestration (<100ms overhead)
+- Low-latency orchestration (&lt;100ms overhead)
 - Concurrent execution support
 - Efficient resource utilization
 - Scalable architecture
@@ -314,10 +314,10 @@ pub struct AgentConfig {
 ## Performance Requirements
 
 ### Latency Targets
-- **Orchestration overhead**: <100ms
-- **Agent selection**: <50ms
-- **Component lookup**: <10ms
-- **Policy evaluation**: <5ms
+- **Orchestration overhead**: &lt;100ms
+- **Agent selection**: &lt;50ms
+- **Component lookup**: &lt;10ms
+- **Policy evaluation**: &lt;5ms
 
 ### Throughput Targets
 - **Concurrent agents**: 100+
@@ -325,8 +325,8 @@ pub struct AgentConfig {
 - **Component operations**: 10,000+/sec
 
 ### Resource Limits
-- **Memory per agent**: <100MB
-- **CPU per agent**: <1 core
+- **Memory per agent**: &lt;100MB
+- **CPU per agent**: &lt;1 core
 - **Network bandwidth**: Adaptive
 
 ## Security Architecture
