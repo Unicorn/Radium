@@ -30,6 +30,7 @@ impl ExecutionMode {
 }
 
 /// Daemon client wrapper with retry logic and connection management.
+#[allow(dead_code)]
 pub struct DaemonClient {
     /// Server URL
     url: String,

@@ -154,6 +154,7 @@ impl SessionManager {
 
 /// Summary information about a session
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct SessionInfo {
     pub id: String,
     pub name: Option<String>,

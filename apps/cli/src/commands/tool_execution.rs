@@ -56,6 +56,7 @@ pub fn convert_tools(tools: &[OrchestrationTool]) -> Vec<AbstractionTool> {
 }
 
 /// Convert ModelResponse to ExecutionResponse
+#[allow(dead_code)]
 pub fn convert_to_execution_response(
     response: ModelResponse,
     model: &str,

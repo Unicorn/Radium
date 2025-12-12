@@ -1513,6 +1513,7 @@ fn convert_tools(tools: &[OrchestrationTool]) -> Vec<AbstractionTool> {
 }
 
 /// Convert ModelResponse to ExecutionResponse
+#[allow(dead_code)]
 fn convert_to_execution_response(
     response: radium_abstraction::ModelResponse,
     model: &str,

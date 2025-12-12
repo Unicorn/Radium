@@ -36,6 +36,7 @@ pub struct PolicyRule {
 
 /// Action to take for a tool execution
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[allow(dead_code)]
 pub enum PolicyAction {
     /// Allow without confirmation
     Allow,
@@ -47,6 +48,7 @@ pub enum PolicyAction {
 
 /// User-specific policy configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct UserPolicy {
     /// Always allow these tool patterns
     pub whitelist: Vec<String>,
@@ -58,6 +60,7 @@ pub struct UserPolicy {
 
 /// Result of a policy check
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum PolicyDecision {
     /// Operation is allowed
     Allow,

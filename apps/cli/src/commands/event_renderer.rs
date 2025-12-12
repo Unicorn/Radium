@@ -33,6 +33,7 @@ use tokio::time::{timeout, Duration};
 ///
 /// This function subscribes to the event stream and renders events as they arrive,
 /// providing real-time feedback to the user about orchestration progress.
+#[allow(dead_code)]
 pub async fn render_event_stream(
     mut rx: broadcast::Receiver<OrchestrationEvent>,
     correlation_id: &str,
@@ -207,6 +208,7 @@ pub async fn render_event_stream(
 /// Spawn a background task to render events.
 ///
 /// Returns a handle that can be awaited to wait for event stream completion.
+#[allow(dead_code)]
 pub fn spawn_event_renderer(
     rx: broadcast::Receiver<OrchestrationEvent>,
     correlation_id: String,

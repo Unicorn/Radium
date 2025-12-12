@@ -204,18 +204,21 @@ impl Default for RadiumBrandColors {
 /// Convenience functions for common color operations with brand colors.
 impl RadiumBrandColors {
     /// Apply primary brand color to a string (for use with colored crate).
+    #[allow(dead_code)]
     pub fn color_primary(&self, text: &str) -> colored::ColoredString {
         use colored::Colorize;
         text.color(self.primary())
     }
 
     /// Apply success color to a string (for use with colored crate).
+    #[allow(dead_code)]
     pub fn color_success(&self, text: &str) -> colored::ColoredString {
         use colored::Colorize;
         text.color(self.success())
     }
 
     /// Apply error color to a string (for use with colored crate).
+    #[allow(dead_code)]
     pub fn color_error(&self, text: &str) -> colored::ColoredString {
         use colored::Colorize;
         text.color(self.error())
@@ -228,6 +231,7 @@ impl RadiumBrandColors {
     }
 
     /// Apply info color to a string (for use with colored crate).
+    #[allow(dead_code)]
     pub fn color_info(&self, text: &str) -> colored::ColoredString {
         use colored::Colorize;
         text.color(self.info())

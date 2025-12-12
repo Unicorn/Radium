@@ -100,6 +100,7 @@ struct RequirementListResponse {
 
 /// Requirement summary in list view
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct RequirementSummary {
     short_id: String,
     name: String,
@@ -113,6 +114,7 @@ struct RequirementSummary {
 
 /// Task progress information
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct TaskProgress {
     total: usize,
     completed: usize,
@@ -121,6 +123,7 @@ struct TaskProgress {
 
 /// Pagination metadata
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct Pagination {
     page: usize,
     limit: usize,
