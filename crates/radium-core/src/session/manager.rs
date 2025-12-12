@@ -5,7 +5,7 @@ use crate::session::storage::SessionStorage;
 use anyhow::{Context, Result};
 use chrono::Utc;
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
@@ -320,7 +320,6 @@ impl SessionManager {
     }
 }
 
-use std::path::PathBuf;
 impl SessionManager {
     /// Get the storage instance (for testing).
     #[cfg(test)]

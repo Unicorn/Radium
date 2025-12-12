@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
-use tracing::{debug, warn};
+use tracing::warn;
 use uuid::Uuid;
 
 /// Session storage manager for file-based persistence.
@@ -248,7 +248,7 @@ impl SessionStorage {
     }
 
     /// Load artifacts metadata from the artifacts directory.
-    fn load_artifacts(&self, artifacts_dir: &Path) -> Result<Vec<crate::session::state::Artifact>> {
+    fn load_artifacts(&self, artifacts_dir: &Path) -> Result<Vec<Artifact>> {
         let mut artifacts = Vec::new();
 
         if !artifacts_dir.exists() {
@@ -269,7 +269,7 @@ impl SessionStorage {
                     .unwrap_or_else(Utc::now);
 
                 if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
-                    artifacts.push(crate::session::state::Artifact {
+                    artifacts.push(Artifact {
                         id: filename.to_string(),
                         path: path
                             .strip_prefix(artifacts_dir.parent().unwrap())
