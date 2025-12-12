@@ -180,7 +180,7 @@ pub async fn execute(source: String) -> anyhow::Result<()> {
 
     // Generate session ID
     let session_id = Uuid::new_v4().to_string();
-    let session_start_time = Utc::now();
+    let _session_start_time = Utc::now();
     let mut executed_agent_ids = Vec::new();
     
     // Open monitoring service

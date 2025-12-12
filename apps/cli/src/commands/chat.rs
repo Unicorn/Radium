@@ -277,7 +277,7 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
 
         // Build prompt with context files and history
         // History takes precedence (comes after context files)
-        let full_prompt = if !context_files.is_empty() && !history_context.is_empty() {
+        let _full_prompt = if !context_files.is_empty() && !history_context.is_empty() {
             format!(
                 "# Context Files\n\n{}\n\n---\n\n# Conversation History\n\n{}\n\n---\n\nCurrent Request: {}",
                 context_files, history_context, input
