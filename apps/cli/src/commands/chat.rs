@@ -6,20 +6,25 @@
 use anyhow::{Context, Result, anyhow};
 use chrono::Utc;
 use colored::*;
+use radium_abstraction::{ChatMessage, MessageContent, ToolConfig, ToolUseMode};
 use radium_core::{
     analytics::{ReportFormatter, SessionAnalytics, SessionReport, SessionStorage},
+    auth::{CredentialStore, ProviderType},
     context::{ContextFileLoader, HistoryManager},
     monitoring::MonitoringService,
     mcp::{McpIntegration, SlashCommandRegistry},
     Workspace,
     code_blocks::CodeBlockStore,
 };
+use radium_orchestrator::orchestration::tool_builder::build_standard_tools;
 use std::io::{self, Write};
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
-use super::step;
+use super::{step, tool_execution};
+use crate::conversation_context::ConversationContext;
 
 /// Execute the chat command
 ///
@@ -36,6 +41,10 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
     let history_dir = workspace.root().join(".radium/_internals/history");
     std::fs::create_dir_all(&history_dir)?;
     let mut history = HistoryManager::new(&history_dir)?;
+
+    // Initialize conversation context tracker
+    let mut conversation_context = ConversationContext::new();
+    let mut turn_number = 0;
 
     // Determine session ID (use same ID for both chat history and analytics)
     let session_id = if resume {
@@ -283,50 +292,50 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
             }
         }
 
-        // Use the step command's execution logic
-        let prompt_vec = vec![full_prompt];
-        match step::execute(
-            agent_id.clone(),
-            prompt_vec,
-            None, // model
-            None, // engine
-            None, // reasoning
-            None, // model_tier
-            Some(session_id.clone()), // session_id
-            stream, // stream
-            show_metadata, // show_metadata
-            json, // json
-            safety_behavior.clone(), // safety_behavior
-            Vec::new(), // image
-            Vec::new(), // audio
-            Vec::new(), // video
-            Vec::new(), // file
-            false, // auto_upload
-            None, // response_format
-            None, // response_schema
+        // Increment turn number
+        turn_number += 1;
+
+        // Execute chat turn with tool support
+        let context_summary = conversation_context.to_system_context();
+        match execute_chat_turn_with_tools(
+            &workspace,
+            &agent_id,
+            input,
+            &history_context,
+            &context_files,
+            &context_summary,
         )
         .await
         {
-            Ok(_) => {
+            Ok(response) => {
+                // Print the response
+                println!("\n{}", response);
+
+                // Update conversation context (simple pattern matching for Phase 1)
+                conversation_context.update_from_turn(
+                    turn_number,
+                    input,
+                    &response,
+                    &[], // Tool calls not tracked yet - will be added in future enhancement
+                );
+
                 // Complete agent in monitoring
                 if let Some(monitoring) = monitoring.as_ref() {
-                    
                     let _ = monitoring.complete_agent(&tracked_agent_id, 0);
                 }
-                
+
                 // Record interaction in history
                 history.add_interaction(
                     Some(&session_id),
                     input.to_string(),
                     "chat".to_string(),
-                    "Response logged".to_string(),
-                    None, // metadata - would need to extract from step::execute response
+                    response,
+                    None,
                 )?;
             }
             Err(e) => {
                 // Mark agent as failed
                 if let Some(monitoring) = monitoring.as_ref() {
-                    
                     let _ = monitoring.fail_agent(&tracked_agent_id, &e.to_string());
                 }
                 eprintln!("\n{}: {}", "Error".red().bold(), e);
@@ -609,6 +618,126 @@ async fn execute_mcp_prompt(
     // Fallback: return JSON representation
     Ok(serde_json::to_string_pretty(&result)
         .unwrap_or_else(|_| format!("Prompt executed: {}", prompt.name)))
+}
+
+/// Execute a single chat turn with tool support
+///
+/// This function enables tool calling in conversational mode,
+/// allowing the model to autonomously call tools as needed.
+async fn execute_chat_turn_with_tools(
+    workspace: &Workspace,
+    agent_id: &str,
+    user_input: &str,
+    history_context: &str,
+    context_files: &str,
+    conversation_context: &str,
+) -> Result<String> {
+    // Load agent configuration using AgentDiscovery
+    use radium_core::AgentDiscovery;
+    let discovery = AgentDiscovery::new();
+    let agents = discovery.discover_all()
+        .context("Failed to discover agents")?;
+    let agent = agents.get(agent_id)
+        .with_context(|| format!("Agent '{}' not found", agent_id))?;
+
+    // Get engine and model from agent config
+    let engine_id = agent.engine.as_deref().unwrap_or("gemini");
+    let model_id = agent.model.as_deref().unwrap_or("gemini-2.0-flash-exp");
+
+    // Get API key from credential store
+    let credential_store = Arc::new(
+        CredentialStore::new().unwrap_or_else(|_| {
+            let temp_path = std::env::temp_dir().join("radium_credentials.json");
+            CredentialStore::with_path(temp_path)
+        })
+    );
+
+    let provider_type = match engine_id {
+        "claude" | "anthropic" => Some(ProviderType::Claude),
+        "gemini" => Some(ProviderType::Gemini),
+        "openai" => Some(ProviderType::OpenAI),
+        "mock" => None,
+        _ => return Err(anyhow!("Unsupported engine: {}", engine_id)),
+    };
+
+    let api_key = if let Some(provider) = provider_type {
+        credential_store
+            .get(provider)
+            .map_err(|e| anyhow!("Failed to get API key for {}: {}", engine_id, e))?
+    } else {
+        String::new() // Mock doesn't need API key
+    };
+
+    // Create Model instance
+    let model = tool_execution::create_model(engine_id, model_id, api_key)?;
+
+    // Build tools
+    let workspace_root = workspace.root().to_path_buf();
+    let orchestration_tools = build_standard_tools(workspace_root.clone(), None);
+    let abstraction_tools = tool_execution::convert_tools(&orchestration_tools);
+
+    // Build tool config
+    let tool_config = ToolConfig {
+        mode: ToolUseMode::Auto,
+        allowed_function_names: None, // Allow all tools
+    };
+
+    // Load system prompt from agent's prompt file
+    let system_prompt = if agent.prompt_path.exists() {
+        std::fs::read_to_string(&agent.prompt_path)
+            .unwrap_or_else(|_| format!("You are {}. {}", agent.name, agent.description))
+    } else {
+        format!("You are {}. {}", agent.name, agent.description)
+    };
+
+    // Combine context and history
+    let combined_context = if !context_files.is_empty() && !history_context.is_empty() {
+        format!(
+            "# Context Files\n\n{}\n\n---\n\n# Conversation History\n\n{}\n\n---",
+            context_files, history_context
+        )
+    } else if !context_files.is_empty() {
+        format!("# Context Files\n\n{}\n\n---", context_files)
+    } else if !history_context.is_empty() {
+        format!("# Conversation History\n\n{}\n\n---", history_context)
+    } else {
+        String::new()
+    };
+
+    // Build full system prompt with conversation context
+    let full_system_prompt = if !combined_context.is_empty() && !conversation_context.is_empty() {
+        format!("{}\n\n{}\n\n{}", system_prompt, combined_context, conversation_context)
+    } else if !combined_context.is_empty() {
+        format!("{}\n\n{}", system_prompt, combined_context)
+    } else if !conversation_context.is_empty() {
+        format!("{}\n\n{}", system_prompt, conversation_context)
+    } else {
+        system_prompt.to_string()
+    };
+
+    // Create initial messages
+    let mut messages = vec![
+        ChatMessage {
+            role: "system".to_string(),
+            content: MessageContent::Text(full_system_prompt),
+        },
+        ChatMessage {
+            role: "user".to_string(),
+            content: MessageContent::Text(user_input.to_string()),
+        },
+    ];
+
+    // Execute with tools loop
+    let response = tool_execution::execute_with_tools_loop(
+        model.as_ref(),
+        messages,
+        &abstraction_tools,
+        &tool_config,
+        &orchestration_tools,
+        &workspace_root,
+    ).await?;
+
+    Ok(response.content)
 }
 
 /// List available chat sessions

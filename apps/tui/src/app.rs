@@ -4,6 +4,7 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
+use std::collections::HashSet;
 use radium_core::auth::{CredentialStore, ProviderType};
 use radium_core::mcp::{McpIntegration, SlashCommandRegistry};
 use radium_core::agents::registry::AgentRegistry;
@@ -24,7 +25,7 @@ use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
 use crate::commands::{Command, DisplayContext};
-use crate::components::{DialogManager, ExecutionDetailView, ExecutionHistoryView, OrchestratorThinkingPanel, SummaryView, ToastManager};
+use crate::components::{CommandConfirmationModal, ConfirmationRequest, DialogManager, ExecutionDetailView, ExecutionHistoryView, OrchestratorThinkingPanel, SummaryView, ToastManager};
 use crate::config::TuiConfig;
 use crate::effects::AppEffectManager;
 use crate::requirement_progress::{ActiveRequirement, ActiveRequirementProgress};
@@ -202,6 +203,14 @@ pub struct App {
     pub streaming_context: Option<crate::state::StreamingContext>,
     /// Cancellation state for visual feedback
     pub cancellation_state: Option<CancellationState>,
+    /// Command confirmation modal (for dangerous command execution)
+    pub command_confirmation: Option<CommandConfirmationModal>,
+    /// Command allowlist (commands approved for auto-execution)
+    pub command_allowlist: HashSet<String>,
+    /// Receiver for command confirmation requests from chat executor
+    pub confirmation_request_rx: Option<tokio::sync::mpsc::Receiver<ConfirmationRequest>>,
+    /// Sender for command confirmation requests (cloned for each chat execution)
+    pub confirmation_request_tx: Option<tokio::sync::mpsc::Sender<ConfirmationRequest>>,
 }
 
 /// Model filter for capability-based filtering
@@ -244,6 +253,9 @@ impl ModelFilter {
 
 impl App {
     pub fn new() -> Self {
+        // Create command confirmation channel
+        let (confirmation_tx, confirmation_rx) = tokio::sync::mpsc::channel::<ConfirmationRequest>(10);
+
         // Check if any auth is configured using CredentialStore
         let setup_complete = if let Ok(store) = CredentialStore::new() {
             store.is_configured(ProviderType::Gemini) || store.is_configured(ProviderType::OpenAI)
@@ -378,6 +390,10 @@ impl App {
             last_executed_operation: None,
             cancellation_state: None,
             streaming_context: None,
+            command_confirmation: None,
+            command_allowlist: HashSet::new(),
+            confirmation_request_rx: Some(confirmation_rx),
+            confirmation_request_tx: Some(confirmation_tx),
         };
 
         // Check for resumable executions on startup
@@ -675,6 +691,56 @@ impl App {
         // If checkpoint interrupt is active, handle interrupt input first
         if self.is_interrupt_active() {
             return self.handle_checkpoint_interrupt_key(key).await;
+        }
+
+        // If command confirmation modal is open, handle it first
+        if self.command_confirmation.is_some() {
+            match key {
+                KeyCode::Up => {
+                    if let Some(ref mut confirmation) = self.command_confirmation {
+                        confirmation.move_up();
+                    }
+                    return Ok(());
+                }
+                KeyCode::Down => {
+                    if let Some(ref mut confirmation) = self.command_confirmation {
+                        confirmation.move_down();
+                    }
+                    return Ok(());
+                }
+                KeyCode::Enter => {
+                    if let Some(mut confirmation) = self.command_confirmation.take() {
+                        use crate::components::ConfirmationOutcome;
+                        let outcome = confirmation.selected_outcome();
+
+                        // If "Always Allow" was selected, add to allowlist
+                        if matches!(outcome, ConfirmationOutcome::ApprovedAlways) {
+                            self.command_allowlist.insert(confirmation.analysis.root_command.clone());
+                            // TODO: Save allowlist to disk (Phase 7)
+                        }
+
+                        // Send response back to executor
+                        if let Some(response_tx) = confirmation.response_tx.take() {
+                            let _ = response_tx.send(outcome);
+                        }
+                    }
+                    return Ok(());
+                }
+                KeyCode::Esc => {
+                    if let Some(mut confirmation) = self.command_confirmation.take() {
+                        use crate::components::ConfirmationOutcome;
+                        // Send cancelled response
+                        if let Some(response_tx) = confirmation.response_tx.take() {
+                            let _ = response_tx.send(ConfirmationOutcome::Cancelled);
+                        }
+                    }
+                    return Ok(());
+                }
+                _ => {
+                    // Ignore other keys when modal is open
+                    return Ok(());
+                }
+            }
         }
 
         // If dialog is open, handle dialog input first
@@ -1989,7 +2055,7 @@ impl App {
         }
 
         // Execute agent
-        match crate::chat_executor::execute_chat_message(&agent_id, &message, &session_id).await {
+        match crate::chat_executor::execute_chat_message(&agent_id, &message, &session_id, self.confirmation_request_tx.clone()).await {
             Ok(result) => {
                 if result.success {
                     // Check if streaming is being used

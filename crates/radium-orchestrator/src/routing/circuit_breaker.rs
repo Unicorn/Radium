@@ -134,6 +134,11 @@ pub struct CircuitBreaker {
     window_duration: Duration,
     /// Cooldown duration before transitioning from Open to HalfOpen (default: 60 seconds).
     cooldown_duration: Duration,
+    /// Minimum number of total samples (success+failure) before opening the circuit.
+    ///
+    /// This prevents the circuit from opening on the very first failures and makes
+    /// failure-rate decisions more stable.
+    min_samples: usize,
 }
 
 impl CircuitBreaker {
@@ -151,6 +156,7 @@ impl CircuitBreaker {
             failure_threshold: 0.5,
             window_duration: Duration::from_secs(300), // 5 minutes
             cooldown_duration: Duration::from_secs(60), // 60 seconds
+            min_samples: 8,
         }
     }
     
@@ -172,6 +178,39 @@ impl CircuitBreaker {
             failure_threshold,
             window_duration,
             cooldown_duration,
+            min_samples: 8,
+        }
+    }
+
+    fn maybe_open_circuit(&self, model_id: &str) {
+        // Only consider opening when we have enough data.
+        let (failure_rate, total_samples) = {
+            let health_map = self.health.read().unwrap();
+            match health_map.get(model_id) {
+                Some(h) => (h.calculate_failure_rate(), h.successes.len() + h.failures.len()),
+                None => (0.0, 0),
+            }
+        };
+
+        if total_samples < self.min_samples {
+            return;
+        }
+
+        if failure_rate <= self.failure_threshold {
+            return;
+        }
+
+        let mut states = self.states.write().unwrap();
+        let state = states.entry(model_id.to_string()).or_insert(CircuitState::Closed);
+        if matches!(*state, CircuitState::Closed) {
+            *state = CircuitState::Open(SystemTime::now());
+            warn!(
+                model_id = model_id,
+                failure_rate = failure_rate,
+                threshold = self.failure_threshold,
+                total_samples = total_samples,
+                "Circuit breaker: Closed -> Open (failure rate exceeded threshold)"
+            );
         }
     }
     
@@ -204,9 +243,12 @@ impl CircuitBreaker {
                 // Still in cooldown, don't change state
             }
             CircuitState::Closed => {
-                // Already closed, no change needed
+                // Keep closed; we may open once enough samples accumulate and failure rate is high.
             }
         }
+
+        // Evaluate whether to open circuit based on the updated failure rate and sample size.
+        self.maybe_open_circuit(model_id);
     }
     
     /// Records a failed request for a model.
@@ -247,17 +289,12 @@ impl CircuitBreaker {
                 // Already open, no change needed
             }
             CircuitState::Closed => {
-                if failure_rate > self.failure_threshold {
-                    *state = CircuitState::Open(SystemTime::now());
-                    warn!(
-                        model_id = model_id,
-                        failure_rate = failure_rate,
-                        threshold = self.failure_threshold,
-                        "Circuit breaker: Closed -> Open (failure rate exceeded threshold)"
-                    );
-                }
+                // Opening is handled by maybe_open_circuit to enforce min_samples.
+                let _ = failure_rate;
             }
         }
+
+        self.maybe_open_circuit(model_id);
     }
     
     /// Checks if a model should be skipped due to circuit breaker.
@@ -347,7 +384,7 @@ mod tests {
         
         // Circuit should be open
         assert!(breaker.should_skip(model_id));
-        assert_eq!(breaker.get_state(model_id), CircuitState::Open(SystemTime::now()));
+        assert!(matches!(breaker.get_state(model_id), CircuitState::Open(_)));
     }
 
     #[test]
@@ -446,7 +483,7 @@ mod tests {
         breaker.record_failure(model_id);
         
         // Should transition back to open
-        assert_eq!(breaker.get_state(model_id), CircuitState::Open(SystemTime::now()));
+        assert!(matches!(breaker.get_state(model_id), CircuitState::Open(_)));
     }
 
     #[test]

@@ -3,9 +3,9 @@
 //! These tests validate all acceptance criteria from the requirements document,
 //! ensuring the complete function calling system works end-to-end.
 
-use radium_abstraction::{ChatMessage, MessageContent, ModelResponse, Tool, ToolCall, ToolConfig, ToolUseMode};
+use radium_abstraction::{ModelResponse, ToolCall, ToolUseMode};
 use radium_orchestrator::orchestration::{
-    execute_with_continuation, validate_tool_mode,
+    validate_tool_mode,
     ContinuationBehavior, FunctionExecutionStrategy, ToolErrorHandling, ToolExecutionConfig,
 };
 use std::time::Duration;

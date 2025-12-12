@@ -619,6 +619,12 @@ async fn main() -> Result<()> {
                 }
             }
 
+            // Render command confirmation modal (on top of everything except toasts)
+            if let Some(ref confirmation) = app.command_confirmation {
+                use radium_tui::components::render_command_confirmation;
+                render_command_confirmation(frame, area, confirmation);
+            }
+
             // Render toasts (on top of everything)
             let toast_areas = render_toasts_with_areas(frame, area, &app.toast_manager);
 
@@ -649,6 +655,19 @@ async fn main() -> Result<()> {
         app.previous_context = Some(app.prompt_data.context.clone());
         app.previous_dialog_open = app.dialog_manager.is_open();
         app.previous_toast_count = app.toast_manager.toasts().len();
+
+        // Poll for command confirmation requests
+        if let Some(ref mut confirmation_rx) = app.confirmation_request_rx {
+            if let Ok(request) = confirmation_rx.try_recv() {
+                use radium_tui::components::CommandConfirmationModal;
+                app.command_confirmation = Some(CommandConfirmationModal::new(
+                    request.command,
+                    request.working_dir,
+                    request.analysis,
+                    request.response_tx,
+                ));
+            }
+        }
 
         // Handle events with timeout
         if event::poll(Duration::from_millis(100))? {

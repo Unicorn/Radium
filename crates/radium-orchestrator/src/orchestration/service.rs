@@ -10,12 +10,15 @@ use tokio::sync::RwLock;
 use super::{
     OrchestrationProvider, OrchestrationResult,
     agent_tools::AgentToolRegistry,
+    code_analysis_tool,
     config::{OrchestrationConfig, ProviderType},
     context::{Message, OrchestrationContext},
     context_loader::ContextFileLoaderTrait,
     engine::{EngineConfig, OrchestrationEngine},
     file_tools::{self, WorkspaceRootProvider as FileWorkspaceRootProvider},
+    git_extended_tools,
     hooks::ToolHookExecutor,
+    project_scan_tool,
     terminal_tool::{self, WorkspaceRootProvider as TerminalWorkspaceRootProvider, SandboxManager as TerminalSandboxManager},
     tool::Tool,
     providers::{
@@ -112,9 +115,26 @@ impl OrchestrationService {
             let workspace_provider: Arc<dyn FileWorkspaceRootProvider> = Arc::new(SimpleWorkspaceRootProvider {
                 root: root.clone(),
             });
-            let file_tools = file_tools::create_file_operation_tools(workspace_provider);
+            let file_tools = file_tools::create_file_operation_tools(workspace_provider.clone());
             tools.extend(file_tools);
             tracing::info!("Added {} file operation tools to orchestration", 6);
+
+            // Add project analysis tools (project_scan)
+            let project_tools = project_scan_tool::create_project_analysis_tools(workspace_provider.clone());
+            let project_tool_count = project_tools.len();
+            tools.extend(project_tools);
+            tracing::info!("Added {} project analysis tools to orchestration", project_tool_count);
+
+            // Add git extended tools (git_blame, git_show, find_references)
+            let git_tools = git_extended_tools::create_git_extended_tools(workspace_provider.clone());
+            let git_tool_count = git_tools.len();
+            tools.extend(git_tools);
+            tracing::info!("Added {} git extended tools to orchestration", git_tool_count);
+
+            // Add code analysis tool
+            let code_tool = code_analysis_tool::create_code_analysis_tool(workspace_provider.clone());
+            tools.push(code_tool);
+            tracing::info!("Added code analysis tool to orchestration");
 
             // Add terminal command tool
             let terminal_workspace_provider: Arc<dyn TerminalWorkspaceRootProvider> = Arc::new(SimpleWorkspaceRootProvider {

@@ -15,6 +15,15 @@ use crate::orchestration::{
     tool::{Tool, ToolCall},
 };
 
+fn build_http_client() -> Client {
+    // In some sandboxed macOS environments, `Client::new()` can panic while probing
+    // system proxy configuration. Prefer an explicit builder with no_proxy.
+    Client::builder()
+        .no_proxy()
+        .build()
+        .unwrap_or_else(|_| Client::new())
+}
+
 /// Claude tool definition
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct ClaudeTool {
@@ -84,7 +93,7 @@ impl ClaudeOrchestrator {
         Self {
             model_id: model_id.into(),
             api_key: api_key.into(),
-            client: Client::new(),
+            client: build_http_client(),
             base_url: "https://api.anthropic.com/v1".to_string(),
             temperature: 0.7,
             max_tokens: 4096,

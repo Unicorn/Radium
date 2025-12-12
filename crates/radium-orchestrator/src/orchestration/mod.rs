@@ -4,20 +4,25 @@
 // across different AI providers (Gemini, Claude, OpenAI, and prompt-based fallback).
 
 pub mod agent_tools;
+pub mod code_analysis_tool;
 pub mod config;
 pub mod context;
 pub mod context_loader;
 // TODO: Fix type mismatch between radium_abstraction::Tool and orchestration::tool::Tool
 // pub mod continuation;
 pub mod engine;
+pub mod events;
 pub mod execution;
 pub mod file_tools;
+pub mod git_extended_tools;
 pub mod hooks;
 pub mod mcp_tools;
+pub mod project_scan_tool;
 pub mod providers;
 pub mod service;
 pub mod terminal_tool;
 pub mod tool;
+pub mod tool_builder;
 pub mod tool_registry;
 
 use async_trait::async_trait;

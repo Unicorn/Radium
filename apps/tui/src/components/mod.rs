@@ -6,6 +6,7 @@
 pub mod agent_timeline;
 pub mod checkpoint_modal;
 pub mod checkpoint_interrupt_modal;
+pub mod command_confirmation_modal;
 pub mod dialog;
 pub mod diff_view;
 pub mod execution_detail_view;
@@ -35,6 +36,7 @@ pub mod playbook_status;
 pub use agent_timeline::AgentTimeline;
 pub use checkpoint_modal::CheckpointModal;
 pub use checkpoint_interrupt_modal::CheckpointInterruptModal;
+pub use command_confirmation_modal::{CommandConfirmationModal, ConfirmationOutcome, ConfirmationRequest, render_command_confirmation};
 pub use dialog::{Dialog, DialogChoice, DialogManager, render_dialog};
 pub use diff_view::{DiffView, render_diff_view};
 pub use execution_detail_view::{Action as ExecutionDetailAction, ExecutionDetailView};

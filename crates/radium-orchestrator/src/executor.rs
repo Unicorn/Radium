@@ -1714,10 +1714,14 @@ mod tests {
         queue.enqueue_task(task).await.unwrap();
 
         // Wait for timeout
-        time::sleep(Duration::from_millis(300)).await;
+        let mut state = lifecycle.get_state("slow-agent").await;
+        let start = std::time::Instant::now();
+        while state != AgentState::Error && start.elapsed() < std::time::Duration::from_secs(2) {
+            time::sleep(Duration::from_millis(50)).await;
+            state = lifecycle.get_state("slow-agent").await;
+        }
 
         // Check that agent is in error state (timeout)
-        let state = lifecycle.get_state("slow-agent").await;
         assert_eq!(state, AgentState::Error);
 
         // Check that task was marked as completed

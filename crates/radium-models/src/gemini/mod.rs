@@ -1035,10 +1035,17 @@ impl Model for GeminiModel {
             )));
         }
 
-        // Parse response
-        let gemini_response: GeminiResponse = response.json().await.map_err(|e| {
-            error!(error = %e, "Failed to parse Gemini API response");
-            ModelError::SerializationError(format!("Failed to parse response: {}", e))
+        // Parse response - capture text first for debugging
+        let response_text = response.text().await.map_err(|e| {
+            error!(error = %e, "Failed to read Gemini API response body");
+            ModelError::SerializationError(format!("Failed to read response: {}", e))
+        })?;
+
+        debug!("Gemini API response (first 500 chars): {}", &response_text.chars().take(500).collect::<String>());
+
+        let gemini_response: GeminiResponse = serde_json::from_str(&response_text).map_err(|e| {
+            error!(error = %e, response_preview = %response_text.chars().take(200).collect::<String>(), "Failed to parse Gemini API response");
+            ModelError::SerializationError(format!("Failed to parse response: {}. Response preview: {}", e, response_text.chars().take(200).collect::<String>()))
         })?;
 
         // Extract content from response
@@ -1760,20 +1767,20 @@ pub struct GeminiContent {
 #[serde(untagged)]
 enum GeminiPart {
     Text { text: String },
-    InlineData { 
-        #[serde(rename = "inline_data")]
-        inline_data: GeminiInlineData 
+    InlineData {
+        #[serde(rename = "inlineData")]
+        inline_data: GeminiInlineData
     },
-    FileData { 
-        #[serde(rename = "file_data")]
-        file_data: GeminiFileData 
+    FileData {
+        #[serde(rename = "fileData")]
+        file_data: GeminiFileData
     },
     FunctionCall {
-        #[serde(rename = "function_call")]
+        #[serde(rename = "functionCall")]
         function_call: GeminiFunctionCall,
     },
     FunctionResponse {
-        #[serde(rename = "function_response")]
+        #[serde(rename = "functionResponse")]
         function_response: GeminiFunctionResponse,
     },
 }

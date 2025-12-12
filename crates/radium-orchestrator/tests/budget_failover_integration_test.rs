@@ -7,7 +7,9 @@
 //! - Total exhaustion with checkpoint creation
 //! - Pre-execution budget checks
 
-use radium_abstraction::{ChatMessage, Model, ModelError, ModelParameters, ModelResponse};
+use radium_abstraction::{
+    ChatMessage, MessageContent, Model, ModelError, ModelParameters, ModelResponse, Tool, ToolConfig,
+};
 use radium_core::monitoring::{BudgetConfig, BudgetError, BudgetManager};
 use std::sync::Arc;
 
@@ -64,6 +66,8 @@ impl Model for MockFailoverModel {
             content: self.success_response.clone().unwrap_or_default(),
             model_id: Some(self.model_id.clone()),
             usage: None,
+            metadata: None,
+            tool_calls: None,
         })
     }
 
@@ -72,8 +76,24 @@ impl Model for MockFailoverModel {
         messages: &[ChatMessage],
         parameters: Option<ModelParameters>,
     ) -> Result<ModelResponse, ModelError> {
-        let content = messages.first().map(|m| m.content.as_str()).unwrap_or("");
+        let content = messages
+            .first()
+            .and_then(|m| match &m.content {
+                MessageContent::Text(s) => Some(s.as_str()),
+                _ => None,
+            })
+            .unwrap_or("");
         self.generate_text(content, parameters).await
+    }
+
+    async fn generate_with_tools(
+        &self,
+        messages: &[ChatMessage],
+        _tools: &[Tool],
+        _tool_config: Option<&ToolConfig>,
+    ) -> Result<ModelResponse, ModelError> {
+        // These tests don't validate tool calling behavior; use chat completion behavior.
+        self.generate_chat_completion(messages, None).await
     }
 
     fn model_id(&self) -> &str {

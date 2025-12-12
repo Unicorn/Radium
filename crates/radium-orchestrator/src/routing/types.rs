@@ -175,6 +175,8 @@ pub struct ModelMetadata {
     pub cost_per_1m_input: f64,
     /// Cost per 1M output tokens in USD.
     pub cost_per_1m_output: f64,
+    /// Cost per 1M reasoning tokens in USD (for o1/o3 models).
+    pub cost_per_1m_reasoning: Option<f64>,
     /// Average latency in milliseconds.
     pub avg_latency_ms: u64,
     /// Quality tier (1-5 scale, where 5 is highest quality).
@@ -196,6 +198,28 @@ impl ModelMetadata {
             provider,
             cost_per_1m_input,
             cost_per_1m_output,
+            cost_per_1m_reasoning: None,
+            avg_latency_ms,
+            quality_tier,
+        }
+    }
+
+    /// Creates new model metadata with reasoning token pricing (for o1/o3 models).
+    pub fn with_reasoning(
+        model_id: String,
+        provider: String,
+        cost_per_1m_input: f64,
+        cost_per_1m_output: f64,
+        cost_per_1m_reasoning: f64,
+        avg_latency_ms: u64,
+        quality_tier: u8,
+    ) -> Self {
+        Self {
+            model_id,
+            provider,
+            cost_per_1m_input,
+            cost_per_1m_output,
+            cost_per_1m_reasoning: Some(cost_per_1m_reasoning),
             avg_latency_ms,
             quality_tier,
         }

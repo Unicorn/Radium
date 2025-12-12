@@ -127,6 +127,53 @@ impl ModelRouter {
             800,   // 800ms avg latency
             3,     // Tier 3
         ));
+
+        // OpenAI o1/o3 reasoning models
+        registry.insert("o1".to_string(), ModelMetadata::with_reasoning(
+            "o1".to_string(),
+            "openai".to_string(),
+            15.0,  // $15 per 1M input (cached: $7.50)
+            60.0,  // $60 per 1M output
+            60.0,  // $60 per 1M reasoning tokens
+            15000, // 15000ms avg latency (slower due to reasoning)
+            5,     // Tier 5 (highest quality)
+        ));
+        registry.insert("o1-mini".to_string(), ModelMetadata::with_reasoning(
+            "o1-mini".to_string(),
+            "openai".to_string(),
+            3.0,   // $3 per 1M input (cached: $1.50)
+            12.0,  // $12 per 1M output
+            12.0,  // $12 per 1M reasoning tokens
+            8000,  // 8000ms avg latency
+            5,     // Tier 5 (smart reasoning)
+        ));
+        registry.insert("o1-preview".to_string(), ModelMetadata::with_reasoning(
+            "o1-preview".to_string(),
+            "openai".to_string(),
+            15.0,  // $15 per 1M input
+            60.0,  // $60 per 1M output
+            60.0,  // $60 per 1M reasoning tokens
+            15000, // 15000ms avg latency
+            5,     // Tier 5
+        ));
+        registry.insert("o3".to_string(), ModelMetadata::with_reasoning(
+            "o3".to_string(),
+            "openai".to_string(),
+            20.0,  // $20 per 1M input (estimated, subject to change)
+            80.0,  // $80 per 1M output (estimated)
+            80.0,  // $80 per 1M reasoning tokens (estimated)
+            18000, // 18000ms avg latency (estimated)
+            5,     // Tier 5 (highest quality)
+        ));
+        registry.insert("o3-mini".to_string(), ModelMetadata::with_reasoning(
+            "o3-mini".to_string(),
+            "openai".to_string(),
+            5.0,   // $5 per 1M input (estimated)
+            15.0,  // $15 per 1M output (estimated)
+            15.0,  // $15 per 1M reasoning tokens (estimated)
+            10000, // 10000ms avg latency (estimated)
+            5,     // Tier 5
+        ));
         
         // Gemini models
         registry.insert("gemini-pro".to_string(), ModelMetadata::new(

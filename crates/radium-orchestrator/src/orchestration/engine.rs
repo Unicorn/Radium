@@ -4,11 +4,13 @@
 // handling the full loop of: input -> model decision -> tool execution -> result -> repeat.
 
 use std::sync::Arc;
+use tokio::sync::broadcast;
 use tokio::time::{timeout, Duration};
 
 use super::{
     FinishReason, OrchestrationProvider, OrchestrationResult,
     context::{Message, OrchestrationContext},
+    events::OrchestrationEvent,
     hooks::ToolHookExecutor,
     tool::{Tool, ToolArguments, ToolCall},
 };
@@ -40,6 +42,8 @@ pub struct OrchestrationEngine {
     config: EngineConfig,
     /// Optional hook executor for tool execution hooks
     hook_executor: Option<Arc<dyn ToolHookExecutor>>,
+    /// Optional event sender for streaming orchestration progress
+    event_tx: Option<broadcast::Sender<OrchestrationEvent>>,
 }
 
 impl OrchestrationEngine {
@@ -54,6 +58,7 @@ impl OrchestrationEngine {
             tools,
             config,
             hook_executor: None,
+            event_tx: None,
         }
     }
 
@@ -74,6 +79,18 @@ impl OrchestrationEngine {
             tools,
             config,
             hook_executor,
+            event_tx: None,
+        }
+    }
+
+    /// Set the event sender used to emit orchestration events.
+    pub fn set_event_sender(&mut self, event_tx: Option<broadcast::Sender<OrchestrationEvent>>) {
+        self.event_tx = event_tx;
+    }
+
+    fn emit(&self, event: OrchestrationEvent) {
+        if let Some(ref tx) = self.event_tx {
+            let _ = tx.send(event);
         }
     }
 
@@ -120,6 +137,12 @@ impl OrchestrationEngine {
     ) -> Result<OrchestrationResult> {
         let mut iterations = 0;
         let mut current_input = input.to_string();
+        let correlation_id = context.session_id.clone();
+
+        self.emit(OrchestrationEvent::UserInput {
+            correlation_id: correlation_id.clone(),
+            content: current_input.clone(),
+        });
 
         loop {
             // Check iteration limit
@@ -142,6 +165,10 @@ impl OrchestrationEngine {
                     }
                 );
                 warn!("Orchestration reached max iterations: {}", iterations);
+                self.emit(OrchestrationEvent::Done {
+                    correlation_id: correlation_id.clone(),
+                    finish_reason: FinishReason::MaxIterations.to_string(),
+                });
                 return Ok(OrchestrationResult::new(error_msg, vec![], FinishReason::MaxIterations));
             }
 
@@ -151,6 +178,10 @@ impl OrchestrationEngine {
                 Err(e) => {
                     // Provider error - check if it's a function calling error that should trigger fallback
                     // This will be handled by the service layer if fallback is enabled
+                    self.emit(OrchestrationEvent::Error {
+                        correlation_id: correlation_id.clone(),
+                        message: e.to_string(),
+                    });
                     return Err(e);
                 }
             };
@@ -161,11 +192,32 @@ impl OrchestrationEngine {
                 if !result.response.is_empty() {
                     context.add_assistant_message(&result.response);
                 }
+                self.emit(OrchestrationEvent::AssistantMessage {
+                    correlation_id: correlation_id.clone(),
+                    content: result.response.clone(),
+                });
+                self.emit(OrchestrationEvent::Done {
+                    correlation_id: correlation_id.clone(),
+                    finish_reason: result.finish_reason.to_string(),
+                });
                 return Ok(result);
             }
 
             // Execute tool calls
-            let tool_results = self.execute_tools(&result.tool_calls).await?;
+            if !result.response.is_empty() {
+                self.emit(OrchestrationEvent::AssistantMessage {
+                    correlation_id: correlation_id.clone(),
+                    content: result.response.clone(),
+                });
+            }
+            for call in &result.tool_calls {
+                self.emit(OrchestrationEvent::ToolCallRequested {
+                    correlation_id: correlation_id.clone(),
+                    call: call.clone(),
+                });
+            }
+
+            let tool_results = self.execute_tools(&correlation_id, &result.tool_calls).await?;
 
             // Add assistant message with tool calls to conversation
             if !result.response.is_empty() {
@@ -175,6 +227,11 @@ impl OrchestrationEngine {
             // Add tool results to conversation
             for (i, tool_result) in tool_results.iter().enumerate() {
                 let tool_call = &result.tool_calls[i];
+                self.emit(OrchestrationEvent::ToolCallFinished {
+                    correlation_id: correlation_id.clone(),
+                    tool_name: tool_call.name.clone(),
+                    result: tool_result.clone(),
+                });
                 let result_message =
                     format!("Tool '{}' returned: {}", tool_call.name, tool_result.output);
                 context.add_message(Message {
@@ -208,6 +265,10 @@ impl OrchestrationEngine {
                     failed_tools.join("\n")
                 );
                 warn!("Tool execution failed: {} tool(s) failed", failed_tools.len());
+                self.emit(OrchestrationEvent::Done {
+                    correlation_id: correlation_id.clone(),
+                    finish_reason: FinishReason::ToolError.to_string(),
+                });
                 return Ok(OrchestrationResult::new(error_msg, vec![], FinishReason::ToolError));
             }
 
@@ -222,6 +283,7 @@ impl OrchestrationEngine {
     /// Execute all tool calls and collect results
     async fn execute_tools(
         &self,
+        correlation_id: &str,
         tool_calls: &[ToolCall],
     ) -> Result<Vec<crate::orchestration::tool::ToolResult>> {
         let mut results = Vec::new();
@@ -270,6 +332,10 @@ impl OrchestrationEngine {
             }
 
             // Execute tool
+            self.emit(OrchestrationEvent::ToolCallStarted {
+                correlation_id: correlation_id.to_string(),
+                tool_name: tool_call.name.clone(),
+            });
             let args = ToolArguments::new(effective_arguments.clone());
             let mut result = match tool.execute(&args).await {
                 Ok(r) => r,

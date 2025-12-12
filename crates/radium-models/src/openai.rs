@@ -147,6 +147,13 @@ impl OpenAIModel {
         VISION_MODELS.iter().any(|&model| self.model_id.starts_with(model))
     }
 
+    /// Checks if the model is a reasoning model (o1, o3 series).
+    /// These models use reasoning_effort instead of temperature.
+    pub fn is_reasoning_model(&self) -> bool {
+        const REASONING_MODELS: &[&str] = &["o1", "o1-mini", "o1-preview", "o3", "o3-mini"];
+        REASONING_MODELS.iter().any(|&model| self.model_id.starts_with(model))
+    }
+
     /// Converts a ContentBlock to OpenAI's content format.
     fn content_block_to_openai(
         &self,
@@ -275,16 +282,39 @@ impl Model for OpenAIModel {
             max_tokens: None,
             stop: None,
             response_format: None,
+            reasoning_effort: None,
         };
 
         // Apply parameters if provided
         if let Some(params) = parameters {
-            request_body.temperature = params.temperature;
-            request_body.top_p = params.top_p;
+            // o1/o3 models use reasoning_effort instead of temperature
+            if self.is_reasoning_model() {
+                // Map temperature to reasoning_effort: low (0-0.3), medium (0.3-0.7), high (0.7-1.0)
+                if let Some(temp) = params.temperature {
+                    let effort = if temp < 0.3 {
+                        "low"
+                    } else if temp < 0.7 {
+                        "medium"
+                    } else {
+                        "high"
+                    };
+                    request_body.reasoning_effort = Some(effort.to_string());
+                } else {
+                    // Default to medium for reasoning models
+                    request_body.reasoning_effort = Some("medium".to_string());
+                }
+                // Do not set temperature for reasoning models
+            } else {
+                request_body.temperature = params.temperature;
+                request_body.top_p = params.top_p;
+            }
             request_body.max_tokens = params.max_tokens;
             request_body.stop = params.stop_sequences;
             // Convert ResponseFormat to OpenAI format
             request_body.response_format = self.convert_response_format(&params.response_format)?;
+        } else if self.is_reasoning_model() {
+            // Default reasoning_effort for o1/o3 models when no parameters provided
+            request_body.reasoning_effort = Some("medium".to_string());
         }
 
         // Make API request using reqwest
@@ -496,16 +526,39 @@ impl StreamingModel for OpenAIModel {
             max_tokens: None,
             stop: None,
             response_format: None,
+            reasoning_effort: None,
         };
 
         // Apply parameters if provided
         if let Some(params) = parameters {
-            request_body.temperature = params.temperature;
-            request_body.top_p = params.top_p;
+            // o1/o3 models use reasoning_effort instead of temperature
+            if self.is_reasoning_model() {
+                // Map temperature to reasoning_effort: low (0-0.3), medium (0.3-0.7), high (0.7-1.0)
+                if let Some(temp) = params.temperature {
+                    let effort = if temp < 0.3 {
+                        "low"
+                    } else if temp < 0.7 {
+                        "medium"
+                    } else {
+                        "high"
+                    };
+                    request_body.reasoning_effort = Some(effort.to_string());
+                } else {
+                    // Default to medium for reasoning models
+                    request_body.reasoning_effort = Some("medium".to_string());
+                }
+                // Do not set temperature for reasoning models
+            } else {
+                request_body.temperature = params.temperature;
+                request_body.top_p = params.top_p;
+            }
             request_body.max_tokens = params.max_tokens;
             request_body.stop = params.stop_sequences;
             // Convert ResponseFormat to OpenAI format
             request_body.response_format = self.convert_response_format(&params.response_format)?;
+        } else if self.is_reasoning_model() {
+            // Default reasoning_effort for o1/o3 models when no parameters provided
+            request_body.reasoning_effort = Some("medium".to_string());
         }
 
         // Make streaming API request
@@ -734,6 +787,8 @@ struct OpenAIStreamingRequest {
     stop: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     response_format: Option<OpenAIResponseFormat>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reasoning_effort: Option<String>,
 }
 
 // Streaming response structure for OpenAI SSE
@@ -795,6 +850,8 @@ struct OpenAIRequest {
     stop: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     response_format: Option<OpenAIResponseFormat>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reasoning_effort: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

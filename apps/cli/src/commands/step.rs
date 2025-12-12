@@ -21,12 +21,19 @@ use radium_core::{
     code_blocks::{CodeBlockParser, CodeBlockStore},
     terminal::{TerminalCapabilities, ColorSupport},
 };
-use radium_models::{GeminiModel, MockModel, OpenAIModel};
+use radium_models::{GeminiModel, MockModel, OpenAIModel, ClaudeModel};
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::fs;
 use uuid::Uuid;
+
+// Tool execution imports
+use radium_orchestrator::orchestration::{
+    tool_builder,
+    tool::Tool as OrchestrationTool,
+};
+use radium_abstraction::{Model, Tool as AbstractionTool, ToolCall, ToolConfig, ToolUseMode, ChatMessage};
 
 /// Parse response format arguments and construct ResponseFormat enum.
 ///
@@ -419,8 +426,14 @@ pub async fn execute(
             })
         }
     } else {
-        // Use existing text-only path
-        execute_agent_with_engine(&registry, &agent.id, &rendered, selected_engine_id, selected_model, stream, response_format.as_ref(), Some(selected_reasoning_effort)).await
+        // Use tool-enabled execution path
+        execute_agent_with_tools(
+            selected_engine_id,
+            selected_model,
+            &rendered,
+            &user_input,
+            &workspace_root,
+        ).await
     };
     
     // Handle response display based on flags
@@ -1435,4 +1448,264 @@ fn format_metadata_display(response: &ExecutionResponse) {
             println!("  {} Model Version: {}", "•".dimmed(), model_version.cyan());
         }
     }
+}
+
+// ============================================================================
+// Tool Execution Support
+// ============================================================================
+
+/// Create a Model instance based on engine ID and model name
+fn create_model(
+    engine_id: &str,
+    model: &str,
+    api_key: String,
+) -> anyhow::Result<Box<dyn Model>> {
+    match engine_id {
+        "claude" | "anthropic" => {
+            Ok(Box::new(ClaudeModel::with_api_key(model.to_string(), api_key)))
+        }
+        "gemini" => {
+            Ok(Box::new(GeminiModel::with_api_key(model.to_string(), api_key)))
+        }
+        "openai" => {
+            Ok(Box::new(OpenAIModel::with_api_key(model.to_string(), api_key)))
+        }
+        "mock" => {
+            Ok(Box::new(MockModel::new(model.to_string())))
+        }
+        _ => Err(anyhow::anyhow!("Unsupported engine for tool execution: {}", engine_id))
+    }
+}
+
+/// Convert orchestration Tool to abstraction Tool
+fn convert_tools(tools: &[OrchestrationTool]) -> Vec<AbstractionTool> {
+    tools.iter().map(|tool| {
+        // Convert ToolParameters to JSON Value
+        let parameters_json = serde_json::to_value(&tool.parameters)
+            .unwrap_or_else(|_| serde_json::json!({}));
+
+        AbstractionTool {
+            name: tool.name.clone(),
+            description: tool.description.clone(),
+            parameters: parameters_json,
+        }
+    }).collect()
+}
+
+/// Convert ModelResponse to ExecutionResponse
+fn convert_to_execution_response(
+    response: radium_abstraction::ModelResponse,
+    model: &str,
+) -> radium_core::engines::ExecutionResponse {
+    radium_core::engines::ExecutionResponse {
+        content: response.content,
+        usage: response.usage.map(|u| radium_core::engines::TokenUsage {
+            input_tokens: u.prompt_tokens as u64,
+            output_tokens: u.completion_tokens as u64,
+            total_tokens: u.total_tokens as u64,
+        }),
+        model: response.model_id.unwrap_or_else(|| model.to_string()),
+        raw: None,
+        execution_duration: None,
+        metadata: response.metadata,
+    }
+}
+
+/// Execute a single tool call
+async fn execute_tool_call(
+    tool_call: &ToolCall,
+    tools: &[OrchestrationTool],
+    workspace_root: &PathBuf,
+) -> anyhow::Result<String> {
+    // Find the tool by name
+    let tool = tools.iter()
+        .find(|t| t.name == tool_call.name)
+        .ok_or_else(|| anyhow::anyhow!("Tool not found: {}", tool_call.name))?;
+
+    println!("  {} Calling tool: {}", "•".cyan(), tool_call.name.cyan());
+
+    // Execute the tool using the execute method
+    use radium_orchestrator::orchestration::tool::ToolArguments;
+    let args = ToolArguments::new(tool_call.arguments.clone());
+    let result = tool.execute(&args).await
+        .map_err(|e| anyhow::anyhow!("Tool execution failed: {}", e))?;
+
+    println!("  {} Tool result: {} bytes", "✓".green(), result.output.len());
+
+    Ok(result.output)
+}
+
+/// Multi-turn tool execution loop
+async fn execute_with_tools_loop(
+    model: &dyn Model,
+    mut messages: Vec<ChatMessage>,
+    tools: &[AbstractionTool],
+    tool_config: &ToolConfig,
+    orchestration_tools: &[OrchestrationTool],
+    workspace_root: &PathBuf,
+) -> anyhow::Result<radium_abstraction::ModelResponse> {
+    const MAX_ITERATIONS: usize = 10;
+
+    for iteration in 0..MAX_ITERATIONS {
+        println!("  {} Tool execution iteration {}/{}", "•".dimmed(), iteration + 1, MAX_ITERATIONS);
+
+        // Call model with tools
+        println!("  {} DEBUG: Calling model.generate_with_tools() with {} messages, {} tools", "•".yellow(), messages.len(), tools.len());
+        let response = match model.generate_with_tools(
+            &messages,
+            tools,
+            Some(tool_config),
+        ).await {
+            Ok(resp) => {
+                println!("  {} DEBUG: generate_with_tools() succeeded", "✓".green());
+                resp
+            }
+            Err(e) => {
+                eprintln!("  {} ERROR: Model execution failed: {}", "✗".red(), e);
+                eprintln!("  {} ERROR: Error details: {:?}", "•".red(), e);
+                return Err(anyhow::anyhow!("Model execution failed: {}", e));
+            }
+        };
+
+        // Check if model wants to call tools
+        if let Some(ref tool_calls) = response.tool_calls {
+            if tool_calls.is_empty() {
+                // No tool calls, return final response
+                println!("  {} Model returned final answer", "✓".green());
+                return Ok(response);
+            }
+
+            println!("  {} Model requested {} tool call(s)", "•".cyan(), tool_calls.len());
+
+            // Add assistant's message to conversation
+            messages.push(ChatMessage {
+                role: "assistant".to_string(),
+                content: MessageContent::Text(response.content.clone()),
+            });
+
+            // Execute each tool call and add results
+            for tool_call in tool_calls {
+                let result = execute_tool_call(tool_call, orchestration_tools, workspace_root).await?;
+
+                // Add tool result as a user message (like TUI does)
+                messages.push(ChatMessage {
+                    role: "user".to_string(),
+                    content: MessageContent::Text(format!(
+                        "[Tool result for {}]\n{}",
+                        tool_call.name, result
+                    )),
+                });
+            }
+
+            // Continue loop to get next response
+            continue;
+        }
+
+        // No tool calls - return final response
+        println!("  {} Model returned final answer", "✓".green());
+        return Ok(response);
+    }
+
+    Err(anyhow::anyhow!("Tool execution loop exceeded maximum iterations ({})", MAX_ITERATIONS))
+}
+
+/// Execute agent with tool support using Model trait directly
+async fn execute_agent_with_tools(
+    engine_id: &str,
+    model: &str,
+    rendered_prompt: &str,
+    user_input: &str,
+    workspace_root: &PathBuf,
+) -> anyhow::Result<radium_core::engines::ExecutionResponse> {
+    println!("  {} Executing agent with tools...", "•".cyan());
+    println!("  {} Engine: {}", "•".dimmed(), engine_id.cyan());
+    println!("  {} Model: {}", "•".dimmed(), model.cyan());
+    println!();
+
+    // Get API key from credential store
+    let credential_store = Arc::new(
+        CredentialStore::new().unwrap_or_else(|_| {
+            let temp_path = std::env::temp_dir().join("radium_credentials.json");
+            CredentialStore::with_path(temp_path)
+        })
+    );
+
+    let provider_type = match engine_id {
+        "claude" | "anthropic" => Some(ProviderType::Claude),
+        "gemini" => Some(ProviderType::Gemini),
+        "openai" => Some(ProviderType::OpenAI),
+        "mock" => None, // Mock doesn't need API key
+        _ => return Err(anyhow::anyhow!("Unsupported engine: {}", engine_id)),
+    };
+
+    let api_key = if let Some(provider) = provider_type {
+        credential_store
+            .get(provider)
+            .map_err(|e| anyhow::anyhow!("Failed to get API key for {}: {}", engine_id, e))?
+    } else {
+        // Mock engine doesn't need API key
+        "".to_string()
+    };
+
+    // Create Model instance
+    let model_instance = create_model(engine_id, model, api_key)?;
+    println!("  {} Model instance created", "✓".green());
+
+    // Build tools using tool_builder
+    println!("  {} Building tools...", "•".dimmed());
+    let orchestration_tools = tool_builder::build_standard_tools(workspace_root.clone(), None);
+    println!("  {} Built {} tools", "✓".green(), orchestration_tools.len());
+
+    // Convert to abstraction tools
+    let abstraction_tools = convert_tools(&orchestration_tools);
+
+    // DEBUG: Log tool schemas
+    println!("  {} Tool schemas:", "•".cyan());
+    for (i, tool) in abstraction_tools.iter().enumerate() {
+        println!("    {}. {} - {} bytes parameters", i+1, tool.name,
+            serde_json::to_string(&tool.parameters).unwrap_or_default().len());
+    }
+
+    // Print first tool's full schema for inspection
+    if let Some(first_tool) = abstraction_tools.first() {
+        println!("  {} Sample schema ({}):", "•".cyan(), first_tool.name);
+        println!("{}", serde_json::to_string_pretty(&first_tool.parameters).unwrap_or_default());
+    }
+
+    // Build tool config
+    let tool_config = ToolConfig {
+        mode: ToolUseMode::Auto,  // Let model decide (try this first)
+        allowed_function_names: None,
+    };
+
+    // Build initial messages (match TUI structure: system + user)
+    let messages = vec![
+        ChatMessage {
+            role: "system".to_string(),
+            content: radium_abstraction::MessageContent::Text(rendered_prompt.to_string()),
+        },
+        ChatMessage {
+            role: "user".to_string(),
+            content: radium_abstraction::MessageContent::Text(user_input.to_string()),
+        },
+    ];
+
+    println!("  {} Starting tool execution loop...", "•".cyan());
+    println!();
+
+    // Execute with tools loop
+    let response = execute_with_tools_loop(
+        model_instance.as_ref(),
+        messages,
+        &abstraction_tools,
+        &tool_config,
+        &orchestration_tools,
+        workspace_root,
+    ).await?;
+
+    println!();
+    println!("  {} Tool execution completed", "✓".green());
+
+    // Convert to ExecutionResponse
+    Ok(convert_to_execution_response(response, model))
 }

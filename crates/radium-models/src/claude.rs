@@ -289,6 +289,8 @@ impl Model for ClaudeModel {
             top_p: None,
             stop_sequences: None,
             thinking: None,
+            tools: None,
+            tool_choice: None,
         };
 
         // Apply parameters if provided
@@ -405,8 +407,10 @@ impl Model for ClaudeModel {
         let content = claude_response
             .content
             .iter()
-            .find(|c| c.content_type == "text")
-            .map(|c| c.text.clone())
+            .find_map(|c| match c {
+                ClaudeContent::Text { text, .. } => Some(text.clone()),
+                _ => None,
+            })
             .ok_or_else(|| {
                 error!("No text content in Claude API response");
                 ModelError::ModelResponseError("No text content in API response".to_string())
@@ -460,13 +464,154 @@ impl Model for ClaudeModel {
 
     async fn generate_with_tools(
         &self,
-        _messages: &[ChatMessage],
-        _tools: &[radium_abstraction::Tool],
-        _tool_config: Option<&radium_abstraction::ToolConfig>,
+        messages: &[ChatMessage],
+        tools: &[radium_abstraction::Tool],
+        tool_config: Option<&radium_abstraction::ToolConfig>,
     ) -> Result<ModelResponse, ModelError> {
-        Err(ModelError::UnsupportedModelProvider(
-            format!("ClaudeModel does not support function calling yet"),
-        ))
+        debug!(
+            model_id = %self.model_id,
+            num_messages = messages.len(),
+            num_tools = tools.len(),
+            "ClaudeModel generating with tools"
+        );
+
+        let url = format!("{}/messages", self.base_url);
+
+        // Extract system prompt
+        let system = Self::extract_system_prompt(messages);
+
+        // Convert non-system messages to Claude format
+        let claude_messages: Result<Vec<ClaudeMessage>, ModelError> = messages
+            .iter()
+            .filter(|msg| msg.role != "system")
+            .map(Self::to_claude_message)
+            .collect();
+        let claude_messages = claude_messages?;
+
+        // Convert tools to Claude format
+        let claude_tools: Vec<ClaudeTool> = tools
+            .iter()
+            .map(|tool| ClaudeTool {
+                name: tool.name.clone(),
+                description: tool.description.clone(),
+                input_schema: tool.parameters.clone(),
+            })
+            .collect();
+
+        // Convert tool config to tool_choice
+        let tool_choice = tool_config.and_then(|config| {
+            use radium_abstraction::ToolUseMode;
+            match config.mode {
+                ToolUseMode::Auto => Some(ClaudeToolChoice::Auto),
+                ToolUseMode::Any => Some(ClaudeToolChoice::Any),
+                ToolUseMode::None => None,
+            }
+        });
+
+        // Build request body with tools
+        let request_body = ClaudeRequest {
+            model: self.model_id.clone(),
+            messages: claude_messages,
+            max_tokens: 4096,
+            system,
+            temperature: None,
+            top_p: None,
+            stop_sequences: None,
+            thinking: None,
+            tools: Some(claude_tools),
+            tool_choice,
+        };
+
+        debug!("Sending request to Claude API with {} tools", tools.len());
+
+        // Make API request
+        let response = self
+            .client
+            .post(&url)
+            .header("x-api-key", &self.api_key)
+            .header("anthropic-version", "2023-06-01")
+            .header("content-type", "application/json")
+            .json(&request_body)
+            .send()
+            .await
+            .map_err(|e| {
+                error!(error = %e, "Failed to send request to Claude API");
+                ModelError::ModelResponseError(format!("Network error: {}", e))
+            })?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            error!(
+                status = %status,
+                error = %error_text,
+                "Claude API request failed"
+            );
+            return Err(ModelError::ModelResponseError(format!(
+                "API error ({}): {}",
+                status, error_text
+            )));
+        }
+
+        // Parse response
+        let claude_response: ClaudeResponse = response.json().await.map_err(|e| {
+            error!(error = %e, "Failed to parse Claude API response");
+            ModelError::SerializationError(format!("Failed to parse response: {}", e))
+        })?;
+
+        // Extract text content and tool calls from response
+        let mut text_parts = Vec::new();
+        let mut tool_calls = Vec::new();
+        let mut call_index = 0;
+
+        for content in &claude_response.content {
+            match content {
+                ClaudeContent::Text { text, .. } => {
+                    text_parts.push(text.clone());
+                }
+                ClaudeContent::ToolUse { id, name, input, .. } => {
+                    tool_calls.push(radium_abstraction::ToolCall {
+                        id: id.clone(),
+                        name: name.clone(),
+                        arguments: input.clone(),
+                    });
+                    call_index += 1;
+                }
+            }
+        }
+
+        // Combine text parts or use empty string if only tool calls
+        let content = if text_parts.is_empty() {
+            String::new()
+        } else {
+            text_parts.join("\n\n")
+        };
+
+        // Extract usage information
+        let usage = Some(ModelUsage {
+            prompt_tokens: claude_response.usage.input_tokens,
+            completion_tokens: claude_response.usage.output_tokens,
+            total_tokens: claude_response.usage.input_tokens + claude_response.usage.output_tokens,
+            cache_usage: None,
+        });
+
+        debug!(
+            content_len = content.len(),
+            num_tool_calls = tool_calls.len(),
+            "Claude API response processed"
+        );
+
+        Ok(ModelResponse {
+            content,
+            model_id: Some(self.model_id.clone()),
+            usage,
+            metadata: Some(HashMap::new()),
+            tool_calls: if tool_calls.is_empty() {
+                None
+            } else {
+                Some(tool_calls)
+            },
+        })
     }
 
     fn model_id(&self) -> &str {
@@ -799,6 +944,12 @@ struct ClaudeRequest {
     /// Thinking configuration for extended thinking models.
     #[serde(skip_serializing_if = "Option::is_none")]
     thinking: Option<ClaudeThinkingConfig>,
+    /// Tools available for the model to use.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tools: Option<Vec<ClaudeTool>>,
+    /// Tool choice strategy.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tool_choice: Option<ClaudeToolChoice>,
 }
 
 #[derive(Debug, Serialize)]
@@ -880,10 +1031,20 @@ struct ClaudeResponse {
 }
 
 #[derive(Debug, Deserialize)]
-struct ClaudeContent {
-    #[serde(rename = "type")]
-    content_type: String,
-    text: String,
+#[serde(untagged)]
+enum ClaudeContent {
+    Text {
+        #[serde(rename = "type")]
+        content_type: String,
+        text: String,
+    },
+    ToolUse {
+        #[serde(rename = "type")]
+        content_type: String,
+        id: String,
+        name: String,
+        input: serde_json::Value,
+    },
 }
 
 #[derive(Debug, Deserialize)]
@@ -894,6 +1055,24 @@ struct ClaudeUsage {
     cache_creation_input_tokens: Option<u32>,
     #[serde(default)]
     cache_read_input_tokens: Option<u32>,
+}
+
+// Tool-related structures
+#[derive(Debug, Serialize)]
+struct ClaudeTool {
+    name: String,
+    description: String,
+    input_schema: serde_json::Value,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum ClaudeToolChoice {
+    Auto,
+    Any,
+    Tool {
+        name: String,
+    },
 }
 
 // Streaming response structures

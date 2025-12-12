@@ -5,6 +5,9 @@
 
 mod commands;
 mod config;
+mod conversation_context;
+mod policy_engine;
+mod session_manager;
 mod validation;
 
 use clap::{CommandFactory, Parser, Subcommand};

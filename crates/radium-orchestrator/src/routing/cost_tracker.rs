@@ -260,6 +260,7 @@ mod tests {
             prompt_tokens: 1000,
             completion_tokens: 500,
             total_tokens: 1500,
+            cache_usage: None,
         };
 
         let result = tracker.track_usage(RoutingTier::Smart, &usage, "claude-sonnet-3.5");
@@ -279,6 +280,7 @@ mod tests {
             prompt_tokens: 2000,
             completion_tokens: 1000,
             total_tokens: 3000,
+            cache_usage: None,
         };
 
         let result = tracker.track_usage(RoutingTier::Eco, &usage, "claude-haiku-3.5");
@@ -300,6 +302,7 @@ mod tests {
             prompt_tokens: 1000,
             completion_tokens: 500,
             total_tokens: 1500,
+            cache_usage: None,
         };
         tracker.track_usage(RoutingTier::Smart, &smart_usage, "claude-sonnet").unwrap();
 
@@ -308,6 +311,7 @@ mod tests {
             prompt_tokens: 2000,
             completion_tokens: 1000,
             total_tokens: 3000,
+            cache_usage: None,
         };
         tracker.track_usage(RoutingTier::Eco, &eco_usage, "claude-haiku").unwrap();
 
@@ -333,6 +337,7 @@ mod tests {
                 prompt_tokens: 100,
                 completion_tokens: 50,
                 total_tokens: 150,
+                cache_usage: None,
             };
             tracker.track_usage(RoutingTier::Smart, &usage, "test-model").unwrap();
         }
@@ -346,11 +351,12 @@ mod tests {
     #[test]
     fn test_reset() {
         let tracker = create_test_tracker();
-        
+
         let usage = ModelUsage {
             prompt_tokens: 1000,
             completion_tokens: 500,
             total_tokens: 1500,
+            cache_usage: None,
         };
         tracker.track_usage(RoutingTier::Smart, &usage, "test-model").unwrap();
 
