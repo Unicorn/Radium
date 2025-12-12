@@ -29,7 +29,7 @@ pub fn render_orchestrator_view(
     frame: &mut Frame,
     area: Rect,
     prompt_data: &PromptData,
-    _active_agents: &[(String, String, String)], // (agent_id, agent_name, status)
+    active_agents: &[(String, String, String)], // (agent_id, agent_name, status)
     task_state: Option<&TaskListState>,
     orchestrator_panel: &mut OrchestratorThinkingPanel,
     panel_visibility: (bool, bool), // (task_panel_visible, orchestrator_panel_visible)
@@ -85,7 +85,7 @@ fn render_wide_layout(
     frame: &mut Frame,
     area: Rect,
     prompt_data: &PromptData,
-    _active_agents: &[(String, String, String)],
+    active_agents: &[(String, String, String)],
     task_state: Option<&TaskListState>,
     orchestrator_panel: &mut OrchestratorThinkingPanel,
     task_panel_visible: bool,
@@ -162,7 +162,7 @@ fn render_narrow_layout(
     frame: &mut Frame,
     area: Rect,
     prompt_data: &PromptData,
-    _active_agents: &[(String, String, String)],
+    active_agents: &[(String, String, String)],
     task_state: Option<&TaskListState>,
     orchestrator_panel: &mut OrchestratorThinkingPanel,
     task_panel_visible: bool,
@@ -423,7 +423,7 @@ fn render_empty_panel(
 fn render_active_agents(
     frame: &mut Frame,
     area: Rect,
-    _active_agents: &[(String, String, String)],
+    active_agents: &[(String, String, String)],
     theme: &crate::theme::RadiumTheme,
 ) {
     if active_agents.is_empty() {
