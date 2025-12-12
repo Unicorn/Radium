@@ -182,6 +182,7 @@ impl RadiumBrandColors {
     }
 
     /// Alias for success() - for backward compatibility with .green() usage.
+    #[allow(dead_code)]
     pub fn success_color(&self) -> Color {
         self.success()
     }
