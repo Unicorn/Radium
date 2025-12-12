@@ -396,19 +396,20 @@ async fn execute(
 /// # Arguments
 /// * `project_id` - Braingrid project ID (e.g., "PROJ-14")
 pub async fn list(project_id: Option<String>) -> anyhow::Result<()> {
-    println!("{}", "rad requirement list".bold().cyan());
+    let colors = RadiumBrandColors::new();
+    println!("{}", "rad requirement list".bold().color(colors.primary()));
     println!();
 
     // Get project ID from environment or parameter
     let project_id = project_id
         .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok())
         .unwrap_or_else(|| {
-            println!("{}", "Warning: No project ID specified, using default PROJ-14".yellow());
+            println!("{}", "Warning: No project ID specified, using default PROJ-14".color(colors.warning()));
             "PROJ-14".to_string()
         });
 
     println!("{}", "Configuration:".bold());
-    println!("  Project ID: {}", project_id.cyan());
+    println!("  Project ID: {}", project_id.color(colors.primary()));
     println!();
 
     // Call braingrid CLI
