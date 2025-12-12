@@ -43,6 +43,7 @@ impl DaemonClient {
     ///
     /// # Arguments
     /// * `url` - Daemon server URL (e.g., "http://localhost:50051")
+    #[allow(dead_code)]
     pub fn new(url: String) -> Self {
         Self { url, client: None }
     }
@@ -54,6 +55,7 @@ impl DaemonClient {
     ///
     /// # Returns
     /// Connected RadiumClient or error if connection fails after retries.
+    #[allow(dead_code)]
     pub async fn connect(&mut self, max_retries: Option<usize>) -> Result<RadiumClient<Channel>> {
         let max_retries = max_retries.unwrap_or(3);
 
@@ -107,6 +109,7 @@ impl DaemonClient {
     ///
     /// # Returns
     /// True if daemon is healthy, false otherwise.
+    #[allow(dead_code)]
     pub async fn health_check(&mut self) -> Result<bool> {
         let mut client = self.connect(None).await?;
         match client.ping(radium_core::proto::PingRequest {
@@ -121,6 +124,7 @@ impl DaemonClient {
     }
 
     /// Get the daemon URL.
+    #[allow(dead_code)]
     pub fn url(&self) -> &str {
         &self.url
     }

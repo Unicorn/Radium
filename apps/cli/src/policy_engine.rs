@@ -363,6 +363,7 @@ impl UserPolicy {
     }
 
     /// Check if a tool is whitelisted
+    #[allow(dead_code)]
     pub fn is_whitelisted(&self, tool_name: &str) -> bool {
         self.whitelist.iter().any(|pattern| {
             if pattern.ends_with('*') {

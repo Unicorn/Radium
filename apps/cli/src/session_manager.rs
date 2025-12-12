@@ -180,6 +180,7 @@ impl Session {
     }
 
     /// Update the session's timestamp
+    #[allow(dead_code)]
     pub fn touch(&mut self) {
         self.updated_at = Utc::now();
     }
