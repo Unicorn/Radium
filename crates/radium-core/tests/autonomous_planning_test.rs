@@ -45,6 +45,7 @@ impl Model for MockPlanModel {
             content: response,
             model_id: Some("mock".to_string()),
             usage: None,
+            ..Default::default()
         })
     }
 

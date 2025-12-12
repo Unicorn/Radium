@@ -922,6 +922,70 @@ pub enum BraingridCommand {
 }
 
 #[derive(Subcommand, Debug, Clone)]
+pub enum ToolsCommand {
+    /// List available tools and their schemas
+    List {
+        /// Tool category filter: all, file, terminal, agent, mcp
+        #[arg(long)]
+        category: Option<String>,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum TrainCommand {
+    /// List trained models discovered in the current workspace
+    List {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Train a local Burn bigram checkpoint from text files
+    Bigram {
+        /// One or more directories containing `.txt` (and other supported) files
+        #[arg(long, required = true)]
+        text_dir: Vec<std::path::PathBuf>,
+
+        /// Output manifest as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// AWS training backend utilities (optional scaffold)
+    #[command(subcommand)]
+    Aws(AwsTrainCommand),
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum AwsTrainCommand {
+    /// Create a local AWS training config scaffold in `.radium/aws/training/config.json`
+    Bootstrap {
+        /// AWS region (default: us-east-1)
+        #[arg(long)]
+        region: Option<String>,
+
+        /// S3 bucket name for training artifacts (default: randomized)
+        #[arg(long)]
+        bucket: Option<String>,
+
+        /// Override config path (default: `.radium/aws/training/config.json`)
+        #[arg(long)]
+        config_path: Option<std::path::PathBuf>,
+    },
+
+    /// Validate prerequisites and print the planned deployment (scaffold)
+    Deploy {
+        /// Config path (default: `.radium/aws/training/config.json`)
+        #[arg(long)]
+        config_path: Option<std::path::PathBuf>,
+    },
+}
+
+#[derive(Subcommand, Debug, Clone)]
 pub enum SecretCommand {
     /// Add a new secret to the encrypted vault
     Add {

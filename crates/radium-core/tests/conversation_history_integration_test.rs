@@ -24,7 +24,6 @@ fn test_session_history_tracking() {
             "First goal".to_string(),
             "First plan".to_string(),
             "First output".to_string(),
-            None,
         )
         .unwrap();
 
@@ -74,7 +73,6 @@ fn test_history_summarization() {
                 format!("Goal {}", i),
                 format!("Plan {}", i),
                 format!("Output {}", i),
-                None,
             )
             .unwrap();
     }
@@ -108,7 +106,6 @@ fn test_context_window_management() {
                 format!("Goal {}", i),
                 format!("Plan {}", i),
                 format!("Output {}", i),
-                None,
             )
             .unwrap();
     }
@@ -139,7 +136,6 @@ fn test_context_manager_history_integration() {
             "Previous goal".to_string(),
             "Previous plan".to_string(),
             "Previous output".to_string(),
-            None,
         )
         .unwrap();
 
@@ -173,7 +169,6 @@ fn test_multiple_session_isolation() {
             "Session 1 goal".to_string(),
             "Session 1 plan".to_string(),
             "Session 1 output".to_string(),
-            None,
         )
         .unwrap();
 
@@ -183,7 +178,6 @@ fn test_multiple_session_isolation() {
             "Session 2 goal".to_string(),
             "Session 2 plan".to_string(),
             "Session 2 output".to_string(),
-            None,
         )
         .unwrap();
 
@@ -213,7 +207,6 @@ fn test_history_persistence_across_restarts() {
                 "Persisted goal".to_string(),
                 "Persisted plan".to_string(),
                 "Persisted output".to_string(),
-                None,
             )
             .unwrap();
     }

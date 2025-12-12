@@ -91,24 +91,11 @@ fn create_agent_config(
     engine: Option<&str>,
     model: Option<&str>,
 ) -> AgentConfig {
-    let mut agent = AgentConfig {
-        id: id.to_string(),
-        name: name.to_string(),
-        description: description.to_string(),
-        prompt_path: PathBuf::from("prompts/test.md"),
-        mirror_path: None,
-        engine: engine.map(|s| s.to_string()),
-        model: model.map(|s| s.to_string()),
-        reasoning_effort: None,
-        loop_behavior: None,
-        trigger_behavior: None,
-        category: category.map(|s| s.to_string()),
-        file_path: None,
-        capabilities: Default::default(),
-        sandbox: None,
-        persona_config: None,
-        routing: None,
-    };
+    let mut agent = AgentConfig::new(id, name, PathBuf::from("prompts/test.md"));
+    agent.description = description.to_string();
+    agent.engine = engine.map(|s| s.to_string());
+    agent.model = model.map(|s| s.to_string());
+    agent.category = category.map(|s| s.to_string());
     agent
 }
 

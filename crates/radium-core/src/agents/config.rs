@@ -702,7 +702,8 @@ impl AgentConfigFile {
 
     /// Validate engine value.
     fn validate_engine(&self, engine: &str) -> Result<()> {
-        const SUPPORTED_ENGINES: &[&str] = &["gemini", "openai", "claude", "codex"];
+        // Include "mock" for local/testing agents and CI scenarios.
+        const SUPPORTED_ENGINES: &[&str] = &["gemini", "openai", "claude", "codex", "mock"];
 
         let engine_lower = engine.to_lowercase();
         if !SUPPORTED_ENGINES.contains(&engine_lower.as_str()) {

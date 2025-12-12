@@ -132,7 +132,12 @@ impl SecretManager {
     pub fn new(vault_path: PathBuf, master_password: &str) -> SecurityResult<Self> {
         Self::validate_password(master_password)?;
 
-        let encryption_key = Self::derive_key(master_password, None)?;
+        let existed = vault_path.exists();
+        let vault = Self::load_vault(&vault_path)?;
+        let salt = base64::engine::general_purpose::STANDARD
+            .decode(&vault.salt)
+            .map_err(|e| SecurityError::VaultCorruption(format!("Invalid salt: {}", e)))?;
+        let encryption_key = Self::derive_key(master_password, Some(&salt))?;
 
         let manager = Self {
             vault_path: vault_path.clone(),
@@ -142,6 +147,11 @@ impl SecretManager {
 
         // Ensure vault directory exists with proper permissions
         manager.ensure_vault_dir()?;
+
+        // Persist the initial vault (salt + version) so `from_existing` can derive the same key.
+        if !existed {
+            manager.save_vault(&vault)?;
+        }
 
         Ok(manager)
     }

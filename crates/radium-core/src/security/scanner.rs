@@ -341,7 +341,7 @@ mod tests {
 
         std::fs::write(
             &file_path,
-            "let api_key = 'sk-test123456789012345678901234567890123456';",
+            "let api_key = 'sk-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';",
         ).unwrap();
 
         let matches = scanner.scan_file(&file_path).unwrap();
@@ -358,7 +358,7 @@ mod tests {
         // Create test files
         std::fs::write(
             temp_dir.path().join("file1.rs"),
-            "let key = 'sk-test123456789012345678901234567890123456';",
+            "let key = 'sk-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';",
         ).unwrap();
         std::fs::write(
             temp_dir.path().join("file2.py"),
@@ -379,7 +379,7 @@ mod tests {
         let file_path = temp_dir.path().join("test.bin");
 
         // Create a binary file (with null bytes)
-        std::fs::write(&file_path, b"sk-test123456789012345678901234567890123456\x00").unwrap();
+        std::fs::write(&file_path, b"sk-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\x00").unwrap();
 
         let matches = scanner.scan_file(&file_path).unwrap();
         assert!(matches.is_empty());
@@ -390,12 +390,12 @@ mod tests {
         let scanner = SecretScanner::new();
         let temp_dir = TempDir::new().unwrap();
 
-        // Create file in excluded directory
-        let git_dir = temp_dir.path().join(".git");
+        // Create file in an excluded directory (avoid `.git` which may be restricted in some sandboxes)
+        let git_dir = temp_dir.path().join("target");
         std::fs::create_dir_all(&git_dir).unwrap();
         std::fs::write(
             git_dir.join("config"),
-            "token = 'sk-test123456789012345678901234567890123456'",
+            "token = 'sk-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'",
         ).unwrap();
 
         let _matches = scanner.scan_file(&git_dir.join("config")).unwrap();

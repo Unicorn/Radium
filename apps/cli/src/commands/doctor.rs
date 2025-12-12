@@ -3,7 +3,7 @@
 //! Validates environment, configuration, and workspace setup.
 
 use colored::Colorize;
-use radium_core::{Workspace, engines::{EngineRegistry, HealthStatus, ValidationStatus}, engines::providers::{ClaudeEngine, GeminiEngine, MockEngine, OpenAIEngine}};
+use radium_core::{Workspace, engines::{EngineRegistry, HealthStatus, ValidationStatus}, engines::providers::{BurnEngine, ClaudeEngine, GeminiEngine, MockEngine, OpenAIEngine}};
 use serde_json::json;
 use std::net::TcpListener;
 use std::path::PathBuf;
@@ -136,6 +136,7 @@ async fn execute_human() -> anyhow::Result<()> {
     let _ = registry.register(Arc::new(ClaudeEngine::new()));
     let _ = registry.register(Arc::new(OpenAIEngine::new()));
     let _ = registry.register(Arc::new(GeminiEngine::new()));
+    let _ = registry.register(Arc::new(BurnEngine::new()));
     
     // Load config after engines are registered
     let _ = registry.load_config();

@@ -16,7 +16,7 @@ use radium_core::{
     context::{ContextFileLoader, ContextManager}, AgentDiscovery, monitoring::MonitoringService, PromptContext,
     PromptTemplate, Workspace,
     engines::{EngineRegistry, ExecutionRequest},
-    engines::providers::{ClaudeEngine, GeminiEngine, MockEngine, OpenAIEngine},
+    engines::providers::{BurnEngine, ClaudeEngine, GeminiEngine, MockEngine, OpenAIEngine},
     syntax::SyntaxHighlighter,
     code_blocks::{CodeBlockParser, CodeBlockStore},
     terminal::{TerminalCapabilities, ColorSupport},
@@ -136,6 +136,13 @@ pub async fn execute(
         .map(|w| w.root().to_path_buf())
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")));
 
+    // If the user provides `--model trained:<job_id>`, default engine to `burn`.
+    let mut engine = engine;
+    let model_is_trained = model.as_deref().is_some_and(|m| m.starts_with("trained:"));
+    if model_is_trained && engine.is_none() {
+        engine = Some("burn".to_string());
+    }
+
     // Load context files if available
     let loader = ContextFileLoader::new(&workspace_root);
     let current_dir = std::env::current_dir().unwrap_or_else(|_| workspace_root.clone());
@@ -184,6 +191,7 @@ pub async fn execute(
     let _ = registry.register(Arc::new(ClaudeEngine::new()));
     let _ = registry.register(Arc::new(OpenAIEngine::new()));
     let _ = registry.register(Arc::new(GeminiEngine::new()));
+    let _ = registry.register(Arc::new(BurnEngine::new()));
     
     // Load config after engines are registered
     let _ = registry.load_config();
@@ -209,6 +217,21 @@ pub async fn execute(
     let selected_model = model.as_deref()
         .or_else(|| agent.model.as_deref())
         .unwrap_or_else(|| default_model.as_str());
+
+    // Resolve `trained:<job_id>` to a concrete checkpoint path for local engines.
+    let mut selected_model = selected_model.to_string();
+    if selected_model.starts_with("trained:") {
+        if selected_engine_id != "burn" {
+            bail!(
+                "Trained models currently require `--engine burn` (selected: {})",
+                selected_engine_id
+            );
+        }
+        let ckpt_path =
+            radium_training::resolve_trained_model_checkpoint(&workspace_root, &selected_model)
+                .context("Failed to resolve trained model checkpoint")?;
+        selected_model = ckpt_path.display().to_string();
+    }
     // Resolve reasoning effort: CLI flag → agent config → default (Medium)
     let selected_reasoning_effort = reasoning.as_deref()
         .and_then(|r| match r.to_lowercase().as_str() {
@@ -429,7 +452,7 @@ pub async fn execute(
         // Use tool-enabled execution path
         execute_agent_with_tools(
             selected_engine_id,
-            selected_model,
+            &selected_model,
             &rendered,
             &user_input,
             &workspace_root,

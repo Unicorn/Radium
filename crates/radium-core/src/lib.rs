@@ -54,6 +54,7 @@ pub mod storage;
 pub mod terminal;
 #[cfg(feature = "workflow")]
 pub mod workflow;
+pub mod training;
 pub mod workspace;
 
 /// Generated protobuf code for the Radium gRPC API.

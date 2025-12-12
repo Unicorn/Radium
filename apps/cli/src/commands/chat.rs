@@ -37,6 +37,17 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
     let workspace =
         Workspace::discover().context("Failed to load workspace. Run 'rad init' first.")?;
 
+    // Validate agent exists up-front to avoid entering the interactive loop for invalid IDs.
+    // This is important for non-interactive callers (tests/CI) and for good UX.
+    {
+        use radium_core::AgentDiscovery;
+        let discovery = AgentDiscovery::new();
+        let agents = discovery.discover_all().context("Failed to discover agents")?;
+        if !agents.contains_key(&agent_id) {
+            return Err(anyhow!("Agent '{}' not found", agent_id));
+        }
+    }
+
     // Initialize history manager
     let history_dir = workspace.root().join(".radium/_internals/history");
     std::fs::create_dir_all(&history_dir)?;
@@ -330,7 +341,6 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
                     input.to_string(),
                     "chat".to_string(),
                     response,
-                    None,
                 )?;
             }
             Err(e) => {

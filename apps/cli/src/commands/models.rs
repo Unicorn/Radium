@@ -9,7 +9,7 @@ use radium_core::config::model_cache::load_cache_config;
 use radium_core::engines::{
     CredentialStatus, EngineRegistry, ValidationStatus,
 };
-use radium_core::engines::providers::{ClaudeEngine, GeminiEngine, MockEngine, OpenAIEngine};
+use radium_core::engines::providers::{BurnEngine, ClaudeEngine, GeminiEngine, MockEngine, OpenAIEngine};
 use radium_core::workspace::Workspace;
 use radium_models::gemini::file_api::GeminiFileApi;
 use radium_models::{CacheKey, ModelCache, ModelConfig, ModelType};
@@ -58,6 +58,7 @@ fn init_registry() -> EngineRegistry {
     let _ = registry.register(Arc::new(ClaudeEngine::new()));
     let _ = registry.register(Arc::new(OpenAIEngine::new()));
     let _ = registry.register(Arc::new(GeminiEngine::new()));
+    let _ = registry.register(Arc::new(BurnEngine::new()));
 
     // Load config after engines are registered
     let _ = registry.load_config();

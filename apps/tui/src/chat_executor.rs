@@ -469,7 +469,6 @@ pub async fn execute_chat_message(
                     message.to_string(),
                     "chat".to_string(),
                     result.response.clone(),
-                    None, // No metadata for basic chat interactions
                 );
             }
         }

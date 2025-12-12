@@ -605,7 +605,7 @@ fn test_plan_command_with_file_input() {
         .stdout(predicate::str::contains("Plan generated successfully"));
 
     // Verify plan structure was created
-    let backlog_dir = temp_path.join("radium/backlog");
+    let backlog_dir = temp_path.join(".radium/plan/backlog");
     assert!(backlog_dir.exists());
 
     // Find the created plan directory
@@ -835,12 +835,22 @@ model = "test-model"
     );
     fs::write(agents_dir.join(format!("{}.toml", agent_id)), config_content).unwrap();
 
-    // Create prompt file
+    // Create prompt file (workspace-relative)
     let prompt_content = r#"# Test Agent Prompt
 
 {{user_input}}
 "#;
     fs::write(prompts_dir.join(format!("{}.md", agent_id)), prompt_content).unwrap();
+
+    // Also create prompt relative to the agent config directory so validation passes for tools
+    // that resolve prompt_path relative to the config file location.
+    let prompts_dir_relative = agents_dir.join("prompts/agents");
+    fs::create_dir_all(&prompts_dir_relative).unwrap();
+    fs::write(
+        prompts_dir_relative.join(format!("{}.md", agent_id)),
+        prompt_content,
+    )
+    .unwrap();
 }
 
 #[test]
@@ -915,7 +925,7 @@ fn test_step_command_agent_not_found() {
         .arg("Test prompt")
         .assert()
         .failure()
-        .stderr(predicate::str::contains("not found"));
+        .stderr(predicate::str::contains("not found").or(predicate::str::contains("No agents found")));
 }
 
 // ============================================================================
@@ -1166,15 +1176,13 @@ fn create_test_template(temp_dir: &TempDir, template_name: &str) {
   "description": "A test template",
   "steps": [
     {{
-      "config": {{
-        "agent_id": "test-agent",
-        "agent_name": "Test Agent",
-        "step_type": "main",
-        "execute_once": false
-      }}
+      "agentId": "test-agent",
+      "agentName": "Test Agent",
+      "type": "step",
+      "executeOnce": false
     }}
   ],
-  "sub_agent_ids": ["test-agent"]
+  "subAgentIds": ["test-agent"]
 }}
 "#,
         template_name

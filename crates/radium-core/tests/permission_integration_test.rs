@@ -43,28 +43,14 @@ fn create_test_policy_engine(approval_mode: ApprovalMode) -> PolicyEngine {
 
 /// Helper to create a test agent config
 fn create_test_agent_config() -> AgentConfig {
-    AgentConfig {
-        id: "test-agent".to_string(),
-        name: "Test Agent".to_string(),
-        description: "Test agent for integration tests".to_string(),
-        prompt_path: PathBuf::from("prompts/test.md"),
-        engine: None,
-        model: None,
-        reasoning_effort: None,
-        mirror_path: None,
-        category: None,
-        loop_behavior: None,
-        trigger_behavior: None,
-        file_path: None,
-        capabilities: AgentCapabilities {
-            model_class: ModelClass::Balanced,
-            cost_tier: CostTier::Medium,
-            max_concurrent_tasks: 5,
-        },
-        sandbox: None,
-        persona_config: None,
-        routing: None,
-    }
+    let mut agent = AgentConfig::new("test-agent", "Test Agent", PathBuf::from("prompts/test.md"));
+    agent.description = "Test agent for integration tests".to_string();
+    agent.capabilities = AgentCapabilities {
+        model_class: ModelClass::Balanced,
+        cost_tier: CostTier::Medium,
+        max_concurrent_tasks: 5,
+    };
+    agent
 }
 
 #[tokio::test]

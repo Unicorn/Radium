@@ -252,10 +252,10 @@ mod tests {
     fn test_hash_redaction() {
         let library = PatternLibrary::default();
         let filter = PrivacyFilter::new(RedactionStyle::Hash, library);
-        let text = "API key: sk_live_abc123";
+        let text = "API key: sk_live_abc12345678901234567890";
         let (redacted, stats) = filter.redact(text).unwrap();
         assert!(redacted.contains("[REDACTED:sha256:"));
-        assert!(!redacted.contains("sk_live_abc123"));
+        assert!(!redacted.contains("sk_live_abc12345678901234567890"));
         assert_eq!(stats.count, 1);
     }
 

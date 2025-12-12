@@ -49,6 +49,7 @@ radium-core = { workspace = true, features = ["monitoring", "workflow", "mcp-pro
 radium-models.workspace = true
 radium-abstraction.workspace = true
 radium-orchestrator.workspace = true
+radium-training.workspace = true
 radium-tui = { workspace = true }
 
 # Logging
@@ -97,6 +98,10 @@ tempfile = "3.8"
 assert_cmd = "2.0"
 predicates = "3.1"
 criterion = { version = "0.5", features = ["html_reports"] }
+
+[features]
+# Optional AWS training backend scaffold (no infrastructure is created yet).
+aws-backend = []
 
 [[bench]]
 name = "workspace_bench"

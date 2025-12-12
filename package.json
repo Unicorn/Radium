@@ -12,6 +12,7 @@
 		"dev:tui": "cargo run --bin radium-tui",
 		"dev:server": "cargo run --bin radium-core",
 		"dev:mobile": "cd apps/mobile && bun run dev",
+		"dev:website": "cd website && bun run start",
 
 		"// ============ Build ============": "",
 		"build": "nx run-many -t build",
@@ -21,6 +22,7 @@
 		"build:cli": "cargo build --release --bin radium-cli",
 		"build:tui": "cargo build --release --bin radium-tui",
 		"build:server": "cargo build --release --bin radium-core",
+		"build:website": "cd website && bun run build",
 		"build:packages": "nx run-many -t build --projects=tag:scope:shared",
 
 		"// ============ Quick Shortcuts ============": "",
@@ -29,6 +31,7 @@
 		"tui": "bun run dev:tui",
 		"server": "bun run dev:server",
 		"mobile": "bun run dev:mobile",
+		"website": "bun run dev:website",
 
 		"// ============ Testing ============": "",
 		"test": "nx run-many -t test",

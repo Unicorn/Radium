@@ -57,6 +57,9 @@ async fn setup_test_workspace() -> TempDir {
         tool_calls: 50,
         successful_tool_calls: 48,
         failed_tool_calls: 2,
+        tool_approvals_allowed: 0,
+        tool_approvals_denied: 0,
+        tool_approvals_asked: 0,
         lines_added: 200,
         lines_removed: 50,
         model_usage: {
@@ -70,6 +73,7 @@ async fn setup_test_workspace() -> TempDir {
             });
             map
         },
+        engine_usage: HashMap::new(),
         total_cached_tokens: 0,
         total_cache_creation_tokens: 0,
         total_cache_read_tokens: 0,
@@ -234,9 +238,13 @@ async fn test_stats_history_limit() {
             tool_calls: 50,
             successful_tool_calls: 48,
             failed_tool_calls: 2,
+            tool_approvals_allowed: 0,
+            tool_approvals_denied: 0,
+            tool_approvals_asked: 0,
             lines_added: 200,
             lines_removed: 50,
             model_usage: HashMap::new(),
+            engine_usage: HashMap::new(),
             total_cached_tokens: 0,
             total_cache_creation_tokens: 0,
             total_cache_read_tokens: 0,

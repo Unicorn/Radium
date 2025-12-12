@@ -51,9 +51,9 @@ pub fn rgb_to_16(r: u8, g: u8, b: u8) -> u8 {
 
     for (i, &(ar, ag, ab)) in ansi_colors.iter().enumerate() {
         // Calculate Euclidean distance
-        let dr = (r as i32 - ar as i32) as u32;
-        let dg = (g as i32 - ag as i32) as u32;
-        let db = (b as i32 - ab as i32) as u32;
+        let dr = (r as i32 - ar as i32).abs() as u32;
+        let dg = (g as i32 - ag as i32).abs() as u32;
+        let db = (b as i32 - ab as i32).abs() as u32;
         let distance = dr * dr + dg * dg + db * db;
 
         if distance < min_distance {

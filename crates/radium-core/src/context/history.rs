@@ -85,11 +85,21 @@ impl HistoryManager {
     /// * `goal` - Goal or objective
     /// * `plan` - Plan or approach
     /// * `output` - Output or guidance
-    /// * `metadata` - Optional metadata from the model response
     ///
     /// # Errors
     /// Returns error if save fails
     pub fn add_interaction(
+        &mut self,
+        session_id: Option<&str>,
+        goal: String,
+        plan: String,
+        output: String,
+    ) -> Result<()> {
+        self.add_interaction_with_metadata(session_id, goal, plan, output, None)
+    }
+
+    /// Adds an interaction to a session's history with optional model metadata.
+    pub fn add_interaction_with_metadata(
         &mut self,
         session_id: Option<&str>,
         goal: String,
@@ -225,7 +235,6 @@ mod tests {
                 "Build feature".to_string(),
                 "Use React".to_string(),
                 "Guidance here".to_string(),
-                None,
             )
             .unwrap();
 
@@ -240,7 +249,7 @@ mod tests {
         let mut manager = HistoryManager::new(temp_dir.path()).unwrap();
 
         manager
-            .add_interaction(None, "Goal".to_string(), "Plan".to_string(), "Output".to_string(), None)
+            .add_interaction(None, "Goal".to_string(), "Plan".to_string(), "Output".to_string())
             .unwrap();
 
         let interactions = manager.get_interactions(None);
@@ -259,7 +268,6 @@ mod tests {
                     format!("Goal {}", i),
                     format!("Plan {}", i),
                     format!("Output {}", i),
-                    None,
                 )
                 .unwrap();
         }
@@ -283,7 +291,6 @@ mod tests {
                     format!("Goal {}", i),
                     "Plan".to_string(),
                     "Output".to_string(),
-                    None, // metadata
                 )
                 .unwrap();
         }
@@ -307,7 +314,6 @@ mod tests {
                 "Goal".to_string(),
                 "Plan".to_string(),
                 "Output".to_string(),
-                None,
             )
             .unwrap();
 

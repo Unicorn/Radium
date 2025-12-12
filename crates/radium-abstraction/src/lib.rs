@@ -645,6 +645,18 @@ pub struct ModelResponse {
     pub tool_calls: Option<Vec<ToolCall>>,
 }
 
+impl Default for ModelResponse {
+    fn default() -> Self {
+        Self {
+            content: String::new(),
+            model_id: None,
+            usage: None,
+            metadata: None,
+            tool_calls: None,
+        }
+    }
+}
+
 impl ModelResponse {
     /// Gets the finish reason from metadata, if available.
     ///
@@ -1010,7 +1022,12 @@ pub trait Model: Send + Sync {
         messages: &[ChatMessage],
         tools: &[Tool],
         tool_config: Option<&ToolConfig>,
-    ) -> Result<ModelResponse, ModelError>;
+    ) -> Result<ModelResponse, ModelError> {
+        // Default behavior: ignore tools and fall back to normal chat completion.
+        // Tool-capable models should override this and populate `response.tool_calls`.
+        let _ = (tools, tool_config);
+        self.generate_chat_completion(messages, None).await
+    }
 
     /// Returns the ID of the model.
     fn model_id(&self) -> &str;

@@ -4,8 +4,9 @@ use super::types::{EnginesCommand, EngineConfigCommand};
 use anyhow::{Context, Result, bail};
 use colored::Colorize;
 use radium_core::engines::{EngineRegistry, HealthStatus, PerEngineConfig};
-use radium_core::engines::providers::{ClaudeEngine, GeminiEngine, MockEngine, OllamaEngine, OpenAIEngine};
+use radium_core::engines::providers::{BurnEngine, ClaudeEngine, GeminiEngine, MockEngine, OllamaEngine, OpenAIEngine};
 use radium_core::workspace::Workspace;
+use radium_training;
 use serde_json::json;
 use std::sync::Arc;
 
@@ -40,6 +41,7 @@ fn init_registry() -> EngineRegistry {
     let _ = registry.register(Arc::new(OpenAIEngine::new()));
     let _ = registry.register(Arc::new(GeminiEngine::new()));
     let _ = registry.register(Arc::new(OllamaEngine::new()));
+    let _ = registry.register(Arc::new(BurnEngine::new()));
 
     // Load config after engines are registered
     let _ = registry.load_config();
@@ -52,15 +54,28 @@ async fn list_engines(json_output: bool) -> Result<()> {
     let registry = init_registry();
     let engines = registry.list().context("Failed to list engines")?;
 
+    // Discover trained models (best-effort; empty outside a workspace).
+    let trained_ids: Vec<String> = Workspace::discover()
+        .ok()
+        .and_then(|w| radium_training::discover_trained_models(w.root()).ok())
+        .unwrap_or_default()
+        .into_iter()
+        .map(|m| m.trained_model_id)
+        .collect();
+
     if json_output {
         let engine_list: Vec<_> = engines
             .iter()
             .map(|metadata| {
+                let mut models = metadata.models.clone();
+                if metadata.id == "burn" {
+                    models.extend(trained_ids.clone());
+                }
                 json!({
                     "id": metadata.id,
                     "name": metadata.name,
                     "description": metadata.description,
-                    "models": metadata.models,
+                    "models": models,
                     "requires_auth": metadata.requires_auth,
                 })
             })
@@ -76,10 +91,15 @@ async fn list_engines(json_output: bool) -> Result<()> {
         println!("{}", "─".repeat(85));
 
         for metadata in &engines {
-            let models_str = if metadata.models.len() > 2 {
-                format!("{} (+{} more)", metadata.models[0], metadata.models.len() - 1)
+            let mut models = metadata.models.clone();
+            if metadata.id == "burn" {
+                models.extend(trained_ids.clone());
+            }
+
+            let models_str = if models.len() > 2 {
+                format!("{} (+{} more)", models[0], models.len() - 1)
             } else {
-                metadata.models.join(", ")
+                models.join(", ")
             };
             let auth_str = if metadata.requires_auth {
                 "Required".yellow()
@@ -109,6 +129,19 @@ async fn show_engine(engine_id: &str, json_output: bool) -> Result<()> {
         .with_context(|| format!("Engine not found: {}", engine_id))?;
 
     let metadata = engine.metadata();
+    let trained_ids: Vec<String> = if metadata.id == "burn" {
+        Workspace::discover()
+            .ok()
+            .and_then(|w| radium_training::discover_trained_models(w.root()).ok())
+            .unwrap_or_default()
+            .into_iter()
+            .map(|m| m.trained_model_id)
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let mut models = metadata.models.clone();
+    models.extend(trained_ids);
 
     if json_output {
         let engine_info = json!({
@@ -116,7 +149,7 @@ async fn show_engine(engine_id: &str, json_output: bool) -> Result<()> {
             "name": metadata.name,
             "description": metadata.description,
             "cli_command": metadata.cli_command,
-            "models": metadata.models,
+            "models": models,
             "requires_auth": metadata.requires_auth,
             "version": metadata.version,
             "default_model": engine.default_model(),
@@ -134,7 +167,7 @@ async fn show_engine(engine_id: &str, json_output: bool) -> Result<()> {
             println!("  CLI Command: {}", cli_cmd.cyan());
         }
         
-        println!("  Models:      {}", metadata.models.join(", ").dimmed());
+        println!("  Models:      {}", models.join(", ").dimmed());
         println!("  Default:     {}", engine.default_model().cyan());
         println!("  Auth:        {}", if metadata.requires_auth {
             "Required".yellow()
