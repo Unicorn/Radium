@@ -21,6 +21,7 @@
 pub mod ignore;
 pub mod approval_flow;
 pub mod boundary;
+pub mod diff_display;
 pub mod error_recovery;
 pub mod errors;
 pub mod file_ops;
@@ -37,6 +38,9 @@ use thiserror::Error;
 pub use ignore::IgnoreWalker;
 pub use approval_flow::ApprovalFlow;
 pub use boundary::{BoundaryError, BoundaryValidator};
+pub use diff_display::{
+    format_integration_result_for_cli, format_patch_result_for_cli, format_patch_result_for_tui,
+};
 pub use error_recovery::{ErrorRecovery, ErrorSummary};
 pub use errors::{
     ErrorContext, FileOperationError, FileOperationResult, RecoveryStrategy,
