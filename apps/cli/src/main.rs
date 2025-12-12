@@ -3,6 +3,7 @@
 //! This CLI provides a `rad` command for interacting with Radium's agent
 //! orchestration system and workflow execution engine.
 
+mod client;
 mod commands;
 mod colors;
 mod config;
@@ -48,6 +49,14 @@ struct Args {
     /// Workspace directory (overrides RADIUM_WORKSPACE)
     #[arg(short = 'w', long, global = true)]
     workspace: Option<String>,
+
+    /// Connect to daemon at the specified URL (e.g., http://localhost:50051)
+    #[arg(long, global = true)]
+    daemon: Option<String>,
+
+    /// Force local in-process execution (overrides --daemon)
+    #[arg(long, global = true)]
+    local: bool,
 
     #[command(subcommand)]
     command: Option<Command>,
@@ -731,6 +740,18 @@ async fn main() -> anyhow::Result<()> {
             batch::execute(action).await?;
         }
         Command::Step { id, prompt, model, engine, reasoning, model_tier, stream, show_metadata, json, safety_behavior, image, audio, video, file, auto_upload, response_format, response_schema } => {
+            // Determine execution mode
+            let execution_mode = client::daemon_client::ExecutionMode::from_args(
+                args.daemon.clone(),
+                args.local,
+            );
+
+            // For now, step command still runs locally
+            // TODO: Integrate daemon execution when session management is fully connected
+            if matches!(execution_mode, client::daemon_client::ExecutionMode::Daemon(_)) {
+                eprintln!("Warning: --daemon flag is not yet fully integrated with step command. Running locally.");
+            }
+
             step::execute(id, prompt, model, engine, reasoning, model_tier, None, stream, show_metadata, json, safety_behavior, image, audio, video, file, auto_upload, response_format, response_schema).await?;
         }
         Command::Chat { agent_id, session, resume, list, stream, show_metadata, json, safety_behavior } => {
