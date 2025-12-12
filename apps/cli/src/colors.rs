@@ -71,6 +71,7 @@ impl RadiumBrandColors {
     #[allow(dead_code)]
     pub const SECONDARY_RGB: (u8, u8, u8) = (167, 139, 250);
     /// Purple accent color RGB: (#6250d0)
+    #[allow(dead_code)]
     pub const PURPLE_RGB: (u8, u8, u8) = (98, 80, 208);
     /// Success color RGB: Green (#10B981)
     pub const SUCCESS_RGB: (u8, u8, u8) = (16, 185, 129);
@@ -148,6 +149,7 @@ impl RadiumBrandColors {
     }
 
     /// Get purple accent color (#6250d0).
+    #[allow(dead_code)]
     pub fn purple(&self) -> Color {
         self.rgb_to_color(Self::PURPLE_RGB)
     }
@@ -191,6 +193,7 @@ impl RadiumBrandColors {
     }
 
     /// Alias for warning() - for backward compatibility with .yellow() usage.
+    #[allow(dead_code)]
     pub fn warning_color(&self) -> Color {
         self.warning()
     }

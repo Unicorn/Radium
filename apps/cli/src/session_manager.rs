@@ -60,6 +60,7 @@ impl SessionManager {
     }
 
     /// Save a session to disk
+    #[allow(dead_code)]
     pub fn save_session(&self, session: &Session) -> Result<PathBuf> {
         let filename = format!("{}.json", session.id);
         let path = self.sessions_dir.join(&filename);
@@ -93,6 +94,7 @@ impl SessionManager {
     }
 
     /// List all saved sessions
+    #[allow(dead_code)]
     pub fn list_sessions(&self) -> Result<Vec<SessionInfo>> {
         let mut sessions = Vec::new();
 
@@ -137,6 +139,7 @@ impl SessionManager {
     }
 
     /// Delete a session
+    #[allow(dead_code)]
     pub fn delete_session(&self, session_id: &str) -> Result<()> {
         let filename = format!("{}.json", session_id);
         let path = self.sessions_dir.join(&filename);
