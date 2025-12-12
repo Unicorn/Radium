@@ -76,8 +76,18 @@ const config: Config = {
           position: 'left',
         },
         {
+          to: '/use-cases',
+          label: 'Use Cases',
+          position: 'left',
+        },
+        {
           to: '/examples',
           label: 'Examples',
+          position: 'left',
+        },
+        {
+          to: '/community',
+          label: 'Community',
           position: 'left',
         },
         {
@@ -100,6 +110,23 @@ const config: Config = {
       style: 'dark',
       links: [
         {
+          title: 'Product',
+          items: [
+            {
+              label: 'Features',
+              to: '/features',
+            },
+            {
+              label: 'Use Cases',
+              to: '/use-cases',
+            },
+            {
+              label: 'Examples',
+              to: '/examples',
+            },
+          ],
+        },
+        {
           title: 'Documentation',
           items: [
             {
@@ -111,25 +138,8 @@ const config: Config = {
               to: '/docs/user-guide/user-guide-overview',
             },
             {
-              label: 'Developer Guide',
-              to: '/docs/developer-guide/developer-guide-overview',
-            },
-          ],
-        },
-        {
-          title: 'Resources',
-          items: [
-            {
-              label: 'Examples',
-              to: '/docs/examples/orchestration-workflows',
-            },
-            {
               label: 'API Reference',
               to: '/docs/api/radium_core',
-            },
-            {
-              label: 'CLI Reference',
-              to: '/docs/cli/README',
             },
           ],
         },
@@ -141,12 +151,29 @@ const config: Config = {
               href: 'https://github.com/clay-curry/RAD',
             },
             {
-              label: 'Issues',
-              href: 'https://github.com/clay-curry/RAD/issues',
+              label: 'Community Page',
+              to: '/community',
             },
             {
               label: 'Discussions',
               href: 'https://github.com/clay-curry/RAD/discussions',
+            },
+            {
+              label: 'Issues',
+              href: 'https://github.com/clay-curry/RAD/issues',
+            },
+          ],
+        },
+        {
+          title: 'Resources',
+          items: [
+            {
+              label: 'CLI Reference',
+              to: '/docs/cli/README',
+            },
+            {
+              label: 'Developer Guide',
+              to: '/docs/developer-guide/developer-guide-overview',
             },
           ],
         },
