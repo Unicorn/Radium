@@ -38,7 +38,9 @@ pub async fn render_event_stream(
     correlation_id: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Track tool execution state for better UX
-    let mut active_tools: Vec<String> = Vec::new();
+    // Use a map to track start times for concurrent execution display
+    use std::collections::HashMap;
+    let mut active_tools: HashMap<String, std::time::Instant> = HashMap::new();
 
     loop {
         // Use a timeout to prevent indefinite blocking
@@ -74,11 +76,28 @@ pub async fn render_event_stream(
                         println!("\n  {} Requesting tool: {}", "🔧".cyan(), call.name.cyan().bold());
                     }
                     OrchestrationEvent::ToolCallStarted { tool_name, .. } => {
-                        active_tools.push(tool_name.clone());
-                        println!("  {} Executing {}...", "⏳".yellow(), tool_name.cyan());
+                        active_tools.insert(tool_name.clone(), std::time::Instant::now());
+                        
+                        // Show concurrent execution status
+                        if active_tools.len() > 1 {
+                            let active_list: Vec<&String> = active_tools.keys().collect();
+                            println!(
+                                "  {} Executing {} ({} tools running in parallel: {})",
+                                "⏳".yellow(),
+                                tool_name.cyan(),
+                                active_tools.len(),
+                                active_list.join(", ").cyan()
+                            );
+                        } else {
+                            println!("  {} Executing {}...", "⏳".yellow(), tool_name.cyan());
+                        }
                     }
                     OrchestrationEvent::ToolCallFinished { tool_name, result, .. } => {
-                        active_tools.retain(|name| name != &tool_name);
+                        let duration = active_tools.remove(&tool_name)
+                            .map(|start| start.elapsed())
+                            .map(|d| format!(" ({:.2}s)", d.as_secs_f64()))
+                            .unwrap_or_default();
+                        
                         if result.success {
                             let output_preview = if result.output.len() > 100 {
                                 format!("{}...", &result.output[..100])
@@ -86,16 +105,28 @@ pub async fn render_event_stream(
                                 result.output.clone()
                             };
                             println!(
-                                "  {} {} completed {}",
+                                "  {} {} completed{} {}",
                                 "✓".green(),
                                 tool_name.cyan(),
+                                duration.dimmed(),
                                 output_preview.dimmed()
                             );
+                            
+                            // Show remaining active tools if any
+                            if !active_tools.is_empty() {
+                                let remaining: Vec<&String> = active_tools.keys().collect();
+                                println!(
+                                    "    {} Still running: {}",
+                                    "⏳".yellow().dimmed(),
+                                    remaining.join(", ").cyan().dimmed()
+                                );
+                            }
                         } else {
                             println!(
-                                "  {} {} failed: {}",
+                                "  {} {} failed{}: {}",
                                 "✗".red(),
                                 tool_name.red(),
+                                duration.dimmed(),
                                 result.output.dimmed()
                             );
                         }

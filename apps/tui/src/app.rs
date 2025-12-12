@@ -2162,6 +2162,10 @@ impl App {
         // Remove thinking indicator
         let _ = self.prompt_data.conversation.pop();
 
+        // Track active tools for concurrent execution display
+        use std::collections::HashSet;
+        let mut active_tools: HashSet<String> = HashSet::new();
+
         // Process collected events in order (real-time collection, immediate processing)
         while let Ok(event) = event_rx_collected.try_recv() {
             match event {
@@ -2169,21 +2173,43 @@ impl App {
                     tool_name,
                     ..
                 } => {
-                    self.prompt_data.add_conversation_message(
-                        format!("📋 Running tool: {}", tool_name),
-                        max_history,
-                    );
+                    active_tools.insert(tool_name.clone());
+                    
+                    // Show concurrent execution status
+                    if active_tools.len() > 1 {
+                        let active_list: Vec<String> = active_tools.iter().cloned().collect();
+                        self.prompt_data.add_conversation_message(
+                            format!("📋 Running {} tools in parallel: {}", active_tools.len(), active_list.join(", ")),
+                            max_history,
+                        );
+                    } else {
+                        self.prompt_data.add_conversation_message(
+                            format!("📋 Running tool: {}", tool_name),
+                            max_history,
+                        );
+                    }
                 }
                 radium_orchestrator::orchestration::events::OrchestrationEvent::ToolCallFinished {
                     tool_name,
                     result,
                     ..
                 } => {
+                    active_tools.remove(&tool_name);
+                    
                     if result.success {
-                        self.prompt_data.add_conversation_message(
-                            format!("✓ Tool finished: {}", tool_name),
-                            max_history,
-                        );
+                        let remaining_count = active_tools.len();
+                        if remaining_count > 0 {
+                            let remaining: Vec<String> = active_tools.iter().cloned().collect();
+                            self.prompt_data.add_conversation_message(
+                                format!("✓ Tool finished: {} ({} still running: {})", tool_name, remaining_count, remaining.join(", ")),
+                                max_history,
+                            );
+                        } else {
+                            self.prompt_data.add_conversation_message(
+                                format!("✓ Tool finished: {}", tool_name),
+                                max_history,
+                            );
+                        }
                     } else {
                         self.prompt_data.add_conversation_message(
                             format!("❌ Tool failed: {}: {}", tool_name, result.output),
