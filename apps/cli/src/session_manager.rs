@@ -43,6 +43,7 @@ pub struct SessionManager {
     sessions_dir: PathBuf,
 }
 
+#[allow(dead_code)]
 impl SessionManager {
     /// Create a new session manager
     pub fn new(workspace_root: &Path) -> Result<Self> {

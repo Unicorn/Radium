@@ -25,6 +25,7 @@ pub struct CliSessionManager {
     session_file: PathBuf,
 }
 
+#[allow(dead_code)]
 impl CliSessionManager {
     /// Create a new CLI session manager.
     ///
