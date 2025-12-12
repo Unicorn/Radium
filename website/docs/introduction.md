@@ -6,7 +6,7 @@ sidebar_label: "Welcome to Radium"
 
 # Welcome to Radium
 
-**Radium** is a next-generation agentic orchestration platform that enables developers to build, deploy, and manage multi-agent AI systems with ease.
+**Radium** is a next-generation agentic orchestration platform that enables developers to build, deploy, and manage multi-agent AI systems with ease. Radium is evolving toward a **composable intelligence infrastructure** where AI systems are built from reusable, validated components that can automatically assemble themselves.
 
 ## What is Radium?
 
@@ -17,6 +17,7 @@ Radium provides a comprehensive framework for:
 - **Flexible Integration** - Support for Claude, Gemini, OpenAI, and self-hosted models (Ollama, vLLM, LocalAI)
 - **Developer-Friendly CLI** - Powerful command-line tools for agent management, workflows, and debugging
 - **Enterprise-Ready** - Built in Rust for performance, safety, and reliability
+- **Composable Intelligence** - Building toward a self-assembling infrastructure with reusable components (see [Roadmap](./roadmap/index.md))
 
 ## Quick Links
 
@@ -56,6 +57,14 @@ Built in Rust for:
 - Interactive TUI for real-time monitoring
 - Desktop app for visual workflow management
 - MCP (Model Context Protocol) integration
+
+### 🧩 Composable Intelligence (Future)
+- **Component Foundry Pattern** - Systematic component creation and validation
+- **Global Component Graph** - Discover and compose components across the ecosystem
+- **Autonomous Assembly** - Systems that compose themselves from available components
+- **Self-Healing Systems** - Continuous remediation and quality maintenance
+
+Learn more in our [Roadmap](./roadmap/index.md) and [Vision](./roadmap/vision.md).
 
 ## Getting Started
 

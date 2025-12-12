@@ -32,6 +32,9 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: [
         'getting-started/installation',
+        'getting-started/quick-start',
+        'getting-started/core-concepts',
+        'getting-started/configuration',
       ],
     },
 
@@ -323,6 +326,7 @@ const sidebars: SidebarsConfig = {
           type: 'category',
           label: 'Architecture',
           items: [
+            'developer-guide/architecture/overview',
             'developer-guide/architecture/agent-configuration-system',
             'developer-guide/architecture/checkpoint-system',
             'developer-guide/architecture/engine-abstraction',
