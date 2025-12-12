@@ -51,7 +51,7 @@ pub use patch::{
     PatchSummary,
 };
 pub use plan_discovery::{DiscoveredPlan, PlanDiscovery, PlanDiscoveryOptions, SortBy, SortOrder};
-pub use tool_integration::{FileOperationRequest, FileOperationResult as IntegrationResult, ToolIntegration};
+pub use tool_integration::{FileOperationRequest, IntegrationResult, ToolIntegration};
 pub use transaction::{FileOperation as TransactionFileOperation, FileTransaction};
 pub use requirement_id::{RequirementId, RequirementIdError};
 pub use structure::{

@@ -36,7 +36,7 @@ impl ApprovalFlow {
         let args = vec![path.display().to_string()];
 
         self.policy_engine
-            .evaluate(&tool_name, &args)
+            .evaluate_tool(&tool_name, &args)
             .await
             .map_err(|e| FileOperationError::InvalidInput {
                 operation: "check_approval".to_string(),
