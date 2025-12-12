@@ -67,6 +67,13 @@ service Radium {
   rpc ExecuteBraingridRequirement (ExecuteBraingridRequirementRequest) returns (stream ExecutionProgressEvent) {}
   rpc ClearBraingridCache (ClearBraingridCacheRequest) returns (ClearBraingridCacheResponse) {}
   rpc GetBraingridCacheStats (GetBraingridCacheStatsRequest) returns (GetBraingridCacheStatsResponse) {}
+
+  // Session Management Operations
+  rpc CreateSession (CreateSessionRequest) returns (CreateSessionResponse) {}
+  rpc ListSessions (ListSessionsRequest) returns (ListSessionsResponse) {}
+  rpc AttachSession (AttachSessionRequest) returns (AttachSessionResponse) {}
+  rpc SendSessionMessage (SendSessionMessageRequest) returns (SendSessionMessageResponse) {}
+  rpc SessionEventsStream (stream SessionEvent) returns (stream SessionEvent) {}
 }
 
 // ===================================================================
@@ -588,6 +595,7 @@ message ExecutionProgressEvent {
   optional string sub_step = 7;  // PREPARING, EXECUTING, VALIDATING, COMPLETING
   optional string error = 8;
   optional RequirementExecutionResult result = 9;
+  optional string token_chunk = 10;  // Real-time token streaming from model
 }
 
 message RequirementExecutionResult {
@@ -638,4 +646,158 @@ message BraingridTask {
   string status = 6;  // PLANNED, IN_PROGRESS, COMPLETED, CANCELLED
   optional string assigned_to = 7;
   repeated string dependencies = 8;
+}
+
+// ===================================================================
+// Session Management RPCs
+// ===================================================================
+
+message Session {
+  string id = 1;
+  string created_at = 2;  // ISO 8601 timestamp
+  string last_active = 3;  // ISO 8601 timestamp
+  string state = 4;  // ACTIVE, PAUSED, COMPLETED, FAILED
+  optional string agent_id = 5;
+  optional string workspace_root = 6;
+}
+
+message CreateSessionRequest {
+  optional string agent_id = 1;
+  optional string workspace_root = 2;
+  optional string session_name = 3;
+}
+
+message CreateSessionResponse {
+  string session_id = 1;
+  Session session = 2;
+  optional string error = 3;
+}
+
+message ListSessionsRequest {
+  optional int32 page = 1;  // Page number (1-indexed)
+  optional int32 page_size = 2;  // Items per page (default: 50)
+  optional string filter_state = 3;  // Filter by state: ACTIVE, PAUSED, COMPLETED, FAILED
+  optional string filter_agent_id = 4;  // Filter by agent ID
+}
+
+message ListSessionsResponse {
+  repeated Session sessions = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+  optional string error = 5;
+}
+
+message AttachSessionRequest {
+  string session_id = 1;
+}
+
+message AttachSessionResponse {
+  Session session = 1;
+  repeated SessionMessage messages = 2;  // Full message history
+  repeated SessionToolCall tool_calls = 3;  // Full tool call history
+  repeated SessionApproval approvals = 4;  // Full approval history
+  optional string error = 5;
+}
+
+message SendSessionMessageRequest {
+  string session_id = 1;
+  string message = 2;
+  optional string role = 3;  // "user", "assistant", "system"
+}
+
+message SendSessionMessageResponse {
+  bool success = 1;
+  optional string error = 2;
+}
+
+// SessionEvent is a bidirectional streaming event for session communication
+message SessionEvent {
+  oneof event {
+    ToolCallEvent tool_call = 1;
+    ToolResultEvent tool_result = 2;
+    ApprovalRequestEvent approval_request = 3;
+    ApprovalResponseEvent approval_response = 4;
+    MessageEvent message = 5;
+    TokenChunkEvent token_chunk = 6;
+  }
+}
+
+message ToolCallEvent {
+  string session_id = 1;
+  string tool_name = 2;
+  string arguments_json = 3;  // JSON string of tool arguments
+  int64 timestamp = 4;  // Unix timestamp in milliseconds
+  optional string call_id = 5;  // Unique ID for this tool call
+}
+
+message ToolResultEvent {
+  string session_id = 1;
+  string tool_name = 2;
+  string result_json = 3;  // JSON string of tool result
+  int64 duration_ms = 4;  // Execution duration in milliseconds
+  bool success = 5;
+  optional string error = 6;
+  optional string call_id = 7;  // Matches ToolCallEvent.call_id
+  int64 timestamp = 8;  // Unix timestamp in milliseconds
+}
+
+message ApprovalRequestEvent {
+  string session_id = 1;
+  string tool_name = 2;
+  string arguments_json = 3;  // JSON string of tool arguments
+  string policy_rule = 4;  // Policy rule that triggered the approval
+  optional string request_id = 5;  // Unique ID for this approval request
+  int64 timestamp = 6;  // Unix timestamp in milliseconds
+}
+
+message ApprovalResponseEvent {
+  string session_id = 1;
+  bool approved = 2;
+  optional string reason = 3;
+  optional string request_id = 4;  // Matches ApprovalRequestEvent.request_id
+  int64 timestamp = 5;  // Unix timestamp in milliseconds
+}
+
+message MessageEvent {
+  string session_id = 1;
+  string message = 2;
+  string role = 3;  // "user", "assistant", "system"
+  int64 timestamp = 4;  // Unix timestamp in milliseconds
+}
+
+message TokenChunkEvent {
+  string session_id = 1;
+  string token_chunk = 2;  // Partial token or full token
+  bool is_complete = 3;  // Whether this is the final chunk for this token
+  int64 timestamp = 4;  // Unix timestamp in milliseconds
+}
+
+// Supporting message types for session state
+message SessionMessage {
+  string id = 1;
+  string content = 2;
+  string role = 3;  // "user", "assistant", "system"
+  string timestamp = 4;  // ISO 8601 timestamp
+}
+
+message SessionToolCall {
+  string id = 1;
+  string tool_name = 2;
+  string arguments_json = 3;
+  optional string result_json = 4;
+  bool success = 5;
+  optional string error = 6;
+  int64 duration_ms = 7;
+  string timestamp = 8;  // ISO 8601 timestamp
+}
+
+message SessionApproval {
+  string id = 1;
+  string tool_name = 2;
+  string arguments_json = 3;
+  string policy_rule = 4;
+  bool approved = 5;
+  optional string reason = 6;
+  string timestamp = 7;  // ISO 8601 timestamp
 }
