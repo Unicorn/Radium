@@ -442,7 +442,7 @@ impl StatusFooter {
         mode: AppMode,
         context: Option<&DisplayContext>,
         model_id: Option<&str>,
-        privacy_state: Option<&PrivacyState>,
+        _privacy_state: Option<&PrivacyState>,
     ) {
         let theme = crate::theme::get_theme();
 

@@ -28,3 +28,51 @@
   --ifm-color-primary-lightest: #4fddbf;
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
 }
+
+/* Marketing-specific CSS Variables */
+:root {
+  /* Spacing */
+  --marketing-section-padding: 4rem 0;
+  --marketing-section-padding-lg: 6rem 0;
+  --marketing-section-padding-sm: 2rem 0;
+
+  /* Typography */
+  --marketing-heading-xl: 3.5rem;
+  --marketing-heading-lg: 2.5rem;
+  --marketing-heading-md: 2rem;
+  --marketing-heading-sm: 1.5rem;
+  --marketing-body-lg: 1.25rem;
+  --marketing-body-md: 1rem;
+  --marketing-body-sm: 0.875rem;
+
+  /* Shadows */
+  --marketing-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --marketing-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --marketing-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.15);
+  --marketing-shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.2);
+
+  /* Borders */
+  --marketing-border-radius: 12px;
+  --marketing-border-radius-sm: 8px;
+  --marketing-border-radius-lg: 16px;
+
+  /* Gradients */
+  --marketing-gradient-primary: linear-gradient(135deg, var(--ifm-color-primary) 0%, var(--ifm-color-primary-dark) 100%);
+  --marketing-gradient-hero: linear-gradient(135deg, #2e8555 0%, #25c2a0 100%);
+
+  /* Transitions */
+  --marketing-transition-fast: 0.15s ease;
+  --marketing-transition-normal: 0.2s ease;
+  --marketing-transition-slow: 0.3s ease;
+}
+
+[data-theme='dark'] {
+  /* Adjust shadows for dark mode */
+  --marketing-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --marketing-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --marketing-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --marketing-shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.6);
+
+  /* Adjust gradients for dark mode */
+  --marketing-gradient-hero: linear-gradient(135deg, #25c2a0 0%, #1a8870 100%);
+}
