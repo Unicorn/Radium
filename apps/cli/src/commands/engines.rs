@@ -10,6 +10,8 @@ use radium_training;
 use serde_json::json;
 use std::sync::Arc;
 
+use crate::colors::RadiumBrandColors;
+
 /// Execute the engines command.
 pub async fn execute(command: EnginesCommand) -> Result<()> {
     match command {
@@ -83,7 +85,8 @@ async fn list_engines(json_output: bool) -> Result<()> {
         println!("{}", serde_json::to_string_pretty(&engine_list)?);
     } else {
         println!();
-        println!("{}", format!("🔧 Available Engines ({})", engines.len()).bold().green());
+        let colors = RadiumBrandColors::new();
+        println!("{}", format!("🔧 Available Engines ({})", engines.len()).bold().color(colors.success()));
         println!();
 
         // Table header
@@ -102,14 +105,14 @@ async fn list_engines(json_output: bool) -> Result<()> {
                 models.join(", ")
             };
             let auth_str = if metadata.requires_auth {
-                "Required".yellow()
+                "Required".color(colors.warning())
             } else {
                 "None".dimmed()
             };
 
             println!(
                 "{:<15} {:<20} {:<40} {}",
-                metadata.id.cyan(),
+                metadata.id.color(colors.primary()),
                 metadata.name,
                 models_str.dimmed(),
                 auth_str
@@ -157,20 +160,21 @@ async fn show_engine(engine_id: &str, json_output: bool) -> Result<()> {
         println!("{}", serde_json::to_string_pretty(&engine_info)?);
     } else {
         println!();
-        println!("{}", format!("Engine: {}", metadata.name).bold().cyan());
+        let colors = RadiumBrandColors::new();
+        println!("{}", format!("Engine: {}", metadata.name).bold().color(colors.primary()));
         println!();
-        println!("  ID:          {}", metadata.id.cyan());
+        println!("  ID:          {}", metadata.id.color(colors.primary()));
         println!("  Name:        {}", metadata.name);
         println!("  Description: {}", metadata.description.dimmed());
         
         if let Some(ref cli_cmd) = metadata.cli_command {
-            println!("  CLI Command: {}", cli_cmd.cyan());
+            println!("  CLI Command: {}", cli_cmd.color(colors.primary()));
         }
         
         println!("  Models:      {}", models.join(", ").dimmed());
-        println!("  Default:     {}", engine.default_model().cyan());
+        println!("  Default:     {}", engine.default_model().color(colors.primary()));
         println!("  Auth:        {}", if metadata.requires_auth {
-            "Required".yellow()
+            "Required".color(colors.warning())
         } else {
             "Not required".dimmed()
         });
@@ -207,7 +211,8 @@ async fn status_engines(json_output: bool) -> Result<()> {
         println!("{}", serde_json::to_string_pretty(&status_list)?);
     } else {
         println!();
-        println!("{}", "Engine Status".bold().green());
+        let colors = RadiumBrandColors::new();
+        println!("{}", "Engine Status".bold().color(colors.success()));
         println!();
 
         // Table header
@@ -220,22 +225,22 @@ async fn status_engines(json_output: bool) -> Result<()> {
             let authenticated = engine.is_authenticated().await.unwrap_or(false);
 
             let available_str = if available {
-                "✓".green()
+                "✓".color(colors.success())
             } else {
-                "✗".red()
+                "✗".color(colors.error())
             };
 
             let auth_str = if authenticated {
-                "✓".green()
+                "✓".color(colors.success())
             } else if metadata.requires_auth {
-                "✗".red()
+                "✗".color(colors.error())
             } else {
                 "—".dimmed()
             };
 
             println!(
                 "{:<15} {:<20} {:<15} {}",
-                metadata.id.cyan(),
+                metadata.id.color(colors.primary()),
                 metadata.name,
                 available_str,
                 auth_str
@@ -260,8 +265,9 @@ async fn set_default_engine(engine_id: &str) -> Result<()> {
     registry.set_default(engine_id)
         .with_context(|| format!("Failed to set default engine: {}", engine_id))?;
 
+    let colors = RadiumBrandColors::new();
     println!();
-    println!("{}", format!("✓ Set default engine to: {}", engine_id).green());
+    println!("{}", format!("✓ Set default engine to: {}", engine_id).color(colors.success()));
     if let Ok(workspace) = Workspace::discover() {
         let config_path = workspace.radium_dir().join("config.toml");
         println!("  Saved to: {}", config_path.display().to_string().dimmed());
@@ -302,7 +308,8 @@ async fn health_engines(json_output: bool, timeout: u64) -> Result<()> {
         println!("{}", serde_json::to_string_pretty(&health_list)?);
     } else {
         println!();
-        println!("{}", format!("Engine Health Check (timeout: {}s)", timeout).bold().green());
+        let colors = RadiumBrandColors::new();
+        println!("{}", format!("Engine Health Check (timeout: {}s)", timeout).bold().color(colors.success()));
         println!();
 
         // Table header
@@ -311,23 +318,23 @@ async fn health_engines(json_output: bool, timeout: u64) -> Result<()> {
 
         for health in &health_results {
             let status_str = match &health.status {
-                HealthStatus::Healthy => "✓ Healthy".green(),
-                HealthStatus::Warning(msg) => format!("⚠ Warning: {}", msg).yellow(),
-                HealthStatus::Failed(msg) => format!("✗ Failed: {}", msg).red(),
+                HealthStatus::Healthy => "✓ Healthy".color(colors.success()),
+                HealthStatus::Warning(msg) => format!("⚠ Warning: {}", msg).color(colors.warning()),
+                HealthStatus::Failed(msg) => format!("✗ Failed: {}", msg).color(colors.error()),
             };
 
             let available_str = if health.available {
-                "✓".green()
+                "✓".color(colors.success())
             } else {
-                "✗".red()
+                "✗".color(colors.error())
             };
 
             let authenticated_str = if health.authenticated {
-                "✓".green()
+                "✓".color(colors.success())
             } else if !health.available {
                 "—".dimmed()
             } else {
-                "✗".red()
+                "✗".color(colors.error())
             };
 
             // Generate troubleshooting hint
@@ -355,7 +362,7 @@ async fn health_engines(json_output: bool, timeout: u64) -> Result<()> {
 
             println!(
                 "{:<15} {:<20} {:<15} {:<15} {}",
-                health.engine_id.cyan(),
+                health.engine_id.color(colors.primary()),
                 health.engine_name,
                 status_str,
                 format!("{} / {}", available_str, authenticated_str),
@@ -371,9 +378,9 @@ async fn health_engines(json_output: bool, timeout: u64) -> Result<()> {
         let failed_count = health_results.iter().filter(|h| matches!(h.status, HealthStatus::Failed(_))).count();
 
         if healthy_count == health_results.len() {
-            println!("{}", format!("✓ All engines are healthy ({})", healthy_count).green());
+            println!("{}", format!("✓ All engines are healthy ({})", healthy_count).color(colors.success()));
         } else {
-            println!("{}", format!("Summary: {} healthy, {} warnings, {} failed", healthy_count, warning_count, failed_count).yellow());
+            println!("{}", format!("Summary: {} healthy, {} warnings, {} failed", healthy_count, warning_count, failed_count).color(colors.warning()));
             if failed_count > 0 {
                 println!();
                 println!("{}", "Troubleshooting:".bold());
