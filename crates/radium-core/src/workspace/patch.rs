@@ -904,4 +904,116 @@ mod tests {
         let new_file = temp.path().join("new.txt");
         assert!(new_file.exists());
     }
+
+    #[test]
+    fn test_patch_applicator_reject_context_mismatch() {
+        use tempfile::TempDir;
+
+        let temp = TempDir::new().unwrap();
+        let applicator = PatchApplicator::new(temp.path()).unwrap();
+
+        // Create a test file with different content than patch expects
+        let test_file = temp.path().join("test.txt");
+        fs::write(&test_file, "different content\nline 2\nline 3\n").unwrap();
+
+        // Create a patch that expects "line 1" but file has "different content"
+        let patch = PatchInput {
+            patch: PatchContent::UnifiedDiff {
+                content: "--- a/test.txt\n+++ b/test.txt\n@@ -1,1 +1,1 @@\n-line 1\n+line 1 modified\n".to_string(),
+            },
+            dry_run: false,
+            allow_create: true,
+            expected_hash: None,
+            options: PatchOptions {
+                context_lines: 3,
+                ignore_whitespace: false,
+                allow_fuzz: false,
+                max_fuzz: 0,
+            },
+        };
+
+        let result = applicator.apply(&patch);
+        assert!(!result.success);
+        assert!(result.has_errors());
+        
+        // Verify file was NOT modified
+        let content = fs::read_to_string(&test_file).unwrap();
+        assert!(content.contains("different content"));
+        assert!(!content.contains("line 1 modified"));
+    }
+
+    #[test]
+    fn test_patch_applicator_multi_file_patch() {
+        use tempfile::TempDir;
+
+        let temp = TempDir::new().unwrap();
+        let applicator = PatchApplicator::new(temp.path()).unwrap();
+
+        // Create multiple test files
+        let file1 = temp.path().join("file1.txt");
+        let file2 = temp.path().join("file2.txt");
+        fs::write(&file1, "content 1\n").unwrap();
+        fs::write(&file2, "content 2\n").unwrap();
+
+        // Create a multi-file patch
+        let patch = PatchInput {
+            patch: PatchContent::UnifiedDiff {
+                content: "--- a/file1.txt\n+++ b/file1.txt\n@@ -1,1 +1,1 @@\n-content 1\n+content 1 modified\n--- a/file2.txt\n+++ b/file2.txt\n@@ -1,1 +1,1 @@\n-content 2\n+content 2 modified\n".to_string(),
+            },
+            dry_run: false,
+            allow_create: true,
+            expected_hash: None,
+            options: PatchOptions::default(),
+        };
+
+        let result = applicator.apply(&patch);
+        assert!(result.success);
+        assert_eq!(result.changed_files.len(), 2);
+        assert_eq!(result.summary.files_changed, 2);
+
+        // Verify both files were modified
+        let content1 = fs::read_to_string(&file1).unwrap();
+        let content2 = fs::read_to_string(&file2).unwrap();
+        assert!(content1.contains("content 1 modified"));
+        assert!(content2.contains("content 2 modified"));
+    }
+
+    #[test]
+    fn test_patch_applicator_dry_run_returns_diff() {
+        use tempfile::TempDir;
+
+        let temp = TempDir::new().unwrap();
+        let applicator = PatchApplicator::new(temp.path()).unwrap();
+
+        // Create a test file
+        let test_file = temp.path().join("test.txt");
+        fs::write(&test_file, "original\n").unwrap();
+
+        let original_content = fs::read_to_string(&test_file).unwrap();
+
+        // Create a patch with dry_run
+        let patch = PatchInput {
+            patch: PatchContent::UnifiedDiff {
+                content: "--- a/test.txt\n+++ b/test.txt\n@@ -1,1 +1,1 @@\n-original\n+modified\n".to_string(),
+            },
+            dry_run: true,
+            allow_create: true,
+            expected_hash: None,
+            options: PatchOptions::default(),
+        };
+
+        let result = applicator.apply(&patch);
+        assert!(result.success);
+        assert_eq!(result.changed_files.len(), 1);
+        
+        // Verify dry-run returns diff preview
+        let changed_file = &result.changed_files[0];
+        assert!(!changed_file.diff.is_empty());
+        assert!(changed_file.diff.contains("original"));
+        assert!(changed_file.diff.contains("modified"));
+
+        // Verify file was NOT modified
+        let content = fs::read_to_string(&test_file).unwrap();
+        assert_eq!(content, original_content);
+    }
 }
