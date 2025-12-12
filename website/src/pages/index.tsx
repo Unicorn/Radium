@@ -1,6 +1,7 @@
 import type {ReactNode} from 'react';
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import Layout from '@theme/Layout';
+import StructuredData from '@site/src/components/shared/StructuredData';
 import Hero from '@site/src/components/marketing/Hero';
 import StatsBar from '@site/src/components/marketing/StatsBar';
 import CodeShowcase from '@site/src/components/marketing/CodeShowcase';
@@ -16,6 +17,9 @@ export default function Home(): ReactNode {
     <Layout
       title="Home"
       description="Build autonomous agents that actually work - Next-generation agentic orchestration platform">
+      <StructuredData type="Organization" />
+      <StructuredData type="SoftwareApplication" />
+      <StructuredData type="WebSite" />
       <Hero
         tagline="Open Source AI Orchestration"
         title="Build Autonomous Agents That Actually Work"

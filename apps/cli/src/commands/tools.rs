@@ -6,7 +6,6 @@ use radium_core::Workspace;
 use radium_orchestrator::orchestration::tool_builder::build_standard_tools;
 use radium_orchestrator::orchestration::tool::{Tool, ToolParameters};
 use serde_json::json;
-use std::path::PathBuf;
 
 /// Execute the tools list command
 pub async fn list(category: Option<String>, json: bool) -> Result<()> {

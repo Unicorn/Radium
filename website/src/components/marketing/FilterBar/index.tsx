@@ -28,42 +28,50 @@ export default function FilterBar({
   className,
 }: FilterBarProps): ReactNode {
   return (
-    <div className={`${styles.filterBar} ${className || ''}`}>
-      <div className={styles.filterGroup}>
-        <label className={styles.filterLabel}>Category</label>
+    <div className={`${styles.filterBar} ${className || ''}`} role="search" aria-label="Filter examples">
+      <div className={styles.filterGroup} role="group" aria-labelledby="category-label">
+        <span id="category-label" className={styles.filterLabel}>Category</span>
         <div className={styles.filterButtons}>
           <button
+            type="button"
             className={`${styles.filterButton} ${!selectedCategory ? styles.filterButtonActive : ''}`}
-            onClick={() => onCategoryChange(null)}>
+            onClick={() => onCategoryChange(null)}
+            aria-pressed={!selectedCategory}>
             All
           </button>
           {categories.map((cat) => (
             <button
               key={cat.value}
+              type="button"
               className={`${styles.filterButton} ${selectedCategory === cat.value ? styles.filterButtonActive : ''}`}
-              onClick={() => onCategoryChange(cat.value)}>
+              onClick={() => onCategoryChange(cat.value)}
+              aria-pressed={selectedCategory === cat.value}>
               {cat.label}
-              {cat.count !== undefined && <span className={styles.count}>({cat.count})</span>}
+              {cat.count !== undefined && <span className={styles.count} aria-label={`${cat.count} items`}>({cat.count})</span>}
             </button>
           ))}
         </div>
       </div>
 
-      <div className={styles.filterGroup}>
-        <label className={styles.filterLabel}>Difficulty</label>
+      <div className={styles.filterGroup} role="group" aria-labelledby="difficulty-label">
+        <span id="difficulty-label" className={styles.filterLabel}>Difficulty</span>
         <div className={styles.filterButtons}>
           <button
+            type="button"
             className={`${styles.filterButton} ${!selectedDifficulty ? styles.filterButtonActive : ''}`}
-            onClick={() => onDifficultyChange(null)}>
+            onClick={() => onDifficultyChange(null)}
+            aria-pressed={!selectedDifficulty}>
             All
           </button>
           {difficulties.map((diff) => (
             <button
               key={diff.value}
+              type="button"
               className={`${styles.filterButton} ${selectedDifficulty === diff.value ? styles.filterButtonActive : ''}`}
-              onClick={() => onDifficultyChange(diff.value)}>
+              onClick={() => onDifficultyChange(diff.value)}
+              aria-pressed={selectedDifficulty === diff.value}>
               {diff.label}
-              {diff.count !== undefined && <span className={styles.count}>({diff.count})</span>}
+              {diff.count !== undefined && <span className={styles.count} aria-label={`${diff.count} items`}>({diff.count})</span>}
             </button>
           ))}
         </div>

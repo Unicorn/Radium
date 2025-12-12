@@ -1,8 +1,7 @@
 //! Privacy command implementation.
 
 use colored::Colorize;
-use radium_core::config::Config;
-use radium_core::security::{PatternLibrary, PrivacyFilter, RedactionStyle};
+use radium_core::security::PatternLibrary;
 use radium_core::workspace::Workspace;
 use std::fs;
 use std::io::{self, Read};

@@ -13,6 +13,9 @@ export interface ButtonProps {
   onClick?: () => void;
   className?: string;
   disabled?: boolean;
+  target?: string;
+  rel?: string;
+  ariaLabel?: string;
 }
 
 export default function Button({

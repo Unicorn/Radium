@@ -2,10 +2,9 @@
 //!
 //! Provides commands to list, set, and preview available themes.
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use clap::Subcommand;
 use colored::*;
-use std::path::PathBuf;
 
 /// Theme management subcommands
 #[derive(Subcommand, Debug)]

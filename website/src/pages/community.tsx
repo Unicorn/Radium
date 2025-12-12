@@ -1,5 +1,6 @@
 import type {ReactNode} from 'react';
 import Layout from '@theme/Layout';
+import SEOHead from '@site/src/components/shared/SEOHead';
 import Button from '@site/src/components/shared/Button';
 import Card from '@site/src/components/shared/Card';
 import styles from './community.module.css';
@@ -75,6 +76,20 @@ export default function Community(): ReactNode {
     <Layout
       title="Community"
       description="Join the Radium community of developers building autonomous agent workflows">
+      <SEOHead
+        title="Community"
+        description="Join the Radium open-source community - contribute code, share ideas, improve documentation, and help build the future of autonomous agent orchestration"
+        keywords={[
+          'radium community',
+          'open source community',
+          'contribute to radium',
+          'radium contributors',
+          'agent development community',
+          'open source agents',
+          'github community',
+          'developer community',
+        ]}
+      />
       <main className={styles.communityPage}>
         <section className={styles.hero}>
           <div className="container">

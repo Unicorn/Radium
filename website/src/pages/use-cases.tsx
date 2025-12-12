@@ -1,5 +1,6 @@
 import {useState, useMemo, type ReactNode} from 'react';
 import Layout from '@theme/Layout';
+import SEOHead from '@site/src/components/shared/SEOHead';
 import FilterBar from '@site/src/components/marketing/FilterBar';
 import UseCaseCard from '@site/src/components/marketing/UseCaseCard';
 import Button from '@site/src/components/shared/Button';
@@ -36,6 +37,20 @@ export default function UseCases(): ReactNode {
     <Layout
       title="Use Cases"
       description="Real-world applications and success stories using Radium for autonomous agent orchestration">
+      <SEOHead
+        title="Use Cases"
+        description="Discover real-world applications using Radium for autonomous agent orchestration - CI/CD automation, ETL pipelines, cloud cost optimization, security auditing, and more"
+        keywords={[
+          'radium use cases',
+          'agent automation examples',
+          'CI/CD automation',
+          'ETL pipeline orchestration',
+          'cloud cost optimization',
+          'security automation',
+          'infrastructure automation',
+          'development automation',
+        ]}
+      />
       <main className={styles.useCasesPage}>
         <section className={styles.hero}>
           <div className="container">

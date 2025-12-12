@@ -28,6 +28,20 @@ export default function Features(): ReactNode {
     <Layout
       title="Features"
       description="Explore Radium's powerful features for building autonomous agent workflows">
+      <SEOHead
+        title="Features"
+        description="Explore Radium's comprehensive features for building autonomous agent workflows - intelligent orchestration, multi-agent DAGs, policy engine, vibe check system, and more"
+        keywords={[
+          'radium features',
+          'autonomous agents',
+          'agent orchestration',
+          'multi-agent workflows',
+          'AI agent platform',
+          'agent policy engine',
+          'vibe check',
+          'metacognitive oversight',
+        ]}
+      />
       <main className={styles.featuresPage}>
         <section className={styles.hero}>
           <div className="container">

@@ -6,7 +6,7 @@ use anyhow::{Context, bail};
 use chrono::Utc;
 use colored::Colorize;
 use futures::StreamExt;
-use radium_abstraction::{ContentBlock, ImageSource, MediaSource, MessageContent, ModelParameters, ReasoningEffort, ResponseFormat, StreamItem, StreamingModel};
+use radium_abstraction::{ContentBlock, ImageSource, MediaSource, MessageContent, ModelParameters, ReasoningEffort, ResponseFormat, StreamingModel};
 use radium_core::engines::ExecutionResponse;
 use radium_models::gemini::file_api::GeminiFileApi;
 use serde_json;
@@ -873,7 +873,6 @@ fn load_prompt(prompt_path: &std::path::Path) -> anyhow::Result<String> {
 
 /// Print output with syntax highlighting for code blocks and annotations.
 fn print_highlighted_output(text: &str) {
-    use radium_core::syntax::StyledLine;
     
     // Parse code blocks to get indices and languages
     let blocks = CodeBlockParser::parse(text);

@@ -1,5 +1,6 @@
 import {useState, useMemo, type ReactNode} from 'react';
 import Layout from '@theme/Layout';
+import SEOHead from '@site/src/components/shared/SEOHead';
 import FilterBar from '@site/src/components/marketing/FilterBar';
 import ExampleCard from '@site/src/components/marketing/ExampleCard';
 import Button from '@site/src/components/shared/Button';
@@ -60,6 +61,20 @@ export default function Examples(): ReactNode {
     <Layout
       title="Examples"
       description="Explore real-world examples and tutorials for building with Radium">
+      <SEOHead
+        title="Examples"
+        description="Learn by example with practical tutorials for building autonomous agent workflows using Radium - from beginner to advanced, including workflows, integrations, and automation"
+        keywords={[
+          'radium examples',
+          'agent workflow examples',
+          'radium tutorials',
+          'code review automation',
+          'data pipeline examples',
+          'CI/CD agent examples',
+          'multi-agent workflow tutorial',
+          'agent integration examples',
+        ]}
+      />
       <main className={styles.examplesPage}>
         <section className={styles.hero}>
           <div className="container">
