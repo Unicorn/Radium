@@ -1,0 +1,785 @@
+# =============================================================================
+# COMPONENT MIGRATION RECORD: Kong Logging
+# =============================================================================
+# This record captures the complete decision-making process for migrating
+# the kong-logging component to the Rust compiler. It serves as training
+# data for the Phase 8 Component Builder Agent.
+# =============================================================================
+
+component:
+  name: "kong-logging"
+  type: "activity"
+  category: "kong"
+  complexity: "medium"
+
+migration:
+  date: "2025-12-09"
+  migrated_by: "human+agent"
+  duration_hours: 4
+
+# -----------------------------------------------------------------------------
+# 1. DISCOVERY PHASE
+# -----------------------------------------------------------------------------
+discovery:
+  original_typescript_location: "src/lib/compiler/patterns/kong-logging.ts"
+  original_lines_of_code: 57
+
+  dependencies:
+    - "../types (Pattern, WorkflowNode, GeneratorContext, CodeBlock)"
+    - "../utils/ast-helpers (indent)"
+    - "Kong Admin API (runtime)"
+    - "Kong logging plugin (deployment)"
+
+  purpose: |
+    The Kong Logging component enables project-level request/response logging
+    through Kong's logging plugins. It configures how API traffic is logged
+    for all data-in/data-out endpoints in a project.
+
+    Unlike most components that execute during workflow runtime, Kong Logging
+    is a configuration component - it generates metadata that gets applied
+    during the deployment phase when Kong routes are created.
+
+    Users add this component when they need:
+    - Centralized logging for all API endpoints in a project
+    - Request/response body logging for debugging
+    - Audit trails for compliance requirements
+    - Performance monitoring data collection
+
+  usage_patterns:
+    - pattern: "Project-wide API logging"
+      description: |
+        Added once per project to enable logging on all endpoints.
+        Connected to a logging connector (e.g., HTTP log, file log, or
+        third-party service like Datadog/Splunk).
+      frequency: "common"
+
+    - pattern: "Selective endpoint logging"
+      description: |
+        Configured with specific enabledEndpoints array to log only
+        certain data-in/data-out components rather than all endpoints.
+      frequency: "occasional"
+
+    - pattern: "Debug logging during development"
+      description: |
+        Enabled temporarily with verbose settings to troubleshoot
+        API integration issues, then disabled or reduced in production.
+      frequency: "occasional"
+
+  known_issues:
+    - issue: "Configuration-only component generates minimal workflow code"
+      severity: "low"
+      resolution: |
+        This is by design. Kong Logging is a deployment-time configuration,
+        not a runtime activity. The generated code is documentation/metadata
+        that informs the deployment process.
+
+    - issue: "Connector validation happens at deployment, not compile time"
+      severity: "medium"
+      resolution: |
+        Add compile-time validation in Rust to verify connector exists
+        and is properly configured before allowing deployment.
+
+    - issue: "No runtime feedback if logging fails"
+      severity: "medium"
+      resolution: |
+        Consider adding an optional health-check activity that verifies
+        logging connectivity at workflow start.
+
+# -----------------------------------------------------------------------------
+# 2. SCHEMA DESIGN DECISIONS
+# -----------------------------------------------------------------------------
+schema_decisions:
+  - decision: "Use enum for log level instead of free-form string"
+    reasoning: |
+      Log levels are a finite, well-known set (debug, info, warn, error).
+      Using an enum provides compile-time validation and prevents typos
+      like "warning" vs "warn" or "err" vs "error".
+
+      This also enables IDE autocomplete and documentation, making the
+      component easier to use correctly.
+    alternatives_considered:
+      - option: "Free-form string with runtime validation"
+        rejected_because: |
+          Allows invalid values to reach deployment phase. Users would
+          see errors late in the process rather than immediately.
+      - option: "Numeric levels (0-4)"
+        rejected_because: |
+          Less readable and requires users to memorize mapping.
+          "info" is clearer than "2".
+
+  - decision: "Make connector_id required, not optional"
+    reasoning: |
+      A logging component without a destination is useless. Requiring
+      the connector upfront ensures users configure logging properly
+      and prevents "empty" logging components that do nothing.
+
+      This surfaces configuration errors at design time rather than
+      when users wonder why their logs aren't appearing.
+    alternatives_considered:
+      - option: "Optional connector with default to stdout"
+        rejected_because: |
+          stdout logging in production Kong is rarely useful and could
+          expose sensitive data. Better to require explicit configuration.
+      - option: "Optional connector with validation warning"
+        rejected_because: |
+          Warnings are easily ignored. A required field forces action.
+
+  - decision: "Use array of endpoint IDs for selective logging"
+    reasoning: |
+      Some projects have many endpoints but only need logging on a few.
+      An array of endpoint IDs allows fine-grained control without
+      creating multiple logging components.
+
+      Empty array or null means "log all endpoints" - the common case.
+    alternatives_considered:
+      - option: "Boolean per endpoint in a map"
+        rejected_because: |
+          Requires updating the logging component when endpoints change.
+          ID array is more loosely coupled.
+      - option: "Glob patterns for endpoint matching"
+        rejected_because: |
+          Over-engineered for the use case. Most users want all or specific.
+
+  - decision: "Include request and response body logging as separate booleans"
+    reasoning: |
+      Request bodies and response bodies have different privacy implications.
+      Separating them allows logging requests (for debugging input) without
+      logging responses (which may contain sensitive user data).
+
+      Both default to false for security - logging must be explicitly enabled.
+    alternatives_considered:
+      - option: "Single 'log_bodies' boolean"
+        rejected_because: |
+          No granularity. Users often want request but not response or vice versa.
+      - option: "Body logging level (none, request, response, both)"
+        rejected_because: |
+          Enum is slightly harder to understand than two clear booleans.
+
+  - decision: "Add max_body_size limit with sensible default"
+    reasoning: |
+      Large request/response bodies can overwhelm logging infrastructure
+      and storage. A configurable limit (default 10KB) prevents accidental
+      logging of file uploads or large API responses.
+
+      This protects both storage costs and prevents sensitive large payloads
+      from being logged in their entirety.
+    alternatives_considered:
+      - option: "No limit, log everything"
+        rejected_because: |
+          Unbounded logging is dangerous. A 100MB file upload would be logged.
+      - option: "Hard-coded limit, not configurable"
+        rejected_because: |
+          Different use cases need different limits. API debugging might want
+          more; production might want less.
+
+# -----------------------------------------------------------------------------
+# 3. INPUT SPECIFICATION
+# -----------------------------------------------------------------------------
+input_schema:
+  connector_id:
+    type: "string"
+    required: true
+    default: null
+    description: "ID of the logging connector to send logs to"
+    validation:
+      - rule: "Must be non-empty string"
+        error_message: "Connector ID is required for Kong Logging"
+      - rule: "Must reference valid connector in project"
+        error_message: "Connector '{value}' not found in project"
+
+  log_level:
+    type: "enum"
+    required: false
+    default: "info"
+    description: "Minimum log level to capture"
+    values: ["debug", "info", "warn", "error"]
+    validation:
+      - rule: "Must be valid log level"
+        error_message: "Invalid log level. Must be one of: debug, info, warn, error"
+
+  enabled_endpoints:
+    type: "array"
+    required: false
+    default: null
+    description: "List of endpoint IDs to log. Null or empty means all endpoints."
+    validation:
+      - rule: "If provided, must be array of strings"
+        error_message: "enabled_endpoints must be an array of endpoint IDs"
+      - rule: "Each ID must reference valid endpoint in project"
+        error_message: "Endpoint '{value}' not found in project"
+
+  log_request_body:
+    type: "boolean"
+    required: false
+    default: false
+    description: "Whether to log request bodies"
+    validation: []
+
+  log_response_body:
+    type: "boolean"
+    required: false
+    default: false
+    description: "Whether to log response bodies"
+    validation: []
+
+  max_body_size:
+    type: "number"
+    required: false
+    default: 10240
+    description: "Maximum body size to log in bytes (default 10KB)"
+    validation:
+      - rule: "Must be positive integer"
+        error_message: "max_body_size must be a positive number"
+      - rule: "Must not exceed 1MB (1048576 bytes)"
+        error_message: "max_body_size cannot exceed 1MB for performance reasons"
+
+  include_headers:
+    type: "boolean"
+    required: false
+    default: true
+    description: "Whether to include request/response headers in logs"
+    validation: []
+
+  redact_patterns:
+    type: "array"
+    required: false
+    default: null
+    description: "Regex patterns for values to redact from logs (e.g., passwords, tokens)"
+    validation:
+      - rule: "Each pattern must be valid regex"
+        error_message: "Invalid regex pattern: '{value}'"
+
+# -----------------------------------------------------------------------------
+# 4. OUTPUT SPECIFICATION
+# -----------------------------------------------------------------------------
+output_schema:
+  config_id:
+    type: "string"
+    description: "Unique ID for this logging configuration"
+    guaranteed: true
+
+  connector_id:
+    type: "string"
+    description: "The connector this logging config uses"
+    guaranteed: true
+
+  endpoints_count:
+    type: "number"
+    description: "Number of endpoints this config applies to (0 = all)"
+    guaranteed: true
+
+  applied_at:
+    type: "datetime"
+    description: "When this configuration was applied during deployment"
+    guaranteed: false  # Only present after deployment
+
+# -----------------------------------------------------------------------------
+# 5. VALIDATION RULES
+# -----------------------------------------------------------------------------
+validation_rules:
+  - rule: "Connector must exist in project"
+    error_code: "CONNECTOR_NOT_FOUND"
+    error_message: "Logging connector '{connector_id}' not found in project"
+    severity: "error"
+    applies_when: "always"
+
+  - rule: "Connector must be a logging-compatible type"
+    error_code: "INVALID_CONNECTOR_TYPE"
+    error_message: "Connector '{connector_id}' is not a logging connector"
+    severity: "error"
+    applies_when: "always"
+
+  - rule: "Referenced endpoints must exist"
+    error_code: "ENDPOINT_NOT_FOUND"
+    error_message: "Endpoint '{endpoint_id}' not found in project"
+    severity: "error"
+    applies_when: "enabled_endpoints is not empty"
+
+  - rule: "Body logging without size limit is risky"
+    error_code: "UNBOUNDED_BODY_LOGGING"
+    error_message: "Body logging enabled without max_body_size limit. Consider adding a limit."
+    severity: "warning"
+    applies_when: "(log_request_body OR log_response_body) AND max_body_size is null"
+
+  - rule: "Debug logging in production"
+    error_code: "DEBUG_IN_PRODUCTION"
+    error_message: "Debug log level may expose sensitive data in production"
+    severity: "warning"
+    applies_when: "log_level == 'debug' AND environment == 'production'"
+
+  - rule: "No redaction patterns with body logging"
+    error_code: "BODY_WITHOUT_REDACTION"
+    error_message: "Body logging enabled without redaction patterns. Sensitive data may be logged."
+    severity: "warning"
+    applies_when: "(log_request_body OR log_response_body) AND redact_patterns is empty"
+
+# -----------------------------------------------------------------------------
+# 6. CONNECTION COMPATIBILITY
+# -----------------------------------------------------------------------------
+connections:
+  accepts_from:
+    - component_type: "trigger"
+      output_field: "*"
+      maps_to_input: "N/A"
+      transformation: |
+        Kong Logging doesn't process data flow. It's a configuration component
+        that sits alongside the workflow, not in the execution path.
+
+    - component_type: "any"
+      output_field: "*"
+      maps_to_input: "N/A"
+      transformation: |
+        Can be placed anywhere in workflow for organizational purposes.
+        Does not affect data flow.
+
+  outputs_to:
+    - component_type: "any"
+      output_field: "config_id"
+      compatible_with_input: "*"
+      notes: |
+        Output is configuration metadata, not workflow data.
+        Primarily used by deployment system, not subsequent components.
+
+# -----------------------------------------------------------------------------
+# 7. RUST SCHEMA
+# -----------------------------------------------------------------------------
+rust_schema: |
+  use serde::{Deserialize, Serialize};
+  use validator::Validate;
+
+  /// Log levels supported by Kong logging
+  #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+  #[serde(rename_all = "lowercase")]
+  pub enum LogLevel {
+      Debug,
+      #[default]
+      Info,
+      Warn,
+      Error,
+  }
+
+  /// Kong Logging Component Input
+  /// Configures project-level request/response logging through Kong
+  #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+  pub struct KongLoggingInput {
+      /// ID of the logging connector to send logs to
+      #[validate(length(min = 1, message = "Connector ID is required"))]
+      pub connector_id: String,
+
+      /// Minimum log level to capture
+      #[serde(default)]
+      pub log_level: LogLevel,
+
+      /// List of endpoint IDs to log. None means all endpoints.
+      #[serde(skip_serializing_if = "Option::is_none")]
+      pub enabled_endpoints: Option<Vec<String>>,
+
+      /// Whether to log request bodies
+      #[serde(default)]
+      pub log_request_body: bool,
+
+      /// Whether to log response bodies
+      #[serde(default)]
+      pub log_response_body: bool,
+
+      /// Maximum body size to log in bytes (default 10KB)
+      #[serde(default = "default_max_body_size")]
+      #[validate(range(min = 1, max = 1048576, message = "max_body_size must be between 1 and 1048576"))]
+      pub max_body_size: u32,
+
+      /// Whether to include request/response headers in logs
+      #[serde(default = "default_true")]
+      pub include_headers: bool,
+
+      /// Regex patterns for values to redact from logs
+      #[serde(skip_serializing_if = "Option::is_none")]
+      pub redact_patterns: Option<Vec<String>>,
+  }
+
+  fn default_max_body_size() -> u32 {
+      10240 // 10KB
+  }
+
+  fn default_true() -> bool {
+      true
+  }
+
+  /// Kong Logging Component Output
+  /// Configuration metadata returned after setup
+  #[derive(Debug, Clone, Serialize, Deserialize)]
+  pub struct KongLoggingOutput {
+      /// Unique ID for this logging configuration
+      pub config_id: String,
+
+      /// The connector this logging config uses
+      pub connector_id: String,
+
+      /// Number of endpoints this config applies to (0 = all)
+      pub endpoints_count: u32,
+
+      /// When this configuration was applied during deployment
+      #[serde(skip_serializing_if = "Option::is_none")]
+      pub applied_at: Option<chrono::DateTime<chrono::Utc>>,
+  }
+
+  impl KongLoggingInput {
+      /// Validate that all referenced endpoints exist
+      pub fn validate_endpoints(&self, project_endpoints: &[String]) -> Result<(), String> {
+          if let Some(ref endpoints) = self.enabled_endpoints {
+              for ep in endpoints {
+                  if !project_endpoints.contains(ep) {
+                      return Err(format!("Endpoint '{}' not found in project", ep));
+                  }
+              }
+          }
+          Ok(())
+      }
+
+      /// Validate that redact patterns are valid regex
+      pub fn validate_redact_patterns(&self) -> Result<(), String> {
+          if let Some(ref patterns) = self.redact_patterns {
+              for pattern in patterns {
+                  if regex::Regex::new(pattern).is_err() {
+                      return Err(format!("Invalid regex pattern: '{}'", pattern));
+                  }
+              }
+          }
+          Ok(())
+      }
+  }
+
+# -----------------------------------------------------------------------------
+# 8. TYPESCRIPT TEMPLATE
+# -----------------------------------------------------------------------------
+typescript_template: |
+  /**
+   * Kong Logging Configuration Activity
+   * Configures project-level request/response logging through Kong
+   *
+   * Note: This is a configuration component. It generates metadata that
+   * is applied during deployment, not during workflow execution.
+   *
+   * @param input - Logging configuration parameters
+   * @returns Configuration metadata for deployment
+   */
+  export async function kongLogging(
+    input: KongLoggingInput
+  ): Promise<KongLoggingOutput> {
+    // Validate connector exists
+    if (!input.connectorId) {
+      throw new Error('Connector ID is required for Kong Logging');
+    }
+
+    // Validate max body size
+    if (input.maxBodySize !== undefined) {
+      if (input.maxBodySize < 1 || input.maxBodySize > 1048576) {
+        throw new Error('max_body_size must be between 1 and 1048576 bytes');
+      }
+    }
+
+    // Validate redact patterns are valid regex
+    if (input.redactPatterns) {
+      for (const pattern of input.redactPatterns) {
+        try {
+          new RegExp(pattern);
+        } catch (e) {
+          throw new Error(`Invalid regex pattern: '${pattern}'`);
+        }
+      }
+    }
+
+    // Generate configuration ID
+    const configId = `kong-log-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    // Return configuration metadata
+    // Actual Kong plugin setup happens during deployment
+    return {
+      configId,
+      connectorId: input.connectorId,
+      endpointsCount: input.enabledEndpoints?.length ?? 0,
+      // appliedAt is set by deployment system
+    };
+  }
+
+  // TypeScript interfaces
+  interface KongLoggingInput {
+    connectorId: string;
+    logLevel?: 'debug' | 'info' | 'warn' | 'error';
+    enabledEndpoints?: string[];
+    logRequestBody?: boolean;
+    logResponseBody?: boolean;
+    maxBodySize?: number;
+    includeHeaders?: boolean;
+    redactPatterns?: string[];
+  }
+
+  interface KongLoggingOutput {
+    configId: string;
+    connectorId: string;
+    endpointsCount: number;
+    appliedAt?: Date;
+  }
+
+# -----------------------------------------------------------------------------
+# 9. TEST CASES
+# -----------------------------------------------------------------------------
+test_cases:
+  # Happy path tests
+  - name: "Basic logging configuration with all defaults"
+    type: "happy_path"
+    description: "Verify minimal configuration with just connector_id works"
+    input:
+      connector_id: "log-connector-123"
+    expected_output:
+      connector_id: "log-connector-123"
+      endpoints_count: 0
+
+  - name: "Full configuration with all options"
+    type: "happy_path"
+    description: "Verify all configuration options are accepted"
+    input:
+      connector_id: "log-connector-456"
+      log_level: "debug"
+      enabled_endpoints: ["endpoint-1", "endpoint-2"]
+      log_request_body: true
+      log_response_body: true
+      max_body_size: 5120
+      include_headers: true
+      redact_patterns: ["password=.*", "token=.*"]
+    expected_output:
+      connector_id: "log-connector-456"
+      endpoints_count: 2
+
+  - name: "Selective endpoint logging"
+    type: "happy_path"
+    description: "Verify specific endpoints can be targeted"
+    input:
+      connector_id: "log-connector-789"
+      enabled_endpoints: ["api-endpoint-1"]
+      log_level: "warn"
+    expected_output:
+      connector_id: "log-connector-789"
+      endpoints_count: 1
+
+  - name: "Request body only logging"
+    type: "happy_path"
+    description: "Verify request bodies can be logged without response bodies"
+    input:
+      connector_id: "log-connector-abc"
+      log_request_body: true
+      log_response_body: false
+      max_body_size: 2048
+    expected_output:
+      connector_id: "log-connector-abc"
+      endpoints_count: 0
+
+  # Error cases
+  - name: "Missing connector ID"
+    type: "error_case"
+    description: "Verify empty connector_id is rejected"
+    input:
+      connector_id: ""
+    expected_error:
+      code: "VALIDATION_ERROR"
+      message: "Connector ID is required"
+
+  - name: "Invalid log level"
+    type: "error_case"
+    description: "Verify invalid log levels are rejected"
+    input:
+      connector_id: "log-connector-123"
+      log_level: "verbose"
+    expected_error:
+      code: "INVALID_ENUM_VALUE"
+      message: "Invalid log level"
+
+  - name: "Max body size exceeds limit"
+    type: "error_case"
+    description: "Verify body size over 1MB is rejected"
+    input:
+      connector_id: "log-connector-123"
+      max_body_size: 2000000
+    expected_error:
+      code: "VALIDATION_ERROR"
+      message: "max_body_size must be between 1 and 1048576"
+
+  - name: "Invalid regex pattern"
+    type: "error_case"
+    description: "Verify invalid regex patterns are rejected"
+    input:
+      connector_id: "log-connector-123"
+      redact_patterns: ["[invalid(regex"]
+    expected_error:
+      code: "INVALID_REGEX"
+      message: "Invalid regex pattern"
+
+  # Edge cases
+  - name: "Empty enabled_endpoints array means all endpoints"
+    type: "edge_case"
+    description: "Verify empty array is treated same as null (all endpoints)"
+    input:
+      connector_id: "log-connector-123"
+      enabled_endpoints: []
+    expected_output:
+      connector_id: "log-connector-123"
+      endpoints_count: 0
+
+  - name: "Zero max_body_size effectively disables body logging"
+    type: "edge_case"
+    description: "Verify zero body size is rejected (must be positive)"
+    input:
+      connector_id: "log-connector-123"
+      log_request_body: true
+      max_body_size: 0
+    expected_error:
+      code: "VALIDATION_ERROR"
+      message: "max_body_size must be between 1 and 1048576"
+
+  - name: "Unicode in redact patterns"
+    type: "edge_case"
+    description: "Verify unicode regex patterns work correctly"
+    input:
+      connector_id: "log-connector-123"
+      redact_patterns: ["密码=.*", "パスワード=.*"]
+    expected_output:
+      connector_id: "log-connector-123"
+      endpoints_count: 0
+
+# -----------------------------------------------------------------------------
+# 10. LESSONS LEARNED
+# -----------------------------------------------------------------------------
+lessons_learned:
+  - category: "schema"
+    lesson: |
+      Configuration components (like Kong Logging) behave differently from
+      execution components. They generate metadata for deployment rather than
+      workflow code. This distinction should be clear in the component type
+      and documentation.
+
+      Consider adding a component classification: "execution" vs "configuration"
+      to help users understand when components run.
+    applies_to:
+      - "kong-cache"
+      - "kong-cors"
+      - "All deployment-time configuration components"
+
+  - category: "validation"
+    lesson: |
+      Cross-referencing validation (e.g., "connector must exist") requires
+      access to project context. The Rust schema can define the validation
+      rule, but the actual check needs project data passed in.
+
+      Design pattern: validation methods that take context as parameter
+      rather than trying to access global state.
+    applies_to:
+      - "All components with cross-references"
+      - "Components that reference connectors"
+      - "Components that reference other components"
+
+  - category: "codegen"
+    lesson: |
+      For configuration components, the generated TypeScript is minimal -
+      mostly validation and metadata generation. The real work happens in
+      the deployment system that reads this metadata.
+
+      This creates a two-phase pattern:
+      1. Compile time: Generate config metadata
+      2. Deploy time: Apply config to Kong/infrastructure
+    applies_to:
+      - "All Kong components"
+      - "Infrastructure configuration components"
+
+  - category: "testing"
+    lesson: |
+      Configuration components need different test strategies:
+      - Unit tests verify validation logic
+      - Integration tests verify deployment applies config correctly
+      - E2E tests verify logging actually works through Kong
+
+      Don't skip integration/E2E tests just because the compile-time
+      output is simple.
+    applies_to:
+      - "All configuration components"
+      - "Components with deployment-time effects"
+
+# -----------------------------------------------------------------------------
+# 11. RELATED COMPONENTS
+# -----------------------------------------------------------------------------
+related_components:
+  - name: "kong-cache"
+    relationship: "similar_to"
+    notes: |
+      Both are Kong configuration components. Share similar patterns for
+      deployment-time configuration generation. Can use same base patterns
+      for code generation.
+
+  - name: "kong-cors"
+    relationship: "similar_to"
+    notes: |
+      Another Kong configuration component. All three Kong components
+      follow the same meta-pattern of generating Kong plugin configs.
+
+  - name: "data-in"
+    relationship: "often_used_with"
+    notes: |
+      Kong Logging typically logs requests to data-in endpoints.
+      The enabled_endpoints field references data-in component IDs.
+
+  - name: "data-out"
+    relationship: "often_used_with"
+    notes: |
+      Kong Logging also logs responses from data-out endpoints.
+      Similar relationship as data-in.
+
+  - name: "api-endpoint"
+    relationship: "often_used_with"
+    notes: |
+      API endpoints are the primary target for Kong Logging.
+      The logging config applies to routes created for these endpoints.
+
+# -----------------------------------------------------------------------------
+# 12. FUTURE IMPROVEMENTS
+# -----------------------------------------------------------------------------
+future_improvements:
+  - improvement: "Add log sampling for high-volume endpoints"
+    priority: "medium"
+    effort: "medium"
+    blocked_by: "nothing"
+    notes: |
+      High-traffic endpoints can generate excessive logs. A sampling rate
+      (e.g., log 10% of requests) would reduce volume while maintaining
+      visibility.
+
+  - improvement: "Add structured log format options"
+    priority: "low"
+    effort: "low"
+    blocked_by: "nothing"
+    notes: |
+      Currently logs use Kong's default format. Allow users to specify
+      JSON structure, field names, etc. for better integration with
+      log aggregation systems.
+
+  - improvement: "Add log correlation ID support"
+    priority: "high"
+    effort: "medium"
+    blocked_by: "nothing"
+    notes: |
+      Generate and propagate correlation IDs through request headers.
+      This enables tracing requests across multiple services and
+      correlating logs from different components.
+
+  - improvement: "Real-time log preview in UI"
+    priority: "medium"
+    effort: "high"
+    blocked_by: "UI infrastructure for real-time updates"
+    notes: |
+      Show recent logs in the workflow builder UI so users can verify
+      logging is working without leaving the application.
+
+  - improvement: "Automatic PII detection and redaction"
+    priority: "medium"
+    effort: "high"
+    blocked_by: "PII detection library/service"
+    notes: |
+      Instead of manual redact_patterns, automatically detect and redact
+      common PII patterns (emails, phone numbers, SSNs, etc.).

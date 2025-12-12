@@ -1,0 +1,67 @@
+/**
+ * Trigger Component (Start Node)
+ *
+ * The trigger/start node represents the entry point of a Temporal workflow.
+ * It has no incoming edges and initiates workflow execution.
+ *
+ * Configuration options:
+ * - cronSchedule: Optional cron expression for scheduled workflows
+ * - triggerType: 'manual' | 'scheduled' | 'event'
+ *
+ * Generated output depends on configuration:
+ * - For scheduled workflows: Comment with cron schedule
+ * - For manual workflows: Simple "Workflow started" comment
+ */
+
+// Example 1: Manual Trigger
+// When: trigger node has no cronSchedule configured
+// Generated output:
+`
+  // Start
+  // Workflow started
+`
+
+// Example 2: Scheduled Trigger
+// When: trigger node has cronSchedule: "0 0 * * *" (daily at midnight)
+// Generated output:
+`
+  // Start
+  // Cron-scheduled workflow: 0 0 * * *
+`
+
+// Example 3: Event Trigger (future)
+// When: trigger type is 'event' with eventName configured
+// Generated output:
+`
+  // Start
+  // Event-triggered workflow: ${eventName}
+`
+
+/**
+ * TypeScript Compilation Patterns:
+ *
+ * The trigger node primarily affects the workflow signature and doesn't
+ * generate executable code itself. It serves as the graph traversal start point.
+ *
+ * Key patterns:
+ * 1. Trigger is always the first node visited during compilation
+ * 2. The workflow function signature remains constant regardless of trigger type
+ * 3. Cron configuration is metadata stored for the Temporal schedule
+ */
+
+// Full workflow with trigger example:
+const exampleWorkflowWithTrigger = `
+import { proxyActivities, startChild, executeChild, sleep, condition } from '@temporalio/workflow';
+
+/**
+ * MyWorkflow
+ * Generated Temporal workflow from node-based definition
+ */
+export async function MyWorkflow(input: Record<string, unknown> | undefined): Promise<unknown> {
+
+  // Start
+  // Workflow started
+
+  // ... rest of workflow nodes ...
+}
+`;

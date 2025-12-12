@@ -1,0 +1,85 @@
+name: kong-logging
+category: integration
+description: Configures request/response logging for API endpoints via Kong logging plugins
+
+inputs:
+  - name: connectorName
+    type: string
+    required: true
+    description: Name of the Kong connector for configuration
+    aliases: [connectorId]
+
+  - name: enabledEndpoints
+    type: array
+    items: string
+    required: false
+    description: List of endpoint paths to enable logging for
+    default: []
+
+  - name: logFormat
+    type: enum
+    values: [json, clf, custom]
+    required: false
+    default: json
+    description: Format of the log output
+
+  - name: logFields
+    type: array
+    items: string
+    required: false
+    description: Which fields to include in logs
+    default: [method, path, status, latency, request_body, response_body]
+
+outputs:
+  - name: config
+    type: object
+    description: Configuration object for deployment
+    schema:
+      type: "kong-logging-config"
+      connector: string
+
+behaviors:
+  - name: configuration_only
+    condition: "Always"
+    output: "Returns configuration object - no runtime execution"
+
+  - name: deployment_integration
+    condition: "During project deployment"
+    output: "Kong logging plugin created on configured routes"
+
+deployment:
+  plugin_type: http-log
+  configuration:
+    - http_endpoint: From connector settings
+    - method: POST
+    - content_type: application/json
+    - timeout: 10000
+    - keepalive: 60000
+
+temporal_mapping:
+  type: configuration
+  note: This component generates deployment configuration, not workflow code
+
+code_generation:
+  pattern: |
+    // Kong Logging Configuration: {label}
+    // Project-level logging component
+    // Connector: {connectorName}
+    // Enabled endpoints: {enabledEndpoints.length}
+    // Logging plugin will be configured on Kong routes during deployment
+    const result_{nodeId} = { type: 'kong-logging-config', connector: '{connectorName}' };
+
+example_usage: |
+  // In workflow (configuration only):
+  const result_logging = { type: 'kong-logging-config', connector: 'production-logger' };
+
+  // During deployment:
+  // - Kong http-log plugin created
+  // - Configured to send logs to logging service
+  // - Applied to specified routes
+
+notes:
+  - This is a project-level component (affects all endpoints)
+  - Actual logging happens at the Kong layer, not in workflows
+  - Log destination is configured via the connector
+  - Supports JSON logging for structured log analysis

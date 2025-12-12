@@ -1,0 +1,109 @@
+/**
+ * Signal Component
+ *
+ * Signals allow external systems to communicate with running workflows.
+ * They provide a way to send data or commands to a workflow during execution.
+ *
+ * Configuration options:
+ * - signalName: Name of the signal to handle
+ * - handler: Logic to execute when signal is received
+ *
+ * Note: Signal handlers are defined using Temporal's defineSignal and setHandler APIs.
+ * The current implementation generates placeholder code for signal handling.
+ */
+
+// Example 1: Basic Signal Handler
+// When: Signal node with signalName = 'updateStatus'
+// Generated output:
+`
+  // Update Status Signal
+  // Signal handler: updateStatus
+  // Signal logic would be implemented here
+`
+
+// Example 2: Cancel Signal
+// When: Signal node with signalName = 'cancel'
+// Generated output:
+`
+  // Cancel Signal
+  // Signal handler: cancel
+  // Signal logic would be implemented here
+`
+
+/**
+ * TypeScript Compilation Patterns:
+ *
+ * 1. Signal presence triggers import of defineSignal and setHandler
+ * 2. Current implementation generates comments only (placeholder)
+ * 3. Full implementation would generate:
+ *    - Signal type definition
+ *    - Signal handler setup
+ *    - Handler logic
+ *
+ * Future Enhancement - Full Signal Implementation:
+ * ```typescript
+ * import { defineSignal, setHandler } from '@temporalio/workflow';
+ *
+ * // Signal type definition
+ * const updateStatusSignal = defineSignal<[string]>('updateStatus');
+ *
+ * export async function MyWorkflow(): Promise<void> {
+ *   let status = 'pending';
+ *
+ *   // Set up signal handler
+ *   setHandler(updateStatusSignal, (newStatus: string) => {
+ *     status = newStatus;
+ *   });
+ *
+ *   // ... rest of workflow
+ * }
+ * ```
+ *
+ * Signal Use Cases:
+ * - Human approval workflows (approve/reject signals)
+ * - Status updates from external systems
+ * - Cancellation requests
+ * - Progress reporting
+ * - Configuration changes during execution
+ */
+
+// Full workflow with signals (future implementation):
+const exampleWorkflowWithSignals = `
+import { defineSignal, setHandler } from '@temporalio/workflow';
+import { proxyActivities, condition, sleep } from '@temporalio/workflow';
+
+// Define signals
+const approveSignal = defineSignal<[{ approver: string; comment: string }]>('approve');
+const rejectSignal = defineSignal<[{ approver: string; reason: string }]>('reject');
+
+export async function ApprovalWorkflow(input: Record<string, unknown> | undefined): Promise<unknown> {
+  let status = 'pending';
+  let decision: { approved: boolean; details: unknown } | null = null;
+
+  // Set up signal handlers
+  setHandler(approveSignal, (approval) => {
+    status = 'approved';
+    decision = { approved: true, details: approval };
+  });
+
+  setHandler(rejectSignal, (rejection) => {
+    status = 'rejected';
+    decision = { approved: false, details: rejection };
+  });
+
+  // Start
+  // Workflow started
+
+  // Wait for approval or rejection
+  await condition(() => status !== 'pending', '7d');
+
+  // Process decision
+  if (decision?.approved) {
+    const result_approve = await processApproval(decision.details);
+    return result_approve;
+  } else {
+    const result_reject = await processRejection(decision?.details);
+    return result_reject;
+  }
+}
+`;

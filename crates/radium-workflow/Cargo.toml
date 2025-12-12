@@ -1,0 +1,67 @@
+[package]
+name = "radium-workflow"
+version.workspace = true
+edition = "2021"
+authors.workspace = true
+description = "Workflow compiler and TypeScript generator for Radium"
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "radium-workflow"
+path = "src/main.rs"
+
+[dependencies]
+# Web framework
+axum = "0.7"
+tokio = { workspace = true }
+tower = { workspace = true }
+tower-http = { version = "0.5", features = ["cors", "trace", "timeout", "request-id"] }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = "0.9"
+
+# Validation
+validator = { version = "0.18", features = ["derive"] }
+
+# Templating
+handlebars = "5"
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Async utilities
+futures = "0.3"
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json"] }
+
+# UUID generation
+uuid = { version = "1", features = ["v4", "serde"] }
+
+# Date/time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Regex for validation
+regex = "1"
+
+# Sibling crates (for future integration)
+# radium-models = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = "1"
+tokio-test = "0.4"
+tempfile = "3"
+
+[features]
+default = []
+
+[lints]
+workspace = true

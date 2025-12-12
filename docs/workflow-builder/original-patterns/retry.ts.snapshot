@@ -1,0 +1,145 @@
+/**
+ * Retry Component
+ *
+ * Provides fine-grained retry control beyond Temporal's built-in retry policies.
+ * Wraps activities or blocks with custom retry logic including conditional retries.
+ *
+ * Configuration options:
+ * - maxAttempts: Maximum number of retry attempts (default: 3)
+ * - retryOn: 'failure' | 'condition' - what triggers a retry
+ * - condition: JavaScript expression for condition-based retries
+ * - backoff:
+ *   - type: 'exponential' | 'linear' | 'fixed' | 'none'
+ *   - initialInterval: Starting wait time (e.g., '1s')
+ *   - multiplier: Multiplier for exponential backoff
+ */
+
+// Example 1: Retry on Failure (default)
+// When: Retry with maxAttempts = 3, retryOn = 'failure', backoff.type = 'exponential'
+// Generated output:
+`
+  // Retry loop: Retry Block
+  let attempts = 0;
+  const maxAttempts = 3;
+  let lastError: Error | null = null;
+
+  while (attempts < maxAttempts) {
+    try {
+      const result = await /* execute activity/block */;
+      if (result.success !== false) {
+        break; // Success
+      }
+    } catch (error) {
+      lastError = error as Error;
+    }
+
+    attempts++;
+    if (attempts >= maxAttempts) {
+      throw lastError || new Error('Max retry attempts reached');
+    }
+    // Exponential backoff: 1s * 2^(attempts-1)
+    const backoffMs = Math.pow(2, attempts - 1) * 1000;
+    await sleep(backoffMs);
+  }
+`
+
+// Example 2: Retry on Condition
+// When: retryOn = 'condition', condition = 'result.success === false'
+// Generated output:
+`
+  // Retry loop: Conditional Retry
+  let attempts = 0;
+  const maxAttempts = 5;
+  let lastError: Error | null = null;
+
+  while (attempts < maxAttempts) {
+    const result = await /* execute activity/block */;
+    if (!(result.success === false)) {
+      break; // Success
+    }
+
+    attempts++;
+    if (attempts >= maxAttempts) {
+      throw lastError || new Error('Max retry attempts reached');
+    }
+    // Linear backoff: 1s * attempts
+    const backoffMs = attempts * 1000;
+    await sleep(backoffMs);
+  }
+`
+
+// Example 3: Fixed Backoff
+// When: backoff.type = 'fixed', initialInterval = '5s'
+// Generated output:
+`
+  // Retry loop: Fixed Retry
+  let attempts = 0;
+  const maxAttempts = 3;
+  let lastError: Error | null = null;
+
+  while (attempts < maxAttempts) {
+    try {
+      const result = await /* execute activity/block */;
+      if (result.success !== false) {
+        break; // Success
+      }
+    } catch (error) {
+      lastError = error as Error;
+    }
+
+    attempts++;
+    if (attempts >= maxAttempts) {
+      throw lastError || new Error('Max retry attempts reached');
+    }
+    // Fixed backoff: 5s
+    const backoffMs = 5000;
+    await sleep(backoffMs);
+  }
+`
+
+// Example 4: No Backoff
+// When: backoff.type = 'none'
+// Generated output:
+`
+  // Retry loop: Immediate Retry
+  let attempts = 0;
+  const maxAttempts = 3;
+  let lastError: Error | null = null;
+
+  while (attempts < maxAttempts) {
+    try {
+      const result = await /* execute activity/block */;
+      if (result.success !== false) {
+        break; // Success
+      }
+    } catch (error) {
+      lastError = error as Error;
+    }
+
+    attempts++;
+    if (attempts >= maxAttempts) {
+      throw lastError || new Error('Max retry attempts reached');
+    }
+  }
+`
+
+/**
+ * TypeScript Compilation Patterns:
+ *
+ * 1. Retry loop uses while loop with attempts counter
+ * 2. Success is checked via:
+ *    - 'failure' mode: No exception and result.success !== false
+ *    - 'condition' mode: Condition expression evaluates to false (success)
+ * 3. Backoff calculated based on type:
+ *    - exponential: multiplier^(attempts-1) * base
+ *    - linear: attempts * base
+ *    - fixed: constant value
+ *    - none: no sleep between retries
+ * 4. Uses Temporal's sleep() for backoff delays
+ *
+ * Difference from Temporal Retry Policy:
+ * - More granular control over retry conditions
+ * - Custom backoff calculations
+ * - Retry based on return values, not just exceptions
+ * - Can wrap multiple activities/blocks
+ */

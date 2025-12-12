@@ -1,0 +1,96 @@
+/**
+ * Phase Component
+ *
+ * Phases organize workflow execution into logical groups.
+ * They support both sequential and parallel execution of contained activities.
+ *
+ * Configuration options:
+ * - name: Phase name for documentation
+ * - sequential: Whether activities run sequentially (default: true)
+ * - maxConcurrency: Maximum parallel activities (when sequential = false)
+ *
+ * Note: Phases primarily serve as organizational containers.
+ * The actual execution pattern is determined by the 'sequential' flag.
+ */
+
+// Example 1: Sequential Phase
+// When: Phase with sequential = true (default)
+// Generated output:
+`
+  // Phase: Data Processing
+  // Sequential execution
+`
+
+// Example 2: Parallel Phase
+// When: Phase with sequential = false, maxConcurrency = 4
+// Generated output:
+`
+  // Phase: Parallel Processing
+  // Concurrent execution (max 4)
+  const activeTasks = new Map();
+  const maxConcurrent = 4;
+`
+
+// Example 3: Unlimited Parallel
+// When: Phase with sequential = false, maxConcurrency not set
+// Generated output:
+`
+  // Phase: Batch Processing
+  // Concurrent execution (max 4)
+  const activeTasks = new Map();
+  const maxConcurrent = 4;
+`
+
+/**
+ * TypeScript Compilation Patterns:
+ *
+ * 1. Phase name is used in comments for documentation
+ * 2. Sequential phases don't generate execution control code
+ * 3. Parallel phases generate:
+ *    - activeTasks Map for tracking running activities
+ *    - maxConcurrent constant for limiting parallelism
+ * 4. Default maxConcurrency is 4 if not specified
+ *
+ * Execution Semantics:
+ * - Sequential: Activities execute one after another
+ * - Parallel: Multiple activities can run simultaneously
+ * - maxConcurrency limits how many run at once
+ *
+ * Future Enhancement - Full Parallel Implementation:
+ * The generated code would include:
+ * - Promise.all or similar for parallel execution
+ * - Semaphore pattern for maxConcurrency limiting
+ * - Error collection across parallel activities
+ */
+
+// Full workflow with phases:
+const exampleWorkflowWithPhases = `
+export async function MultiPhaseWorkflow(input: Record<string, unknown> | undefined): Promise<unknown> {
+
+  // Start
+  // Workflow started
+
+  // Phase: Validation
+  // Sequential execution
+
+  const result_validate_input = await validateInput(input);
+  const result_check_permissions = await checkPermissions(result_validate_input);
+
+  // Phase: Data Processing
+  // Concurrent execution (max 4)
+  const activeTasks = new Map();
+  const maxConcurrent = 4;
+
+  // In a full implementation, the following would run in parallel:
+  // - processItem1
+  // - processItem2
+  // - processItem3
+  // - processItem4
+  // With maxConcurrent limiting to 4 at a time
+
+  // Phase: Cleanup
+  // Sequential execution
+
+  const result_cleanup = await cleanup(input);
+}
+`;

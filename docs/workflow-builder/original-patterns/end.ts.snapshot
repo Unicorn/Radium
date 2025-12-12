@@ -1,0 +1,63 @@
+/**
+ * End Component (Stop Node)
+ *
+ * The end/stop node represents the termination point of a Temporal workflow.
+ * It has no outgoing edges and marks the end of workflow execution.
+ *
+ * Configuration options:
+ * - resultMapping: How to construct the final return value
+ * - errorHandling: What to do if workflow ends in error state
+ *
+ * Note: In the current implementation, the End node doesn't generate
+ * explicit code - it simply marks the end of graph traversal.
+ * The return value comes from the last activity result.
+ */
+
+// Example 1: Simple End (no explicit return)
+// When: End node is reached with no special configuration
+// Generated output:
+`
+  // End
+  // Workflow completed
+`
+
+// Example 2: With Result Mapping
+// When: End node has resultMapping configured
+// Generated output (not currently implemented):
+`
+  // End
+  return {
+    status: 'completed',
+    result: result_previous_node,
+  };
+`
+
+/**
+ * TypeScript Compilation Patterns:
+ *
+ * The current implementation relies on the workflow function naturally
+ * ending, with the last activity's result being the implicit return value.
+ *
+ * Future enhancements may include:
+ * 1. Explicit return value construction
+ * 2. Final state aggregation
+ * 3. Cleanup operations
+ * 4. Success/failure status reporting
+ */
+
+// Full workflow showing end behavior:
+const exampleWorkflowWithEnd = `
+export async function ProcessOrderWorkflow(input: Record<string, unknown> | undefined): Promise<unknown> {
+  // Start
+  // Workflow started
+
+  // validateOrder
+  const result_validate_order = await validateOrder(input);
+
+  // processPayment
+  const result_process_payment = await processPayment(result_validate_order);
+
+  // End - implicit return of last result
+  // The workflow returns result_process_payment implicitly
+}
+`;

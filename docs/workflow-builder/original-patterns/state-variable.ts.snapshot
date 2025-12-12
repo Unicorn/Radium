@@ -1,0 +1,131 @@
+/**
+ * State Variable Component
+ *
+ * Manages workflow state through variables that persist across activities.
+ * Supports various operations: set, get, append, increment, decrement.
+ *
+ * Configuration options:
+ * - name: Variable name (used in generated code)
+ * - operation: 'set' | 'get' | 'append' | 'increment' | 'decrement'
+ * - value: Value to set or append
+ * - initialValue: Default value when variable is declared
+ *
+ * State variables are declared at the top of the workflow function
+ * and modified throughout execution.
+ */
+
+// Example 1: Set Operation
+// When: State variable with operation = 'set', name = 'status', value = 'processing'
+// Generated output (declaration at top):
+`
+  // State variables
+  let status = null;
+`
+// Generated output (at node position):
+`
+  // State variable: status
+  status = "processing";
+`
+
+// Example 2: Increment Operation
+// When: State variable with operation = 'increment', name = 'counter'
+// Generated output (declaration at top):
+`
+  // State variables
+  let counter = 0;
+`
+// Generated output (at node position):
+`
+  // State variable: counter
+  counter++;
+`
+
+// Example 3: Decrement Operation
+// When: State variable with operation = 'decrement', name = 'remaining'
+// Generated output:
+`
+  // State variable: remaining
+  remaining--;
+`
+
+// Example 4: Append Operation
+// When: State variable with operation = 'append', name = 'results', value = item
+// Generated output (declaration at top):
+`
+  // State variables
+  let results = [];
+`
+// Generated output (at node position):
+`
+  // State variable: results
+  results.push(item);
+`
+
+// Example 5: Get Operation
+// When: State variable with operation = 'get', name = 'currentValue'
+// Generated output:
+`
+  // State variable: currentValue
+  // Get currentValue: currentValue
+`
+
+/**
+ * TypeScript Compilation Patterns:
+ *
+ * 1. State variables are declared at the top of the workflow function
+ * 2. Initial values depend on operation type:
+ *    - increment/decrement: 0
+ *    - append: []
+ *    - set/get: null (or provided initialValue)
+ * 3. Variable names are converted to camelCase if needed
+ * 4. The 'get' operation is essentially a no-op (just comments)
+ *
+ * Declaration Phase:
+ * - Scans all state-variable nodes in the workflow
+ * - Generates let declarations with appropriate initial values
+ * - Places declarations at the start of the workflow function
+ *
+ * Execution Phase:
+ * - Generates operation code at the node's position in the graph
+ * - Uses the variable name directly (no result_ prefix)
+ */
+
+// Full workflow with state variables:
+const exampleWorkflowWithStateVariables = `
+export async function BatchProcessingWorkflow(input: Record<string, unknown> | undefined): Promise<unknown> {
+
+  // State variables
+  let processedCount = 0;
+  let errors = [];
+  let status = null;
+
+  // Start
+  // Workflow started
+
+  // Set Status
+  // State variable: status
+  status = "processing";
+
+  // Process Item 1
+  const result_process_item_1 = await processItem(input.items[0]);
+
+  // Increment Counter
+  // State variable: processedCount
+  processedCount++;
+
+  // Process Item 2
+  const result_process_item_2 = await processItem(input.items[1]);
+
+  // Increment Counter
+  // State variable: processedCount
+  processedCount++;
+
+  // Collect Errors (if any)
+  // State variable: errors
+  errors.push(result_process_item_2.error);
+
+  // Set Status Complete
+  // State variable: status
+  status = "completed";
+}
+`;

@@ -1,0 +1,110 @@
+/**
+ * Child Workflow Component
+ *
+ * Child workflows allow workflows to spawn and manage other workflows.
+ * Supports both fire-and-forget (startChild) and wait-for-completion (executeChild).
+ *
+ * Configuration options:
+ * - workflowType: Name of the child workflow to invoke
+ * - executionType: 'startChild' (async) | 'executeChild' (sync)
+ * - taskQueue: Optional task queue name
+ * - inputMapping: How to construct child workflow input from parent context
+ */
+
+// Example 1: Execute Child (Wait for Result)
+// When: executionType = 'executeChild'
+// Generated output:
+`
+  // Process Sub-Order
+  const result_process_sub_order = await executeChild(ProcessSubOrderWorkflow, {
+    workflowId: 'process-sub-order-' + uuid4(),
+    args: [input],
+  });
+`
+
+// Example 2: Start Child (Fire and Forget)
+// When: executionType = 'startChild'
+// Generated output:
+`
+  // Send Notification
+  const result_send_notification = await startChild(SendNotificationWorkflow, {
+    workflowId: 'send-notification-' + uuid4(),
+    args: [input],
+  });
+`
+
+// Example 3: With Custom Task Queue
+// When: taskQueue = 'high-priority'
+// Generated output:
+`
+  // Process Payment
+  const result_process_payment = await executeChild(ProcessPaymentWorkflow, {
+    taskQueue: 'high-priority',
+    workflowId: 'process-payment-' + uuid4(),
+    args: [input],
+  });
+`
+
+// Example 4: With Input Mapping
+// When: inputMapping = { orderId: 'result.orderId', amount: 'result.total' }
+// Generated output:
+`
+  // Fulfill Order
+  const result_fulfill_order = await executeChild(FulfillOrderWorkflow, {
+    workflowId: 'fulfill-order-' + uuid4(),
+    args: [{ orderId: result.orderId, amount: result.total }],
+  });
+`
+
+/**
+ * TypeScript Compilation Patterns:
+ *
+ * 1. Imports uuid4 from @temporalio/workflow when child workflows exist
+ * 2. workflowId is generated using nodeId + uuid4() for uniqueness
+ * 3. The workflow function name is constructed as: {workflowType}Workflow
+ * 4. executeChild blocks until child completes and returns result
+ * 5. startChild returns a handle but doesn't wait for completion
+ *
+ * Input Mapping:
+ * - If no inputMapping, passes parent 'input' directly
+ * - If inputMapping exists, constructs object from previous results
+ * - Can reference result variables from earlier nodes
+ */
+
+// Full workflow with child workflows:
+const exampleWorkflowWithChildWorkflows = `
+import { proxyActivities, startChild, executeChild, sleep, condition, uuid4 } from '@temporalio/workflow';
+import type * as activities from './activities';
+
+/**
+ * OrderOrchestrationWorkflow
+ * Generated Temporal workflow from node-based definition
+ */
+export async function OrderOrchestrationWorkflow(input: Record<string, unknown> | undefined): Promise<unknown> {
+
+  // Start
+  // Workflow started
+
+  // Validate Order
+  const result_validate_order = await validateOrder(input);
+
+  // Process Payment (executeChild - wait for result)
+  const result_process_payment = await executeChild(ProcessPaymentWorkflow, {
+    taskQueue: 'payments',
+    workflowId: 'process-payment-' + uuid4(),
+    args: [{ orderId: result_validate_order.orderId, amount: result_validate_order.total }],
+  });
+
+  // Send Confirmation (startChild - fire and forget)
+  const result_send_confirmation = await startChild(SendConfirmationWorkflow, {
+    workflowId: 'send-confirmation-' + uuid4(),
+    args: [result_process_payment],
+  });
+
+  // Fulfill Order (executeChild - wait for completion)
+  const result_fulfill_order = await executeChild(FulfillOrderWorkflow, {
+    workflowId: 'fulfill-order-' + uuid4(),
+    args: [input],
+  });
+}
+`;

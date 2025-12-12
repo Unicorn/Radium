@@ -1,0 +1,109 @@
+name: activity
+category: activity
+description: Invokes a Temporal activity - the primary unit of work execution in workflows
+
+inputs:
+  - name: componentName
+    type: string
+    required: true
+    description: Name of the activity function to invoke
+
+  - name: timeout
+    type: string
+    required: false
+    description: Start-to-close timeout (e.g., "30s", "5m", "1h")
+    default: null
+
+  - name: retryPolicy
+    type: object
+    required: false
+    description: Retry configuration for failed activity executions
+    schema:
+      strategy:
+        type: enum
+        values: [none, keep-trying, fail-after-x, exponential-backoff]
+        description: Retry strategy type
+      maxAttempts:
+        type: number
+        description: Maximum number of retry attempts
+      initialInterval:
+        type: string
+        description: Initial wait between retries (e.g., "1s")
+      maxInterval:
+        type: string
+        description: Maximum wait between retries
+      backoffCoefficient:
+        type: number
+        description: Multiplier for exponential backoff
+
+outputs:
+  - name: result
+    type: unknown
+    description: The return value from the activity execution
+
+behaviors:
+  - name: success
+    condition: "Activity completes without throwing"
+    output: "Activity return value stored in result variable"
+
+  - name: failure_with_retry
+    condition: "Activity throws and retry policy allows more attempts"
+    output: "Activity retried according to retry policy"
+
+  - name: failure_final
+    condition: "Activity throws and retries exhausted"
+    output: "Workflow receives the error"
+
+temporal_mapping:
+  type: activity
+  import: "proxyActivities from '@temporalio/workflow'"
+  config:
+    - startToCloseTimeout: Maps from timeout input
+    - retry: Maps from retryPolicy input
+
+retry_strategies:
+  none:
+    description: No retries - fail immediately
+    config:
+      maximumAttempts: 1
+
+  keep-trying:
+    description: Unlimited retries with backoff
+    config:
+      initialInterval: "1s"
+      maximumInterval: "1h"
+      backoffCoefficient: 2.0
+
+  fail-after-x:
+    description: Limited number of retries
+    config:
+      maximumAttempts: configurable
+      initialInterval: "1s"
+
+  exponential-backoff:
+    description: Limited retries with exponential backoff
+    config:
+      maximumAttempts: configurable
+      initialInterval: "1s"
+      maximumInterval: "1h"
+      backoffCoefficient: 2.0
+
+example_usage: |
+  // Simple activity call
+  const result = await processOrder(input);
+
+  // Activity with timeout
+  const result = await processOrder(input, {
+    startToCloseTimeout: '30s',
+  });
+
+  // Activity with full retry policy
+  const result = await processOrder(input, {
+    startToCloseTimeout: '5m',
+    retry: {
+      maximumAttempts: 3,
+      initialInterval: '1s',
+      maximumInterval: '30s',
+      backoffCoefficient: 2.0,
+    },
+  });

@@ -1,0 +1,77 @@
+/**
+ * Kong Cache Component
+ *
+ * Configures response caching for API endpoints via Kong's proxy-cache plugin.
+ * Caching is backed by Redis and configured per-endpoint with unique cache keys.
+ *
+ * Configuration options:
+ * - cacheKey: Unique identifier for the cache entry (immutable after save)
+ * - connectorName/connectorId: Redis connector for cache storage
+ * - ttlSeconds/ttl: Time-to-live in seconds
+ * - isSaved: Whether the cache key has been saved (becomes immutable)
+ * - markedForDeletion: Whether cache should be cleared on next deploy
+ *
+ * Note: This component generates configuration metadata, not executable workflow code.
+ * The actual cache plugin is configured on Kong routes during deployment.
+ */
+
+// Example 1: Basic Kong Cache
+// When: Kong cache node with cacheKey = 'user-profile', ttl = 3600
+// Generated output:
+`
+  // Kong Cache
+  // Kong Cache Configuration: Kong Cache
+  // Cache Key: user-profile (editable until save)
+  // Redis Connector: Not configured
+  // TTL: 3600 seconds
+  // Cache plugin will be configured on Kong routes during deployment
+  const result_kong_cache = { type: 'kong-cache-config', cacheKey: 'user-profile', ttl: 3600 };
+`
+
+// Example 2: Saved (Immutable) Cache Key
+// When: isSaved = true
+// Generated output:
+`
+  // User Cache
+  // Kong Cache Configuration: User Cache
+  // Cache Key: user-profile-v1 (immutable)
+  // Redis Connector: production-redis
+  // TTL: 7200 seconds
+  // Cache plugin will be configured on Kong routes during deployment
+  const result_user_cache = { type: 'kong-cache-config', cacheKey: 'user-profile-v1', ttl: 7200 };
+`
+
+// Example 3: Cache Marked for Deletion
+// When: markedForDeletion = true
+// Generated output:
+`
+  // Legacy Cache
+  // Kong Cache Configuration: Legacy Cache
+  // Cache Key: old-data (immutable)
+  // Redis Connector: production-redis
+  // TTL: 3600 seconds
+  // Cache plugin will be configured on Kong routes during deployment
+  // Cache key marked for deletion - will be removed from Redis on next deploy
+  const result_legacy_cache = { type: 'kong-cache-config', cacheKey: 'old-data', ttl: 3600 };
+`
+
+/**
+ * TypeScript Compilation Patterns:
+ *
+ * 1. Cache key immutability is enforced after isSaved = true
+ * 2. The ttl can come from ttlSeconds or ttl config properties
+ * 3. markedForDeletion triggers cache invalidation during deployment
+ * 4. Redis connector determines which Redis instance stores the cache
+ *
+ * Cache Key Lifecycle:
+ * - Created: Key is editable, not yet in production
+ * - Saved: Key becomes immutable, deployed to Kong/Redis
+ * - Marked for Deletion: Key will be cleared on next deploy
+ * - Deleted: Key removed from configuration and Redis
+ *
+ * Deployment Integration:
+ * - Creates Kong proxy-cache plugins on routes
+ * - Configures Redis connection from connector settings
+ * - Sets TTL and cache key patterns
+ * - Handles cache invalidation for marked keys
+ */

@@ -5,6 +5,7 @@ members = [
   'crates/radium-abstraction',
   'crates/radium-models',
   'crates/radium-orchestrator',
+  'crates/radium-workflow',
   'apps/cli',
   'apps/tui',
 ]
@@ -74,6 +75,7 @@ radium-abstraction = { path = 'crates/radium-abstraction' }
 radium-models = { path = 'crates/radium-models' }
 radium-core = { path = 'crates/radium-core' }
 radium-orchestrator = { path = 'crates/radium-orchestrator' }
+radium-workflow = { path = 'crates/radium-workflow' }
 radium-tui = { path = 'apps/tui' }
 
 [profile.release]

@@ -1,0 +1,135 @@
+/**
+ * Activity Component
+ *
+ * Activities represent units of work executed by Temporal workers.
+ * They encapsulate business logic that may fail, need retries, or have timeouts.
+ *
+ * Configuration options:
+ * - componentName: Name of the activity function
+ * - timeout: Start-to-close timeout (e.g., "30s", "5m")
+ * - retryPolicy: Retry configuration
+ *   - strategy: 'keep-trying' | 'fail-after-x' | 'exponential-backoff' | 'none'
+ *   - maxAttempts: Maximum retry attempts
+ *   - initialInterval: Initial wait between retries
+ *   - maxInterval: Maximum wait between retries
+ *   - backoffCoefficient: Multiplier for exponential backoff
+ */
+
+// Example 1: Simple Activity
+// When: Activity node with just componentName
+// Generated output:
+`
+  // fetchUserData
+  const result_fetch_user_data = await fetchUserData(input);
+`
+
+// Example 2: Activity with Timeout
+// When: Activity has timeout: "30s" configured
+// Generated output:
+`
+  // fetchUserData
+  const result_fetch_user_data = await fetchUserData(input, {
+    startToCloseTimeout: '30s',
+  });
+`
+
+// Example 3: Activity with Retry Policy (fail-after-x)
+// When: Activity has retryPolicy.strategy = 'fail-after-x', maxAttempts = 3
+// Generated output:
+`
+  // fetchUserData
+  const result_fetch_user_data = await fetchUserData(input, {
+    retry: {
+      maximumAttempts: 3,
+      initialInterval: '1s',
+    },
+  });
+`
+
+// Example 4: Activity with Full Retry Policy (keep-trying)
+// When: Activity has retryPolicy.strategy = 'keep-trying' with full config
+// Generated output:
+`
+  // fetchUserData
+  const result_fetch_user_data = await fetchUserData(input, {
+    startToCloseTimeout: '5m',
+    retry: {
+      initialInterval: '1s',
+      maximumInterval: '1h',
+      backoffCoefficient: 2.0,
+    },
+  });
+`
+
+// Example 5: Activity with Input Mapping
+// When: Activity receives result from previous node
+// Generated output:
+`
+  // processUserData
+  const result_process_user_data = await processUserData(result_fetch_user_data);
+`
+
+// Example 6: Activity with Multiple Inputs
+// When: Activity receives results from multiple previous nodes
+// Generated output:
+`
+  // combineResults
+  const result_combine_results = await combineResults({ arg1: result_node_a, arg2: result_node_b });
+`
+
+/**
+ * TypeScript Compilation Patterns:
+ *
+ * 1. Result variables are named: result_${nodeId.replace(/-/g, '_')}
+ * 2. Input comes from:
+ *    - 'input' if no incoming edges
+ *    - Previous node's result variable if one incoming edge
+ *    - Object with arg1, arg2, etc. if multiple incoming edges
+ * 3. Activity options are only generated if timeout or retryPolicy is configured
+ * 4. The activity function is imported from './activities' via proxyActivities
+ *
+ * Retry Strategy Behaviors:
+ * - 'keep-trying': No maximumAttempts (unlimited retries)
+ * - 'fail-after-x': Sets maximumAttempts
+ * - 'exponential-backoff': Sets maximumAttempts with backoff
+ * - 'none': Sets maximumAttempts: 1 (no retries)
+ */
+
+// Full workflow with activity imports:
+const exampleWorkflowWithActivities = `
+import { proxyActivities, startChild, executeChild, sleep, condition } from '@temporalio/workflow';
+import type * as activities from './activities';
+
+/**
+ * DataProcessingWorkflow
+ * Generated Temporal workflow from node-based definition
+ */
+export async function DataProcessingWorkflow(input: Record<string, unknown> | undefined): Promise<unknown> {
+
+  // Start
+  // Workflow started
+
+  // fetchData
+  const result_fetch_data = await fetchData(input, {
+    startToCloseTimeout: '30s',
+    retry: {
+      maximumAttempts: 3,
+      initialInterval: '1s',
+    },
+  });
+
+  // transformData
+  const result_transform_data = await transformData(result_fetch_data);
+
+  // saveData
+  const result_save_data = await saveData(result_transform_data, {
+    startToCloseTimeout: '1m',
+    retry: {
+      maximumAttempts: 5,
+      initialInterval: '2s',
+      maximumInterval: '30s',
+      backoffCoefficient: 2.0,
+    },
+  });
+}
+`;

@@ -1,0 +1,74 @@
+name: condition
+category: control-flow
+description: Evaluates a JavaScript expression and routes workflow execution to true or false branches
+
+inputs:
+  - name: expression
+    type: string
+    required: true
+    description: JavaScript expression that evaluates to boolean
+    examples:
+      - "result.isValid === true"
+      - "result.amount > 100"
+      - "result.status === 'approved' && result.amount <= budget"
+
+  - name: label
+    type: string
+    required: false
+    description: Human-readable description for documentation
+
+outputs:
+  - name: result
+    type: boolean
+    description: The evaluated result of the expression
+
+behaviors:
+  - name: true_branch
+    condition: "Expression evaluates to truthy value"
+    output: "Execution continues to nodes connected via 'true' handle"
+
+  - name: false_branch
+    condition: "Expression evaluates to falsy value"
+    output: "Execution continues to nodes connected via 'false' handle"
+
+  - name: evaluation_error
+    condition: "Expression throws during evaluation"
+    output: "Workflow receives the error"
+
+graph_connections:
+  input_handles:
+    - default: Receives data from upstream nodes
+
+  output_handles:
+    - "true": Routes to true branch nodes
+    - "false": Routes to false branch nodes
+
+temporal_mapping:
+  type: inline_code
+  note: Condition expressions are evaluated inline, not as separate activities
+
+code_generation:
+  pattern: |
+    const result_{nodeId} = {expression};
+
+  branch_comments:
+    true: "// True branch"
+    false: "// False branch"
+
+example_usage: |
+  // Check if order is valid
+  const result_is_valid = result_validate_order.isValid === true;
+    // True branch - process order
+    // False branch - reject order
+
+  // Complex condition
+  const result_check = result.status === 'approved' && result.amount <= budget;
+
+  // Numeric comparison
+  const result_threshold = result.amount > 1000;
+
+notes:
+  - Expression has access to variables from previous nodes (via result_ prefix)
+  - Expression runs synchronously - avoid expensive operations
+  - Consider using activities for complex logic
+  - Currently generates comments for branches, not if/else blocks

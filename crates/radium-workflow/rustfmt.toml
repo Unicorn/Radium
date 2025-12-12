@@ -1,0 +1,13 @@
+# Rust formatter configuration (stable features only)
+edition = "2021"
+max_width = 100
+tab_spaces = 4
+newline_style = "Unix"
+use_small_heuristics = "Default"
+
+# Import organization
+reorder_imports = true
+reorder_modules = true
+
+# Control flow
+match_block_trailing_comma = true

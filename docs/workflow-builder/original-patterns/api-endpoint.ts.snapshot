@@ -1,0 +1,60 @@
+/**
+ * API Endpoint Component
+ *
+ * Registers an HTTP API endpoint that can trigger the workflow.
+ * Endpoints are configured in Kong and route requests to Temporal.
+ *
+ * Configuration options:
+ * - path: URL path for the endpoint
+ * - method: HTTP method (GET, POST, PUT, DELETE, etc.)
+ * - authentication: Auth requirements
+ * - rateLimit: Rate limiting configuration
+ *
+ * Note: This component generates configuration metadata.
+ * The actual endpoint is registered in Kong during deployment.
+ */
+
+// Example: API Endpoint
+// When: API endpoint node configured
+// Generated output:
+`
+  // API Endpoint
+  // API endpoint registered externally
+`
+
+/**
+ * TypeScript Compilation Patterns:
+ *
+ * 1. API endpoint nodes don't generate executable workflow code
+ * 2. They represent the entry point configuration for the workflow
+ * 3. During deployment:
+ *    - Kong route is created for the endpoint
+ *    - Request is forwarded to Temporal worker
+ *    - Worker starts the workflow with request data as input
+ *
+ * Deployment Integration:
+ * - Creates Kong service pointing to Temporal API
+ * - Creates Kong route with configured path/method
+ * - Applies authentication plugins if configured
+ * - Applies rate limiting if configured
+ * - Sets up request transformation to extract workflow input
+ */
+
+// The workflow receives API request data as input:
+const exampleWorkflowFromAPI = `
+export async function WebhookWorkflow(input: Record<string, unknown> | undefined): Promise<unknown> {
+  // input contains:
+  // - headers: Request headers
+  // - body: Request body (parsed JSON)
+  // - query: Query parameters
+  // - path: Request path
+
+  // Start
+  // Workflow started
+
+  // Process webhook payload
+  const result_process = await processWebhook(input.body);
+
+  return { status: 'processed', id: result_process.id };
+}
+`;
