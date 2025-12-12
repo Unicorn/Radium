@@ -222,7 +222,7 @@ fn get_budget_manager_with_analytics() -> anyhow::Result<Option<(radium_core::mo
             format!("{}/.radium/monitoring.db", home)
         });
 
-    let monitoring = match MonitoringService::open(&db_path) {
+    let _monitoring = match MonitoringService::open(&db_path) {
         Ok(service) => Arc::new(service),
         Err(_) => return Ok(None), // No database, analytics unavailable
     };
