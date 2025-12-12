@@ -4,6 +4,7 @@
 // across different AI providers (Gemini, Claude, OpenAI, and prompt-based fallback).
 
 pub mod agent_tools;
+pub mod aggregator;
 pub mod code_analysis_tool;
 pub mod config;
 pub mod context;
