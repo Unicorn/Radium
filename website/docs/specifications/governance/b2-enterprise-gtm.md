@@ -6,8 +6,8 @@ sidebar_label: "B2: Enterprise GTM"
 
 # B2: Enterprise Go-to-Market
 
-**Source**: `B2_ Enterprise Go-to-Market.pdf`  
-**Status**: 🚧 Extraction in Progress  
+**Source**: `B2_ Enterprise Go-to-Market.pdf`
+**Status**: 🚧 Extraction in Progress
 **Roadmap**: [Governance & Operations Roadmap](../../roadmap/governance-operations.md#enterprise-go-to-market-b2)
 
 ## Overview

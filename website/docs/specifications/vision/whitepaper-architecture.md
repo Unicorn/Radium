@@ -6,8 +6,8 @@ sidebar_label: "Whitepaper Architecture"
 
 # Whitepaper: The Composable Intelligence Architecture
 
-**Source**: `OpenKor_ Whitepaper - The Composable Intelligence Architecture.pdf`  
-**Status**: 🚧 Extraction in Progress  
+**Source**: `OpenKor_ Whitepaper - The Composable Intelligence Architecture.pdf`
+**Status**: 🚧 Extraction in Progress
 **Roadmap**: [Vision & Innovation](../../roadmap/vision.md)
 
 ## Overview

@@ -6,8 +6,8 @@ sidebar_label: "B1: Federation Structure"
 
 # B1: Federation Structure
 
-**Source**: `B1_ Federation Structure.pdf`  
-**Status**: 🚧 Extraction in Progress  
+**Source**: `B1_ Federation Structure.pdf`
+**Status**: 🚧 Extraction in Progress
 **Roadmap**: [Governance & Operations Roadmap](../../roadmap/governance-operations.md#federation-structure-b1)
 
 ## Overview

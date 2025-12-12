@@ -6,7 +6,7 @@ sidebar_label: "Migration Complete"
 
 # OpenKor Documentation Migration - Complete
 
-**Status**: ✅ **100% Complete**  
+**Status**: ✅ **100% Complete**
 **Date**: 2025-01-XX
 
 ## Migration Summary
@@ -109,7 +109,7 @@ The `old/openkor/` folder can be safely deleted as all content has been:
 
 ---
 
-**Migration completed**: 2025-01-XX  
-**Verified by**: Automated coverage analysis  
+**Migration completed**: 2025-01-XX
+**Verified by**: Automated coverage analysis
 **Status**: Ready for OpenKor folder deletion
 

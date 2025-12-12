@@ -6,8 +6,8 @@ sidebar_label: "T5: Performance & Scalability"
 
 # T5: Performance & Scalability Analysis
 
-**Source**: `T5_ Performance & Scalability Analysis.pdf`  
-**Status**: 🚧 Extraction in Progress  
+**Source**: `T5_ Performance & Scalability Analysis.pdf`
+**Status**: 🚧 Extraction in Progress
 **Roadmap**: [Technical Architecture Roadmap](../../roadmap/technical-architecture.md#performance--scalability-analysis-t5)
 
 ## Overview

@@ -6,8 +6,8 @@ sidebar_label: "G1: DAO Structure"
 
 # G1: DAO Structure
 
-**Source**: `G1_ DAO Structure.pdf`  
-**Status**: 🚧 Extraction in Progress  
+**Source**: `G1_ DAO Structure.pdf`
+**Status**: 🚧 Extraction in Progress
 **Roadmap**: [Governance & Operations Roadmap](../../roadmap/governance-operations.md#dao-structure-g1)
 
 ## Overview
@@ -293,7 +293,7 @@ pub fn calculate_voting_power(user: &User) -> VotingPower {
     let base = user.token_balance;
     let staking_bonus = user.staked_amount * STAKING_MULTIPLIER;
     let reputation_bonus = user.reputation * REPUTATION_MULTIPLIER;
-    
+
     VotingPower {
         total: base + staking_bonus + reputation_bonus,
     }

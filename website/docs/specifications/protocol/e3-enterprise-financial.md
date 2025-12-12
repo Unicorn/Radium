@@ -6,8 +6,8 @@ sidebar_label: "E3: Enterprise Financial"
 
 # E3: Enterprise Financial Model
 
-**Source**: `E3_ Enterprise Financial Model.pdf`  
-**Status**: 🚧 Extraction in Progress  
+**Source**: `E3_ Enterprise Financial Model.pdf`
+**Status**: 🚧 Extraction in Progress
 **Roadmap**: [Protocol Specifications Roadmap](../../roadmap/protocol-specifications.md#enterprise-financial-model-e3)
 
 ## Overview

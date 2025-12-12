@@ -6,8 +6,8 @@ sidebar_label: "E2: Marketplace Dynamics"
 
 # E2: Marketplace Dynamics
 
-**Source**: `E2_ Marketplace Dynamics.pdf`  
-**Status**: 🚧 Extraction in Progress  
+**Source**: `E2_ Marketplace Dynamics.pdf`
+**Status**: 🚧 Extraction in Progress
 **Roadmap**: [Protocol Specifications Roadmap](../../roadmap/protocol-specifications.md#marketplace-dynamics-e2)
 
 ## Overview

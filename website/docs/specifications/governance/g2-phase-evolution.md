@@ -6,8 +6,8 @@ sidebar_label: "G2: Phase Evolution"
 
 # G2: Phase Evolution
 
-**Source**: `G2_ Phase Evolution.pdf`  
-**Status**: 🚧 Extraction in Progress  
+**Source**: `G2_ Phase Evolution.pdf`
+**Status**: 🚧 Extraction in Progress
 **Roadmap**: [Governance & Operations Roadmap](../../roadmap/governance-operations.md#phase-evolution-g2)
 
 ## Overview

@@ -6,8 +6,8 @@ sidebar_label: "KOR Economic Model"
 
 # KOR Economic Model
 
-**Source**: `KOR & KOR-C_ Overview and Economic Model v0.3.pdf`, `KOR _ KOR-C_ Economic & Chain Integration Spec v0.2.pdf`  
-**Status**: 🚧 Extraction in Progress  
+**Source**: `KOR & KOR-C_ Overview and Economic Model v0.3.pdf`, `KOR _ KOR-C_ Economic & Chain Integration Spec v0.2.pdf`
+**Status**: 🚧 Extraction in Progress
 **Roadmap**: [Protocol Specifications Roadmap](../../roadmap/protocol-specifications.md#kor--kor-c-economic-model-v03)
 
 ## Overview

@@ -6,8 +6,8 @@ sidebar_label: "T6: Integrated Architecture"
 
 # T6: Integrated Architecture Overview
 
-**Source**: `T6_ Integrated Architecture Overview.pdf`  
-**Status**: 🚧 Extraction in Progress  
+**Source**: `T6_ Integrated Architecture Overview.pdf`
+**Status**: 🚧 Extraction in Progress
 **Roadmap**: [Technical Architecture Roadmap](../../roadmap/technical-architecture.md#integrated-architecture-overview-t6)
 
 ## Overview

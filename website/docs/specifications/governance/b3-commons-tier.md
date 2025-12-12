@@ -6,8 +6,8 @@ sidebar_label: "B3/B4: Commons Tier"
 
 # B3/B4: Commons Tier Operations
 
-**Source**: `B3_ Commons Tier Operations.pdf`, `B4_ Commons Tier Operations.pdf`  
-**Status**: 🚧 Extraction in Progress  
+**Source**: `B3_ Commons Tier Operations.pdf`, `B4_ Commons Tier Operations.pdf`
+**Status**: 🚧 Extraction in Progress
 **Roadmap**: [Governance & Operations Roadmap](../../roadmap/governance-operations.md#commons-tier-operations-b3-b4)
 
 ## Overview
