@@ -297,7 +297,7 @@ async fn show_forecast(json_output: bool) -> anyhow::Result<()> {
 
 /// Show comprehensive budget analytics.
 async fn show_analyze(json_output: bool, _days: u32) -> anyhow::Result<()> {
-    let Some((manager, config)) = get_budget_manager_with_analytics()? else {
+    let Some((manager, _config)) = get_budget_manager_with_analytics()? else {
         println!("{}", "Budget analytics unavailable. Set a budget and ensure monitoring database exists.".yellow());
         return Ok(());
     };
