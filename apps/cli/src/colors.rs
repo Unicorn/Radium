@@ -225,6 +225,7 @@ impl RadiumBrandColors {
     }
 
     /// Apply warning color to a string (for use with colored crate).
+    #[allow(dead_code)]
     pub fn color_warning(&self, text: &str) -> colored::ColoredString {
         use colored::Colorize;
         text.color(self.warning())

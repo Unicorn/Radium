@@ -355,6 +355,7 @@ impl Default for PolicyEngine {
 
 impl UserPolicy {
     /// Create default user policy
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self {
             whitelist: Vec::new(),

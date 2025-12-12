@@ -166,6 +166,7 @@ pub struct SessionInfo {
 
 impl Session {
     /// Create a new session
+    #[allow(dead_code)]
     pub fn new(id: String, agent_id: String) -> Self {
         let now = Utc::now();
         Self {

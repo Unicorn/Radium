@@ -1000,6 +1000,7 @@ fn print_styled_line(styled_line: &radium_core::syntax::StyledLine, capabilities
 
 /// Execute the agent with the engine registry.
 /// Returns the execution response for telemetry tracking.
+#[allow(dead_code)]
 async fn execute_agent_with_engine(
     registry: &EngineRegistry,
     agent_id: &str,
