@@ -51,6 +51,12 @@ pub struct AuditEntry {
     /// Session ID (optional).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
+    /// User ID for authentication auditing (optional).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_id: Option<String>,
+    /// Policy decision for tool execution auditing (optional).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_decision: Option<String>,
     /// Agent ID for privacy auditing (optional).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent_id: Option<String>,
