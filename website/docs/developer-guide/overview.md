@@ -194,28 +194,28 @@ cargo check --workspace
 
 Systematic approach to creating, validating, and composing reusable components.
 
-**Status**: 📋 Planned  
+**Status**: 📋 Planned
 **Learn more**: [Roadmap: Component Foundry](../roadmap/vision.md#1-component-foundry-pattern-cfp)
 
 ### Durable Autonomous Continuous Remediation (DACR)
 
 Self-healing systems that maintain component quality over time.
 
-**Status**: 🔮 Future  
+**Status**: 🔮 Future
 **Learn more**: [Roadmap: DACR](../roadmap/vision.md#2-durable-autonomous-continuous-remediation-dacr)
 
 ### Durable Recursive Component Generation (DRCG)
 
 Components that generate other components recursively.
 
-**Status**: 🔮 Future  
+**Status**: 🔮 Future
 **Learn more**: [Roadmap: DRCG](../roadmap/vision.md#3-durable-recursive-component-generation-drcg)
 
 ### Autonomous Component-Centric Assembly (ACCA)
 
 Systems that automatically assemble themselves from available components.
 
-**Status**: 🔮 Future  
+**Status**: 🔮 Future
 **Learn more**: [Roadmap: ACCA](../roadmap/vision.md#4-autonomous-component-centric-assembly-acca)
 
 ## Resources

@@ -167,7 +167,7 @@ Radium is evolving toward a **composable intelligence infrastructure**:
 - **Composition Rules**: Guidelines for combining components
 - **Version Management**: Semantic versioning
 
-**Status**: 📋 Planned  
+**Status**: 📋 Planned
 **Learn more**: [Roadmap: Component Foundry](../roadmap/vision.md#1-component-foundry-pattern-cfp)
 
 ### Global Component Graph
@@ -177,7 +177,7 @@ Radium is evolving toward a **composable intelligence infrastructure**:
 - **Composition Engine**: Automatic component composition
 - **Distributed Graph**: Support for federated graphs
 
-**Status**: 📋 Planned  
+**Status**: 📋 Planned
 **Learn more**: [Roadmap: Global Component Graph](../roadmap/technical-architecture.md#global-component-graph-design-t3)
 
 ### Autonomous Assembly
@@ -187,7 +187,7 @@ Radium is evolving toward a **composable intelligence infrastructure**:
 - **Dynamic Reconfiguration**: Adapt as needs change
 - **Self-Healing**: Automatic remediation (DACR)
 
-**Status**: 🔮 Future  
+**Status**: 🔮 Future
 **Learn more**: [Roadmap: Vision](../roadmap/vision.md)
 
 ## Detailed Architecture Documents
