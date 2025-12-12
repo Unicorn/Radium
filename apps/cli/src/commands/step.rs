@@ -281,6 +281,7 @@ pub async fn execute(
     context.set("user_input", user_input.clone());
 
     // Use ContextManager to build comprehensive context if available
+    #[allow(unused_assignments)]
     let mut additional_context = String::new();
     if let Some(ref mut manager) = context_manager {
         // Build context with agent invocation

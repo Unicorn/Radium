@@ -417,6 +417,7 @@ async fn delete_command(
         ));
     }
 
+    #[allow(unused_assignments)]
     let mut deleted_count = 0;
 
     if let Some(sid) = session_id {
