@@ -22,6 +22,7 @@ pub mod ignore;
 pub mod boundary;
 pub mod error_recovery;
 pub mod errors;
+pub mod file_ops;
 pub mod patch;
 pub mod plan_discovery;
 pub mod requirement_id;
@@ -36,6 +37,7 @@ pub use error_recovery::{ErrorRecovery, ErrorSummary};
 pub use errors::{
     ErrorContext, FileOperationError, FileOperationResult, RecoveryStrategy,
 };
+pub use file_ops::FileOperations;
 pub use patch::{
     ChangedFile, FilePatch, Hunk, PatchContent, PatchInput, PatchOptions, PatchResult,
     PatchSummary,

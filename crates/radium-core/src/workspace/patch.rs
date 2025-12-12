@@ -351,7 +351,6 @@ impl PatchApplicator {
         let mut current_file: Option<FilePatch> = None;
         let mut current_hunk: Option<Hunk> = None;
         let mut in_hunk = false;
-        let mut hunk_header_line: Option<String> = None;
 
         for line in diff.lines() {
             // File header: --- a/path or +++ b/path
@@ -388,8 +387,7 @@ impl PatchApplicator {
                     }
                 }
 
-                let _hunk_header_line = Some(line.to_string());
-                in_hunk = true;
+                let _                in_hunk = true;
 
                 // Parse hunk header
                 let hunk = self.parse_hunk_header(line)?;
