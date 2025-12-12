@@ -396,7 +396,6 @@ async fn export_command(
 }
 
 /// Delete sessions
-#[allow(unused_assignments)]
 async fn delete_command(
     session_id: Option<&str>,
     before: Option<&str>,
@@ -420,7 +419,6 @@ async fn delete_command(
 
     let mut deleted_count = 0;
 
-    #[allow(unused_assignments)]
     if let Some(sid) = session_id {
         // Single session deletion
         // Remove from history
