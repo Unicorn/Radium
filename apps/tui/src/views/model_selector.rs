@@ -11,11 +11,13 @@ use crate::icons::Icons;
 use crate::theme::THEME;
 
 /// Format cost per million tokens
+#[allow(dead_code)]
 fn format_cost(cost: Option<f64>) -> String {
     cost.map(|c| format!("${:.2}", c)).unwrap_or_else(|| "N/A".to_string())
 }
 
 /// Format context window size
+#[allow(dead_code)]
 fn format_context_window(tokens: Option<u32>) -> String {
     tokens.map(|t| {
         if t >= 1_000_000 {

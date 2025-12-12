@@ -14,6 +14,7 @@ pub struct AppEffectManager {
     /// Underlying effect manager
     manager: EffectManager<()>,
     /// Maximum concurrent effects to prevent performance issues
+    #[allow(dead_code)]
     max_effects: usize,
     /// Whether animations are enabled
     enabled: bool,

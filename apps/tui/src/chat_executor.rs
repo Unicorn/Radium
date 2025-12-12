@@ -1581,6 +1581,7 @@ async fn execute_slash_command(cmd: SlashCommand, workspace_root: &PathBuf) -> R
 
 /// Execute proactive project scan for ProjectOverview/TechnologyStack queries
 /// Gathers key project information BEFORE calling the model
+#[allow(dead_code)]
 async fn execute_proactive_scan(workspace_root: &PathBuf) -> Result<String> {
     let mut results = String::new();
 
@@ -1618,6 +1619,7 @@ async fn execute_proactive_scan(workspace_root: &PathBuf) -> Result<String> {
 }
 
 /// Find and read a file by pattern
+#[allow(dead_code)]
 async fn find_and_read_file(workspace_root: &PathBuf, pattern: &str) -> Result<String> {
     let cmd = format!("find . -maxdepth 2 -name '{}' -type f | head -1", pattern);
     let file_path = execute_terminal_command(&cmd, workspace_root).await?;
