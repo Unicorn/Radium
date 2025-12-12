@@ -2,7 +2,6 @@
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
-use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -54,6 +53,7 @@ impl Token {
 }
 
 /// Token store for file-based persistence.
+#[derive(Debug)]
 pub struct TokenStore {
     tokens_file: PathBuf,
 }

@@ -5,7 +5,7 @@ use chrono::{DateTime, Utc};
 use rusqlite::params;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, SystemTime};
+use std::time::SystemTime;
 
 /// Daily spend summary for pre-aggregated analytics.
 #[derive(Debug, Clone)]

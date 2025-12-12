@@ -285,7 +285,7 @@ impl FileTransaction {
                         let _ = self.file_ops.rename_path(to, from);
                     }
                 }
-                FileOperation::WriteFile { path, backup_content } => {
+                FileOperation::WriteFile { path, backup_content, content: _ } => {
                     // Restore original content
                     if let Some(content) = backup_content {
                         let _ = self.file_ops.create_file(path, content);

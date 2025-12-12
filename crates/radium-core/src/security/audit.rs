@@ -171,6 +171,8 @@ impl AuditLogger {
             success,
             error_message: error_message.map(|s| s.to_string()),
             session_id: None, // Could be added later if session tracking is needed
+            user_id: None,
+            policy_decision: None,
             agent_id: None,
             pattern_type: None,
             redaction_count: None,

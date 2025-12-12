@@ -1,7 +1,6 @@
 //! Input format detection and parsing for batch processing.
 
 use crate::batch::error::BatchError;
-use serde_json::Value;
 
 /// Supported input formats for batch processing.
 #[derive(Debug, Clone, PartialEq, Eq)]

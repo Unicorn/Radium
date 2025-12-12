@@ -80,7 +80,7 @@ pub async fn render_event_stream(
                         
                         // Show concurrent execution status
                         if active_tools.len() > 1 {
-                            let active_list: Vec<&String> = active_tools.keys().collect();
+                            let active_list: Vec<&str> = active_tools.keys().map(|s| s.as_str()).collect();
                             println!(
                                 "  {} Executing {} ({} tools running in parallel: {})",
                                 "⏳".yellow(),
@@ -114,7 +114,7 @@ pub async fn render_event_stream(
                             
                             // Show remaining active tools if any
                             if !active_tools.is_empty() {
-                                let remaining: Vec<&String> = active_tools.keys().collect();
+                                let remaining: Vec<&str> = active_tools.keys().map(|s| s.as_str()).collect();
                                 println!(
                                     "    {} Still running: {}",
                                     "⏳".yellow().dimmed(),

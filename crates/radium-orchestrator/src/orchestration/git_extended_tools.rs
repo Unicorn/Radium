@@ -336,6 +336,417 @@ pub fn create_git_show_tool(workspace_root: Arc<dyn WorkspaceRootProvider>) -> T
 }
 
 // ============================================================================
+// Git Status Tool
+// ============================================================================
+
+/// Git status tool handler
+struct GitStatusHandler {
+    workspace_root: Arc<dyn WorkspaceRootProvider>,
+}
+
+#[async_trait]
+impl ToolHandler for GitStatusHandler {
+    async fn execute(&self, args: &ToolArguments) -> Result<ToolResult> {
+        let workspace_root = self.workspace_root.workspace_root().ok_or_else(|| {
+            OrchestrationError::Other("Workspace root not available".to_string())
+        })?;
+
+        let format = args.get_string("format").unwrap_or_else(|| "short".to_string());
+        let show_untracked = args.get_bool("show_untracked").unwrap_or(true);
+
+        // Check if this is a git repository
+        let git_check = Command::new("git")
+            .arg("rev-parse")
+            .arg("--git-dir")
+            .current_dir(&workspace_root)
+            .output()
+            .await;
+
+        if git_check.is_err() || !git_check.as_ref().unwrap().status.success() {
+            return Ok(ToolResult::error("Not a git repository".to_string()));
+        }
+
+        // Get git status using porcelain v2 format for machine-readable output
+        let mut status_cmd = Command::new("git");
+        status_cmd.arg("status").arg("--porcelain=v2");
+        if !show_untracked {
+            status_cmd.arg("--untracked-files=no");
+        }
+        status_cmd.current_dir(&workspace_root);
+
+        let output = status_cmd.output().await.map_err(|e| {
+            OrchestrationError::Other(format!("Failed to execute git status: {}", e))
+        })?;
+
+        if !output.status.success() {
+            let error = String::from_utf8_lossy(&output.stderr);
+            return Err(OrchestrationError::Other(format!("git status failed: {}", error)));
+        }
+
+        let status_output = String::from_utf8_lossy(&output.stdout);
+        
+        // Get branch information
+        let branch_output = Command::new("git")
+            .arg("branch")
+            .arg("--show-current")
+            .current_dir(&workspace_root)
+            .output()
+            .await
+            .ok()
+            .and_then(|o| String::from_utf8(o.stdout).ok())
+            .map(|s| s.trim().to_string())
+            .unwrap_or_else(|| "detached HEAD".to_string());
+
+        // Parse porcelain v2 output
+        let status_info = parse_git_status_porcelain_v2(&status_output, &branch_output, &format)?;
+
+        Ok(ToolResult::success(status_info)
+            .with_metadata("branch", branch_output)
+            .with_metadata("format", format))
+    }
+}
+
+/// Parse git status porcelain v2 output
+fn parse_git_status_porcelain_v2(
+    porcelain_output: &str,
+    branch: &str,
+    format: &str,
+) -> Result<String> {
+    let mut staged = Vec::new();
+    let mut modified = Vec::new();
+    let mut deleted = Vec::new();
+    let mut untracked = Vec::new();
+    let mut renamed = Vec::new();
+
+    for line in porcelain_output.lines() {
+        if line.is_empty() {
+            continue;
+        }
+
+        // Porcelain v2 format: XY <sub> <mH> <mI> <mW> <hH> <hI> <path>
+        // X = status of index, Y = status of work tree
+        // X and Y can be: ' ' (unmodified), M (modified), A (added), D (deleted), R (renamed), C (copied), U (unmerged)
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() < 2 {
+            continue;
+        }
+
+        let status = parts[0];
+        let path = parts[1..].join(" ");
+
+        match (status.chars().nth(0), status.chars().nth(1)) {
+            (Some('A'), _) => staged.push(("A", path)),
+            (Some('M'), _) => staged.push(("M", path)),
+            (Some('D'), _) => staged.push(("D", path)),
+            (Some('R'), _) => {
+                if parts.len() >= 3 {
+                    renamed.push((parts[1].to_string(), parts[2..].join(" ")));
+                }
+            }
+            (_, Some('M')) => modified.push(("M", path)),
+            (_, Some('D')) => deleted.push(("D", path)),
+            (_, Some('A')) => modified.push(("A", path)),
+            (Some('?'), _) => untracked.push(("??", path)),
+            _ => {}
+        }
+    }
+
+    // Format output
+    let mut output = format!("Branch: {}\n", branch);
+    
+    let total_changes = staged.len() + modified.len() + deleted.len() + untracked.len() + renamed.len();
+    if total_changes == 0 {
+        output.push_str("Status: clean\n");
+        return Ok(output);
+    }
+
+    output.push_str(&format!("Status: {} change(s)\n\n", total_changes));
+
+    if format == "detailed" {
+        if !staged.is_empty() {
+            output.push_str("Staged:\n");
+            for (status, path) in &staged {
+                output.push_str(&format!("  {}  {}\n", status, path));
+            }
+            output.push('\n');
+        }
+
+        if !modified.is_empty() {
+            output.push_str("Modified:\n");
+            for (status, path) in &modified {
+                output.push_str(&format!("  {}  {}\n", status, path));
+            }
+            output.push('\n');
+        }
+
+        if !deleted.is_empty() {
+            output.push_str("Deleted:\n");
+            for (status, path) in &deleted {
+                output.push_str(&format!("  {}  {}\n", status, path));
+            }
+            output.push('\n');
+        }
+
+        if !renamed.is_empty() {
+            output.push_str("Renamed:\n");
+            for (old, new) in &renamed {
+                output.push_str(&format!("  R  {} -> {}\n", old, new));
+            }
+            output.push('\n');
+        }
+
+        if !untracked.is_empty() {
+            output.push_str("Untracked:\n");
+            for (status, path) in &untracked {
+                output.push_str(&format!("  {}  {}\n", status, path));
+            }
+        }
+    } else {
+        // Short format
+        if !staged.is_empty() {
+            output.push_str(&format!("Staged ({}):\n", staged.len()));
+            for (status, path) in &staged {
+                output.push_str(&format!("  {}  {}\n", status, path));
+            }
+        }
+        if !modified.is_empty() {
+            output.push_str(&format!("Modified ({}):\n", modified.len()));
+            for (status, path) in &modified {
+                output.push_str(&format!("  {}  {}\n", status, path));
+            }
+        }
+        if !deleted.is_empty() {
+            output.push_str(&format!("Deleted ({}):\n", deleted.len()));
+            for (status, path) in &deleted {
+                output.push_str(&format!("  {}  {}\n", status, path));
+            }
+        }
+        if !untracked.is_empty() {
+            output.push_str(&format!("Untracked ({}):\n", untracked.len()));
+            for (status, path) in &untracked {
+                output.push_str(&format!("  {}  {}\n", status, path));
+            }
+        }
+    }
+
+    Ok(output)
+}
+
+/// Create the git_status tool
+pub fn create_git_status_tool(workspace_root: Arc<dyn WorkspaceRootProvider>) -> Tool {
+    let parameters = ToolParameters::new()
+        .add_property(
+            "format",
+            "string",
+            "Output format: 'short' (default) or 'detailed'",
+            false,
+        )
+        .add_property(
+            "show_untracked",
+            "boolean",
+            "Show untracked files (default: true)",
+            false,
+        );
+
+    let handler = Arc::new(GitStatusHandler { workspace_root });
+
+    Tool::new(
+        "git_status",
+        "git_status",
+        "Show git repository status with staged, modified, deleted, and untracked files",
+        parameters,
+        handler,
+    )
+}
+
+// ============================================================================
+// Git Diff Tool
+// ============================================================================
+
+/// Git diff tool handler
+struct GitDiffHandler {
+    workspace_root: Arc<dyn WorkspaceRootProvider>,
+}
+
+#[async_trait]
+impl ToolHandler for GitDiffHandler {
+    async fn execute(&self, args: &ToolArguments) -> Result<ToolResult> {
+        let workspace_root = self.workspace_root.workspace_root().ok_or_else(|| {
+            OrchestrationError::Other("Workspace root not available".to_string())
+        })?;
+
+        let commit = args.get_string("commit");
+        let file_path = args.get_string("file_path");
+        let staged_only = args.get_bool("staged_only").unwrap_or(false);
+
+        let mut diff_cmd = Command::new("git");
+        diff_cmd.arg("diff");
+
+        if staged_only {
+            diff_cmd.arg("--cached");
+        }
+
+        if let Some(ref commit_ref) = commit {
+            diff_cmd.arg(commit_ref);
+        }
+
+        if let Some(ref path) = file_path {
+            diff_cmd.arg("--").arg(path);
+        }
+
+        diff_cmd.current_dir(&workspace_root);
+
+        let output = diff_cmd.output().await.map_err(|e| {
+            OrchestrationError::Other(format!("Failed to execute git diff: {}", e))
+        })?;
+
+        if !output.status.success() {
+            let error = String::from_utf8_lossy(&output.stderr);
+            return Err(OrchestrationError::Other(format!("git diff failed: {}", error)));
+        }
+
+        let diff_output = String::from_utf8_lossy(&output.stdout);
+        
+        if diff_output.trim().is_empty() {
+            Ok(ToolResult::success("No differences found".to_string()))
+        } else {
+            Ok(ToolResult::success(diff_output.to_string()))
+        }
+    }
+}
+
+/// Create the git_diff tool
+pub fn create_git_diff_tool(workspace_root: Arc<dyn WorkspaceRootProvider>) -> Tool {
+    let parameters = ToolParameters::new()
+        .add_property(
+            "commit",
+            "string",
+            "Optional commit reference to diff against (default: working directory vs HEAD)",
+            false,
+        )
+        .add_property(
+            "file_path",
+            "string",
+            "Optional file path to show diff for specific file only",
+            false,
+        )
+        .add_property(
+            "staged_only",
+            "boolean",
+            "Show only staged changes (--cached, default: false)",
+            false,
+        );
+
+    let handler = Arc::new(GitDiffHandler { workspace_root });
+
+    Tool::new(
+        "git_diff",
+        "git_diff",
+        "Show git diff for changes. Can filter by commit, file path, or show staged changes only.",
+        parameters,
+        handler,
+    )
+}
+
+// ============================================================================
+// Git Log Tool
+// ============================================================================
+
+/// Git log tool handler
+struct GitLogHandler {
+    workspace_root: Arc<dyn WorkspaceRootProvider>,
+}
+
+#[async_trait]
+impl ToolHandler for GitLogHandler {
+    async fn execute(&self, args: &ToolArguments) -> Result<ToolResult> {
+        let workspace_root = self.workspace_root.workspace_root().ok_or_else(|| {
+            OrchestrationError::Other("Workspace root not available".to_string())
+        })?;
+
+        let max_entries = args.get_i64("max_entries").unwrap_or(10) as usize;
+        let file_path = args.get_string("file_path");
+        let format = args.get_string("format").unwrap_or_else(|| "short".to_string());
+
+        let mut log_cmd = Command::new("git");
+        log_cmd.arg("log");
+
+        match format.as_str() {
+            "oneline" => {
+                log_cmd.arg("--oneline");
+            }
+            "short" => {
+                log_cmd.arg("--pretty=format:%h - %an, %ar : %s");
+            }
+            "full" => {
+                log_cmd.arg("--pretty=full");
+            }
+            _ => {
+                log_cmd.arg("--pretty=format:%h - %an, %ar : %s");
+            }
+        }
+
+        log_cmd.arg(format!("-{}", max_entries));
+
+        if let Some(ref path) = file_path {
+            log_cmd.arg("--").arg(path);
+        }
+
+        log_cmd.current_dir(&workspace_root);
+
+        let output = log_cmd.output().await.map_err(|e| {
+            OrchestrationError::Other(format!("Failed to execute git log: {}", e))
+        })?;
+
+        if !output.status.success() {
+            let error = String::from_utf8_lossy(&output.stderr);
+            return Err(OrchestrationError::Other(format!("git log failed: {}", error)));
+        }
+
+        let log_output = String::from_utf8_lossy(&output.stdout);
+        
+        if log_output.trim().is_empty() {
+            Ok(ToolResult::success("No commits found".to_string()))
+        } else {
+            Ok(ToolResult::success(log_output.to_string()))
+        }
+    }
+}
+
+/// Create the git_log tool
+pub fn create_git_log_tool(workspace_root: Arc<dyn WorkspaceRootProvider>) -> Tool {
+    let parameters = ToolParameters::new()
+        .add_property(
+            "max_entries",
+            "integer",
+            "Maximum number of log entries to return (default: 10)",
+            false,
+        )
+        .add_property(
+            "file_path",
+            "string",
+            "Optional file path to show log for specific file only",
+            false,
+        )
+        .add_property(
+            "format",
+            "string",
+            "Output format: 'short' (default), 'oneline', or 'full'",
+            false,
+        );
+
+    let handler = Arc::new(GitLogHandler { workspace_root });
+
+    Tool::new(
+        "git_log",
+        "git_log",
+        "Show git commit log. Can filter by file path and limit number of entries.",
+        parameters,
+        handler,
+    )
+}
+
+// ============================================================================
 // Public API
 // ============================================================================
 
@@ -344,7 +755,10 @@ pub fn create_git_extended_tools(workspace_root: Arc<dyn WorkspaceRootProvider>)
     vec![
         create_find_references_tool(Arc::clone(&workspace_root)),
         create_git_blame_tool(Arc::clone(&workspace_root)),
-        create_git_show_tool(workspace_root),
+        create_git_show_tool(Arc::clone(&workspace_root)),
+        create_git_status_tool(Arc::clone(&workspace_root)),
+        create_git_diff_tool(Arc::clone(&workspace_root)),
+        create_git_log_tool(workspace_root),
     ]
 }
 
@@ -405,9 +819,88 @@ mod tests {
         });
 
         let tools = create_git_extended_tools(workspace_root);
-        assert_eq!(tools.len(), 3);
+        assert_eq!(tools.len(), 6);
         assert_eq!(tools[0].name, "find_references");
         assert_eq!(tools[1].name, "git_blame");
         assert_eq!(tools[2].name, "git_show");
+        assert_eq!(tools[3].name, "git_status");
+        assert_eq!(tools[4].name, "git_diff");
+        assert_eq!(tools[5].name, "git_log");
+    }
+
+    #[tokio::test]
+    async fn test_git_status_tool_creation() {
+        let temp_dir = TempDir::new().unwrap();
+        let workspace_root = Arc::new(TestWorkspaceRoot {
+            root: temp_dir.path().to_path_buf(),
+        });
+
+        let tool = create_git_status_tool(workspace_root);
+        assert_eq!(tool.name, "git_status");
+    }
+
+    #[tokio::test]
+    async fn test_git_status_not_a_repo() {
+        let temp_dir = TempDir::new().unwrap();
+        let workspace_root = Arc::new(TestWorkspaceRoot {
+            root: temp_dir.path().to_path_buf(),
+        });
+
+        let tool = create_git_status_tool(workspace_root);
+        let args = ToolArguments::new(serde_json::json!({}));
+        let result = tool.execute(&args).await.unwrap();
+        
+        // Should return error for non-git repo
+        assert!(!result.success || result.output.contains("Not a git repository"));
+    }
+
+    #[tokio::test]
+    async fn test_git_status_in_git_repo() {
+        let temp_dir = TempDir::new().unwrap();
+        
+        // Initialize git repo
+        tokio::process::Command::new("git")
+            .arg("init")
+            .current_dir(temp_dir.path())
+            .output()
+            .await
+            .unwrap();
+        
+        // Create a test file
+        fs::write(temp_dir.path().join("test.txt"), "test").await.unwrap();
+        
+        let workspace_root = Arc::new(TestWorkspaceRoot {
+            root: temp_dir.path().to_path_buf(),
+        });
+
+        let tool = create_git_status_tool(workspace_root);
+        let args = ToolArguments::new(serde_json::json!({}));
+        let result = tool.execute(&args).await.unwrap();
+        
+        // Should succeed and show status
+        assert!(result.success);
+        assert!(result.output.contains("Branch:") || result.output.contains("Status:"));
+    }
+
+    #[tokio::test]
+    async fn test_git_diff_tool_creation() {
+        let temp_dir = TempDir::new().unwrap();
+        let workspace_root = Arc::new(TestWorkspaceRoot {
+            root: temp_dir.path().to_path_buf(),
+        });
+
+        let tool = create_git_diff_tool(workspace_root);
+        assert_eq!(tool.name, "git_diff");
+    }
+
+    #[tokio::test]
+    async fn test_git_log_tool_creation() {
+        let temp_dir = TempDir::new().unwrap();
+        let workspace_root = Arc::new(TestWorkspaceRoot {
+            root: temp_dir.path().to_path_buf(),
+        });
+
+        let tool = create_git_log_tool(workspace_root);
+        assert_eq!(tool.name, "git_log");
     }
 }

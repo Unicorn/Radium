@@ -251,6 +251,79 @@ impl From<std::io::Error> for FileOperationError {
     }
 }
 
+impl Clone for FileOperationError {
+    fn clone(&self) -> Self {
+        match self {
+            FileOperationError::PathNotFound { path, operation } => {
+                FileOperationError::PathNotFound {
+                    path: path.clone(),
+                    operation: operation.clone(),
+                }
+            }
+            FileOperationError::PermissionDenied {
+                path,
+                operation,
+                required_permission,
+            } => FileOperationError::PermissionDenied {
+                path: path.clone(),
+                operation: operation.clone(),
+                required_permission: required_permission.clone(),
+            },
+            FileOperationError::AlreadyExists { path, operation } => {
+                FileOperationError::AlreadyExists {
+                    path: path.clone(),
+                    operation: operation.clone(),
+                }
+            }
+            FileOperationError::WorkspaceBoundaryViolation {
+                path,
+                workspace_root,
+                reason,
+            } => FileOperationError::WorkspaceBoundaryViolation {
+                path: path.clone(),
+                workspace_root: workspace_root.clone(),
+                reason: reason.clone(),
+            },
+            FileOperationError::PatchConflict {
+                file,
+                line_number,
+                expected,
+                actual,
+            } => FileOperationError::PatchConflict {
+                file: file.clone(),
+                line_number: *line_number,
+                expected: expected.clone(),
+                actual: actual.clone(),
+            },
+            FileOperationError::InvalidInput {
+                operation,
+                field,
+                reason,
+            } => FileOperationError::InvalidInput {
+                operation: operation.clone(),
+                field: field.clone(),
+                reason: reason.clone(),
+            },
+            FileOperationError::IoError { path, operation, source } => {
+                FileOperationError::IoError {
+                    path: path.clone(),
+                    operation: operation.clone(),
+                    source: std::io::Error::new(source.kind(), source.to_string()),
+                }
+            }
+            FileOperationError::TransactionFailed {
+                operations_attempted,
+                failed_at,
+                reason,
+            } => FileOperationError::TransactionFailed {
+                operations_attempted: *operations_attempted,
+                failed_at: failed_at.clone(),
+                reason: reason.clone(),
+            },
+        }
+    }
+}
+
 /// Context information for errors.
 #[derive(Debug, Clone)]
 pub struct ErrorContext {

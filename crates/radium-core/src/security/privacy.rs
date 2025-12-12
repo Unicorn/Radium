@@ -172,6 +172,8 @@ impl PrivacyFilter {
                         success: true,
                         error_message: None,
                         session_id: None,
+                        user_id: None,
+                        policy_decision: None,
                         agent_id: agent_id.map(String::from),
                         pattern_type: Some(pattern_type.clone()),
                         redaction_count: Some(*count),

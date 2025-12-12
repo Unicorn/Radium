@@ -107,7 +107,7 @@ impl DaemonClient {
     /// # Returns
     /// True if daemon is healthy, false otherwise.
     pub async fn health_check(&mut self) -> Result<bool> {
-        let client = self.connect(None).await?;
+        let mut client = self.connect(None).await?;
         match client.ping(radium_core::proto::PingRequest {
             message: "health_check".to_string(),
         }).await {

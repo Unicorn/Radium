@@ -370,6 +370,8 @@ mod tests {
         let results = vec![ToolResult {
             success: true,
             output: "- Fix bug in authentication\n- Add error handling".to_string(),
+            is_error: false,
+            metadata: std::collections::HashMap::new(),
         }];
         let agent_ids = vec!["agent1".to_string()];
 
@@ -385,10 +387,14 @@ mod tests {
             ToolResult {
                 success: true,
                 output: "- Fix bug".to_string(),
+                is_error: false,
+                metadata: std::collections::HashMap::new(),
             },
             ToolResult {
                 success: true,
                 output: "- Add tests".to_string(),
+                is_error: false,
+                metadata: std::collections::HashMap::new(),
             },
         ];
         let agent_ids = vec!["agent1".to_string(), "agent2".to_string()];

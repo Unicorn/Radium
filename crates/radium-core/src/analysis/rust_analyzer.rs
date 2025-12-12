@@ -26,7 +26,7 @@ impl RustAnalyzer {
         let mut symbols = Vec::new();
         let root = tree.root_node();
         
-        self.extract_from_node(&root, source, &file_path, &mut symbols);
+        self.extract_from_node(root, source, &file_path, &mut symbols);
 
         Ok(symbols)
     }

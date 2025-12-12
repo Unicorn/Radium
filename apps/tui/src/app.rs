@@ -2244,12 +2244,28 @@ impl App {
                 radium_orchestrator::orchestration::events::OrchestrationEvent::ApprovalRequired {
                     tool_name,
                     reason,
-                    ..
+                    correlation_id,
                 } => {
+                    // Show approval message in conversation
                     self.prompt_data.add_conversation_message(
                         format!("⚠️ Approval required for {}: {}", tool_name, reason),
                         max_history,
                     );
+                    
+                    // Activate approval interrupt modal (similar to checkpoint interrupts)
+                    // Note: Full approval flow (pause, wait, resume) requires orchestrator
+                    // to support pausing execution, which is a future enhancement.
+                    // For now, we show the approval request but execution will abort.
+                    // TODO: Implement full approval flow with execution pause/resume
+                    if let Err(e) = self.activate_policy_interrupt(
+                        &correlation_id,
+                        0, // step_number - not applicable for orchestration
+                        tool_name.clone(),
+                        "N/A".to_string(), // Arguments not available in ApprovalRequired event
+                        reason.clone(),
+                    ) {
+                        tracing::warn!("Failed to activate policy interrupt: {}", e);
+                    }
                 }
                 radium_orchestrator::orchestration::events::OrchestrationEvent::Error { message, .. } => {
                     self.prompt_data.add_conversation_message(

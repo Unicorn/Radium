@@ -4,9 +4,8 @@
 //! stored in the cost_events table.
 
 use crate::monitoring::{MonitoringService, Result as MonitoringResult};
-use chrono::{Datelike, DateTime, Utc};
+use chrono::{Datelike, Utc};
 use rusqlite::params;
-use std::collections::HashMap;
 
 /// Represents a single cost event from the database.
 #[derive(Debug, Clone)]

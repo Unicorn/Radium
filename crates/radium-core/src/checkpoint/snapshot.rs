@@ -5,7 +5,7 @@ use serde_json;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH, Duration};
+use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
 /// Checkpoint expiration policy configuration.
