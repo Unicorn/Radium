@@ -249,16 +249,24 @@ impl Default for ToolExecutionConfig {
 ///
 /// # Example
 ///
-/// ```rust,no_run
+/// ```rust
 /// use radium_orchestrator::orchestration::validate_tool_mode;
+/// use radium_orchestrator::orchestration::tool::Tool;
 /// use radium_abstraction::{ToolUseMode, ModelResponse};
 ///
+/// // Mode ANY requires at least one available tool.
 /// let mode = ToolUseMode::Any;
-/// let tools = &[];
-/// let response = ModelResponse { /* ... */ };
+/// let tools: Vec<Tool> = vec![];
+/// let response = ModelResponse {
+///     content: "test".to_string(),
+///     model_id: None,
+///     usage: None,
+///     metadata: None,
+///     tool_calls: None,
+/// };
 ///
-/// // This will return InvalidToolMode error since ANY mode requires tools
-/// validate_tool_mode(&mode, tools, &response)?;
+/// // This returns InvalidToolMode since ANY mode requires tools.
+/// assert!(validate_tool_mode(&mode, &tools, &response).is_err());
 /// ```
 pub fn validate_tool_mode(
     mode: &radium_abstraction::ToolUseMode,

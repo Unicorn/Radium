@@ -230,21 +230,33 @@ impl CircuitBreaker {
         }
         
         // Update circuit state
-        let mut states = self.states.write().unwrap();
-        let state = states.entry(model_id.to_string()).or_insert(CircuitState::Closed);
-        
-        match *state {
-            CircuitState::HalfOpen => {
-                // Success in half-open state - transition to closed
-                *state = CircuitState::Closed;
-                debug!(model_id = model_id, "Circuit breaker: HalfOpen -> Closed (recovery successful)");
+        let mut recovered_from_half_open = false;
+        {
+            let mut states = self.states.write().unwrap();
+            let state = states.entry(model_id.to_string()).or_insert(CircuitState::Closed);
+
+            match *state {
+                CircuitState::HalfOpen => {
+                    // Success in half-open state - transition to closed
+                    *state = CircuitState::Closed;
+                    debug!(model_id = model_id, "Circuit breaker: HalfOpen -> Closed (recovery successful)");
+                    recovered_from_half_open = true;
+                }
+                CircuitState::Open(_) => {
+                    // Still in cooldown, don't change state
+                }
+                CircuitState::Closed => {
+                    // Keep closed; we may open once enough samples accumulate and failure rate is high.
+                }
             }
-            CircuitState::Open(_) => {
-                // Still in cooldown, don't change state
-            }
-            CircuitState::Closed => {
-                // Keep closed; we may open once enough samples accumulate and failure rate is high.
-            }
+        }
+
+        if recovered_from_half_open {
+            // After a successful half-open probe, reset health so we don't immediately reopen
+            // due to historical failures from the previously-open period.
+            let mut health_map = self.health.write().unwrap();
+            health_map.insert(model_id.to_string(), ModelHealth::new(self.window_duration));
+            return;
         }
 
         // Evaluate whether to open circuit based on the updated failure rate and sample size.
@@ -276,21 +288,23 @@ impl CircuitBreaker {
         };
         
         // Update circuit state
-        let mut states = self.states.write().unwrap();
-        let state = states.entry(model_id.to_string()).or_insert(CircuitState::Closed);
-        
-        match *state {
-            CircuitState::HalfOpen => {
-                // Failure in half-open state - transition back to open
-                *state = CircuitState::Open(SystemTime::now());
-                warn!(model_id = model_id, "Circuit breaker: HalfOpen -> Open (recovery failed)");
-            }
-            CircuitState::Open(_) => {
-                // Already open, no change needed
-            }
-            CircuitState::Closed => {
-                // Opening is handled by maybe_open_circuit to enforce min_samples.
-                let _ = failure_rate;
+        {
+            let mut states = self.states.write().unwrap();
+            let state = states.entry(model_id.to_string()).or_insert(CircuitState::Closed);
+
+            match *state {
+                CircuitState::HalfOpen => {
+                    // Failure in half-open state - transition back to open
+                    *state = CircuitState::Open(SystemTime::now());
+                    warn!(model_id = model_id, "Circuit breaker: HalfOpen -> Open (recovery failed)");
+                }
+                CircuitState::Open(_) => {
+                    // Already open, no change needed
+                }
+                CircuitState::Closed => {
+                    // Opening is handled by maybe_open_circuit to enforce min_samples.
+                    let _ = failure_rate;
+                }
             }
         }
 
@@ -421,7 +435,7 @@ mod tests {
         let model_id = "test-model";
         
         // Open the circuit
-        for _ in 0..6 {
+        for _ in 0..8 {
             breaker.record_failure(model_id);
         }
         assert!(breaker.should_skip(model_id));
@@ -445,7 +459,7 @@ mod tests {
         let model_id = "test-model";
         
         // Open the circuit
-        for _ in 0..6 {
+        for _ in 0..8 {
             breaker.record_failure(model_id);
         }
         
@@ -471,7 +485,7 @@ mod tests {
         let model_id = "test-model";
         
         // Open the circuit
-        for _ in 0..6 {
+        for _ in 0..8 {
             breaker.record_failure(model_id);
         }
         

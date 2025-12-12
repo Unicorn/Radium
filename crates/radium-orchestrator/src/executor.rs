@@ -1247,6 +1247,7 @@ impl QueueProcessor {
                             let task_id_clone = task_id.clone();
                             let agent_id_clone = agent_id.clone();
                             let cancellation_token_clone = cancellation_token.clone();
+                            let task_timeout = config.task_timeout;
 
                             tokio::spawn(async move {
                                 let _permit = permit; // Hold permit for task duration
@@ -1296,10 +1297,13 @@ impl QueueProcessor {
                                 // Execute with cancellation token support
                                 let execution_future = executor_clone.execute_agent_with_default_model(agent, &input, None as Option<&Arc<dyn HookExecutor>>);
                                 
-                                let execution_result = tokio::select! {
-                                    result = execution_future => {
-                                        // Normal execution completed
-                                        Ok(result)
+                                let execution_result: std::result::Result<ExecutionResult, String> = tokio::select! {
+                                    result = tokio::time::timeout(task_timeout, execution_future) => {
+                                        match result {
+                                            Ok(Ok(result)) => Ok(result),
+                                            Ok(Err(e)) => Err(format!("Model execution failed: {}", e)),
+                                            Err(_) => Err(format!("Task timed out after {:?}", task_timeout)),
+                                        }
                                     }
                                     _ = cancellation_token_clone.cancelled() => {
                                         // Task was cancelled
@@ -1315,7 +1319,7 @@ impl QueueProcessor {
                                 };
 
                                 match execution_result {
-                                    Ok(Ok(result)) => {
+                                    Ok(result) => {
                                         if result.success {
                                             info!(
                                                 task_id = %task_id_clone,
@@ -1332,15 +1336,6 @@ impl QueueProcessor {
                                             );
                                             let _ = lifecycle_clone.mark_error(&agent_id_clone).await;
                                         }
-                                    }
-                                    Ok(Err(e)) => {
-                                        error!(
-                                            task_id = %task_id_clone,
-                                            agent_id = %agent_id_clone,
-                                            error = %e,
-                                            "Task execution error"
-                                        );
-                                        let _ = lifecycle_clone.mark_error(&agent_id_clone).await;
                                     }
                                     Err(msg) if msg == "Task cancelled" => {
                                         // Already handled above, just clean up
