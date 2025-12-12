@@ -148,7 +148,7 @@ Hooks execute in priority order (higher priority = executes first). Default prio
 
 - **High priority (200+)**: Critical hooks that must run first
 - **Medium priority (100-199)**: Standard hooks
-- **Low priority (&lt;100)**: Optional hooks
+- **Low priority (<100)**: Optional hooks
 
 ## Next Steps
 

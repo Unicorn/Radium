@@ -173,7 +173,7 @@ ls -l spec.md
 rad extension list
 
 # Install extension
-rad extension install `<source>`
+rad extension install <source>
 ```
 
 ### "Extension installation failed"
@@ -186,7 +186,7 @@ rad extension install `<source>`
 # Check extension manifest structure
 
 # Try with overwrite
-rad extension install `<source>` --overwrite
+rad extension install <source> --overwrite
 ```
 
 ## Monitoring Issues

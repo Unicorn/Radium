@@ -1,7 +1,7 @@
 ---
 id: "api-reference"
 title: "Extension System API Reference"
-sidebar_label: "Extension System API Ref"
+sidebar_label: "Extension System API Reference"
 ---
 
 # Extension System API Reference

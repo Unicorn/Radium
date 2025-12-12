@@ -1,7 +1,7 @@
 ---
 id: "thinking-mode"
 title: "Thinking Mode for Complex Reasoning"
-sidebar_label: "Thinking Mode for Complex R..."
+sidebar_label: "Thinking Mode for Complex Reasoning"
 ---
 
 # Thinking Mode for Complex Reasoning

@@ -1,7 +1,7 @@
 ---
 id: "dag-dependencies"
 title: "DAG Dependency Management System"
-sidebar_label: "DAG Dependency Management S..."
+sidebar_label: "DAG Dependency Management System"
 ---
 
 # DAG Dependency Management System
@@ -190,7 +190,7 @@ T1 → T5
 
 - **CycleDetected**: Circular dependency found (includes cycle path)
 - **DependencyNotFound**: Referenced dependency doesn't exist
-- **InvalidTaskId**: Task ID has invalid format (should be "I[number].T[number]")
+- **InvalidTaskId**: Task ID has invalid format (should be "I{N}.T{N}")
 - **TopologicalSortFailed**: Sort failed (should not happen if cycle detection passed)
 
 ### Handling Errors
@@ -212,7 +212,7 @@ match DependencyGraph::from_manifest(&manifest) {
     }
     Err(DagError::InvalidTaskId(id)) => {
         println!("Invalid task ID format: {}", id);
-        // Fix task ID to match "I[number].T[number]" format
+        // Fix task ID to match "I{N}.T{N}" format
     }
     Err(e) => {
         println!("Unexpected error: {}", e);
@@ -290,7 +290,7 @@ Level 2: [T4]        (depends on T2 and T3)
 - **Topological Sort**: O(V + E) using Kahn's algorithm
 - **Execution Levels**: O(V + E) using BFS-like traversal
 
-For typical plans (10-50 tasks, 20-100 dependencies), all operations are very fast (&lt;1ms).
+For typical plans (10-50 tasks, 20-100 dependencies), all operations are very fast (<1ms).
 
 ## Best Practices
 

@@ -38,7 +38,7 @@ rad agents search <query> [--json]
 Show detailed information about an agent.
 
 ```bash
-rad agents info `<id>` [--json]
+rad agents info <id> [--json]
 ```
 
 #### `validate <id>`
@@ -46,7 +46,7 @@ rad agents info `<id>` [--json]
 Validate agent configuration.
 
 ```bash
-rad agents validate `<id>`
+rad agents validate <id>
 ```
 
 #### `create <id>`
@@ -54,7 +54,7 @@ rad agents validate `<id>`
 Create a new agent template.
 
 ```bash
-rad agents create `<id>`
+rad agents create <id>
 ```
 
 ### Examples
@@ -123,7 +123,7 @@ rad templates list [--json]
 Show template details.
 
 ```bash
-rad templates info `<id>` [--json]
+rad templates info <id> [--json]
 ```
 
 #### `validate <id>`
@@ -131,7 +131,7 @@ rad templates info `<id>` [--json]
 Validate template structure.
 
 ```bash
-rad templates validate `<id>`
+rad templates validate <id>
 ```
 
 ### Examples

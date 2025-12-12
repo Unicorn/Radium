@@ -1,7 +1,7 @@
 ---
 id: "plan-execution"
 title: "Plan Generation and Execution Commands"
-sidebar_label: "Plan Generation and Executi..."
+sidebar_label: "Plan Generation and Execution Commands"
 ---
 
 # Plan Generation and Execution Commands
@@ -15,7 +15,7 @@ Generate a structured plan from a specification file.
 ### Usage
 
 ```bash
-rad plan `<input>` [options]
+rad plan <input> [options]
 ```
 
 ### Arguments
@@ -99,7 +99,7 @@ Complete workflow from source to execution (automatically generates plan and exe
 ### Usage
 
 ```bash
-rad complete `<source>`
+rad complete <source>
 ```
 
 ### Arguments

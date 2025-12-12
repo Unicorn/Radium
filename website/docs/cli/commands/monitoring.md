@@ -1,7 +1,7 @@
 ---
 id: "monitoring"
 title: "Monitoring and Analytics Commands"
-sidebar_label: "Monitoring and Analytics Co..."
+sidebar_label: "Monitoring and Analytics Commands"
 ---
 
 # Monitoring and Analytics Commands

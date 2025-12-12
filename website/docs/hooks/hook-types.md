@@ -421,5 +421,5 @@ Recommended priorities by hook type:
 
 - **Critical (200+)**: Security checks, access control, critical validation
 - **Standard (100-199)**: Logging, transformation, standard validation
-- **Low (&lt;100)**: Optional monitoring, non-critical telemetry
+- **Low (<100)**: Optional monitoring, non-critical telemetry
 

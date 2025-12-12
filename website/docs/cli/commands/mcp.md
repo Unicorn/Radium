@@ -1,7 +1,7 @@
 ---
 id: "mcp"
 title: "MCP (Model Context Protocol) Commands"
-sidebar_label: "MCP (Model Context Protocol..."
+sidebar_label: "MCP (Model Context Protocol) Commands"
 ---
 
 # MCP (Model Context Protocol) Commands

@@ -1,7 +1,7 @@
 ---
 id: "api-reference"
 title: "Hooks System - API Reference"
-sidebar_label: "Hooks System - API Ref"
+sidebar_label: "Hooks System - API Reference"
 ---
 
 # Hooks System - API Reference
@@ -367,7 +367,7 @@ pub struct HookLoader {
     factories: HashMap<String, HookFactory>,
 }
 
-pub type HookFactory = fn(&HookDefinition) -> Result<Option<`Arc<dyn Hook>`>>;
+pub type HookFactory = fn(&HookDefinition) -> Result<Option<Arc<dyn Hook>>>;
 
 impl HookLoader {
     pub fn new() -> Self;

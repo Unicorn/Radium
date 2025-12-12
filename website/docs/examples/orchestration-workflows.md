@@ -1,7 +1,7 @@
 ---
 id: "orchestration-workflows"
 title: "Orchestration Workflow Examples"
-sidebar_label: "Orchestration Workflow Exam..."
+sidebar_label: "Orchestration Workflow Examples"
 ---
 
 # Orchestration Workflow Examples

@@ -1,7 +1,7 @@
 ---
 id: "performance"
 title: "Extension System Performance Guide"
-sidebar_label: "Extension System Performanc..."
+sidebar_label: "Extension System Performance Guide"
 ---
 
 # Extension System Performance Guide
@@ -12,11 +12,11 @@ This document provides performance guidelines, benchmarks, and optimization stra
 
 The extension system is designed to meet the following performance targets:
 
-- **Discovery**: &lt;100ms for discovering all extensions
-- **Installation**: &lt;500ms for typical extension installation
-- **Marketplace queries**: &lt;200ms for search operations
-- **Signature verification**: &lt;50ms per extension
-- **Dependency resolution**: &lt;100ms for typical dependency chains
+- **Discovery**: <100ms for discovering all extensions
+- **Installation**: <500ms for typical extension installation
+- **Marketplace queries**: <200ms for search operations
+- **Signature verification**: <50ms per extension
+- **Dependency resolution**: <100ms for typical dependency chains
 
 ## Benchmarking
 
@@ -152,7 +152,7 @@ perf report
 
 ### Manifest Optimization
 
-- Keep manifest files small (&lt;10KB)
+- Keep manifest files small (<10KB)
 - Minimize metadata
 - Use efficient JSON structure
 

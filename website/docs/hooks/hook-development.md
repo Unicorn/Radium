@@ -137,12 +137,12 @@ For model hooks, use `ModelHookAdapter`:
 use radium_core::hooks::model::ModelHookAdapter;
 use std::sync::Arc;
 
-pub fn create_before_hook() -> `Arc<dyn radium_core::hooks::registry::Hook>` {
+pub fn create_before_hook() -> Arc<dyn radium_core::hooks::registry::Hook> {
     let hook = Arc::new(MyModelHook::new("my-hook-before", 100));
     ModelHookAdapter::before(hook)
 }
 
-pub fn create_after_hook() -> `Arc<dyn radium_core::hooks::registry::Hook>` {
+pub fn create_after_hook() -> Arc<dyn radium_core::hooks::registry::Hook> {
     let hook = Arc::new(MyModelHook::new("my-hook-after", 100));
     ModelHookAdapter::after(hook)
 }

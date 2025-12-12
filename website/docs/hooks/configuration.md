@@ -1,7 +1,7 @@
 ---
 id: "configuration"
 title: "Hooks Configuration Reference"
-sidebar_label: "Hooks Config Ref"
+sidebar_label: "Hooks Configuration Reference"
 ---
 
 # Hooks Configuration Reference
@@ -289,7 +289,7 @@ This command:
 ### Priority Guidelines
 - Reserve priorities 200+ for critical system hooks
 - Use 100-199 for standard application hooks
-- Use &lt;100 for optional or experimental hooks
+- Use <100 for optional or experimental hooks
 
 ### Organization
 - Group related hooks in the same file

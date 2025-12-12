@@ -114,7 +114,7 @@ View detailed model usage statistics:
 
 ```bash
 rad stats model                    # Aggregated across all sessions
-rad stats model --session-id `<id>`  # For specific session
+rad stats model --session-id <id>  # For specific session
 rad stats model --json             # JSON output
 ```
 
@@ -135,7 +135,7 @@ TOTAL                               196     31,117,343         46,690         17
 View engine-specific performance metrics:
 
 ```bash
-rad stats engine --session-id `<id>`
+rad stats engine --session-id <id>
 rad stats engine --json
 ```
 
@@ -214,7 +214,7 @@ Export session data to JSON:
 ```bash
 rad stats export                    # Export all sessions to stdout
 rad stats export --output data.json # Export to file
-rad stats export --session-id `<id>` # Export specific session
+rad stats export --session-id <id> # Export specific session
 ```
 
 ## Troubleshooting

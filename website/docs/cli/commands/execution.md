@@ -15,7 +15,7 @@ Execute a single agent with optional input.
 ### Usage
 
 ```bash
-rad step `<id>` [prompt...] [options]
+rad step <id> [prompt...] [options]
 ```
 
 ### Arguments

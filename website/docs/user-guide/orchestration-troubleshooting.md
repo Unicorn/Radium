@@ -1,7 +1,7 @@
 ---
 id: "orchestration-troubleshooting"
 title: "Orchestration Troubleshooting Guide"
-sidebar_label: "Orchestration Troubleshooti..."
+sidebar_label: "Orchestration Troubleshooting Guide"
 ---
 
 # Orchestration Troubleshooting Guide

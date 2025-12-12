@@ -1,7 +1,7 @@
 ---
 id: "context-cache-api"
 title: "Context Cache API Reference"
-sidebar_label: "Context Cache API Ref"
+sidebar_label: "Context Cache API Reference"
 ---
 
 # Context Cache API Reference

@@ -1,7 +1,7 @@
 ---
 id: "command-patterns"
 title: "CLI Command Implementation Patterns"
-sidebar_label: "CLI Command Implementation ..."
+sidebar_label: "CLI Command Implementation Patterns"
 ---
 
 # CLI Command Implementation Patterns

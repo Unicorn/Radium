@@ -101,7 +101,7 @@ The system supports 13 hook types organized into four categories:
 Hooks execute in priority order:
 - **Higher priority (200+)**: Critical hooks that must run first
 - **Medium priority (100-199)**: Standard hooks
-- **Low priority (&lt;100)**: Optional hooks
+- **Low priority (<100)**: Optional hooks
 
 Priority is set when creating a hook and cannot be changed after registration.
 
@@ -212,7 +212,7 @@ This adapter bridges the hooks system with the orchestrator without creating cir
 
 The entire hooks system is designed for concurrent access:
 
-- **`Arc<RwLock<>>`**: Registry uses `Arc<RwLock>` for thread-safe access
+- **Arc<RwLock<>>**: Registry uses `Arc<RwLock>` for thread-safe access
 - **Send + Sync**: All hooks must be `Send + Sync`
 - **Async Execution**: All hook execution is async, enabling non-blocking operations
 

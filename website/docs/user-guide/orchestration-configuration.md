@@ -1,7 +1,7 @@
 ---
 id: "orchestration-configuration"
 title: "Orchestration Configuration Guide"
-sidebar_label: "Orchestration Config Guide"
+sidebar_label: "Orchestration Configuration Guide"
 ---
 
 # Orchestration Configuration Guide

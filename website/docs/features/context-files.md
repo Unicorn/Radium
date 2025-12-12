@@ -171,7 +171,7 @@ Context Files
 ### Show Context for Path
 
 ```bash
-rad context show `<path>`
+rad context show <path>
 ```
 
 Shows which context files would be loaded for a specific path, along with their loading order and a preview of the merged content.

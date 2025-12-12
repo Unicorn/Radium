@@ -56,7 +56,7 @@ Options:
 Show detailed information about a hook.
 
 ```bash
-rad hooks info `<name>` [--json]
+rad hooks info <name> [--json]
 ```
 
 #### `enable <name>`
@@ -64,7 +64,7 @@ rad hooks info `<name>` [--json]
 Enable a hook.
 
 ```bash
-rad hooks enable `<name>`
+rad hooks enable <name>
 ```
 
 #### `disable <name>`
@@ -72,7 +72,7 @@ rad hooks enable `<name>`
 Disable a hook.
 
 ```bash
-rad hooks disable `<name>`
+rad hooks disable <name>
 ```
 
 ### Examples
@@ -113,7 +113,7 @@ rad context list
 Show context file content.
 
 ```bash
-rad context show `<file>`
+rad context show <file>
 ```
 
 #### `validate`
@@ -164,7 +164,7 @@ rad custom run <command>
 Create a custom command.
 
 ```bash
-rad custom create `<name>`
+rad custom create <name>
 ```
 
 #### `validate <command>`

@@ -106,7 +106,7 @@ Central manager for MCP server connections:
 - Manages multiple server connections
 - Coordinates tool and prompt discovery
 - Handles configuration precedence (workspace > extension)
-- Thread-safe with `Arc<Mutex<>>`
+- Thread-safe with Arc<Mutex<>>
 
 ### McpClient
 
@@ -146,7 +146,7 @@ If a server name exists in both, workspace config takes precedence.
 
 ## Thread Safety
 
-All shared state uses `Arc<Mutex<>>`:
+All shared state uses Arc<Mutex<>>:
 - `McpIntegration::clients` - Thread-safe client storage
 - `McpIntegration::tool_registries` - Thread-safe registry access
 - `McpIntegration::slash_registry` - Thread-safe command registry

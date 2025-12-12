@@ -38,23 +38,23 @@ cargo bench -p radium-cli --bench workspace_bench
 
 ### Command Startup
 
-- **Cold start**: &lt;100ms (excluding dependency loading)
-- **Warm start**: &lt;50ms
-- **Command parsing**: &lt;10ms
+- **Cold start**: <100ms (excluding dependency loading)
+- **Warm start**: <50ms
+- **Command parsing**: <10ms
 
 ### Common Operations
 
-- **Workspace discovery**: &lt;50ms (even in deep directory trees)
-- **Agent list**: &lt;200ms (for 100+ agents)
-- **Status command**: &lt;300ms (including all checks)
-- **Plan generation**: &lt;2s (excluding AI model calls)
-- **JSON output**: &lt;10ms overhead per command
+- **Workspace discovery**: <50ms (even in deep directory trees)
+- **Agent list**: <200ms (for 100+ agents)
+- **Status command**: <300ms (including all checks)
+- **Plan generation**: <2s (excluding AI model calls)
+- **JSON output**: <10ms overhead per command
 
 ### File Operations
 
-- **Workspace init**: &lt;500ms
-- **File reading**: &lt;100ms per file
-- **Directory traversal**: &lt;200ms for typical workspace
+- **Workspace init**: <500ms
+- **File reading**: <100ms per file
+- **Directory traversal**: <200ms for typical workspace
 
 ## Optimization Strategies
 
@@ -223,7 +223,7 @@ fn test_command_performance() {
     let duration = start.elapsed();
     assert!(
         duration.as_millis() < 1000,
-        "Command took {}ms, target is &lt;1000ms",
+        "Command took {}ms, target is <1000ms",
         duration.as_millis()
     );
 }
@@ -233,9 +233,9 @@ fn test_command_performance() {
 
 ### Targets
 
-- **Command startup**: &lt;10MB
-- **Typical command execution**: &lt;50MB
-- **Large operations (plan generation)**: &lt;200MB
+- **Command startup**: <10MB
+- **Typical command execution**: <50MB
+- **Large operations (plan generation)**: <200MB
 
 ### Monitoring
 

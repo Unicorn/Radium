@@ -1,7 +1,7 @@
 ---
 id: "vibe-check"
 title: "Vibe Check (Metacognitive Oversight)"
-sidebar_label: "Vibe Check (Metacognitive O..."
+sidebar_label: "Vibe Check (Metacognitive Oversight)"
 ---
 
 # Vibe Check (Metacognitive Oversight)

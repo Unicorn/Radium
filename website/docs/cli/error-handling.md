@@ -90,7 +90,7 @@ if !is_authenticated(&engine) {
 
 **Pattern:**
 ```
-Error: Plan `<id>` not found: <reason>. Use 'rad plan' to create one or 'rad craft' to list available plans.
+Error: Plan <id> not found: <reason>. Use 'rad plan' to create one or 'rad craft' to list available plans.
 ```
 
 **Implementation:**
@@ -106,7 +106,7 @@ let plan = workspace.find_plan(&plan_id)
 
 **Pattern:**
 ```
-Error: Agent `<id>` not found: <reason>. Use 'rad agents list' to see available agents.
+Error: Agent <id> not found: <reason>. Use 'rad agents list' to see available agents.
 ```
 
 **Implementation:**
@@ -122,7 +122,7 @@ let agent = discovery.find_agent(&agent_id)
 
 **Pattern:**
 ```
-Error: File not found: `<path>`. <suggestion>
+Error: File not found: <path>. <suggestion>
 ```
 
 **Implementation:**

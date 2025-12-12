@@ -1,7 +1,7 @@
 ---
 id: "integration-guide"
 title: "Extension System Integration Guide"
-sidebar_label: "Extension System Integratio..."
+sidebar_label: "Extension System Integration Guide"
 ---
 
 # Extension System Integration Guide

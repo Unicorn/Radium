@@ -1,7 +1,7 @@
 ---
 id: "orchestration-testing"
 title: "Orchestration System Testing Guide"
-sidebar_label: "Orchestration System Testin..."
+sidebar_label: "Orchestration System Testing Guide"
 ---
 
 # Orchestration System Testing Guide
@@ -98,7 +98,7 @@ The orchestration system allows users to interact naturally with Radium without 
 5. Verify status again
 
 **Expected Results**:
-- Confirmation message: "✅ Switched to [provider] successfully"
+- Confirmation message: "✅ Switched to {provider} successfully"
 - Status shows new provider
 - Next orchestration request uses new provider
 

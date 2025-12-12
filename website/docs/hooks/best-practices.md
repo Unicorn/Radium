@@ -1,7 +1,7 @@
 ---
 id: "best-practices"
 title: "Hook Development Best Practices"
-sidebar_label: "Hook Development Best Pract..."
+sidebar_label: "Hook Development Best Practices"
 ---
 
 # Hook Development Best Practices
@@ -55,7 +55,7 @@ impl ModelHook for LoggingAndValidationHook {
 **Guidelines**:
 - **High Priority (200+)**: Security checks, critical validation, access control
 - **Medium Priority (100-199)**: Standard operations, logging, transformation
-- **Low Priority (&lt;100)**: Optional monitoring, non-critical telemetry
+- **Low Priority (<100)**: Optional monitoring, non-critical telemetry
 
 **Good**:
 ```rust
@@ -346,7 +346,7 @@ pub struct LoggingHook {
 }
 ```
 
-### Low Priority (&lt;100)
+### Low Priority (<100)
 
 Use for:
 - Optional monitoring

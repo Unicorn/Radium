@@ -154,13 +154,13 @@ use std::sync::Arc;
 use radium_core::hooks::model::ModelHookAdapter;
 
 /// Create a before model call hook adapter.
-pub fn create_before_hook() -> `Arc<dyn radium_core::hooks::registry::Hook>` {
+pub fn create_before_hook() -> Arc<dyn radium_core::hooks::registry::Hook> {
     let hook = Arc::new(RequestLoggerHook::new("tutorial-logger-before", 100));
     ModelHookAdapter::before(hook)
 }
 
 /// Create an after model call hook adapter.
-pub fn create_after_hook() -> `Arc<dyn radium_core::hooks::registry::Hook>` {
+pub fn create_after_hook() -> Arc<dyn radium_core::hooks::registry::Hook> {
     let hook = Arc::new(RequestLoggerHook::new("tutorial-logger-after", 100));
     ModelHookAdapter::after(hook)
 }
@@ -218,7 +218,7 @@ To use your hook, you need to register it. Create a simple registration example:
 use radium_core::hooks::registry::HookRegistry;
 use std::sync::Arc;
 
-pub async fn register_tutorial_hooks(registry: &`Arc<HookRegistry>`) -> Result<()> {
+pub async fn register_tutorial_hooks(registry: &Arc<HookRegistry>) -> Result<()> {
     registry.register(create_before_hook()).await?;
     registry.register(create_after_hook()).await?;
     Ok(())
