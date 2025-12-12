@@ -456,12 +456,12 @@ pub async fn list(project_id: Option<String>) -> anyhow::Result<()> {
 
     for req in &response.requirements {
         let status_colored = match req.status.as_str() {
-            "COMPLETED" => req.status.green(),
-            "IN_PROGRESS" => req.status.cyan(),
-            "REVIEW" => req.status.yellow(),
-            "PLANNED" => req.status.blue(),
+            "COMPLETED" => req.status.color(colors.success()),
+            "IN_PROGRESS" => req.status.color(colors.primary()),
+            "REVIEW" => req.status.color(colors.warning()),
+            "PLANNED" => req.status.color(colors.info()),
             "IDEA" => req.status.dimmed(),
-            "CANCELLED" => req.status.red(),
+            "CANCELLED" => req.status.color(colors.error()),
             _ => req.status.white(),
         };
 
@@ -470,9 +470,9 @@ pub async fn list(project_id: Option<String>) -> anyhow::Result<()> {
             req.task_progress.progress_percentage
         );
         let progress_colored = if req.task_progress.progress_percentage == 100 {
-            progress_bar.green()
+            progress_bar.color(colors.success())
         } else if req.task_progress.progress_percentage > 0 {
-            progress_bar.yellow()
+            progress_bar.color(colors.warning())
         } else {
             progress_bar.dimmed()
         };
@@ -492,7 +492,7 @@ pub async fn list(project_id: Option<String>) -> anyhow::Result<()> {
 
         println!(
             "{:<12} {:<50} {:<15} {:<10} {:<15}",
-            req.short_id.cyan(),
+            req.short_id.color(colors.primary()),
             name,
             status_colored,
             progress_colored,
