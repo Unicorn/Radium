@@ -21,6 +21,7 @@ use super::{
     hooks::ToolHookExecutor,
     project_scan_tool,
     search_tool,
+    symbol_search_tool,
     terminal_tool::{self, WorkspaceRootProvider as TerminalWorkspaceRootProvider, SandboxManager as TerminalSandboxManager},
     tool::Tool,
     providers::{
@@ -148,6 +149,12 @@ impl OrchestrationService {
             let search_tool_count = search_tools.len();
             tools.extend(search_tools);
             tracing::info!("Added {} search tools to orchestration", search_tool_count);
+
+            // Add symbol search tools
+            let symbol_tools = symbol_search_tool::create_symbol_search_tools(workspace_provider.clone());
+            let symbol_tool_count = symbol_tools.len();
+            tools.extend(symbol_tools);
+            tracing::info!("Added {} symbol search tools to orchestration", symbol_tool_count);
 
             // Add terminal command tool
             let terminal_workspace_provider: Arc<dyn TerminalWorkspaceRootProvider> = Arc::new(SimpleWorkspaceRootProvider {

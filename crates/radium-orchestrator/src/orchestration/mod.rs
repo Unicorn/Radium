@@ -23,6 +23,7 @@ pub mod project_scan_tool;
 pub mod providers;
 pub mod search_tool;
 pub mod service;
+pub mod symbol_search_tool;
 pub mod terminal_tool;
 pub mod tool;
 pub mod tool_builder;
