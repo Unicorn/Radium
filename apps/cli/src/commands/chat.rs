@@ -31,7 +31,7 @@ use crate::conversation_context::ConversationContext;
 /// * `agent_id` - The agent to chat with
 /// * `session_name` - Optional session name (defaults to timestamp-based)
 /// * `resume` - Whether to resume an existing session
-pub async fn execute(agent_id: String, session_name: Option<String>, resume: bool, _stream: bool, _show_metadata: bool, json: bool, safety_behavior: Option<String>) -> Result<()> {
+pub async fn execute(agent_id: String, session_name: Option<String>, resume: bool, _stream: bool, _show_metadata: bool, _json: bool, _safety_behavior: Option<String>) -> Result<()> {
     // Get workspace
     let workspace =
         Workspace::discover().context("Failed to load workspace. Run 'rad init' first.")?;

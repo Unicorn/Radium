@@ -53,7 +53,7 @@ pub mod event_renderer;
 // Re-export types for convenience
 pub use types::{AgentsCommand, AuthCommand, EnginesCommand, ExtensionCommand, ToolsCommand};
 pub use types::{CustomCommand, TemplatesCommand, BraingridCommand, CacheCommand, SecretCommand};
-pub use types::{TrainCommand, AwsTrainCommand};
+pub use types::TrainCommand;
 pub use context::ContextCommand;
 pub use budget::BudgetCommand;
 pub use constitution::ConstitutionCommand;
