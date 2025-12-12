@@ -580,7 +580,7 @@ async fn execute_persona_list(json_output: bool) -> anyhow::Result<()> {
 
     for (_, agent) in agents.iter() {
         if let Some(persona) = &agent.persona_config {
-            let mut _estimated_cost = 0.0;
+            let mut estimated_cost = 0.0;
             let estimated_tokens = persona.performance.estimated_tokens.unwrap_or(2000);
             let input_tokens = (estimated_tokens as f64 * 0.7) as u64;
             let output_tokens = (estimated_tokens as f64 * 0.3) as u64;

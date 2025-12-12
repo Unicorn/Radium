@@ -165,7 +165,7 @@ async fn show_budget_status(json_output: bool) -> anyhow::Result<()> {
         if let Ok(Some((manager, _))) = get_budget_manager_with_analytics() {
             if let Ok(analytics) = manager.get_analytics() {
                 if let Some(ref forecast) = analytics.forecast {
-                    let days_color = if forecast.days_remaining <= 3 {
+                    let _days_color = if forecast.days_remaining <= 3 {
                         "red"
                     } else if forecast.days_remaining <= 7 {
                         "yellow"
@@ -296,7 +296,7 @@ async fn show_forecast(json_output: bool) -> anyhow::Result<()> {
 }
 
 /// Show comprehensive budget analytics.
-async fn show_analyze(json_output: bool, days: u32) -> anyhow::Result<()> {
+async fn show_analyze(json_output: bool, _days: u32) -> anyhow::Result<()> {
     let Some((manager, config)) = get_budget_manager_with_analytics()? else {
         println!("{}", "Budget analytics unavailable. Set a budget and ensure monitoring database exists.".yellow());
         return Ok(());
