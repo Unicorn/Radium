@@ -80,6 +80,8 @@ impl RadiumTheme {
 
                 // Use preset
                 match config.theme.preset.as_str() {
+                    "radium" => Self::radium(),
+                    "dark" => Self::dark(),
                     "light" => Self::light(),
                     "github" => Self::github(),
                     "monokai" => Self::monokai(),
@@ -218,6 +220,44 @@ impl RadiumTheme {
             // Background colors - matches codemachine
             bg_primary: Color::Rgb(24, 29, 39), // #181D27 (darkStep1)
             bg_panel: Color::Rgb(20, 20, 20),   // #141414 (darkStep2)
+            bg_element: Color::Rgb(30, 30, 30), // Dark gray
+
+            // Border colors
+            border: Color::Rgb(72, 72, 72),        // Medium gray
+            border_active: Color::Rgb(96, 96, 96), // Lighter gray
+            border_subtle: Color::Rgb(60, 60, 60), // Subtle gray
+        }
+    }
+
+    /// Creates the Radium brand theme preset.
+    ///
+    /// This is the official Radium brand color palette, matching the default
+    /// dark theme. Use this preset to explicitly select Radium brand colors.
+    pub fn radium() -> Self {
+        // Radium brand theme uses the same colors as dark theme
+        // This method provides an explicit "radium" preset option
+        Self {
+            // Primary: Cyan (#00D9FF) - Radium brand primary
+            primary: Color::Rgb(0, 217, 255),
+            // Secondary: Purple (#A78BFA) - Radium brand secondary
+            secondary: Color::Rgb(167, 139, 250),
+            // Purple: (#6250d0) - Radium brand purple accent
+            purple: Color::Rgb(98, 80, 208),
+
+            // Status colors
+            success: Color::Rgb(16, 185, 129), // Green
+            warning: Color::Rgb(245, 158, 11), // Yellow
+            error: Color::Rgb(239, 68, 68),    // Red
+            info: Color::Rgb(6, 182, 212),     // Blue
+
+            // Text colors
+            text: Color::Rgb(238, 238, 238),       // #eeeeee
+            text_muted: Color::Rgb(128, 128, 128), // #808080
+            text_dim: Color::Rgb(96, 96, 96),      // Dark Gray
+
+            // Background colors
+            bg_primary: Color::Rgb(24, 29, 39), // #181D27
+            bg_panel: Color::Rgb(20, 20, 20),   // #141414
             bg_element: Color::Rgb(30, 30, 30), // Dark gray
 
             // Border colors
