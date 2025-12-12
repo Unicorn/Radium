@@ -39,7 +39,8 @@ impl ProgressReporter {
         println!("{}", "=".repeat(80));
         println!();
 
-        // Create overall progress bar
+        // Create overall progress bar with Radium brand colors
+        // Note: indicatif uses named colors; .cyan matches Radium primary (#00D9FF), .green matches success (#10B981)
         let overall_progress = multi_progress.add(ProgressBar::new(total_tasks as u64));
         overall_progress.set_style(
             ProgressStyle::default_bar()

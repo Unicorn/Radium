@@ -6,6 +6,8 @@
 use anyhow::{anyhow, Result};
 use colored::*;
 use indicatif::{ProgressBar, ProgressStyle};
+
+use crate::colors::RadiumBrandColors;
 use radium_abstraction::{
     ChatMessage, MessageContent, Model, ModelResponse, Tool as AbstractionTool, ToolCall,
     ToolConfig,
@@ -83,15 +85,17 @@ pub async fn execute_tool_call(
         .find(|t| t.name == tool_call.name)
         .ok_or_else(|| anyhow!("Tool not found: {}", tool_call.name))?;
 
-    // Create progress spinner
+    // Create progress spinner with Radium brand colors
+    // Note: indicatif uses named colors in templates; .cyan matches our primary brand color
+    let colors = RadiumBrandColors::new();
     let spinner = ProgressBar::new_spinner();
     spinner.set_style(
         ProgressStyle::default_spinner()
             .tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈ ")
-            .template("{spinner:.cyan} {msg}")
+            .template("{spinner:.cyan} {msg}") // .cyan matches Radium primary brand color (#00D9FF)
             .unwrap()
     );
-    spinner.set_message(format!("Executing {}...", tool_call.name.cyan()));
+    spinner.set_message(format!("Executing {}...", tool_call.name.color(colors.primary())));
     spinner.enable_steady_tick(Duration::from_millis(100));
 
     // Execute the tool using the execute method

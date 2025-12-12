@@ -93,6 +93,7 @@ impl McpIntegration {
         
         #[cfg(feature = "mcp-progress")]
         let progress_bar = if total_servers > 0 {
+            // Use Radium brand colors: .cyan matches primary (#00D9FF), .green matches success (#10B981)
             let pb = ProgressBar::new(total_servers as u64);
             pb.set_style(
                 ProgressStyle::default_bar()
