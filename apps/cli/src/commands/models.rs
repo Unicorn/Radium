@@ -174,28 +174,28 @@ async fn test_model(model_id: &str) -> Result<()> {
         .with_context(|| format!("Failed to validate model '{}'", model_id))?;
 
     if validation.config_valid {
-        println!("    {} Configuration valid", "✓".green());
+        println!("    {} Configuration valid", "✓".color(colors.success()));
     } else {
-        println!("    {} Configuration invalid", "✗".red());
+        println!("    {} Configuration invalid", "✗".color(colors.error()));
         if let Some(ref msg) = validation.error_message {
-            println!("      {}", msg.red());
+            println!("      {}", msg.color(colors.error()));
         }
         println!();
-        println!("  {}", "Validation failed. Fix configuration issues and try again.".red());
+        println!("  {}", "Validation failed. Fix configuration issues and try again.".color(colors.error()));
         return Ok(());
     }
 
     // Stage 2: Credential check
     println!("  {}", "Stage 2: Credential check".dimmed());
     if validation.credentials_available {
-        println!("    {} Credentials found", "✓".green());
+        println!("    {} Credentials found", "✓".color(colors.success()));
     } else {
-        println!("    {} Credentials missing", "✗".red());
+        println!("    {} Credentials missing", "✗".color(colors.error()));
         if let Some(ref msg) = validation.error_message {
-            println!("      {}", msg.red());
+            println!("      {}", msg.color(colors.error()));
         }
         println!();
-        println!("  {}", "Validation failed. Configure credentials and try again.".red());
+        println!("  {}", "Validation failed. Configure credentials and try again.".color(colors.error()));
         return Ok(());
     }
 
@@ -206,11 +206,11 @@ async fn test_model(model_id: &str) -> Result<()> {
     let api_duration = start.elapsed();
 
     if available {
-        println!("    {} API connection successful ({:?})", "✓".green(), api_duration);
+        println!("    {} API connection successful ({:?})", "✓".color(colors.success()), api_duration);
     } else {
-        println!("    {} API not reachable", "✗".red());
+        println!("    {} API not reachable", "✗".color(colors.error()));
         println!();
-        println!("  {}", "Validation failed. Check network connectivity and try again.".red());
+        println!("  {}", "Validation failed. Check network connectivity and try again.".color(colors.error()));
         return Ok(());
     }
 
@@ -228,17 +228,17 @@ async fn test_model(model_id: &str) -> Result<()> {
             let token_count = response.content.split_whitespace().count();
             println!(
                 "    {} Test generation completed ({} tokens in {:?})",
-                "✓".green(),
+                "✓".color(colors.success()),
                 token_count,
                 gen_duration
             );
             println!();
-            println!("  {}", "All validation stages passed!".green().bold());
+            println!("  {}", "All validation stages passed!".color(colors.success()).bold());
         }
         Err(e) => {
-            println!("    {} Test generation failed: {}", "✗".red(), e);
+            println!("    {} Test generation failed: {}", "✗".color(colors.error()), e);
             println!();
-            println!("  {}", "Validation failed. Check API connectivity and credentials.".red());
+            println!("  {}", "Validation failed. Check API connectivity and credentials.".color(colors.error()));
             return Ok(());
         }
     }
@@ -262,7 +262,8 @@ async fn warm_models(
         .context("Failed to load cache configuration")?;
 
     if !cache_config.enabled {
-        println!("{}", "Cache is disabled in configuration.".yellow());
+        let colors = RadiumBrandColors::new();
+        println!("{}", "Cache is disabled in configuration.".color(colors.warning()));
         return Ok(());
     }
 
@@ -428,9 +429,10 @@ async fn warm_from_config(
 /// Display warm progress for a model.
 fn display_warm_progress(provider: &str, model: &str, duration: std::time::Duration, success: bool) {
     let status = if success {
-        "✓".green()
+        let colors = RadiumBrandColors::new();
+        "✓".color(colors.success())
     } else {
-        "✗".red()
+        "✗".color(colors.error())
     };
 
     let duration_ms = duration.as_millis();
@@ -448,7 +450,8 @@ async fn clear_cache(provider: Option<String>, model: Option<String>) -> Result<
         .context("Failed to load cache configuration")?;
 
     if !cache_config.enabled {
-        println!("{}", "Cache is disabled in configuration.".yellow());
+        let colors = RadiumBrandColors::new();
+        println!("{}", "Cache is disabled in configuration.".color(colors.warning()));
         return Ok(());
     }
 
@@ -464,10 +467,11 @@ async fn clear_cache(provider: Option<String>, model: Option<String>) -> Result<
         })?;
         let key = radium_models::CacheKey::new(model_type, mod_name.to_string(), None);
         if cache.remove(&key) {
-            println!("{}", format!("Cleared {}/{} from cache", prov, key.model_name).green());
+            let colors = RadiumBrandColors::new();
+            println!("{}", format!("Cleared {}/{} from cache", prov, key.model_name).color(colors.success()));
             1
         } else {
-            println!("{}", format!("Model {}/{} not found in cache", prov, key.model_name).yellow());
+            println!("{}", format!("Model {}/{} not found in cache", prov, key.model_name).color(colors.warning()));
             0
         }
     } else if let Some(ref prov) = provider {
@@ -493,16 +497,18 @@ async fn clear_cache(provider: Option<String>, model: Option<String>) -> Result<
         }
 
         if cleared > 0 {
-            println!("{}", format!("Cleared {} models from {} provider", cleared, prov).green());
+            let colors = RadiumBrandColors::new();
+            println!("{}", format!("Cleared {} models from {} provider", cleared, prov).color(colors.success()));
         } else {
-            println!("{}", format!("No {} models found in cache", prov).yellow());
+            println!("{}", format!("No {} models found in cache", prov).color(colors.warning()));
         }
         cleared
     } else {
         // Clear entire cache
         let stats_before = cache.get_stats();
         cache.clear();
-        println!("{}", format!("Cleared {} models from cache", stats_before.cache_size).green());
+        let colors = RadiumBrandColors::new();
+        println!("{}", format!("Cleared {} models from cache", stats_before.cache_size).color(colors.success()));
         stats_before.cache_size
     };
 
@@ -579,7 +585,8 @@ async fn cache_status(json_output: bool) -> Result<()> {
     } else {
         // Formatted table output
         println!();
-        println!("{}", "Model Cache Status".bold().cyan());
+        let colors = RadiumBrandColors::new();
+        println!("{}", "Model Cache Status".bold().color(colors.primary()));
         println!("{}", "=".repeat(50));
         println!();
 
@@ -607,7 +614,7 @@ async fn cache_status(json_output: bool) -> Result<()> {
 
                 println!(
                     "{:<12} {:<25} {:<15} {:<10} {:<12}",
-                    provider_str.cyan(),
+                    provider_str.color(colors.primary()),
                     key.model_name,
                     last_accessed.dimmed(),
                     cached.access_count,
@@ -692,7 +699,8 @@ async fn file_upload(
     mime_type: Option<String>,
     display_name: Option<String>,
 ) -> Result<()> {
-    println!("{}", "rad models file upload".bold().cyan());
+    let colors = RadiumBrandColors::new();
+    println!("{}", "rad models file upload".bold().color(colors.primary()));
     println!();
 
     // Get API key
@@ -706,7 +714,7 @@ async fn file_upload(
     let file_api = GeminiFileApi::with_api_key(api_key);
 
     println!("{}", "Uploading file...".dimmed());
-    println!("  Path: {}", path.display().to_string().cyan());
+    println!("  Path: {}", path.display().to_string().color(colors.primary()));
 
     // Upload file
     let file = file_api
@@ -715,22 +723,22 @@ async fn file_upload(
         .context("Failed to upload file")?;
 
     println!();
-    println!("  {} File uploaded successfully", "✓".green());
+    println!("  {} File uploaded successfully", "✓".color(colors.success()));
     println!();
     println!("{}", "File Details:".bold());
-    println!("  Name: {}", file.name.cyan());
-    println!("  URI: {}", file.uri.cyan());
-    println!("  State: {}", format!("{:?}", file.state).green());
+    println!("  Name: {}", file.name.color(colors.primary()));
+    println!("  URI: {}", file.uri.color(colors.primary()));
+    println!("  State: {}", format!("{:?}", file.state).color(colors.success()));
     println!("  Size: {}", format_file_size(file.size_bytes));
-    println!("  MIME Type: {}", file.mime_type.cyan());
+    println!("  MIME Type: {}", file.mime_type.color(colors.primary()));
     if let Some(display) = &file.display_name {
-        println!("  Display Name: {}", display.cyan());
+        println!("  Display Name: {}", display.color(colors.primary()));
     }
     let expires_in = file.expire_time.signed_duration_since(Utc::now());
     if expires_in.num_seconds() > 0 {
         println!("  Expires In: {}", format_duration(expires_in.to_std().unwrap()));
     } else {
-        println!("  Expires In: {}", "Expired".red());
+        println!("  Expires In: {}", "Expired".color(colors.error()));
     }
     println!();
 
@@ -739,7 +747,8 @@ async fn file_upload(
 
 /// List all uploaded files.
 async fn file_list() -> Result<()> {
-    println!("{}", "rad models file list".bold().cyan());
+    let colors = RadiumBrandColors::new();
+    println!("{}", "rad models file list".bold().color(colors.primary()));
     println!();
 
     // Get API key
@@ -762,7 +771,7 @@ async fn file_list() -> Result<()> {
 
     println!();
     if files.is_empty() {
-        println!("  {} No files found", "ℹ".blue());
+        println!("  {} No files found", "ℹ".color(colors.info()));
         println!();
         return Ok(());
     }
@@ -771,7 +780,7 @@ async fn file_list() -> Result<()> {
         "{}",
         format!("📋 Uploaded Files ({})", files.len())
             .bold()
-            .cyan()
+            .color(colors.primary())
     );
     println!();
 
@@ -795,13 +804,13 @@ async fn file_list() -> Result<()> {
 
         let state_str = match file.state {
             radium_models::gemini::file_api::FileState::Active => {
-                format!("{:?}", file.state).green().to_string()
+                format!("{:?}", file.state).color(colors.success()).to_string()
             }
             radium_models::gemini::file_api::FileState::Processing => {
-                format!("{:?}", file.state).yellow().to_string()
+                format!("{:?}", file.state).color(colors.warning()).to_string()
             }
             radium_models::gemini::file_api::FileState::Failed => {
-                format!("{:?}", file.state).red().to_string()
+                format!("{:?}", file.state).color(colors.error()).to_string()
             }
         };
 
@@ -809,12 +818,12 @@ async fn file_list() -> Result<()> {
         let expires_str = if expires_in.num_seconds() > 0 {
             format_duration(expires_in.to_std().unwrap())
         } else {
-            "Expired".red().to_string()
+            "Expired".color(colors.error()).to_string()
         };
 
         println!(
             "{:<30} {:<12} {:<12} {:<20}",
-            name.cyan(),
+            name.color(colors.primary()),
             state_str,
             format_file_size(file.size_bytes),
             expires_str
@@ -827,7 +836,8 @@ async fn file_list() -> Result<()> {
 
 /// Delete a file from Gemini File API.
 async fn file_delete(file_id: String) -> Result<()> {
-    println!("{}", "rad models file delete".bold().cyan());
+    let colors = RadiumBrandColors::new();
+    println!("{}", "rad models file delete".bold().color(colors.primary()));
     println!();
 
     // Get API key
@@ -841,7 +851,7 @@ async fn file_delete(file_id: String) -> Result<()> {
     let file_api = GeminiFileApi::with_api_key(api_key);
 
     println!("{}", "Deleting file...".dimmed());
-    println!("  File ID: {}", file_id.cyan());
+    println!("  File ID: {}", file_id.color(colors.primary()));
 
     // Delete file
     file_api
@@ -850,7 +860,7 @@ async fn file_delete(file_id: String) -> Result<()> {
         .context("Failed to delete file")?;
 
     println!();
-    println!("  {} File deleted successfully", "✓".green());
+    println!("  {} File deleted successfully", "✓".color(colors.success()));
     println!();
 
     Ok(())
