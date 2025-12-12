@@ -4,14 +4,13 @@ use anyhow::Context;
 use clap::Subcommand;
 use colored::Colorize;
 use radium_core::mcp::proxy::{
-    DefaultSecurityLayer, DefaultToolCatalog, DefaultToolRouter, HealthChecker, ProxyConfig,
-    ProxyConfigManager, ProxyServer, ProxyTransport, SecurityConfig, UpstreamPool,
+    DefaultSecurityLayer, DefaultToolCatalog, DefaultToolRouter, HealthChecker,
+    ProxyConfigManager, ProxyServer, UpstreamPool,
 };
 use radium_core::mcp::proxy::types::{ConflictStrategy, SecurityLayer as SecurityLayerTrait};
 use radium_core::workspace::Workspace;
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
 use std::process;
 use std::sync::Arc;
 

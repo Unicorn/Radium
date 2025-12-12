@@ -8,8 +8,6 @@ use radium_core::workspace::Workspace;
 use serde::Serialize;
 use std::fs;
 use std::io::{self, Write};
-use std::path::PathBuf;
-use uuid::Uuid;
 
 /// Session management subcommands
 #[derive(Subcommand, Debug)]

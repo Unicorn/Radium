@@ -12,7 +12,7 @@ use radium_core::engines::{
 use radium_core::engines::providers::{BurnEngine, ClaudeEngine, GeminiEngine, MockEngine, OpenAIEngine};
 use radium_core::workspace::Workspace;
 use radium_models::gemini::file_api::GeminiFileApi;
-use radium_models::{CacheKey, ModelCache, ModelConfig, ModelType};
+use radium_models::{ModelCache, ModelConfig, ModelType};
 use serde_json::json;
 use std::collections::HashSet;
 use std::path::PathBuf;
