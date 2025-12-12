@@ -138,6 +138,14 @@ async fn retry_with_backoff(
 }
 
 /// Execute tool calls concurrently with max_parallel limit enforcement.
+///
+/// This function spawns each tool call as a separate tokio task, allowing them to execute
+/// in parallel. A semaphore is used to limit the maximum number of concurrent executions
+/// (controlled by `config.max_parallel`). Results are collected and returned in the same
+/// order as the input tool calls, regardless of completion order.
+///
+/// Performance: When N tools each take T time, concurrent execution completes in ~T time
+/// (plus overhead), compared to N*T time for sequential execution.
 async fn execute_concurrent(
     calls: &[ToolCall],
     tools: &[Tool],

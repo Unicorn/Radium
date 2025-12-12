@@ -20,6 +20,10 @@ use crate::error::{OrchestrationError, Result};
 use tracing::warn;
 
 /// Configuration for orchestration engine
+///
+/// The engine uses parallel execution by default. When multiple tool calls are requested,
+/// they execute concurrently using `tokio::spawn`, significantly improving performance
+/// compared to sequential execution. The `tool_execution` configuration controls this behavior.
 #[derive(Debug, Clone)]
 pub struct EngineConfig {
     /// Maximum number of tool execution iterations
@@ -27,6 +31,10 @@ pub struct EngineConfig {
     /// Maximum time (in seconds) for entire orchestration
     pub timeout_seconds: u64,
     /// Configuration for executing multiple tool calls (concurrency, batching, timeouts)
+    ///
+    /// Defaults to `FunctionExecutionStrategy::Concurrent`, which executes all tool calls
+    /// in parallel. This provides significant performance improvements when multiple independent
+    /// tools need to be executed (e.g., multiple agent tools working on different subtasks).
     pub tool_execution: ToolExecutionConfig,
 }
 
@@ -301,12 +309,22 @@ impl OrchestrationEngine {
     }
 
     /// Execute all tool calls and collect results
+    ///
+    /// This method executes tool calls according to the configured execution strategy.
+    /// By default, tool calls execute concurrently in parallel using `tokio::spawn`,
+    /// which provides significant performance improvements when multiple independent tools
+    /// are called (e.g., multiple agent tools working on different subtasks).
+    ///
+    /// When hooks are not installed, this uses the optimized parallel execution path.
+    /// When hooks are installed, tools execute sequentially to ensure proper hook ordering.
     async fn execute_tools(
         &self,
         correlation_id: &str,
         tool_calls: &[ToolCall],
     ) -> Result<Vec<crate::orchestration::tool::ToolResult>> {
         // Fast path: when no hooks are installed, use the shared parallel execution engine.
+        // This executes all tool calls concurrently, providing significant performance
+        // improvements for multi-agent scenarios where multiple tools can run in parallel.
         if self.hook_executor.is_none() {
             // Emit "started" for each tool call upfront (execution may run concurrently).
             for call in tool_calls {
@@ -316,6 +334,8 @@ impl OrchestrationEngine {
                 });
             }
 
+            // Execute tools concurrently according to tool_execution configuration.
+            // Default strategy is Concurrent, which uses tokio::spawn for parallel execution.
             let raw_results = execute_tool_calls(tool_calls, &self.tools, &self.config.tool_execution).await;
             let mut results = Vec::with_capacity(raw_results.len());
             for res in raw_results {
