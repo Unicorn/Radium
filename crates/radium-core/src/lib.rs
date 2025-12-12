@@ -45,8 +45,11 @@ pub mod planning;
 pub mod playbooks;
 pub mod policy;
 pub mod prompts;
+pub mod analysis;
 pub mod sandbox;
 // pub mod server;  // TEMPORARILY DISABLED: depends on radium-orchestrator (circular dependency)
+pub mod search;
+pub mod session;
 pub mod security;
 #[cfg(feature = "syntax")]
 pub mod syntax;

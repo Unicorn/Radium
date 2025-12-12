@@ -77,12 +77,10 @@ impl FileOperationHandler {
 
         // Get optional line range parameters
         let start_line: Option<usize> = args
-            .get("start_line")
-            .and_then(|v| v.as_u64())
+            .get_i64("start_line")
             .map(|n| n as usize);
         let end_line: Option<usize> = args
-            .get("end_line")
-            .and_then(|v| v.as_u64())
+            .get_i64("end_line")
             .map(|n| n as usize);
 
         match fs::read_to_string(&resolved_path).await {
