@@ -1,7 +1,7 @@
 ---
 id: "agent-configuration-system"
 title: "Agent Configuration System Architecture"
-sidebar_label: "Agent Config System Archite..."
+sidebar_label: "Agent Configuration System Architecture"
 ---
 
 # Agent Configuration System Architecture

@@ -1,7 +1,7 @@
 ---
 id: "api-reference"
 title: "Monitoring System API Reference"
-sidebar_label: "Monitoring System API Ref"
+sidebar_label: "Monitoring System API Reference"
 ---
 
 # Monitoring System API Reference

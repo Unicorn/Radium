@@ -1,7 +1,7 @@
 ---
 id: "migration"
 title: "Cloud-to-Self-Hosted Migration Guide"
-sidebar_label: "Cloud-to-Self-Hosted Migrat..."
+sidebar_label: "Cloud-to-Self-Hosted Migration Guide"
 ---
 
 # Cloud-to-Self-Hosted Migration Guide

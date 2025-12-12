@@ -1,7 +1,7 @@
 ---
 id: "migration-guide"
 title: "Migration Guide: Plaintext to Encrypted Vault"
-sidebar_label: "Migration Guide: Plaintext ..."
+sidebar_label: "Migration Guide: Plaintext to Encrypted ..."
 ---
 
 # Migration Guide: Plaintext to Encrypted Vault

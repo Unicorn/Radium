@@ -1,7 +1,7 @@
 ---
 id: "coverage-analysis-REQ-172"
 title: "Coverage Analysis Report for REQ-172"
-sidebar_label: "Coverage Analysis Report fo..."
+sidebar_label: "Coverage Analysis Report for REQ-172"
 ---
 
 # Coverage Analysis Report for REQ-172
@@ -34,7 +34,7 @@ sidebar_label: "Coverage Analysis Report fo..."
 
 ## Module-Level Coverage Analysis
 
-### Modules with Low Coverage (&lt;70%)
+### Modules with Low Coverage (<70%)
 
 These modules require immediate attention:
 

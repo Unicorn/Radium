@@ -1,7 +1,7 @@
 ---
 id: "architecture"
 title: "Editor Integration Architecture"
-sidebar_label: "Editor Integration Architec..."
+sidebar_label: "Editor Integration Architecture"
 ---
 
 # Editor Integration Architecture

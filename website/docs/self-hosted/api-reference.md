@@ -1,7 +1,7 @@
 ---
 id: "api-reference"
 title: "Model Trait and Provider Abstraction API Reference"
-sidebar_label: "Model Trait and Provider Ab..."
+sidebar_label: "Model Trait and Provider Abstraction API..."
 ---
 
 # Model Trait and Provider Abstraction API Reference

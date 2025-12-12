@@ -1,7 +1,7 @@
 ---
 id: "monitoring-integration"
 title: "Monitoring and Telemetry Integration"
-sidebar_label: "Monitoring and Telemetry In..."
+sidebar_label: "Monitoring and Telemetry Integration"
 ---
 
 # Monitoring and Telemetry Integration

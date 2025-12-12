@@ -1,7 +1,7 @@
 ---
 id: "agent-config"
 title: "Agent Configuration for Self-Hosted Models"
-sidebar_label: "Agent Config for Self-Hoste..."
+sidebar_label: "Agent Configuration for Self-Hosted Mode..."
 ---
 
 # Agent Configuration for Self-Hosted Models

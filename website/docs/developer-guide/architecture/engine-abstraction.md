@@ -1,7 +1,7 @@
 ---
 id: "engine-abstraction"
 title: "Engine Abstraction Layer Architecture"
-sidebar_label: "Engine Abstraction Layer Ar..."
+sidebar_label: "Engine Abstraction Layer Architecture"
 ---
 
 # Engine Abstraction Layer Architecture
@@ -95,7 +95,7 @@ The registry pattern centralizes engine management:
 │ EngineRegistry  │
 │                 │
 │ ┌─────────────┐ │
-│ │  Engines    │ │─── HashMap<String, `Arc<dyn Engine>`>
+│ │  Engines    │ │─── HashMap<String, Arc<dyn Engine>>
 │ │  (HashMap)  │ │
 │ └─────────────┘ │
 │                 │

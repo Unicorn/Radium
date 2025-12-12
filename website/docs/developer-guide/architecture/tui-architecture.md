@@ -1,7 +1,7 @@
 ---
 id: "tui-architecture"
 title: "TUI Architecture Documentation"
-sidebar_label: "TUI Architecture Docs"
+sidebar_label: "TUI Architecture Documentation"
 ---
 
 # TUI Architecture Documentation

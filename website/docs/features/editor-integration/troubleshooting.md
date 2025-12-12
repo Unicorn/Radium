@@ -1,7 +1,7 @@
 ---
 id: "troubleshooting"
 title: "Editor Integration Troubleshooting"
-sidebar_label: "Editor Integration Troubles..."
+sidebar_label: "Editor Integration Troubleshooting"
 ---
 
 # Editor Integration Troubleshooting

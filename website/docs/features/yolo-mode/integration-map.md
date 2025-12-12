@@ -16,7 +16,7 @@ This document maps existing Radium systems to YOLO Mode requirements and identif
 ## 🗺️ System Integration Overview
 
 ```
-User Command: "rad complete `<source>`"
+User Command: "rad complete <source>"
      ↓
 [Source Verification] → REQ-165 → SourceReader Registry
      ↓

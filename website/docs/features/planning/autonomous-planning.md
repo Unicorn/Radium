@@ -70,7 +70,7 @@ rad plan "Use unknown-agent to implement feature"
 
 ### Stage 3: Dependency Reference Validation
 
-Ensures all dependency references use valid task ID format (`I[number].T[number]`):
+Ensures all dependency references use valid task ID format (`I{N}.T{N}`):
 
 ```bash
 # Valid dependency reference
@@ -148,7 +148,7 @@ Common validation errors and how to fix them:
 
 **Error**: `Invalid task ID format: INVALID`
 
-**Fix**: Use format `I[number].T[number]` where number is the iteration/task number.
+**Fix**: Use format `I{N}.T{N}` where N is the iteration/task number.
 
 ## Best Practices
 

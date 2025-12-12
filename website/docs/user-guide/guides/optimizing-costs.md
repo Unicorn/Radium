@@ -173,7 +173,7 @@ rad stats session
 ```
 
 Look for:
-- Low success rate (&lt;90% indicates problems)
+- Low success rate (<90% indicates problems)
 - High number of failed tool calls
 - Patterns in failures (specific tools or operations)
 

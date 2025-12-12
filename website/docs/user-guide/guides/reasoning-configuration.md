@@ -1,7 +1,7 @@
 ---
 id: "reasoning-configuration"
 title: "Reasoning Configuration Guide"
-sidebar_label: "Reasoning Config Guide"
+sidebar_label: "Reasoning Configuration Guide"
 ---
 
 # Reasoning Configuration Guide

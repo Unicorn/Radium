@@ -1,7 +1,7 @@
 ---
 id: "coverage-backlog"
 title: "Prioritized Testing Backlog for REQ-172"
-sidebar_label: "Prioritized Testing Backlog..."
+sidebar_label: "Prioritized Testing Backlog for REQ-172"
 ---
 
 # Prioritized Testing Backlog for REQ-172

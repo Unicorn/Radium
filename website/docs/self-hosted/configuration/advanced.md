@@ -1,7 +1,7 @@
 ---
 id: "advanced"
 title: "Advanced Configuration Guide"
-sidebar_label: "Advanced Config Guide"
+sidebar_label: "Advanced Configuration Guide"
 ---
 
 # Advanced Configuration Guide

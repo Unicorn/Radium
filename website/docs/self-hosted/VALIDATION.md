@@ -1,7 +1,7 @@
 ---
 id: "VALIDATION"
 title: "Documentation Validation Summary"
-sidebar_label: "Docs Validation Summary"
+sidebar_label: "Documentation Validation Summary"
 ---
 
 # Documentation Validation Summary
