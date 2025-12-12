@@ -6,6 +6,8 @@ use colored::Colorize;
 use radium_core::checkpoint::CheckpointManager;
 use radium_core::workspace::Workspace;
 
+use crate::colors::RadiumBrandColors;
+
 /// Checkpoint subcommands
 #[derive(Subcommand, Debug)]
 pub enum CheckpointCommand {
