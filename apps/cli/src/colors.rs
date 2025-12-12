@@ -63,13 +63,20 @@ impl RadiumBrandColors {
     }
 
     // Brand color RGB values (matching TUI theme)
-    const PRIMARY_RGB: (u8, u8, u8) = (0, 217, 255);      // #00D9FF
-    const SECONDARY_RGB: (u8, u8, u8) = (167, 139, 250); // #A78BFA
-    const PURPLE_RGB: (u8, u8, u8) = (98, 80, 208);      // #6250d0
-    const SUCCESS_RGB: (u8, u8, u8) = (16, 185, 129);    // #10B981
-    const WARNING_RGB: (u8, u8, u8) = (245, 158, 11);    // #F59E0B
-    const ERROR_RGB: (u8, u8, u8) = (239, 68, 68);       // #EF4444
-    const INFO_RGB: (u8, u8, u8) = (6, 182, 212);        // #06B6D4
+    /// Primary brand color RGB: Cyan (#00D9FF)
+    pub const PRIMARY_RGB: (u8, u8, u8) = (0, 217, 255);
+    /// Secondary brand color RGB: Purple (#A78BFA)
+    pub const SECONDARY_RGB: (u8, u8, u8) = (167, 139, 250);
+    /// Purple accent color RGB: (#6250d0)
+    pub const PURPLE_RGB: (u8, u8, u8) = (98, 80, 208);
+    /// Success color RGB: Green (#10B981)
+    pub const SUCCESS_RGB: (u8, u8, u8) = (16, 185, 129);
+    /// Warning color RGB: Yellow (#F59E0B)
+    pub const WARNING_RGB: (u8, u8, u8) = (245, 158, 11);
+    /// Error color RGB: Red (#EF4444)
+    pub const ERROR_RGB: (u8, u8, u8) = (239, 68, 68);
+    /// Info color RGB: Blue (#06B6D4)
+    pub const INFO_RGB: (u8, u8, u8) = (6, 182, 212);
 
     /// Convert RGB to colored::Color based on terminal capabilities.
     fn rgb_to_color(&self, rgb: (u8, u8, u8)) -> Color {

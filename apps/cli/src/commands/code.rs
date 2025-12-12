@@ -5,11 +5,13 @@
 
 use anyhow::{Context, Result};
 use colored::Colorize;
-use comfy_table::{Cell, Table};
+use comfy_table::{Cell, Color as ComfyColor, Table};
 use radium_core::{
     code_blocks::{BlockSelector, CodeBlockStore},
     Workspace,
 };
+
+use crate::colors::RadiumBrandColors;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -100,6 +102,10 @@ async fn list_blocks(workspace_root: &Path, session_id: Option<String>) -> Resul
     let mut table = Table::new();
     table.set_header(vec!["Index", "Language", "Preview"]);
 
+    // Use Radium brand colors
+    let primary_rgb = RadiumBrandColors::PRIMARY_RGB;
+    let warning_rgb = RadiumBrandColors::WARNING_RGB;
+
     for block in &blocks {
         let preview = preview_content(&block.content, 3);
         let lang = block
@@ -109,8 +115,18 @@ async fn list_blocks(workspace_root: &Path, session_id: Option<String>) -> Resul
             .to_string();
 
         table.add_row(vec![
-            Cell::new(block.index.to_string()).fg(comfy_table::Color::Cyan),
-            Cell::new(lang).fg(comfy_table::Color::Yellow),
+            Cell::new(block.index.to_string())
+                .fg(ComfyColor::Rgb {
+                    r: primary_rgb.0,
+                    g: primary_rgb.1,
+                    b: primary_rgb.2,
+                }),
+            Cell::new(lang)
+                .fg(ComfyColor::Rgb {
+                    r: warning_rgb.0,
+                    g: warning_rgb.1,
+                    b: warning_rgb.2,
+                }),
             Cell::new(preview),
         ]);
     }
