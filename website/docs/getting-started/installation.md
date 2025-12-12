@@ -17,21 +17,13 @@ This guide will help you install Radium on your system.
   - Google AI API key (for Gemini models)
   - OpenAI API key (for GPT models)
 
-## Quick Install (Recommended)
+## Installation Methods
 
-The fastest way to install Radium is using the install script:
+Radium can be installed from source (recommended) or from pre-built binaries when available.
 
-```bash
-curl -sSf https://raw.githubusercontent.com/clay-curry/RAD/main/install.sh | sh
-```
+### From Source (Recommended)
 
-This will:
-1. Download the latest Radium release
-2. Install the `rad` CLI tool
-3. Add Radium to your PATH
-4. Verify the installation
-
-## Manual Installation
+This is the recommended installation method as it ensures you have the latest version:
 
 ### From Pre-built Binaries
 
@@ -52,8 +44,6 @@ This will:
    rad --version
    ```
 
-### From Source
-
 1. Clone the repository:
    ```bash
    git clone https://github.com/clay-curry/RAD.git
@@ -67,10 +57,26 @@ This will:
 
 3. The compiled binary will be at `./target/release/rad`
 
-4. Optionally install system-wide:
+4. Install system-wide (recommended):
    ```bash
    cargo install --path apps/cli
    ```
+
+   This will install the `rad` command to your Cargo bin directory (typically `~/.cargo/bin/`). Make sure this directory is in your PATH.
+
+### Quick Install Script (Alternative)
+
+If you prefer an automated installation, you can use the install script:
+
+```bash
+curl -sSf https://raw.githubusercontent.com/clay-curry/RAD/main/install.sh | sh
+```
+
+**Note**: The install script builds from source, so it requires Rust to be installed. It will:
+1. Clone the repository
+2. Build the project
+3. Install the `rad` CLI tool
+4. Add Radium to your PATH (if not already in Cargo bin PATH)
 
 ## Configuration
 
@@ -131,4 +137,4 @@ If you see authentication errors, ensure your API key is correctly set:
 echo $ANTHROPIC_API_KEY  # Should output your API key
 ```
 
-For more help, see the [Troubleshooting Guide](../user-guide/troubleshooting.md) or [open an issue](https://github.com/clay-curry/RAD/issues).
+For more help, see the [CLI Troubleshooting Guide](../cli/troubleshooting.md) or [open an issue](https://github.com/clay-curry/RAD/issues).

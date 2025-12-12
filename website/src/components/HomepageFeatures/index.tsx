@@ -43,6 +43,39 @@ const FeatureList: FeatureItem[] = [
       </>
     ),
   },
+  {
+    title: 'Metacognitive Oversight',
+    Svg: require('@site/static/img/undraw_docusaurus_mountain.svg').default,
+    description: (
+      <>
+        Vibe Check system provides Chain-Pattern Interrupt functionality to prevent
+        reasoning lock-in. Research shows +27% success rate and -41% reduction in
+        harmful actions.
+      </>
+    ),
+  },
+  {
+    title: 'Policy Engine',
+    Svg: require('@site/static/img/undraw_docusaurus_tree.svg').default,
+    description: (
+      <>
+        Fine-grained tool execution control with rule-based policies and approval
+        modes. Ensure security and prevent unwanted operations with context-aware
+        policy enforcement.
+      </>
+    ),
+  },
+  {
+    title: 'Learning System',
+    Svg: require('@site/static/img/undraw_docusaurus_react.svg').default,
+    description: (
+      <>
+        Track mistakes, preferences, and successes to build pattern recognition.
+        ACE Skillbook learns and applies successful strategies from past work
+        to continuously improve agent performance.
+      </>
+    ),
+  },
 ];
 
 function Feature({title, Svg, description}: FeatureItem) {

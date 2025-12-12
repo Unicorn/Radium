@@ -253,8 +253,8 @@ The protocol specifications define how components are exchanged, valued, and gov
 
 ### Recent Updates
 
-- **2025-01-XX**: Protocol specifications roadmap created
-- **2025-01-XX**: Economic model design in planning phase
+- **2025-01-15**: Protocol specifications roadmap created
+- **2025-01-15**: Economic model design in planning phase
 
 ## Related Documentation
 

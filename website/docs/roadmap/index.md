@@ -59,9 +59,9 @@ Radium is evolving toward a comprehensive platform for self-assembling intellige
 
 ### Recent Updates
 
-- **2025-01-XX**: Roadmap structure created and published
-- **2025-01-XX**: Vision document extracted from OpenKor whitepapers
-- **2025-01-XX**: Technical architecture roadmap established
+- **2025-01-15**: Roadmap structure created and published
+- **2025-01-15**: Vision document extracted from OpenKor whitepapers
+- **2025-01-15**: Technical architecture roadmap established
 
 ## Key Innovations
 

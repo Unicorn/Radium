@@ -58,6 +58,21 @@ Built in Rust for:
 - Desktop app for visual workflow management
 - MCP (Model Context Protocol) integration
 
+### 🧠 Metacognitive Oversight (Vibe Check)
+Chain-Pattern Interrupt system for preventing reasoning lock-in. Research shows +27% success rate and -41% reduction in harmful actions. Provides phase-aware feedback and risk assessment.
+
+### 📚 Learning System & ACE Skillbook
+Track mistakes, preferences, and successes to build pattern recognition. The ACE Skillbook learns and applies successful strategies from past work to continuously improve agent performance.
+
+### 📈 Session Analytics
+Comprehensive tracking of costs, performance, and optimization opportunities. Monitor token usage, analyze performance metrics, compare sessions, and track cache effectiveness.
+
+### 🎭 Persona System
+Intelligent model selection, cost optimization, and automatic fallback chains. Automatically selects the best model for each task while managing costs and ensuring reliability.
+
+### 🧠 Thinking Mode
+Deep reasoning support for complex problems with transparent thinking process display. Enables agents to show their reasoning steps for better understanding and debugging.
+
 ### 🧩 Composable Intelligence (Future)
 - **Component Foundry Pattern** - Systematic component creation and validation
 - **Global Component Graph** - Discover and compose components across the ecosystem
@@ -72,6 +87,12 @@ The fastest way to get started is:
 
 1. **Install Radium**
    ```bash
+   # From source (recommended)
+   git clone https://github.com/clay-curry/RAD.git
+   cd RAD
+   cargo install --path apps/cli
+
+   # Or use the install script
    curl -sSf https://raw.githubusercontent.com/clay-curry/RAD/main/install.sh | sh
    ```
 

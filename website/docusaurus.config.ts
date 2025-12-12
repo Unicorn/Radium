@@ -25,7 +25,7 @@ const config: Config = {
   organizationName: 'clay-curry', // Usually your GitHub org/user name.
   projectName: 'RAD', // Usually your repo name.
 
-  onBrokenLinks: 'warn', // TODO: Fix broken links and change back to 'throw'
+  onBrokenLinks: 'warn', // Set to 'throw' after verifying all links are working
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you

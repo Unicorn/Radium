@@ -248,8 +248,8 @@ The governance and operations framework enables:
 
 ### Recent Updates
 
-- **2025-01-XX**: Governance and operations roadmap created
-- **2025-01-XX**: Federation structure in planning phase
+- **2025-01-15**: Governance and operations roadmap created
+- **2025-01-15**: Federation structure in planning phase
 
 ## Governance Principles
 

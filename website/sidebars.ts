@@ -44,11 +44,11 @@ const sidebars: SidebarsConfig = {
       label: 'Roadmap',
       collapsed: false,
       items: [
-        'roadmap/roadmap',
-        'roadmap/roadmap-vision',
-        'roadmap/roadmap-technical-architecture',
-        'roadmap/roadmap-protocol-specifications',
-        'roadmap/roadmap-governance-operations',
+        'roadmap/index',
+        'roadmap/vision',
+        'roadmap/technical-architecture',
+        'roadmap/protocol-specifications',
+        'roadmap/governance-operations',
       ],
     },
 
@@ -154,7 +154,6 @@ const sidebars: SidebarsConfig = {
             'features/editor-integration/tui-enhanced-chat-interface',
             'features/editor-integration/clipboard',
             'features/editor-integration/troubleshooting',
-            'features/editor-integration/tui-enhanced-chat-interface',
           ],
         },
         {
@@ -292,7 +291,6 @@ const sidebars: SidebarsConfig = {
         'self-hosted/migration',
         'self-hosted/VALIDATION',
         'self-hosted/api-reference',
-        'self-hosted/universal-provider-guide',
         'self-hosted/troubleshooting',
         {
           type: 'category',
