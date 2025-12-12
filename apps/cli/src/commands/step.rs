@@ -482,7 +482,7 @@ pub async fn execute(
         
         // Display metadata if requested
         if show_metadata {
-            if let Some(ref metadata) = response.metadata {
+            if let Some(ref _metadata) = response.metadata {
                 println!();
                 println!("{}", "Metadata:".bold().dimmed());
                 format_metadata_display(response);
@@ -713,7 +713,7 @@ async fn process_file(
             .map_err(|e| anyhow::anyhow!("Failed to upload file {}: {}", path.display(), e))?;
 
         // Determine content block type based on file extension/MIME type
-        let extension = path
+        let _extension = path
             .extension()
             .and_then(|ext| ext.to_str())
             .map(|s| s.to_lowercase())
