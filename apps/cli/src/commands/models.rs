@@ -21,6 +21,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use toml;
 
+use crate::colors::RadiumBrandColors;
+
 /// Execute the models command.
 pub async fn execute(command: ModelsCommand) -> Result<()> {
     match command {
@@ -68,6 +70,7 @@ fn init_registry() -> EngineRegistry {
 
 /// List all configured models with their status.
 async fn list_models(json_output: bool) -> Result<()> {
+    let colors = RadiumBrandColors::new();
     let registry = init_registry();
     let engines = registry
         .list_available()
@@ -99,7 +102,7 @@ async fn list_models(json_output: bool) -> Result<()> {
             "{}",
             format!("📋 Configured Models ({})", engines.len())
                 .bold()
-                .cyan()
+                .color(colors.primary())
         );
         println!();
 
@@ -119,21 +122,21 @@ async fn list_models(json_output: bool) -> Result<()> {
 
         for info in &engines {
             let default_str = if info.is_default {
-                "(default)".green()
+                "(default)".color(colors.success())
             } else {
                 "".dimmed()
             };
 
             let status_str = match info.credential_status {
-                CredentialStatus::Available => "✓ OK".green(),
-                CredentialStatus::Missing => "✗ MISSING".red(),
-                CredentialStatus::Invalid => "✗ INVALID".red(),
-                CredentialStatus::Unknown => "? UNKNOWN".yellow(),
+                CredentialStatus::Available => "✓ OK".color(colors.success()),
+                CredentialStatus::Missing => "✗ MISSING".color(colors.error()),
+                CredentialStatus::Invalid => "✗ INVALID".color(colors.error()),
+                CredentialStatus::Unknown => "? UNKNOWN".color(colors.warning()),
             };
 
             println!(
                 "{:<15} {:<20} {:<15} {:<10} {}",
-                info.id.cyan(),
+                info.id.color(colors.primary()),
                 info.name,
                 info.provider.dimmed(),
                 default_str,
@@ -152,7 +155,8 @@ async fn test_model(model_id: &str) -> Result<()> {
     let registry = init_registry();
 
     println!();
-    println!("{}", format!("Testing model '{}'...", model_id).bold().cyan());
+    let colors = RadiumBrandColors::new();
+    println!("{}", format!("Testing model '{}'...", model_id).bold().color(colors.primary()));
     println!();
 
     // Check if engine exists
