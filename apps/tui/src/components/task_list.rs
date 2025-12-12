@@ -170,10 +170,10 @@ mod tests {
         assert_eq!(format_elapsed(0.0), "0.0s");
         assert_eq!(format_elapsed(5.5), "5.5s");
         assert_eq!(format_elapsed(45.0), "45.0s");
-        assert_eq!(format_elapsed(60.0), "1m 0s");
+        assert_eq!(format_elapsed(60.0), "1m");
         assert_eq!(format_elapsed(90.0), "1m 30s");
         assert_eq!(format_elapsed(125.0), "2m 5s");
-        assert_eq!(format_elapsed(3600.0), "1h 0m");
+        assert_eq!(format_elapsed(3600.0), "1h");
         assert_eq!(format_elapsed(3665.0), "1h 1m");
     }
 

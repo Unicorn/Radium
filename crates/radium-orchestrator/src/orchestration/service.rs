@@ -203,6 +203,25 @@ impl OrchestrationService {
         self.event_tx.subscribe()
     }
 
+    /// Ensure a session exists, optionally seeding it with initial conversation history.
+    ///
+    /// This is useful for clients (e.g. TUI) that want to inject a system prompt when a
+    /// chat session is first created, while still letting the service own subsequent
+    /// conversation history.
+    pub async fn ensure_session_initialized(
+        &self,
+        session_id: &str,
+        initial_history: Vec<Message>,
+    ) -> Result<()> {
+        let mut sessions = self.sessions.write().await;
+        sessions.entry(session_id.to_string()).or_insert_with(|| {
+            let mut session = SessionState::new(session_id);
+            session.conversation_history = initial_history;
+            session
+        });
+        Ok(())
+    }
+
     /// Create provider based on configuration
     /// Create a model instance from configuration
     fn create_model_from_config(config: &OrchestrationConfig) -> Result<Box<dyn radium_abstraction::Model>> {

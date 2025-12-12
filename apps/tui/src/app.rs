@@ -1,6 +1,6 @@
 //! New unified prompt-based application.
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
@@ -2054,40 +2054,152 @@ impl App {
             let _ = session_manager.update_session(&session_id, &agent_id, &message, self.current_model_id.clone());
         }
 
-        // Execute agent
-        match crate::chat_executor::execute_chat_message(&agent_id, &message, &session_id, self.confirmation_request_tx.clone()).await {
-            Ok(result) => {
-                if result.success {
-                    // Check if streaming is being used
-                    if let Some(stream_ctx) = result.streaming_context {
-                        // Set streaming context - tokens will be added as they arrive
-                        self.streaming_context = Some(stream_ctx);
-                        // Don't add response immediately - it will be streamed
-                    } else {
-                        // Non-streaming: add response immediately
-                        let response = result.response.clone();
-                        let max_history = self.config.performance.max_conversation_history;
-                        self.prompt_data.add_conversation_message(format!("Agent: {}", response), max_history);
+        // Execute via the unified orchestration runtime (shared tool registry + shared tool loop)
+        // This removes the TUI-owned tool loop and converges onto the same runtime used by headless orchestration.
+        //
+        // Note: token streaming for chat is not yet wired; we still render a thinking placeholder until the
+        // orchestration call completes, then we replay tool lifecycle from the event stream buffer.
+        if let Err(e) = self.ensure_orchestration_service().await {
+            let max_history = self.config.performance.max_conversation_history;
+            self.prompt_data.add_conversation_message(format!("❌ {}", e), max_history);
+            return Ok(());
+        }
 
-                        // Save agent response to session
-                        let workspace_root_clone =
-                            self.workspace_status.as_ref().and_then(|s| s.root.clone());
-                        if let Ok(session_manager) =
-                            crate::session_manager::SessionManager::new(workspace_root_clone)
-                        {
-                            let _ = session_manager.update_session(&session_id, &agent_id, &response, self.current_model_id.clone());
-                        }
-                    }
-                } else {
-                    let error_msg = result.error.unwrap_or_else(|| "Unknown error".to_string());
+        let Some(ref service) = self.orchestration_service else {
+            let max_history = self.config.performance.max_conversation_history;
+            self.prompt_data.add_conversation_message(
+                "❌ Orchestration service not available. Check configuration and API keys.".to_string(),
+                max_history,
+            );
+            return Ok(());
+        };
+
+        // Seed the orchestration session with the agent's prompt as a system message (once).
+        // Agent prompt paths are relative to the workspace root.
+        let agent_prompt = {
+            let discovery = radium_core::AgentDiscovery::new();
+            let agents = discovery.discover_all()?;
+            let agent = agents
+                .get(&agent_id)
+                .ok_or_else(|| anyhow::anyhow!("Agent '{}' not found", agent_id))?;
+
+            let workspace_root = self
+                .workspace_status
+                .as_ref()
+                .and_then(|ws| ws.root.clone())
+                .or_else(|| radium_core::Workspace::discover().ok().map(|w| w.root().to_path_buf()))
+                .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")));
+
+            let prompt_path = if agent.prompt_path.is_absolute() {
+                agent.prompt_path.clone()
+            } else {
+                workspace_root.join(&agent.prompt_path)
+            };
+
+            std::fs::read_to_string(&prompt_path).with_context(|| {
+                format!("Failed to read agent prompt: {}", prompt_path.display())
+            })?
+        };
+
+        service
+            .ensure_session_initialized(
+                &session_id,
+                vec![radium_orchestrator::orchestration::context::Message::system(agent_prompt)],
+            )
+            .await?;
+
+        let mut event_rx = service.subscribe_events();
+
+        // Show thinking indicator while the orchestration runs
+        let max_history = self.config.performance.max_conversation_history;
+        self.prompt_data
+            .add_conversation_message("🤔 Thinking...".to_string(), max_history);
+
+        // Execute orchestration (uses shared runtime and tool loop)
+        let current_dir = self
+            .workspace_status
+            .as_ref()
+            .and_then(|ws| ws.root.as_ref())
+            .map(|p| p.as_path());
+
+        let start_time = std::time::Instant::now();
+        let result = service.handle_input(&session_id, &message, current_dir).await;
+
+        // Remove thinking indicator
+        let _ = self.prompt_data.conversation.pop();
+
+        // Replay tool lifecycle events captured during this call (best-effort; buffered, not live).
+        while let Ok(event) = event_rx.try_recv() {
+            match event {
+                radium_orchestrator::orchestration::events::OrchestrationEvent::ToolCallStarted {
+                    correlation_id,
+                    tool_name,
+                } if correlation_id == session_id => {
                     let max_history = self.config.performance.max_conversation_history;
-                    self.prompt_data.add_conversation_message(format!("Error: {}", error_msg), max_history);
+                    self.prompt_data.add_conversation_message(
+                        format!("📋 Running tool: {}", tool_name),
+                        max_history,
+                    );
+                }
+                radium_orchestrator::orchestration::events::OrchestrationEvent::ToolCallFinished {
+                    correlation_id,
+                    tool_name,
+                    result,
+                } if correlation_id == session_id => {
+                    let max_history = self.config.performance.max_conversation_history;
+                    if result.success {
+                        self.prompt_data.add_conversation_message(
+                            format!("✓ Tool finished: {}", tool_name),
+                            max_history,
+                        );
+                    } else {
+                        self.prompt_data.add_conversation_message(
+                            format!("❌ Tool failed: {}: {}", tool_name, result.output),
+                            max_history,
+                        );
+                    }
+                }
+                radium_orchestrator::orchestration::events::OrchestrationEvent::ApprovalRequired {
+                    correlation_id,
+                    tool_name,
+                    reason,
+                } if correlation_id == session_id => {
+                    let max_history = self.config.performance.max_conversation_history;
+                    self.prompt_data.add_conversation_message(
+                        format!("⚠️ Approval required for {}: {}", tool_name, reason),
+                        max_history,
+                    );
+                }
+                _ => {}
+            }
+        }
+
+        // Add final assistant response
+        match result {
+            Ok(r) => {
+                let elapsed = start_time.elapsed();
+                let max_history = self.config.performance.max_conversation_history;
+                if elapsed.as_secs() >= 30 {
+                    self.prompt_data.add_conversation_message(
+                        format!("⏱️ Completed in {:.1}s", elapsed.as_secs_f64()),
+                        max_history,
+                    );
+                }
+
+                let response = r.response.clone();
+                self.prompt_data
+                    .add_conversation_message(format!("Agent: {}", response), max_history);
+
+                // Save agent response to session
+                let workspace_root_clone = self.workspace_status.as_ref().and_then(|s| s.root.clone());
+                if let Ok(session_manager) = crate::session_manager::SessionManager::new(workspace_root_clone) {
+                    let _ = session_manager.update_session(&session_id, &agent_id, &response, self.current_model_id.clone());
                 }
             }
             Err(e) => {
+                let max_history = self.config.performance.max_conversation_history;
                 self.prompt_data
-                    .conversation
-                    .push(format!("Error: Failed to execute message: {}", e));
+                    .add_conversation_message(format!("Error: {}", e), max_history);
             }
         }
 

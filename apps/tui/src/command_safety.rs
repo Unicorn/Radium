@@ -8,6 +8,8 @@
 //! # Examples
 //!
 //! ```rust
+//! use radium_tui::command_safety::{CommandSafety, CommandClassification};
+//!
 //! let safety = CommandSafety::default();
 //! let analysis = safety.analyze("git status");
 //!
@@ -375,6 +377,8 @@ impl CommandSafety {
 /// # Examples
 ///
 /// ```
+/// use radium_tui::command_safety::extract_command_roots;
+///
 /// let roots = extract_command_roots("ls -la | grep foo");
 /// assert_eq!(roots, vec!["ls", "grep"]);
 ///
