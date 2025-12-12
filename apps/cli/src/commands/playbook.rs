@@ -285,7 +285,7 @@ async fn delete_playbook(uri: String) -> anyhow::Result<()> {
         .map_err(|e| anyhow::anyhow!("Failed to initialize playbook discovery: {}", e))?;
 
     // Find the playbook
-    let playbook = discovery
+    let _playbook = discovery
         .find_by_uri(&uri)?
         .ok_or_else(|| anyhow::anyhow!("Playbook not found: {}", uri))?;
 
@@ -295,7 +295,7 @@ async fn delete_playbook(uri: String) -> anyhow::Result<()> {
 
     // Find the file by scanning
     let all_playbooks = discovery.discover_all()?;
-    let playbook_file = all_playbooks
+    let _playbook_file = all_playbooks
         .get(&uri)
         .ok_or_else(|| anyhow::anyhow!("Playbook file not found: {}", uri))?;
 
