@@ -234,7 +234,7 @@ impl ConversationContext {
     }
 
     /// Extract file/entity references from tool calls
-    fn extract_entities(&mut self, turn: usize, tool_calls: &[String]) {
+    fn extract_entities(&mut self, _turn: usize, tool_calls: &[String]) {
         for tool_call in tool_calls {
             // Simple pattern matching for file operations
             if tool_call.contains("read_file") || tool_call.contains("write_file") {
@@ -281,7 +281,7 @@ impl ConversationContext {
     }
 
     /// Detect decisions from conversation
-    fn detect_decisions(&mut self, turn: usize, user_msg: &str, assistant_msg: &str) {
+    fn detect_decisions(&mut self, _turn: usize, user_msg: &str, _assistant_msg: &str) {
         let user_lower = user_msg.to_lowercase();
 
         // Detect decision changes
