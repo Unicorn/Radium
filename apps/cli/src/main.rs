@@ -4,6 +4,7 @@
 //! orchestration system and workflow execution engine.
 
 mod commands;
+mod colors;
 mod config;
 mod conversation_context;
 mod policy_engine;
@@ -21,7 +22,7 @@ use commands::{
     agents, auth, batch, budget, capability, checkpoint, clean, clipboard, code, context, cost, craft, doctor, engines, extension, hooks, init, learning, models, monitor, plan, playbook, policy, privacy, requirement, run,
     sandbox, secret, session, stats, status, step, theme, validate,
     // All commands enabled!
-    templates, complete, autonomous, vibecheck, chat, mcp, custom, braingrid,
+    templates, complete, autonomous, vibecheck, chat, mcp, custom, braingrid, train,
 };
 use commands::requirement::RequirementCommand;
 
@@ -157,6 +158,16 @@ enum Command {
     /// Read, update, and manage Braingrid requirements and tasks.
     #[command(subcommand)]
     Braingrid(BraingridCommand),
+
+    /// Tool inventory and introspection
+    ///
+    /// List available tools, schemas, and categories for debugging and UX.
+    #[command(subcommand)]
+    Tools(commands::ToolsCommand),
+
+    /// Training operations (local + cloud backends)
+    #[command(subcommand)]
+    Train(commands::TrainCommand),
 
     /// Run agent(s) with enhanced syntax
     ///
@@ -570,7 +581,7 @@ enum Command {
 }
 
 // Command types are now in commands::types module
-use commands::{AgentsCommand, AuthCommand, ExtensionCommand, TemplatesCommand, BraingridCommand, CacheCommand};
+use commands::{AgentsCommand, AuthCommand, ExtensionCommand, TemplatesCommand, BraingridCommand, CacheCommand, ToolsCommand, TrainCommand};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -633,7 +644,7 @@ async fn main() -> anyhow::Result<()> {
     // Check for resumable executions on startup (before command execution)
     // Skip for init command and other commands that shouldn't be interrupted
     if let Some(ref cmd) = args.command {
-        if !matches!(cmd, Command::Init { .. } | Command::Braingrid(_)) {
+        if !matches!(cmd, Command::Init { .. } | Command::Braingrid(_) | Command::Tools(_)) {
             check_and_prompt_resume().await?;
         }
     }
@@ -700,6 +711,16 @@ async fn main() -> anyhow::Result<()> {
                     }
                 }
             }
+        }
+        Command::Tools(cmd) => {
+            match cmd {
+                ToolsCommand::List { category, json } => {
+                    commands::tools::list(category, json).await?;
+                }
+            }
+        }
+        Command::Train(cmd) => {
+            train::execute(cmd).await?;
         }
         Command::Run { script, model, dir, model_tier, show_metadata, json, safety_behavior } => {
             run::execute(script, model, dir, model_tier, show_metadata, json, safety_behavior).await?;
