@@ -17,6 +17,7 @@ pub mod file_tools;
 pub mod git_extended_tools;
 pub mod hooks;
 pub mod mcp_tools;
+pub mod planner;
 pub mod project_scan_tool;
 pub mod providers;
 pub mod service;
