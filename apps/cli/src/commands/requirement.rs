@@ -201,7 +201,7 @@ async fn execute(
 
     // Initialize orchestrator and executor
     println!("{}", "Initializing orchestrator...".dimmed());
-    let orchestrator = Arc::new(Orchestrator::new());
+    let _orchestrator = Arc::new(Orchestrator::new());
 
     // Use Gemini as model type
     let executor = Arc::new(AgentExecutor::new(
