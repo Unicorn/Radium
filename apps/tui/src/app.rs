@@ -449,7 +449,7 @@ impl App {
     async fn ensure_orchestration_service(&mut self) -> Result<()> {
         if self.orchestration_service.is_none() && self.orchestration_enabled {
             // Load config from workspace, fall back to defaults
-            let mut config = if let Ok(workspace) = radium_core::Workspace::discover() {
+            let config = if let Ok(workspace) = radium_core::Workspace::discover() {
                 let workspace_config_path = workspace.structure().orchestration_config_file();
                 OrchestrationConfig::load_from_workspace_path(workspace_config_path)
             } else {

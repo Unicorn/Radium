@@ -2,11 +2,11 @@
 
 use ratatui::{
     prelude::*,
-    widgets::{Block, Borders, Cell, Gauge, Paragraph, Row, Table, BarChart, Bar},
+    widgets::{Block, Borders, Cell, Paragraph, Row, Table, BarChart},
 };
 use crossterm::event::KeyCode;
 
-use crate::state::{CostDashboardState, DisplayRow};
+use crate::state::CostDashboardState;
 use radium_core::analytics::CostAnalytics;
 
 /// Renders the cost dashboard view.

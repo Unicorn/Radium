@@ -3,7 +3,7 @@
 use crate::state::CheckpointBrowserState;
 use ratatui::{
     prelude::*,
-    widgets::{Block, Borders, List, ListItem, Paragraph, Gauge},
+    widgets::{Block, Borders, List, ListItem, Paragraph},
 };
 
 /// Renders the checkpoint browser view.

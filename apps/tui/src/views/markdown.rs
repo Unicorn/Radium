@@ -9,7 +9,7 @@ use ratatui::{
 
 use crate::theme::THEME;
 
-use radium_core::syntax::{SyntaxHighlighter, StyledLine, StyledSpan};
+use radium_core::syntax::{SyntaxHighlighter, StyledLine};
 
 /// Render markdown text into styled spans.
 ///
