@@ -107,10 +107,10 @@ impl FileOperationHandler {
                     (
                         range_content,
                         vec![
-                            ("file_path", resolved_path.display().to_string()),
-                            ("start_line", start.to_string()),
-                            ("end_line", end.to_string()),
-                            ("total_lines", total_lines.to_string()),
+                            ("file_path".to_string(), resolved_path.display().to_string()),
+                            ("start_line".to_string(), start.to_string()),
+                            ("end_line".to_string(), end.to_string()),
+                            ("total_lines".to_string(), total_lines.to_string()),
                         ],
                     )
                 } else if let Some(start) = start_line {
@@ -132,16 +132,16 @@ impl FileOperationHandler {
                     (
                         range_content,
                         vec![
-                            ("file_path", resolved_path.display().to_string()),
-                            ("start_line", start.to_string()),
-                            ("total_lines", total_lines.to_string()),
+                            ("file_path".to_string(), resolved_path.display().to_string()),
+                            ("start_line".to_string(), start.to_string()),
+                            ("total_lines".to_string(), total_lines.to_string()),
                         ],
                     )
                 } else {
                     // Read entire file
                     (
                         content,
-                        vec![("file_path", resolved_path.display().to_string())],
+                        vec![("file_path".to_string(), resolved_path.display().to_string())],
                     )
                 };
                 
