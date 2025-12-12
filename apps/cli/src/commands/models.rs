@@ -460,6 +460,7 @@ async fn clear_cache(provider: Option<String>, model: Option<String>) -> Result<
         ModelCache::new(cache_config).context("Failed to create model cache")?,
     );
 
+    let colors = RadiumBrandColors::new();
     let cleared_count = if let (Some(ref prov), Some(ref mod_name)) = (provider.as_ref(), model.as_ref()) {
         // Clear specific model
         let model_type = ModelType::from_str(prov).map_err(|()| {
@@ -467,7 +468,6 @@ async fn clear_cache(provider: Option<String>, model: Option<String>) -> Result<
         })?;
         let key = radium_models::CacheKey::new(model_type, mod_name.to_string(), None);
         if cache.remove(&key) {
-            let colors = RadiumBrandColors::new();
             println!("{}", format!("Cleared {}/{} from cache", prov, key.model_name).color(colors.success()));
             1
         } else {
@@ -497,7 +497,6 @@ async fn clear_cache(provider: Option<String>, model: Option<String>) -> Result<
         }
 
         if cleared > 0 {
-            let colors = RadiumBrandColors::new();
             println!("{}", format!("Cleared {} models from {} provider", cleared, prov).color(colors.success()));
         } else {
             println!("{}", format!("No {} models found in cache", prov).color(colors.warning()));
@@ -507,7 +506,6 @@ async fn clear_cache(provider: Option<String>, model: Option<String>) -> Result<
         // Clear entire cache
         let stats_before = cache.get_stats();
         cache.clear();
-        let colors = RadiumBrandColors::new();
         println!("{}", format!("Cleared {} models from cache", stats_before.cache_size).color(colors.success()));
         stats_before.cache_size
     };
@@ -536,7 +534,8 @@ async fn cache_status(json_output: bool) -> Result<()> {
                 "message": "Cache is disabled in configuration"
             }))?);
         } else {
-            println!("{}", "Cache is disabled in configuration.".yellow());
+            let colors = RadiumBrandColors::new();
+            println!("{}", "Cache is disabled in configuration.".color(colors.warning()));
         }
         return Ok(());
     }
