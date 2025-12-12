@@ -281,7 +281,7 @@ impl ConversationContext {
     }
 
     /// Detect decisions from conversation
-    fn detect_decisions(&mut self, _turn: usize, user_msg: &str, _assistant_msg: &str) {
+    fn detect_decisions(&mut self, turn: usize, user_msg: &str, _assistant_msg: &str) {
         let user_lower = user_msg.to_lowercase();
 
         // Detect decision changes
