@@ -6,8 +6,8 @@ sidebar_label: "T2: Component Foundry"
 
 # T2: Component Foundry Implementation Guide
 
-**Source**: `T2_ Component Foundry Implementation Guide.pdf`  
-**Status**: 🚧 Extraction in Progress  
+**Source**: `T2_ Component Foundry Implementation Guide.pdf`
+**Status**: 🚧 Extraction in Progress
 **Roadmap**: [Technical Architecture Roadmap](../../roadmap/technical-architecture.md#component-foundry-implementation-guide-t2)
 
 ## Overview
@@ -165,12 +165,12 @@ pub struct ValidationPipeline {
 impl ValidationPipeline {
     pub fn validate(&self, component: &Component) -> ValidationReport {
         let mut report = ValidationReport::new();
-        
+
         for rule in &self.rules {
             let result = rule.check.validate(component);
             report.add_result(rule.name.clone(), result);
         }
-        
+
         report
     }
 }

@@ -6,8 +6,8 @@ sidebar_label: "T3: Global Component Graph"
 
 # T3: Global Component Graph Design
 
-**Source**: `T3_ Global Component Graph Design.pdf`  
-**Status**: 🚧 Extraction in Progress  
+**Source**: `T3_ Global Component Graph Design.pdf`
+**Status**: 🚧 Extraction in Progress
 **Roadmap**: [Technical Architecture Roadmap](../../roadmap/technical-architecture.md#global-component-graph-design-t3)
 
 ## Overview
@@ -264,7 +264,7 @@ impl DependencyResolver {
         // 3. Resolve conflicts
         // 4. Generate resolution plan
     }
-    
+
     fn detect_conflicts(&self, dependencies: &[Dependency]) -> Vec<Conflict> {
         // Conflict detection logic
     }

@@ -6,8 +6,8 @@ sidebar_label: "T1: Core Architecture"
 
 # T1: Core Architecture Specification
 
-**Source**: `T1_ Core Architecture Specification.pdf`  
-**Status**: 🚧 Extraction in Progress  
+**Source**: `T1_ Core Architecture Specification.pdf`
+**Status**: 🚧 Extraction in Progress
 **Roadmap**: [Technical Architecture Roadmap](../../roadmap/technical-architecture.md#core-architecture-specification-t1)
 
 ## Overview

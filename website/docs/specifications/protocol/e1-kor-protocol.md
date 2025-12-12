@@ -6,8 +6,8 @@ sidebar_label: "E1: KOR Protocol"
 
 # E1: KOR Protocol Specification
 
-**Source**: `E1_ KOR Protocol Specification.pdf`  
-**Status**: 🚧 Extraction in Progress  
+**Source**: `E1_ KOR Protocol Specification.pdf`
+**Status**: 🚧 Extraction in Progress
 **Roadmap**: [Protocol Specifications Roadmap](../../roadmap/protocol-specifications.md#kor-protocol-specification-e1)
 
 ## Overview
