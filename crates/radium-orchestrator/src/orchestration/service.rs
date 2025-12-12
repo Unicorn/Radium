@@ -19,6 +19,7 @@ use super::{
     file_tools::{self, WorkspaceRootProvider as FileWorkspaceRootProvider},
     git_extended_tools,
     hooks::ToolHookExecutor,
+    definition_tool,
     project_scan_tool,
     search_tool,
     symbol_search_tool,
@@ -155,6 +156,12 @@ impl OrchestrationService {
             let symbol_tool_count = symbol_tools.len();
             tools.extend(symbol_tools);
             tracing::info!("Added {} symbol search tools to orchestration", symbol_tool_count);
+
+            // Add definition lookup tools
+            let definition_tools = definition_tool::create_definition_tools(workspace_provider.clone());
+            let definition_tool_count = definition_tools.len();
+            tools.extend(definition_tools);
+            tracing::info!("Added {} definition lookup tools to orchestration", definition_tool_count);
 
             // Add terminal command tool
             let terminal_workspace_provider: Arc<dyn TerminalWorkspaceRootProvider> = Arc::new(SimpleWorkspaceRootProvider {

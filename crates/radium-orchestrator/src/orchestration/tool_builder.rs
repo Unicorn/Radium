@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use super::{
     code_analysis_tool,
+    definition_tool,
     file_tools::{self, WorkspaceRootProvider as FileWorkspaceRootProvider},
     git_extended_tools,
     project_scan_tool,
@@ -105,6 +106,12 @@ pub fn build_standard_tools(
     let symbol_count = symbol_tools.len();
     tools.extend(symbol_tools);
     tracing::info!("Added {} symbol search tools", symbol_count);
+
+    // Definition lookup tools
+    let definition_tools = definition_tool::create_definition_tools(workspace_provider.clone());
+    let definition_count = definition_tools.len();
+    tools.extend(definition_tools);
+    tracing::info!("Added {} definition lookup tools", definition_count);
 
     // Terminal command tool
     let terminal_workspace_provider: Arc<dyn TerminalWorkspaceRootProvider> = Arc::new(SimpleWorkspaceRootProvider {

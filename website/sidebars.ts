@@ -22,13 +22,13 @@ const sidebars: SidebarsConfig = {
     {
       type: 'doc',
       id: 'introduction',
-      label: '👋 Introduction',
+      label: 'Introduction',
     },
 
     // 1. Getting Started
     {
       type: 'category',
-      label: '🚀 Getting Started',
+      label: 'Getting Started',
       collapsed: false,
       items: [
         'getting-started/installation',
@@ -38,21 +38,21 @@ const sidebars: SidebarsConfig = {
     // 2. Roadmap
     {
       type: 'category',
-      label: '🗺️ Roadmap',
+      label: 'Roadmap',
       collapsed: false,
       items: [
-        'roadmap/index',
-        'roadmap/vision',
-        'roadmap/technical-architecture',
-        'roadmap/protocol-specifications',
-        'roadmap/governance-operations',
+        'roadmap/roadmap',
+        'roadmap/roadmap-vision',
+        'roadmap/roadmap-technical-architecture',
+        'roadmap/roadmap-protocol-specifications',
+        'roadmap/roadmap-governance-operations',
       ],
     },
 
     // 3. User Guide
     {
       type: 'category',
-      label: '📖 User Guide',
+      label: 'User Guide',
       collapsed: true,
       items: [
         'user-guide/agent-configuration',
@@ -69,7 +69,7 @@ const sidebars: SidebarsConfig = {
         'user-guide/custom-commands',
         {
           type: 'category',
-          label: 'Guides',
+          label: 'Advanced Topics',
           items: [
             'user-guide/guides/agent-creation-guide',
             'user-guide/guides/reasoning-configuration',
@@ -88,7 +88,7 @@ const sidebars: SidebarsConfig = {
     // 4. Features
     {
       type: 'category',
-      label: '✨ Features',
+      label: 'Features',
       collapsed: true,
       items: [
         'features/policy-engine',
@@ -109,7 +109,6 @@ const sidebars: SidebarsConfig = {
           items: [
             'features/planning/autonomous-planning',
             'features/planning/execution-modes',
-            'features/planning/error-handling',
             'features/planning/best-practices',
             'features/planning/monitoring-integration',
           ],
@@ -166,7 +165,7 @@ const sidebars: SidebarsConfig = {
     // 5. CLI Reference
     {
       type: 'category',
-      label: '⌨️ CLI Reference',
+      label: 'CLI Reference',
       collapsed: true,
       items: [
         'cli/README',
@@ -174,7 +173,6 @@ const sidebars: SidebarsConfig = {
         'cli/workflows',
         'cli/shell-completion',
         'cli/command-patterns',
-        'cli/error-handling',
         'cli/security',
         'cli/performance',
         'cli/testing',
@@ -200,7 +198,7 @@ const sidebars: SidebarsConfig = {
     // 6. Extensions
     {
       type: 'category',
-      label: '🔌 Extensions',
+      label: 'Extensions',
       collapsed: true,
       items: [
         'extensions/README',
@@ -230,7 +228,7 @@ const sidebars: SidebarsConfig = {
     // 7. Hooks
     {
       type: 'category',
-      label: '🪝 Hooks',
+      label: 'Hooks',
       collapsed: true,
       items: [
         'hooks/README',
@@ -252,7 +250,7 @@ const sidebars: SidebarsConfig = {
     // 8. MCP Integration
     {
       type: 'category',
-      label: '🔗 MCP Integration',
+      label: 'MCP Integration',
       collapsed: true,
       items: [
         'mcp/README',
@@ -281,7 +279,7 @@ const sidebars: SidebarsConfig = {
     // 9. Self-Hosted Models
     {
       type: 'category',
-      label: '🖥️ Self-Hosted Models',
+      label: 'Self-Hosted Models',
       collapsed: true,
       items: [
         'self-hosted/README',
@@ -313,7 +311,7 @@ const sidebars: SidebarsConfig = {
     // 10. Developer Guide
     {
       type: 'category',
-      label: '🛠️ Developer Guide',
+      label: 'Developer',
       collapsed: true,
       items: [
         'developer-guide/agent-system-architecture',
@@ -373,7 +371,7 @@ const sidebars: SidebarsConfig = {
     // 11. API Reference
     {
       type: 'category',
-      label: '📚 API Reference',
+      label: 'API Reference',
       collapsed: true,
       items: [
         'api/context-cache-api',
@@ -388,7 +386,7 @@ const sidebars: SidebarsConfig = {
     // 12. Examples
     {
       type: 'category',
-      label: '💡 Examples',
+      label: 'Examples',
       collapsed: true,
       items: [
         'examples/orchestration-workflows',

@@ -62,6 +62,7 @@ glob = "0.3"
 # Tree-sitter for AST analysis  
 tree-sitter = "0.20.10"
 tree-sitter-rust = "0.20.4"
+tree-sitter-typescript = "0.20"
 
 [dev-dependencies]
 tempfile = "3.8"
