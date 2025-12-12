@@ -148,7 +148,7 @@ impl OutputWindow {
 /// Annotate output text with code block markers.
 fn annotate_with_code_blocks(text: &str) -> Vec<Line<'_>> {
     let blocks = CodeBlockParser::parse(text);
-    let mut block_map: std::collections::HashMap<usize, (usize, String)> = blocks
+    let block_map: std::collections::HashMap<usize, (usize, String)> = blocks
         .iter()
         .map(|b| (b.start_line, (b.index, b.language.clone().unwrap_or_else(|| "text".to_string()))))
         .collect();

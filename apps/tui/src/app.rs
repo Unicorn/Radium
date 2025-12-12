@@ -1084,7 +1084,7 @@ impl App {
                                 self.toast_manager.error(format!("Failed to retry requirement: {}", e));
                             }
                         }
-                        LastOperation::Task(task_id) => {
+                        LastOperation::Task(_task_id) => {
                             self.toast_manager.info("Retrying last task...".to_string());
                             // TODO: Implement task retry when task execution is available
                             self.toast_manager.info("Task retry not yet implemented".to_string());
@@ -1576,7 +1576,7 @@ impl App {
                 // Task list panel scrolling would be handled here
             }
             PanelFocus::Orchestrator => {
-                let max_items = self.orchestrator_panel.len();
+                let _max_items = self.orchestrator_panel.len();
                 self.orchestrator_panel.scroll_to_bottom();
             }
             PanelFocus::Chat => {
@@ -1983,7 +1983,7 @@ impl App {
     }
 
     async fn show_budget_analytics(&mut self) -> Result<()> {
-        let mut view = self.budget_analytics_view.take()
+        let view = self.budget_analytics_view.take()
             .unwrap_or_else(|| crate::views::BudgetAnalyticsView::new());
 
         self.budget_analytics_view = Some(view);
@@ -2622,12 +2622,7 @@ impl App {
                                         })
                                 );
                             }
-                        } else {
-                            // No dynamic completion for this command
                         }
-                    }
-                    _ => {
-                        // No dynamic completion for this command
                     }
                 }
             }
@@ -3378,7 +3373,7 @@ impl App {
     /// Load session model preference and switch to it if different
     async fn load_session_model(&mut self, session_id: &str) -> Result<()> {
         let workspace_root = self.workspace_status.as_ref().and_then(|s| s.root.clone());
-        let session_manager = crate::session_manager::SessionManager::new(workspace_root.clone())?;
+        let _session_manager = crate::session_manager::SessionManager::new(workspace_root.clone())?;
 
         // Load session from file
         let sessions_dir = if let Some(root) = workspace_root {
@@ -3950,7 +3945,7 @@ impl App {
                         InterruptAction::Rollback { checkpoint_id } => {
                             // Show confirmation dialog
                             use crate::components::DialogChoice;
-                            let cp_id = checkpoint_id.clone();
+                            let _cp_id = checkpoint_id.clone();
                             let choices = vec![
                                 DialogChoice::new("Yes".to_string(), "yes".to_string()),
                                 DialogChoice::new("No".to_string(), "no".to_string()),
@@ -3969,7 +3964,7 @@ impl App {
                                 DialogChoice::new("Yes".to_string(), "yes".to_string()),
                                 DialogChoice::new("No".to_string(), "no".to_string()),
                             ];
-                            let workflow_id = interrupt_state.workflow_id.clone();
+                            let _workflow_id = interrupt_state.workflow_id.clone();
                             self.dialog_manager.show_select_menu(
                                 "Cancel workflow execution? This cannot be undone.".to_string(),
                                 choices,

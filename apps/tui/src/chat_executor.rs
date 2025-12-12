@@ -1206,7 +1206,7 @@ async fn execute_search_files(pattern: &str, workspace_root: &PathBuf) -> Result
 
 /// Execute grep tool
 async fn execute_grep(pattern: &str, path: &str, workspace_root: &PathBuf) -> Result<String> {
-    let search_path = if path.is_empty() {
+    let _search_path = if path.is_empty() {
         workspace_root.to_path_buf()
     } else {
         workspace_root.join(path)

@@ -226,7 +226,7 @@ fn render_cost_table(
                 .border_style(Style::default().fg(theme.border))
                 .title(" Cost Breakdown "),
         )
-        .highlight_style(
+        .row_highlight_style(
             Style::default()
                 .fg(theme.bg_primary)
                 .bg(theme.primary)

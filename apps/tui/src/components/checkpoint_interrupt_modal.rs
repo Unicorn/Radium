@@ -36,7 +36,7 @@ impl CheckpointInterruptModal {
 
         // Calculate responsive constraints based on available height
         let available_height = modal_area.height;
-        let is_narrow = area.width < 80;
+        let _is_narrow = area.width < 80;
         
         // Adjust section sizes based on available space
         let header_size = if available_height < 30 { 2 } else { 3 };

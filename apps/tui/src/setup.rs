@@ -661,7 +661,6 @@ impl SetupWizard {
                 // Any key exits
                 return Ok(true);
             }
-            _ => {}
         }
 
         Ok(false)
