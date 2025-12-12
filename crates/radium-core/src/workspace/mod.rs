@@ -22,6 +22,7 @@ pub mod ignore;
 pub mod boundary;
 pub mod error_recovery;
 pub mod errors;
+pub mod patch;
 pub mod plan_discovery;
 pub mod requirement_id;
 pub mod structure;
@@ -34,6 +35,10 @@ pub use boundary::{BoundaryError, BoundaryValidator};
 pub use error_recovery::{ErrorRecovery, ErrorSummary};
 pub use errors::{
     ErrorContext, FileOperationError, FileOperationResult, RecoveryStrategy,
+};
+pub use patch::{
+    ChangedFile, FilePatch, Hunk, PatchContent, PatchInput, PatchOptions, PatchResult,
+    PatchSummary,
 };
 pub use plan_discovery::{DiscoveredPlan, PlanDiscovery, PlanDiscoveryOptions, SortBy, SortOrder};
 pub use requirement_id::{RequirementId, RequirementIdError};
