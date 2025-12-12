@@ -51,6 +51,7 @@ impl RadiumBrandColors {
     }
 
     /// Create a new instance with explicit color support level.
+    #[allow(dead_code)]
     pub fn with_support(support: ColorSupport) -> Self {
         Self {
             color_support: support,

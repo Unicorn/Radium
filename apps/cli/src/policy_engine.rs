@@ -71,6 +71,7 @@ pub enum PolicyDecision {
     Deny { reason: String },
 }
 
+#[allow(dead_code)]
 impl PolicyEngine {
     /// Create a new policy engine with default rules
     pub fn new() -> Self {
@@ -347,6 +348,7 @@ impl PolicyEngine {
     }
 }
 
+#[allow(dead_code)]
 impl Default for PolicyEngine {
     fn default() -> Self {
         Self::new()
@@ -391,6 +393,7 @@ impl UserPolicy {
     }
 }
 
+#[allow(dead_code)]
 impl Default for UserPolicy {
     fn default() -> Self {
         Self::new()
