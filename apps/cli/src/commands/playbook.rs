@@ -3,7 +3,7 @@
 use clap::Subcommand;
 use colored::Colorize;
 use radium_core::playbooks::{
-    discovery::PlaybookDiscovery, parser::PlaybookParser, registry::PlaybookRegistry,
+    discovery::PlaybookDiscovery, parser::PlaybookParser,
     storage::PlaybookStorage, types::PlaybookPriority,
 };
 use radium_core::workspace::Workspace;
