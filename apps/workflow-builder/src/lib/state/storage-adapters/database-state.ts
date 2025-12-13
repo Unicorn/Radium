@@ -33,12 +33,12 @@ export class DatabaseStateAdapter implements StateStorageAdapter {
   }
 
   async get(variableId: string, variableName: string): Promise<any> {
-    const { data, error } = await this.supabase
-      .from(this.tableName)
+    const { data, error } = await (this.supabase
+      .from(this.tableName as any)
       .select('value')
       .eq('variable_id', variableId)
       .eq('name', variableName)
-      .single();
+      .single() as unknown as Promise<{ data: any; error: any }>);
 
     if (error) {
       if (error.code === 'PGRST116') {
@@ -52,8 +52,8 @@ export class DatabaseStateAdapter implements StateStorageAdapter {
   }
 
   async set(variableId: string, variableName: string, value: any): Promise<void> {
-    const { error } = await this.supabase
-      .from(this.tableName)
+    const { error } = await (this.supabase
+      .from(this.tableName as any)
       .upsert({
         variable_id: variableId,
         name: variableName,
@@ -61,7 +61,7 @@ export class DatabaseStateAdapter implements StateStorageAdapter {
         updated_at: new Date().toISOString(),
       }, {
         onConflict: 'variable_id,name',
-      });
+      }) as unknown as Promise<{ error: any }>);
 
     if (error) {
       throw new Error(`Failed to set state variable: ${error.message}`);
@@ -92,11 +92,11 @@ export class DatabaseStateAdapter implements StateStorageAdapter {
   }
 
   async delete(variableId: string, variableName: string): Promise<void> {
-    const { error } = await this.supabase
-      .from(this.tableName)
+    const { error } = await (this.supabase
+      .from(this.tableName as any)
       .delete()
       .eq('variable_id', variableId)
-      .eq('name', variableName);
+      .eq('name', variableName) as unknown as Promise<{ error: any }>);
 
     if (error) {
       throw new Error(`Failed to delete state variable: ${error.message}`);
@@ -104,12 +104,12 @@ export class DatabaseStateAdapter implements StateStorageAdapter {
   }
 
   async exists(variableId: string, variableName: string): Promise<boolean> {
-    const { data, error } = await this.supabase
-      .from(this.tableName)
+    const { data, error } = await (this.supabase
+      .from(this.tableName as any)
       .select('id')
       .eq('variable_id', variableId)
       .eq('name', variableName)
-      .single();
+      .single() as unknown as Promise<{ data: any; error: any }>);
 
     if (error && error.code !== 'PGRST116') {
       throw new Error(`Failed to check state variable existence: ${error.message}`);

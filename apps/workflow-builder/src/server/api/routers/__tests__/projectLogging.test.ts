@@ -258,7 +258,7 @@ describe('Project Logging Router', () => {
         enabled: true,
       });
 
-      expect(result.enabled_endpoints).toContain(endpoint2);
+      expect((result as any).enabled_endpoints).toContain(endpoint2);
     });
 
     it('should remove endpoint from enabled list when disabling', async () => {
@@ -312,8 +312,8 @@ describe('Project Logging Router', () => {
         enabled: false,
       });
 
-      expect(result.enabled_endpoints).not.toContain(endpoint2);
-      expect(result.enabled_endpoints).toContain(endpoint1);
+      expect((result as any).enabled_endpoints).not.toContain(endpoint2);
+      expect((result as any).enabled_endpoints).toContain(endpoint1);
     });
   });
 });

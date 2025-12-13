@@ -4,7 +4,7 @@
  * Temporal workflow for testing agent prompts with human-in-the-loop interaction
  */
 
-import { condition, sleep, setHandler, currentTimeMs } from '@temporalio/workflow';
+import { condition, sleep, setHandler } from '@temporalio/workflow';
 import { sendMessageSignal, endTestSignal, getConversationQuery } from './signals-queries';
 import * as activities from './activities';
 import type { Message, AgentTestResult } from '@/types/agent-builder';
@@ -22,7 +22,7 @@ export async function agentTesterWorkflow(
   const conversation: Message[] = [];
   let isActive = true;
   let userInput: string | null = input.initialMessage || null;
-  let lastActivityTime = currentTimeMs();
+  let lastActivityTime = Date.now();
   
   // Timeout: 5 minutes of inactivity
   const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000;
@@ -30,7 +30,7 @@ export async function agentTesterWorkflow(
   // Signal handlers
   const sendMessageHandler = (message: string) => {
     userInput = message;
-    lastActivityTime = currentTimeMs();
+    lastActivityTime = Date.now();
   };
   
   const endTestHandler = () => {
@@ -64,7 +64,7 @@ export async function agentTesterWorkflow(
   // Main conversation loop
   while (isActive) {
     // Check for timeout
-    const timeSinceLastActivity = currentTimeMs() - lastActivityTime;
+    const timeSinceLastActivity = Date.now() - lastActivityTime;
     if (timeSinceLastActivity > INACTIVITY_TIMEOUT_MS && conversation.length > 0) {
       isActive = false;
       break;
@@ -106,7 +106,7 @@ export async function agentTesterWorkflow(
         });
         
         userInput = null;
-        lastActivityTime = currentTimeMs();
+        lastActivityTime = Date.now();
       } catch (error) {
         console.error('Error in agent tester workflow:', error);
         
@@ -130,7 +130,7 @@ export async function agentTesterWorkflow(
       );
     } catch (error) {
       // Timeout - check if we should end
-      const newTimeSinceLastActivity = currentTimeMs() - lastActivityTime;
+      const newTimeSinceLastActivity = Date.now() - lastActivityTime;
       if (newTimeSinceLastActivity > INACTIVITY_TIMEOUT_MS && conversation.length > 0) {
         isActive = false;
         break;

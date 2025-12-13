@@ -172,7 +172,7 @@ describe('Kong Cache Configuration', () => {
         contentTypes: ['application/json'],
         responseCodes: [200],
         connectorId: 'connector-123',
-      };
+      } as any;
 
       await enableCachePlugin('route-123', cacheConfig, null, mockKong);
 
@@ -192,7 +192,7 @@ describe('Kong Cache Configuration', () => {
         contentTypes: ['application/json'],
         responseCodes: [200, 201],
         connectorId: 'connector-123',
-      };
+      } as any;
 
       const redisConfig = {
         host: 'redis.example.com',

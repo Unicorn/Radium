@@ -244,9 +244,9 @@ ${indentStr}// Workflow started`;
       
       // Build activity options
       const activityOptions: string[] = [];
-      
+
       // Add timeout if specified
-      const nodeTimeout = node.data.timeout;
+      const nodeTimeout = (node.data as any).timeout;
       if (nodeTimeout) {
         activityOptions.push(`startToCloseTimeout: '${nodeTimeout}'`);
       }
@@ -324,9 +324,9 @@ ${indentStr}const ${resultVar} = ${expression};`;
     
     case 'state-variable':
       return generateStateVariableCode(node, config, includeComments, indent);
-    
+
     case 'signal': {
-      const signalName = node.data.signalName || config.signalName || 'signal';
+      const signalName = (node.data as any).signalName || config.signalName || 'signal';
       return `${indentStr}${comment}
 ${indentStr}// Signal handler: ${signalName}
 ${indentStr}// Signal logic would be implemented here`;

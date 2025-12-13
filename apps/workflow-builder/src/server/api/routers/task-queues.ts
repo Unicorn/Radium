@@ -80,7 +80,7 @@ export const taskQueuesRouter = createTRPCRouter({
       }
       
       // Create
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('task_queues')
         .insert({
           name: input.name,

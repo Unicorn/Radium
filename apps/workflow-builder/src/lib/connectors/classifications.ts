@@ -58,7 +58,7 @@ export async function getConnectorsByClassification(
     display_name: connector.display_name,
     description: connector.description,
     connector_type: connector.connector_type,
-    is_active: connector.is_active,
+    is_active: connector.is_active ?? false,
     classifications: (connector.classifications as string[]) || [],
   }));
 }

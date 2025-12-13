@@ -4,7 +4,7 @@
  */
 
 import type { TemporalWorkflow } from '@/types/advanced-patterns';
-import type { WorkflowDefinition } from '@/types/workflow';
+import type { WorkflowDefinition } from '@/lib/compiler/types';
 import { compileWorkflowFromNodes } from './node-compiler';
 
 export interface CompilerOptions {

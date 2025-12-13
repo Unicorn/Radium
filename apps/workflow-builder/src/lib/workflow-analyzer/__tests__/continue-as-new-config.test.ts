@@ -36,12 +36,12 @@ describe('ContinueAsNewConfig', () => {
 
       const result = configureContinueAsNew(workflow, 'service');
 
-      expect(result.settings._workflowType).toBe('service');
-      expect(result.settings._longRunning).toBeDefined();
-      expect(result.settings._longRunning?.autoContinueAsNew).toBe(true);
-      expect(result.settings._longRunning?.maxHistoryEvents).toBe(1000);
-      expect(result.settings._longRunning?.maxDurationMs).toBe(24 * 60 * 60 * 1000);
-      expect(result.settings._longRunning?.preserveState).toBe(true);
+      expect(result.settings!._workflowType).toBe('service');
+      expect(result.settings!._longRunning).toBeDefined();
+      expect(result.settings!._longRunning?.autoContinueAsNew).toBe(true);
+      expect(result.settings!._longRunning?.maxHistoryEvents).toBe(1000);
+      expect(result.settings!._longRunning?.maxDurationMs).toBe(24 * 60 * 60 * 1000);
+      expect(result.settings!._longRunning?.preserveState).toBe(true);
     });
 
     it('should disable continue-as-new for task workflows', () => {
@@ -69,9 +69,9 @@ describe('ContinueAsNewConfig', () => {
 
       const result = configureContinueAsNew(workflow, 'task');
 
-      expect(result.settings._workflowType).toBe('task');
-      expect(result.settings._longRunning).toBeDefined();
-      expect(result.settings._longRunning?.autoContinueAsNew).toBe(false);
+      expect(result.settings!._workflowType).toBe('task');
+      expect(result.settings!._longRunning).toBeDefined();
+      expect(result.settings!._longRunning?.autoContinueAsNew).toBe(false);
     });
 
     it('should auto-classify if workflow type not provided', () => {
@@ -99,8 +99,8 @@ describe('ContinueAsNewConfig', () => {
 
       const result = configureContinueAsNew(workflow);
 
-      expect(result.settings._workflowType).toBe('service');
-      expect(result.settings._longRunning?.autoContinueAsNew).toBe(true);
+      expect(result.settings!._workflowType).toBe('service');
+      expect(result.settings!._longRunning?.autoContinueAsNew).toBe(true);
     });
 
     it('should preserve existing settings when configuring', () => {
@@ -125,9 +125,9 @@ describe('ContinueAsNewConfig', () => {
 
       const result = configureContinueAsNew(workflow, 'service');
 
-      expect(result.settings.timeout).toBe('1 hour');
-      expect(result.settings.description).toBe('Test workflow');
-      expect(result.settings._longRunning?.autoContinueAsNew).toBe(true);
+      expect(result.settings!.timeout).toBe('1 hour');
+      expect(result.settings!.description).toBe('Test workflow');
+      expect(result.settings!._longRunning?.autoContinueAsNew).toBe(true);
     });
   });
 

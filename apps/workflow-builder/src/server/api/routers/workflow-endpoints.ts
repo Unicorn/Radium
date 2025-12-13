@@ -19,7 +19,7 @@ export const workflowEndpointsRouter = createTRPCRouter({
       workflowId: z.string().uuid(),
     }))
     .query(async ({ ctx, input }) => {
-      const { data, error } = await ctx.supabase
+      const { data, error } = await (ctx.supabase as any)
         .from('workflow_endpoints')
         .select('*')
         .eq('workflow_id', input.workflowId)
@@ -44,7 +44,7 @@ export const workflowEndpointsRouter = createTRPCRouter({
       id: z.string().uuid(),
     }))
     .query(async ({ ctx, input }) => {
-      const { data, error } = await ctx.supabase
+      const { data, error } = await (ctx.supabase as any)
         .from('workflow_endpoints')
         .select('*')
         .eq('id', input.id)
@@ -147,7 +147,7 @@ export const workflowEndpointsRouter = createTRPCRouter({
     }))
     .mutation(async ({ ctx, input }) => {
       // Get endpoint and verify ownership
-      const { data: endpoint } = await ctx.supabase
+      const { data: endpoint } = await (ctx.supabase as any)
         .from('workflow_endpoints')
         .select('kong_route_id')
         .eq('id', input.id)
@@ -162,18 +162,19 @@ export const workflowEndpointsRouter = createTRPCRouter({
       }
 
       // Delete from Kong if route exists
-      if (endpoint.kong_route_id) {
+      const kongRouteId = (endpoint as any).kong_route_id;
+      if (kongRouteId) {
         const { KongClient } = await import('@/lib/kong/client');
         const kong = new KongClient();
         try {
-          await kong.deleteRoute(endpoint.kong_route_id);
+          await kong.deleteRoute(kongRouteId);
         } catch (error) {
           console.warn('Failed to delete Kong route:', error);
         }
       }
 
       // Delete from database
-      const { error } = await ctx.supabase
+      const { error } = await (ctx.supabase as any)
         .from('workflow_endpoints')
         .delete()
         .eq('id', input.id);

@@ -51,8 +51,8 @@ describe('ServiceClassifier', () => {
           },
           {
             id: 'query-1',
-            type: 'query',
-            data: { label: 'Get Status' },
+            type: 'data-out',
+            data: { label: 'Get Status', config: { interfaceType: 'query' } },
             position: { x: 100, y: 0 },
           },
         ],

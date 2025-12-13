@@ -28,7 +28,7 @@ export const agentBuilderRouter = createTRPCRouter({
           .from('agent_builder_sessions')
           .insert({
             user_id: ctx.user.id,
-            conversation_messages: session.messages,
+            conversation_messages: session.messages as any,
             status: 'active',
             message_count: session.messages.length,
           });
@@ -76,7 +76,7 @@ export const agentBuilderRouter = createTRPCRouter({
           await ctx.supabase
             .from('agent_builder_sessions')
             .update({
-              conversation_messages: result.session.messages,
+              conversation_messages: result.session.messages as any,
               message_count: result.session.messages.length,
               updated_at: new Date().toISOString(),
             })

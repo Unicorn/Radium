@@ -188,24 +188,24 @@ function validateNodeType(node: WorkflowNode): CompilerError[] {
 
     case 'data-in':
       // Data-in nodes should have endpoint path
-      if (!node.data.config?.endpointPath && !node.data.endpointPath) {
+      if (!node.data.config?.endpointPath) {
         errors.push({
           message: `Data-in node ${node.id} should have an endpoint path`,
           nodeId: node.id,
           type: 'validation',
-          severity: 'warning',
+          severity: 'error',
         });
       }
       break;
 
     case 'data-out':
       // Data-out nodes should have endpoint path
-      if (!node.data.config?.endpointPath && !node.data.endpointPath) {
+      if (!node.data.config?.endpointPath) {
         errors.push({
           message: `Data-out node ${node.id} should have an endpoint path`,
           nodeId: node.id,
           type: 'validation',
-          severity: 'warning',
+          severity: 'error',
         });
       }
       break;

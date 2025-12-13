@@ -191,13 +191,12 @@ export default function SignUpPage() {
             <Text fontSize="$3" color="$gray11">
               Already have an account?{' '}
             </Text>
-            <Link href="/auth/signin" style={{ textDecoration: 'none', color: 'inherit' }}>
-              <Text 
-                as="span"
-                fontSize="$3" 
-                color="$blue10" 
-                fontWeight="600" 
-                cursor="pointer" 
+            <Link href="/auth/signin" style={{ textDecoration: 'none' }}>
+              <Text
+                fontSize="$3"
+                color="$blue10"
+                fontWeight="600"
+                cursor="pointer"
                 hoverStyle={{ color: '$blue11' }}
               >
                 Sign In

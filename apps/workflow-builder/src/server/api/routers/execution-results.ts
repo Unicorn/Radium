@@ -41,7 +41,7 @@ export const executionResultsRouter = createTRPCRouter({
       }
 
       // Fetch component executions
-      const { data: componentExecutions } = await ctx.supabase
+      const { data: componentExecutions } = await (ctx.supabase as any)
         .from('component_executions')
         .select('*')
         .eq('workflow_execution_id', input.executionId)
@@ -59,8 +59,8 @@ export const executionResultsRouter = createTRPCRouter({
         error: execution.error_message,
         temporalWorkflowId: execution.temporal_workflow_id,
         temporalRunId: execution.temporal_run_id,
-        historySyncStatus: execution.history_sync_status,
-        historySyncedAt: execution.history_synced_at ? new Date(execution.history_synced_at) : null,
+        historySyncStatus: (execution as any).history_sync_status,
+        historySyncedAt: (execution as any).history_synced_at ? new Date((execution as any).history_synced_at) : null,
         componentExecutions: componentExecutions || [],
       };
     }),

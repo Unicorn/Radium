@@ -27,11 +27,11 @@ describe('StateCollector', () => {
       const stateMap = collectWorkflowState(workflow);
 
       expect(stateMap.counter).toBeDefined();
-      expect(stateMap.counter.type).toBe('number');
-      expect(stateMap.counter.source).toBe('variable');
+      expect(stateMap.counter!.type).toBe('number');
+      expect(stateMap.counter!.source).toBe('variable');
       expect(stateMap.message).toBeDefined();
-      expect(stateMap.message.type).toBe('string');
-      expect(stateMap.message.source).toBe('variable');
+      expect(stateMap.message!.type).toBe('string');
+      expect(stateMap.message!.source).toBe('variable');
     });
 
     it('should collect state variables from state-variable nodes', () => {
@@ -60,8 +60,8 @@ describe('StateCollector', () => {
       const stateMap = collectWorkflowState(workflow);
 
       expect(stateMap.workQueue).toBeDefined();
-      expect(stateMap.workQueue.type).toBe('array');
-      expect(stateMap.workQueue.source).toBe('state-variable');
+      expect(stateMap.workQueue!.type).toBe('array');
+      expect(stateMap.workQueue!.source).toBe('state-variable');
     });
 
     it('should collect loop counters', () => {
@@ -90,11 +90,11 @@ describe('StateCollector', () => {
       const stateMap = collectWorkflowState(workflow);
 
       expect(stateMap['_loop-1_iterationCount']).toBeDefined();
-      expect(stateMap['_loop-1_iterationCount'].type).toBe('number');
-      expect(stateMap['_loop-1_iterationCount'].source).toBe('loop-counter');
+      expect(stateMap['_loop-1_iterationCount']!.type).toBe('number');
+      expect(stateMap['_loop-1_iterationCount']!.source).toBe('loop-counter');
       expect(stateMap['_loop-2_iterationCount']).toBeDefined();
-      expect(stateMap['_loop-2_iterationCount'].type).toBe('number');
-      expect(stateMap['_loop-2_iterationCount'].source).toBe('loop-counter');
+      expect(stateMap['_loop-2_iterationCount']!.type).toBe('number');
+      expect(stateMap['_loop-2_iterationCount']!.source).toBe('loop-counter');
     });
 
     it('should collect signal queue when signal handlers exist', () => {
@@ -117,8 +117,8 @@ describe('StateCollector', () => {
       const stateMap = collectWorkflowState(workflow);
 
       expect(stateMap['_signalQueue']).toBeDefined();
-      expect(stateMap['_signalQueue'].type).toBe('array');
-      expect(stateMap['_signalQueue'].source).toBe('signal-queue');
+      expect(stateMap['_signalQueue']!.type).toBe('array');
+      expect(stateMap['_signalQueue']!.source).toBe('signal-queue');
     });
 
     it('should not collect signal queue when no signal handlers', () => {
@@ -156,11 +156,11 @@ describe('StateCollector', () => {
       const stateMap = collectWorkflowState(workflow);
 
       expect(stateMap['_workflowStartTime']).toBeDefined();
-      expect(stateMap['_workflowStartTime'].type).toBe('number');
-      expect(stateMap['_workflowStartTime'].source).toBe('internal');
+      expect(stateMap['_workflowStartTime']!.type).toBe('number');
+      expect(stateMap['_workflowStartTime']!.source).toBe('internal');
       expect(stateMap['_historyResetCount']).toBeDefined();
-      expect(stateMap['_historyResetCount'].type).toBe('number');
-      expect(stateMap['_historyResetCount'].source).toBe('internal');
+      expect(stateMap['_historyResetCount']!.type).toBe('number');
+      expect(stateMap['_historyResetCount']!.source).toBe('internal');
     });
 
     it('should collect all state types together', () => {
@@ -222,7 +222,7 @@ describe('StateCollector', () => {
         '_signalQueue': { type: 'array', source: 'signal-queue' },
         '_workflowStartTime': { type: 'number', source: 'internal' },
         '_historyResetCount': { type: 'number', source: 'internal' },
-      };
+      } as any;
 
       const stateObject = generateStateObject(stateMap);
 
@@ -242,7 +242,7 @@ describe('StateCollector', () => {
       const stateMap = {
         '_workflowStartTime': { type: 'number', source: 'internal' },
         '_historyResetCount': { type: 'number', source: 'internal' },
-      };
+      } as any;
 
       const stateObject = generateStateObject(stateMap);
 

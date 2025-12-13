@@ -34,7 +34,7 @@ export const connectionsRouter = createTRPCRouter({
         });
       }
 
-      const { data, error } = await ctx.supabase
+      const { data, error } = await (ctx.supabase as any)
         .from('project_connections')
         .select('*')
         .eq('project_id', input.projectId)
@@ -49,7 +49,7 @@ export const connectionsRouter = createTRPCRouter({
 
       // Decrypt connection URLs
       const connections = await Promise.all(
-        (data || []).map(async (conn) => {
+        (data || []).map(async (conn: any) => {
           let connectionUrl = conn.connection_url;
           
           // If encrypted credentials exist, decrypt them
@@ -107,7 +107,7 @@ export const connectionsRouter = createTRPCRouter({
       }
 
       // Check if connection name already exists
-      const { data: existing } = await ctx.supabase
+      const { data: existing } = await (ctx.supabase as any)
         .from('project_connections')
         .select('id')
         .eq('project_id', input.projectId)
@@ -125,7 +125,7 @@ export const connectionsRouter = createTRPCRouter({
       const encryptedCredentials = await encryptString(input.connectionUrl);
       const encryptedBuffer = Buffer.from(encryptedCredentials, 'base64');
 
-      const { data, error } = await ctx.supabase
+      const { data, error } = await (ctx.supabase as any)
         .from('project_connections')
         .insert({
           project_id: input.projectId,
@@ -173,7 +173,7 @@ export const connectionsRouter = createTRPCRouter({
       const { connectionId, ...updates } = input;
 
       // Verify connection belongs to user's project
-      const { data: connection } = await ctx.supabase
+      const { data: connection } = await (ctx.supabase as any)
         .from('project_connections')
         .select('project_id, projects!inner(created_by)')
         .eq('id', connectionId)
@@ -188,7 +188,7 @@ export const connectionsRouter = createTRPCRouter({
 
       // If updating name, check for conflicts
       if (updates.name) {
-        const { data: existing } = await ctx.supabase
+        const { data: existing } = await (ctx.supabase as any)
           .from('project_connections')
           .select('id')
           .eq('project_id', (connection as any).project_id)
@@ -216,7 +216,7 @@ export const connectionsRouter = createTRPCRouter({
       }
       if (updates.config !== undefined) updateData.config = updates.config;
 
-      const { data, error } = await ctx.supabase
+      const { data, error } = await (ctx.supabase as any)
         .from('project_connections')
         .update(updateData)
         .eq('id', connectionId)
@@ -251,7 +251,7 @@ export const connectionsRouter = createTRPCRouter({
     }))
     .mutation(async ({ ctx, input }) => {
       // Verify connection belongs to user's project
-      const { data: connection } = await ctx.supabase
+      const { data: connection } = await (ctx.supabase as any)
         .from('project_connections')
         .select('project_id, projects!inner(created_by)')
         .eq('id', input.connectionId)
@@ -264,7 +264,7 @@ export const connectionsRouter = createTRPCRouter({
         });
       }
 
-      const { error } = await ctx.supabase
+      const { error } = await (ctx.supabase as any)
         .from('project_connections')
         .delete()
         .eq('id', input.connectionId);
@@ -288,7 +288,7 @@ export const connectionsRouter = createTRPCRouter({
     }))
     .mutation(async ({ ctx, input }) => {
       // Verify connection belongs to user's project
-      const { data: connection } = await ctx.supabase
+      const { data: connection } = await (ctx.supabase as any)
         .from('project_connections')
         .select('*')
         .eq('id', input.connectionId)

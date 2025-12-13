@@ -65,11 +65,10 @@ export function ComponentCard({
   const typeBackground = typeBackgrounds[component.component_type.name] || '$gray3';
   const Icon = getTypeIcon(component.component_type.name);
 
-  const handleCardClick = (e: React.MouseEvent) => {
+  const handleCardClick = () => {
     // Don't expand if dragging
     if (draggable) {
       setIsExpanded(!isExpanded);
-      e.stopPropagation();
     } else if (onClick) {
       onClick();
     }
@@ -121,7 +120,7 @@ export function ComponentCard({
         {isExpanded && component.capabilities && component.capabilities.length > 0 && (
           <XStack gap="$1.5" flexWrap="wrap" marginTop="$1">
             {component.capabilities.map((cap: string) => (
-              <Badge key={cap} size="1" backgroundColor="$gray4" borderWidth={1} borderColor="$gray6" borderRadius="$2">
+              <Badge key={cap} size={1} backgroundColor="$gray4" borderWidth={1} borderColor="$gray6" borderRadius="$2">
                 <Text fontSize="$2" color="$gray11" fontWeight="500">
                   {cap}
                 </Text>
@@ -136,7 +135,7 @@ export function ComponentCard({
               v{component.version}
             </Text>
             {component.deprecated && (
-              <Badge backgroundColor="$red4" size="1" borderWidth={1} borderColor="$red7">
+              <Badge backgroundColor="$red4" size={1} borderWidth={1} borderColor="$red7">
                 <Text fontSize="$2" color="$red11" fontWeight="600">
                   deprecated
                 </Text>

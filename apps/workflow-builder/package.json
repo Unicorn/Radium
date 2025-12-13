@@ -53,7 +53,7 @@
     "@bernierllc/generic-workflow-ui": "1.0.2",
     "@bernierllc/temporal-workflow-ui": "1.1.0",
     "@supabase/auth-helpers-nextjs": "^0.8.7",
-    "@supabase/ssr": "^0.0.10",
+    "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.38.4",
     "@swc/helpers": "^0.5.17",
     "@tamagui/config": "^1.94.4",

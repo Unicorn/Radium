@@ -16,7 +16,7 @@ export const apiKeysRouter = createTRPCRouter({
       publicInterfaceId: z.string().uuid().optional(),
     }))
     .query(async ({ ctx, input }) => {
-      let query = ctx.supabase
+      let query = (ctx.supabase as any)
         .from('api_keys')
         .select(`
           *,
@@ -45,7 +45,7 @@ export const apiKeysRouter = createTRPCRouter({
       }
 
       // Don't return the full hash, just the prefix for display
-      return (data || []).map((key) => ({
+      return (data || []).map((key: any) => ({
         ...key,
         key_hash: undefined, // Don't expose hash
         key_prefix: key.key_prefix || getApiKeyDisplayPrefix(key.key_prefix),
@@ -56,7 +56,7 @@ export const apiKeysRouter = createTRPCRouter({
   get: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      const { data, error } = await ctx.supabase
+      const { data, error } = await (ctx.supabase as any)
         .from('api_keys')
         .select(`
           *,
@@ -116,7 +116,7 @@ export const apiKeysRouter = createTRPCRouter({
 
       // Verify public interface ownership if publicInterfaceId provided
       if (input.publicInterfaceId) {
-        const { data: publicInterface, error: interfaceError } = await ctx.supabase
+        const { data: publicInterface, error: interfaceError } = await (ctx.supabase as any)
           .from('public_interfaces')
           .select(`
             id,
@@ -152,7 +152,7 @@ export const apiKeysRouter = createTRPCRouter({
       const keyPrefix = extractApiKeyPrefix(apiKey);
 
       // Insert into database
-      const { data, error } = await ctx.supabase
+      const { data, error } = await (ctx.supabase as any)
         .from('api_keys')
         .insert({
           user_id: ctx.user.id,
@@ -202,7 +202,7 @@ export const apiKeysRouter = createTRPCRouter({
       const { id, ...updates } = input;
 
       // Verify ownership
-      const { data: existing, error: fetchError } = await ctx.supabase
+      const { data: existing, error: fetchError } = await (ctx.supabase as any)
         .from('api_keys')
         .select('id')
         .eq('id', id)
@@ -222,7 +222,7 @@ export const apiKeysRouter = createTRPCRouter({
       if (updates.isActive !== undefined) updateData.is_active = updates.isActive;
       if (updates.expiresAt !== undefined) updateData.expires_at = updates.expiresAt;
 
-      const { data, error } = await ctx.supabase
+      const { data, error } = await (ctx.supabase as any)
         .from('api_keys')
         .update(updateData)
         .eq('id', id)
@@ -247,7 +247,7 @@ export const apiKeysRouter = createTRPCRouter({
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       // Verify ownership
-      const { data: existing, error: fetchError } = await ctx.supabase
+      const { data: existing, error: fetchError } = await (ctx.supabase as any)
         .from('api_keys')
         .select('id')
         .eq('id', input.id)
@@ -262,7 +262,7 @@ export const apiKeysRouter = createTRPCRouter({
       }
 
       // Soft delete by setting is_active = false
-      const { error } = await ctx.supabase
+      const { error } = await (ctx.supabase as any)
         .from('api_keys')
         .update({ is_active: false })
         .eq('id', input.id);
@@ -282,7 +282,7 @@ export const apiKeysRouter = createTRPCRouter({
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       // Get existing key to copy metadata
-      const { data: existing, error: fetchError } = await ctx.supabase
+      const { data: existing, error: fetchError } = await (ctx.supabase as any)
         .from('api_keys')
         .select('*')
         .eq('id', input.id)
@@ -297,7 +297,7 @@ export const apiKeysRouter = createTRPCRouter({
       }
 
       // Revoke old key
-      await ctx.supabase
+      await (ctx.supabase as any)
         .from('api_keys')
         .update({ is_active: false })
         .eq('id', input.id);
@@ -307,7 +307,7 @@ export const apiKeysRouter = createTRPCRouter({
       const keyHash = hashApiKey(apiKey);
       const keyPrefix = extractApiKeyPrefix(apiKey);
 
-      const { data, error } = await ctx.supabase
+      const { data, error } = await (ctx.supabase as any)
         .from('api_keys')
         .insert({
           user_id: ctx.user.id,

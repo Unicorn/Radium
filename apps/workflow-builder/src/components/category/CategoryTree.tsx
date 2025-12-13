@@ -100,12 +100,12 @@ export function CategoryTree({
     };
 
     const sortRecursive = (cat: CategoryNode & { children: CategoryNode[] }) => {
-      cat.children = sortCategories(cat.children);
-      cat.children.forEach(sortRecursive);
+      cat.children = sortCategories(cat.children as (CategoryNode & { children: CategoryNode[] })[]);
+      (cat.children as (CategoryNode & { children: CategoryNode[] })[]).forEach(sortRecursive);
     };
 
     rootCategories.forEach(sortRecursive);
-    return sortCategories(rootCategories);
+    return sortCategories(rootCategories) as (CategoryNode & { children: CategoryNode[] })[];
   }, [categories]);
 
   const renderCategory = (
@@ -211,7 +211,7 @@ export function CategoryTree({
         {/* Child Categories */}
         {isExpanded && hasChildren && (
           <YStack gap="$2" paddingLeft="$2">
-            {category.children.map(child => renderCategory(child, level + 1))}
+            {(category.children as (CategoryNode & { children: CategoryNode[] })[]).map(child => renderCategory(child, level + 1))}
           </YStack>
         )}
       </YStack>

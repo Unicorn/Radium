@@ -108,9 +108,9 @@ function WorkflowDetailContent() {
                 <H1>{workflow.display_name}</H1>
                 <Text color="$gray11">{workflow.description}</Text>
               </YStack>
-              <Badge 
+              <Badge
                 backgroundColor={workflow.status?.color || '$gray10'}
-                size="3"
+                size={3}
               >
                 <Text fontSize="$3" color="white">
                   {workflow.status?.name || 'Unknown'}

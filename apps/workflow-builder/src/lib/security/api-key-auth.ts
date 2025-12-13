@@ -39,12 +39,12 @@ export async function validateApiKey(
   const keyHash = hashApiKey(apiKey);
 
   // Look up API key in database
-  const { data: apiKeyRecord, error } = await supabase
-    .from('api_keys')
+  const { data: apiKeyRecord, error } = await (supabase
+    .from('api_keys' as any)
     .select('*')
     .eq('key_hash', keyHash)
     .eq('is_active', true)
-    .single();
+    .single() as unknown as Promise<{ data: any; error: any }>);
 
   if (error || !apiKeyRecord) {
     return {
@@ -65,10 +65,10 @@ export async function validateApiKey(
   }
 
   // Update last_used_at timestamp (fire and forget)
-  supabase
-    .from('api_keys')
+  (supabase
+    .from('api_keys' as any)
     .update({ last_used_at: new Date().toISOString() })
-    .eq('id', apiKeyRecord.id)
+    .eq('id', apiKeyRecord.id) as unknown as Promise<any>)
     .then(() => {
       // Silently handle errors - don't block request
     })

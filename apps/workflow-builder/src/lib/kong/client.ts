@@ -27,7 +27,7 @@ export class KongClient {
   constructor(adminUrl?: string, apiKey?: string) {
     const config = adminUrl ? { adminUrl, apiKey } : getKongConfig();
     this.adminUrl = config.adminUrl;
-    this.apiKey = config.adminApiKey;
+    this.apiKey = 'apiKey' in config ? config.apiKey : undefined;
   }
 
   /**

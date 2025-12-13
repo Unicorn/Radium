@@ -237,12 +237,13 @@ export async function findFiles(
     // Apply regex filter if provided
     if (regex) {
       const regexPattern = new RegExp(regex);
-      filePaths = filePaths.filter(p => regexPattern.test(path.basename(p)));
+      filePaths = filePaths.filter(p => regexPattern.test(path.basename(String(p))));
     }
 
     // Get file info
     const files: FileInfo[] = [];
-    for (const filePath of filePaths) {
+    for (const entry of filePaths) {
+      const filePath = String(entry);
       try {
         const stat = await fs.stat(filePath);
         files.push({
@@ -435,7 +436,7 @@ export async function searchFileContent(
 
         const lines = content.split('\n');
         lines.forEach((line, lineIndex) => {
-          const lineMatches = [...line.matchAll(regex)];
+          const lineMatches = Array.from(line.matchAll(regex));
           for (const match of lineMatches) {
             if (matches.length >= maxResults) return;
 
@@ -502,7 +503,7 @@ export async function listDirectory(
     const allEntries: DirectoryEntry[] = []; // Flat list for recursive mode
     let totalSize = 0;
 
-    async function processEntry(entryPath: string, parent?: DirectoryEntry): Promise<void> {
+    const processEntry = async (entryPath: string, parent?: DirectoryEntry): Promise<void> => {
       try {
         const stat = await fs.stat(entryPath);
         const name = path.basename(entryPath);
@@ -552,7 +553,7 @@ export async function listDirectory(
         // Skip entries that can't be accessed
         console.warn(`Failed to process entry: ${entryPath}`, error);
       }
-    }
+    };
 
     // Process directory
     const children = await fs.readdir(directory);
@@ -669,6 +670,8 @@ export async function batchWriteFiles(
         for (let i = 0; i < operations.length; i++) {
           const op = operations[i];
           const tempPath = tempFiles[i];
+          if (!op || !tempPath) continue;
+
           const finalPath = baseDir
             ? path.resolve(baseDir, op.path)
             : path.resolve(op.path);

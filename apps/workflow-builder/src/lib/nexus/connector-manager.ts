@@ -155,8 +155,8 @@ export async function createProjectConnector(
     id: connector.id,
     sourceProjectId: connector.source_project_id,
     targetProjectId: connector.target_project_id,
-    nexusEndpointName: connector.nexus_endpoint_name,
-    nexusServiceName: connector.nexus_service_name,
+    nexusEndpointName: (connector as any).nexus_endpoint_name,
+    nexusServiceName: (connector as any).nexus_service_name,
   };
 }
 
@@ -168,7 +168,7 @@ export async function deleteProjectConnector(
   supabase: SupabaseClient<Database>
 ): Promise<void> {
   // Get connector info
-  const { data: connector, error } = await supabase
+  const { data: connector, error } = await (supabase as any)
     .from('project_connectors')
     .select('nexus_endpoint_name, nexus_service_name')
     .eq('id', connectorId)

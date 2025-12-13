@@ -34,10 +34,10 @@ export function QueryCard({ query, onUpdate }: QueryCardProps) {
     }
 
     if (confirm(`Delete query "${query.query_name}"? This cannot be undone.`)) {
-      await deleteMutation.mutateAsync({ 
+      await deleteMutation.mutateAsync({
         id: query.id,
-        workflowId: query.workflow_id 
-      });
+        workflowId: query.workflow_id,
+      } as any);
     }
   };
 
@@ -54,7 +54,7 @@ export function QueryCard({ query, onUpdate }: QueryCardProps) {
                   {query.query_name}
                 </Text>
                 {query.auto_generated && (
-                  <Badge size="$1" bg="$blue5">AUTO</Badge>
+                  <Badge size={1} bg="$blue5">AUTO</Badge>
                 )}
               </XStack>
               {query.description && (

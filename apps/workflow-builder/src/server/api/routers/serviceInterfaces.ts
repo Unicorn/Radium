@@ -31,7 +31,7 @@ export const serviceInterfacesRouter = createTRPCRouter({
         });
       }
 
-      const { data, error } = await ctx.supabase
+      const { data, error } = await (ctx.supabase as any)
         .from('service_interfaces')
         .select('*')
         .eq('workflow_id', input.workflowId)
@@ -51,7 +51,7 @@ export const serviceInterfacesRouter = createTRPCRouter({
   get: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      const { data, error } = await ctx.supabase
+      const { data, error } = await (ctx.supabase as any)
         .from('service_interfaces')
         .select(`
           *,
@@ -108,7 +108,7 @@ export const serviceInterfacesRouter = createTRPCRouter({
         });
       }
 
-      const { data, error } = await ctx.supabase
+      const { data, error } = await (ctx.supabase as any)
         .from('service_interfaces')
         .insert({
           workflow_id: input.workflowId,
@@ -168,7 +168,7 @@ export const serviceInterfacesRouter = createTRPCRouter({
       const { id, ...updates } = input;
 
       // Verify ownership
-      const { data: existing } = await ctx.supabase
+      const { data: existing } = await (ctx.supabase as any)
         .from('service_interfaces')
         .select('workflow:workflows!inner(created_by)')
         .eq('id', id)
@@ -200,7 +200,7 @@ export const serviceInterfacesRouter = createTRPCRouter({
       if (updates.outputSchema !== undefined) updateData.output_schema = updates.outputSchema;
       if (updates.isPublic !== undefined) updateData.is_public = updates.isPublic;
 
-      const { data, error } = await ctx.supabase
+      const { data, error } = await (ctx.supabase as any)
         .from('service_interfaces')
         .update(updateData)
         .eq('id', id)
@@ -232,7 +232,7 @@ export const serviceInterfacesRouter = createTRPCRouter({
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       // Verify ownership
-      const { data: existing } = await ctx.supabase
+      const { data: existing } = await (ctx.supabase as any)
         .from('service_interfaces')
         .select('workflow:workflows!inner(created_by)')
         .eq('id', input.id)
@@ -254,7 +254,7 @@ export const serviceInterfacesRouter = createTRPCRouter({
       }
 
       // Delete (cascade will handle public_interfaces)
-      const { error } = await ctx.supabase
+      const { error } = await (ctx.supabase as any)
         .from('service_interfaces')
         .delete()
         .eq('id', input.id);

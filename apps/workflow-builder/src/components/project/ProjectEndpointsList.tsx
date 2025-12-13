@@ -17,7 +17,7 @@ export function ProjectEndpointsList({ projectId }: ProjectEndpointsListProps) {
   // Fetch all workflows in the project
   const { data: workflowsData, isLoading: isLoadingWorkflows } = api.workflows.list.useQuery({
     projectId,
-  });
+  } as any);
 
   // Fetch public interfaces for all workflows
   const workflowIds = workflowsData?.workflows?.map(w => w.id) || [];

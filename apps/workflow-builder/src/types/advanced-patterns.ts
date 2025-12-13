@@ -283,6 +283,7 @@ export interface CronValidationResult {
   error?: string;
   nextRuns?: Date[];
   humanReadable?: string;
+  isHighFrequency?: boolean;
 }
 
 export interface CircularDependencyCheckResult {

@@ -25,7 +25,7 @@ export async function getProjectLoggingConfig(
   projectId: string,
   supabase: SupabaseClient<Database>
 ) {
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from('project_logging_config')
     .select('*, connector:connectors(*)')
     .eq('project_id', projectId)
@@ -78,7 +78,7 @@ export async function getLoggingConnectorCredentials(
       if (connector.name?.toLowerCase().includes('syslog')) {
         config.endpoint = credentials.host || credentials.endpoint;
         config.method = 'UDP'; // Syslog typically uses UDP
-        config.port = credentials.port || 514;
+        (config as any).port = credentials.port || 514;
       }
     } catch (error) {
       console.warn('Failed to parse connector credentials:', error);

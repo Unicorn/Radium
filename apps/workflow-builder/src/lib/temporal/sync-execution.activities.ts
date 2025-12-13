@@ -114,16 +114,17 @@ export async function extractComponentExecutionsActivity(
   
   if (executionsToInsert.length > 0) {
     // Delete existing component executions for this execution (in case of re-sync)
-    await supabase
+    // Using type assertion because component_executions table is not in generated types yet
+    await (supabase as any)
       .from('component_executions')
       .delete()
       .eq('workflow_execution_id', input.executionId);
-    
+
     // Insert new component executions
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('component_executions')
       .insert(executionsToInsert);
-    
+
     if (error) {
       throw new Error(`Failed to store component executions: ${error.message}`);
     }
@@ -139,28 +140,32 @@ export async function checkSyncStatusActivity(
   executionId: string
 ): Promise<{ needsSync: boolean; syncStatus: string }> {
   const supabase = getSupabaseClient();
-  
-  const { data, error } = await supabase
+
+  // Using type assertion because history_sync_status and history_synced_at columns are not in generated types yet
+  const { data, error } = await (supabase as any)
     .from('workflow_executions')
     .select('history_sync_status, history_synced_at')
     .eq('id', executionId)
     .single();
-  
+
   if (error || !data) {
     return { needsSync: true, syncStatus: 'pending' };
   }
-  
+
+  // Type assertion for result
+  const execution = data as { history_sync_status?: string; history_synced_at?: string };
+
   // If already synced, check if it's recent (within last hour)
-  if (data.history_sync_status === 'synced' && data.history_synced_at) {
-    const syncedAt = new Date(data.history_synced_at);
+  if (execution.history_sync_status === 'synced' && execution.history_synced_at) {
+    const syncedAt = new Date(execution.history_synced_at);
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-    
+
     if (syncedAt > oneHourAgo) {
       return { needsSync: false, syncStatus: 'synced' };
     }
   }
-  
-  return { needsSync: true, syncStatus: data.history_sync_status || 'pending' };
+
+  return { needsSync: true, syncStatus: execution.history_sync_status || 'pending' };
 }
 
 /**
@@ -172,24 +177,25 @@ export async function updateSyncStatusActivity(
   error?: string
 ): Promise<void> {
   const supabase = getSupabaseClient();
-  
+
   const update: any = {
     history_sync_status: status,
   };
-  
+
   if (status === 'synced') {
     update.history_synced_at = new Date().toISOString();
   }
-  
+
   if (error) {
     // Could store error in a separate field if needed
   }
-  
-  const { error: updateError } = await supabase
+
+  // Using type assertion because history_sync_status and history_synced_at columns are not in generated types yet
+  const { error: updateError } = await (supabase as any)
     .from('workflow_executions')
     .update(update)
     .eq('id', executionId);
-  
+
   if (updateError) {
     throw new Error(`Failed to update sync status: ${updateError.message}`);
   }

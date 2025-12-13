@@ -197,7 +197,23 @@ const DANGEROUS_COMMANDS = new Set([
  * Validates command is safe to execute
  */
 export function validateCommand(command: string): { allowed: boolean; reason?: string } {
-  const baseCommand = command.split(' ')[0].split('/').pop() || '';
+  const firstPart = command.split(' ')[0];
+  if (!firstPart) {
+    return {
+      allowed: false,
+      reason: 'Invalid command',
+    };
+  }
+
+  const parts = firstPart.split('/');
+  const baseCommand = parts.pop();
+
+  if (!baseCommand) {
+    return {
+      allowed: false,
+      reason: 'Invalid command',
+    };
+  }
 
   if (DANGEROUS_COMMANDS.has(baseCommand)) {
     return {
@@ -340,7 +356,7 @@ export async function executeCommand(
           error: `Command timed out after ${timeout}ms`,
         });
       }
-    }, timeout);
+    }, timeout) as unknown as NodeJS.Timeout;
 
     // Spawn process
     try {
@@ -477,14 +493,16 @@ export async function runBuildCommand(
   let match;
   while ((match = errorRegex.exec(output)) !== null) {
     const [, file, line, , type, message] = match;
-    buildErrors.push({
-      file: file.trim(),
-      line: parseInt(line, 10),
-      message: message.trim(),
-      type: type as 'error' | 'warning',
-    });
-    if (type === 'warning') {
-      buildWarnings++;
+    if (file && line && type && message) {
+      buildErrors.push({
+        file: file.trim(),
+        line: parseInt(line, 10),
+        message: message.trim(),
+        type: type as 'error' | 'warning',
+      });
+      if (type === 'warning') {
+        buildWarnings++;
+      }
     }
   }
 
@@ -566,7 +584,7 @@ export async function runTestCommand(
     
     if (testsLineMatch) {
       // Parse from "Tests: X passed, Y failed, Z skipped, N total" format
-      testResults.passed = parseInt(testsLineMatch[1], 10);
+      if (testsLineMatch[1]) testResults.passed = parseInt(testsLineMatch[1], 10);
       if (testsLineMatch[2]) testResults.failed = parseInt(testsLineMatch[2], 10);
       if (testsLineMatch[3]) testResults.skipped = parseInt(testsLineMatch[3], 10);
       if (testsLineMatch[4]) testResults.total = parseInt(testsLineMatch[4], 10);
@@ -577,10 +595,10 @@ export async function runTestCommand(
       const skippedMatch = result.stdout.match(/Tests:\s+.*?(\d+)\s+skipped/i);
       const totalMatch = result.stdout.match(/Tests:\s+.*?(\d+)\s+total/i);
 
-      if (passedMatch) testResults.passed = parseInt(passedMatch[1], 10);
-      if (failedMatch) testResults.failed = parseInt(failedMatch[1], 10);
-      if (skippedMatch) testResults.skipped = parseInt(skippedMatch[1], 10);
-      if (totalMatch) testResults.total = parseInt(totalMatch[1], 10);
+      if (passedMatch?.[1]) testResults.passed = parseInt(passedMatch[1], 10);
+      if (failedMatch?.[1]) testResults.failed = parseInt(failedMatch[1], 10);
+      if (skippedMatch?.[1]) testResults.skipped = parseInt(skippedMatch[1], 10);
+      if (totalMatch?.[1]) testResults.total = parseInt(totalMatch[1], 10);
     }
     
     // If we have passed/failed but no total, calculate it
@@ -590,7 +608,7 @@ export async function runTestCommand(
 
     // Parse coverage (simplified)
     const coverageMatch = result.stdout.match(/Lines\s+:\s+(\d+(?:\.\d+)?)%/);
-    if (coverageMatch) {
+    if (coverageMatch?.[1]) {
       coverageData.lines = parseFloat(coverageMatch[1]);
     }
   } else {
@@ -598,11 +616,13 @@ export async function runTestCommand(
     const failureRegex = /FAIL\s+(.+?)\s+(.+?)\n([\s\S]*?)(?=FAIL|PASS|$)/g;
     let match;
     while ((match = failureRegex.exec(result.stdout || result.stderr)) !== null) {
-      failures.push({
-        test: match[1].trim(),
-        file: match[2].trim(),
-        error: match[3].trim(),
-      });
+      if (match[1] && match[2] && match[3]) {
+        failures.push({
+          test: match[1].trim(),
+          file: match[2].trim(),
+          error: match[3].trim(),
+        });
+      }
     }
   }
 
@@ -669,23 +689,33 @@ export async function runLintCommand(
 
   if (format === 'json' && result.stdout) {
     try {
-      const lintOutput = JSON.parse(result.stdout);
+      const lintOutput = JSON.parse(result.stdout) as Array<{
+        filePath?: string;
+        messages?: Array<{
+          line?: number;
+          column?: number;
+          ruleId?: string;
+          severity?: number;
+          message?: string;
+          fix?: unknown;
+        }>;
+      }>;
       if (Array.isArray(lintOutput)) {
         for (const file of lintOutput) {
           if (file.messages && Array.isArray(file.messages)) {
             for (const message of file.messages) {
               const issue: LintIssue = {
-                file: file.filePath || '',
-                line: message.line || 0,
-                column: message.column || 0,
-                rule: message.ruleId || '',
+                file: file.filePath ?? '',
+                line: message.line ?? 0,
+                column: message.column ?? 0,
+                rule: message.ruleId ?? '',
                 severity: message.severity === 2 ? 'error' : 'warning',
-                message: message.message || '',
+                message: message.message ?? '',
                 fixable: !!message.fix,
               };
 
               issues.push(issue);
-              
+
               if (issue.severity === 'error') {
                 lintResults.errors++;
               } else {
@@ -703,15 +733,15 @@ export async function runLintCommand(
       // Failed to parse JSON, try text parsing
       const errorMatch = result.stdout.match(/(\d+)\s+error/);
       const warningMatch = result.stdout.match(/(\d+)\s+warning/);
-      if (errorMatch) lintResults.errors = parseInt(errorMatch[1], 10);
-      if (warningMatch) lintResults.warnings = parseInt(warningMatch[1], 10);
+      if (errorMatch?.[1]) lintResults.errors = parseInt(errorMatch[1], 10);
+      if (warningMatch?.[1]) lintResults.warnings = parseInt(warningMatch[1], 10);
     }
   } else {
     // Parse text output
     const errorMatch = (result.stdout || result.stderr).match(/(\d+)\s+error/);
     const warningMatch = (result.stdout || result.stderr).match(/(\d+)\s+warning/);
-    if (errorMatch) lintResults.errors = parseInt(errorMatch[1], 10);
-    if (warningMatch) lintResults.warnings = parseInt(warningMatch[1], 10);
+    if (errorMatch?.[1]) lintResults.errors = parseInt(errorMatch[1], 10);
+    if (warningMatch?.[1]) lintResults.warnings = parseInt(warningMatch[1], 10);
   }
 
   return {

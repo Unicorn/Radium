@@ -172,7 +172,7 @@ export function validateNewBlockDependency(
 
   // Create a copy with the new dependency
   const updatedNodes = [...existingNodes];
-  const updatedNode = { ...updatedNodes[nodeIndex] };
+  const updatedNode: DependencyNode = { ...updatedNodes[nodeIndex]! };
   updatedNode.blocksOn = [...(updatedNode.blocksOn || []), blockQueue];
   updatedNodes[nodeIndex] = updatedNode;
 

@@ -117,12 +117,12 @@ export async function analyzeActivityPerformance(projectId: string) {
       const HIGH_LATENCY = 5000; // > 5 seconds avg
       const HIGH_FAILURE_RATE = 0.05; // > 5% failure rate
       
-      const failureRate = activity.execution_count > 0
-        ? activity.failure_count / activity.execution_count
+      const failureRate = (activity.execution_count ?? 0) > 0
+        ? (activity.failure_count ?? 0) / (activity.execution_count ?? 0)
         : 0;
-      
+
       return (
-        activity.execution_count > HIGH_USAGE ||
+        (activity.execution_count ?? 0) > HIGH_USAGE ||
         (activity.avg_duration_ms || 0) > HIGH_LATENCY ||
         failureRate > HIGH_FAILURE_RATE
       );

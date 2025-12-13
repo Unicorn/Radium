@@ -54,7 +54,8 @@ export interface ConnectionNode {
   position?: number;
 }
 
-interface ServiceContainerNodeProps extends NodeProps<ServiceContainerNodeData> {
+interface ServiceContainerNodeProps {
+  data: ServiceContainerNodeData;
   selected?: boolean;
 }
 

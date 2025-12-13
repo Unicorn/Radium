@@ -30,7 +30,7 @@ export async function getResolverConfig(
   serviceInterfaceId: string,
   supabase: SupabaseClient<Database>
 ): Promise<GraphQLResolverConfig | null> {
-  const { data: serviceInterface, error } = await supabase
+  const { data: serviceInterface, error } = await (supabase as any)
     .from('service_interfaces')
     .select('graphql_schema')
     .eq('id', serviceInterfaceId)

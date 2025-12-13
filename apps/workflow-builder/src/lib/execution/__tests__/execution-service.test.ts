@@ -281,15 +281,15 @@ describe('ExecutionService', () => {
       const freshService = new ExecutionService(freshMockSupabase);
 
       // Set up the chain so that the last operation (the second eq call for status) resolves
-      freshMockSupabase._mockChain.eq
-        .mockReturnValueOnce(freshMockSupabase._mockChain) // First eq (workflow_id) returns chain
+      (freshMockSupabase as any)._mockChain.eq
+        .mockReturnValueOnce((freshMockSupabase as any)._mockChain) // First eq (workflow_id) returns chain
         .mockResolvedValueOnce({ data: mockExecutions, error: null }); // Second eq (status) resolves
 
       const result = await freshService.listExecutions(workflowId, { status: 'completed' });
 
       // Verify both eq calls were made
-      expect(freshMockSupabase._mockChain.eq).toHaveBeenNthCalledWith(1, 'workflow_id', workflowId);
-      expect(freshMockSupabase._mockChain.eq).toHaveBeenNthCalledWith(2, 'status', 'completed');
+      expect((freshMockSupabase as any)._mockChain.eq).toHaveBeenNthCalledWith(1, 'workflow_id', workflowId);
+      expect((freshMockSupabase as any)._mockChain.eq).toHaveBeenNthCalledWith(2, 'status', 'completed');
       expect(result).toEqual(mockExecutions);
     });
 

@@ -83,7 +83,6 @@ export function NodePropertyPanel({ node, onClose, onSave, availableSignals = []
           {node.type === 'child-workflow' && <ChildWorkflowProperties properties={properties} onChange={handlePropertyChange} />}
           {node.type === 'api-endpoint' && <ApiEndpointProperties properties={properties} onChange={handlePropertyChange} availableSignals={availableSignals} availableQueries={availableQueries} />}
           {node.type === 'condition' && <ConditionProperties properties={properties} onChange={handlePropertyChange} />}
-          {node.type === 'kong-logging' && <KongLoggingProperties properties={properties} onChange={handlePropertyChange} node={node} />}
           {node.type === 'kong-cache' && <KongCacheProperties properties={properties} onChange={handlePropertyChange} node={node} />}
           {node.type === 'kong-cors' && <KongCorsProperties properties={properties} onChange={handlePropertyChange} node={node} />}
           {node.type === 'graphql-gateway' && <GraphQLGatewayProperties properties={properties} onChange={handlePropertyChange} node={node} />}
@@ -1261,7 +1260,9 @@ function StateVariableProperties({ properties, onChange }: any) {
       {(config.storageType === 'database' || config.storageType === 'redis') && projectId && (
         <ConnectorSelector
           projectId={projectId}
-          classification={config.storageType === 'database' ? 'database' : 'redis'}
+          {...(config.storageType === 'database'
+            ? { connectorType: 'database' as const }
+            : { classification: 'redis' as const })}
           value={config.connectorId}
           onChange={(v) => updateConfig('connectorId', v)}
         />
@@ -1532,12 +1533,12 @@ function RedisProperties({ properties, onChange }: any) {
           </Select.Trigger>
           <Select.Content>
             <Select.Viewport>
-              <Select.Item value="GET">GET</Select.Item>
-              <Select.Item value="SET">SET</Select.Item>
-              <Select.Item value="DEL">DEL</Select.Item>
-              <Select.Item value="EXISTS">EXISTS</Select.Item>
-              <Select.Item value="INCR">INCR</Select.Item>
-              <Select.Item value="DECR">DECR</Select.Item>
+              <Select.Item value="GET" index={0}>GET</Select.Item>
+              <Select.Item value="SET" index={1}>SET</Select.Item>
+              <Select.Item value="DEL" index={2}>DEL</Select.Item>
+              <Select.Item value="EXISTS" index={3}>EXISTS</Select.Item>
+              <Select.Item value="INCR" index={4}>INCR</Select.Item>
+              <Select.Item value="DECR" index={5}>DECR</Select.Item>
             </Select.Viewport>
           </Select.Content>
         </Select>
@@ -1727,9 +1728,6 @@ function KongCacheProperties({ properties, onChange, node }: any) {
     { enabled: !!componentId && !!projectId && isSaved }
   );
 
-  // Generate new cache key mutation
-  const generateKeyMutation = api.kongCache.generateKey.useMutation();
-
   // Upsert cache key mutation
   const upsertCacheKeyMutation = api.kongCache.upsert.useMutation();
 
@@ -1742,14 +1740,9 @@ function KongCacheProperties({ properties, onChange, node }: any) {
   // Auto-generate cache key on mount if not set
   useEffect(() => {
     if (!cacheKey && projectId && !isSaved) {
-      generateKeyMutation.mutate(
-        { projectId },
-        {
-          onSuccess: (data) => {
-            updateConfig('cacheKey', data.cacheKey);
-          },
-        }
-      );
+      // Generate a UUID for the cache key
+      const newCacheKey = crypto.randomUUID();
+      updateConfig('cacheKey', newCacheKey);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1757,11 +1750,13 @@ function KongCacheProperties({ properties, onChange, node }: any) {
   // Sync with database if component is saved
   useEffect(() => {
     if (cacheKeyConfig && isSaved) {
-      updateConfig('cacheKey', cacheKeyConfig.cache_key);
-      updateConfig('ttlSeconds', cacheKeyConfig.ttl_seconds);
-      updateConfig('cacheKeyStrategy', cacheKeyConfig.cache_key_strategy);
-      updateConfig('contentTypes', cacheKeyConfig.content_types);
-      updateConfig('responseCodes', cacheKeyConfig.response_codes);
+      // Type assertion for cache key config from database
+      const config = cacheKeyConfig as any;
+      updateConfig('cacheKey', config.cache_key);
+      updateConfig('ttlSeconds', config.ttl_seconds);
+      updateConfig('cacheKeyStrategy', config.cache_key_strategy);
+      updateConfig('contentTypes', config.content_types);
+      updateConfig('responseCodes', config.response_codes);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cacheKeyConfig, isSaved]);
@@ -1871,14 +1866,9 @@ function KongCacheProperties({ properties, onChange, node }: any) {
                 size="$2"
                 onPress={() => {
                   if (projectId) {
-                    generateKeyMutation.mutate(
-                      { projectId },
-                      {
-                        onSuccess: (data) => {
-                          updateConfig('cacheKey', data.cacheKey);
-                        },
-                      }
-                    );
+                    // Generate a new UUID for the cache key
+                    const newCacheKey = crypto.randomUUID();
+                    updateConfig('cacheKey', newCacheKey);
                   }
                 }}
               >

@@ -24,7 +24,7 @@ export async function getCorsConfig(
   publicInterfaceId: string,
   supabase: SupabaseClient<Database>
 ): Promise<CorsConfig | null> {
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from('public_interfaces')
     .select('cors_config')
     .eq('id', publicInterfaceId)

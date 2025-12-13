@@ -44,7 +44,7 @@ export async function postgresqlQueryActivity(
     return {
       success: true,
       rows: result.rows,
-      rowCount: result.rowCount,
+      rowCount: result.rowCount ?? undefined,
     };
   } catch (error: any) {
     try {

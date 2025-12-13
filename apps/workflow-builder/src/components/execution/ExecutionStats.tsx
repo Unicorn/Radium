@@ -2,6 +2,7 @@
 
 import { YStack, XStack, Card, Text } from 'tamagui';
 import { TrendingUp, Activity, CheckCircle, XCircle, Clock, Zap } from 'lucide-react';
+import type { LucideIcon } from '@/types/icons';
 
 interface ExecutionStatsProps {
   stats: {
@@ -63,7 +64,7 @@ export function ExecutionStats({ stats }: ExecutionStatsProps) {
 interface StatCardProps {
   label: string;
   value: string;
-  icon: React.ComponentType<{ size?: number; color?: string }>;
+  icon: LucideIcon;
   color: 'blue' | 'yellow' | 'green' | 'red' | 'purple' | 'gray';
   pulse?: boolean;
 }

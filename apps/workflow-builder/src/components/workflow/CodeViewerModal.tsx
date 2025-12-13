@@ -111,7 +111,7 @@ export function CodeViewerModal({ code, open, onClose }: CodeViewerModalProps) {
           <XStack gap="$2" paddingBottom="$2" borderBottomWidth={1} borderColor="$borderColor">
             <Button
               size="$3"
-              variant={activeTab === 'workflow' ? 'outlined' : 'ghost'}
+              variant={activeTab === 'workflow' ? 'outlined' : undefined}
               onPress={() => setActiveTab('workflow')}
               backgroundColor={activeTab === 'workflow' ? '$blue2' : 'transparent'}
               data-testid="code-tab-workflow"
@@ -120,7 +120,7 @@ export function CodeViewerModal({ code, open, onClose }: CodeViewerModalProps) {
             </Button>
             <Button
               size="$3"
-              variant={activeTab === 'activities' ? 'outlined' : 'ghost'}
+              variant={activeTab === 'activities' ? 'outlined' : undefined}
               onPress={() => setActiveTab('activities')}
               backgroundColor={activeTab === 'activities' ? '$blue2' : 'transparent'}
               data-testid="code-tab-activities"
@@ -129,7 +129,7 @@ export function CodeViewerModal({ code, open, onClose }: CodeViewerModalProps) {
             </Button>
             <Button
               size="$3"
-              variant={activeTab === 'worker' ? 'outlined' : 'ghost'}
+              variant={activeTab === 'worker' ? 'outlined' : undefined}
               onPress={() => setActiveTab('worker')}
               backgroundColor={activeTab === 'worker' ? '$blue2' : 'transparent'}
               data-testid="code-tab-worker"

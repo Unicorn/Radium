@@ -143,7 +143,7 @@ export default function ExecutionDetailPage() {
                 Component Executions
               </Text>
               <YStack gap="$3">
-                {currentExecution.componentExecutions.map((comp: ComponentExecution) => (
+                {(currentExecution.componentExecutions as ComponentExecution[]).map((comp) => (
                   <ComponentExecutionCard key={comp.id} component={comp} />
                 ))}
               </YStack>

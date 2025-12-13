@@ -16,6 +16,26 @@ export interface InterfaceComponentConfig {
 }
 
 /**
+ * Type definition for service_interfaces table
+ * This table is not yet in the generated database types
+ */
+export interface ServiceInterface {
+  id: string;
+  workflow_id: string;
+  name: string;
+  display_name: string | null;
+  description: string | null;
+  interface_type: 'signal' | 'query' | 'update' | 'start_child';
+  callable_name: string;
+  input_schema: Record<string, any> | null;
+  output_schema: Record<string, any> | null;
+  activity_connection_id: string | null;
+  is_public: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
  * Create a service interface from an interface component
  */
 export async function createServiceInterfaceFromComponent(
@@ -23,7 +43,7 @@ export async function createServiceInterfaceFromComponent(
   workflowId: string,
   config: InterfaceComponentConfig,
   supabase: SupabaseClient<Database>
-): Promise<Database['public']['Tables']['service_interfaces']['Row']> {
+): Promise<ServiceInterface> {
   // Get component details with component type
   const { data: component, error: componentError } = await supabase
     .from('components')
@@ -54,7 +74,7 @@ export async function createServiceInterfaceFromComponent(
   const callableName = toKebabCase(component.name);
 
   // Create service interface
-  const { data: serviceInterface, error: siError } = await supabase
+  const { data: serviceInterface, error: siError } = (await (supabase as any)
     .from('service_interfaces')
     .insert({
       workflow_id: workflowId,
@@ -69,22 +89,22 @@ export async function createServiceInterfaceFromComponent(
       is_public: config.isPublic ?? false,
     })
     .select()
-    .single();
+    .single()) as { data: ServiceInterface; error: any };
 
   if (siError) {
     if (siError.code === '23505') {
       // Unique constraint violation - interface already exists
       // Try to get existing interface
-      const { data: existing } = await supabase
+      const { data: existing } = (await (supabase as any)
         .from('service_interfaces')
         .select('*')
         .eq('workflow_id', workflowId)
         .eq('name', component.name)
-        .single();
+        .single()) as { data: ServiceInterface | null };
 
       if (existing) {
         // Update existing interface
-        const { data: updated, error: updateError } = await supabase
+        const { data: updated, error: updateError } = (await (supabase as any)
           .from('service_interfaces')
           .update({
             display_name: component.display_name,
@@ -99,7 +119,7 @@ export async function createServiceInterfaceFromComponent(
           })
           .eq('id', existing.id)
           .select()
-          .single();
+          .single()) as { data: ServiceInterface; error: any };
 
         if (updateError) {
           throw new Error(`Failed to update service interface: ${updateError.message}`);
@@ -121,13 +141,13 @@ export async function getServiceInterfaceForComponent(
   componentId: string,
   workflowId: string,
   supabase: SupabaseClient<Database>
-): Promise<Database['public']['Tables']['service_interfaces']['Row'] | null> {
-  const { data, error } = await supabase
+): Promise<ServiceInterface | null> {
+  const { data, error } = (await (supabase as any)
     .from('service_interfaces')
     .select('*')
     .eq('workflow_id', workflowId)
     .eq('activity_connection_id', componentId)
-    .single();
+    .single()) as { data: ServiceInterface | null; error: any };
 
   if (error) {
     if (error.code === 'PGRST116') {
@@ -148,11 +168,11 @@ export async function deleteServiceInterfaceForComponent(
   workflowId: string,
   supabase: SupabaseClient<Database>
 ): Promise<void> {
-  const { error } = await supabase
+  const { error } = (await (supabase as any)
     .from('service_interfaces')
     .delete()
     .eq('workflow_id', workflowId)
-    .eq('activity_connection_id', componentId);
+    .eq('activity_connection_id', componentId)) as { error: any };
 
   if (error) {
     throw new Error(`Failed to delete service interface: ${error.message}`);

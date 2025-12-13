@@ -56,7 +56,7 @@ export function WorkflowCanvas({
   // Use refs to track the last saved state and avoid re-renders
   const lastSavedNodesRef = useRef<string>(JSON.stringify(initialDefinition?.nodes || []));
   const lastSavedEdgesRef = useRef<string>(JSON.stringify(initialDefinition?.edges || []));
-  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const utils = api.useUtils();
   const notificationMutation = api.notifications.sendSlack.useMutation();
@@ -139,11 +139,11 @@ export function WorkflowCanvas({
 
   const compileMutation = api.compiler.compile.useMutation({
     onSuccess: async (result) => {
-      if (result.success && result.compiled) {
+      if (result.success && 'workflowCode' in result) {
         setGeneratedCode({
-          workflowCode: result.compiled.workflowCode,
-          activitiesCode: result.compiled.activitiesCode,
-          workerCode: result.compiled.workerCode,
+          workflowCode: result.workflowCode,
+          activitiesCode: result.activitiesCode,
+          workerCode: result.workerCode,
         });
         setShowCodeModal(true);
         console.log('✅ Workflow compiled successfully! View the generated TypeScript code');
@@ -351,12 +351,12 @@ export function WorkflowCanvas({
         position,
         data: {
           label: component.display_name,
-          displayName: component.display_name,
           componentId: component.id,
           componentName: component.name,
           config: {
             endpointPath,
             httpMethod,
+            displayName: component.display_name,
             ...config,
           },
         },
@@ -377,7 +377,7 @@ export function WorkflowCanvas({
               isPublic: true, // Default to public for interface components
             });
             // Invalidate service interfaces to refresh UI
-            utils.serviceInterfaces.list.invalidate({ serviceId: workflowId });
+            utils.serviceInterfaces.list.invalidate({ workflowId });
           } catch (error) {
             console.error('Failed to create service interface:', error);
             // Don't block node creation if interface creation fails
@@ -447,7 +447,7 @@ export function WorkflowCanvas({
           // Mark kong-cache components for deletion before removing
           selectedNodes.forEach((node) => {
             if (node.type === 'kong-cache' && node.data?.config?.isSaved) {
-              const projectId = node.data?.projectId || initialDefinition?.projectId;
+              const projectId = (node.data as any)?.projectId || (initialDefinition as any)?.projectId;
               if (projectId && node.id) {
                 markForDeletionMutation.mutate({
                   componentId: node.id,
@@ -512,8 +512,8 @@ export function WorkflowCanvas({
   return (
     <XStack flex={1} height="100vh">
       {/* Component Palette (Left Sidebar) */}
-      <ComponentPalette 
-        components={componentsData?.components || []} 
+      <ComponentPalette
+        components={(componentsData?.components || []) as any}
         disabled={readOnly}
       />
 

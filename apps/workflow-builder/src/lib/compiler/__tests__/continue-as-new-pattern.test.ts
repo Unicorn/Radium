@@ -44,8 +44,8 @@ describe('ContinueAsNewPattern', () => {
     return {
       nodes: configured.nodes,
       edges: configured.edges,
-      variables: configured.variables,
-      settings: configured.settings,
+      variables: configured.variables!,
+      settings: configured.settings!,
       nodeMap: new Map(configured.nodes.map(n => [n.id, n])),
       edgeMap: new Map(),
       visitedNodes: new Set(),

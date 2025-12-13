@@ -11,6 +11,8 @@ import { CodePreviewDialog } from '@/components/workflow-builder/CodePreviewDial
 import { WorkflowExecutionPanel } from '@/components/workflow-execution/WorkflowExecutionPanel';
 import { WorkerStatus } from '@/components/workflow/WorkerStatus';
 import { WorkQueueConnectionVisualizer } from '@/components/workflow-builder/WorkQueueConnectionVisualizer';
+import type { WorkflowDefinition } from '@/types/workflow';
+import type { Json } from '@/types/database';
 
 export default function WorkflowBuilderPage() {
   const params = useParams();
@@ -192,7 +194,7 @@ export default function WorkflowBuilderPage() {
       // Save workflow definition via tRPC
       await saveMutation.mutateAsync({
         id: workflowId,
-        definition: (workflowData.workflow as any).definition,
+        definition: workflowData.workflow.definition as Json,
       });
     } catch (error) {
       // Error handling is done in mutation callbacks
@@ -383,7 +385,7 @@ export default function WorkflowBuilderPage() {
           {viewMode === 'workflow' ? (
             <WorkflowCanvas
               workflowId={workflowId}
-              initialDefinition={workflowData.workflow.definition}
+              initialDefinition={workflowData.workflow.definition as unknown as WorkflowDefinition}
               readOnly={false}
             />
           ) : (
@@ -450,9 +452,9 @@ export default function WorkflowBuilderPage() {
             <WorkQueueConnectionVisualizer
               nodes={[]} // TODO: Get actual nodes from workflow
               workflowId={workflowId}
-              signals={signalsData?.signals}
-              queries={queriesData?.queries}
-              workQueues={workQueuesData?.workQueues}
+              signals={signalsData?.signals as any}
+              queries={queriesData?.queries as any}
+              workQueues={workQueuesData?.workQueues as any}
               onClose={() => setShowConnectionVisualizer(false)}
             />
           </Dialog.Content>

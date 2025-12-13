@@ -4,6 +4,7 @@ import { YStack, XStack, Card, Text, Button } from 'tamagui';
 import { formatDistanceToNow } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { Clock, CheckCircle, XCircle, AlertCircle, PlayCircle, Loader } from 'lucide-react';
+import type { LucideIcon } from '@/types/icons';
 
 interface Execution {
   id: string;
@@ -121,7 +122,7 @@ function ExecutionRow({ execution }: { execution: Execution }) {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const statusConfig: Record<string, { icon: React.ComponentType<{ size?: number; color?: string }>; color: string; bg: string; border: string; text: string }> = {
+  const statusConfig: Record<string, { icon: LucideIcon; color: string; bg: string; border: string; text: string }> = {
     completed: {
       icon: CheckCircle,
       color: '$green11',

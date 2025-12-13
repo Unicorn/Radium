@@ -136,11 +136,10 @@ export function ConnectorSelector({
         <Select
           value={value || ''}
           onValueChange={(v) => onChange(v || undefined)}
-          disabled={disabled}
         >
-          <Select.Trigger id="connector-select" width="100%">
+          <Select.Trigger id="connector-select" width="100%" disabled={disabled}>
             <Select.Value placeholder={
-            classification 
+            classification
               ? `Select ${classification.replace('-', ' ')} connector`
               : `Select ${connectorType || 'connector'}`
           } />

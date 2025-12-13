@@ -32,7 +32,7 @@ export function AgentPromptCard({ prompt, onClick }: AgentPromptCardProps) {
           <Text fontSize="$6" fontWeight="600">
             {prompt.display_name}
           </Text>
-          <Badge backgroundColor="$purple10" size="2">
+          <Badge backgroundColor="$purple10" size={2}>
             <Text fontSize="$2" color="white">
               agent
             </Text>
@@ -51,14 +51,14 @@ export function AgentPromptCard({ prompt, onClick }: AgentPromptCardProps) {
               Capabilities:
             </Text>
             {prompt.capabilities.slice(0, 4).map((cap: string) => (
-              <Badge key={cap} size="1" backgroundColor="$purple5">
+              <Badge key={cap} size={1} backgroundColor="$purple5">
                 <Text fontSize="$1" color="$purple11">
                   {cap}
                 </Text>
               </Badge>
             ))}
             {prompt.capabilities.length > 4 && (
-              <Badge size="1" backgroundColor="$gray5">
+              <Badge size={1} backgroundColor="$gray5">
                 <Text fontSize="$1" color="$gray12">
                   +{prompt.capabilities.length - 4}
                 </Text>
@@ -72,13 +72,13 @@ export function AgentPromptCard({ prompt, onClick }: AgentPromptCardProps) {
             v{prompt.version}
           </Text>
           <XStack gap="$2">
-            <Badge backgroundColor="$gray5" size="1">
+            <Badge backgroundColor="$gray5" size={1}>
               <Text fontSize="$1" color="$gray12">
                 {prompt.visibility.name}
               </Text>
             </Badge>
             {prompt.deprecated && (
-              <Badge backgroundColor="$red5" size="1">
+              <Badge backgroundColor="$red5" size={1}>
                 <Text fontSize="$1" color="$red11">
                   deprecated
                 </Text>

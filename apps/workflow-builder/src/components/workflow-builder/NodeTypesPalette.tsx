@@ -235,7 +235,7 @@ export function NodeTypesPalette({
     if (!acc[node.type]) {
       acc[node.type] = [];
     }
-    acc[node.type].push(node);
+    acc[node.type]!.push(node);
     return acc;
   }, {} as Record<string, NodeType[]>);
 

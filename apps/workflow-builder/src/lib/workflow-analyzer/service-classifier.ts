@@ -34,8 +34,7 @@ export function classifyWorkflow(definition: WorkflowDefinition): WorkflowType {
   
   // Check for service indicators
   const hasSignalHandlers = nodes.some(node => node.type === 'signal');
-  const hasQueryHandlers = nodes.some(node => 
-    node.type === 'query' || 
+  const hasQueryHandlers = nodes.some(node =>
     (node.type === 'data-out' && node.data.config?.interfaceType === 'query')
   );
   const hasInfiniteLoops = nodes.some(node => {

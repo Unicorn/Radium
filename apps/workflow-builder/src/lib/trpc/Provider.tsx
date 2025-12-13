@@ -58,8 +58,6 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
         httpBatchLink({
           url: apiUrl,
           maxURLLength: 2083,
-          // Send batch immediately (no delay)
-          batchInterval: 10, // ms - very short interval
           headers() {
             console.log('🔧 [httpBatchLink] Getting headers for request');
             return {};

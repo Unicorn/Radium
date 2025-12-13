@@ -468,8 +468,6 @@ CREATE POLICY "Users can view their workflow metrics" ON workflow_execution_metr
   USING (
     project_id IN (
       SELECT id FROM projects WHERE created_by = auth.uid()
-      UNION
-      SELECT project_id FROM project_members WHERE user_id = auth.uid()
     )
   );
 
@@ -483,8 +481,6 @@ CREATE POLICY "Users can view their workflow usage" ON workflow_usage_daily
   USING (
     project_id IN (
       SELECT id FROM projects WHERE created_by = auth.uid()
-      UNION
-      SELECT project_id FROM project_members WHERE user_id = auth.uid()
     )
   );
 
@@ -499,8 +495,6 @@ CREATE POLICY "Users can view their resource events" ON resource_events
   USING (
     project_id IN (
       SELECT id FROM projects WHERE created_by = auth.uid()
-      UNION
-      SELECT project_id FROM project_members WHERE user_id = auth.uid()
     )
   );
 
@@ -514,8 +508,6 @@ CREATE POLICY "Users can view their resource usage" ON resource_usage_daily
   USING (
     project_id IN (
       SELECT id FROM projects WHERE created_by = auth.uid()
-      UNION
-      SELECT project_id FROM project_members WHERE user_id = auth.uid()
     )
   );
 

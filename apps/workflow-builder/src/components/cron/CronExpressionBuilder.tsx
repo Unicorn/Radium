@@ -4,8 +4,7 @@ import { useState, useEffect } from 'react';
 import { YStack, XStack, Text, Button, Input, Label, Select, Adapt, Sheet } from 'tamagui';
 import { Badge } from '../shared/Badge';
 import { Check, ChevronDown, Info } from 'lucide-react';
-import { validateCronExpression, CRON_PRESETS, getHumanReadableDescription } from '@/utils/cron-validation';
-import type { CronValidationResult } from '@/utils/cron-validation';
+import { validateCronExpression, getCronPresets, getHumanReadableDescription, type CronValidationResult } from '@/utils/cron-validation';
 
 interface CronExpressionBuilderProps {
   value?: string;
@@ -24,6 +23,9 @@ export function CronExpressionBuilder({
   const [validation, setValidation] = useState<CronValidationResult | null>(null);
   const [showPresets, setShowPresets] = useState(true);
 
+  // Get presets as an array
+  const cronPresets = getCronPresets();
+
   // Validate expression whenever it changes
   useEffect(() => {
     if (expression) {
@@ -41,7 +43,7 @@ export function CronExpressionBuilder({
     onChange?.(newExpression);
   };
 
-  const handlePresetSelect = (preset: typeof CRON_PRESETS[0]) => {
+  const handlePresetSelect = (preset: { key: string; name: string; expression: string; description: string }) => {
     handleExpressionChange(preset.expression);
     setShowPresets(false);
   };
@@ -62,9 +64,9 @@ export function CronExpressionBuilder({
             </Button>
           </XStack>
           <XStack gap="$2" flexWrap="wrap">
-            {CRON_PRESETS.slice(0, 6).map((preset) => (
+            {cronPresets.slice(0, 6).map((preset) => (
               <Button
-                key={preset.name}
+                key={preset.key}
                 size="$2"
                 onPress={() => handlePresetSelect(preset)}
                 bg="$blue3"

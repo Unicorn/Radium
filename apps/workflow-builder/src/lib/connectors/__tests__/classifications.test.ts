@@ -64,8 +64,8 @@ describe('Connector Classifications', () => {
       expect(mockQuery.eq).toHaveBeenCalledWith('is_active', true);
       expect(mockQuery.contains).toHaveBeenCalledWith('classifications', ['redis']);
       expect(result).toHaveLength(2);
-      expect(result[0].id).toBe('conn-1');
-      expect(result[0].classifications).toEqual(['redis']);
+      expect(result[0]!.id).toBe('conn-1');
+      expect(result[0]!.classifications).toEqual(['redis']);
     });
 
     it('should throw error if query fails', async () => {

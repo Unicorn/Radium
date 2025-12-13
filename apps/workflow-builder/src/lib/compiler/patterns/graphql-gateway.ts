@@ -39,7 +39,7 @@ export const GraphQLGatewayPattern: Pattern = {
       code.push(`${indentStr}// GraphQL Schema (SDL):`);
       // Split schema into lines and indent each
       const schemaLines = schema.split('\n');
-      schemaLines.forEach(line => {
+      schemaLines.forEach((line: string) => {
         code.push(`${indentStr}// ${line}`);
       });
     } else {

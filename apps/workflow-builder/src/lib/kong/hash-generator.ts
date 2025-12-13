@@ -58,6 +58,6 @@ export function validateHash(
  */
 export function extractHashFromPath(path: string): string | null {
   const match = path.match(/^\/api\/v1\/([a-f0-9]{8}-[a-f0-9]{8})\//);
-  return match ? match[1] : null;
+  return match ? match[1]! : null;
 }
 

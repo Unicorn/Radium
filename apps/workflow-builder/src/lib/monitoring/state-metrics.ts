@@ -140,8 +140,8 @@ function generateRecommendations(
   history: Array<{ size_bytes: number; created_at: string }>
 ): string[] {
   const recommendations: string[] = [];
-  const sizeMB = metrics.size_bytes / (1024 * 1024);
-  const sizeKB = metrics.size_bytes / 1024;
+  const sizeMB = (metrics.size_bytes ?? 0) / (1024 * 1024);
+  const sizeKB = (metrics.size_bytes ?? 0) / 1024;
 
   // Size-based recommendations
   if (sizeMB > 10) {
@@ -166,9 +166,9 @@ function generateRecommendations(
   if (history && history.length >= 2) {
     const oldest = history[history.length - 1];
     const newest = history[0];
-    const daysDiff = (new Date(newest.created_at).getTime() - new Date(oldest.created_at).getTime()) / (1000 * 60 * 60 * 24);
-    const newestSize = newest.size_bytes || 0;
-    const oldestSize = oldest.size_bytes || 0;
+    const daysDiff = (new Date(newest?.created_at ?? Date.now()).getTime() - new Date(oldest?.created_at ?? Date.now()).getTime()) / (1000 * 60 * 60 * 24);
+    const newestSize = (newest?.size_bytes ?? 0) || 0;
+    const oldestSize = (oldest?.size_bytes ?? 0) || 0;
     const sizeDiff = newestSize - oldestSize;
     
     if (daysDiff > 0) {

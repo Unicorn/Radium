@@ -246,7 +246,7 @@ export const workQueuesRouter = createTRPCRouter({
         .limit(5);
 
       if (referencingNodes && referencingNodes.length > 0) {
-        const nodeLabels = referencingNodes.map(n => n.label).join(', ');
+        const nodeLabels = referencingNodes.map((n: any) => n.label).join(', ');
         throw new TRPCError({
           code: 'CONFLICT',
           message: `Cannot delete work queue because it is referenced by nodes: ${nodeLabels}`,

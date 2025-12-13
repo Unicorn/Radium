@@ -55,9 +55,13 @@ export const ActivityProxyPattern: Pattern = {
           n.data.activityName || n.data.componentName || toCamelCase(n.id)
         );
         
-        const timeout = group[0].data.timeout || '5 minutes';
-        const retry = group[0].data.retryPolicy;
-        
+        const firstNode = group[0];
+        if (!firstNode || !firstNode.data) {
+          continue;
+        }
+        const timeout = firstNode.data.timeout || '5 minutes';
+        const retry = firstNode.data.retryPolicy;
+
         // Generate proxy variable name based on timeout
         const proxyVarName = generateProxyVarName(timeout, retry);
         
@@ -147,7 +151,7 @@ export function buildInputParameter(node: WorkflowNode, context: GeneratorContex
   // Check if there's a previous result to use
   const incomingEdges = context.edges.filter(e => e.target === node.id);
   if (incomingEdges.length > 0) {
-    const sourceNodeId = incomingEdges[0].source;
+    const sourceNodeId = incomingEdges[0]!.source;
     const sourceResult = context.resultVars.get(sourceNodeId);
 
     if (sourceResult) {
@@ -258,17 +262,23 @@ export function groupActivitiesByConfig(activityNodes: WorkflowNode[]): Map<stri
 
   for (const node of activityNodes) {
     const timeout = node.data.timeout || '5 minutes';
-    const retry = node.data.retryPolicy || {};
-    
+    const retry = node.data.retryPolicy as {
+      strategy?: string;
+      maxAttempts?: number;
+      initialInterval?: string;
+      maxInterval?: string;
+      backoffCoefficient?: number;
+    } | undefined;
+
     // Create a stable key for grouping - normalize retry policy
-    const retryKey = retry.strategy ? JSON.stringify({
+    const retryKey = retry?.strategy ? JSON.stringify({
       strategy: retry.strategy,
       maxAttempts: retry.maxAttempts,
       initialInterval: retry.initialInterval,
       maxInterval: retry.maxInterval,
       backoffCoefficient: retry.backoffCoefficient,
     }) : '{}';
-    
+
     const groupKey = `${timeout}_${retryKey}`;
 
     if (!groups.has(groupKey)) {
@@ -288,13 +298,13 @@ export function groupActivitiesByConfig(activityNodes: WorkflowNode[]): Map<stri
 export function generateProxyVarName(timeout: string, retry?: any): string {
   // Sanitize timeout: "2s" -> "2s", "5 minutes" -> "5minutes", "30s" -> "30s"
   const timeoutPart = timeout.replace(/[^a-zA-Z0-9]/g, '');
-  
+
   // Sanitize retry strategy: "exponential-backoff" -> "ExponentialBackoff"
   let retryPart = '';
   if (retry && retry.strategy && retry.strategy !== 'none') {
     const strategy = retry.strategy
       .split(/[-_]/)
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
       .join('');
     retryPart = `Retry${strategy}`;
   }

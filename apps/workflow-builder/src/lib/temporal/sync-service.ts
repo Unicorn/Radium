@@ -58,9 +58,10 @@ export async function requestSync(
   immediate: boolean = false
 ): Promise<SyncResult> {
   const supabase = getSupabaseClient();
-  
+
   // Get execution details
-  const { data: execution, error: execError } = await supabase
+  // Using type assertion because temporal_workflow_id, temporal_run_id, and history_sync_status columns are not in generated types yet
+  const { data: executionData, error: execError } = await (supabase as any)
     .from('workflow_executions')
     .select(`
       id,
@@ -71,15 +72,24 @@ export async function requestSync(
     `)
     .eq('id', executionId)
     .single();
-  
-  if (execError || !execution) {
+
+  if (execError || !executionData) {
     return {
       success: false,
       synced: false,
       error: `Execution not found: ${execError?.message || 'Unknown error'}`,
     };
   }
-  
+
+  // Type assertion for result
+  const execution = executionData as {
+    id: string;
+    temporal_workflow_id?: string;
+    temporal_run_id?: string;
+    workflow_id: string;
+    history_sync_status?: string;
+  };
+
   if (!execution.temporal_workflow_id || !execution.temporal_run_id) {
     return {
       success: false,
@@ -141,43 +151,43 @@ export async function requestSync(
   try {
     // Update status to syncing
     await updateSyncStatusActivity(executionId, 'syncing');
-    
+
     // Fetch history from Temporal
     const history = await fetchTemporalHistoryActivity({
       executionId,
-      temporalWorkflowId: execution.temporal_workflow_id,
-      runId: execution.temporal_run_id,
-      workflowDefinition: workflow.definition as WorkflowDefinition,
+      temporalWorkflowId: execution.temporal_workflow_id!,
+      runId: execution.temporal_run_id!,
+      workflowDefinition: workflow.definition as unknown as WorkflowDefinition,
       systemUserId: systemUser.id,
     });
-    
+
     // Store full history
     await storeExecutionHistoryActivity(
       {
         executionId,
-        temporalWorkflowId: execution.temporal_workflow_id,
-        runId: execution.temporal_run_id,
-        workflowDefinition: workflow.definition as WorkflowDefinition,
+        temporalWorkflowId: execution.temporal_workflow_id!,
+        runId: execution.temporal_run_id!,
+        workflowDefinition: workflow.definition as unknown as WorkflowDefinition,
         systemUserId: systemUser.id,
       },
       history
     );
-    
+
     // Extract and store component executions
     const componentExecutionsCount = await extractComponentExecutionsActivity(
       {
         executionId,
-        temporalWorkflowId: execution.temporal_workflow_id,
-        runId: execution.temporal_run_id,
-        workflowDefinition: workflow.definition as WorkflowDefinition,
+        temporalWorkflowId: execution.temporal_workflow_id!,
+        runId: execution.temporal_run_id!,
+        workflowDefinition: workflow.definition as unknown as WorkflowDefinition,
         systemUserId: systemUser.id,
       },
       history
     );
-    
+
     // Update status to synced
     await updateSyncStatusActivity(executionId, 'synced');
-    
+
     return {
       success: true,
       synced: true,
@@ -186,7 +196,7 @@ export async function requestSync(
   } catch (error: any) {
     // Update status to failed
     await updateSyncStatusActivity(executionId, 'failed', error.message);
-    
+
     return {
       success: false,
       synced: false,

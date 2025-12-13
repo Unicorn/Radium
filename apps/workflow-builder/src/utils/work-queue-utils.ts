@@ -330,13 +330,13 @@ export function getNextItem(
   priority: 'fifo' | 'lifo' | 'priority'
 ): WorkQueueItem | null {
   const pendingItems = items.filter(item => item.status === 'pending');
-  
+
   if (pendingItems.length === 0) {
     return null;
   }
 
   const sorted = sortQueueItems(pendingItems, priority);
-  return sorted[0];
+  return sorted[0] ?? null;
 }
 
 /**

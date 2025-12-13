@@ -310,13 +310,13 @@ function InterfaceCard({
             <Text fontSize="$4" fontWeight="600">
               {iface.display_name}
             </Text>
-            <Badge backgroundColor={getTypeColor(iface.interface_type)} size="2">
+            <Badge backgroundColor={getTypeColor(iface.interface_type)} size={2}>
               <Text fontSize="$1" color="white">
                 {getTypeLabel(iface.interface_type)}
               </Text>
             </Badge>
             {iface.is_public && (
-              <Badge backgroundColor="$green10" size="2">
+              <Badge backgroundColor="$green10" size={2}>
                 <XStack ai="center" gap="$1">
                   <Globe size={12} />
                   <Text fontSize="$1" color="white">Public</Text>

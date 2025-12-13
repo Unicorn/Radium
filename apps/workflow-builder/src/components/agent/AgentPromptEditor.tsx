@@ -255,7 +255,7 @@ export function AgentPromptEditor({ promptId, onSuccess }: AgentPromptEditorProp
           <Button
             size="$4"
             theme="blue"
-            onPress={handleSubmit}
+            onPress={() => handleSubmit({ preventDefault: () => {} } as React.FormEvent)}
             disabled={createMutation.isLoading || !promptContent}
             flex={1}
           >

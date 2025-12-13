@@ -62,7 +62,7 @@ export const fileOperationsRouter = createTRPCRouter({
     }))
     .query(async ({ input }) => {
       try {
-        const result = await readFile(input as ReadFileInput);
+        const result = await readFile(input as unknown as ReadFileInput);
         if (!result.success) {
           throw new TRPCError({
             code: 'INTERNAL_SERVER_ERROR',

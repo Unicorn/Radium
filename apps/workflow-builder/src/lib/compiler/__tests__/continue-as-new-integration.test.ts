@@ -54,8 +54,8 @@ describe('Continue-as-New Integration', () => {
 
       // Step 2: Configure
       const configured = configureContinueAsNew(workflow, workflowType);
-      expect(configured.settings._workflowType).toBe('service');
-      expect(configured.settings._longRunning?.autoContinueAsNew).toBe(true);
+      expect(configured.settings?._workflowType).toBe('service');
+      expect(configured.settings?._longRunning?.autoContinueAsNew).toBe(true);
 
       // Step 3: Compile
       const compiler = new WorkflowCompiler({
@@ -122,8 +122,8 @@ describe('Continue-as-New Integration', () => {
 
       // Step 2: Configure
       const configured = configureContinueAsNew(workflow, workflowType);
-      expect(configured.settings._workflowType).toBe('task');
-      expect(configured.settings._longRunning?.autoContinueAsNew).toBe(false);
+      expect(configured.settings?._workflowType).toBe('task');
+      expect(configured.settings?._longRunning?.autoContinueAsNew).toBe(false);
 
       // Step 3: Compile
       const compiler = new WorkflowCompiler({

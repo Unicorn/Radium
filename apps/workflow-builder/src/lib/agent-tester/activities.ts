@@ -29,21 +29,28 @@ export async function getAgentPromptActivity(promptId: string): Promise<{
   modelName?: string;
 }> {
   const supabase = getSupabaseClient();
-  
+
   const { data, error } = await supabase
     .from('agent_prompts')
     .select('prompt_content, model_provider, model_name')
     .eq('id', promptId)
     .single();
-  
+
   if (error || !data) {
     throw new Error(`Failed to fetch agent prompt: ${error?.message || 'Not found'}`);
   }
-  
+
+  // Type assertion for database columns
+  const promptData = data as unknown as {
+    prompt_content: string;
+    model_provider?: string;
+    model_name?: string;
+  };
+
   return {
-    promptContent: data.prompt_content,
-    modelProvider: data.model_provider || undefined,
-    modelName: data.model_name || undefined,
+    promptContent: promptData.prompt_content,
+    modelProvider: promptData.model_provider || undefined,
+    modelName: promptData.model_name || undefined,
   };
 }
 

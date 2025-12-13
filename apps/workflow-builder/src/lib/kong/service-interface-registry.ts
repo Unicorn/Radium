@@ -45,7 +45,7 @@ export async function registerPublicInterface(
   }
 
   // Get service interface with workflow and project info
-  const { data: serviceInterface, error: siError } = await supabase
+  const { data: serviceInterface, error: siError } = await (supabase as any)
     .from('service_interfaces')
     .select(`
       *,
@@ -160,7 +160,7 @@ export async function registerPublicInterface(
   }
 
   // Store in public_interfaces table
-  const { data: publicInterface, error: dbError } = await supabase
+  const { data: publicInterface, error: dbError } = await (supabase as any)
     .from('public_interfaces')
     .upsert({
       service_interface_id: serviceInterfaceId,
@@ -212,7 +212,7 @@ export async function updatePublicInterface(
   }
 
   // Get existing public interface
-  const { data: publicInterface, error: fetchError } = await supabase
+  const { data: publicInterface, error: fetchError } = await (supabase as any)
     .from('public_interfaces')
     .select('*')
     .eq('id', publicInterfaceId)
@@ -252,7 +252,7 @@ export async function updatePublicInterface(
   if (config.authType !== undefined) updateData.auth_type = config.authType;
   if (config.authConfig !== undefined) updateData.auth_config = config.authConfig;
 
-  const { data: updated, error: updateError } = await supabase
+  const { data: updated, error: updateError } = await (supabase as any)
     .from('public_interfaces')
     .update(updateData)
     .eq('id', publicInterfaceId)
@@ -264,7 +264,7 @@ export async function updatePublicInterface(
   }
 
   // Get service interface for full path generation
-  const { data: serviceInterface } = await supabase
+  const { data: serviceInterface } = await (supabase as any)
     .from('service_interfaces')
     .select(`
       workflow:workflows!inner(
@@ -312,7 +312,7 @@ export async function unregisterPublicInterface(
   }
 
   // Get public interface
-  const { data: publicInterface, error } = await supabase
+  const { data: publicInterface, error } = await (supabase as any)
     .from('public_interfaces')
     .select('kong_route_id')
     .eq('id', publicInterfaceId)
@@ -334,7 +334,7 @@ export async function unregisterPublicInterface(
   }
 
   // Delete from database
-  await supabase
+  await (supabase as any)
     .from('public_interfaces')
     .delete()
     .eq('id', publicInterfaceId);
@@ -348,7 +348,7 @@ export async function syncPublicInterfacesForServiceInterface(
   serviceInterfaceId: string,
   supabase: SupabaseClient<Database>
 ): Promise<void> {
-  const { data: serviceInterface, error } = await supabase
+  const { data: serviceInterface, error } = await (supabase as any)
     .from('service_interfaces')
     .select('*')
     .eq('id', serviceInterfaceId)
@@ -361,7 +361,7 @@ export async function syncPublicInterfacesForServiceInterface(
   // If marked as public, ensure there's a public interface
   if (serviceInterface.is_public) {
     // Check if public interface already exists
-    const { data: existing } = await supabase
+    const { data: existing } = await (supabase as any)
       .from('public_interfaces')
       .select('id')
       .eq('service_interface_id', serviceInterfaceId)
@@ -381,7 +381,7 @@ export async function syncPublicInterfacesForServiceInterface(
     }
   } else {
     // If marked as not public, remove public interfaces
-    const { data: publicInterfaces } = await supabase
+    const { data: publicInterfaces } = await (supabase as any)
       .from('public_interfaces')
       .select('id')
       .eq('service_interface_id', serviceInterfaceId);

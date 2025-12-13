@@ -37,7 +37,7 @@ export const InterfaceComponentPattern: Pattern = {
       // Get the connected target node
       const outgoingEdges = context.edges.filter(e => e.source === node.id);
       if (outgoingEdges.length > 0) {
-        const targetNodeId = outgoingEdges[0].target;
+        const targetNodeId = outgoingEdges[0]!.target;
         const targetResult = context.resultVars.get(targetNodeId);
         
         if (targetResult) {
@@ -65,7 +65,7 @@ export const InterfaceComponentPattern: Pattern = {
       // Get the connected source node
       const incomingEdges = context.edges.filter(e => e.target === node.id);
       if (incomingEdges.length > 0) {
-        const sourceNodeId = incomingEdges[0].source;
+        const sourceNodeId = incomingEdges[0]!.source;
         const sourceResult = context.resultVars.get(sourceNodeId);
         
         if (sourceResult) {

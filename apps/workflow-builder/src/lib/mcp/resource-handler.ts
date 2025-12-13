@@ -46,8 +46,8 @@ export async function handleMCPResource(
   if (resource.workflowId) {
     try {
       const client = await getTemporalClient();
-      const handle = client.getHandle(resource.workflowId);
-      
+      const handle = (client as any).getHandle(resource.workflowId);
+
       // Query workflow for resource content
       const content = await handle.query('getResource', { uri: request.uri });
       

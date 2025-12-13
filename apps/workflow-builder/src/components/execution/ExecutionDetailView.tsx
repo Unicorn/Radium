@@ -4,6 +4,7 @@ import { YStack, XStack, Text, Card, ScrollView, Separator } from 'tamagui';
 import { Clock, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
 import { api } from '@/lib/trpc/client';
 import { format } from 'date-fns';
+import type { LucideIcon } from '@/types/icons';
 
 interface ExecutionDetailViewProps {
   executionId: string;
@@ -32,7 +33,7 @@ export function ExecutionDetailView({ executionId }: ExecutionDetailViewProps) {
   }
 
   const execution = data;
-  const components = data.componentExecutions || [];
+  const components = (data.componentExecutions || []) as ComponentExecution[];
 
   return (
     <ScrollView f={1}>
@@ -75,14 +76,14 @@ export function ExecutionDetailView({ executionId }: ExecutionDetailViewProps) {
               )}
             </YStack>
 
-            {execution.errorMessage && (
+            {execution.error && (
               <Card p="$3" bg="$red2" borderWidth={1} borderColor="$red6">
                 <XStack gap="$2" ai="center">
                   <XCircle size={16} color="$red11" />
                   <Text fontSize="$2" color="$red11" fontWeight="600">Error</Text>
                 </XStack>
                 <Text fontSize="$2" color="$red11" mt="$2">
-                  {execution.errorMessage}
+                  {execution.error}
                 </Text>
               </Card>
             )}
@@ -109,14 +110,14 @@ export function ExecutionDetailView({ executionId }: ExecutionDetailViewProps) {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const statusConfig: Record<string, { icon: React.ComponentType<{ size?: number; color?: string }>; color: string; bg: string }> = {
+  const statusConfig: Record<string, { icon: LucideIcon; color: string; bg: string }> = {
     completed: { icon: CheckCircle, color: '$green11', bg: '$green2' },
     failed: { icon: XCircle, color: '$red11', bg: '$red2' },
     running: { icon: RefreshCw, color: '$blue11', bg: '$blue2' },
     pending: { icon: Clock, color: '$gray11', bg: '$gray2' },
   };
 
-  const config = statusConfig[status] || statusConfig.pending;
+  const config = statusConfig[status] ?? statusConfig.pending!;
   const Icon = config.icon;
 
   return (
@@ -193,7 +194,7 @@ function ComponentExecutionCard({ component }: { component: ComponentExecution }
             </XStack>
           )}
 
-          {component.retryCount > 0 && (
+          {component.retryCount != null && component.retryCount > 0 && (
             <XStack gap="$2" ai="center">
               <RefreshCw size={14} color="$orange11" />
               <Text fontSize="$1" color="$orange11">

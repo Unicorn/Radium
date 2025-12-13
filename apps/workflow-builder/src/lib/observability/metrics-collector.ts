@@ -177,7 +177,7 @@ export class MetricsCollector {
         this.flush().catch((err) =>
           console.error('[Metrics] Scheduled flush error:', err)
         );
-      }, this.config.flushIntervalMs);
+      }, this.config.flushIntervalMs) as unknown as NodeJS.Timeout;
     }
   }
 

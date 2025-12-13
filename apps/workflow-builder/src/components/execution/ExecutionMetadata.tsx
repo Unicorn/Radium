@@ -3,6 +3,7 @@
 import { YStack, XStack, Card, Text, Separator } from 'tamagui';
 import { Clock, Hash, Activity, CheckCircle, Calendar, Timer } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
+import type { LucideIcon } from '@/types/icons';
 
 interface ExecutionMetadataProps {
   execution: {
@@ -160,7 +161,7 @@ export function ExecutionMetadata({ execution }: ExecutionMetadataProps) {
 }
 
 interface MetadataRowProps {
-  icon: React.ComponentType<{ size?: number; color?: string }>;
+  icon: LucideIcon;
   label: string;
   value: string | React.ReactNode;
   mono?: boolean;
@@ -193,16 +194,17 @@ function MetadataRow({ icon: Icon, label, value, mono = false, small = false }: 
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const defaultConfig = { color: '$gray11', bg: '$gray2', border: '$gray6' };
   const statusConfig: Record<string, { color: string; bg: string; border: string }> = {
     completed: { color: '$green11', bg: '$green2', border: '$green6' },
     failed: { color: '$red11', bg: '$red2', border: '$red6' },
     running: { color: '$blue11', bg: '$blue2', border: '$blue6' },
     building: { color: '$yellow11', bg: '$yellow2', border: '$yellow6' },
-    cancelled: { color: '$gray11', bg: '$gray2', border: '$gray6' },
+    cancelled: defaultConfig,
     timed_out: { color: '$orange11', bg: '$orange2', border: '$orange6' },
   };
 
-  const config = statusConfig[status] || statusConfig.cancelled;
+  const config = statusConfig[status] ?? defaultConfig;
 
   return (
     <Card

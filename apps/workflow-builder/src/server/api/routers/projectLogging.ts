@@ -36,7 +36,7 @@ export const projectLoggingRouter = createTRPCRouter({
         });
       }
 
-      const { data, error } = await ctx.supabase
+      const { data, error } = await (ctx.supabase as any)
         .from('project_logging_config')
         .select(`
           *,
@@ -110,7 +110,7 @@ export const projectLoggingRouter = createTRPCRouter({
       }
 
       // Upsert logging config
-      const { data, error } = await ctx.supabase
+      const { data, error } = await (ctx.supabase as any)
         .from('project_logging_config')
         .upsert({
           project_id: input.projectId,
@@ -161,7 +161,7 @@ export const projectLoggingRouter = createTRPCRouter({
         });
       }
 
-      const { data, error } = await ctx.supabase
+      const { data, error } = await (ctx.supabase as any)
         .from('project_logging_config')
         .update({
           enabled_endpoints: input.enabledEndpoints,
@@ -210,7 +210,7 @@ export const projectLoggingRouter = createTRPCRouter({
       }
 
       // Get current config
-      const { data: currentConfig, error: getError } = await ctx.supabase
+      const { data: currentConfig, error: getError } = await (ctx.supabase as any)
         .from('project_logging_config')
         .select('enabled_endpoints')
         .eq('project_id', input.projectId)
@@ -223,7 +223,7 @@ export const projectLoggingRouter = createTRPCRouter({
         });
       }
 
-      const currentEndpoints = (currentConfig?.enabled_endpoints as string[]) || [];
+      const currentEndpoints = ((currentConfig as any)?.enabled_endpoints as string[]) || [];
       let newEndpoints: string[];
 
       if (input.enabled) {
@@ -237,7 +237,7 @@ export const projectLoggingRouter = createTRPCRouter({
       }
 
       // Update config
-      const { data, error } = await ctx.supabase
+      const { data, error } = await (ctx.supabase as any)
         .from('project_logging_config')
         .upsert({
           project_id: input.projectId,

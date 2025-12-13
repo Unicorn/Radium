@@ -330,7 +330,7 @@ describe('Kong Cache Router', () => {
       const caller = kongCacheRouter.createCaller(ctx as any);
       const result = await caller.markForDeletion({ componentId, projectId });
 
-      expect(result.marked_for_deletion).toBe(true);
+      expect((result as any).marked_for_deletion).toBe(true);
     });
   });
 

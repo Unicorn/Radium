@@ -71,8 +71,8 @@ export async function handleMCPTool(
   if (tool.workflowId) {
     try {
       const client = await getTemporalClient();
-      const handle = client.getHandle(tool.workflowId);
-      
+      const handle = (client as any).getHandle(tool.workflowId);
+
       // Execute workflow with tool arguments
       const result = await handle.query('executeTool', request.arguments || {});
       

@@ -53,7 +53,10 @@ describe('MCP API Route', () => {
         name: 'Test Server',
         version: '1.0.0',
         protocolVersion: '2024-11-05',
-        capabilities: {},
+        capabilities: {
+          resources: {},
+          tools: {},
+        },
       };
 
       vi.mocked(getMCPServerConfig).mockResolvedValue(mockConfig);
@@ -181,7 +184,7 @@ describe('MCP API Route', () => {
       const mockToolResponse = {
         content: [
           {
-            type: 'text',
+            type: 'text' as const,
             text: 'Tool result',
           },
         ],

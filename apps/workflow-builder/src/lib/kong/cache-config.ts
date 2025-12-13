@@ -23,7 +23,7 @@ export async function getCacheConfig(
   componentId: string,
   supabase: SupabaseClient<Database>
 ): Promise<CacheConfig | null> {
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from('kong_cache_keys')
     .select('*, connector:connectors(*)')
     .eq('component_id', componentId)
@@ -179,7 +179,7 @@ export async function cleanupDeletedCacheKeys(
   projectId: string,
   supabase: SupabaseClient<Database>
 ): Promise<void> {
-  const { data: deletedKeys, error } = await supabase
+  const { data: deletedKeys, error } = await (supabase as any)
     .from('kong_cache_keys')
     .select('cache_key, connector_id')
     .eq('project_id', projectId)
@@ -201,7 +201,7 @@ export async function cleanupDeletedCacheKeys(
   }
 
   // Delete from database
-  await supabase
+  await (supabase as any)
     .from('kong_cache_keys')
     .delete()
     .eq('project_id', projectId)

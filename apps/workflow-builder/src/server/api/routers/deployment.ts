@@ -294,7 +294,7 @@ export const deploymentRouter = createTRPCRouter({
       // 4. Parse compiled code
       let code;
       try {
-        code = workflow.compiled_typescript as {
+        code = workflow.compiled_typescript as unknown as {
           workflowCode: string;
           activitiesCode: string;
           workerCode: string;

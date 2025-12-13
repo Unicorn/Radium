@@ -100,7 +100,7 @@ export async function handleGraphQLRequest(
       errors: result.errors?.map(e => ({
         message: e.message,
         locations: e.locations?.map(l => ({ line: l.line, column: l.column })),
-        path: e.path,
+        path: e.path ? [...e.path] : undefined,
       })),
     };
   } catch (error) {
@@ -119,7 +119,7 @@ export async function getGraphQLSchemaSDL(
   serviceInterfaceId: string,
   supabase: SupabaseClient<Database>
 ): Promise<string | null> {
-  const { data: serviceInterface, error } = await supabase
+  const { data: serviceInterface, error } = await (supabase as any)
     .from('service_interfaces')
     .select('graphql_schema')
     .eq('id', serviceInterfaceId)

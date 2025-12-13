@@ -25,6 +25,20 @@ type Component = Database['public']['Tables']['components']['Row'] & {
   visibility: { name: string };
 };
 
+interface ComponentCategory {
+  id: string;
+  name: string;
+  display_name: string;
+  description: string | null;
+  icon: string | null;
+  icon_provider: string | null;
+  color: string | null;
+  parent_category_id: string | null;
+  sort_order: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
 interface ComponentPaletteProps {
   components: Component[];
   disabled?: boolean;
@@ -76,9 +90,9 @@ export function ComponentPalette({ components, disabled = false }: ComponentPale
   };
 
   // Get active categories - use database categories if available, otherwise use fallback
-  const activeCategories = categoriesLoading 
-    ? [] 
-    : categoriesFlat
+  const activeCategories = categoriesLoading
+    ? []
+    : (categoriesFlat as ComponentCategory[])
         .filter(cat => {
           const categoryName = cat.name;
           return groupedComponents[categoryName] && groupedComponents[categoryName].length > 0;
@@ -88,7 +102,7 @@ export function ComponentPalette({ components, disabled = false }: ComponentPale
           // Get icon from lucide-react
           const IconName = cat.icon as keyof typeof LucideIcons;
           const Icon = (IconName && LucideIcons[IconName] as typeof LucideIcons.Activity) || LucideIcons.Package;
-          
+
           return {
             id: cat.name,
             name: cat.display_name,
@@ -202,7 +216,7 @@ export function ComponentPalette({ components, disabled = false }: ComponentPale
                   />
                 ))}
 
-                {category.id !== activeCategories[activeCategories.length - 1].id && (
+                {category.id !== activeCategories[activeCategories.length - 1]?.id && (
                   <Separator marginVertical="$2" />
                 )}
               </YStack>

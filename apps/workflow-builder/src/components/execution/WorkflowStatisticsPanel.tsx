@@ -9,6 +9,21 @@ interface WorkflowStatisticsPanelProps {
   workflowId: string;
 }
 
+// Define the expected statistics type
+interface WorkflowStatistics {
+  total_runs: number;
+  successful_runs: number;
+  failed_runs: number;
+  avg_duration_ms: number | null;
+  min_duration_ms: number | null;
+  max_duration_ms: number | null;
+  most_used_component_id: string | null;
+  most_used_component_count: number;
+  total_errors: number;
+  last_error_at: string | null;
+  last_run_at: string | null;
+}
+
 export function WorkflowStatisticsPanel({ workflowId }: WorkflowStatisticsPanelProps) {
   const { data, isLoading, error } = api.execution.getWorkflowStatistics.useQuery({
     workflowId,
@@ -30,18 +45,21 @@ export function WorkflowStatisticsPanel({ workflowId }: WorkflowStatisticsPanelP
     );
   }
 
+  // Type assertion to narrow down the union type from tRPC
+  const typedData = data as unknown as WorkflowStatistics;
+
   // Map database fields to camelCase
   const stats = {
-    totalRuns: data.total_runs || 0,
-    averageDurationMs: data.avg_duration_ms,
-    successRate: data.total_runs
-      ? (data.successful_runs || 0) / data.total_runs
+    totalRuns: typedData.total_runs || 0,
+    averageDurationMs: typedData.avg_duration_ms,
+    successRate: typedData.total_runs
+      ? (typedData.successful_runs || 0) / typedData.total_runs
       : null,
-    errorCount: data.failed_runs || 0,
-    mostUsedComponent: data.most_used_component_id
+    errorCount: typedData.failed_runs || 0,
+    mostUsedComponent: typedData.most_used_component_id
       ? {
-          componentName: data.most_used_component_id,
-          usageCount: data.most_used_component_count || 0,
+          componentName: typedData.most_used_component_id,
+          usageCount: typedData.most_used_component_count || 0,
         }
       : null,
     recentExecutions: [], // TODO: Add recent executions query

@@ -279,7 +279,7 @@ describe('MCP Tool Handler', () => {
       );
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Error executing tool');
+      expect(result.content[0]!.text).toContain('Error executing tool');
     });
   });
 });

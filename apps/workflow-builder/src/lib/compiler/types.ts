@@ -11,8 +11,8 @@ export interface WorkflowDefinition {
   name: string;
   nodes: WorkflowNode[];
   edges: WorkflowEdge[];
-  variables: WorkflowVariable[];
-  settings: WorkflowSettings;
+  variables?: WorkflowVariable[];
+  settings?: WorkflowSettings;
 }
 
 /**

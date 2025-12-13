@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '../../../../../../tests/ui/test-helpers';
+import { render, screen } from '@testing-library/react';
 import { DataOutNode } from '../DataOutNode';
 import type { NodeProps } from 'react-flow-renderer';
 
@@ -21,7 +21,7 @@ vi.mock('react-flow-renderer', () => ({
 }));
 
 describe('DataOutNode', () => {
-  const defaultProps: NodeProps = {
+  const defaultProps: Partial<NodeProps> = {
     id: 'data-out-1',
     type: 'data-out',
     data: {
@@ -34,12 +34,11 @@ describe('DataOutNode', () => {
       },
     },
     selected: false,
-    position: { x: 0, y: 0 },
     dragging: false,
   };
 
   it('should render with default props', () => {
-    render(<DataOutNode {...defaultProps} />);
+    render(<DataOutNode {...defaultProps as any} />);
 
     expect(screen.getByText('Provide Data')).toBeInTheDocument();
     expect(screen.getByText('GET')).toBeInTheDocument();
@@ -48,14 +47,14 @@ describe('DataOutNode', () => {
   });
 
   it('should use fallback values when config is missing', () => {
-    const props: NodeProps = {
+    const props: Partial<NodeProps> = {
       ...defaultProps,
       data: {
         label: 'Data Out',
       },
     };
 
-    render(<DataOutNode {...props} />);
+    render(<DataOutNode {...props as any} />);
 
     expect(screen.getByText('Data Out')).toBeInTheDocument();
     expect(screen.getByText('GET')).toBeInTheDocument();
@@ -63,12 +62,12 @@ describe('DataOutNode', () => {
   });
 
   it('should apply selected styling when selected', () => {
-    const props: NodeProps = {
+    const props: Partial<NodeProps> = {
       ...defaultProps,
       selected: true,
     };
 
-    const { container } = render(<DataOutNode {...props} />);
+    const { container } = render(<DataOutNode {...props as any} />);
     const card = container.querySelector('[data-testid]')?.parentElement;
 
     // Check that selected styling is applied (teal background)
@@ -76,7 +75,7 @@ describe('DataOutNode', () => {
   });
 
   it('should display component name when label is missing', () => {
-    const props: NodeProps = {
+    const props: Partial<NodeProps> = {
       ...defaultProps,
       data: {
         componentName: 'customProvideData',
@@ -87,13 +86,13 @@ describe('DataOutNode', () => {
       },
     };
 
-    render(<DataOutNode {...props} />);
+    render(<DataOutNode {...props as any} />);
 
     expect(screen.getByText('customProvideData')).toBeInTheDocument();
   });
 
   it('should display displayName when available', () => {
-    const props: NodeProps = {
+    const props: Partial<NodeProps> = {
       ...defaultProps,
       data: {
         label: 'Internal Name',
@@ -105,21 +104,21 @@ describe('DataOutNode', () => {
       },
     };
 
-    render(<DataOutNode {...props} />);
+    render(<DataOutNode {...props as any} />);
 
     expect(screen.getByText('User-Friendly Name')).toBeInTheDocument();
     expect(screen.queryByText('Internal Name')).not.toBeInTheDocument();
   });
 
   it('should render handles for connections', () => {
-    render(<DataOutNode {...defaultProps} />);
+    render(<DataOutNode {...defaultProps as any} />);
 
     expect(screen.getByTestId('handle-top')).toBeInTheDocument();
     expect(screen.getByTestId('handle-bottom')).toBeInTheDocument();
   });
 
   it('should always display GET method (data-out only supports GET)', () => {
-    const props: NodeProps = {
+    const props: Partial<NodeProps> = {
       ...defaultProps,
       data: {
         ...defaultProps.data,
@@ -130,7 +129,7 @@ describe('DataOutNode', () => {
       },
     };
 
-    render(<DataOutNode {...props} />);
+    render(<DataOutNode {...props as any} />);
 
     expect(screen.getByText('GET')).toBeInTheDocument();
   });

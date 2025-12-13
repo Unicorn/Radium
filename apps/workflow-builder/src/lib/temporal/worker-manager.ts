@@ -298,10 +298,10 @@ ${allWorkflowCode}
       } catch (error) {
         console.error(`⚠️  Heartbeat failed for worker ${workerId}:`, error);
       }
-    }, 30000); // Every 30 seconds
-    
+    }, 30000) as unknown as NodeJS.Timeout; // Every 30 seconds
+
     console.log(`💓 Heartbeat started for worker (30s interval)`);
-    
+
     return interval;
   }
   

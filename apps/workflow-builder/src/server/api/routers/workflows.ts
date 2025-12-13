@@ -220,7 +220,7 @@ export const workflowsRouter = createTRPCRouter({
         // If task queue doesn't exist, create it
         if (!taskQueue) {
           console.log('⚠️  [Workflow Create] Task queue not found, creating:', project.task_queue_name);
-          const { data: newTaskQueue, error: createError } = await ctx.supabase
+          const { data: newTaskQueue, error: createError } = await (ctx.supabase as any)
             .from('task_queues')
             .insert({
               name: project.task_queue_name,
@@ -242,9 +242,16 @@ export const workflowsRouter = createTRPCRouter({
           }
           
           taskQueue = newTaskQueue;
-          console.log('✅ [Workflow Create] Created task queue:', taskQueue.id);
+          console.log('✅ [Workflow Create] Created task queue:', taskQueue?.id);
         }
-        
+
+        if (!taskQueue) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Failed to find or create task queue',
+          });
+        }
+
         taskQueueId = taskQueue.id;
         console.log('✅ [Workflow Create] Using task queue:', taskQueueId);
       }

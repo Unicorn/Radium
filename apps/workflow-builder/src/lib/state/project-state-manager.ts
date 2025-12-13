@@ -40,7 +40,7 @@ export async function getProjectStateVariable(
     throw new Error(`Failed to get project state variable: ${error.message}`);
   }
 
-  return data;
+  return data as ProjectStateVariable;
 }
 
 /**
@@ -60,7 +60,7 @@ export async function getProjectStateVariables(
     throw new Error(`Failed to get project state variables: ${error.message}`);
   }
 
-  return data || [];
+  return (data || []) as ProjectStateVariable[];
 }
 
 /**
@@ -88,7 +88,7 @@ export async function createProjectStateVariable(
     throw new Error(`Failed to create project state variable: ${error.message}`);
   }
 
-  return data;
+  return data as ProjectStateVariable;
 }
 
 /**
@@ -110,7 +110,7 @@ export async function updateProjectStateVariable(
     throw new Error(`Failed to update project state variable: ${error.message}`);
   }
 
-  return data;
+  return data as ProjectStateVariable;
 }
 
 /**

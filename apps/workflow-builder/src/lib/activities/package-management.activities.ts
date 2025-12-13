@@ -654,8 +654,8 @@ function parseLicenseCheckerOutput(
     for (const [nameWithVersion, info] of Object.entries(data)) {
       // Parse "package-name@version" format
       const match = nameWithVersion.match(/^(.+)@(.+)$/);
-      const packageName = match ? match[1] : nameWithVersion;
-      const version = match ? match[2] : 'unknown';
+      const packageName = match?.[1] ?? nameWithVersion;
+      const version = match?.[2] ?? 'unknown';
 
       licenses.push({
         name: packageName,

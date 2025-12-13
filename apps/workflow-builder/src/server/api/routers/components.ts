@@ -508,8 +508,8 @@ export const componentsRouter = createTRPCRouter({
   getCategories: publicProcedure
     .query(async ({ ctx }) => {
       const { supabase } = ctx;
-      
-      const { data, error } = await supabase
+
+      const { data, error } = await (supabase as any)
         .from('component_categories')
         .select('*')
         .order('sort_order', { ascending: true })
@@ -527,12 +527,12 @@ export const componentsRouter = createTRPCRouter({
       const rootCategories: any[] = [];
 
       // First pass: create map
-      (data || []).forEach(cat => {
+      (data || []).forEach((cat: any) => {
         categoryMap.set(cat.id, { ...cat, children: [] });
       });
 
       // Second pass: build tree
-      (data || []).forEach(cat => {
+      (data || []).forEach((cat: any) => {
         const category = categoryMap.get(cat.id)!;
         if (cat.parent_category_id) {
           const parent = categoryMap.get(cat.parent_category_id);
@@ -557,8 +557,8 @@ export const componentsRouter = createTRPCRouter({
   getCategoryTree: publicProcedure
     .query(async ({ ctx }) => {
       const { supabase } = ctx;
-      
-      const { data, error } = await supabase
+
+      const { data, error } = await (supabase as any)
         .from('component_categories')
         .select('*')
         .order('sort_order', { ascending: true })
@@ -574,12 +574,12 @@ export const componentsRouter = createTRPCRouter({
       // Build tree structure
       const buildTree = (parentId: string | null = null): any[] => {
         return (data || [])
-          .filter(cat => cat.parent_category_id === parentId)
-          .map(cat => ({
+          .filter((cat: any) => cat.parent_category_id === parentId)
+          .map((cat: any) => ({
             ...cat,
             children: buildTree(cat.id),
           }))
-          .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+          .sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0));
       };
 
       return buildTree();
@@ -599,17 +599,17 @@ export const componentsRouter = createTRPCRouter({
       if (input.categoryId) {
         if (input.includeChildren) {
           // Get category and all children
-          const { data: allCategories } = await supabase
+          const { data: allCategories } = await (supabase as any)
             .from('component_categories')
             .select('id');
           
           const getChildrenIds = (parentId: string): string[] => {
             const children = (allCategories || []).filter(
-              cat => cat.parent_category_id === parentId
+              (cat: any) => cat.parent_category_id === parentId
             );
             return [
               parentId,
-              ...children.flatMap(child => getChildrenIds(child.id)),
+              ...children.flatMap((child: any) => getChildrenIds(child.id)),
             ];
           };
           
@@ -640,12 +640,12 @@ export const componentsRouter = createTRPCRouter({
         .eq('deprecated', false);
 
       if (categoryIds.length > 0) {
-        const { data: mappings } = await supabase
+        const { data: mappings } = await (supabase as any)
           .from('component_category_mapping')
           .select('component_id')
           .in('category_id', categoryIds);
-        
-        const componentIds = mappings?.map(m => m.component_id) || [];
+
+        const componentIds = mappings?.map((m: any) => m.component_id) || [];
         if (componentIds.length > 0) {
           query = query.in('id', componentIds);
         } else {
@@ -665,11 +665,11 @@ export const componentsRouter = createTRPCRouter({
 
       // Group by primary category
       const grouped: Record<string, any[]> = {};
-      
-      (data || []).forEach(comp => {
+
+      (data || []).forEach((comp: any) => {
         const primaryMapping = comp.category_mappings?.find((m: any) => m.is_primary);
         const categoryName = primaryMapping?.category?.name || 'uncategorized';
-        
+
         if (!grouped[categoryName]) {
           grouped[categoryName] = [];
         }

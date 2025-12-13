@@ -15,6 +15,7 @@ import ReactFlow, {
   type Node,
   type Edge,
   type Connection,
+  ConnectionMode,
   addEdge,
 } from 'react-flow-renderer';
 import { nodeTypes } from '@/components/workflow/nodes';
@@ -25,6 +26,34 @@ import { YStack, Spinner, Text } from 'tamagui';
 interface ServiceBuilderViewProps {
   serviceId: string;
   readOnly?: boolean;
+}
+
+// Define expected data types to narrow down union types
+interface ServiceInterface {
+  id: string;
+  name: string;
+  display_name: string;
+  interface_type: 'signal' | 'query' | 'update' | 'start_child';
+}
+
+interface TargetService {
+  id: string;
+  name: string;
+  display_name: string;
+}
+
+interface TargetInterface {
+  id: string;
+  name: string;
+  display_name: string;
+}
+
+interface ProjectConnector {
+  id: string;
+  target_service_id: string;
+  target_service?: TargetService;
+  target_interface?: TargetInterface;
+  source_project_id: string;
 }
 
 /**
@@ -47,8 +76,8 @@ export function ServiceBuilderView({
   });
 
   // Fetch service interfaces
-  const { data: interfaces, isLoading: isLoadingInterfaces } = api.serviceInterfaces.list.useQuery({ 
-    serviceId 
+  const { data: interfaces, isLoading: isLoadingInterfaces } = api.serviceInterfaces.list.useQuery({
+    workflowId: serviceId
   });
 
   // Fetch connectors for the project
@@ -59,15 +88,16 @@ export function ServiceBuilderView({
   );
 
   // Fetch project connectors (service-to-service connections)
-  // Get both source (from this project) and target (to this project) connectors
-  const { data: sourceConnectors, isLoading: isLoadingSourceConnectors } = 
+  // Get both source (from this project) connectors
+  const { data: sourceConnectors, isLoading: isLoadingSourceConnectors } =
     api.projectConnectors.list.useQuery(
-      { projectId: projectId || '', source: true },
+      { sourceProjectId: projectId || '' },
       { enabled: !!projectId }
     );
-  const { data: targetConnectors, isLoading: isLoadingTargetConnectors } = 
+  // Note: There's no separate query for target connectors, so we'll use the same source data
+  const { data: targetConnectors, isLoading: isLoadingTargetConnectors } =
     api.projectConnectors.list.useQuery(
-      { projectId: projectId || '', source: false },
+      { sourceProjectId: projectId || '' },
       { enabled: !!projectId }
     );
 
@@ -87,25 +117,28 @@ export function ServiceBuilderView({
     const nodes = definition?.nodes || [];
     const edges = definition?.edges || [];
 
+    // Type assert interfaces data to narrow union type from tRPC
+    const typedInterfaces = (interfaces || []) as unknown as ServiceInterface[];
+
     // Separate interfaces by type
-    const incomingInterfaces = (interfaces || [])
+    const incomingInterfaces = typedInterfaces
       .filter(i => i.interface_type === 'signal' || i.interface_type === 'query')
       .map((iface, index) => ({
         id: iface.id,
         name: iface.name,
         displayName: iface.display_name,
         interfaceType: iface.interface_type as 'signal' | 'query' | 'update' | 'start_child',
-        position: (index + 1) * (100 / (interfaces?.length || 1)),
+        position: (index + 1) * (100 / (typedInterfaces.length || 1)),
       }));
 
-    const outgoingInterfaces = (interfaces || [])
+    const outgoingInterfaces = typedInterfaces
       .filter(i => i.interface_type === 'update' || i.interface_type === 'start_child')
       .map((iface, index) => ({
         id: iface.id,
         name: iface.name,
         displayName: iface.display_name,
         interfaceType: iface.interface_type as 'signal' | 'query' | 'update' | 'start_child',
-        position: (index + 1) * (100 / (interfaces?.length || 1)),
+        position: (index + 1) * (100 / (typedInterfaces.length || 1)),
       }));
 
     // Transform connectors
@@ -120,15 +153,18 @@ export function ServiceBuilderView({
       }));
 
     // Transform project connectors (external service connections)
+    // Type assert project connectors data to narrow union type from tRPC
+    const typedSourceConnectors = (sourceConnectors || []) as unknown as ProjectConnector[];
+
     // These are connections FROM this service TO other services
-    const externalConnections = (sourceConnectors || [])
+    const externalConnections = typedSourceConnectors
       .filter(pc => pc.target_service?.id === serviceId || pc.source_project_id === projectId)
       .map((pc, index) => ({
         id: pc.id,
         targetServiceId: pc.target_service_id,
-        targetServiceName: pc.target_service?.service_display_name || pc.target_service?.name || 'Unknown',
+        targetServiceName: pc.target_service?.display_name || pc.target_service?.name || 'Unknown',
         interfaceName: pc.target_interface?.display_name || pc.target_interface?.name || '',
-        position: (index + 1) * (100 / ((sourceConnectors?.length || 0) + 1)),
+        position: (index + 1) * (100 / ((typedSourceConnectors.length || 0) + 1)),
       }));
 
     // Transform internal components
@@ -149,7 +185,7 @@ export function ServiceBuilderView({
         id: node.id,
         name: node.data?.name || node.data?.label || node.id,
         displayName: node.data?.displayName || node.data?.label || node.id,
-        interfaceType: node.type === 'data-in' ? 'signal' : 'query',
+        interfaceType: (node.type === 'data-in' ? 'signal' : 'query') as 'signal' | 'query' | 'update' | 'start_child',
         endpointPath: node.data?.config?.endpointPath || node.data?.endpointPath,
         httpMethod: node.data?.config?.httpMethod || node.data?.httpMethod || (node.type === 'data-in' ? 'POST' : 'GET'),
       }));
@@ -157,11 +193,11 @@ export function ServiceBuilderView({
     // Merge service interfaces with interface components
     const allIncomingInterfaces = [
       ...incomingInterfaces,
-      ...interfaceComponents.filter(ic => ic.interfaceType === 'signal'),
+      ...interfaceComponents.filter((ic: { interfaceType: string }) => ic.interfaceType === 'signal'),
     ];
     const allOutgoingInterfaces = [
       ...outgoingInterfaces,
-      ...interfaceComponents.filter(ic => ic.interfaceType === 'query'),
+      ...interfaceComponents.filter((ic: { interfaceType: string }) => ic.interfaceType === 'query'),
     ];
 
     // Create service container node data
@@ -228,16 +264,18 @@ export function ServiceBuilderView({
     );
   }
 
+  // Cast ReactFlow to any to avoid type conflicts with tRPC union types
+  const ReactFlowAny = ReactFlow as any;
+
   return (
     <div style={{ width: '100%', height: '100%', minHeight: '800px' }}>
-      <ReactFlow
+      <ReactFlowAny
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         nodeTypes={nodeTypes}
-        connectionMode="loose"
         fitView
         minZoom={0.1}
         maxZoom={2}
@@ -246,7 +284,7 @@ export function ServiceBuilderView({
         <Background />
         <Controls />
         <MiniMap />
-      </ReactFlow>
+      </ReactFlowAny>
     </div>
   );
 }

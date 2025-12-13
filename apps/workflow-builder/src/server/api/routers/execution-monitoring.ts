@@ -54,7 +54,7 @@ export const executionMonitoringRouter = createTRPCRouter({
           durationMs: e.duration_ms,
           result: e.output,
           error: e.error_message,
-          historySyncStatus: e.history_sync_status,
+          historySyncStatus: (e as any).history_sync_status,
         })) || [],
         total: count || 0,
         page: input.page,
@@ -84,7 +84,7 @@ export const executionMonitoringRouter = createTRPCRouter({
       }
 
       // Get statistics
-      const { data: stats } = await ctx.supabase
+      const { data: stats } = await (ctx.supabase as any)
         .from('workflow_statistics')
         .select('*')
         .eq('workflow_id', input.workflowId)
@@ -127,7 +127,7 @@ export const executionMonitoringRouter = createTRPCRouter({
       }
 
       // Get statistics
-      const { data: stats } = await ctx.supabase
+      const { data: stats } = await (ctx.supabase as any)
         .from('project_statistics')
         .select('*')
         .eq('project_id', input.projectId)
@@ -200,6 +200,7 @@ export const executionMonitoringRouter = createTRPCRouter({
           durationMs: e.duration_ms,
           errorMessage: e.error_message,
           workflow: e.workflow as any,
+          historySyncStatus: (e as any).history_sync_status,
         })) || [],
         total: count || 0,
         page: input.page,

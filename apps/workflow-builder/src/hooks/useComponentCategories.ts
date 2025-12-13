@@ -5,6 +5,20 @@
 import { api } from '@/lib/trpc/client';
 import { useMemo } from 'react';
 
+interface ComponentCategory {
+  id: string;
+  name: string;
+  display_name: string;
+  description: string | null;
+  icon: string | null;
+  icon_provider: string | null;
+  color: string | null;
+  parent_category_id: string | null;
+  sort_order: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
 /**
  * Hook to fetch and use component categories from database
  */
@@ -13,17 +27,20 @@ export function useComponentCategories() {
 
   const categories = useMemo(() => {
     if (!data) return { tree: [], flat: [], map: new Map() };
-    
+
+    // Type assertion: we know data.flat contains component categories
+    const flatCategories = data.flat as ComponentCategory[];
+
     // Create a map for quick lookups
-    const categoryMap = new Map<string, any>();
-    data.flat.forEach(cat => {
+    const categoryMap = new Map<string, ComponentCategory>();
+    flatCategories.forEach(cat => {
       categoryMap.set(cat.id, cat);
       categoryMap.set(cat.name, cat);
     });
 
     return {
       tree: data.categories || [],
-      flat: data.flat || [],
+      flat: flatCategories,
       map: categoryMap,
     };
   }, [data]);

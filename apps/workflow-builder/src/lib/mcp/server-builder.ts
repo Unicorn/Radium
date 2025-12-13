@@ -36,7 +36,7 @@ export async function getMCPServerConfig(
   serviceInterfaceId: string,
   supabase: SupabaseClient<Database>
 ): Promise<MCPServerConfig | null> {
-  const { data: serviceInterface, error } = await supabase
+  const { data: serviceInterface, error } = await (supabase as any)
     .from('service_interfaces')
     .select('mcp_config')
     .eq('id', serviceInterfaceId)

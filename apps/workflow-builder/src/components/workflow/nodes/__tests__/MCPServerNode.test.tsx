@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '../../../../../tests/ui/test-helpers';
+import { render, screen } from '@testing-library/react';
 import { MCPServerNode } from '../MCPServerNode';
 import type { NodeProps } from 'react-flow-renderer';
 

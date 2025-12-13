@@ -5,18 +5,10 @@ import { Badge } from '@/components/shared/Badge';
 import { formatDistanceToNow } from 'date-fns';
 import { Trash, Edit, Play, Square } from 'lucide-react';
 
+import type { ProjectWithRelations } from '@/lib/supabase/types';
+
 interface ProjectCardProps {
-  project: {
-    id: string;
-    name: string;
-    description?: string | null;
-    task_queue_name: string;
-    workflow_count?: Array<{ count: number }>;
-    active_workers?: Array<{ status: string; last_heartbeat: string }>;
-    created_at: string;
-    updated_at: string;
-    is_default?: boolean;
-  };
+  project: ProjectWithRelations;
   onClick?: () => void;
   onEdit?: () => void;
   onArchive?: () => void;
@@ -31,7 +23,7 @@ export function ProjectCard({
   showActions = true,
 }: ProjectCardProps) {
   const workflowCount = project.workflow_count?.[0]?.count || 0;
-  const worker = project.active_workers?.[0];
+  const worker = project.workers?.[0];
   const workerStatus = worker?.status || 'stopped';
   
   const getWorkerStatusColor = () => {

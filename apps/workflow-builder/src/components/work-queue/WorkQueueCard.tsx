@@ -143,7 +143,7 @@ export function WorkQueueCard({ workQueue, onUpdate }: WorkQueueCardProps) {
                       <Text fontSize="$3" fontWeight="600" color="$orange11">
                         📤 Signal Handler
                       </Text>
-                      <Badge size="$1" bg="$orange5">AUTO</Badge>
+                      <Badge size={1} bg="$orange5">AUTO</Badge>
                     </XStack>
                     <Text fontSize="$2" color="$orange11">
                       <Text fontWeight="600">Name:</Text> {queueDetails.signal.signal_name}
@@ -163,7 +163,7 @@ export function WorkQueueCard({ workQueue, onUpdate }: WorkQueueCardProps) {
                       <Text fontSize="$3" fontWeight="600" color="$teal11">
                         🔍 Query Handler
                       </Text>
-                      <Badge size="$1" bg="$teal5">AUTO</Badge>
+                      <Badge size={1} bg="$teal5">AUTO</Badge>
                     </XStack>
                     <Text fontSize="$2" color="$teal11">
                       <Text fontWeight="600">Name:</Text> {queueDetails.query.query_name}

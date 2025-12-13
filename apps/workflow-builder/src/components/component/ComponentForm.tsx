@@ -208,8 +208,8 @@ export function ComponentForm({ componentId, onSuccess }: ComponentFormProps) {
             <Select.Content zIndex={200000}>
               <Select.ScrollUpButton />
               <Select.Viewport>
-                {types?.map((type) => (
-                  <Select.Item key={type.id} index={type.id} value={type.name}>
+                {types?.map((type, idx) => (
+                  <Select.Item key={type.id} index={idx} value={type.name}>
                     <Select.ItemText>{type.name}</Select.ItemText>
                     <Select.ItemIndicator marginLeft="auto">
                       <Check size={16} />

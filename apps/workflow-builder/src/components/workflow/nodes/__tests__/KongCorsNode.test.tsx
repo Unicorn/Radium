@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '../../../../../tests/ui/test-helpers';
+import { render, screen } from '@testing-library/react';
 import { KongCorsNode } from '../KongCorsNode';
 import type { NodeProps } from 'react-flow-renderer';
 

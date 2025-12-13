@@ -233,10 +233,11 @@ export const activitiesRouter = createTRPCRouter({
       const registry = createActivityRegistry(ctx.supabase);
 
       try {
-        const activity = await registry.registerActivity({
+        const activityInput = {
           ...input,
           createdBy: ctx.user.id,
-        });
+        } as import('@/lib/activities/activity-registry').RegisterActivityInput;
+        const activity = await registry.registerActivity(activityInput);
 
         return activity;
       } catch (error: any) {

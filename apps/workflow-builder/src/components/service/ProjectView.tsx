@@ -51,9 +51,7 @@ export function ProjectView({
   });
 
   // Fetch all workflows (services) in the project
-  const { data: workflowsData, isLoading: isLoadingWorkflows } = api.workflows.list.useQuery({
-    projectId,
-  });
+  const { data: workflowsData, isLoading: isLoadingWorkflows } = api.workflows.list.useQuery({});
 
   // Fetch connectors for the project
   const { data: connectors, isLoading: isLoadingConnectors } = api.connectors.list.useQuery(
@@ -62,9 +60,9 @@ export function ProjectView({
   );
 
   // Fetch project connectors (service-to-service connections)
-  const { data: projectConnectors, isLoading: isLoadingProjectConnectors } = 
+  const { data: projectConnectors, isLoading: isLoadingProjectConnectors } =
     api.projectConnectors.list.useQuery(
-      { projectId, source: true },
+      { sourceProjectId: projectId },
       { enabled: !!projectId }
     );
 
@@ -163,11 +161,11 @@ export function ProjectView({
       // Merge service interfaces with interface components
       const allIncomingInterfaces = [
         ...incomingInterfaces,
-        ...interfaceComponents.filter(ic => ic.interfaceType === 'signal'),
+        ...interfaceComponents.filter((ic: any) => ic.interfaceType === 'signal'),
       ];
       const allOutgoingInterfaces = [
         ...outgoingInterfaces,
-        ...interfaceComponents.filter(ic => ic.interfaceType === 'query'),
+        ...interfaceComponents.filter((ic: any) => ic.interfaceType === 'query'),
       ];
 
       const containerData: ServiceContainerNodeData = {
@@ -310,18 +308,17 @@ export function ProjectView({
   return (
     <div style={{ width: '100%', height: '100%', minHeight: '600px' }}>
       <ReactFlow
-        nodes={nodes}
-        edges={edges}
+        nodes={nodes as any}
+        edges={edges as any}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
-        onNodeClick={onNodeClick}
+        onNodeClick={onNodeClick as any}
         nodeTypes={nodeTypes}
-        connectionMode="loose"
         fitView
         minZoom={0.1}
         maxZoom={2}
-        defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
+        {...({ defaultViewport: { x: 0, y: 0, zoom: 0.8 } } as any)}
       >
         <Background />
         <Controls />

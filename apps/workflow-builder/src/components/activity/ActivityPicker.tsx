@@ -19,8 +19,8 @@ import {
   Select,
   Adapt,
   Sheet,
-  Badge,
 } from 'tamagui';
+import { Badge, BadgeText } from '@/components/ui/Badge';
 import { useState, useMemo } from 'react';
 import { api } from '@/lib/trpc/client';
 import { Search, X, Filter, Activity as ActivityIcon } from 'lucide-react';
@@ -272,8 +272,8 @@ export function ActivityPicker({
                               {activity.name}
                             </Text>
                             {activity.usage_count > 0 && (
-                              <Badge size="$1">
-                                {activity.usage_count} uses
+                              <Badge size={1}>
+                                <BadgeText size={1}>{activity.usage_count} uses</BadgeText>
                               </Badge>
                             )}
                           </XStack>
@@ -288,13 +288,13 @@ export function ActivityPicker({
                           {activity.tags && activity.tags.length > 0 && (
                             <XStack gap="$1" flexWrap="wrap" marginTop="$1">
                               {activity.tags.slice(0, 3).map((tag) => (
-                                <Badge key={tag} size="$1" backgroundColor="$gray4">
-                                  {tag}
+                                <Badge key={tag} size={1} backgroundColor="$gray4">
+                                  <BadgeText size={1}>{tag}</BadgeText>
                                 </Badge>
                               ))}
                               {activity.tags.length > 3 && (
-                                <Badge size="$1" backgroundColor="$gray4">
-                                  +{activity.tags.length - 3}
+                                <Badge size={1} backgroundColor="$gray4">
+                                  <BadgeText size={1}>+{activity.tags.length - 3}</BadgeText>
                                 </Badge>
                               )}
                             </XStack>

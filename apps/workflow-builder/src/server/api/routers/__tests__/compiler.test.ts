@@ -63,7 +63,7 @@ function createMockContext() {
       ],
       variables: [],
       settings: {},
-    },
+    } as any,
     version: '1.0.0',
     compiled_typescript: null,
     temporal_workflow_id: null,
@@ -162,7 +162,7 @@ function createTestWorkflowDefinition(): WorkflowDefinition {
       description: 'A simple test workflow',
       version: '1.0.0',
     },
-  };
+  } as WorkflowDefinition;
 }
 
 describe('Compiler Router', () => {
@@ -180,7 +180,7 @@ describe('Compiler Router', () => {
       const caller = compilerRouter.createCaller(ctx as any);
 
       const result = await caller.compileDefinition({
-        workflow: workflowDef,
+        workflow: workflowDef as any,
         includeComments: true,
         strictMode: true,
         optimizationLevel: 'basic',
@@ -210,7 +210,7 @@ describe('Compiler Router', () => {
       const caller = compilerRouter.createCaller(ctx as any);
 
       const result = await caller.compileDefinition({
-        workflow: invalidWorkflowDef,
+        workflow: invalidWorkflowDef as any,
       });
 
       expect(result.success).toBe(false);
@@ -225,7 +225,7 @@ describe('Compiler Router', () => {
       const caller = compilerRouter.createCaller(ctx as any);
 
       const result = await caller.compileDefinition({
-        workflow: workflowDef,
+        workflow: workflowDef as any,
       });
 
       expect(result.success).toBe(true);
@@ -247,13 +247,13 @@ describe('Compiler Router', () => {
 
       // Compile with comments
       const resultWithComments = await caller.compileDefinition({
-        workflow: workflowDef,
+        workflow: workflowDef as any,
         includeComments: true,
       });
 
       // Compile without comments
       const resultWithoutComments = await caller.compileDefinition({
-        workflow: workflowDef,
+        workflow: workflowDef as any,
         includeComments: false,
       });
 
@@ -277,7 +277,7 @@ describe('Compiler Router', () => {
       const caller = compilerRouter.createCaller(ctx as any);
 
       const result = await caller.validate({
-        workflow: workflowDef,
+        workflow: workflowDef as any,
       });
 
       expect(result.valid).toBe(true);
@@ -310,7 +310,7 @@ describe('Compiler Router', () => {
       const caller = compilerRouter.createCaller(ctx as any);
 
       const result = await caller.validate({
-        workflow: invalidWorkflowDef,
+        workflow: invalidWorkflowDef as any,
       });
 
       expect(result.valid).toBe(false);
@@ -346,12 +346,12 @@ describe('Compiler Router', () => {
       const caller = compilerRouter.createCaller(ctx as any);
 
       const result = await caller.validate({
-        workflow: workflowDef,
+        workflow: workflowDef as any,
       });
 
       expect(result.valid).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors[0].message).toContain('node-999');
+      expect(result.errors[0]?.message).toContain('node-999');
     });
   });
 
@@ -415,7 +415,7 @@ describe('Compiler Router', () => {
       const caller = compilerRouter.createCaller(ctx as any);
 
       const result = await caller.compileDefinition({
-        workflow: invalidWorkflowDef,
+        workflow: invalidWorkflowDef as any,
       });
 
       expect(result.success).toBe(false);
@@ -476,7 +476,7 @@ describe('Compiler Router', () => {
       const caller = compilerRouter.createCaller(ctx as any);
 
       const result = await caller.compileDefinition({
-        workflow: complexWorkflow,
+        workflow: complexWorkflow as any,
       });
 
       expect(result.success).toBe(true);
@@ -524,7 +524,7 @@ describe('Compiler Router', () => {
       const caller = compilerRouter.createCaller(ctx as any);
 
       const result = await caller.compileDefinition({
-        workflow: workflowWithRetry,
+        workflow: workflowWithRetry as any,
       });
 
       expect(result.success).toBe(true);
@@ -582,7 +582,7 @@ describe('Compiler Router', () => {
 
       const startTime = Date.now();
       const result = await caller.compileDefinition({
-        workflow: largeWorkflow,
+        workflow: largeWorkflow as any,
       });
       const endTime = Date.now();
 

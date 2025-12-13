@@ -256,8 +256,8 @@ describeE2E('Rust Compiler E2E Tests', () => {
         const p95Time = compileTimes[p95Index];
 
         console.log(
-          `Compile performance (${SAMPLES} samples): p95=${p95Time.toFixed(2)}ms, ` +
-            `median=${compileTimes[Math.floor(compileTimes.length / 2)].toFixed(2)}ms`
+          `Compile performance (${SAMPLES} samples): p95=${(p95Time ?? 0).toFixed(2)}ms, ` +
+            `median=${(compileTimes[Math.floor(compileTimes.length / 2)] ?? 0).toFixed(2)}ms`
         );
 
         expect(p95Time).toBeLessThan(100);

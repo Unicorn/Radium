@@ -284,8 +284,8 @@ describeE2E('Kong E2E Tests', () => {
 
       console.log(`Latency stats (${LATENCY_SAMPLES} samples):`);
       console.log(`  Min: ${Math.min(...latencies).toFixed(2)}ms`);
-      console.log(`  Median: ${medianLatency.toFixed(2)}ms`);
-      console.log(`  P95: ${p95Latency.toFixed(2)}ms`);
+      console.log(`  Median: ${(medianLatency ?? 0).toFixed(2)}ms`);
+      console.log(`  P95: ${(p95Latency ?? 0).toFixed(2)}ms`);
       console.log(`  Max: ${Math.max(...latencies).toFixed(2)}ms`);
 
       // We can't directly measure overhead without a direct backend comparison,

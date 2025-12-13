@@ -28,8 +28,8 @@ function createTestContext(): GeneratorContext {
   return {
     nodes: workflow.nodes,
     edges: workflow.edges,
-    variables: workflow.variables,
-    settings: workflow.settings,
+    variables: workflow.variables || [],
+    settings: workflow.settings || {},
     nodeMap: new Map(),
     edgeMap: new Map(),
     visitedNodes: new Set(),

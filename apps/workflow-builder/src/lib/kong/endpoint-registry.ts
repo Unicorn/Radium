@@ -148,7 +148,7 @@ export async function registerWorkflowEndpoints(
       }
 
       // Store endpoint in database
-      const { data: endpointRecord, error: dbError } = await supabase
+      const { data: endpointRecord, error: dbError } = await (supabase as any)
         .from('workflow_endpoints')
         .upsert({
           workflow_id: workflowId,
@@ -217,7 +217,7 @@ export async function unregisterWorkflowEndpoints(
   const kong = new KongClient();
 
   // Get all endpoints for this workflow
-  const { data: endpoints, error } = await supabase
+  const { data: endpoints, error } = await (supabase as any)
     .from('workflow_endpoints')
     .select('kong_route_id')
     .eq('workflow_id', workflowId)
@@ -241,7 +241,7 @@ export async function unregisterWorkflowEndpoints(
   }
 
   // Mark endpoints as inactive in database
-  await supabase
+  await (supabase as any)
     .from('workflow_endpoints')
     .update({ is_active: false })
     .eq('workflow_id', workflowId);

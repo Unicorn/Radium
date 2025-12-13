@@ -117,7 +117,7 @@ async function executeGitCommand(
         stderr: stderr || 'Git command timed out',
         exitCode: -1,
       });
-    }, timeout);
+    }, timeout) as unknown as NodeJS.Timeout;
 
     try {
       const process = spawn('git', args, {
@@ -247,6 +247,8 @@ export async function gitStatus(
       const match = trimmedLine.match(/^(.{2})\s+(.+)$/);
       if (match) {
         const [, status, file] = match;
+        if (!status || !file) continue;
+
         const stagedStatus = status[0];
         const unstagedStatus = status[1];
         const untracked = status === '??';
@@ -284,7 +286,7 @@ export async function gitStatus(
         // Extract filename from "modified:   filename" or "\tmodified:   filename"
         // Pattern: "modified:" followed by spaces/tabs, then filename
         const fileMatch = trimmedLine.match(/(?:modified|new file|deleted):\s+(.+)$/);
-        if (fileMatch) {
+        if (fileMatch?.[1]) {
           const file = fileMatch[1].trim();
           if (currentSection === 'staged') {
             stagedFiles.push(file);
@@ -386,9 +388,11 @@ export async function gitDiff(
         const match = line.match(/^(.+?)\s+\|\s+(\d+)\s+([+-]+)$/);
         if (match) {
           const [, file, changes, indicators] = match;
+          if (!file || !indicators) continue;
+
           const insertionsCount = (indicators.match(/\+/g) || []).length;
           const deletionsCount = (indicators.match(/-/g) || []).length;
-          
+
           fileStats.push({
             file: file.trim(),
             insertions: insertionsCount,
@@ -404,7 +408,7 @@ export async function gitDiff(
     // Parse summary line if present
     if (summaryLine && summaryLine.includes('files changed')) {
       const summaryMatch = summaryLine.match(/(\d+)\s+files? changed(?:,\s+(\d+)\s+insertions?\(\+\))?(?:,\s+(\d+)\s+deletions?\(-\))?/);
-      if (summaryMatch) {
+      if (summaryMatch?.[1]) {
         filesChanged = parseInt(summaryMatch[1], 10);
         if (summaryMatch[2]) {
           insertions = parseInt(summaryMatch[2], 10);
@@ -422,7 +426,7 @@ export async function gitDiff(
     for (const line of diffLines) {
       if (line.startsWith('diff --git')) {
         const fileMatch = line.match(/diff --git a\/(.+?)\s+b\/(.+?)$/);
-        if (fileMatch) {
+        if (fileMatch?.[2]) {
           currentFile = fileMatch[2];
           if (!fileStats.find(f => f.file === currentFile)) {
             fileStats.push({
@@ -570,6 +574,8 @@ export async function listBranches(
     const match = line.match(/^(\*|\s)\s+([^\s]+)\s+([a-f0-9]+)\s+(.+)$/);
     if (match) {
       const [, headMarker, name, commit] = match;
+      if (!name || !commit) continue;
+
       const isRemote = name.startsWith('remotes/');
       const branchName = isRemote ? name.replace(/^remotes\/[^/]+\//, '') : name.trim();
       const isCurrent = headMarker === '*' || branchName === currentBranch;

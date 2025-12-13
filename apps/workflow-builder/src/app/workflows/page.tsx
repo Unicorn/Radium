@@ -65,9 +65,9 @@ function WorkflowsContent() {
                           <Text fontSize="$6" fontWeight="600">
                             {workflow.display_name}
                           </Text>
-                          <Badge 
+                          <Badge
                             backgroundColor={workflow.status.color || '$gray10'}
-                            size="2"
+                            size={2}
                           >
                             <Text fontSize="$2" color="white">
                               {workflow.status.name}

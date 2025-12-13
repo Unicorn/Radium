@@ -20,9 +20,9 @@ export function LoadingState({
   fullscreen = false,
 }: LoadingStateProps) {
   const spinnerSize = {
-    small: '$4',
-    medium: '$6',
-    large: '$8',
+    small: 'small' as const,
+    medium: 'large' as const,
+    large: 'large' as const,
   }[size];
 
   const Content = (
@@ -32,7 +32,7 @@ export function LoadingState({
       gap="$3"
       role="status"
       aria-live="polite"
-      aria-busy="true"
+      aria-busy={true}
     >
       <Spinner size={spinnerSize} color="$blue10" />
       <Text fontSize="$4" color="$gray11">

@@ -227,7 +227,7 @@ export class TimeoutError extends WorkflowError {
  */
 export class NetworkError extends WorkflowError {
   public readonly url?: string;
-  public readonly statusCode?: number;
+  public declare readonly statusCode: number;
 
   constructor(params: {
     message: string;

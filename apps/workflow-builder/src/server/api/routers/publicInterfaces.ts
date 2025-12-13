@@ -33,7 +33,7 @@ export const publicInterfacesRouter = createTRPCRouter({
         }
 
         const workflowIds = workflows.map(w => w.id);
-        const { data: serviceInterfaces } = await ctx.supabase
+        const { data: serviceInterfaces } = await (ctx.supabase as any)
           .from('service_interfaces')
           .select('id')
           .in('workflow_id', workflowIds);
@@ -42,8 +42,8 @@ export const publicInterfacesRouter = createTRPCRouter({
           return { interfaces: [] };
         }
 
-        const serviceInterfaceIds = serviceInterfaces.map(si => si.id);
-        const { data, error } = await ctx.supabase
+        const serviceInterfaceIds = serviceInterfaces.map((si: any) => si.id);
+        const { data, error } = await (ctx.supabase as any)
           .from('public_interfaces')
           .select(`
             *,
@@ -77,7 +77,7 @@ export const publicInterfacesRouter = createTRPCRouter({
         });
       }
       // Verify service interface ownership
-      const { data: serviceInterface } = await ctx.supabase
+      const { data: serviceInterface } = await (ctx.supabase as any)
         .from('service_interfaces')
         .select('workflow:workflows!inner(created_by)')
         .eq('id', input.serviceInterfaceId)
@@ -98,7 +98,7 @@ export const publicInterfacesRouter = createTRPCRouter({
         });
       }
 
-      const { data, error } = await ctx.supabase
+      const { data, error } = await (ctx.supabase as any)
         .from('public_interfaces')
         .select(`
           *,
@@ -128,7 +128,7 @@ export const publicInterfacesRouter = createTRPCRouter({
   get: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      const { data, error } = await ctx.supabase
+      const { data, error } = await (ctx.supabase as any)
         .from('public_interfaces')
         .select(`
           *,
@@ -172,7 +172,7 @@ export const publicInterfacesRouter = createTRPCRouter({
     }))
     .mutation(async ({ ctx, input }) => {
       // Verify service interface ownership
-      const { data: serviceInterface } = await ctx.supabase
+      const { data: serviceInterface } = await (ctx.supabase as any)
         .from('service_interfaces')
         .select('*')
         .eq('id', input.serviceInterfaceId)
@@ -247,7 +247,7 @@ export const publicInterfacesRouter = createTRPCRouter({
       const { id, ...updates } = input;
 
       // Verify ownership
-      const { data: existing } = await ctx.supabase
+      const { data: existing } = await (ctx.supabase as any)
         .from('public_interfaces')
         .select(`
           service_interface:service_interfaces!inner(
@@ -296,7 +296,7 @@ export const publicInterfacesRouter = createTRPCRouter({
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       // Verify ownership
-      const { data: existing } = await ctx.supabase
+      const { data: existing } = await (ctx.supabase as any)
         .from('public_interfaces')
         .select(`
           service_interface:service_interfaces!inner(

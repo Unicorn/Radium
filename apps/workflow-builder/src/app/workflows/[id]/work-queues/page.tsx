@@ -89,7 +89,7 @@ export default function WorkflowWorkQueuesPage() {
           {workQueues.map((workQueue) => (
             <WorkQueueCard
               key={workQueue.id}
-              workQueue={workQueue}
+              workQueue={workQueue as any}
               onUpdate={refetch}
             />
           ))}

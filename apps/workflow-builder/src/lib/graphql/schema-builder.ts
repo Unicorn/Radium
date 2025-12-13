@@ -77,27 +77,27 @@ export function extractOperationNames(sdl: string): {
   
   // Simple regex-based extraction (for basic schemas)
   // For production, use a proper GraphQL parser
-  const queryMatch = sdl.match(/type\s+Query\s*\{([^}]+)\}/s);
+  const queryMatch = sdl.match(/type\s+Query\s*\{([^}]+)\}/su);
   if (queryMatch) {
-    const queryFields = queryMatch[1];
+    const queryFields = queryMatch[1]!;
     // Match field definitions - handle both with and without arguments
     // Pattern: fieldName or fieldName(args): ReturnType (including arrays and non-null)
-    const fieldPattern = /(\w+)\s*(?:\([^)]*\))?\s*:\s*[^\s,}]+/g;
+    const fieldPattern = /(\w+)\s*(?:\([^)]*\))?\s*:\s*[^\s,}]+/gu;
     let fieldMatch;
     while ((fieldMatch = fieldPattern.exec(queryFields)) !== null) {
-      queries.push(fieldMatch[1]);
+      queries.push(fieldMatch[1]!);
     }
   }
-  
-  const mutationMatch = sdl.match(/type\s+Mutation\s*\{([^}]+)\}/s);
+
+  const mutationMatch = sdl.match(/type\s+Mutation\s*\{([^}]+)\}/su);
   if (mutationMatch) {
-    const mutationFields = mutationMatch[1];
+    const mutationFields = mutationMatch[1]!;
     // Match field definitions - handle both with and without arguments
     // Pattern: fieldName or fieldName(args): ReturnType (including arrays and non-null)
-    const fieldPattern = /(\w+)\s*(?:\([^)]*\))?\s*:\s*[^\s,}]+/g;
+    const fieldPattern = /(\w+)\s*(?:\([^)]*\))?\s*:\s*[^\s,}]+/gu;
     let fieldMatch;
     while ((fieldMatch = fieldPattern.exec(mutationFields)) !== null) {
-      mutations.push(fieldMatch[1]);
+      mutations.push(fieldMatch[1]!);
     }
   }
   

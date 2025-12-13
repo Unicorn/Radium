@@ -104,7 +104,7 @@ export function validateWorkflow(workflow: WorkflowDefinition): ValidationResult
     id: n.id,
     type: n.type,
     data: n.data || {},
-  }));
+  })) as any[];
   const reactFlowEdges = (workflow.edges || []).map((e: WorkflowEdge) => ({
     id: e.id,
     source: e.source,
@@ -1049,8 +1049,8 @@ function parseTimeout(timeout: string): number | null {
   const match = timeout.match(/^(\d+)(s|m|h)$/);
   if (!match) return null;
 
-  const value = parseInt(match[1]);
-  const unit = match[2];
+  const value = parseInt(match[1]!);
+  const unit = match[2]!;
 
   const multipliers: Record<string, number> = {
     s: 1000,
@@ -1058,5 +1058,5 @@ function parseTimeout(timeout: string): number | null {
     h: 60 * 60 * 1000,
   };
 
-  return value * multipliers[unit];
+  return value * (multipliers[unit] ?? 0);
 }

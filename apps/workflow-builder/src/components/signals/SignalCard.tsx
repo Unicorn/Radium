@@ -34,10 +34,10 @@ export function SignalCard({ signal, onUpdate }: SignalCardProps) {
     }
 
     if (confirm(`Delete signal "${signal.signal_name}"? This cannot be undone.`)) {
-      await deleteMutation.mutateAsync({ 
+      await deleteMutation.mutateAsync({
         id: signal.id,
-        workflowId: signal.workflow_id 
-      });
+        workflowId: signal.workflow_id,
+      } as any);
     }
   };
 
@@ -54,7 +54,7 @@ export function SignalCard({ signal, onUpdate }: SignalCardProps) {
                   {signal.signal_name}
                 </Text>
                 {signal.auto_generated && (
-                  <Badge size="$1" bg="$blue5">AUTO</Badge>
+                  <Badge size={1} bg="$blue5">AUTO</Badge>
                 )}
               </XStack>
               {signal.description && (

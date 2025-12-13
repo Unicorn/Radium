@@ -39,7 +39,7 @@ export const kongCacheRouter = createTRPCRouter({
       }
 
       // Get cache key configuration
-      const { data: cacheKey, error: cacheKeyError } = await ctx.supabase
+      const { data: cacheKey, error: cacheKeyError } = await (ctx.supabase as any)
         .from('kong_cache_keys')
         .select('*')
         .eq('component_id', input.componentId)
@@ -114,14 +114,14 @@ export const kongCacheRouter = createTRPCRouter({
       }
 
       // Check if cache key already exists for this component
-      const { data: existing } = await ctx.supabase
+      const { data: existing } = await (ctx.supabase as any)
         .from('kong_cache_keys')
         .select('id, is_saved, cache_key')
         .eq('component_id', input.componentId)
         .single();
 
       // If component is saved, cache key is immutable
-      if (existing?.is_saved && existing.cache_key !== input.cacheKey) {
+      if ((existing as any)?.is_saved && (existing as any).cache_key !== input.cacheKey) {
         throw new TRPCError({
           code: 'BAD_REQUEST',
           message: 'Cache key is immutable after component is saved. Remove and recreate the component to change the key.',
@@ -129,10 +129,10 @@ export const kongCacheRouter = createTRPCRouter({
       }
 
       // Upsert cache key configuration
-      const { data: cacheKey, error: upsertError } = await ctx.supabase
+      const { data: cacheKey, error: upsertError } = await (ctx.supabase as any)
         .from('kong_cache_keys')
         .upsert({
-          id: existing?.id,
+          id: (existing as any)?.id,
           component_id: input.componentId,
           project_id: input.projectId,
           connector_id: input.connectorId,
@@ -221,7 +221,7 @@ export const kongCacheRouter = createTRPCRouter({
       }
 
       // Mark cache key for deletion
-      const { data: cacheKey, error: updateError } = await ctx.supabase
+      const { data: cacheKey, error: updateError } = await (ctx.supabase as any)
         .from('kong_cache_keys')
         .update({
           marked_for_deletion: true,
@@ -270,7 +270,7 @@ export const kongCacheRouter = createTRPCRouter({
       }
 
       // Get cache keys marked for deletion
-      const { data: cacheKeys, error: fetchError } = await ctx.supabase
+      const { data: cacheKeys, error: fetchError } = await (ctx.supabase as any)
         .from('kong_cache_keys')
         .select('*')
         .eq('project_id', input.projectId)
@@ -315,7 +315,7 @@ export const kongCacheRouter = createTRPCRouter({
       }
 
       // Delete cache keys
-      const { error: deleteError } = await ctx.supabase
+      const { error: deleteError } = await (ctx.supabase as any)
         .from('kong_cache_keys')
         .delete()
         .in('component_id', input.componentIds)

@@ -105,8 +105,8 @@ describe('Connectors Router - Classification Endpoints', () => {
       });
 
       expect(result).toHaveLength(1);
-      expect(result[0].id).toBe('connector-123');
-      expect(result[0].classifications).toEqual(['redis']);
+      expect(result[0]?.id).toBe('connector-123');
+      expect(result[0]?.classifications).toEqual(['redis']);
     });
 
     it('should throw NOT_FOUND if project does not exist', async () => {

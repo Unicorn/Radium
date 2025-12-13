@@ -1,11 +1,12 @@
 /**
  * Cron Expression Validation and Parsing Utilities
- * 
+ *
  * Provides validation, parsing, and human-readable descriptions for cron expressions
  * Used for scheduled workflow configuration
  */
 
 import type { CronValidationResult } from '../types/advanced-patterns';
+export type { CronValidationResult };
 
 /**
  * Common cron presets with descriptions
@@ -72,7 +73,10 @@ export const CRON_PRESETS = {
 /**
  * Validate a cron expression
  */
-export function validateCronExpression(expression: string): CronValidationResult {
+export function validateCronExpression(
+  expression: string,
+  options?: { allowSeconds?: boolean }
+): CronValidationResult {
   if (!expression || typeof expression !== 'string') {
     return {
       valid: false,
@@ -135,6 +139,13 @@ export function validateCronExpression(expression: string): CronValidationResult
     const field = fields[i];
     const range = fieldRanges[i];
 
+    if (!field || !range) {
+      return {
+        valid: false,
+        error: `Missing field at position ${i + 1}`,
+      };
+    }
+
     const fieldResult = validateCronField(field, range.min, range.max, range.name);
     if (!fieldResult.valid) {
       return {
@@ -150,10 +161,14 @@ export function validateCronExpression(expression: string): CronValidationResult
   // Try to calculate next runs (simplified - would need full cron library for accuracy)
   const nextRuns = calculateNextRuns(trimmed, 3);
 
+  // Check if this is a high-frequency schedule
+  const highFrequency = isHighFrequency(trimmed);
+
   return {
     valid: true,
     humanReadable,
     nextRuns,
+    isHighFrequency: highFrequency,
   };
 }
 
@@ -173,8 +188,18 @@ function validateCronField(
 
   // Step values: */5, 0-23/2, etc.
   if (field.includes('/')) {
-    const [range, step] = field.split('/');
-    
+    const parts = field.split('/');
+    const range = parts[0];
+    const step = parts[1];
+
+    // Validate we have both parts
+    if (!range || !step) {
+      return {
+        valid: false,
+        error: `Invalid step syntax in ${fieldName}: ${field}`,
+      };
+    }
+
     // Validate step is a number
     const stepNum = parseInt(step, 10);
     if (isNaN(stepNum) || stepNum <= 0) {
@@ -251,8 +276,17 @@ function validateCronRange(
   max: number,
   fieldName: string
 ): { valid: boolean; error?: string } {
-  const [startStr, endStr] = range.split('-');
-  
+  const parts = range.split('-');
+  const startStr = parts[0];
+  const endStr = parts[1];
+
+  if (!startStr || !endStr) {
+    return {
+      valid: false,
+      error: `Invalid range syntax in ${fieldName}: ${range}`,
+    };
+  }
+
   const start = parseInt(startStr, 10);
   const end = parseInt(endStr, 10);
 
@@ -300,9 +334,18 @@ export function getCronDescription(expression: string): string {
 
   // Try to generate description
   const fields = expression.split(/\s+/);
-  
+
   if (fields.length === 5) {
-    const [minute, hour, day, month, dayOfWeek] = fields;
+    const minute = fields[0];
+    const hour = fields[1];
+    const day = fields[2];
+    const month = fields[3];
+    const dayOfWeek = fields[4];
+
+    // Ensure all fields exist
+    if (!minute || !hour || !day || !month || !dayOfWeek) {
+      return expression;
+    }
 
     // Every minute
     if (minute === '*' && hour === '*' && day === '*' && month === '*' && dayOfWeek === '*') {
@@ -312,7 +355,9 @@ export function getCronDescription(expression: string): string {
     // Every N minutes
     if (minute.startsWith('*/') && hour === '*' && day === '*' && month === '*' && dayOfWeek === '*') {
       const interval = minute.split('/')[1];
-      return `Every ${interval} minutes`;
+      if (interval) {
+        return `Every ${interval} minutes`;
+      }
     }
 
     // Hourly
@@ -323,8 +368,10 @@ export function getCronDescription(expression: string): string {
     // Every N hours
     if (hour.startsWith('*/') && day === '*' && month === '*' && dayOfWeek === '*') {
       const interval = hour.split('/')[1];
-      const atMinute = minute === '0' ? '' : ` at :${minute.padStart(2, '0')}`;
-      return `Every ${interval} hours${atMinute}`;
+      if (interval) {
+        const atMinute = minute === '0' ? '' : ` at :${minute.padStart(2, '0')}`;
+        return `Every ${interval} hours${atMinute}`;
+      }
     }
 
     // Daily
@@ -373,12 +420,17 @@ export function isHighFrequency(expression: string): boolean {
 
   const minute = fields[0];
 
+  // Check if minute field exists
+  if (!minute) return false;
+
   // Every minute
   if (minute === '*') return true;
 
   // Every N minutes where N <= 5
   if (minute.startsWith('*/')) {
-    const interval = parseInt(minute.split('/')[1], 10);
+    const intervalStr = minute.split('/')[1];
+    if (!intervalStr) return false;
+    const interval = parseInt(intervalStr, 10);
     return !isNaN(interval) && interval <= 5;
   }
 
@@ -420,8 +472,15 @@ function getOrdinalSuffix(num: number): string {
 export function getCronPresets() {
   return Object.entries(CRON_PRESETS).map(([key, preset]) => ({
     key,
+    name: preset.description,
     expression: preset.expression,
     description: preset.description,
   }));
 }
+
+/**
+ * Get human-readable description of cron expression
+ * Alias for getCronDescription
+ */
+export const getHumanReadableDescription = getCronDescription;
 

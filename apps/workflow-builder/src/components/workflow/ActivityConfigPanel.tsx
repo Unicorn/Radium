@@ -121,7 +121,7 @@ export function ActivityConfigPanel({ node, onUpdate }: ActivityConfigPanelProps
           onValueChange={(value) => {
             setRetryStrategy(value);
             // Trigger save after strategy change
-            setTimeout(handleSave, 0);
+            window.setTimeout(handleSave, 0);
           }}
         >
           <Select.Trigger width="100%">
@@ -130,8 +130,8 @@ export function ActivityConfigPanel({ node, onUpdate }: ActivityConfigPanelProps
 
           <Select.Content>
             <Select.Viewport>
-              {RETRY_STRATEGIES.map((strategy) => (
-                <Select.Item key={strategy.value} value={strategy.value}>
+              {RETRY_STRATEGIES.map((strategy, index) => (
+                <Select.Item key={strategy.value} index={index} value={strategy.value}>
                   <Select.ItemText>{strategy.label}</Select.ItemText>
                 </Select.Item>
               ))}

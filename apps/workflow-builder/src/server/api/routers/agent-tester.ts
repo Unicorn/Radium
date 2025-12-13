@@ -187,8 +187,8 @@ export const agentTesterRouter = createTRPCRouter({
       try {
         const client = await getTemporalClient();
         const handle = client.workflow.getHandle(input.workflowId);
-        const state = await handle.query('getConversation');
-        
+        const state = await handle.query('getConversation') as { messages: any[]; isActive: boolean };
+
         return {
           messages: state.messages,
           isActive: state.isActive,

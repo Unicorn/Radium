@@ -16,7 +16,7 @@ export function ExecutionHistoryList({ workflowId, onSelectExecution }: Executio
   const { data, isLoading, error } = api.execution.getExecutionHistory.useQuery({
     workflowId,
     page,
-    limit: 20,
+    pageSize: 20,
   });
 
   if (isLoading) {
@@ -36,7 +36,9 @@ export function ExecutionHistoryList({ workflowId, onSelectExecution }: Executio
   }
 
   const executions = data?.executions || [];
-  const totalPages = data?.totalPages || 1;
+  const total = data?.total || 0;
+  const pageSize = data?.pageSize || 20;
+  const totalPages = Math.ceil(total / pageSize) || 1;
 
   return (
     <YStack gap="$3" f={1}>
@@ -96,6 +98,7 @@ interface ExecutionItem {
   result: unknown;
   error: string | null;
   historySyncStatus: string | null;
+  workflowName?: string;
 }
 
 function ExecutionListItem({ execution, onClick }: { execution: ExecutionItem; onClick?: () => void }) {
@@ -120,7 +123,7 @@ function ExecutionListItem({ execution, onClick }: { execution: ExecutionItem; o
         <YStack gap="$1" f={1}>
           <XStack gap="$2" ai="center">
             <Text fontSize="$3" fontWeight="600">
-              {execution.workflowName || 'Workflow'}
+              Execution
             </Text>
             <Card p="$1" bg="$background" borderWidth={1} borderColor={statusColor}>
               <Text fontSize="$1" color={statusColor} textTransform="capitalize">

@@ -79,7 +79,7 @@ export const notificationsRouter = createTRPCRouter({
           severity: input.severity,
           context: input.context,
           slackWebhookUrl: input.slackWebhookUrl,
-        } as ErrorAlertInput);
+        } as unknown as ErrorAlertInput);
         if (!result.success) {
           throw new TRPCError({
             code: 'INTERNAL_SERVER_ERROR',
@@ -113,7 +113,7 @@ export const notificationsRouter = createTRPCRouter({
           progress: input.progress,
           stage: input.stage,
           slackWebhookUrl: input.slackWebhookUrl,
-        } as ProgressUpdateInput);
+        } as unknown as ProgressUpdateInput);
         if (!result.success) {
           throw new TRPCError({
             code: 'INTERNAL_SERVER_ERROR',

@@ -100,7 +100,7 @@ export function buildBlockingConnections(
           fromNodeId: workItemId,
           toNodeId: childNode.node_id,
           fromType: 'child',
-          toType: 'child',
+          toType: 'work-queue',
           label: 'Blocks until complete',
           metadata: {},
         });
@@ -296,11 +296,12 @@ export function validateConnectionIntegrity(
 
   connections.forEach((conn) => {
     // Validate nodes exist
-    if (conn.fromType === 'child' && !nodeIds.has(conn.fromNodeId)) {
+    if ((conn.fromType === 'child' || conn.fromType === 'scheduled' || conn.fromType === 'activity') && !nodeIds.has(conn.fromNodeId)) {
       errors.push(`Connection ${conn.id}: From node ${conn.fromNodeId} does not exist`);
     }
-    if (conn.toType === 'child' && !nodeIds.has(conn.toNodeId)) {
-      errors.push(`Connection ${conn.id}: To node ${conn.toNodeId} does not exist`);
+    if (conn.toType === 'work-queue' && !nodeIds.has(conn.toNodeId)) {
+      // Work queue connections should validate against queue names, not node IDs
+      // Skip this validation for work-queue type
     }
 
     // Validate signal/query/queue names

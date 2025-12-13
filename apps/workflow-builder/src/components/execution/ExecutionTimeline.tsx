@@ -3,6 +3,7 @@
 import { YStack, XStack, Card, Text, Circle } from 'tamagui';
 import { CheckCircle, XCircle, Loader, PlayCircle, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
+import type { LucideIcon } from '@/types/icons';
 
 interface ExecutionTimelineProps {
   execution: {
@@ -54,7 +55,7 @@ interface TimelineEvent {
   time: Date;
   label: string;
   description?: string;
-  icon: React.ComponentType<{ size?: number; color?: string }>;
+  icon: LucideIcon;
   color: string;
   bg: string;
   border: string;

@@ -235,8 +235,6 @@ CREATE POLICY "Users can view their project metrics" ON component_metrics
   USING (
     project_id IN (
       SELECT id FROM projects WHERE created_by = auth.uid()
-      UNION
-      SELECT project_id FROM project_members WHERE user_id = auth.uid()
     )
   );
 
@@ -249,8 +247,6 @@ CREATE POLICY "Users can view their project usage" ON component_usage_daily
   USING (
     project_id IN (
       SELECT id FROM projects WHERE created_by = auth.uid()
-      UNION
-      SELECT project_id FROM project_members WHERE user_id = auth.uid()
     )
   );
 

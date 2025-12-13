@@ -92,12 +92,12 @@ export function mergeImports(imports: string[]): string[] {
       const [, isType, items, module] = match;
       const targetMap = isType ? typeImportMap : importMap;
 
-      if (!targetMap.has(module)) {
-        targetMap.set(module, new Set());
+      if (!targetMap.has(module!)) {
+        targetMap.set(module!, new Set());
       }
 
-      const itemSet = targetMap.get(module)!;
-      items.split(',').forEach(item => itemSet.add(item.trim()));
+      const itemSet = targetMap.get(module!)!;
+      items!.split(',').forEach(item => itemSet.add(item.trim()));
     }
   }
 
@@ -150,8 +150,8 @@ export function parseDuration(duration: string): number {
     throw new Error(`Invalid duration format: ${duration}`);
   }
 
-  const value = parseInt(match[1], 10);
-  const unit = match[2].toLowerCase();
+  const value = parseInt(match[1]!, 10);
+  const unit = match[2]!.toLowerCase();
 
   switch (unit) {
     case 'ms':

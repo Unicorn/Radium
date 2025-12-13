@@ -10,7 +10,7 @@ import { ComponentCard } from './ComponentCard';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/trpc/client';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { categorizeComponent } from '@/lib/component-categorization';
+import { categorizeComponent, UTILITY_CATEGORIES } from '@/lib/component-categorization';
 import { useComponentCategories } from '@/hooks/useComponentCategories';
 import * as LucideIcons from 'lucide-react';
 import type { Database } from '@/types/database';
@@ -75,9 +75,10 @@ export function ComponentList({
   }, {} as Record<string, Component[]>);
 
   // Get categories that have components, in the order defined in UTILITY_CATEGORIES
-  const activeCategories = UTILITY_CATEGORIES.filter(cat => 
-    groupedComponents[cat.id] && groupedComponents[cat.id].length > 0
-  );
+  const activeCategories = UTILITY_CATEGORIES.filter(cat => {
+    const components = groupedComponents[cat.id];
+    return components && components.length > 0;
+  });
 
   // Initialize expanded sections when categories are first computed
   useEffect(() => {

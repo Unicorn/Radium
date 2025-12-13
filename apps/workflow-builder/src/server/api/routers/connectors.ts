@@ -149,7 +149,7 @@ export const connectorsRouter = createTRPCRouter({
         ? Buffer.from(JSON.stringify(input.credentials))
         : null;
 
-      const { data, error } = await ctx.supabase
+      const { data, error } = await (ctx.supabase as any)
         .from('connectors')
         .insert({
           project_id: input.projectId,
