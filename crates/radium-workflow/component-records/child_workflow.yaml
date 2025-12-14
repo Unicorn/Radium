@@ -6,7 +6,7 @@ component:
   temporalType: child_workflow
 migration:
   migratedBy: radium-workflow-compiler
-  migrationDate: 2025-12-14T02:15:29.713366Z
+  migrationDate: 2025-12-14T19:39:42.996943Z
   durationHours: 2.0
   difficulty: high
   breakingChanges: false
