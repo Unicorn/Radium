@@ -59,6 +59,11 @@ regex = "1"
 pretty_assertions = "1"
 tokio-test = "0.4"
 tempfile = "3"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "compilation_benchmarks"
+harness = false
 
 [features]
 default = []

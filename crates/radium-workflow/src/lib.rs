@@ -12,10 +12,12 @@ pub mod api;
 pub mod codegen;
 pub mod expressions;
 pub mod migration;
+pub mod performance;
 pub mod schema;
 pub mod validation;
 pub mod verification;
 
 pub use expressions::{Expression, ExpressionParser, ExpressionEvaluator, TypeScriptGenerator};
 pub use migration::{ComponentMigration, MigrationRecord, MigrationRunner, VerificationResult};
+pub use performance::{CompilationCache, CompilationProfiler, CompilationProfile, ProfileBuilder, CompilationStage};
 pub use schema::WorkflowDefinition;
