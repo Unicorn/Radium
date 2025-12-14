@@ -671,7 +671,7 @@ impl App {
         self.prompt_data.add_conversation_message("".to_string(), max_history);
 
         // Check if we have any agents available
-        let has_agents = crate::chat_executor::get_available_agents()
+        let has_agents = crate::agent_discovery::get_available_agents()
             .map(|agents| !agents.is_empty())
             .unwrap_or(false);
 
@@ -1912,7 +1912,7 @@ impl App {
         self.prompt_data.context = DisplayContext::AgentList;
 
         // Get available agents
-        let agents = crate::chat_executor::get_available_agents()?;
+        let agents = crate::agent_discovery::get_available_agents()?;
         self.prompt_data.agents = agents;
 
         Ok(())
@@ -2480,7 +2480,7 @@ impl App {
                 match main_cmd {
                     "chat" if parts.len() <= 2 => {
                         // Suggest agent IDs for /chat command with fuzzy matching
-                        match crate::chat_executor::get_available_agents() {
+                        match crate::agent_discovery::get_available_agents() {
                             Ok(agents) => {
                             let query = if parts.len() > 1 { parts[1] } else { "" };
                             
@@ -2596,7 +2596,7 @@ impl App {
                         if parts.len() == 3 && parts[0] == "orchestrator" && parts[1] == "start" {
                             // Suggest agent IDs for /orchestrator start command
                             let query = parts[2];
-                            if let Ok(agents) = crate::chat_executor::get_available_agents() {
+                            if let Ok(agents) = crate::agent_discovery::get_available_agents() {
                                 let matcher = SkimMatcherV2::default();
                                 let mut scored_agents: Vec<(i64, (String, String))> = Vec::new();
                                 

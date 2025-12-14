@@ -1,5 +1,5 @@
+pub mod agent_discovery;
 pub mod app;
-pub mod chat_executor;
 pub mod command_safety;
 pub mod commands;
 pub mod components;
