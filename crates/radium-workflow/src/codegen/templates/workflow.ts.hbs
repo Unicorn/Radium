@@ -99,7 +99,7 @@ export async function {{function_name}}(
 {{/each}}
 
   // Workflow execution
-  let result: {{{output_type}}} = undefined as {{{output_type}}};
+  let result: {{{output_type}}} | undefined = undefined;
 
 {{#each code_blocks}}
   {{{this}}}
@@ -113,5 +113,5 @@ export async function {{function_name}}(
   }
 {{/if}}
 
-  return result;
+  return result!;
 }

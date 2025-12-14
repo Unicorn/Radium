@@ -1,0 +1,115 @@
+component:
+  name: log
+  category: activities
+  version: 1.0.0
+  description: Logging component for workflow observability
+  temporalType: activity
+migration:
+  migratedBy: radium-workflow-compiler
+  migrationDate: 2025-12-14T02:15:29.713353Z
+  durationHours: 1.0
+  difficulty: low
+  breakingChanges: false
+  filesCreated:
+  - src/schema/components/log.rs
+  filesModified:
+  - src/schema/components/mod.rs
+discovery:
+  originalTypescriptFile: ''
+  linesOfCode: 0
+  existingTests: []
+  usageLocations: []
+  dependencies: []
+schemaDecisions:
+- field: log_level
+  decision: Enum with Debug, Info, Warning, Error variants
+  rationale: Standard log levels
+  alternativesConsidered: []
+- field: context
+  decision: HashMap for structured logging context
+  rationale: Enables rich log context
+  alternativesConsidered: []
+inputSchema:
+  rustStruct: LogInput
+  typescriptInterface: LogInput
+  fields:
+  - name: message
+    rustType: String
+    typescriptType: string
+    required: true
+    description: ''
+  - name: level
+    rustType: LogLevel
+    typescriptType: LogLevel
+    required: false
+    default: Info
+    description: ''
+  - name: context
+    rustType: HashMap<String, Value>
+    typescriptType: Record<string, unknown>
+    required: false
+    default: '{}'
+    description: ''
+  validation: []
+outputSchema:
+  rustStruct: LogOutput
+  typescriptInterface: LogOutput
+  fields:
+  - name: logged
+    rustType: bool
+    typescriptType: boolean
+    required: true
+    description: ''
+  - name: timestamp
+    rustType: DateTime<Utc>
+    typescriptType: Date
+    required: true
+    description: ''
+  - name: log_id
+    rustType: String
+    typescriptType: string
+    required: true
+    description: ''
+  validation: []
+validationRules: []
+connections:
+  allowedSources: []
+  allowedTargets: []
+  connectionValidation: ''
+rustSchema:
+  filePath: src/schema/components/log.rs
+  structs:
+  - LogInput
+  - LogOutput
+  enums:
+  - LogLevel
+  derives:
+  - Debug
+  - Clone
+  - Serialize
+  - Deserialize
+  - Validate
+  validationImplementation: Validator length(min = 1)
+typescriptTemplate:
+  templatePath: ''
+  generatedCodeExample: ''
+  keyPatterns: []
+testCases:
+- name: test_log_input
+  category: unit
+  input: LogInput::new("Hello")
+  expectedOutput: Valid log input
+  passed: true
+- name: test_log_with_context
+  category: unit
+  input: LogInput::new("Hello").with_context(ctx)
+  expectedOutput: Log with context
+  passed: true
+lessonsLearned:
+  whatWorkedWell:
+  - Simple API for common use case
+  challenges: []
+  recommendations:
+  - Keep logging simple
+relatedComponents: []
+futureImprovements: []

@@ -20,6 +20,7 @@ interface LogOutput {
   timestamp: Date;
 }
 
+{{#if activities}}
 {{#each activities}}
 /**
  * {{function_name}} Activity
@@ -55,3 +56,8 @@ export async function {{function_name}}(
 }
 
 {{/each}}
+{{else}}
+// No activities defined for this workflow
+// This empty export allows the module to be imported
+export {};
+{{/if}}

@@ -1,0 +1,200 @@
+component:
+  name: http_request
+  category: activities
+  version: 1.0.0
+  description: HTTP request component for external API calls
+  temporalType: activity
+migration:
+  migratedBy: radium-workflow-compiler
+  migrationDate: 2025-12-14T02:15:29.713354Z
+  durationHours: 2.5
+  difficulty: medium
+  breakingChanges: false
+  filesCreated:
+  - src/schema/components/http_request.rs
+  filesModified:
+  - src/schema/components/mod.rs
+discovery:
+  originalTypescriptFile: ''
+  linesOfCode: 0
+  existingTests: []
+  usageLocations: []
+  dependencies: []
+schemaDecisions:
+- field: http_method
+  decision: Enum with GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS
+  rationale: Standard HTTP methods with UPPERCASE serialization
+  alternativesConsidered: []
+- field: body_type
+  decision: Enum for content type handling
+  rationale: Explicit body format specification
+  alternativesConsidered: []
+- field: auth_config
+  decision: Comprehensive auth configuration struct
+  rationale: Supports multiple authentication types
+  alternativesConsidered: []
+inputSchema:
+  rustStruct: HttpRequestInput
+  typescriptInterface: HttpRequestInput
+  fields:
+  - name: url
+    rustType: String
+    typescriptType: string
+    required: true
+    description: ''
+  - name: method
+    rustType: HttpMethod
+    typescriptType: HttpMethod
+    required: false
+    default: GET
+    description: ''
+  - name: headers
+    rustType: HashMap<String, String>
+    typescriptType: Record<string, string>
+    required: false
+    default: '{}'
+    description: ''
+  - name: query_params
+    rustType: HashMap<String, String>
+    typescriptType: Record<string, string>
+    required: false
+    default: '{}'
+    description: ''
+  - name: body
+    rustType: Option<Value>
+    typescriptType: unknown?
+    required: false
+    description: ''
+  - name: body_type
+    rustType: BodyType
+    typescriptType: BodyType
+    required: false
+    default: json
+    description: ''
+  - name: auth
+    rustType: AuthConfig
+    typescriptType: AuthConfig
+    required: false
+    description: ''
+  - name: timeout_ms
+    rustType: u64
+    typescriptType: number
+    required: false
+    default: '30000'
+    description: ''
+  - name: follow_redirects
+    rustType: bool
+    typescriptType: boolean
+    required: false
+    default: 'true'
+    description: ''
+  - name: validate_ssl
+    rustType: bool
+    typescriptType: boolean
+    required: false
+    default: 'true'
+    description: ''
+  - name: expected_status
+    rustType: Vec<u16>
+    typescriptType: number[]
+    required: false
+    default: '[]'
+    description: ''
+  validation: []
+outputSchema:
+  rustStruct: HttpRequestOutput
+  typescriptInterface: HttpRequestOutput
+  fields:
+  - name: status
+    rustType: u16
+    typescriptType: number
+    required: true
+    description: ''
+  - name: status_text
+    rustType: String
+    typescriptType: string
+    required: true
+    description: ''
+  - name: headers
+    rustType: HashMap<String, String>
+    typescriptType: Record<string, string>
+    required: true
+    description: ''
+  - name: body
+    rustType: Option<Value>
+    typescriptType: unknown?
+    required: false
+    description: ''
+  - name: duration_ms
+    rustType: u64
+    typescriptType: number
+    required: true
+    description: ''
+  - name: success
+    rustType: bool
+    typescriptType: boolean
+    required: true
+    description: ''
+  validation: []
+validationRules: []
+connections:
+  allowedSources: []
+  allowedTargets: []
+  connectionValidation: ''
+rustSchema:
+  filePath: src/schema/components/http_request.rs
+  structs:
+  - HttpRequestInput
+  - HttpRequestOutput
+  - AuthConfig
+  enums:
+  - HttpMethod
+  - BodyType
+  - AuthType
+  derives:
+  - Debug
+  - Clone
+  - Serialize
+  - Deserialize
+  - Validate
+  validationImplementation: URL validation via validator crate
+typescriptTemplate:
+  templatePath: ''
+  generatedCodeExample: ''
+  keyPatterns: []
+testCases:
+- name: test_get_request
+  category: unit
+  input: HttpRequestInput::get("https://api.example.com")
+  expectedOutput: Valid GET request
+  passed: true
+- name: test_post_with_body
+  category: unit
+  input: HttpRequestInput::post("url").with_json_body(data)
+  expectedOutput: Valid POST with JSON body
+  passed: true
+- name: test_bearer_auth
+  category: unit
+  input: HttpRequestInput::get("url").with_bearer_token("token")
+  expectedOutput: Valid request with bearer auth
+  passed: true
+lessonsLearned:
+  whatWorkedWell:
+  - Builder pattern for request construction
+  - Comprehensive auth support
+  challenges:
+  - challenge: UPPERCASE method serialization
+    solution: 'Used #[serde(rename_all = ''UPPERCASE'')]'
+    timeSpent: 15 minutes
+  recommendations:
+  - Match HTTP standards for naming
+relatedComponents:
+- component: activity
+  relationship: Base activity type
+futureImprovements:
+- improvement: Add response caching
+  priority: Low
+  effort: Medium
+- improvement: Add request/response interceptors
+  priority: Medium
+  effort: High

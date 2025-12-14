@@ -2,8 +2,10 @@
 //!
 //! Generates TypeScript code from validated workflow definitions using Handlebars templates.
 
+mod state_generator;
 mod typescript;
 
+pub use state_generator::{StateGenError, StateGenerator, StateTemplateContext, VariableTemplateData};
 pub use typescript::{CodeGenerator, GeneratedCode, GenerationError};
 
 use crate::schema::WorkflowDefinition;

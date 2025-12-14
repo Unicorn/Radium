@@ -1,0 +1,141 @@
+component:
+  name: conditional
+  category: control-flow
+  version: 1.0.0
+  description: Branching component that evaluates conditions
+  temporalType: workflow
+migration:
+  migratedBy: radium-workflow-compiler
+  migrationDate: 2025-12-14T02:15:29.713333Z
+  durationHours: 3.0
+  difficulty: medium
+  breakingChanges: false
+  filesCreated:
+  - src/schema/components/conditional.rs
+  filesModified:
+  - src/schema/components/mod.rs
+discovery:
+  originalTypescriptFile: ''
+  linesOfCode: 0
+  existingTests: []
+  usageLocations: []
+  dependencies: []
+schemaDecisions:
+- field: comparison_operator
+  decision: Comprehensive enum with 14 operators
+  rationale: Covers all common comparison needs
+  alternativesConsidered: []
+- field: condition_group
+  decision: Recursive enum supporting Single, Compound, Expression variants
+  rationale: Enables complex nested conditions
+  alternativesConsidered: []
+- field: to_typescript
+  decision: Method to generate TypeScript condition code
+  rationale: Enables code generation from schema
+  alternativesConsidered: []
+inputSchema:
+  rustStruct: ConditionalInput
+  typescriptInterface: ConditionalInput
+  fields:
+  - name: condition
+    rustType: ConditionGroup
+    typescriptType: ConditionGroup
+    required: true
+    description: The condition(s) to evaluate
+  - name: true_label
+    rustType: String
+    typescriptType: string
+    required: false
+    default: Yes
+    description: Label for true branch
+  - name: false_label
+    rustType: String
+    typescriptType: string
+    required: false
+    default: No
+    description: Label for false branch
+  validation: []
+outputSchema:
+  rustStruct: ConditionalOutput
+  typescriptInterface: ConditionalOutput
+  fields:
+  - name: result
+    rustType: bool
+    typescriptType: boolean
+    required: true
+    description: ''
+  - name: branch
+    rustType: String
+    typescriptType: string
+    required: true
+    description: ''
+  - name: evaluated_expression
+    rustType: String
+    typescriptType: string
+    required: true
+    description: ''
+  validation: []
+validationRules:
+- rule: left_operand_required
+  implementation: Validator length(min = 1)
+  errorMessage: Left operand is required
+  rationale: Conditions must have a left side
+connections:
+  allowedSources: []
+  allowedTargets: []
+  connectionValidation: ''
+rustSchema:
+  filePath: src/schema/components/conditional.rs
+  structs:
+  - Condition
+  - ConditionalInput
+  - ConditionalOutput
+  enums:
+  - ComparisonOperator
+  - LogicalOperator
+  - ConditionGroup
+  derives:
+  - Debug
+  - Clone
+  - Serialize
+  - Deserialize
+  - Validate
+  validationImplementation: Validator crate with custom rules
+typescriptTemplate:
+  templatePath: ''
+  generatedCodeExample: ''
+  keyPatterns: []
+testCases:
+- name: test_equals_comparison
+  category: unit
+  input: 'Condition { left: ''x'', operator: Equals, right: 5 }'
+  expectedOutput: state.variables.x === 5
+  passed: true
+- name: test_compound_condition
+  category: unit
+  input: ConditionGroup::Compound { And, [c1, c2] }
+  expectedOutput: (c1) && (c2)
+  passed: true
+- name: test_typescript_generation
+  category: integration
+  input: Complex nested condition
+  expectedOutput: Valid TypeScript expression
+  passed: true
+lessonsLearned:
+  whatWorkedWell:
+  - Recursive enum handles nested conditions elegantly
+  - to_typescript() enables code generation
+  challenges:
+  - challenge: Handling untagged enum serialization
+    solution: 'Used #[serde(untagged)] for ConditionGroup'
+    timeSpent: 1 hour
+  recommendations:
+  - Use recursive types for tree structures
+  - Add code generation methods to schemas
+relatedComponents:
+- component: loop
+  relationship: Uses similar condition logic
+futureImprovements:
+- improvement: Add condition builder UI helpers
+  priority: Medium
+  effort: Medium

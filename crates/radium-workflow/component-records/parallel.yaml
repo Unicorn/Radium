@@ -1,0 +1,160 @@
+component:
+  name: parallel
+  category: advanced
+  version: 1.0.0
+  description: Parallel execution component for concurrent branches
+  temporalType: workflow
+migration:
+  migratedBy: radium-workflow-compiler
+  migrationDate: 2025-12-14T02:15:29.713384Z
+  durationHours: 3.0
+  difficulty: high
+  breakingChanges: false
+  filesCreated:
+  - src/schema/components/parallel.rs
+  filesModified:
+  - src/schema/components/mod.rs
+discovery:
+  originalTypescriptFile: ''
+  linesOfCode: 0
+  existingTests: []
+  usageLocations: []
+  dependencies: []
+schemaDecisions:
+- field: join_strategy
+  decision: Enum with All, Any, AllSettled, Race variants
+  rationale: Covers all Promise.* patterns
+  alternativesConsidered: []
+- field: branch
+  decision: Struct with name, start_node, timeout, required
+  rationale: Complete branch configuration
+  alternativesConsidered: []
+- field: cancel_on_error
+  decision: Boolean flag for error handling strategy
+  rationale: Control over failure propagation
+  alternativesConsidered: []
+inputSchema:
+  rustStruct: ParallelInput
+  typescriptInterface: ParallelInput
+  fields:
+  - name: branches
+    rustType: Vec<Branch>
+    typescriptType: Branch[]
+    required: true
+    description: ''
+  - name: join_strategy
+    rustType: JoinStrategy
+    typescriptType: JoinStrategy
+    required: false
+    default: all
+    description: ''
+  - name: max_concurrent
+    rustType: usize
+    typescriptType: number
+    required: false
+    default: '0'
+    description: ''
+  - name: timeout_ms
+    rustType: Option<u64>
+    typescriptType: number?
+    required: false
+    description: ''
+  - name: cancel_on_error
+    rustType: bool
+    typescriptType: boolean
+    required: false
+    default: 'true'
+    description: ''
+  validation: []
+outputSchema:
+  rustStruct: ParallelOutput
+  typescriptInterface: ParallelOutput
+  fields:
+  - name: completed
+    rustType: bool
+    typescriptType: boolean
+    required: true
+    description: ''
+  - name: results
+    rustType: HashMap<String, BranchResult>
+    typescriptType: Record<string, BranchResult>
+    required: true
+    description: ''
+  - name: duration_ms
+    rustType: u64
+    typescriptType: number
+    required: true
+    description: ''
+  - name: had_cancellations
+    rustType: bool
+    typescriptType: boolean
+    required: true
+    description: ''
+  - name: had_failures
+    rustType: bool
+    typescriptType: boolean
+    required: true
+    description: ''
+  validation: []
+validationRules:
+- rule: min_branches
+  implementation: Validator length(min = 2)
+  errorMessage: At least 2 branches required
+  rationale: Parallel requires multiple branches
+connections:
+  allowedSources: []
+  allowedTargets: []
+  connectionValidation: ''
+rustSchema:
+  filePath: src/schema/components/parallel.rs
+  structs:
+  - ParallelInput
+  - ParallelOutput
+  - Branch
+  - BranchResult
+  enums:
+  - JoinStrategy
+  derives:
+  - Debug
+  - Clone
+  - Serialize
+  - Deserialize
+  - Validate
+  validationImplementation: Validator with branches length check
+typescriptTemplate:
+  templatePath: ''
+  generatedCodeExample: ''
+  keyPatterns: []
+testCases:
+- name: test_parallel_branches
+  category: unit
+  input: ParallelInput::new(vec![branch1, branch2])
+  expectedOutput: Valid parallel input
+  passed: true
+- name: test_all_settled
+  category: unit
+  input: ParallelInput::new(branches).with_join_strategy(AllSettled)
+  expectedOutput: All settled strategy
+  passed: true
+- name: test_branch_result
+  category: unit
+  input: BranchResult::success("b1", value, 100)
+  expectedOutput: Valid branch result
+  passed: true
+lessonsLearned:
+  whatWorkedWell:
+  - Join strategy maps to Promise patterns
+  - Branch results provide detailed info
+  challenges:
+  - challenge: State merging for parallel branches
+    solution: BranchResult captures per-branch state
+    timeSpent: 1 hour
+  recommendations:
+  - Model after Promise.all/race/allSettled
+relatedComponents:
+- component: loop
+  relationship: Alternative iteration pattern
+futureImprovements:
+- improvement: Add dynamic branch creation
+  priority: Medium
+  effort: High

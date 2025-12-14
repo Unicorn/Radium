@@ -4,11 +4,17 @@
 //! - Graph structure validation (connectivity, cycles)
 //! - Component configuration validation
 //! - Variable reference validation
+//! - Data flow validation
 
 mod components;
+mod data_flow;
 mod errors;
 mod graph;
 
+pub use data_flow::{
+    DataFlowAnalysis, DataFlowError, DataFlowValidator, DataFlowWarning, FlowEdge, FlowGraph,
+    FlowNode, VariableUsage, validate_data_flow,
+};
 pub use errors::{ValidationError, ValidationResult, ValidationWarning};
 pub use graph::validate_graph;
 

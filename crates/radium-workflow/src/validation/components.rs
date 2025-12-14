@@ -148,7 +148,7 @@ fn extract_variable_references(
 mod tests {
     use super::*;
     use crate::schema::{
-        NodeData, NodeType, Position, VariableType, WorkflowEdge, WorkflowNode, WorkflowSettings,
+        NodeData, NodeType, Position, LegacyVariableType, WorkflowEdge, WorkflowNode, WorkflowSettings,
         WorkflowVariable,
     };
 
@@ -219,7 +219,7 @@ mod tests {
                 },
             ],
             edges: vec![WorkflowEdge::new("e1", "trigger", "end")],
-            variables: vec![WorkflowVariable::new("unusedVar", VariableType::String)],
+            variables: vec![WorkflowVariable::new("unusedVar", LegacyVariableType::String)],
             settings: WorkflowSettings::default(),
         };
 

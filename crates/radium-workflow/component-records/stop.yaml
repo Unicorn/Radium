@@ -1,0 +1,119 @@
+component:
+  name: stop
+  category: control-flow
+  version: 1.0.0
+  description: Workflow stop node that marks termination
+  temporalType: workflow
+migration:
+  migratedBy: radium-workflow-compiler
+  migrationDate: 2025-12-14T02:15:29.713331Z
+  durationHours: 0.5
+  difficulty: low
+  breakingChanges: false
+  filesCreated:
+  - src/schema/components/stop.rs
+  filesModified:
+  - src/schema/components/mod.rs
+discovery:
+  originalTypescriptFile: ''
+  linesOfCode: 0
+  existingTests: []
+  usageLocations: []
+  dependencies: []
+schemaDecisions:
+- field: status
+  decision: Enum with Completed, Failed, Cancelled variants
+  rationale: Clear termination states for workflow
+  alternativesConsidered: []
+- field: result
+  decision: Optional serde_json::Value for workflow output
+  rationale: Flexible return type for any workflow result
+  alternativesConsidered: []
+- field: error
+  decision: Optional error message for failed workflows
+  rationale: Provides debugging information on failure
+  alternativesConsidered: []
+inputSchema:
+  rustStruct: StopInput
+  typescriptInterface: StopInput
+  fields:
+  - name: label
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: ''
+  - name: result_variable
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: Variable to use as workflow result
+  validation: []
+outputSchema:
+  rustStruct: StopOutput
+  typescriptInterface: StopOutput
+  fields:
+  - name: status
+    rustType: StopStatus
+    typescriptType: StopStatus
+    required: true
+    description: ''
+  - name: result
+    rustType: Option<Value>
+    typescriptType: unknown?
+    required: false
+    description: ''
+  - name: error
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: ''
+  - name: stopped_at
+    rustType: DateTime<Utc>
+    typescriptType: Date
+    required: true
+    description: ''
+  validation: []
+validationRules: []
+connections:
+  allowedSources:
+  - '*'
+  allowedTargets: []
+  connectionValidation: Stop node cannot have outgoing connections
+rustSchema:
+  filePath: src/schema/components/stop.rs
+  structs:
+  - StopInput
+  - StopOutput
+  enums:
+  - StopStatus
+  derives:
+  - Debug
+  - Clone
+  - Serialize
+  - Deserialize
+  validationImplementation: None
+typescriptTemplate:
+  templatePath: ''
+  generatedCodeExample: ''
+  keyPatterns: []
+testCases:
+- name: test_completed_stop
+  category: unit
+  input: StopOutput::completed(result)
+  expectedOutput: status == Completed
+  passed: true
+- name: test_failed_stop
+  category: unit
+  input: StopOutput::failed("error")
+  expectedOutput: status == Failed, error present
+  passed: true
+lessonsLearned:
+  whatWorkedWell:
+  - Status enum covers all termination cases
+  challenges: []
+  recommendations:
+  - Use enums for finite state sets
+relatedComponents:
+- component: start
+  relationship: Complementary start node
+futureImprovements: []
