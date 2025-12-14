@@ -10,6 +10,7 @@
 
 pub mod api;
 pub mod codegen;
+pub mod errors;
 pub mod expressions;
 pub mod migration;
 pub mod performance;
@@ -17,6 +18,7 @@ pub mod schema;
 pub mod validation;
 pub mod verification;
 
+pub use errors::{ErrorCategory, ErrorCode, ErrorLocation, ErrorSeverity, WorkflowError, WorkflowErrors};
 pub use expressions::{Expression, ExpressionParser, ExpressionEvaluator, TypeScriptGenerator};
 pub use migration::{ComponentMigration, MigrationRecord, MigrationRunner, VerificationResult};
 pub use performance::{CompilationCache, CompilationProfiler, CompilationProfile, ProfileBuilder, CompilationStage};
