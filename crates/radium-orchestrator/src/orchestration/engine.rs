@@ -41,10 +41,27 @@ pub struct EngineConfig {
 impl Default for EngineConfig {
     fn default() -> Self {
         Self {
-            max_iterations: 5,
-            timeout_seconds: 120,
+            max_iterations: 8,  // Increased from 5 for complex multi-step tasks
+            timeout_seconds: 180,  // Increased from 120 for longer-running operations
             tool_execution: ToolExecutionConfig::default(),
         }
+    }
+}
+
+/// Get helpful suggestion for tool failures
+fn get_failure_suggestion(tool_name: &str, error: &str) -> &'static str {
+    match (tool_name, error) {
+        ("read_file", e) if e.contains("No such file") || e.contains("not found") =>
+            "File not found. Use glob_file_search or search_code to locate it first.",
+        ("write_file", e) if e.contains("permission") || e.contains("Permission denied") =>
+            "Permission denied. Check file permissions or workspace access.",
+        ("run_terminal_cmd", e) if e.contains("timed out") || e.contains("timeout") =>
+            "Command timed out. Try increasing timeout_seconds parameter.",
+        ("run_terminal_cmd", e) if e.contains("not found") || e.contains("command not found") =>
+            "Command not found. Check if the command is installed and in PATH.",
+        ("search_code", e) if e.contains("Invalid regex") || e.contains("regex") =>
+            "Invalid regex pattern. Check pattern syntax and escape special characters.",
+        _ => "Review error message and try alternative approach.",
     }
 }
 
@@ -260,8 +277,16 @@ impl OrchestrationEngine {
                     tool_name: tool_call.name.clone(),
                     result: tool_result.clone(),
                 });
-                let result_message =
-                    format!("Tool '{}' returned: {}", tool_call.name, tool_result.output);
+                let result_message = if tool_result.success {
+                    format!("✓ Tool '{}' succeeded:\n{}", tool_call.name, tool_result.output)
+                } else {
+                    format!(
+                        "✗ Tool '{}' failed:\n{}\n💡 Suggestion: {}",
+                        tool_call.name,
+                        tool_result.output,
+                        get_failure_suggestion(&tool_call.name, &tool_result.output)
+                    )
+                };
                 context.add_message(Message {
                     role: "tool".to_string(),
                     content: result_message,

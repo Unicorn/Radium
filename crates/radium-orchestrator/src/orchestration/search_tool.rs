@@ -321,7 +321,7 @@ pub fn create_search_code_tool(workspace_root: Arc<dyn WorkspaceRootProvider>) -
     Tool::new(
         "search_code",
         "search_code",
-        "Search file contents for a pattern with context lines, file type filters, and .gitignore support",
+        "Search file contents for a regex pattern. Returns matches with line numbers and optional context. Respects .gitignore. Use file_types to filter (*.rs, language:rust). Example: pattern='async fn', file_types='rust' to find async functions.",
         parameters,
         handler,
     )

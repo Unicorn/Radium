@@ -268,7 +268,7 @@ pub fn create_terminal_command_tool(
     Tool::new(
         "run_terminal_cmd",
         "run_terminal_cmd",
-        "Execute a terminal command safely with optional sandbox support",
+        "Execute terminal commands safely. Safe commands auto-execute. Dangerous commands require approval. Supports timeout (default: 30s), working_dir, env vars, and shell/direct execution.",
         parameters,
         handler,
     )

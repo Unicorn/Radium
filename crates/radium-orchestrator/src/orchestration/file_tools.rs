@@ -455,7 +455,13 @@ fn create_read_file_tool(workspace_root: Arc<dyn WorkspaceRootProvider>) -> Tool
         operation: FileOperation::ReadFile,
     });
 
-    Tool::new("read_file", "read_file", "Read the contents of a file", parameters, handler)
+    Tool::new(
+        "read_file",
+        "read_file",
+        "Read file contents from workspace. Supports line ranges (start_line, end_line). ALWAYS read files before modifying them. Returns full content or specified range.",
+        parameters,
+        handler
+    )
 }
 
 fn create_write_file_tool(workspace_root: Arc<dyn WorkspaceRootProvider>) -> Tool {
@@ -468,7 +474,13 @@ fn create_write_file_tool(workspace_root: Arc<dyn WorkspaceRootProvider>) -> Too
         operation: FileOperation::WriteFile,
     });
 
-    Tool::new("write_file", "write_file", "Write contents to a file (creates file if it doesn't exist)", parameters, handler)
+    Tool::new(
+        "write_file",
+        "write_file",
+        "Write contents to a file. Creates parent directories automatically. Overwrites existing files. Use after reading to ensure accurate modifications.",
+        parameters,
+        handler
+    )
 }
 
 fn create_search_replace_tool(workspace_root: Arc<dyn WorkspaceRootProvider>) -> Tool {
@@ -506,7 +518,13 @@ fn create_glob_file_search_tool(workspace_root: Arc<dyn WorkspaceRootProvider>) 
         operation: FileOperation::GlobFileSearch,
     });
 
-    Tool::new("glob_file_search", "glob_file_search", "Search for files matching a glob pattern", parameters, handler)
+    Tool::new(
+        "glob_file_search",
+        "glob_file_search",
+        "Search for files matching a glob pattern. Use ** for recursive: **/*.rs finds all Rust files. Examples: *.md, src/**/*.toml, **/test/*.rs",
+        parameters,
+        handler
+    )
 }
 
 fn create_read_lints_tool(workspace_root: Arc<dyn WorkspaceRootProvider>) -> Tool {

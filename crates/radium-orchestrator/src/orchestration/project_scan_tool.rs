@@ -285,7 +285,7 @@ pub fn create_project_scan_tool(workspace_root: Arc<dyn WorkspaceRootProvider>) 
     Tool::new(
         "project_scan",
         "project_scan",
-        "Comprehensive project analysis: reads README, manifest files, analyzes structure, detects tech stack",
+        "**PRIMARY** tool for project overview. Use depth='quick' for fast README+manifest analysis, 'full' for comprehensive codebase scan. Detects tech stack, reads docs, analyzes structure. Start exploration here.",
         parameters,
         handler,
     )
