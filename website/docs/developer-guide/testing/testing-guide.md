@@ -1,13 +1,7 @@
 ---
-<<<<<<<< HEAD:website/docs/developer-guide/testing/testing-guide.md
 id: "testing-guide"
 title: "Testing Guide for Radium"
 sidebar_label: "Testing Guide"
-========
-id: "testing-overview"
-title: "Testing Guide for Radium"
-sidebar_label: "Testing Overview"
->>>>>>>> 86560d3766abfda850b1f43e986ed986540c28d7:website/docs/developer-guide/testing/testing-overview.md
 ---
 
 # Testing Guide for Radium

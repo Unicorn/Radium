@@ -1,13 +1,7 @@
 ---
-<<<<<<<< HEAD:website/docs/features/editor-integration/tui-enhanced-chat-interface.md
 id: "tui-enhanced-chat-interface"
 title: "Enhanced TUI Chat Interface"
 sidebar_label: "Enhanced TUI Chat Interface"
-========
-id: "tui-chat"
-title: "Enhanced TUI Chat Interface"
-sidebar_label: "TUI Chat"
->>>>>>>> 86560d3766abfda850b1f43e986ed986540c28d7:website/docs/features/editor-integration/tui-chat.md
 ---
 
 # Enhanced TUI Chat Interface
