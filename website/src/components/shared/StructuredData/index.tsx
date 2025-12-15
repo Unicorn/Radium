@@ -23,12 +23,12 @@ export default function StructuredData({type, data}: StructuredDataProps): React
           url: baseUrl,
           logo: `${baseUrl}img/logo.png`,
           sameAs: [
-            'https://github.com/clay-curry/RAD',
+            'https://github.com/Unicorn/Radium',
           ],
           contactPoint: {
             '@type': 'ContactPoint',
             contactType: 'Community Support',
-            url: 'https://github.com/clay-curry/RAD/discussions',
+            url: 'https://github.com/Unicorn/Radium/discussions',
           },
           ...data,
         };
@@ -46,7 +46,7 @@ export default function StructuredData({type, data}: StructuredDataProps): React
             price: '0',
             priceCurrency: 'USD',
           },
-          downloadUrl: 'https://github.com/clay-curry/RAD',
+          downloadUrl: 'https://github.com/Unicorn/Radium',
           softwareVersion: 'Latest',
           applicationSubCategory: 'AI Agent Orchestration',
           keywords: 'autonomous agents, multi-agent workflows, agent orchestration, AI orchestration, vibe check, policy engine',

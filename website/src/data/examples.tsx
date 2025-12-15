@@ -51,7 +51,7 @@ steps = [
 ]`,
 		docLink: "/docs/examples/orchestration-workflows",
 		githubLink:
-			"https://github.com/clay-curry/RAD/tree/main/examples/code-review",
+			"https://github.com/Unicorn/Radium/tree/main/examples/code-review",
 	},
 	{
 		id: "ollama-local",

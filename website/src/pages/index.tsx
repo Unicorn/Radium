@@ -38,7 +38,7 @@ export default function Home(): ReactNode {
           label: 'View Examples',
           href: '/docs/examples',
         }}
-        githubUrl="https://github.com/clay-curry/RAD"
+        githubUrl="https://github.com/Unicorn/Radium"
         showTerminal={true}
         terminalContent={`$ cargo install radium-cli
 
@@ -188,7 +188,7 @@ error_recovery = "auto-retry"`,
                 <Button variant="secondary" size="lg" href="/docs/examples">
                   View Examples
                 </Button>
-                <Button variant="tertiary" size="lg" href="https://github.com/clay-curry/RAD">
+                <Button variant="tertiary" size="lg" href="https://github.com/Unicorn/Radium">
                   GitHub
                 </Button>
               </div>

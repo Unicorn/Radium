@@ -61,7 +61,7 @@ const config: Config = {
       title: 'Radium',
       logo: {
         alt: 'Radium Logo',
-        src: 'img/logo.png',
+        src: '/img/logo.png',
       },
       items: [
         {
@@ -100,7 +100,7 @@ const config: Config = {
           position: 'right',
         },
         {
-          href: 'https://github.com/clay-curry/RAD',
+          href: 'https://github.com/Unicorn/Radium',
           label: 'GitHub',
           position: 'right',
         },
@@ -148,7 +148,7 @@ const config: Config = {
           items: [
             {
               label: 'GitHub',
-              href: 'https://github.com/clay-curry/RAD',
+              href: 'https://github.com/Unicorn/Radium',
             },
             {
               label: 'Community Page',
@@ -156,11 +156,11 @@ const config: Config = {
             },
             {
               label: 'Discussions',
-              href: 'https://github.com/clay-curry/RAD/discussions',
+              href: 'https://github.com/Unicorn/Radium/discussions',
             },
             {
               label: 'Issues',
-              href: 'https://github.com/clay-curry/RAD/issues',
+              href: 'https://github.com/Unicorn/Radium/issues',
             },
           ],
         },

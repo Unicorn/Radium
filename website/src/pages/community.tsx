@@ -11,8 +11,8 @@ const involvementPathways = [
     icon: '💻',
     description: 'Fix bugs, add features, or improve performance. Check out our good first issues.',
     links: [
-      {label: 'Good First Issues', href: 'https://github.com/clay-curry/RAD/labels/good%20first%20issue'},
-      {label: 'Contributing Guide', href: 'https://github.com/clay-curry/RAD/blob/main/CONTRIBUTING.md'},
+      {label: 'Good First Issues', href: 'https://github.com/Unicorn/Radium/labels/good%20first%20issue'},
+      {label: 'Contributing Guide', href: 'https://github.com/Unicorn/Radium/blob/main/CONTRIBUTING.md'},
     ],
   },
   {
@@ -20,8 +20,8 @@ const involvementPathways = [
     icon: '💬',
     description: 'Share ideas, ask questions, and help others in the community.',
     links: [
-      {label: 'GitHub Discussions', href: 'https://github.com/clay-curry/RAD/discussions'},
-      {label: 'Report Issues', href: 'https://github.com/clay-curry/RAD/issues'},
+      {label: 'GitHub Discussions', href: 'https://github.com/Unicorn/Radium/discussions'},
+      {label: 'Report Issues', href: 'https://github.com/Unicorn/Radium/issues'},
     ],
   },
   {
@@ -38,8 +38,8 @@ const involvementPathways = [
     icon: '📚',
     description: 'Help make our documentation better for everyone.',
     links: [
-      {label: 'Documentation Issues', href: 'https://github.com/clay-curry/RAD/labels/documentation'},
-      {label: 'Edit on GitHub', href: 'https://github.com/clay-curry/RAD/tree/main/docs'},
+      {label: 'Documentation Issues', href: 'https://github.com/Unicorn/Radium/labels/documentation'},
+      {label: 'Edit on GitHub', href: 'https://github.com/Unicorn/Radium/tree/main/website/docs'},
     ],
   },
 ];
@@ -108,7 +108,7 @@ export default function Community(): ReactNode {
                 <div className={styles.statIcon}>⭐</div>
                 <div className={styles.statNumber}>
                   <a
-                    href="https://github.com/clay-curry/RAD"
+                    href="https://github.com/Unicorn/Radium"
                     target="_blank"
                     rel="noopener noreferrer"
                     className={styles.statLink}>
@@ -121,7 +121,7 @@ export default function Community(): ReactNode {
                 <div className={styles.statIcon}>🤝</div>
                 <div className={styles.statNumber}>
                   <a
-                    href="https://github.com/clay-curry/RAD/graphs/contributors"
+                    href="https://github.com/Unicorn/Radium/graphs/contributors"
                     target="_blank"
                     rel="noopener noreferrer"
                     className={styles.statLink}>
@@ -134,7 +134,7 @@ export default function Community(): ReactNode {
                 <div className={styles.statIcon}>🚀</div>
                 <div className={styles.statNumber}>
                   <a
-                    href="https://github.com/clay-curry/RAD/releases"
+                    href="https://github.com/Unicorn/Radium/releases"
                     target="_blank"
                     rel="noopener noreferrer"
                     className={styles.statLink}>
@@ -215,7 +215,7 @@ export default function Community(): ReactNode {
                 <Button
                   variant="tertiary"
                   size="sm"
-                  href="https://github.com/clay-curry/RAD"
+                  href="https://github.com/Unicorn/Radium"
                   target="_blank"
                   rel="noopener noreferrer">
                   Visit Repository
@@ -229,7 +229,7 @@ export default function Community(): ReactNode {
                 <Button
                   variant="tertiary"
                   size="sm"
-                  href="https://github.com/clay-curry/RAD/discussions"
+                  href="https://github.com/Unicorn/Radium/discussions"
                   target="_blank"
                   rel="noopener noreferrer">
                   Join Discussions
@@ -243,7 +243,7 @@ export default function Community(): ReactNode {
                 <Button
                   variant="tertiary"
                   size="sm"
-                  href="https://github.com/clay-curry/RAD/issues"
+                  href="https://github.com/Unicorn/Radium/issues"
                   target="_blank"
                   rel="noopener noreferrer">
                   View Issues
@@ -264,7 +264,7 @@ export default function Community(): ReactNode {
               </p>
               <Button
                 variant="secondary"
-                href="https://github.com/clay-curry/RAD/blob/main/CODE_OF_CONDUCT.md"
+                href="https://github.com/Unicorn/Radium/blob/main/CODE_OF_CONDUCT.md"
                 target="_blank"
                 rel="noopener noreferrer">
                 Read Code of Conduct
@@ -285,7 +285,7 @@ export default function Community(): ReactNode {
                 <Button variant="primary" size="lg" href="/docs/getting-started/installation">
                   Get Started
                 </Button>
-                <Button variant="tertiary" size="lg" href="https://github.com/clay-curry/RAD">
+                <Button variant="tertiary" size="lg" href="https://github.com/Unicorn/Radium">
                   GitHub
                 </Button>
               </div>

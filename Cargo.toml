@@ -17,7 +17,7 @@ exclude = [
 version = '0.1.0'
 edition = '2024'
 license = 'MIT'
-repository = 'https://github.com/Unicorn/RAD-Radium'
+repository = 'https://github.com/Unicorn/Radium'
 authors = ['Unicorn <hello@unicorn.love>']
 rust-version = '1.91.1'
 

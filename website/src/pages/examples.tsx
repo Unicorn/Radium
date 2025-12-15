@@ -140,7 +140,7 @@ export default function Examples(): ReactNode {
                 <Button variant="secondary" size="lg" href="/docs/user-guide/user-guide-overview">
                   Read the Docs
                 </Button>
-                <Button variant="tertiary" size="lg" href="https://github.com/clay-curry/RAD">
+                <Button variant="tertiary" size="lg" href="https://github.com/Unicorn/Radium">
                   GitHub
                 </Button>
               </div>
