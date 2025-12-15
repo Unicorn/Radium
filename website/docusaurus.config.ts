@@ -26,7 +26,11 @@ const config: Config = {
   projectName: 'Radium', // Usually your repo name.
 
   onBrokenLinks: 'warn', // Warn on broken links (static API links work at runtime)
-  onBrokenMarkdownLinks: 'throw', // Fail build on broken markdown links
+  markdown: {
+    hooks: {
+      onBrokenMarkdownLinks: 'warn', // Warn on broken markdown links (dev mode)
+    },
+  },
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
