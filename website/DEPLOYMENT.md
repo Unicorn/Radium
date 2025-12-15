@@ -21,10 +21,11 @@ This guide explains how to deploy the Radium website to GitHub Pages.
 
 The website is configured in `docusaurus.config.ts`:
 
-- **URL**: `https://unicorn.github.io` (GitHub organization)
-- **Base URL**: `/Radium/` (project repository path)
+- **URL**: `https://radium.love` (custom domain)
+- **Base URL**: `/` (root path for custom domain)
 - **Organization**: `Unicorn`
 - **Project**: `Radium`
+- **CNAME**: `radium.love` (configured in `website/static/CNAME`)
 
 ### 3. Deployment
 
@@ -36,7 +37,7 @@ The website will automatically deploy when:
 ### 4. View Your Site
 
 After deployment, your site will be available at:
-- Project page: `https://unicorn.github.io/Radium`
+- Custom domain: `https://radium.love`
 
 ## Manual Deployment
 
