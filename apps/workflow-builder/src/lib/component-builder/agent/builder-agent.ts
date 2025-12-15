@@ -8,6 +8,11 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { KnowledgeRetrieval } from '../knowledge-base/retrieval';
 import type { ProcessedRecord, SimilarComponent, SchemaDecision } from '../knowledge-base/types';
+import {
+  ComponentStorage,
+  getDefaultStorage,
+  type StoredComponent,
+} from '../storage';
 import type {
   BuilderState,
   BuilderPhase,
@@ -86,17 +91,20 @@ When finalized, confirm the component is ready to save.`,
 export class ComponentBuilderAgent {
   private anthropic: Anthropic;
   private knowledge: KnowledgeRetrieval;
+  private storage: ComponentStorage | null;
   private state: BuilderState;
   private options: Required<BuilderAgentOptions>;
 
   constructor(
     knowledge: KnowledgeRetrieval,
-    options: BuilderAgentOptions = {}
+    options: BuilderAgentOptions = {},
+    storage?: ComponentStorage
   ) {
     this.anthropic = new Anthropic({
       apiKey: options.apiKey,
     });
     this.knowledge = knowledge;
+    this.storage = storage || null;
     this.options = {
       apiKey: options.apiKey || '',
       model: options.model || 'claude-sonnet-4-20250514',
@@ -624,28 +632,101 @@ ${this.state.generatedArtifacts.testCases}
   /**
    * Finalize and save the component
    */
-  private finalizeComponent(): string {
-    if (!this.state.designDraft) {
+  private async finalizeComponent(): Promise<string> {
+    if (!this.state.designDraft || !this.state.generatedArtifacts) {
       return 'No component to finalize.';
     }
 
-    const name = this.state.designDraft.name;
+    const design = this.state.designDraft;
+    const artifacts = this.state.generatedArtifacts;
 
-    return `Component "${this.state.designDraft.displayName}" has been created!
+    // Create the stored component
+    const storedComponent: StoredComponent = {
+      id: design.name,
+      name: design.displayName,
+      description: this.state.requirement.description,
+      category: design.category,
+      temporalType: design.temporalType as 'activity' | 'workflow' | 'signal' | 'query',
+      version: '1.0.0',
+      artifacts: {
+        rustSchema: artifacts.rustSchema,
+        typescriptCode: artifacts.typescriptCode,
+        testCases: artifacts.testCases,
+        migrationRecord: artifacts.migrationRecord,
+      },
+      schema: {
+        inputs: design.inputSchema.fields.map(f => ({
+          name: f.name,
+          type: f.rustType,
+          required: f.required,
+          default: f.default,
+          description: f.description,
+        })),
+        outputs: design.outputSchema.fields.map(f => ({
+          name: f.name,
+          type: f.rustType,
+          required: f.required,
+          description: f.description,
+        })),
+        validationRules: design.validationRules.map(r => ({
+          field: r.field,
+          rule: r.rule,
+          params: {},
+          errorMessage: r.errorMessage,
+        })),
+        connectionRules: {
+          allowedSources: design.connections.allowedSources,
+          allowedTargets: design.connections.allowedTargets,
+        },
+      },
+      metadata: {
+        tags: this.state.requirement.additionalContext
+          ? this.state.requirement.additionalContext.split(',').map(t => t.trim())
+          : [],
+        usageCount: 0,
+        isMarketplace: false,
+      },
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      createdBy: 'component-builder',
+      status: 'published',
+    };
 
-**Files to create:**
-- \`src/schema/components/${name}.rs\` - Rust schema
-- \`templates/${name}.ts.hbs\` - TypeScript template
-- \`tests/${name}_test.rs\` - Test cases
-- \`component-records/${name}.yaml\` - Migration record
+    // Save to storage
+    try {
+      const storage = this.storage || getDefaultStorage();
+      await storage.save(storedComponent);
 
-**Next steps:**
-1. Review the generated code
-2. Add the module to \`src/schema/components/mod.rs\`
-3. Run \`cargo test\` to verify
-4. The component will be available in the workflow builder
+      return `Component "${design.displayName}" has been saved!
+
+**Component ID:** \`${design.name}\`
+**Version:** 1.0.0
+**Status:** Published
+
+**Generated Files:**
+- Rust schema (${artifacts.rustSchema.split('\n').length} lines)
+- TypeScript code (${artifacts.typescriptCode.split('\n').length} lines)
+- Test cases (${artifacts.testCases.split('fn test_').length - 1} tests)
+- Migration record
+
+**The component is now available in:**
+- Workflow Builder component palette
+- API for workflow definitions
 
 Thank you for using the Component Builder!`;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return `Component "${design.displayName}" was generated but could not be saved.
+
+**Error:** ${errorMessage}
+
+**Generated code is still available in the session.**
+You can manually create the files:
+- \`src/schema/components/${design.name}.rs\`
+- \`templates/${design.name}.ts.hbs\`
+- \`tests/${design.name}_test.rs\`
+- \`component-records/${design.name}.yaml\``;
+    }
   }
 
   // Helper methods
