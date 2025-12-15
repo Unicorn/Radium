@@ -32,6 +32,11 @@
   color: white;
 }
 
+.marketing-section--glass {
+  background: transparent;
+  padding: var(--marketing-section-padding);
+}
+
 /* ============================================
    Typography
    ============================================ */
@@ -103,19 +108,20 @@
    ============================================ */
 
 .marketing-feature-card {
-  background: var(--radium-bg-panel);
-  border: 1px solid var(--radium-border);
-  border-radius: var(--marketing-border-radius);
+  background: var(--glass-bg-dark);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--marketing-border-radius-lg);
   padding: 2rem;
-  box-shadow: var(--marketing-shadow-sm);
+  box-shadow: var(--glass-shadow);
   transition: all var(--marketing-transition-normal);
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(var(--glass-blur));
 }
 
 .marketing-feature-card:hover {
-  box-shadow: var(--marketing-shadow-md), var(--glow-green);
+  box-shadow: var(--glass-shadow-strong), var(--glow-green);
   transform: translateY(-4px);
   border-color: var(--voiceflow-green-primary);
+  background: var(--glass-bg-medium);
 }
 
 .marketing-feature-card__icon {
@@ -145,8 +151,13 @@
 }
 
 [data-theme='dark'] .marketing-feature-card {
-  background: var(--radium-bg-panel);
-  border-color: var(--radium-border);
+  background: var(--glass-bg-dark);
+  border-color: var(--glass-border);
+}
+
+[data-theme='dark'] .marketing-feature-card:hover {
+  background: var(--glass-bg-medium);
+  border-color: var(--voiceflow-green-primary);
 }
 
 /* ============================================
@@ -304,6 +315,38 @@
   .marketing-sticky-cta__message {
     font-size: 0.875rem;
   }
+}
+
+/* ============================================
+   Glassmorphism Utility Classes
+   ============================================ */
+
+.marketing-glass-card {
+  background: var(--glass-bg-dark);
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--marketing-border-radius-lg);
+  box-shadow: var(--glass-shadow);
+  transition: all var(--marketing-transition-normal);
+}
+
+.marketing-glass-card:hover {
+  background: var(--glass-bg-medium);
+  box-shadow: var(--glass-shadow-strong);
+  transform: translateY(-2px);
+}
+
+.marketing-glass-panel {
+  background: var(--glass-bg-dark);
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--marketing-border-radius);
+  box-shadow: var(--glass-shadow);
+}
+
+.marketing-glass-section {
+  background: transparent;
+  padding: var(--marketing-section-padding);
 }
 
 /* ============================================

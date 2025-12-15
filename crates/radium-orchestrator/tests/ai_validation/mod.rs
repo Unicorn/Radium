@@ -20,6 +20,7 @@ use std::env;
 
 pub mod evaluator;
 pub mod scenarios;
+pub mod git_status_test;
 
 /// Skip test if no API key is available for evaluation.
 ///

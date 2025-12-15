@@ -497,6 +497,8 @@ fn parse_git_status_porcelain_v2(
     let total_changes = staged.len() + modified.len() + deleted.len() + untracked.len() + renamed.len();
     if total_changes == 0 {
         output.push_str("Status: clean\n");
+        output.push_str("\nNo staged, modified, deleted, or untracked files.\n");
+        output.push_str("The working directory is clean.\n");
         return Ok(output);
     }
 
@@ -593,7 +595,11 @@ pub fn create_git_status_tool(workspace_root: Arc<dyn WorkspaceRootProvider>) ->
     Tool::new(
         "git_status",
         "git_status",
-        "Show git repository status with staged, modified, deleted, and untracked files",
+        "Check git repository status to see if there are staged, modified, deleted, or untracked files. \
+         Use this tool when the user asks about git status, working directory state, staged/unstaged changes, \
+         or whether the workspace is clean. The tool will return 'Status: clean' if there are no changes, \
+         or list all changes categorized by type (staged, modified, deleted, untracked) if any exist. \
+         Always use this tool's output to directly answer git-related questions - do not investigate further unless the output is unclear.",
         parameters,
         handler,
     )

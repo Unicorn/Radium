@@ -2,7 +2,7 @@
  * Radium Theme Documentation
  * 
  * This file documents all available colors in the Radium website theme.
- * The theme combines VoiceFlow-inspired green aesthetic (primary) with
+ * The theme combines Radium green aesthetic (primary) with
  * official Radium brand colors (available palette).
  * 
  * Source References:
@@ -16,7 +16,8 @@
    ============================================ */
 
 /**
- * VoiceFlow Green (Primary Theme)
+ * Radium Green (Primary Theme)
+ * Based on #4af5b0 palette
  * 
  * Use for:
  * - Main CTA buttons
@@ -26,10 +27,15 @@
  * - Primary glow effects
  * 
  * Available variables:
- * - --voiceflow-green-primary: #00ff88
- * - --voiceflow-green-dark: #00d9a5
- * - --voiceflow-green-glow: rgba(0, 255, 136, 0.2)
- * - --voiceflow-green-glow-strong: rgba(0, 255, 136, 0.4)
+ * - --voiceflow-green-primary: #4af5b0
+ * - --voiceflow-green-dark: #3dd19a
+ * - --voiceflow-green-darker: #2fad84
+ * - --voiceflow-green-darkest: #21896e
+ * - --voiceflow-green-light: #6ff7c4
+ * - --voiceflow-green-lighter: #94f9d8
+ * - --voiceflow-green-lightest: #b9fbec
+ * - --voiceflow-green-glow: rgba(74, 245, 176, 0.2)
+ * - --voiceflow-green-glow-strong: rgba(74, 245, 176, 0.4)
  */
 
 /**

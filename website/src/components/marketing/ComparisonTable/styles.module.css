@@ -57,7 +57,7 @@
 }
 
 .headerRadium {
-  background: rgba(0, 255, 136, 0.15);
+  background: rgba(74, 245, 176, 0.15);
   border-color: var(--voiceflow-green-primary);
   box-shadow: 0 0 12px var(--glow-green);
 }
@@ -103,7 +103,7 @@
 }
 
 .cellRadium {
-  background: rgba(0, 255, 136, 0.1);
+  background: rgba(74, 245, 176, 0.1);
   font-weight: 600;
   color: var(--voiceflow-green-primary);
 }
@@ -165,7 +165,7 @@
 }
 
 [data-theme='dark'] .headerRadium {
-  background: rgba(0, 255, 136, 0.15);
+  background: rgba(74, 245, 176, 0.15);
   border-color: var(--voiceflow-green-primary);
   box-shadow: 0 0 12px var(--glow-green);
 }
@@ -179,7 +179,7 @@
 }
 
 [data-theme='dark'] .cellRadium {
-  background: rgba(0, 255, 136, 0.1);
+  background: rgba(74, 245, 176, 0.1);
   color: var(--voiceflow-green-primary);
 }
 

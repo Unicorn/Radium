@@ -155,6 +155,48 @@ pub fn file_reference_validation() -> TestScenario {
     }
 }
 
+//
+// Git Status Reporting Scenarios
+//
+
+/// Basic git status check.
+pub fn git_status_basic() -> TestScenario {
+    TestScenario {
+        name: "Basic Git Status Check".to_string(),
+        description: "Tests whether orchestrator calls git_status when asked about repository status".to_string(),
+        user_input: "What is the current git status of this repository?".to_string(),
+        expected_behavior: "Should immediately call git_status tool to check repository state. \
+                           Should not assume the workspace is clean without checking. \
+                           Should report actual staged, modified, untracked, and deleted files. \
+                           Should show branch information.".to_string(),
+    }
+}
+
+/// Detecting unstaged changes.
+pub fn git_status_unstaged_changes() -> TestScenario {
+    TestScenario {
+        name: "Unstaged Changes Detection".to_string(),
+        description: "Tests whether orchestrator correctly identifies unstaged changes vs staged changes".to_string(),
+        user_input: "Do I have any unstaged changes in my working directory?".to_string(),
+        expected_behavior: "Should call git_status tool to check working directory. \
+                           Should distinguish between staged and unstaged changes. \
+                           Should not report the workspace as clean without actually checking. \
+                           Should list specific files with unstaged modifications.".to_string(),
+    }
+}
+
+/// Verifying clean workspace state.
+pub fn git_status_clean_workspace() -> TestScenario {
+    TestScenario {
+        name: "Clean Workspace Verification".to_string(),
+        description: "Tests whether orchestrator uses git_status even when user expects clean state".to_string(),
+        user_input: "Is my git working directory clean?".to_string(),
+        expected_behavior: "Should call git_status tool to verify clean state. \
+                           Should not assume clean state based on user's phrasing. \
+                           Should report actual status from git, not assumptions.".to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -175,6 +217,9 @@ mod tests {
             error_recovery_invalid_request(),
             file_reference_accuracy(),
             file_reference_validation(),
+            git_status_basic(),
+            git_status_unstaged_changes(),
+            git_status_clean_workspace(),
         ];
 
         for scenario in scenarios {

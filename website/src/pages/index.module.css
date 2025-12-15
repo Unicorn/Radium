@@ -24,18 +24,32 @@
 
 /* Problem/Solution Section */
 .problemSolution {
-  padding: 4rem 2rem;
-  background: var(--radium-bg-panel);
+  padding: 5rem 2rem;
+  background: transparent;
 }
 
 .problemSolutionContent {
   max-width: 900px;
   margin: 0 auto;
+  background: var(--glass-bg-dark);
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--marketing-border-radius-lg);
+  padding: 3rem 2rem;
+  box-shadow: var(--glass-shadow);
 }
 
 /* CTA Section */
 .ctaSection {
-  padding: 4rem 2rem;
+  padding: 5rem 2rem;
+  background: transparent;
+}
+
+.ctaSection :global(.marketing-cta) {
+  background: var(--glass-bg-dark);
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow-strong);
 }
 
 @media screen and (max-width: 996px) {

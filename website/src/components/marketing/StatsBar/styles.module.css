@@ -2,15 +2,23 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 3rem;
-  padding: 2rem 0;
-  margin: 3rem 0;
+  gap: 4rem;
+  padding: 3rem 2rem;
+  margin: 4rem 0;
   flex-wrap: wrap;
+  background: var(--glass-bg-dark);
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--marketing-border-radius-lg);
+  box-shadow: var(--glass-shadow);
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .statsBar.bordered {
-  border-top: 1px solid var(--ifm-color-emphasis-200);
-  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+  /* Borders removed - using glassmorphism instead */
+  border: 1px solid var(--glass-border);
 }
 
 .stat {

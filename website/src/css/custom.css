@@ -5,19 +5,20 @@
  */
 
 /* ============================================
-   VoiceFlow Green Theme Colors (Primary)
+   Radium Green Theme Colors (Primary)
+   Based on #4af5b0 palette
    ============================================ */
 :root {
-  /* Primary Theme Colors - VoiceFlow Green */
-  --voiceflow-green-primary: #00ff88;
-  --voiceflow-green-dark: #00d9a5;
-  --voiceflow-green-darker: #00b882;
-  --voiceflow-green-darkest: #009966;
-  --voiceflow-green-light: #33ffaa;
-  --voiceflow-green-lighter: #66ffbb;
-  --voiceflow-green-lightest: #99ffcc;
-  --voiceflow-green-glow: rgba(0, 255, 136, 0.2);
-  --voiceflow-green-glow-strong: rgba(0, 255, 136, 0.4);
+  /* Primary Theme Colors - Radium Green */
+  --voiceflow-green-primary: #4af5b0;
+  --voiceflow-green-dark: #3dd19a;
+  --voiceflow-green-darker: #2fad84;
+  --voiceflow-green-darkest: #21896e;
+  --voiceflow-green-light: #6ff7c4;
+  --voiceflow-green-lighter: #94f9d8;
+  --voiceflow-green-lightest: #b9fbec;
+  --voiceflow-green-glow: rgba(74, 245, 176, 0.2);
+  --voiceflow-green-glow-strong: rgba(74, 245, 176, 0.4);
   --voiceflow-bg-gradient-start: #0a1f1a;
   --voiceflow-bg-gradient-mid: #1a1a1a;
   --voiceflow-bg-gradient-end: #0a0a0a;
@@ -151,6 +152,17 @@
   --marketing-transition-fast: 0.15s ease;
   --marketing-transition-normal: 0.2s ease;
   --marketing-transition-slow: 0.3s ease;
+
+  /* Glassmorphism Variables */
+  --glass-bg-light: rgba(255, 255, 255, 0.05);
+  --glass-bg-dark: rgba(0, 0, 0, 0.2);
+  --glass-bg-medium: rgba(0, 0, 0, 0.15);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-border-strong: rgba(255, 255, 255, 0.2);
+  --glass-blur: 10px;
+  --glass-blur-strong: 20px;
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  --glass-shadow-strong: 0 12px 48px rgba(0, 0, 0, 0.15);
 }
 
 [data-theme='dark'] {
@@ -178,14 +190,24 @@ body {
   background: transparent;
 }
 
-/* Links - Green primary, Cyan for external/secondary */
+/* Links - Neutral with green accents (specific components override this) */
 a {
-  color: var(--voiceflow-green-primary);
-  transition: color var(--marketing-transition-fast);
+  color: var(--radium-text-muted);
+  transition: color var(--marketing-transition-fast),
+              border-color var(--marketing-transition-fast);
 }
 
 a:hover {
-  color: var(--voiceflow-green-light);
+  color: var(--voiceflow-green-primary);
+}
+
+/* Light mode global links */
+[data-theme='light'] a {
+  color: var(--radium-text-muted-light);
+}
+
+[data-theme='light'] a:hover {
+  color: var(--voiceflow-green-primary);
 }
 
 /* External links or secondary links can use cyan */
@@ -231,4 +253,336 @@ code {
   transition: background-color var(--marketing-transition-normal),
               border-color var(--marketing-transition-normal),
               color var(--marketing-transition-normal);
+}
+
+/* ============================================
+   Light Mode Color Variables
+   ============================================ */
+:root {
+  /* Light mode text colors */
+  --radium-text-light: #1a1a1a;
+  --radium-text-muted-light: #666666;
+  --radium-text-dim-light: #999999;
+  
+  /* Light mode background colors */
+  --radium-bg-primary-light: #ffffff;
+  --radium-bg-panel-light: #f5f5f5;
+  --radium-bg-element-light: #fafafa;
+  
+  /* Light mode border colors */
+  --radium-border-light: #e0e0e0;
+  --radium-border-active-light: #d0d0d0;
+  --radium-border-subtle-light: #f0f0f0;
+}
+
+[data-theme='light'] {
+  --ifm-background-color: #ffffff;
+  --ifm-background-surface-color: var(--radium-bg-panel-light);
+}
+
+/* ============================================
+   Remove "Next" Pagination Link
+   ============================================ */
+.pagination-nav__link--next {
+  display: none !important;
+}
+
+/* ============================================
+   Navbar Styling - Neutral with Green Accents
+   ============================================ */
+
+/* Default navbar link colors - neutral */
+.navbar__link {
+  color: var(--radium-text) !important;
+  transition: color var(--marketing-transition-fast),
+              border-color var(--marketing-transition-fast),
+              background-color var(--marketing-transition-fast);
+}
+
+.navbar__link:hover {
+  color: var(--radium-text) !important;
+  border-bottom: 2px solid var(--voiceflow-green-primary);
+  background-color: transparent;
+}
+
+.navbar__link--active {
+  color: var(--radium-text) !important;
+  border-bottom: 2px solid var(--voiceflow-green-primary);
+  background-color: transparent;
+}
+
+/* Light mode navbar */
+[data-theme='light'] .navbar__link {
+  color: var(--radium-text-light) !important;
+}
+
+[data-theme='light'] .navbar__link:hover,
+[data-theme='light'] .navbar__link--active {
+  color: var(--radium-text-light) !important;
+  border-bottom-color: var(--voiceflow-green-primary);
+}
+
+/* Navbar brand/logo area */
+.navbar__brand {
+  color: var(--radium-text) !important;
+}
+
+[data-theme='light'] .navbar__brand {
+  color: var(--radium-text-light) !important;
+}
+
+/* ============================================
+   Footer Styling - Match Neutral Theme
+   ============================================ */
+
+.footer {
+  background-color: var(--radium-bg-panel);
+  border-top: 1px solid var(--radium-border);
+}
+
+.footer__title {
+  color: var(--radium-text);
+}
+
+.footer__link-item {
+  color: var(--radium-text-muted);
+  transition: color var(--marketing-transition-fast),
+              border-color var(--marketing-transition-fast);
+}
+
+.footer__link-item:hover {
+  color: var(--radium-text);
+  border-bottom: 1px solid var(--voiceflow-green-primary);
+}
+
+.footer__link {
+  color: var(--radium-text-muted);
+  transition: color var(--marketing-transition-fast);
+}
+
+.footer__link:hover {
+  color: var(--voiceflow-green-primary);
+}
+
+.footer__copyright {
+  color: var(--radium-text-muted);
+}
+
+/* Light mode footer */
+[data-theme='light'] .footer {
+  background-color: var(--radium-bg-panel-light);
+  border-top-color: var(--radium-border-light);
+}
+
+[data-theme='light'] .footer__title {
+  color: var(--radium-text-light);
+}
+
+[data-theme='light'] .footer__link-item {
+  color: var(--radium-text-muted-light);
+}
+
+[data-theme='light'] .footer__link-item:hover {
+  color: var(--radium-text-light);
+  border-bottom-color: var(--voiceflow-green-primary);
+}
+
+[data-theme='light'] .footer__link {
+  color: var(--radium-text-muted-light);
+}
+
+[data-theme='light'] .footer__link:hover {
+  color: var(--voiceflow-green-primary);
+}
+
+[data-theme='light'] .footer__copyright {
+  color: var(--radium-text-muted-light);
+}
+
+/* ============================================
+   Docs Pages Styling - Neutral with Green Accents
+   ============================================ */
+
+/* Sidebar navigation - neutral colors */
+.theme-doc-sidebar-item-link {
+  color: var(--radium-text-muted) !important;
+  transition: color var(--marketing-transition-fast),
+              border-color var(--marketing-transition-fast),
+              background-color var(--marketing-transition-fast);
+}
+
+.theme-doc-sidebar-item-link:hover {
+  color: var(--radium-text) !important;
+  background-color: transparent;
+  border-left: 3px solid var(--voiceflow-green-primary);
+}
+
+.theme-doc-sidebar-item-link-level-1.menu__link--active,
+.theme-doc-sidebar-item-link-level-2.menu__link--active,
+.theme-doc-sidebar-item-link-level-3.menu__link--active {
+  color: var(--radium-text) !important;
+  background-color: transparent !important;
+  border-left: 3px solid var(--voiceflow-green-primary);
+  font-weight: 600;
+}
+
+/* Sidebar category labels */
+.menu__link {
+  color: var(--radium-text-muted) !important;
+}
+
+.menu__link:hover {
+  color: var(--radium-text) !important;
+}
+
+/* Table of contents */
+.table-of-contents__link {
+  color: var(--radium-text-muted) !important;
+  transition: color var(--marketing-transition-fast),
+              border-color var(--marketing-transition-fast);
+}
+
+.table-of-contents__link:hover {
+  color: var(--radium-text) !important;
+  border-left: 2px solid var(--voiceflow-green-primary);
+}
+
+.table-of-contents__link--active {
+  color: var(--radium-text) !important;
+  border-left: 2px solid var(--voiceflow-green-primary);
+  font-weight: 600;
+}
+
+/* Breadcrumbs */
+.breadcrumbs__item {
+  color: var(--radium-text-muted);
+}
+
+.breadcrumbs__link {
+  color: var(--radium-text-muted);
+  transition: color var(--marketing-transition-fast);
+}
+
+.breadcrumbs__link:hover {
+  color: var(--voiceflow-green-primary);
+}
+
+.breadcrumbs__item--active .breadcrumbs__link {
+  color: var(--radium-text);
+}
+
+/* Docs page links */
+.theme-doc-markdown a {
+  color: var(--radium-text-muted);
+  border-bottom: 1px solid transparent;
+  transition: color var(--marketing-transition-fast),
+              border-color var(--marketing-transition-fast);
+}
+
+.theme-doc-markdown a:hover {
+  color: var(--voiceflow-green-primary);
+  border-bottom-color: var(--voiceflow-green-primary);
+}
+
+/* Pagination (Previous link styling) */
+.pagination-nav__link {
+  border: 1px solid var(--radium-border);
+  color: var(--radium-text-muted);
+  transition: border-color var(--marketing-transition-fast),
+              color var(--marketing-transition-fast);
+}
+
+.pagination-nav__link:hover {
+  border-color: var(--voiceflow-green-primary);
+  color: var(--radium-text);
+}
+
+.pagination-nav__label {
+  color: var(--radium-text-muted);
+}
+
+.pagination-nav__link:hover .pagination-nav__label {
+  color: var(--radium-text);
+}
+
+/* Light mode docs pages */
+[data-theme='light'] .theme-doc-sidebar-item-link {
+  color: var(--radium-text-muted-light) !important;
+}
+
+[data-theme='light'] .theme-doc-sidebar-item-link:hover {
+  color: var(--radium-text-light) !important;
+  border-left-color: var(--voiceflow-green-primary);
+}
+
+[data-theme='light'] .theme-doc-sidebar-item-link-level-1.menu__link--active,
+[data-theme='light'] .theme-doc-sidebar-item-link-level-2.menu__link--active,
+[data-theme='light'] .theme-doc-sidebar-item-link-level-3.menu__link--active {
+  color: var(--radium-text-light) !important;
+  border-left-color: var(--voiceflow-green-primary);
+}
+
+[data-theme='light'] .menu__link {
+  color: var(--radium-text-muted-light) !important;
+}
+
+[data-theme='light'] .menu__link:hover {
+  color: var(--radium-text-light) !important;
+}
+
+[data-theme='light'] .table-of-contents__link {
+  color: var(--radium-text-muted-light) !important;
+}
+
+[data-theme='light'] .table-of-contents__link:hover {
+  color: var(--radium-text-light) !important;
+  border-left-color: var(--voiceflow-green-primary);
+}
+
+[data-theme='light'] .table-of-contents__link--active {
+  color: var(--radium-text-light) !important;
+  border-left-color: var(--voiceflow-green-primary);
+}
+
+[data-theme='light'] .breadcrumbs__item {
+  color: var(--radium-text-muted-light);
+}
+
+[data-theme='light'] .breadcrumbs__link {
+  color: var(--radium-text-muted-light);
+}
+
+[data-theme='light'] .breadcrumbs__link:hover {
+  color: var(--voiceflow-green-primary);
+}
+
+[data-theme='light'] .breadcrumbs__item--active .breadcrumbs__link {
+  color: var(--radium-text-light);
+}
+
+[data-theme='light'] .theme-doc-markdown a {
+  color: var(--radium-text-muted-light);
+}
+
+[data-theme='light'] .theme-doc-markdown a:hover {
+  color: var(--voiceflow-green-primary);
+  border-bottom-color: var(--voiceflow-green-primary);
+}
+
+[data-theme='light'] .pagination-nav__link {
+  border-color: var(--radium-border-light);
+  color: var(--radium-text-muted-light);
+}
+
+[data-theme='light'] .pagination-nav__link:hover {
+  border-color: var(--voiceflow-green-primary);
+  color: var(--radium-text-light);
+}
+
+[data-theme='light'] .pagination-nav__label {
+  color: var(--radium-text-muted-light);
+}
+
+[data-theme='light'] .pagination-nav__link:hover .pagination-nav__label {
+  color: var(--radium-text-light);
 }

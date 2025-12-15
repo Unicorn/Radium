@@ -27,29 +27,31 @@
 }
 
 .panel {
-  background: var(--radium-bg-panel);
-  border: 1px solid var(--radium-border);
-  border-radius: var(--marketing-border-radius);
+  background: var(--glass-bg-dark);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--marketing-border-radius-lg);
   overflow: hidden;
-  box-shadow: var(--marketing-shadow-md);
+  box-shadow: var(--glass-shadow);
   transition: all var(--marketing-transition-normal);
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(var(--glass-blur));
 }
 
 .panel:hover {
-  box-shadow: var(--marketing-shadow-lg), var(--glow-green);
+  box-shadow: var(--glass-shadow-strong), var(--glow-green);
   transform: translateY(-4px);
   border-color: var(--voiceflow-green-primary);
+  background: var(--glass-bg-medium);
 }
 
 .panelHeader {
-  background: var(--radium-bg-element);
+  background: var(--glass-bg-medium);
   padding: 1rem 1.5rem;
-  border-bottom: 1px solid var(--radium-border);
+  border-bottom: 1px solid var(--glass-border);
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 1rem;
+  /* Removed nested backdrop-filter - parent already has it */
 }
 
 .panelHeaderLeft {
@@ -73,7 +75,7 @@
 
 .panelBody {
   padding: 1.5rem;
-  background: var(--radium-bg-element);
+  background: transparent;
   overflow-x: auto;
   max-height: 500px;
   overflow-y: auto;
@@ -115,20 +117,21 @@
   color: var(--radium-secondary);
 }
 
-/* Dark mode support - using Radium colors */
+/* Dark mode support - using glassmorphism */
 [data-theme='dark'] .panel {
-  background: var(--radium-bg-panel);
-  border-color: var(--radium-border);
+  background: var(--glass-bg-dark);
+  border-color: var(--glass-border);
 }
 
 [data-theme='dark'] .panel:hover {
   border-color: var(--voiceflow-green-primary);
-  box-shadow: var(--marketing-shadow-lg), var(--glow-green);
+  box-shadow: var(--glass-shadow-strong), var(--glow-green);
+  background: var(--glass-bg-medium);
 }
 
 [data-theme='dark'] .panelHeader {
-  background: var(--radium-bg-element);
-  border-color: var(--radium-border);
+  background: var(--glass-bg-medium);
+  border-color: var(--glass-border);
 }
 
 [data-theme='dark'] .description {
