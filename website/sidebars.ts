@@ -425,11 +425,11 @@ const sidebars: SidebarsConfig = {
 			collapsed: true,
 			items: [
 				"api/context-cache-api",
-				{
-					type: "link",
-					label: "→ Rust API Docs",
-					href: "/RAD/api/radium_core",
-				},
+			{
+				type: "link",
+				label: "→ Rust API Docs",
+				href: "/api/radium_core",
+			},
 			],
 		},
 

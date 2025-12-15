@@ -12,7 +12,7 @@ Complete API documentation for Radium. This reference covers all public APIs for
 
 The primary Radium API is written in Rust. Full Rust API documentation is available:
 
-- **[Rust API Docs](/RAD/api/radium_core)** - Complete Rust API documentation (generated from code)
+- **[Rust API Docs](/api/radium_core)** - Complete Rust API documentation (generated from code)
 
 ## Core APIs
 
@@ -167,7 +167,7 @@ APIs for the Component Foundry Pattern (planned).
 - Component versioning
 
 **Status**: 📋 Planned
-**Learn more**: [Roadmap: Component Foundry](../roadmap/vision.md#1-component-foundry-pattern-cfp)
+**Learn more**: [Roadmap: Component Foundry](../roadmap/roadmap-vision.md#1-component-foundry-pattern-cfp)
 
 ### Global Component Graph API
 
@@ -179,7 +179,7 @@ APIs for component discovery and composition (planned).
 - Relationship tracking
 
 **Status**: 📋 Planned
-**Learn more**: [Roadmap: Global Component Graph](../roadmap/technical-architecture.md#global-component-graph-design-t3)
+**Learn more**: [Roadmap: Global Component Graph](../roadmap/roadmap-technical-architecture.md#global-component-graph-design-t3)
 
 ### KOR Protocol API
 
@@ -225,7 +225,7 @@ Radium APIs follow semantic versioning:
 
 ## Next Steps
 
-- **[Rust API Docs](/RAD/api/radium_core)** - Complete Rust API documentation
+- **[Rust API Docs](/api/radium_core)** - Complete Rust API documentation
 - **[Extension API](../extensions/api-reference.md)** - Extension system API
 - **[Hooks API](../hooks/api-reference.md)** - Hooks API
 
