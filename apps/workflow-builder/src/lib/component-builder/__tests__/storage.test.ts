@@ -389,14 +389,14 @@ describe('FilesystemStorage', () => {
       const results = await storage.search('timestamp');
 
       expect(results.length).toBe(1);
-      expect(results[0].id).toBe('timestamp_generator');
+      expect(results[0]!.id).toBe('timestamp_generator');
     });
 
     it('should search components by description', async () => {
       const results = await storage.search('locales');
 
       expect(results.length).toBe(1);
-      expect(results[0].id).toBe('date_formatter');
+      expect(results[0]!.id).toBe('date_formatter');
     });
 
     it('should increment usage count', async () => {
@@ -595,7 +595,7 @@ describe('DatabaseStorage', () => {
       const results = await storage.search('timestamp');
 
       expect(results.length).toBe(1);
-      expect(results[0].id).toBe('timestamp_generator');
+      expect(results[0]!.id).toBe('timestamp_generator');
     });
 
     it('should increment usage count', async () => {

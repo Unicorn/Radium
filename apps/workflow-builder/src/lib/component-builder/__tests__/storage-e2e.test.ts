@@ -318,6 +318,7 @@ describe.skipIf(SKIP_E2E_TESTS)('E2E: Component Builder with Filesystem Storage'
     // Get the generated component
     const savedComponent = components.components[0];
     expect(savedComponent).toBeDefined();
+    if (!savedComponent) return; // TypeScript guard
 
     // Validate component for execution
     const validation = validateComponentForExecution(savedComponent);
@@ -406,6 +407,7 @@ describe.skipIf(SKIP_E2E_TESTS)('E2E: Component Builder with Database Storage', 
     // Get the most recently saved component (should be the text trimmer)
     const savedComponent = components.components[components.components.length - 1];
     expect(savedComponent).toBeDefined();
+    if (!savedComponent) return; // TypeScript guard
 
     const validation = validateComponentForExecution(savedComponent);
     if (!validation.valid) {
@@ -516,6 +518,9 @@ describe.skipIf(SKIP_E2E_TESTS)('E2E: Full Workflow Simulation', () => {
     expect(fsComponents.total).toBeGreaterThanOrEqual(1);
 
     const component = fsComponents.components[0];
+    if (!component) {
+      throw new Error('No component found after build');
+    }
 
     // Save to database as well (simulating multi-backend support)
     await dbStorage.save(component);
@@ -560,6 +565,10 @@ describe.skipIf(SKIP_E2E_TESTS)('E2E: Full Workflow Simulation', () => {
     }
 
     const component = components.components[0];
+    if (!component) {
+      console.log('Skipping - component is undefined');
+      return;
+    }
 
     // Step 1: Create workflow definition
     const workflow = createStartComponentEndWorkflow(
@@ -573,7 +582,10 @@ describe.skipIf(SKIP_E2E_TESTS)('E2E: Full Workflow Simulation', () => {
     expect(resolvedComponents.size).toBe(1);
 
     // Step 3: Load component code
-    const loadedComponent = resolvedComponents.get(component.id)!;
+    const loadedComponent = resolvedComponents.get(component.id);
+    if (!loadedComponent) {
+      throw new Error('Component not resolved from storage');
+    }
     expect(loadedComponent.artifacts.typescriptCode).toBeDefined();
 
     // Step 4: Validate component is ready for execution
@@ -585,11 +597,14 @@ describe.skipIf(SKIP_E2E_TESTS)('E2E: Full Workflow Simulation', () => {
     await fsStorage.incrementUsage(component.id);
 
     const updated = await fsStorage.get(component.id);
-    expect(updated!.metadata.usageCount).toBe(initialUsage + 1);
+    if (!updated) {
+      throw new Error('Component not found after incrementUsage');
+    }
+    expect(updated.metadata.usageCount).toBe(initialUsage + 1);
 
     console.log('\n✅ Workflow execution flow simulation complete');
     console.log(`   Component: ${component.name} (${component.id})`);
-    console.log(`   Usage count: ${updated!.metadata.usageCount}`);
+    console.log(`   Usage count: ${updated.metadata.usageCount}`);
   }, 30000);
 });
 
