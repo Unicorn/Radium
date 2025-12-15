@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["STANDARD_CATEGORIES","STANDARD_SECTIONS"],"enum":["LearningError","LearningType","SkillStatus"],"struct":["CategorySummary","LearningEntry","LearningStore","Skill"],"type":["Result"]};

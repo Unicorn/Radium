@@ -25,7 +25,8 @@ const config: Config = {
   organizationName: 'Unicorn', // Usually your GitHub org/user name.
   projectName: 'Radium', // Usually your repo name.
 
-  onBrokenLinks: 'warn', // Set to 'throw' after verifying all links are working
+  onBrokenLinks: 'warn', // Warn on broken links (static API links work at runtime)
+  onBrokenMarkdownLinks: 'throw', // Fail build on broken markdown links
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
@@ -93,7 +94,7 @@ const config: Config = {
           position: 'left',
         },
         {
-          to: '/docs/api/radium_core',
+          href: '/api/radium_core',
           label: 'API Reference',
           position: 'left',
         },
@@ -141,7 +142,7 @@ const config: Config = {
             },
             {
               label: 'API Reference',
-              to: '/docs/api/radium_core',
+              href: '/api/radium_core',
             },
           ],
         },

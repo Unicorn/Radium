@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["should_ignore_path"],"struct":["IgnoreWalker"]};

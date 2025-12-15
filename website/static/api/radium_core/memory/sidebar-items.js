@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["MemoryError"],"struct":["FileAdapter","MemoryEntry","MemoryStore"],"trait":["MemoryAdapter"],"type":["Result"]};

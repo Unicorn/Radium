@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["CommandError"],"struct":["CommandRegistry","CustomCommand"],"type":["Result"]};

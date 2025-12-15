@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["TaskError","TaskState"],"struct":["Task","TaskBuilder","TaskQueue","TaskResult"]};

@@ -10,9 +10,14 @@ Complete API documentation for Radium. This reference covers all public APIs for
 
 ## Rust API Documentation
 
-The primary Radium API is written in Rust. Full Rust API documentation is available:
+The primary Radium API is written in Rust. Full Rust API documentation is available for all public crates:
 
-- **[Rust API Docs](/api/radium_core)** - Complete Rust API documentation (generated from code)
+- **[radium-core](/api/radium_core)** - Core Radium API (agents, workspace, planning, extensions, hooks, MCP)
+- **[radium-abstraction](/api/radium_abstraction)** - Model abstraction layer and provider traits
+- **[radium-models](/api/radium_models)** - Model implementations (OpenAI, Claude, Gemini, Ollama, Universal)
+- **[radium-orchestrator](/api/radium_orchestrator)** - Orchestration system (routing, load balancing, execution)
+
+All documentation is automatically generated from source code using `cargo doc`.
 
 ## Core APIs
 
@@ -225,7 +230,11 @@ Radium APIs follow semantic versioning:
 
 ## Next Steps
 
-- **[Rust API Docs](/api/radium_core)** - Complete Rust API documentation
+- **[Rust API Documentation](/api/radium_core)** - Complete Rust API documentation
+  - [radium-core](/api/radium_core) - Core API
+  - [radium-abstraction](/api/radium_abstraction) - Model abstraction
+  - [radium-models](/api/radium_models) - Model implementations
+  - [radium-orchestrator](/api/radium_orchestrator) - Orchestration
 - **[Extension API](../extensions/api-reference.md)** - Extension system API
 - **[Hooks API](../hooks/api-reference.md)** - Hooks API
 

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["BudgetCheckResult"],"struct":["AgentExecutor","ExecutionResult","ExecutionTelemetry","HookResult","QueueProcessor","QueueProcessorConfig"],"trait":["BudgetManagerTrait","HookExecutor","SandboxManager"]};

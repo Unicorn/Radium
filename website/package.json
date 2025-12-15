@@ -5,6 +5,9 @@
   "scripts": {
     "docusaurus": "docusaurus",
     "start": "docusaurus start",
+    "generate-docs": "bash scripts/generate-rust-docs.sh",
+    "validate-links": "docusaurus build --out-dir /tmp/docusaurus-build-check || (echo 'Link validation failed' && exit 1)",
+    "prebuild": "npm run generate-docs",
     "build": "docusaurus build",
     "swizzle": "docusaurus swizzle",
     "deploy": "docusaurus deploy",

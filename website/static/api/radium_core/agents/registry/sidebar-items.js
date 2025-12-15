@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["LogicMode","RegistryError","SearchMode","SortField","SortOrder"],"struct":["AgentRegistry","FilterCriteria"],"type":["Result"]};

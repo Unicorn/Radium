@@ -38,13 +38,80 @@ jobs:
           cache: 'npm'
           cache-dependency-path: website/package-lock.json
 
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Generate Rust API documentation
+        run: |
+          cd website
+          bash scripts/generate-rust-docs.sh
+
+      - name: Validate Rust docs generation
+        run: |
+          echo "Validating Rust documentation generation..."
+          CRATES=("radium_core" "radium_abstraction" "radium_models" "radium_orchestrator")
+          MISSING=()
+          for crate in "${CRATES[@]}"; do
+            if [ ! -d "website/static/api/$crate" ]; then
+              MISSING+=("$crate")
+            elif [ ! -f "website/static/api/$crate/index.html" ]; then
+              echo "Error: $crate documentation missing index.html"
+              exit 1
+            else
+              echo "✓ $crate documentation generated"
+            fi
+          done
+          if [ ${#MISSING[@]} -ne 0 ]; then
+            echo "Error: Missing documentation for: ${MISSING[*]}"
+            exit 1
+          fi
+          echo "✓ All Rust documentation generated successfully"
+          ls -la website/static/api/
+
       - name: Install dependencies
         working-directory: ./website
         run: bun install --frozen-lockfile
 
+      - name: Validate links (pre-build check)
+        working-directory: ./website
+        run: |
+          echo "Running link validation..."
+          bun run validate-links || (echo "Link validation failed" && exit 1)
+          echo "✓ Link validation passed"
+
       - name: Build website
         working-directory: ./website
         run: bun run build
+
+      - name: Validate build artifacts
+        run: |
+          echo "Validating build artifacts..."
+          if [ ! -d "website/build" ]; then
+            echo "Error: Build directory not found"
+            exit 1
+          fi
+          if [ ! -d "website/build/api" ]; then
+            echo "Error: API documentation not found in build"
+            exit 1
+          fi
+          echo "✓ Build artifacts validated"
+          echo "API documentation found:"
+          ls -la website/build/api/
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

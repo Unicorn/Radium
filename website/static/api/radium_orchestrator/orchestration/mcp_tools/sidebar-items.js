@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["McpContent"],"fn":["create_mcp_tool"],"struct":["McpToolDefinition","McpToolHandler","McpToolResult"],"trait":["McpIntegrationTrait"]};

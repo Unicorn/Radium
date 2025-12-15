@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["get_all_extensions","get_extension_command_dirs","get_extension_hook_paths","get_extension_mcp_configs","get_extension_prompt_dirs"]};

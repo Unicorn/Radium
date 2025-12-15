@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ExtensionError"],"mod":["analytics","dependency_graph","discovery","installer","integration","manifest","marketplace","publisher","signing","structure","validator","versioning"],"type":["Result"]};

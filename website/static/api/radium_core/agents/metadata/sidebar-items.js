@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ContextRequirements","CostTier","IterationSpeed","MetadataError","ModelPriority","OutputVolume","ThinkingDepth"],"struct":["AgentMetadata","ModelRecommendation","PerformanceProfile","RecommendedModels"],"type":["Result"]};

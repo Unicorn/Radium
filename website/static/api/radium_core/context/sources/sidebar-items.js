@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["SourceError"],"struct":["BraingridReader","HttpReader","JiraReader","LocalFileReader","SourceMetadata","SourceRegistry"],"trait":["SourceReader"]};

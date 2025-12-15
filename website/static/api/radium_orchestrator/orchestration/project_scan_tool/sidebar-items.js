@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["count_files_by_type","create_project_analysis_tools","create_project_scan_tool","detect_tech_stack","find_and_read_manifest","find_and_read_readme","get_directory_listing","get_git_status"]};

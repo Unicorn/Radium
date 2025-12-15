@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["MarketplaceError"],"struct":["MarketplaceClient","MarketplaceExtension"],"type":["Result"]};

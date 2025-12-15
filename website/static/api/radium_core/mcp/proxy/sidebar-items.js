@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["catalog","config","health","router","security","server","types","upstream_pool"]};

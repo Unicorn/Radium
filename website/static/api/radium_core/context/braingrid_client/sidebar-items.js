@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["BraingridError","RequirementStatus","TaskStatus"],"struct":["BraingridClient","BraingridRequirement","BraingridTask","CacheStats"],"type":["Result"]};

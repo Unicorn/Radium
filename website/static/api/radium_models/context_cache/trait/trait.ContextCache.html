@@ -1,0 +1,140 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Trait for provider-specific context caching implementations."><title>ContextCache in radium_models::context_cache::trait - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-e56847b5.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="radium_models" data-themes="" data-resource-suffix="" data-rustdoc-version="1.91.1 (ed61e7d7e 2025-11-07)" data-channel="1.91.1" data-search-js="search-e256b49e.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../../../static.files/storage-e2aeef58.js"></script><script defer src="sidebar-items.js"></script><script defer src="../../../static.files/main-6dc2a7f3.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc trait"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">ContextCache</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../../radium_models/index.html">radium_<wbr>models</a><span class="version">0.1.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Context<wbr>Cache</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#provider-differences" title="Provider Differences">Provider Differences</a></li><li><a href="#example" title="Example">Example</a></li></ul><h3><a href="#required-methods">Required Methods</a></h3><ul class="block"><li><a href="#tymethod.create_cache" title="create_cache">create_cache</a></li><li><a href="#tymethod.delete_cache" title="delete_cache">delete_cache</a></li><li><a href="#tymethod.get_cache" title="get_cache">get_cache</a></li><li><a href="#tymethod.refresh_cache" title="refresh_cache">refresh_cache</a></li></ul><h3><a href="#implementors">Implementors</a></h3></section><div id="rustdoc-modnav"><h2><a href="index.html">In radium_<wbr>models::<wbr>context_<wbr>cache::<wbr>trait</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../../index.html">radium_models</a>::<wbr><a href="../index.html">context_cache</a>::<wbr><a href="index.html">trait</a></div><h1>Trait <span class="trait">Context<wbr>Cache</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../../src/radium_models/context_cache/trait.rs.html#44-126">Source</a> </span></div><pre class="rust item-decl"><code>pub trait ContextCache: <a class="trait" href="https://doc.rust-lang.org/1.91.1/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + <a class="trait" href="https://doc.rust-lang.org/1.91.1/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> {
+    // Required methods
+    fn <a href="#tymethod.create_cache" class="fn">create_cache</a>&lt;'life0, 'life1, 'async_trait&gt;(
+        &amp;'life0 self,
+        content: &amp;'life1 <a class="primitive" href="https://doc.rust-lang.org/1.91.1/std/primitive.str.html">str</a>,
+        ttl: <a class="struct" href="https://doc.rust-lang.org/1.91.1/core/time/struct.Duration.html" title="struct core::time::Duration">Duration</a>,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.91.1/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.91.1/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.91.1/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.91.1/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="enum" href="../types/enum.CacheHandle.html" title="enum radium_models::context_cache::types::CacheHandle">CacheHandle</a>, <a class="enum" href="../types/enum.CacheError.html" title="enum radium_models::context_cache::types::CacheError">CacheError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.91.1/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait,
+             'life1: 'async_trait</span>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.get_cache" class="fn">get_cache</a>&lt;'life0, 'life1, 'async_trait&gt;(
+        &amp;'life0 self,
+        handle: &amp;'life1 <a class="enum" href="../types/enum.CacheHandle.html" title="enum radium_models::context_cache::types::CacheHandle">CacheHandle</a>,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.91.1/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.91.1/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.91.1/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.91.1/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.91.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../types/struct.CachedContext.html" title="struct radium_models::context_cache::types::CachedContext">CachedContext</a>&gt;, <a class="enum" href="../types/enum.CacheError.html" title="enum radium_models::context_cache::types::CacheError">CacheError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.91.1/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait,
+             'life1: 'async_trait</span>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.refresh_cache" class="fn">refresh_cache</a>&lt;'life0, 'life1, 'async_trait&gt;(
+        &amp;'life0 self,
+        handle: &amp;'life1 <a class="enum" href="../types/enum.CacheHandle.html" title="enum radium_models::context_cache::types::CacheHandle">CacheHandle</a>,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.91.1/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.91.1/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.91.1/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.91.1/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.91.1/std/primitive.unit.html">()</a>, <a class="enum" href="../types/enum.CacheError.html" title="enum radium_models::context_cache::types::CacheError">CacheError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.91.1/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait,
+             'life1: 'async_trait</span>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.delete_cache" class="fn">delete_cache</a>&lt;'life0, 'life1, 'async_trait&gt;(
+        &amp;'life0 self,
+        handle: &amp;'life1 <a class="enum" href="../types/enum.CacheHandle.html" title="enum radium_models::context_cache::types::CacheHandle">CacheHandle</a>,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.91.1/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.91.1/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.91.1/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.91.1/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.91.1/std/primitive.unit.html">()</a>, <a class="enum" href="../types/enum.CacheError.html" title="enum radium_models::context_cache::types::CacheError">CacheError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.91.1/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait,
+             'life1: 'async_trait</span>;
+}</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Trait for provider-specific context caching implementations.</p>
+<p>This trait provides a unified interface for caching context/prompts
+across different providers (Claude, OpenAI, Gemini). Each provider
+has different caching mechanisms, but this trait abstracts them.</p>
+<h2 id="provider-differences"><a class="doc-anchor" href="#provider-differences">§</a>Provider Differences</h2>
+<ul>
+<li><strong>Claude</strong>: Uses cache_control blocks in messages (implicit caching)</li>
+<li><strong>OpenAI</strong>: Automatic caching (no explicit cache management)</li>
+<li><strong>Gemini</strong>: Explicit cachedContent API with cache names</li>
+</ul>
+<h2 id="example"><a class="doc-anchor" href="#example">§</a>Example</h2>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>radium_models::context_cache::{ContextCache, CacheHandle};
+<span class="kw">use </span>std::time::Duration;
+
+<span class="comment">// Create a cache
+</span><span class="kw">let </span>handle = cache.create_cache(<span class="string">"Large system prompt..."</span>, Duration::from_secs(<span class="number">300</span>)).<span class="kw">await</span><span class="question-mark">?</span>;
+
+<span class="comment">// Retrieve cache metadata
+</span><span class="kw">if let </span><span class="prelude-val">Some</span>(context) = cache.get_cache(<span class="kw-2">&amp;</span>handle).<span class="kw">await</span><span class="question-mark">? </span>{
+    <span class="macro">println!</span>(<span class="string">"Cache has {} tokens"</span>, context.token_count);
+}
+
+<span class="comment">// Refresh cache TTL
+</span>cache.refresh_cache(<span class="kw-2">&amp;</span>handle).<span class="kw">await</span><span class="question-mark">?</span>;
+
+<span class="comment">// Delete cache
+</span>cache.delete_cache(<span class="kw-2">&amp;</span>handle).<span class="kw">await</span><span class="question-mark">?</span>;</code></pre></div></div></details><h2 id="required-methods" class="section-header">Required Methods<a href="#required-methods" class="anchor">§</a></h2><div class="methods"><details class="toggle method-toggle" open><summary><section id="tymethod.create_cache" class="method"><a class="src rightside" href="../../../src/radium_models/context_cache/trait.rs.html#63-67">Source</a><h4 class="code-header">fn <a href="#tymethod.create_cache" class="fn">create_cache</a>&lt;'life0, 'life1, 'async_trait&gt;(
+    &amp;'life0 self,
+    content: &amp;'life1 <a class="primitive" href="https://doc.rust-lang.org/1.91.1/std/primitive.str.html">str</a>,
+    ttl: <a class="struct" href="https://doc.rust-lang.org/1.91.1/core/time/struct.Duration.html" title="struct core::time::Duration">Duration</a>,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.91.1/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.91.1/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.91.1/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.91.1/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="enum" href="../types/enum.CacheHandle.html" title="enum radium_models::context_cache::types::CacheHandle">CacheHandle</a>, <a class="enum" href="../types/enum.CacheError.html" title="enum radium_models::context_cache::types::CacheError">CacheError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.91.1/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,
+    'life1: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Create a new cached context.</p>
+<p>This method creates a cache for the given content with the specified
+time-to-live (TTL). The exact behavior depends on the provider:</p>
+<ul>
+<li><strong>Claude</strong>: Prepares cache_control metadata (actual caching happens during request)</li>
+<li><strong>OpenAI</strong>: No-op (caching is automatic, no explicit creation)</li>
+<li><strong>Gemini</strong>: Creates a cachedContent resource via API</li>
+</ul>
+<h5 id="arguments"><a class="doc-anchor" href="#arguments">§</a>Arguments</h5>
+<ul>
+<li><code>content</code> - The content to cache (may be a prompt, system message, etc.)</li>
+<li><code>ttl</code> - Time to live for the cache</li>
+</ul>
+<h5 id="returns"><a class="doc-anchor" href="#returns">§</a>Returns</h5>
+<p>A <code>CacheHandle</code> that can be used to reference this cache in future operations.</p>
+<h5 id="errors"><a class="doc-anchor" href="#errors">§</a>Errors</h5>
+<p>Returns <code>CacheError</code> if cache creation fails (e.g., API error, invalid configuration).</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.get_cache" class="method"><a class="src rightside" href="../../../src/radium_models/context_cache/trait.rs.html#86-89">Source</a><h4 class="code-header">fn <a href="#tymethod.get_cache" class="fn">get_cache</a>&lt;'life0, 'life1, 'async_trait&gt;(
+    &amp;'life0 self,
+    handle: &amp;'life1 <a class="enum" href="../types/enum.CacheHandle.html" title="enum radium_models::context_cache::types::CacheHandle">CacheHandle</a>,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.91.1/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.91.1/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.91.1/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.91.1/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.91.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../types/struct.CachedContext.html" title="struct radium_models::context_cache::types::CachedContext">CachedContext</a>&gt;, <a class="enum" href="../types/enum.CacheError.html" title="enum radium_models::context_cache::types::CacheError">CacheError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.91.1/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,
+    'life1: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Get metadata for a cached context.</p>
+<p>Retrieves metadata about a cached context, including creation time,
+expiration time, and token count.</p>
+<h5 id="arguments-1"><a class="doc-anchor" href="#arguments-1">§</a>Arguments</h5>
+<ul>
+<li><code>handle</code> - The cache handle to look up</li>
+</ul>
+<h5 id="returns-1"><a class="doc-anchor" href="#returns-1">§</a>Returns</h5>
+<p><code>Some(CachedContext)</code> if the cache exists and is valid, <code>None</code> if not found.</p>
+<h5 id="errors-1"><a class="doc-anchor" href="#errors-1">§</a>Errors</h5>
+<p>Returns <code>CacheError</code> if there’s an error retrieving the cache (e.g., network error).</p>
+<h5 id="note"><a class="doc-anchor" href="#note">§</a>Note</h5>
+<p>For OpenAI, this will return <code>ProviderNotSupported</code> since OpenAI
+doesn’t expose cache metadata.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.refresh_cache" class="method"><a class="src rightside" href="../../../src/radium_models/context_cache/trait.rs.html#107">Source</a><h4 class="code-header">fn <a href="#tymethod.refresh_cache" class="fn">refresh_cache</a>&lt;'life0, 'life1, 'async_trait&gt;(
+    &amp;'life0 self,
+    handle: &amp;'life1 <a class="enum" href="../types/enum.CacheHandle.html" title="enum radium_models::context_cache::types::CacheHandle">CacheHandle</a>,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.91.1/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.91.1/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.91.1/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.91.1/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.91.1/std/primitive.unit.html">()</a>, <a class="enum" href="../types/enum.CacheError.html" title="enum radium_models::context_cache::types::CacheError">CacheError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.91.1/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,
+    'life1: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Refresh the TTL of an existing cache.</p>
+<p>Extends the expiration time of a cached context without re-creating it.
+This is useful for keeping frequently-used caches alive.</p>
+<h5 id="arguments-2"><a class="doc-anchor" href="#arguments-2">§</a>Arguments</h5>
+<ul>
+<li><code>handle</code> - The cache handle to refresh</li>
+</ul>
+<h5 id="returns-2"><a class="doc-anchor" href="#returns-2">§</a>Returns</h5>
+<p><code>Ok(())</code> if the refresh was successful.</p>
+<h5 id="errors-2"><a class="doc-anchor" href="#errors-2">§</a>Errors</h5>
+<p>Returns <code>CacheError</code> if the cache doesn’t exist, has expired, or refresh fails.</p>
+<h5 id="note-1"><a class="doc-anchor" href="#note-1">§</a>Note</h5>
+<p>For OpenAI, this is a no-op since OpenAI manages cache lifecycle automatically.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.delete_cache" class="method"><a class="src rightside" href="../../../src/radium_models/context_cache/trait.rs.html#125">Source</a><h4 class="code-header">fn <a href="#tymethod.delete_cache" class="fn">delete_cache</a>&lt;'life0, 'life1, 'async_trait&gt;(
+    &amp;'life0 self,
+    handle: &amp;'life1 <a class="enum" href="../types/enum.CacheHandle.html" title="enum radium_models::context_cache::types::CacheHandle">CacheHandle</a>,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.91.1/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.91.1/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.91.1/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.91.1/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.91.1/std/primitive.unit.html">()</a>, <a class="enum" href="../types/enum.CacheError.html" title="enum radium_models::context_cache::types::CacheError">CacheError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.91.1/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,
+    'life1: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Delete a cached context.</p>
+<p>Explicitly removes a cached context. This is useful for freeing up
+resources or invalidating stale caches.</p>
+<h5 id="arguments-3"><a class="doc-anchor" href="#arguments-3">§</a>Arguments</h5>
+<ul>
+<li><code>handle</code> - The cache handle to delete</li>
+</ul>
+<h5 id="returns-3"><a class="doc-anchor" href="#returns-3">§</a>Returns</h5>
+<p><code>Ok(())</code> if the deletion was successful (or if the cache didn’t exist).</p>
+<h5 id="errors-3"><a class="doc-anchor" href="#errors-3">§</a>Errors</h5>
+<p>Returns <code>CacheError</code> if deletion fails (e.g., network error).</p>
+<h5 id="note-2"><a class="doc-anchor" href="#note-2">§</a>Note</h5>
+<p>For OpenAI, this is a no-op since OpenAI manages cache lifecycle automatically.</p>
+</div></details></div><h2 id="implementors" class="section-header">Implementors<a href="#implementors" class="anchor">§</a></h2><div id="implementors-list"><section id="impl-ContextCache-for-ClaudeContextCache" class="impl"><a class="src rightside" href="../../../src/radium_models/context_cache/claude.rs.html#40-75">Source</a><a href="#impl-ContextCache-for-ClaudeContextCache" class="anchor">§</a><h3 class="code-header">impl <a class="trait" href="trait.ContextCache.html" title="trait radium_models::context_cache::trait::ContextCache">ContextCache</a> for <a class="struct" href="../claude/struct.ClaudeContextCache.html" title="struct radium_models::context_cache::claude::ClaudeContextCache">ClaudeContextCache</a></h3></section><section id="impl-ContextCache-for-GeminiContextCache" class="impl"><a class="src rightside" href="../../../src/radium_models/context_cache/gemini.rs.html#93-296">Source</a><a href="#impl-ContextCache-for-GeminiContextCache" class="anchor">§</a><h3 class="code-header">impl <a class="trait" href="trait.ContextCache.html" title="trait radium_models::context_cache::trait::ContextCache">ContextCache</a> for <a class="struct" href="../gemini/struct.GeminiContextCache.html" title="struct radium_models::context_cache::gemini::GeminiContextCache">GeminiContextCache</a></h3></section><section id="impl-ContextCache-for-OpenAIContextCache" class="impl"><a class="src rightside" href="../../../src/radium_models/context_cache/openai.rs.html#39-68">Source</a><a href="#impl-ContextCache-for-OpenAIContextCache" class="anchor">§</a><h3 class="code-header">impl <a class="trait" href="trait.ContextCache.html" title="trait radium_models::context_cache::trait::ContextCache">ContextCache</a> for <a class="struct" href="../openai/struct.OpenAIContextCache.html" title="struct radium_models::context_cache::openai::OpenAIContextCache">OpenAIContextCache</a></h3></section></div><script src="../../../trait.impl/radium_models/context_cache/trait/trait.ContextCache.js" async></script></section></div></main></body></html>

@@ -425,11 +425,27 @@ const sidebars: SidebarsConfig = {
 			collapsed: true,
 			items: [
 				"api/context-cache-api",
-			{
-				type: "link",
-				label: "→ Rust API Docs",
-				href: "/api/radium_core",
-			},
+				"api/rust-api",
+				{
+					type: "link",
+					label: "→ radium-core",
+					href: "/api/radium_core",
+				},
+				{
+					type: "link",
+					label: "→ radium-abstraction",
+					href: "/api/radium_abstraction",
+				},
+				{
+					type: "link",
+					label: "→ radium-models",
+					href: "/api/radium_models",
+				},
+				{
+					type: "link",
+					label: "→ radium-orchestrator",
+					href: "/api/radium_orchestrator",
+				},
 			],
 		},
 

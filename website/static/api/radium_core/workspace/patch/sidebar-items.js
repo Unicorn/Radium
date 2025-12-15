@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["PatchContent"],"struct":["ChangedFile","FilePatch","Hunk","PatchApplicator","PatchInput","PatchOptions","PatchResult","PatchSummary"]};

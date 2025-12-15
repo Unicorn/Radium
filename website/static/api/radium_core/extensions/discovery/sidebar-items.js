@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ExtensionDiscoveryError"],"struct":["DiscoveryOptions","ExtensionDiscovery"],"type":["Result"]};

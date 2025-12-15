@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["OpenAIMessageContent","OpenAIResponseFormat"],"struct":["OpenAIMessage","OpenAIModel"]};

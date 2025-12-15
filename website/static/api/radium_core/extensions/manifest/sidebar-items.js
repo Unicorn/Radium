@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ExtensionManifestError"],"struct":["ExtensionComponents","ExtensionManifest"],"type":["Result"]};

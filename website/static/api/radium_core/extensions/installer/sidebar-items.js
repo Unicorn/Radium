@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ExtensionInstallerError"],"struct":["ExtensionManager","InstallOptions"],"type":["Result"]};
