@@ -16,6 +16,7 @@ pub mod migration;
 pub mod monitoring;
 pub mod performance;
 pub mod schema;
+pub mod security;
 pub mod validation;
 pub mod verification;
 
@@ -25,3 +26,4 @@ pub use migration::{ComponentMigration, MigrationRecord, MigrationRunner, Verifi
 pub use monitoring::{HealthChecker, HealthReport, HealthStatus, MetricsRegistry, MetricsSnapshot, WorkflowMetrics, TraceCollector, TraceContext};
 pub use performance::{CompilationCache, CompilationProfiler, CompilationProfile, ProfileBuilder, CompilationStage};
 pub use schema::WorkflowDefinition;
+pub use security::{AuditEvent, AuditEventType, AuditLog, AuditSeverity, InputSanitizer, RateLimitConfig, RateLimitResult, SlidingWindowLimiter, TokenBucketLimiter};
