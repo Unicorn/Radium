@@ -99,9 +99,17 @@ struct GeminiTools {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 enum GeminiPart {
-    Text { text: String },
-    FunctionCall { function_call: GeminiFunctionCall },
-    FunctionResponse { function_response: GeminiFunctionResponse },
+    Text {
+        text: String
+    },
+    FunctionCall {
+        #[serde(rename = "functionCall")]
+        function_call: GeminiFunctionCall
+    },
+    FunctionResponse {
+        #[serde(rename = "functionResponse")]
+        function_response: GeminiFunctionResponse
+    },
 }
 
 /// Gemini function call
@@ -272,10 +280,15 @@ impl GeminiOrchestrator {
             return Err(OrchestrationError::Other(format!("Gemini API error: {}", error_text)));
         }
 
-        let gemini_response: GeminiResponse = response
-            .json()
-            .await
-            .map_err(|e| OrchestrationError::Other(format!("Failed to parse response: {}", e)))?;
+        // Get response text for debugging
+        let response_text = response.text().await
+            .map_err(|e| OrchestrationError::Other(format!("Failed to read response: {}", e)))?;
+
+        // Log the raw response for debugging (only shows with RUST_LOG=debug)
+        tracing::debug!("Gemini API response: {}", response_text);
+
+        let gemini_response: GeminiResponse = serde_json::from_str(&response_text)
+            .map_err(|e| OrchestrationError::Other(format!("Failed to parse response: {}. Response was: {}", e, response_text)))?;
 
         Ok(gemini_response)
     }

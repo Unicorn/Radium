@@ -69,14 +69,14 @@ pub struct AiEvaluator {
 }
 
 impl AiEvaluator {
-    /// Create a new evaluator using Gemini Flash 2.0 (cost-effective default).
+    /// Create a new evaluator using Gemini 2.0 Flash (cost-effective default).
     ///
     /// # Errors
     /// Returns an error if GEMINI_API_KEY is not set.
     pub fn new_gemini_flash() -> Result<Self> {
         let config = ModelConfig::new(
             ModelType::Gemini,
-            "gemini-2.0-flash-exp".to_string(),
+            "gemini-2.0-flash".to_string(),
         );
 
         let model = ModelFactory::create(config)

@@ -22,8 +22,9 @@ fn create_test_orchestrator() -> Arc<dyn radium_orchestrator::orchestration::Orc
         .expect("Either GEMINI_API_KEY or ANTHROPIC_API_KEY must be set");
 
     // For now, use Gemini. Could be extended to support Claude based on env var.
+    // Using gemini-2.0-flash (stable and compatible with orchestrator)
     Arc::new(
-        GeminiOrchestrator::new("gemini-2.0-flash-exp", api_key)
+        GeminiOrchestrator::new("gemini-2.0-flash", api_key)
             .with_temperature(0.7)
     )
 }
@@ -53,8 +54,18 @@ async fn test_tool_selection_for_simple_task() {
         .expect("Failed to create evaluator");
 
     // Create orchestrator with real file tools
+    // Use the RAD project root (go up from crates/radium-orchestrator/tests)
+    let mut workspace_root_path = env::current_dir().unwrap();
+    // Navigate to project root (typically /Users/clay/Development/RAD)
+    while workspace_root_path.file_name().map(|n| n.to_str()) != Some(Some("RAD")) {
+        if !workspace_root_path.pop() {
+            // Fallback to current dir if we can't find RAD
+            workspace_root_path = env::current_dir().unwrap();
+            break;
+        }
+    }
     let workspace_root = Arc::new(TestWorkspaceRoot {
-        root: env::current_dir().unwrap(),
+        root: workspace_root_path,
     });
     let tools = create_file_operation_tools(workspace_root);
     let provider = create_test_orchestrator();
@@ -64,10 +75,33 @@ async fn test_tool_selection_for_simple_task() {
     let mut context = OrchestrationContext::new("test-session");
     let result = engine.execute(&scenario.user_input, &mut context).await;
 
-    let response = match result {
+    let (response, full_trace) = match result {
         Ok(r) => {
             println!("✓ Orchestrator response received");
-            r.response
+
+            // Build a complete trace showing the full conversation
+            let mut trace = String::new();
+            trace.push_str("=== Full Orchestration Trace ===\n\n");
+
+            trace.push_str("User Request: ");
+            trace.push_str(&scenario.user_input);
+            trace.push_str("\n\n");
+
+            trace.push_str("Conversation History:\n");
+            for (i, msg) in context.conversation_history.iter().enumerate() {
+                let content_preview = if msg.content.len() > 300 {
+                    format!("{}...(truncated)", &msg.content[..300])
+                } else {
+                    msg.content.clone()
+                };
+                trace.push_str(&format!("{}. {}: {}\n\n", i + 1, msg.role, content_preview));
+            }
+
+            trace.push_str("Final Response: ");
+            trace.push_str(&r.response);
+            trace.push_str("\n\nNote: The conversation history above shows all interactions, including any tool calls made by the orchestrator.");
+
+            (r.response, trace)
         }
         Err(e) => {
             println!("✗ Orchestration failed: {}", e);
@@ -90,7 +124,7 @@ async fn test_tool_selection_for_simple_task() {
         &scenario.description,
         &scenario.user_input,
         &scenario.expected_behavior,
-        &response,
+        &full_trace,  // Use full trace instead of just final response
         &criteria,
     ).await.expect("Evaluation failed");
 
@@ -123,8 +157,16 @@ async fn test_tool_selection_for_multi_step_task() {
     let evaluator = AiEvaluator::from_env()
         .expect("Failed to create evaluator");
 
+    // Use the RAD project root
+    let mut workspace_root_path = env::current_dir().unwrap();
+    while workspace_root_path.file_name().map(|n| n.to_str()) != Some(Some("RAD")) {
+        if !workspace_root_path.pop() {
+            workspace_root_path = env::current_dir().unwrap();
+            break;
+        }
+    }
     let workspace_root = Arc::new(TestWorkspaceRoot {
-        root: env::current_dir().unwrap(),
+        root: workspace_root_path,
     });
     let tools = create_file_operation_tools(workspace_root);
     let provider = create_test_orchestrator();
@@ -133,10 +175,33 @@ async fn test_tool_selection_for_multi_step_task() {
     let mut context = OrchestrationContext::new("test-session");
     let result = engine.execute(&scenario.user_input, &mut context).await;
 
-    let response = match result {
+    let (response, full_trace) = match result {
         Ok(r) => {
             println!("✓ Orchestrator response received");
-            r.response
+
+            // Build a complete trace showing the full conversation
+            let mut trace = String::new();
+            trace.push_str("=== Full Orchestration Trace ===\n\n");
+
+            trace.push_str("User Request: ");
+            trace.push_str(&scenario.user_input);
+            trace.push_str("\n\n");
+
+            trace.push_str("Conversation History:\n");
+            for (i, msg) in context.conversation_history.iter().enumerate() {
+                let content_preview = if msg.content.len() > 300 {
+                    format!("{}...(truncated)", &msg.content[..300])
+                } else {
+                    msg.content.clone()
+                };
+                trace.push_str(&format!("{}. {}: {}\n\n", i + 1, msg.role, content_preview));
+            }
+
+            trace.push_str("Final Response: ");
+            trace.push_str(&r.response);
+            trace.push_str("\n\nNote: The conversation history above shows all interactions, including any tool calls made by the orchestrator.");
+
+            (r.response, trace)
         }
         Err(e) => {
             println!("✗ Orchestration failed: {}", e);
@@ -158,7 +223,7 @@ async fn test_tool_selection_for_multi_step_task() {
         &scenario.description,
         &scenario.user_input,
         &scenario.expected_behavior,
-        &response,
+        &full_trace,  // Use full trace instead of just final response
         &criteria,
     ).await.expect("Evaluation failed");
 
@@ -185,8 +250,16 @@ async fn test_avoids_tools_when_unnecessary() {
     let evaluator = AiEvaluator::from_env()
         .expect("Failed to create evaluator");
 
+    // Use the RAD project root
+    let mut workspace_root_path = env::current_dir().unwrap();
+    while workspace_root_path.file_name().map(|n| n.to_str()) != Some(Some("RAD")) {
+        if !workspace_root_path.pop() {
+            workspace_root_path = env::current_dir().unwrap();
+            break;
+        }
+    }
     let workspace_root = Arc::new(TestWorkspaceRoot {
-        root: env::current_dir().unwrap(),
+        root: workspace_root_path,
     });
     let tools = create_file_operation_tools(workspace_root);
     let provider = create_test_orchestrator();
@@ -195,10 +268,33 @@ async fn test_avoids_tools_when_unnecessary() {
     let mut context = OrchestrationContext::new("test-session");
     let result = engine.execute(&scenario.user_input, &mut context).await;
 
-    let response = match result {
+    let (response, full_trace) = match result {
         Ok(r) => {
             println!("✓ Orchestrator response received");
-            r.response
+
+            // Build a complete trace showing the full conversation
+            let mut trace = String::new();
+            trace.push_str("=== Full Orchestration Trace ===\n\n");
+
+            trace.push_str("User Request: ");
+            trace.push_str(&scenario.user_input);
+            trace.push_str("\n\n");
+
+            trace.push_str("Conversation History:\n");
+            for (i, msg) in context.conversation_history.iter().enumerate() {
+                let content_preview = if msg.content.len() > 300 {
+                    format!("{}...(truncated)", &msg.content[..300])
+                } else {
+                    msg.content.clone()
+                };
+                trace.push_str(&format!("{}. {}: {}\n\n", i + 1, msg.role, content_preview));
+            }
+
+            trace.push_str("Final Response: ");
+            trace.push_str(&r.response);
+            trace.push_str("\n\nNote: The conversation history above shows all interactions, including any tool calls made by the orchestrator.");
+
+            (r.response, trace)
         }
         Err(e) => {
             println!("✗ Orchestration failed: {}", e);
@@ -220,7 +316,7 @@ async fn test_avoids_tools_when_unnecessary() {
         &scenario.description,
         &scenario.user_input,
         &scenario.expected_behavior,
-        &response,
+        &full_trace,  // Use full trace instead of just final response
         &criteria,
     ).await.expect("Evaluation failed");
 
