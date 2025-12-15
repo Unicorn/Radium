@@ -9,7 +9,6 @@ use radium_workflow::schema::{
     NodeData, NodeType, Position, WorkflowDefinition, WorkflowEdge, WorkflowNode,
 };
 use radium_workflow::schema::components::*;
-use std::collections::HashMap;
 use std::fs;
 use tempfile::TempDir;
 

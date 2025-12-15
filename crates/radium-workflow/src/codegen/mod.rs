@@ -2,6 +2,10 @@
 //!
 //! Generates TypeScript code from validated workflow definitions using Handlebars templates.
 
+// Codegen types are part of the public interface
+#![allow(dead_code)]
+#![allow(unused_imports)]
+
 mod state_generator;
 mod typescript;
 

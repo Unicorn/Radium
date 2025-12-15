@@ -2,6 +2,10 @@
 //!
 //! Verifies generated TypeScript code using tsc and ESLint.
 
+// Verification types are part of the public interface
+#![allow(dead_code)]
+#![allow(unused_imports)]
+
 mod eslint;
 mod tsc;
 

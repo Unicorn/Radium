@@ -177,7 +177,7 @@ impl VersionChangePoint {
         ));
 
         // Generate patched() call
-        let camel_id = to_camel_case(&self.change_id);
+        let _camel_id = to_camel_case(&self.change_id);
         code.push_str(&format!(
             "if (patched('{}')) {{\n",
             self.change_id

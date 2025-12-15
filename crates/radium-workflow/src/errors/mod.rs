@@ -16,7 +16,6 @@ pub use suggestions::*;
 
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use thiserror::Error;
 
 /// Error severity levels
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -530,7 +529,7 @@ mod tests {
 
     #[test]
     fn test_errors_into_result() {
-        let mut errors = WorkflowErrors::new();
+        let errors = WorkflowErrors::new();
         assert!(errors.into_result(42).is_ok());
 
         let mut errors = WorkflowErrors::new();

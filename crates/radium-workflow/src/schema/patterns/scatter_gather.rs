@@ -7,7 +7,6 @@
 //! - Support timeout and threshold completion
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use validator::Validate;
 
 use super::WorkflowPattern;

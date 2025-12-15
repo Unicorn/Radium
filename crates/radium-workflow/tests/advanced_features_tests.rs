@@ -20,7 +20,7 @@ use radium_workflow::schema::{
     SignalHandlerLogic, VariableSource, VariableUpdate,
 
     // Queries
-    QueryDefinition, QuerySchema, QuerySchemaField, QueryHandlerLogic, WorkflowQueries,
+    QueryDefinition, QuerySchema, QueryHandlerLogic, WorkflowQueries,
 
     // Cancellation
     CancellationScope, CleanupConfig, CleanupActivity, StateUpdate, WorkflowCancellationHandler,
@@ -36,12 +36,12 @@ use radium_workflow::schema::{
     WorkflowPattern,
     SagaDefinition, SagaStep, SagaAction, CompensationBehavior,
     ScatterGatherDefinition, ScatterConfig, GatherConfig, GatherStrategy, ScatterWorker,
-    PipelineDefinition, PipelineStage, StageProcessor, PipelineErrorHandling,
+    PipelineDefinition, PipelineStage, StageProcessor,
     MapReduceDefinition, MapConfig, ReduceConfig, Mapper, Reducer,
 };
 
 // Import from components (not re-exported at schema level)
-use radium_workflow::schema::components::{ParentClosePolicy, WorkflowStatus, RetryConfig};
+use radium_workflow::schema::components::{ParentClosePolicy, RetryConfig};
 
 // Import standard functions from advanced module
 use radium_workflow::schema::advanced::{standard_queries, standard_search_attributes};
@@ -2607,7 +2607,7 @@ mod typescript_syntax_validation {
 
 mod serialization_consistency_tests {
     use super::*;
-    use radium_workflow::schema::patterns::WorkflowPattern;
+    
 
     /// Test that JSON serialization uses camelCase (TypeScript convention)
     fn assert_camel_case_keys(json: &str, keys: &[&str]) {

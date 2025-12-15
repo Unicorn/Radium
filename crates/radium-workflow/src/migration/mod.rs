@@ -11,6 +11,10 @@
 //! - `MigrationRunner` - batch migration execution
 //! - `Verification` - comparison testing against original behavior
 
+// Migration types are part of the public interface
+#![allow(dead_code)]
+#![allow(unused_imports)]
+
 mod framework;
 mod record;
 mod runner;

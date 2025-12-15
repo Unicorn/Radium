@@ -4,9 +4,9 @@
 //! defined in component-records/quality-checklist.yaml
 
 use std::fs;
-use std::path::Path;
 
 /// Quality criteria for migration records
+#[allow(dead_code)]
 struct QualityCriteria {
     min_schema_decisions: usize,
     min_unit_tests: usize,
@@ -223,7 +223,7 @@ fn test_lessons_learned_present() {
 #[test]
 fn test_rust_schema_file_paths_valid() {
     let records_dir = get_component_records_dir();
-    let src_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
+    let _src_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
 
     for component in EXPECTED_COMPONENTS {
         let record_path = records_dir.join(format!("{}.yaml", component));

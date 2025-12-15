@@ -287,7 +287,7 @@ pub mod checks {
     }
 
     /// Create a memory health check
-    pub fn memory_health(threshold_mb: u64) -> impl Fn() -> HealthCheckResult + Send + Sync {
+    pub fn memory_health(_threshold_mb: u64) -> impl Fn() -> HealthCheckResult + Send + Sync {
         move || {
             let start = Instant::now();
             // Note: In a real implementation, you'd use system APIs to get memory usage

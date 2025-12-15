@@ -4,6 +4,10 @@
 //! in a type-safe manner. These types mirror the TypeScript definitions in
 //! the workflow-builder package.
 
+// Schema types are part of the public API and may not be used internally yet
+#![allow(dead_code)]
+#![allow(unused_imports)]
+
 pub mod advanced;
 pub mod components;
 pub mod patterns;

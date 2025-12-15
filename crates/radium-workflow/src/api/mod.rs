@@ -2,6 +2,10 @@
 //!
 //! Provides REST API endpoints for workflow compilation and validation.
 
+// API types are part of the public interface
+#![allow(dead_code)]
+#![allow(unused_imports)]
+
 mod errors;
 mod handlers;
 mod middleware;

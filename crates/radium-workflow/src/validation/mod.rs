@@ -6,6 +6,10 @@
 //! - Variable reference validation
 //! - Data flow validation
 
+// Validation types are part of the public interface
+#![allow(dead_code)]
+#![allow(unused_imports)]
+
 mod components;
 mod data_flow;
 mod errors;

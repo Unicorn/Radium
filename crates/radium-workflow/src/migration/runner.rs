@@ -7,7 +7,6 @@ use std::path::{Path, PathBuf};
 
 use super::framework::{ComponentMigration, MigrationError};
 use super::record::MigrationRecord;
-use super::verification::VerificationResult;
 
 /// Status of a component migration
 #[derive(Debug, Clone, PartialEq, Eq)]
