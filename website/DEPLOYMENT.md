@@ -21,14 +21,10 @@ This guide explains how to deploy the Radium website to GitHub Pages.
 
 The website is configured in `docusaurus.config.ts`:
 
-- **URL**: `https://clay-curry.github.io` (for user/organization pages)
-- **Base URL**: `/` (for root deployment)
+- **URL**: `https://unicorn.github.io` (GitHub organization)
+- **Base URL**: `/Radium/` (project repository path)
 - **Organization**: `Unicorn`
 - **Project**: `Radium`
-
-If your repository is a project repository (not a user/organization page), you may need to update:
-- `baseUrl` to `'/Radium/'` or `'/RAD/'` (match your repo name)
-- `url` to match your GitHub Pages URL
 
 ### 3. Deployment
 
@@ -40,8 +36,7 @@ The website will automatically deploy when:
 ### 4. View Your Site
 
 After deployment, your site will be available at:
-- User/Organization page: `https://clay-curry.github.io`
-- Project page: `https://clay-curry.github.io/Radium` (if baseUrl is `/Radium/`)
+- Project page: `https://unicorn.github.io/Radium`
 
 ## Manual Deployment
 

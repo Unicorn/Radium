@@ -63,8 +63,8 @@ $ radium-cli chat code-reviewer
       <main>
         <StatsBar
           showGitHubStats={true}
-          githubOwner="clay-curry"
-          githubRepo="RAD"
+          githubOwner="Unicorn"
+          githubRepo="Radium"
           bordered={true}
         />
 

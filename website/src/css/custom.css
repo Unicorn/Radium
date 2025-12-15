@@ -211,11 +211,11 @@ a:hover {
 }
 
 /* External links or secondary links can use cyan */
-a[href^="http"]:not([href*="clay-curry.github.io"]):not([href*="localhost"]) {
+a[href^="http"]:not([href*="unicorn.github.io"]):not([href*="localhost"]) {
   color: var(--radium-primary);
 }
 
-a[href^="http"]:not([href*="clay-curry.github.io"]):not([href*="localhost"]):hover {
+a[href^="http"]:not([href*="unicorn.github.io"]):not([href*="localhost"]):hover {
   color: var(--radium-info);
 }
 

@@ -15,10 +15,10 @@ const config: Config = {
   },
 
   // Set the production url of your site here
-  url: 'https://clay-curry.github.io',
+  url: 'https://unicorn.github.io',
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
-  baseUrl: '/',
+  baseUrl: '/Radium/',
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
