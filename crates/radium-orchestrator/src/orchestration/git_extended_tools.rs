@@ -423,17 +423,35 @@ fn parse_git_status_porcelain_v2(
             continue;
         }
 
-        // Porcelain v2 format: 
-        // Regular: XY <sub> <mH> <mI> <mW> <hH> <hI> <path>
-        // Renamed: XY <sub> <mH> <mI> <mW> <hH> <hI> <X><score> <path1><sep><path2>
-        // X = status of index, Y = status of work tree
-        // X and Y can be: ' ' (unmodified), M (modified), A (added), D (deleted), R (renamed), C (copied), U (unmerged), ? (untracked)
+        // Porcelain v2 format:
+        // Regular: 1 <XY> <sub> <mH> <mI> <mW> <hH> <hI> <path>
+        // Renamed: 2 <XY> <sub> <mH> <mI> <mW> <hH> <hI> <X><score> <path1><sep><path2>
+        // Untracked: ? <path>
+        // XY = two character status field (X=index, Y=worktree)
+        // X and Y can be: '.' (unmodified), M (modified), A (added), D (deleted), R (renamed), etc.
         let parts: Vec<&str> = line.split_whitespace().collect();
-        if parts.len() < 2 {
+        if parts.is_empty() {
             continue;
         }
 
-        let status = parts[0];
+        // First field is entry type: '1' (ordinary), '2' (renamed/copied), '?' (untracked)
+        let entry_type = parts[0];
+
+        // Handle untracked files
+        if entry_type == "?" {
+            if parts.len() >= 2 {
+                let path = parts[1..].join(" ");
+                untracked.push(("??", path));
+            }
+            continue;
+        }
+
+        // For regular entries (type 1 or 2), status is in parts[1]
+        if (entry_type != "1" && entry_type != "2") || parts.len() < 2 {
+            continue;
+        }
+
+        let status = parts[1];
         if status.len() < 2 {
             continue;
         }
@@ -462,26 +480,23 @@ fn parse_git_status_porcelain_v2(
             continue;
         }
 
-        // Get path (last part after status and metadata)
-        let path = if parts.len() >= 8 {
-            // Full format with metadata
-            parts[7..].join(" ")
+        // Get path from porcelain v2 format: 1 <XY> <sub> <mH> <mI> <mW> <hH> <hI> <path>
+        // Path starts at index 8
+        let path = if parts.len() >= 9 {
+            parts[8..].join(" ")
         } else {
-            // Simplified format
-            parts[1..].join(" ")
+            continue; // Invalid format
         };
 
         // Categorize by index status (staged) and worktree status (modified)
+        // Note: Porcelain v2 uses '.' for unmodified, not ' '
         match (index_status, worktree_status) {
-            ('A', ' ') => staged.push(("A", path)),
-            ('M', ' ') => staged.push(("M", path)),
-            ('D', ' ') => staged.push(("D", path)),
-            (' ', 'M') => modified.push(("M", path)),
-            (' ', 'D') => deleted.push(("D", path)),
-            (' ', 'A') => modified.push(("A", path)),
-            ('?', '?') => untracked.push(("??", path)),
-            ('?', _) => untracked.push(("??", path)),
-            (_, '?') => untracked.push(("??", path)),
+            ('A', '.') | ('A', ' ') => staged.push(("A", path)),
+            ('M', '.') | ('M', ' ') => staged.push(("M", path)),
+            ('D', '.') | ('D', ' ') => staged.push(("D", path)),
+            ('.', 'M') | (' ', 'M') => modified.push(("M", path)),
+            ('.', 'D') | (' ', 'D') => deleted.push(("D", path)),
+            ('.', 'A') | (' ', 'A') => modified.push(("A", path)),
             ('M', 'M') => {
                 // Modified in both index and worktree
                 staged.push(("M", path.clone()));
