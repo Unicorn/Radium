@@ -297,5 +297,5 @@ When specifying version requirements (future):
 - [Extension Distribution Guide](extension-distribution.md)
 - [Extension Best Practices](extension-best-practices.md)
 - [Extension Testing Guide](extension-testing.md)
-- [Creating Extensions](../extensions/creating-extensions.md)
+- [Creating Extensions](../../extensions/creating-extensions.md)
 

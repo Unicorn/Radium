@@ -152,9 +152,9 @@ Step-by-step guides for common tasks:
 
 ## Roadmap & Vision
 
-- **[Roadmap](../roadmap/roadmap.md)** - Open-source roadmap and vision
-- **[Vision & Innovation](../roadmap/roadmap-vision.md)** - Long-term vision and innovations
-- **[Technical Architecture](../roadmap/roadmap-technical-architecture.md)** - Technical roadmap
+- **[Roadmap](../roadmap/index.md)** - Open-source roadmap and vision
+- **[Vision & Innovation](../roadmap/vision.md)** - Long-term vision and innovations
+- **[Technical Architecture](../roadmap/technical-architecture.md)** - Technical roadmap
 
 ## Best Practices
 

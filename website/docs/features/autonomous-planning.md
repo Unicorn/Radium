@@ -334,7 +334,7 @@ match planner.plan_from_goal(goal, model).await {
 
 ## See Also
 
-- [API Reference](../../crates/radium-core/src/planning/autonomous.rs) - Complete API documentation
+- [API Reference](https://github.com/Unicorn/Radium/tree/main/crates/radium-core/src/planning/autonomous.rs) - Complete API documentation
 - [CLI Commands](../cli/commands/plan-execution.md) - Command-line usage
 - [Examples](../examples/) - Usage examples
 

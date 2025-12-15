@@ -88,5 +88,5 @@ Tool input schemas are automatically converted from MCP JSON Schema format to ag
 
 ## Examples
 
-See [agent-with-mcp-tools.toml](../../examples/mcp/agent-with-mcp-tools.toml) for an example agent configuration.
+See [agent-with-mcp-tools.toml](https://github.com/Unicorn/Radium/tree/main/examples/mcp/agent-with-mcp-tools.toml) for an example agent configuration.
 

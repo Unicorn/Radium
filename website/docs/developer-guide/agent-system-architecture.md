@@ -454,6 +454,6 @@ Potential improvements:
 ## Related Documentation
 
 - [User Guide: Agent Configuration](../user-guide/agent-configuration.md) - User-facing documentation
-- [API Documentation](../../crates/radium-core/src/agents/) - Rust API docs
+- [API Documentation](https://github.com/Unicorn/Radium/tree/main/crates/radium-core/src/agents/) - Rust API docs
 - [CLI Reference](../cli/README.md) - Command-line interface
 

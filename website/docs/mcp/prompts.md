@@ -94,5 +94,5 @@ Common MCP prompts might include:
 
 ## Examples
 
-See [basic-server.toml](../../examples/mcp/basic-server.toml) for a server configuration with prompts.
+See [basic-server.toml](https://github.com/Unicorn/Radium/tree/main/examples/mcp/basic-server.toml) for a server configuration with prompts.
 

@@ -8,7 +8,7 @@ sidebar_label: "KOR Economic Model"
 
 **Source**: `KOR & KOR-C_ Overview and Economic Model v0.3.pdf`, `KOR _ KOR-C_ Economic & Chain Integration Spec v0.2.pdf`
 **Status**: 🚧 Extraction in Progress
-**Roadmap**: [Protocol Specifications Roadmap](../../roadmap/protocol-specifications.md#kor--kor-c-economic-model-v03)
+**Roadmap**: [Protocol Specifications Roadmap](../../roadmap/protocol-specifications.md)
 
 ## Overview
 
@@ -300,7 +300,7 @@ pub trait BridgeProtocol {
 
 ## Related Documentation
 
-- **[Protocol Specifications Roadmap](../../roadmap/protocol-specifications.md#kor--kor-c-economic-model-v03)**
+- **[Protocol Specifications Roadmap](../../roadmap/protocol-specifications.md)**
 - **[KOR Protocol Specification](./e1-kor-protocol.md)**
 - **[Marketplace Dynamics](./e2-marketplace-dynamics.md)**
 

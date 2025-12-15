@@ -104,7 +104,7 @@ Your prompt is now available for use in Radium. The extension system automatical
 - Add more components (MCP servers, commands, hooks)
 - Share your extension with others
 - Browse the marketplace for community extensions
-- Learn about [signing extensions](creating-extensions.md#signing-extensions)
+- Learn about [signing extensions](creating-extensions.md)
 - Read the [full documentation](README.md)
 
 ## Troubleshooting

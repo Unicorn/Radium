@@ -498,6 +498,6 @@ if status == 429 {
 - [Universal Provider Guide](./universal-provider-guide.md) - Detailed UniversalModel usage
 - [Setup Guides](setup/) - Provider-specific setup instructions
 - [Configuration Guide](configuration/agent-config.md) - Agent configuration examples
-- [Source Code](../../crates/radium-abstraction/src/lib.rs) - Model trait definition
-- [Factory Source Code](../../crates/radium-models/src/factory.rs) - ModelFactory implementation
+- [Source Code](https://github.com/Unicorn/Radium/tree/main/crates/radium-abstraction/src/lib.rs) - Model trait definition
+- [Factory Source Code](https://github.com/Unicorn/Radium/tree/main/crates/radium-models/src/factory.rs) - ModelFactory implementation
 

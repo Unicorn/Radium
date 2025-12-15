@@ -69,7 +69,7 @@ let config = ModelConfig::new(ModelType::Claude, "claude-3-sonnet".to_string())
 
 Check `cache_usage` in `ModelResponse` to see cache hit rates and cost savings. Aim for >50% cache hit rate for optimal cost reduction.
 
-See [Context Caching Documentation](../features/context-caching.md) for detailed information.
+See [Context Caching Documentation](../../features/context-caching.md) for detailed information.
 
 ### 2. Model Selection
 
@@ -234,6 +234,6 @@ Success Rate: 92.6% → 96.1%    ← Fewer failures
 
 ## Additional Resources
 
-- [Session Analytics Documentation](../features/session-analytics.md) - Complete feature documentation
-- [Agent Configuration](../user-guide/agent-configuration.md) - Configure agents for efficiency
+- [Session Analytics Documentation](../../features/session-analytics.md) - Complete feature documentation
+- [Agent Configuration](../agent-configuration.md) - Configure agents for efficiency
 

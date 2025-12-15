@@ -103,7 +103,7 @@ To see the model's thinking process, use the `--show-metadata` flag:
 rad step math-solver "Complex problem" --show-metadata
 ```
 
-For more details, see the [Thinking Mode](../features/thinking-mode.md) and [Reasoning Configuration](../guides/reasoning-configuration.md) guides.
+For more details, see the [Thinking Mode](../features/thinking-mode.md) and [Reasoning Configuration](./guides/reasoning-configuration.md) guides.
 
 ## Agent Behaviors
 

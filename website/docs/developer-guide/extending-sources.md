@@ -409,8 +409,8 @@ pub fn load_readers_from_config(config: &Config) -> Result<Vec<Box<dyn SourceRea
 
 ## References
 
-- [SourceReader Trait](../../crates/radium-core/src/context/sources/traits.rs) - Trait definition
-- [Built-in Readers](../../crates/radium-core/src/context/sources/) - Example implementations
-- [Source Registry](../../crates/radium-core/src/context/sources/registry.rs) - Registration system
+- [SourceReader Trait](https://github.com/Unicorn/Radium/tree/main/crates/radium-core/src/context/sources/traits.rs) - Trait definition
+- [Built-in Readers](https://github.com/Unicorn/Radium/tree/main/crates/radium-core/src/context/sources/) - Example implementations
+- [Source Registry](https://github.com/Unicorn/Radium/tree/main/crates/radium-core/src/context/sources/registry.rs) - Registration system
 - [Context Sources User Guide](../user-guide/context-sources.md) - User-facing documentation
 

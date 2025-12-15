@@ -17,7 +17,7 @@ Radium is evolving toward a **composable intelligence infrastructure** where AI 
 - **Continuous Improvement**: Self-healing and self-improving ecosystems
 - **Global Collaboration**: Shared component marketplace
 
-Learn more in our [Roadmap](../roadmap/roadmap.md).
+Learn more in our [Roadmap](../roadmap/index.md).
 
 ## Agents
 
@@ -84,7 +84,7 @@ The Component Foundry Pattern (from OpenKor) provides:
 - **Composition Rules**: Clear guidelines for combining components
 - **Version Management**: Semantic versioning and compatibility
 
-**Learn more**: [Extension System](../extensions/README) | [Roadmap: Component Foundry](../roadmap/roadmap-vision.md#1-component-foundry-pattern-cfp)
+**Learn more**: [Extension System](../extensions/README) | [Roadmap: Component Foundry](../roadmap/vision.md#1-component-foundry-pattern-cfp)
 
 ## Policies & Security
 
@@ -195,7 +195,7 @@ Radium is evolving toward a **global component ecosystem**:
 - Goal-driven component selection
 - Dynamic reconfiguration
 
-**Learn more**: [Roadmap: Vision & Innovation](../roadmap/roadmap-vision.md)
+**Learn more**: [Roadmap: Vision & Innovation](../roadmap/vision.md)
 
 ## Key Architectural Patterns
 
@@ -208,14 +208,14 @@ Components that generate other components recursively, creating self-extending s
 ### Autonomous Component-Centric Assembly (ACCA)
 Systems that automatically assemble themselves from available components based on goals and constraints.
 
-**Learn more**: [Roadmap: Vision & Innovation](../roadmap/roadmap-vision.md#key-innovations)
+**Learn more**: [Roadmap: Vision & Innovation](../roadmap/vision.md#key-innovations)
 
 ## Next Steps
 
 - **[Quick Start](./quick-start.md)** - Create your first agent
 - **[User Guide](../user-guide/overview.md)** - Explore all features
 - **[Developer Guide](../developer-guide/overview.md)** - Extend Radium
-- **[Roadmap](../roadmap/roadmap.md)** - See the future vision
+- **[Roadmap](../roadmap/index.md)** - See the future vision
 
 ---
 

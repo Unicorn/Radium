@@ -439,6 +439,6 @@ Error: Dependency task not completed: I1.T1
 
 ## See Also
 
-- [API Reference](../../crates/radium-core/src/planning/executor.rs) - Complete API documentation
+- [API Reference](https://github.com/Unicorn/Radium/tree/main/crates/radium-core/src/planning/executor.rs) - Complete API documentation
 - [Examples](../examples/) - Usage examples
 

@@ -188,6 +188,6 @@ Vibe Check automatically integrates with the learning system:
 
 - [Learning System Documentation](./learning-system.md)
 - [Constitution Rules Documentation](./constitution-rules.md)
-- [Vibe Check Implementation](../../crates/radium-core/src/workflow/behaviors/vibe_check.rs)
-- [Oversight Service Implementation](../../crates/radium-core/src/oversight/)
+- [Vibe Check Implementation](https://github.com/Unicorn/Radium/tree/main/crates/radium-core/src/workflow/behaviors/vibe_check.rs)
+- [Oversight Service Implementation](https://github.com/Unicorn/Radium/tree/main/crates/radium-core/src/oversight/)
 

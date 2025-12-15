@@ -9,19 +9,19 @@
    Based on #4af5b0 palette
    ============================================ */
 :root {
-  /* Primary Theme Colors - Radium Green */
-  --voiceflow-green-primary: #4af5b0;
-  --voiceflow-green-dark: #3dd19a;
-  --voiceflow-green-darker: #2fad84;
-  --voiceflow-green-darkest: #21896e;
-  --voiceflow-green-light: #6ff7c4;
-  --voiceflow-green-lighter: #94f9d8;
-  --voiceflow-green-lightest: #b9fbec;
-  --voiceflow-green-glow: rgba(74, 245, 176, 0.2);
-  --voiceflow-green-glow-strong: rgba(74, 245, 176, 0.4);
-  --voiceflow-bg-gradient-start: #0a1f1a;
-  --voiceflow-bg-gradient-mid: #1a1a1a;
-  --voiceflow-bg-gradient-end: #0a0a0a;
+	/* Primary Theme Colors - Radium Green */
+	--voiceflow-green-primary: #4af5b0;
+	--voiceflow-green-dark: #3dd19a;
+	--voiceflow-green-darker: #2fad84;
+	--voiceflow-green-darkest: #21896e;
+	--voiceflow-green-light: #6ff7c4;
+	--voiceflow-green-lighter: #94f9d8;
+	--voiceflow-green-lightest: #b9fbec;
+	--voiceflow-green-glow: rgba(74, 245, 176, 0.2);
+	--voiceflow-green-glow-strong: rgba(74, 245, 176, 0.4);
+	--voiceflow-bg-gradient-start: #0a1f1a;
+	--voiceflow-bg-gradient-mid: #1a1a1a;
+	--voiceflow-bg-gradient-end: #0a0a0a;
 }
 
 /* ============================================
@@ -29,151 +29,173 @@
    Source: apps/tui/src/theme.rs (RadiumTheme::radium())
    ============================================ */
 :root {
-  /* Primary Brand Colors */
-  --radium-primary: #00D9FF; /* Cyan */
-  --radium-secondary: #A78BFA; /* Purple */
-  --radium-purple-accent: #6250d0;
-  
-  /* Status Colors */
-  --radium-success: #10B981; /* Green */
-  --radium-warning: #F59E0B; /* Yellow */
-  --radium-error: #EF4444; /* Red */
-  --radium-info: #06B6D4; /* Blue */
-  
-  /* Text Colors */
-  --radium-text: #eeeeee;
-  --radium-text-muted: #808080;
-  --radium-text-dim: #606060;
-  
-  /* Background Colors */
-  --radium-bg-primary: #181D27;
-  --radium-bg-panel: #141414;
-  --radium-bg-element: #1e1e1e;
-  
-  /* Border Colors */
-  --radium-border: #484848;
-  --radium-border-active: #606060;
-  --radium-border-subtle: #3c3c3c;
-  
-  /* Glow Effects */
-  --radium-glow-cyan: rgba(0, 217, 255, 0.2);
-  --radium-glow-cyan-strong: rgba(0, 217, 255, 0.4);
-  --radium-glow-purple: rgba(167, 139, 250, 0.2);
-  --radium-glow-purple-strong: rgba(167, 139, 250, 0.4);
+	/* Primary Brand Colors */
+	--radium-primary: #00d9ff; /* Cyan */
+	--radium-secondary: #a78bfa; /* Purple */
+	--radium-purple-accent: #6250d0;
+
+	/* Status Colors */
+	--radium-success: #10b981; /* Green */
+	--radium-warning: #f59e0b; /* Yellow */
+	--radium-error: #ef4444; /* Red */
+	--radium-info: #06b6d4; /* Blue */
+
+	/* Text Colors */
+	--radium-text: #eeeeee;
+	--radium-text-muted: #808080;
+	--radium-text-dim: #606060;
+
+	/* Background Colors */
+	--radium-bg-primary: #181d27;
+	--radium-bg-panel: #141414;
+	--radium-bg-element: #1e1e1e;
+
+	/* Border Colors */
+	--radium-border: #484848;
+	--radium-border-active: #606060;
+	--radium-border-subtle: #3c3c3c;
+
+	/* Glow Effects */
+	--radium-glow-cyan: rgba(0, 217, 255, 0.2);
+	--radium-glow-cyan-strong: rgba(0, 217, 255, 0.4);
+	--radium-glow-purple: rgba(167, 139, 250, 0.2);
+	--radium-glow-purple-strong: rgba(167, 139, 250, 0.4);
 }
 
 /* ============================================
    Docusaurus/Infima Color Mapping
    ============================================ */
 :root {
-  /* Use VoiceFlow green as primary for Docusaurus */
-  --ifm-color-primary: var(--voiceflow-green-primary);
-  --ifm-color-primary-dark: var(--voiceflow-green-dark);
-  --ifm-color-primary-darker: var(--voiceflow-green-darker);
-  --ifm-color-primary-darkest: var(--voiceflow-green-darkest);
-  --ifm-color-primary-light: var(--voiceflow-green-light);
-  --ifm-color-primary-lighter: var(--voiceflow-green-lighter);
-  --ifm-color-primary-lightest: var(--voiceflow-green-lightest);
-  
-  /* Semantic color variables for flexibility */
-  --color-primary: var(--voiceflow-green-primary);
-  --color-secondary: var(--radium-secondary);
-  --color-accent: var(--radium-primary);
-  
-  --ifm-code-font-size: 95%;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+	/* Use VoiceFlow green as primary for Docusaurus */
+	--ifm-color-primary: var(--voiceflow-green-primary);
+	--ifm-color-primary-dark: var(--voiceflow-green-dark);
+	--ifm-color-primary-darker: var(--voiceflow-green-darker);
+	--ifm-color-primary-darkest: var(--voiceflow-green-darkest);
+	--ifm-color-primary-light: var(--voiceflow-green-light);
+	--ifm-color-primary-lighter: var(--voiceflow-green-lighter);
+	--ifm-color-primary-lightest: var(--voiceflow-green-lightest);
+
+	/* Semantic color variables for flexibility */
+	--color-primary: var(--voiceflow-green-primary);
+	--color-secondary: var(--radium-secondary);
+	--color-accent: var(--radium-primary);
+
+	--ifm-code-font-size: 95%;
+	--docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
 }
 
 /* ============================================
    Dark Mode (Default)
    ============================================ */
-[data-theme='dark'] {
-  /* Keep VoiceFlow green as primary in dark mode */
-  --ifm-color-primary: var(--voiceflow-green-primary);
-  --ifm-color-primary-dark: var(--voiceflow-green-dark);
-  --ifm-color-primary-darker: var(--voiceflow-green-darker);
-  --ifm-color-primary-darkest: var(--voiceflow-green-darkest);
-  --ifm-color-primary-light: var(--voiceflow-green-light);
-  --ifm-color-primary-lighter: var(--voiceflow-green-lighter);
-  --ifm-color-primary-lightest: var(--voiceflow-green-lightest);
-  
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
-  
-  /* Set global background to VoiceFlow dark gradient */
-  --ifm-background-color: var(--voiceflow-bg-gradient-end);
-  --ifm-background-surface-color: var(--radium-bg-panel);
+[data-theme="dark"] {
+	/* Keep VoiceFlow green as primary in dark mode */
+	--ifm-color-primary: var(--voiceflow-green-primary);
+	--ifm-color-primary-dark: var(--voiceflow-green-dark);
+	--ifm-color-primary-darker: var(--voiceflow-green-darker);
+	--ifm-color-primary-darkest: var(--voiceflow-green-darkest);
+	--ifm-color-primary-light: var(--voiceflow-green-light);
+	--ifm-color-primary-lighter: var(--voiceflow-green-lighter);
+	--ifm-color-primary-lightest: var(--voiceflow-green-lightest);
+
+	--docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+
+	/* Set global background to VoiceFlow dark gradient */
+	--ifm-background-color: var(--voiceflow-bg-gradient-end);
+	--ifm-background-surface-color: var(--radium-bg-panel);
 }
 
 /* ============================================
    Marketing-specific CSS Variables
    ============================================ */
 :root {
-  /* Spacing */
-  --marketing-section-padding: 4rem 0;
-  --marketing-section-padding-lg: 6rem 0;
-  --marketing-section-padding-sm: 2rem 0;
+	/* Spacing */
+	--marketing-section-padding: 4rem 0;
+	--marketing-section-padding-lg: 6rem 0;
+	--marketing-section-padding-sm: 2rem 0;
 
-  /* Typography */
-  --marketing-heading-xl: 3.5rem;
-  --marketing-heading-lg: 2.5rem;
-  --marketing-heading-md: 2rem;
-  --marketing-heading-sm: 1.5rem;
-  --marketing-body-lg: 1.25rem;
-  --marketing-body-md: 1rem;
-  --marketing-body-sm: 0.875rem;
+	/* Typography */
+	--marketing-heading-xl: 3.5rem;
+	--marketing-heading-lg: 2.5rem;
+	--marketing-heading-md: 2rem;
+	--marketing-heading-sm: 1.5rem;
+	--marketing-body-lg: 1.25rem;
+	--marketing-body-md: 1rem;
+	--marketing-body-sm: 0.875rem;
 
-  /* Shadows */
-  --marketing-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
-  --marketing-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
-  --marketing-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.15);
-  --marketing-shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.2);
+	/* Shadows */
+	--marketing-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+	--marketing-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+	--marketing-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.15);
+	--marketing-shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.2);
 
-  /* Borders */
-  --marketing-border-radius: 12px;
-  --marketing-border-radius-sm: 8px;
-  --marketing-border-radius-lg: 16px;
-  --marketing-border-radius-pill: 24px; /* Pill-shaped buttons */
+	/* Borders */
+	--marketing-border-radius: 12px;
+	--marketing-border-radius-sm: 8px;
+	--marketing-border-radius-lg: 16px;
+	--marketing-border-radius-pill: 24px; /* Pill-shaped buttons */
 
-  /* Gradients - VoiceFlow Green Primary */
-  --marketing-gradient-primary: linear-gradient(135deg, var(--voiceflow-green-primary) 0%, var(--voiceflow-green-dark) 100%);
-  --marketing-gradient-hero: linear-gradient(135deg, var(--voiceflow-bg-gradient-start) 0%, var(--voiceflow-bg-gradient-mid) 50%, var(--voiceflow-bg-gradient-end) 100%);
-  --marketing-gradient-cyan: linear-gradient(135deg, var(--radium-primary) 0%, var(--radium-info) 100%);
-  --marketing-gradient-purple: linear-gradient(135deg, var(--radium-secondary) 0%, var(--radium-purple-accent) 100%);
+	/* Gradients - VoiceFlow Green Primary */
+	--marketing-gradient-primary: linear-gradient(
+		135deg,
+		var(--voiceflow-green-primary) 0%,
+		var(--voiceflow-green-dark) 100%
+	);
+	--marketing-gradient-hero: linear-gradient(
+		135deg,
+		var(--voiceflow-bg-gradient-start) 0%,
+		var(--voiceflow-bg-gradient-mid) 50%,
+		var(--voiceflow-bg-gradient-end) 100%
+	);
+	--marketing-gradient-cyan: linear-gradient(
+		135deg,
+		var(--radium-primary) 0%,
+		var(--radium-info) 100%
+	);
+	--marketing-gradient-purple: linear-gradient(
+		135deg,
+		var(--radium-secondary) 0%,
+		var(--radium-purple-accent) 100%
+	);
 
-  /* Glow Effects */
-  --glow-green: var(--voiceflow-green-glow);
-  --glow-green-strong: var(--voiceflow-green-glow-strong);
-  --glow-cyan: var(--radium-glow-cyan);
-  --glow-cyan-strong: var(--radium-glow-cyan-strong);
-  --glow-purple: var(--radium-glow-purple);
-  --glow-purple-strong: var(--radium-glow-purple-strong);
+	/* Glow Effects */
+	--glow-green: var(--voiceflow-green-glow);
+	--glow-green-strong: var(--voiceflow-green-glow-strong);
+	--glow-cyan: var(--radium-glow-cyan);
+	--glow-cyan-strong: var(--radium-glow-cyan-strong);
+	--glow-purple: var(--radium-glow-purple);
+	--glow-purple-strong: var(--radium-glow-purple-strong);
 
-  /* Transitions */
-  --marketing-transition-fast: 0.15s ease;
-  --marketing-transition-normal: 0.2s ease;
-  --marketing-transition-slow: 0.3s ease;
+	/* Transitions */
+	--marketing-transition-fast: 0.15s ease;
+	--marketing-transition-normal: 0.2s ease;
+	--marketing-transition-slow: 0.3s ease;
 
-  /* Glassmorphism Variables */
-  --glass-bg-light: rgba(255, 255, 255, 0.05);
-  --glass-bg-dark: rgba(0, 0, 0, 0.2);
-  --glass-bg-medium: rgba(0, 0, 0, 0.15);
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --glass-border-strong: rgba(255, 255, 255, 0.2);
-  --glass-blur: 10px;
-  --glass-blur-strong: 20px;
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  --glass-shadow-strong: 0 12px 48px rgba(0, 0, 0, 0.15);
+	/* Glassmorphism Variables */
+	--glass-bg-light: rgba(255, 255, 255, 0.05);
+	--glass-bg-dark: rgba(0, 0, 0, 0.2);
+	--glass-bg-medium: rgba(0, 0, 0, 0.15);
+	--glass-border: rgba(255, 255, 255, 0.1);
+	--glass-border-strong: rgba(255, 255, 255, 0.2);
+	--glass-blur: 10px;
+	--glass-blur-strong: 20px;
+	--glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+	--glass-shadow-strong: 0 12px 48px rgba(0, 0, 0, 0.15);
 }
 
-[data-theme='dark'] {
-  /* Adjust shadows for dark mode */
-  --marketing-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
-  --marketing-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-  --marketing-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --marketing-shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.6);
+[data-theme="dark"] {
+	/* Adjust shadows for dark mode */
+	--marketing-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+	--marketing-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+	--marketing-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+	--marketing-shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.6);
 
-  /* Keep VoiceFlow gradient for dark mode */
-  --marketing-gradient-hero: linear-gradient(135deg, var(--voiceflow-bg-gradient-start) 0%, var(--voiceflow-bg-gradient-mid) 50%, var(--voiceflow-bg-gradient-end) 100%);
+	/* Keep VoiceFlow gradient for dark mode */
+	--marketing-gradient-hero: linear-gradient(
+		135deg,
+		var(--voiceflow-bg-gradient-start) 0%,
+		var(--voiceflow-bg-gradient-mid) 50%,
+		var(--voiceflow-bg-gradient-end) 100%
+	);
 }
 
 /* ============================================
@@ -182,109 +204,113 @@
 
 /* Set global background to VoiceFlow dark gradient */
 html {
-  background: var(--marketing-gradient-hero);
-  background-attachment: fixed;
+	background: var(--marketing-gradient-hero);
+	background-attachment: fixed;
 }
 
 body {
-  background: transparent;
+	background: transparent;
 }
 
 /* Links - Neutral with green accents (specific components override this) */
 a {
-  color: var(--radium-text-muted);
-  transition: color var(--marketing-transition-fast),
-              border-color var(--marketing-transition-fast);
+	color: var(--radium-text-muted);
+	transition:
+		color var(--marketing-transition-fast),
+		border-color var(--marketing-transition-fast);
 }
 
 a:hover {
-  color: var(--voiceflow-green-primary);
+	color: var(--voiceflow-green-primary);
 }
 
 /* Light mode global links */
-[data-theme='light'] a {
-  color: var(--radium-text-muted-light);
+[data-theme="light"] a {
+	color: var(--radium-text-muted-light);
 }
 
-[data-theme='light'] a:hover {
-  color: var(--voiceflow-green-primary);
+[data-theme="light"] a:hover {
+	color: var(--voiceflow-green-primary);
 }
 
 /* External links or secondary links can use cyan */
 a[href^="http"]:not([href*="unicorn.github.io"]):not([href*="localhost"]) {
-  color: var(--radium-primary);
+	color: var(--radium-primary);
 }
 
-a[href^="http"]:not([href*="unicorn.github.io"]):not([href*="localhost"]):hover {
-  color: var(--radium-info);
+a[href^="http"]:not([href*="unicorn.github.io"]):not(
+		[href*="localhost"]
+	):hover {
+	color: var(--radium-info);
 }
 
 /* Status messages using Radium colors */
 .alert--success {
-  --ifm-alert-color: var(--radium-success);
-  border-color: var(--radium-success);
+	--ifm-alert-color: var(--radium-success);
+	border-color: var(--radium-success);
 }
 
 .alert--warning {
-  --ifm-alert-color: var(--radium-warning);
-  border-color: var(--radium-warning);
+	--ifm-alert-color: var(--radium-warning);
+	border-color: var(--radium-warning);
 }
 
 .alert--danger,
 .alert--error {
-  --ifm-alert-color: var(--radium-error);
-  border-color: var(--radium-error);
+	--ifm-alert-color: var(--radium-error);
+	border-color: var(--radium-error);
 }
 
 .alert--info {
-  --ifm-alert-color: var(--radium-info);
-  border-color: var(--radium-info);
+	--ifm-alert-color: var(--radium-info);
+	border-color: var(--radium-info);
 }
 
 /* Code blocks - use Radium colors for better contrast */
 code {
-  background: var(--radium-bg-element);
-  color: var(--radium-text);
-  border: 1px solid var(--radium-border);
+	background: var(--radium-bg-element);
+	color: var(--radium-text);
+	border: 1px solid var(--radium-border);
 }
 
 /* Smooth transitions for theme elements */
 * {
-  transition: background-color var(--marketing-transition-normal),
-              border-color var(--marketing-transition-normal),
-              color var(--marketing-transition-normal);
+	transition:
+		background-color var(--marketing-transition-normal),
+		border-color var(--marketing-transition-normal),
+		color var(--marketing-transition-normal);
 }
 
 /* ============================================
    Light Mode Color Variables
    ============================================ */
 :root {
-  /* Light mode text colors */
-  --radium-text-light: #1a1a1a;
-  --radium-text-muted-light: #666666;
-  --radium-text-dim-light: #999999;
-  
-  /* Light mode background colors */
-  --radium-bg-primary-light: #ffffff;
-  --radium-bg-panel-light: #f5f5f5;
-  --radium-bg-element-light: #fafafa;
-  
-  /* Light mode border colors */
-  --radium-border-light: #e0e0e0;
-  --radium-border-active-light: #d0d0d0;
-  --radium-border-subtle-light: #f0f0f0;
+	/* Light mode text colors */
+	--radium-text-light: #1a1a1a;
+	--radium-text-muted-light: #666666;
+	--radium-text-dim-light: #999999;
+
+	/* Light mode background colors */
+	--radium-bg-primary-light: #ffffff;
+	--radium-bg-panel-light: #f5f5f5;
+	--radium-bg-element-light: #fafafa;
+
+	/* Light mode border colors */
+	--radium-border-light: #e0e0e0;
+	--radium-border-active-light: #d0d0d0;
+	--radium-border-subtle-light: #f0f0f0;
 }
 
-[data-theme='light'] {
-  --ifm-background-color: #ffffff;
-  --ifm-background-surface-color: var(--radium-bg-panel-light);
+[data-theme="light"] {
+	--ifm-background-color: #ffffff;
+	--ifm-background-surface-color: var(--radium-bg-panel-light);
 }
 
 /* ============================================
    Remove "Next" Pagination Link
    ============================================ */
 .pagination-nav__link--next {
-  display: none !important;
+	display: none !important;
 }
 
 /* ============================================
@@ -293,42 +319,62 @@ code {
 
 /* Default navbar link colors - neutral */
 .navbar__link {
-  color: var(--radium-text) !important;
-  transition: color var(--marketing-transition-fast),
-              border-color var(--marketing-transition-fast),
-              background-color var(--marketing-transition-fast);
+	color: var(--radium-text) !important;
+	transition:
+		color var(--marketing-transition-fast),
+		border-color var(--marketing-transition-fast),
+		background-color var(--marketing-transition-fast);
 }
 
 .navbar__link:hover {
-  color: var(--radium-text) !important;
-  border-bottom: 2px solid var(--voiceflow-green-primary);
-  background-color: transparent;
+	color: var(--radium-text) !important;
+	border-bottom: 2px solid var(--voiceflow-green-primary);
+	background-color: transparent;
 }
 
 .navbar__link--active {
-  color: var(--radium-text) !important;
-  border-bottom: 2px solid var(--voiceflow-green-primary);
-  background-color: transparent;
+	color: var(--radium-text) !important;
+	border-bottom: 2px solid var(--voiceflow-green-primary);
+	background-color: transparent;
 }
 
 /* Light mode navbar */
-[data-theme='light'] .navbar__link {
-  color: var(--radium-text-light) !important;
+[data-theme="light"] .navbar__link {
+	color: var(--radium-text-light) !important;
 }
 
-[data-theme='light'] .navbar__link:hover,
-[data-theme='light'] .navbar__link--active {
-  color: var(--radium-text-light) !important;
-  border-bottom-color: var(--voiceflow-green-primary);
+[data-theme="light"] .navbar__link:hover,
+[data-theme="light"] .navbar__link--active {
+	color: var(--radium-text-light) !important;
+	border-bottom-color: var(--voiceflow-green-primary);
 }
 
 /* Navbar brand/logo area */
 .navbar__brand {
-  color: var(--radium-text) !important;
+	color: var(--radium-text) !important;
 }
 
-[data-theme='light'] .navbar__brand {
-  color: var(--radium-text-light) !important;
+[data-theme="light"] .navbar__brand {
+	color: var(--radium-text-light) !important;
+}
+
+/* Hide "Next" link in navbar - target by href */
+.navbar a[href*="/docs/introduction"],
+.navbar a[href="/docs/introduction"],
+.navbar a[href*="docs/introduction"] {
+	display: none !important;
+	visibility: hidden !important;
+	width: 0 !important;
+	height: 0 !important;
+	overflow: hidden !important;
+}
+
+/* Hide navbar items containing Next link */
+.navbar__item:has(a[href*="/docs/introduction"]),
+.navbar__item:has(a[href="/docs/introduction"]),
+.navbar__item:has(a[href*="docs/introduction"]) {
+	display: none !important;
+	visibility: hidden !important;
 }
 
 /* ============================================
@@ -336,67 +382,68 @@ code {
    ============================================ */
 
 .footer {
-  background-color: var(--radium-bg-panel);
-  border-top: 1px solid var(--radium-border);
+	background-color: var(--radium-bg-panel);
+	border-top: 1px solid var(--radium-border);
 }
 
 .footer__title {
-  color: var(--radium-text);
+	color: var(--radium-text);
 }
 
 .footer__link-item {
-  color: var(--radium-text-muted);
-  transition: color var(--marketing-transition-fast),
-              border-color var(--marketing-transition-fast);
+	color: var(--radium-text-muted);
+	transition:
+		color var(--marketing-transition-fast),
+		border-color var(--marketing-transition-fast);
 }
 
 .footer__link-item:hover {
-  color: var(--radium-text);
-  border-bottom: 1px solid var(--voiceflow-green-primary);
+	color: var(--radium-text);
+	border-bottom: 1px solid var(--voiceflow-green-primary);
 }
 
 .footer__link {
-  color: var(--radium-text-muted);
-  transition: color var(--marketing-transition-fast);
+	color: var(--radium-text-muted);
+	transition: color var(--marketing-transition-fast);
 }
 
 .footer__link:hover {
-  color: var(--voiceflow-green-primary);
+	color: var(--voiceflow-green-primary);
 }
 
 .footer__copyright {
-  color: var(--radium-text-muted);
+	color: var(--radium-text-muted);
 }
 
 /* Light mode footer */
-[data-theme='light'] .footer {
-  background-color: var(--radium-bg-panel-light);
-  border-top-color: var(--radium-border-light);
+[data-theme="light"] .footer {
+	background-color: var(--radium-bg-panel-light);
+	border-top-color: var(--radium-border-light);
 }
 
-[data-theme='light'] .footer__title {
-  color: var(--radium-text-light);
+[data-theme="light"] .footer__title {
+	color: var(--radium-text-light);
 }
 
-[data-theme='light'] .footer__link-item {
-  color: var(--radium-text-muted-light);
+[data-theme="light"] .footer__link-item {
+	color: var(--radium-text-muted-light);
 }
 
-[data-theme='light'] .footer__link-item:hover {
-  color: var(--radium-text-light);
-  border-bottom-color: var(--voiceflow-green-primary);
+[data-theme="light"] .footer__link-item:hover {
+	color: var(--radium-text-light);
+	border-bottom-color: var(--voiceflow-green-primary);
 }
 
-[data-theme='light'] .footer__link {
-  color: var(--radium-text-muted-light);
+[data-theme="light"] .footer__link {
+	color: var(--radium-text-muted-light);
 }
 
-[data-theme='light'] .footer__link:hover {
-  color: var(--voiceflow-green-primary);
+[data-theme="light"] .footer__link:hover {
+	color: var(--voiceflow-green-primary);
 }
 
-[data-theme='light'] .footer__copyright {
-  color: var(--radium-text-muted-light);
+[data-theme="light"] .footer__copyright {
+	color: var(--radium-text-muted-light);
 }
 
 /* ============================================
@@ -405,184 +452,188 @@ code {
 
 /* Sidebar navigation - neutral colors */
 .theme-doc-sidebar-item-link {
-  color: var(--radium-text-muted) !important;
-  transition: color var(--marketing-transition-fast),
-              border-color var(--marketing-transition-fast),
-              background-color var(--marketing-transition-fast);
+	color: var(--radium-text-muted) !important;
+	transition:
+		color var(--marketing-transition-fast),
+		border-color var(--marketing-transition-fast),
+		background-color var(--marketing-transition-fast);
 }
 
 .theme-doc-sidebar-item-link:hover {
-  color: var(--radium-text) !important;
-  background-color: transparent;
-  border-left: 3px solid var(--voiceflow-green-primary);
+	color: var(--radium-text) !important;
+	background-color: transparent;
+	border-left: 3px solid var(--voiceflow-green-primary);
 }
 
 .theme-doc-sidebar-item-link-level-1.menu__link--active,
 .theme-doc-sidebar-item-link-level-2.menu__link--active,
 .theme-doc-sidebar-item-link-level-3.menu__link--active {
-  color: var(--radium-text) !important;
-  background-color: transparent !important;
-  border-left: 3px solid var(--voiceflow-green-primary);
-  font-weight: 600;
+	color: var(--radium-text) !important;
+	background-color: transparent !important;
+	border-left: 3px solid var(--voiceflow-green-primary);
+	font-weight: 600;
 }
 
 /* Sidebar category labels */
 .menu__link {
-  color: var(--radium-text-muted) !important;
+	color: var(--radium-text-muted) !important;
 }
 
 .menu__link:hover {
-  color: var(--radium-text) !important;
+	color: var(--radium-text) !important;
 }
 
 /* Table of contents */
 .table-of-contents__link {
-  color: var(--radium-text-muted) !important;
-  transition: color var(--marketing-transition-fast),
-              border-color var(--marketing-transition-fast);
+	color: var(--radium-text-muted) !important;
+	transition:
+		color var(--marketing-transition-fast),
+		border-color var(--marketing-transition-fast);
 }
 
 .table-of-contents__link:hover {
-  color: var(--radium-text) !important;
-  border-left: 2px solid var(--voiceflow-green-primary);
+	color: var(--radium-text) !important;
+	border-left: 2px solid var(--voiceflow-green-primary);
 }
 
 .table-of-contents__link--active {
-  color: var(--radium-text) !important;
-  border-left: 2px solid var(--voiceflow-green-primary);
-  font-weight: 600;
+	color: var(--radium-text) !important;
+	border-left: 2px solid var(--voiceflow-green-primary);
+	font-weight: 600;
 }
 
 /* Breadcrumbs */
 .breadcrumbs__item {
-  color: var(--radium-text-muted);
+	color: var(--radium-text-muted);
 }
 
 .breadcrumbs__link {
-  color: var(--radium-text-muted);
-  transition: color var(--marketing-transition-fast);
+	color: var(--radium-text-muted);
+	transition: color var(--marketing-transition-fast);
 }
 
 .breadcrumbs__link:hover {
-  color: var(--voiceflow-green-primary);
+	color: var(--voiceflow-green-primary);
 }
 
 .breadcrumbs__item--active .breadcrumbs__link {
-  color: var(--radium-text);
+	color: var(--radium-text);
 }
 
 /* Docs page links */
 .theme-doc-markdown a {
-  color: var(--radium-text-muted);
-  border-bottom: 1px solid transparent;
-  transition: color var(--marketing-transition-fast),
-              border-color var(--marketing-transition-fast);
+	color: var(--radium-text-muted);
+	border-bottom: 1px solid transparent;
+	transition:
+		color var(--marketing-transition-fast),
+		border-color var(--marketing-transition-fast);
 }
 
 .theme-doc-markdown a:hover {
-  color: var(--voiceflow-green-primary);
-  border-bottom-color: var(--voiceflow-green-primary);
+	color: var(--voiceflow-green-primary);
+	border-bottom-color: var(--voiceflow-green-primary);
 }
 
 /* Pagination (Previous link styling) */
 .pagination-nav__link {
-  border: 1px solid var(--radium-border);
-  color: var(--radium-text-muted);
-  transition: border-color var(--marketing-transition-fast),
-              color var(--marketing-transition-fast);
+	border: 1px solid var(--radium-border);
+	color: var(--radium-text-muted);
+	transition:
+		border-color var(--marketing-transition-fast),
+		color var(--marketing-transition-fast);
 }
 
 .pagination-nav__link:hover {
-  border-color: var(--voiceflow-green-primary);
-  color: var(--radium-text);
+	border-color: var(--voiceflow-green-primary);
+	color: var(--radium-text);
 }
 
 .pagination-nav__label {
-  color: var(--radium-text-muted);
+	color: var(--radium-text-muted);
 }
 
 .pagination-nav__link:hover .pagination-nav__label {
-  color: var(--radium-text);
+	color: var(--radium-text);
 }
 
 /* Light mode docs pages */
-[data-theme='light'] .theme-doc-sidebar-item-link {
-  color: var(--radium-text-muted-light) !important;
+[data-theme="light"] .theme-doc-sidebar-item-link {
+	color: var(--radium-text-muted-light) !important;
 }
 
-[data-theme='light'] .theme-doc-sidebar-item-link:hover {
-  color: var(--radium-text-light) !important;
-  border-left-color: var(--voiceflow-green-primary);
+[data-theme="light"] .theme-doc-sidebar-item-link:hover {
+	color: var(--radium-text-light) !important;
+	border-left-color: var(--voiceflow-green-primary);
 }
 
-[data-theme='light'] .theme-doc-sidebar-item-link-level-1.menu__link--active,
-[data-theme='light'] .theme-doc-sidebar-item-link-level-2.menu__link--active,
-[data-theme='light'] .theme-doc-sidebar-item-link-level-3.menu__link--active {
-  color: var(--radium-text-light) !important;
-  border-left-color: var(--voiceflow-green-primary);
+[data-theme="light"] .theme-doc-sidebar-item-link-level-1.menu__link--active,
+[data-theme="light"] .theme-doc-sidebar-item-link-level-2.menu__link--active,
+[data-theme="light"] .theme-doc-sidebar-item-link-level-3.menu__link--active {
+	color: var(--radium-text-light) !important;
+	border-left-color: var(--voiceflow-green-primary);
 }
 
-[data-theme='light'] .menu__link {
-  color: var(--radium-text-muted-light) !important;
+[data-theme="light"] .menu__link {
+	color: var(--radium-text-muted-light) !important;
 }
 
-[data-theme='light'] .menu__link:hover {
-  color: var(--radium-text-light) !important;
+[data-theme="light"] .menu__link:hover {
+	color: var(--radium-text-light) !important;
 }
 
-[data-theme='light'] .table-of-contents__link {
-  color: var(--radium-text-muted-light) !important;
+[data-theme="light"] .table-of-contents__link {
+	color: var(--radium-text-muted-light) !important;
 }
 
-[data-theme='light'] .table-of-contents__link:hover {
-  color: var(--radium-text-light) !important;
-  border-left-color: var(--voiceflow-green-primary);
+[data-theme="light"] .table-of-contents__link:hover {
+	color: var(--radium-text-light) !important;
+	border-left-color: var(--voiceflow-green-primary);
 }
 
-[data-theme='light'] .table-of-contents__link--active {
-  color: var(--radium-text-light) !important;
-  border-left-color: var(--voiceflow-green-primary);
+[data-theme="light"] .table-of-contents__link--active {
+	color: var(--radium-text-light) !important;
+	border-left-color: var(--voiceflow-green-primary);
 }
 
-[data-theme='light'] .breadcrumbs__item {
-  color: var(--radium-text-muted-light);
+[data-theme="light"] .breadcrumbs__item {
+	color: var(--radium-text-muted-light);
 }
 
-[data-theme='light'] .breadcrumbs__link {
-  color: var(--radium-text-muted-light);
+[data-theme="light"] .breadcrumbs__link {
+	color: var(--radium-text-muted-light);
 }
 
-[data-theme='light'] .breadcrumbs__link:hover {
-  color: var(--voiceflow-green-primary);
+[data-theme="light"] .breadcrumbs__link:hover {
+	color: var(--voiceflow-green-primary);
 }
 
-[data-theme='light'] .breadcrumbs__item--active .breadcrumbs__link {
-  color: var(--radium-text-light);
+[data-theme="light"] .breadcrumbs__item--active .breadcrumbs__link {
+	color: var(--radium-text-light);
 }
 
-[data-theme='light'] .theme-doc-markdown a {
-  color: var(--radium-text-muted-light);
+[data-theme="light"] .theme-doc-markdown a {
+	color: var(--radium-text-muted-light);
 }
 
-[data-theme='light'] .theme-doc-markdown a:hover {
-  color: var(--voiceflow-green-primary);
-  border-bottom-color: var(--voiceflow-green-primary);
+[data-theme="light"] .theme-doc-markdown a:hover {
+	color: var(--voiceflow-green-primary);
+	border-bottom-color: var(--voiceflow-green-primary);
 }
 
-[data-theme='light'] .pagination-nav__link {
-  border-color: var(--radium-border-light);
-  color: var(--radium-text-muted-light);
+[data-theme="light"] .pagination-nav__link {
+	border-color: var(--radium-border-light);
+	color: var(--radium-text-muted-light);
 }
 
-[data-theme='light'] .pagination-nav__link:hover {
-  border-color: var(--voiceflow-green-primary);
-  color: var(--radium-text-light);
+[data-theme="light"] .pagination-nav__link:hover {
+	border-color: var(--voiceflow-green-primary);
+	color: var(--radium-text-light);
 }
 
-[data-theme='light'] .pagination-nav__label {
-  color: var(--radium-text-muted-light);
+[data-theme="light"] .pagination-nav__label {
+	color: var(--radium-text-muted-light);
 }
 
-[data-theme='light'] .pagination-nav__link:hover .pagination-nav__label {
-  color: var(--radium-text-light);
+[data-theme="light"] .pagination-nav__link:hover .pagination-nav__label {
+	color: var(--radium-text-light);
 }

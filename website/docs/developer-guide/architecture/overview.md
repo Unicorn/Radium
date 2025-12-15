@@ -168,7 +168,7 @@ Radium is evolving toward a **composable intelligence infrastructure**:
 - **Version Management**: Semantic versioning
 
 **Status**: 📋 Planned
-**Learn more**: [Roadmap: Component Foundry](../roadmap/roadmap-vision.md#1-component-foundry-pattern-cfp)
+**Learn more**: [Roadmap: Component Foundry](../../../roadmap/vision.md#1-component-foundry-pattern-cfp)
 
 ### Global Component Graph
 
@@ -178,7 +178,7 @@ Radium is evolving toward a **composable intelligence infrastructure**:
 - **Distributed Graph**: Support for federated graphs
 
 **Status**: 📋 Planned
-**Learn more**: [Roadmap: Global Component Graph](../roadmap/roadmap-technical-architecture.md#global-component-graph-design-t3)
+**Learn more**: [Roadmap: Global Component Graph](../../roadmap/technical-architecture.md#global-component-graph-design-t3)
 
 ### Autonomous Assembly
 
@@ -188,7 +188,7 @@ Radium is evolving toward a **composable intelligence infrastructure**:
 - **Self-Healing**: Automatic remediation (DACR)
 
 **Status**: 🔮 Future
-**Learn more**: [Roadmap: Vision](../roadmap/roadmap-vision.md)
+**Learn more**: [Roadmap: Vision](../../roadmap/vision.md)
 
 ## Detailed Architecture Documents
 
@@ -268,16 +268,16 @@ Radium's architecture is evolving toward:
 4. **KOR Protocol**: Component exchange protocol
 5. **DAO Governance**: Community-driven development
 
-**Learn more**: [Roadmap](../roadmap/roadmap.md)
+**Learn more**: [Roadmap](../roadmap/index.md)
 
 ## Related Documentation
 
 - **[Agent System Architecture](../agent-system-architecture.md)** - Detailed agent system
 - **[Extension System Architecture](../../extensions/architecture.md)** - Extension architecture
-- **[Technical Architecture Roadmap](../../roadmap/roadmap-technical-architecture.md)** - Implementation roadmap
-- **[Vision & Innovation](../../roadmap/roadmap-vision.md)** - Long-term vision
+- **[Technical Architecture Roadmap](../../roadmap/technical-architecture.md)** - Implementation roadmap
+- **[Vision & Innovation](../../../roadmap/vision.md)** - Long-term vision
 
 ---
 
-**Want to dive deeper?** Explore the [detailed architecture documents](./) or check the [Technical Architecture Roadmap](../../roadmap/roadmap-technical-architecture.md).
+**Want to dive deeper?** Explore the [detailed architecture documents](./) or check the [Technical Architecture Roadmap](../../roadmap/technical-architecture.md).
 

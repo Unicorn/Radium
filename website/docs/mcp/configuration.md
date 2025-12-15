@@ -175,7 +175,7 @@ auth = {
 
 ## More Examples
 
-See the [examples directory](../../examples/mcp/) for complete configuration examples:
+See the [examples directory](https://github.com/Unicorn/Radium/tree/main/examples/mcp/) for complete configuration examples:
 - [Stdio Server Example](examples/stdio-server.md)
 - [Remote Server Example](examples/remote-server.md)
 - [OAuth Server Example](examples/oauth-server.md)

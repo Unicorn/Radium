@@ -77,5 +77,5 @@ rad mcp auth status --server oauth-server
 
 ## Example Configuration
 
-See [oauth-server.toml](../../examples/mcp/oauth-server.toml) for a complete OAuth configuration example.
+See [oauth-server.toml](https://github.com/Unicorn/Radium/tree/main/examples/mcp/oauth-server.toml) for a complete OAuth configuration example.
 

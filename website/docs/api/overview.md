@@ -172,7 +172,7 @@ APIs for the Component Foundry Pattern (planned).
 - Component versioning
 
 **Status**: 📋 Planned
-**Learn more**: [Roadmap: Component Foundry](../roadmap/roadmap-vision.md#1-component-foundry-pattern-cfp)
+**Learn more**: [Roadmap: Component Foundry](../roadmap/vision.md#1-component-foundry-pattern-cfp)
 
 ### Global Component Graph API
 
@@ -184,7 +184,7 @@ APIs for component discovery and composition (planned).
 - Relationship tracking
 
 **Status**: 📋 Planned
-**Learn more**: [Roadmap: Global Component Graph](../roadmap/roadmap-technical-architecture.md#global-component-graph-design-t3)
+**Learn more**: [Roadmap: Global Component Graph](../roadmap/technical-architecture.md#global-component-graph-design-t3)
 
 ### KOR Protocol API
 

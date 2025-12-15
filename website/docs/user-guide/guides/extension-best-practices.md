@@ -253,5 +253,5 @@ If accepting contributions:
 - [Extension Distribution Guide](extension-distribution.md)
 - [Extension Testing Guide](extension-testing.md)
 - [Extension Versioning Guide](extension-versioning.md)
-- [Creating Extensions](../extensions/creating-extensions.md)
+- [Creating Extensions](../../extensions/creating-extensions.md)
 

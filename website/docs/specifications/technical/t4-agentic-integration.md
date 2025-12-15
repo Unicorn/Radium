@@ -8,7 +8,7 @@ sidebar_label: "T4: Agentic Integration"
 
 **Source**: `T4_ Agentic Component Integration.pdf`
 **Status**: 🚧 Extraction in Progress
-**Roadmap**: [Technical Architecture Roadmap](../../roadmap/roadmap-technical-architecture.md#agentic-component-integration-t4)
+**Roadmap**: [Technical Architecture Roadmap](../../roadmap/technical-architecture.md#agentic-component-integration-t4)
 
 ## Overview
 
@@ -420,7 +420,7 @@ let composition = learning_selector
 
 ## Related Documentation
 
-- **[Technical Architecture Roadmap](../../roadmap/roadmap-technical-architecture.md#agentic-component-integration-t4)**
+- **[Technical Architecture Roadmap](../../roadmap/technical-architecture.md#agentic-component-integration-t4)**
 - **[Core Architecture Specification](./t1-core-architecture.md)**
 - **[Global Component Graph](./t3-global-component-graph.md)**
 - **[Agent System Architecture](../../developer-guide/agent-system-architecture.md)**

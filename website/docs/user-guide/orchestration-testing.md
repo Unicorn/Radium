@@ -318,7 +318,7 @@ Use this checklist to verify all orchestration features:
 
 - [Orchestration Architecture](../developer-guide/agent-system-architecture.md)
 - [Agent Configuration](../user-guide/agent-configuration.md)
-- [Command Reference](../user-guide/commands.md)
+- [Command Reference](./custom-commands.md)
 
 ---
 

@@ -563,9 +563,9 @@ fn test_agent_list_command() {
 
 ## Related Documentation
 
-- [REQ-164: Comprehensive Test Coverage Strategy](../roadmap/roadmap.md)
-- [GitHub Actions CI Workflow](../.github/workflows/test-coverage.yml)
-- [ADR-001: YOLO Mode Architecture](./adr/001-yolo-mode-architecture.md)
+- [REQ-164: Comprehensive Test Coverage Strategy](../../roadmap/index.md)
+- [GitHub Actions CI Workflow](https://github.com/Unicorn/Radium/tree/main/.github/workflows/test-coverage.yml)
+- [ADR-001: YOLO Mode Architecture](../adr/001-yolo-mode-architecture.md)
 - [Integration Map](../features/yolo-mode/integration-map.md)
 
 ---

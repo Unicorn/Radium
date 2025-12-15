@@ -129,5 +129,5 @@ constitution_manager.update_constitution("review-session", "Verify error handlin
 
 - [Vibe Check Documentation](./vibe-check.md)
 - [Learning System Documentation](./learning-system.md)
-- [Constitution Manager Implementation](../../crates/radium-core/src/policy/constitution.rs)
+- [Constitution Manager Implementation](https://github.com/Unicorn/Radium/tree/main/crates/radium-core/src/policy/constitution.rs)
 

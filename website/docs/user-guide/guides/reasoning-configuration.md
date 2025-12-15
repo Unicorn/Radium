@@ -195,7 +195,7 @@ Reasoning effort directly impacts cost:
 
 ## See Also
 
-- [Thinking Mode Feature](../features/thinking-mode.md)
-- [Agent Configuration](../user-guide/agent-configuration.md)
-- [CLI Reference](../cli/README.md)
+- [Thinking Mode Feature](../../features/thinking-mode.md)
+- [Agent Configuration](../agent-configuration.md)
+- [CLI Reference](../../cli/README.md)
 

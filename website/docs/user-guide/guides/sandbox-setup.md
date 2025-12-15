@@ -245,7 +245,7 @@ rad sandbox test seatbelt
 
 ## Next Steps
 
-- See [Sandboxing Feature Documentation](../features/sandboxing.md) for detailed API reference
-- Check [Example Configurations](../../examples/agents/) for working examples
-- Review [Agent Configuration Guide](../user-guide/agent-configuration.md) for agent setup
+- See [Sandboxing Feature Documentation](../../features/sandboxing.md) for detailed API reference
+- Check [Example Configurations](https://github.com/Unicorn/Radium/tree/main/examples/agents/) for working examples
+- Review [Agent Configuration Guide](../agent-configuration.md) for agent setup
 

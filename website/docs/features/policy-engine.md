@@ -292,6 +292,6 @@ The policy engine is automatically integrated with workflow execution:
 ## See Also
 
 - [Policy Best Practices](./security/policy-best-practices.md)
-- [Example Configurations](../../examples/policy-examples.toml)
+- [Example Configurations](https://github.com/Unicorn/Radium/tree/main/examples/policy-examples.toml)
 - [CLI Reference](../cli/README.md)
 

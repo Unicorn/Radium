@@ -8,7 +8,7 @@ sidebar_label: "Whitepaper Architecture"
 
 **Source**: `OpenKor_ Whitepaper - The Composable Intelligence Architecture.pdf`
 **Status**: 🚧 Extraction in Progress
-**Roadmap**: [Vision & Innovation](../../roadmap/roadmap-vision.md)
+**Roadmap**: [Vision & Innovation](../../roadmap/vision.md)
 
 ## Overview
 
@@ -313,9 +313,9 @@ Component C
 
 ## Related Documentation
 
-- **[Vision & Innovation](../../roadmap/roadmap-vision.md)**
-- **[Technical Architecture Roadmap](../../roadmap/roadmap-technical-architecture.md)**
-- **[Component Foundry Pattern](../../roadmap/roadmap-vision.md#1-component-foundry-pattern-cfp)**
+- **[Vision & Innovation](../../roadmap/vision.md)**
+- **[Technical Architecture Roadmap](../../roadmap/technical-architecture.md)**
+- **[Component Foundry Pattern](../../roadmap/vision.md#1-component-foundry-pattern-cfp)**
 
 ---
 

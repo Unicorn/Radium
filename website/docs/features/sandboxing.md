@@ -219,7 +219,7 @@ If a sandbox is not available (e.g., Docker not installed), the system gracefull
 
 ## Examples
 
-See the [examples directory](../../examples/agents/) for example agent configurations with sandboxing:
+See the [examples directory](https://github.com/Unicorn/Radium/tree/main/examples/agents/) for example agent configurations with sandboxing:
 
 - `docker-sandboxed-agent.toml`: Agent using Docker sandboxing
 - `seatbelt-sandboxed-agent.toml`: Agent using macOS Seatbelt sandboxing
@@ -241,5 +241,5 @@ See [Sandbox Setup Guide](../user-guide/guides/sandbox-setup.md) for detailed tr
 
 - [Sandbox Setup Guide](../user-guide/guides/sandbox-setup.md)
 - [Agent Configuration](../user-guide/agent-configuration.md)
-- [Sandbox Implementation](../../crates/radium-core/src/sandbox/)
+- [Sandbox Implementation](https://github.com/Unicorn/Radium/tree/main/crates/radium-core/src/sandbox/)
 

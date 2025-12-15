@@ -251,5 +251,5 @@ Include a LICENSE file in your extension root.
 - [Extension Best Practices](extension-best-practices.md)
 - [Extension Testing Guide](extension-testing.md)
 - [Extension Versioning Guide](extension-versioning.md)
-- [Creating Extensions](../extensions/creating-extensions.md)
+- [Creating Extensions](../../extensions/creating-extensions.md)
 

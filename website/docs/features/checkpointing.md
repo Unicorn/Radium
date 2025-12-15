@@ -256,11 +256,11 @@ If the shadow repository becomes corrupted:
 
 - [Workflow Execution](../user-guide/orchestration.md) - How workflows create checkpoints
 - [Agent Behaviors](../developer-guide/agent-system-architecture.md) - How agents trigger checkpoints
-- [Checkpoint Architecture](../architecture/checkpoint-system.md) - Technical implementation details
+- [Checkpoint Architecture](../developer-guide/architecture/checkpoint-system.md) - Technical implementation details
 
 ## See Also
 
-- [Architecture Documentation](../architecture/checkpoint-system.md) - For developers
+- [Architecture Documentation](../developer-guide/architecture/checkpoint-system.md) - For developers
 - [CLI Commands](../cli/commands/) - Complete CLI reference
 - [TUI Guide](../user-guide/) - Complete TUI documentation
 

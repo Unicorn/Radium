@@ -733,9 +733,9 @@ See `crates/radium-core/tests/agent_config_integration_test.rs` for comprehensiv
 ## References
 
 - [Agent Creation Guide](../../user-guide/guides/agent-creation-guide.md) - User guide for creating agents
-- [Agent Configuration Implementation](../../crates/radium-core/src/agents/config.rs)
-- [Agent Discovery Implementation](../../crates/radium-core/src/agents/discovery.rs)
-- [Agent Registry Implementation](../../crates/radium-core/src/agents/registry.rs)
-- [Prompt Templates Implementation](../../crates/radium-core/src/prompts/templates.rs)
-- [Agent Metadata Implementation](../../crates/radium-core/src/agents/metadata.rs)
+- [Agent Configuration Implementation](https://github.com/Unicorn/Radium/tree/main/crates/radium-core/src/agents/config.rs)
+- [Agent Discovery Implementation](https://github.com/Unicorn/Radium/tree/main/crates/radium-core/src/agents/discovery.rs)
+- [Agent Registry Implementation](https://github.com/Unicorn/Radium/tree/main/crates/radium-core/src/agents/registry.rs)
+- [Prompt Templates Implementation](https://github.com/Unicorn/Radium/tree/main/crates/radium-core/src/prompts/templates.rs)
+- [Agent Metadata Implementation](https://github.com/Unicorn/Radium/tree/main/crates/radium-core/src/agents/metadata.rs)
 

@@ -294,7 +294,7 @@ approval_mode = "ask"  # Safe default
 
 ## See Also
 
-- [Policy Engine Documentation](../features/policy-engine.md)
-- [Example Configurations](../../examples/policy-examples.toml)
+- [Policy Engine Documentation](../policy-engine.md)
+- [Example Configurations](https://github.com/Unicorn/Radium/tree/main/examples/policy-examples.toml)
 - [CLI Reference](../../cli/README.md)
 

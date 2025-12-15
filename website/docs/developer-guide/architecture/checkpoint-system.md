@@ -358,7 +358,7 @@ Potential improvements:
 
 ## Related Documentation
 
-- [User Guide](../features/checkpointing.md) - End-user documentation
+- [User Guide](../../features/checkpointing.md) - End-user documentation
 - [Workflow Architecture](./tui-architecture.md) - Workflow execution details
-- [Agent System](../developer-guide/agent-system-architecture.md) - Agent behavior system
+- [Agent System](../agent-system-architecture.md) - Agent behavior system
 

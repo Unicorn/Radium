@@ -108,7 +108,7 @@ All self-hosted models are accessed through Radium's Universal provider, which i
 2. **Install and Configure**: Follow the provider-specific setup guide
 3. **Configure Agents**: See the [agent configuration guide](configuration/agent-config.md) for TOML examples
 4. **Test Your Setup**: Use `rad doctor` to verify connectivity (when available)
-5. **Explore Examples**: Check out [code examples](../examples/self-hosted-models/) for working configurations
+5. **Explore Examples**: Check out [code examples](https://github.com/Unicorn/Radium/tree/main/examples/self-hosted-models/) for working configurations
 
 ## Getting Help
 

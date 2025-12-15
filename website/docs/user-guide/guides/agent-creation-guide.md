@@ -326,7 +326,7 @@ When creating a new agent, use the `--with-persona` flag to generate a persona t
 rad agents create my-agent --with-persona
 ```
 
-For more details, see the [Persona System User Guide](../user-guide/persona-system.md).
+For more details, see the [Persona System User Guide](../persona-system.md).
 
 #### Sandbox Configuration
 
@@ -1048,9 +1048,9 @@ rad agents info arch-agent
 
 ## Additional Resources
 
-- [Agent Configuration Guide](../user-guide/agent-configuration.md) - Detailed configuration reference
-- [Agent System Architecture](../developer-guide/agent-system-architecture.md) - Technical architecture details
-- [Example Agents](../../examples/agents/) - Example agent configurations
+- [Agent Configuration Guide](../agent-configuration.md) - Detailed configuration reference
+- [Agent System Architecture](../../developer-guide/agent-system-architecture.md) - Technical architecture details
+- [Example Agents](https://github.com/Unicorn/Radium/tree/main/examples/agents/) - Example agent configurations
 - [CLI Documentation](../../cli/README.md) - Command-line interface reference
 
 ## Conclusion

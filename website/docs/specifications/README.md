@@ -50,8 +50,8 @@ All OpenKor technical specifications have been extracted and documented:
 
 ## Related Documentation
 
-- **[Roadmap](../roadmap/roadmap.md)** - High-level roadmap and vision
-- **[Technical Architecture Roadmap](../roadmap/roadmap-technical-architecture.md)** - Implementation roadmap
+- **[Roadmap](../roadmap/index.md)** - High-level roadmap and vision
+- **[Technical Architecture Roadmap](../roadmap/technical-architecture.md)** - Implementation roadmap
 - **[Protocol Specifications Roadmap](../roadmap/protocol-specifications.md)** - Protocol roadmap
 
 ---

@@ -348,5 +348,5 @@ All `.json` and `.toml` files in the `mcp/` directory are loaded.
 
 ## Examples
 
-See the [examples directory](../../examples/extensions/) for complete extension examples with MCP integration.
+See the [examples directory](https://github.com/Unicorn/Radium/tree/main/examples/extensions/) for complete extension examples with MCP integration.
 

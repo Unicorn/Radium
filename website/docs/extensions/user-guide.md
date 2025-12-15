@@ -569,5 +569,5 @@ If you've been manually copying extension files, migrate to the extension system
 - [Publishing Guide](publishing-guide.md) - Publish extensions to the marketplace
 - [Marketplace Guide](marketplace.md) - Discover and use marketplace features
 - [Architecture](architecture.md) - Understand the technical architecture
-- [Examples](../examples/extensions/) - See example extensions
+- [Examples](https://github.com/Unicorn/Radium/tree/main/examples/extensions/) - See example extensions
 

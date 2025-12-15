@@ -30,7 +30,7 @@ Radium provides a comprehensive framework for:
 - [Developer Guide](./developer-guide/overview.md) - Extend Radium's capabilities
 - [API Reference](./api/overview.md) - Complete Rust API documentation
 - [Architecture](./developer-guide/architecture/overview.md) - Understand how Radium works
-- [Roadmap](./roadmap/roadmap.md) - View our open-source roadmap and vision
+- [Roadmap](./roadmap/index.md) - View our open-source roadmap and vision
 
 ## Key Features
 
@@ -79,7 +79,7 @@ Deep reasoning support for complex problems with transparent thinking process di
 - **Autonomous Assembly** - Systems that compose themselves from available components
 - **Self-Healing Systems** - Continuous remediation and quality maintenance
 
-Learn more in our [Roadmap](./roadmap/roadmap.md) and [Vision](./roadmap/roadmap-vision.md).
+Learn more in our [Roadmap](./roadmap/index.md) and [Vision](./roadmap/vision.md).
 
 ## Getting Started
 
@@ -116,8 +116,8 @@ That's it! You're now ready to explore the full power of Radium.
 
 ## Roadmap & Vision
 
-Radium is evolving toward a comprehensive composable intelligence infrastructure. Check out our [open-source roadmap](./roadmap/roadmap.md) to see our vision, technical architecture plans, and implementation milestones.
+Radium is evolving toward a comprehensive composable intelligence infrastructure. Check out our [open-source roadmap](./roadmap/index.md) to see our vision, technical architecture plans, and implementation milestones.
 
 ## What's Next?
 
-Continue to [Installation](./getting-started/installation.md) to set up Radium on your system, or explore our [Roadmap](./roadmap/roadmap.md) to see where we're heading.
+Continue to [Installation](./getting-started/installation.md) to set up Radium on your system, or explore our [Roadmap](./roadmap/index.md) to see where we're heading.

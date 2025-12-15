@@ -353,5 +353,5 @@ Before distributing your extension:
 - [Extension Distribution Guide](extension-distribution.md)
 - [Extension Best Practices](extension-best-practices.md)
 - [Extension Versioning Guide](extension-versioning.md)
-- [Creating Extensions](../extensions/creating-extensions.md)
+- [Creating Extensions](../../extensions/creating-extensions.md)
 

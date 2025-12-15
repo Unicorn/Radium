@@ -8,7 +8,7 @@ sidebar_label: "T5: Performance & Scalability"
 
 **Source**: `T5_ Performance & Scalability Analysis.pdf`
 **Status**: 🚧 Extraction in Progress
-**Roadmap**: [Technical Architecture Roadmap](../../roadmap/roadmap-technical-architecture.md#performance--scalability-analysis-t5)
+**Roadmap**: [Technical Architecture Roadmap](../../roadmap/technical-architecture.md)
 
 ## Overview
 
@@ -378,7 +378,7 @@ pub struct LoadTestConfig {
 
 ## Related Documentation
 
-- **[Technical Architecture Roadmap](../../roadmap/roadmap-technical-architecture.md#performance--scalability-analysis-t5)**
+- **[Technical Architecture Roadmap](../../roadmap/technical-architecture.md)**
 - **[Core Architecture Specification](./t1-core-architecture.md)**
 - **[Session Analytics](../../features/session-analytics.md)**
 

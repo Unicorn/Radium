@@ -8,7 +8,7 @@ sidebar_label: "T6: Integrated Architecture"
 
 **Source**: `T6_ Integrated Architecture Overview.pdf`
 **Status**: 🚧 Extraction in Progress
-**Roadmap**: [Technical Architecture Roadmap](../../roadmap/roadmap-technical-architecture.md#integrated-architecture-overview-t6)
+**Roadmap**: [Technical Architecture Roadmap](../../roadmap/technical-architecture.md#integrated-architecture-overview-t6)
 
 ## Overview
 
@@ -410,8 +410,8 @@ pub struct BackupStrategy {
 
 ## Related Documentation
 
-- **[Technical Architecture Roadmap](../../roadmap/roadmap-technical-architecture.md#integrated-architecture-overview-t6)**
-- **[Architecture Overview](../../developer-guide/architecture/architecture-overview.md)**
+- **[Technical Architecture Roadmap](../../roadmap/technical-architecture.md#integrated-architecture-overview-t6)**
+- **[Architecture Overview](../../developer-guide/architecture/overview.md)**
 - **[Core Architecture Specification](./t1-core-architecture.md)**
 
 ---

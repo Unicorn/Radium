@@ -53,7 +53,7 @@ rad mcp tools
 
 ## Examples
 
-See the [examples directory](../../examples/mcp/) for working configuration examples.
+See the [examples directory](https://github.com/Unicorn/Radium/tree/main/examples/mcp/) for working configuration examples.
 
 ## References
 

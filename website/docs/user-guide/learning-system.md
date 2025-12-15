@@ -204,6 +204,6 @@ Skill skill-00001 tagged as helpful (increment: 1)
 
 - [Vibe Check Documentation](./vibe-check.md)
 - [Constitution Rules Documentation](./constitution-rules.md)
-- [Learning Store Implementation](../../crates/radium-core/src/learning/store.rs)
-- [Skill Manager Implementation](../../crates/radium-core/src/learning/skill_manager.rs)
+- [Learning Store Implementation](https://github.com/Unicorn/Radium/tree/main/crates/radium-core/src/learning/store.rs)
+- [Skill Manager Implementation](https://github.com/Unicorn/Radium/tree/main/crates/radium-core/src/learning/skill_manager.rs)
 

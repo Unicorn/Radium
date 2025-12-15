@@ -395,7 +395,7 @@ For details on extension MCP integration, see [Extension MCP Integration](../dev
 
 ## Examples
 
-See the [examples directory](../../examples/mcp/) for complete working examples:
+See the [examples directory](https://github.com/Unicorn/Radium/tree/main/examples/mcp/) for complete working examples:
 
 - `stdio-server.toml` - Local server configuration
 - `remote-server.toml` - Remote HTTP server

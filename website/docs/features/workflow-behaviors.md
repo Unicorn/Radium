@@ -227,5 +227,5 @@ Behaviors are automatically integrated with the `WorkflowExecutor`. The executor
 - [Policy Engine](./policy-engine.md) - Tool execution control
 - [Constitution System](./constitution-system.md) - Session-based rules
 - [Workflow Behaviors](./workflow-behaviors.md) - Workflow configuration
-- [Behavior Examples](../../examples/behaviors/) - Example behavior.json files
+- [Behavior Examples](https://github.com/Unicorn/Radium/tree/main/examples/behaviors/) - Example behavior.json files
 

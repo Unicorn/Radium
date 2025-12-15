@@ -377,7 +377,7 @@ Define arrays with item constraints:
 
 ## See Also
 
-- [CLI Documentation](docs/cli/)
-- [Model Parameters Guide](docs/features/)
-- [Model Providers](../self-hosted/universal-provider-guide.md) - Provider-agnostic setup
+- [CLI Documentation](../../cli/)
+- [Model Parameters Guide](../../features/)
+- [Model Providers](../../self-hosted/universal-provider-guide.md) - Provider-agnostic setup
 

@@ -390,7 +390,7 @@ If a context file already exists at the target location, the command will prompt
 
 ## Examples
 
-See the [examples directory](../../examples/context-files/) for complete, working examples of:
+See the [examples directory](https://github.com/Unicorn/Radium/tree/main/examples/context-files/) for complete, working examples of:
 
 - Basic project context files
 - Context files with imports
@@ -399,7 +399,7 @@ See the [examples directory](../../examples/context-files/) for complete, workin
 
 ## References
 
-- [Context Files Implementation](../../crates/radium-core/src/context/files.rs) - Technical implementation details
-- [Context Manager Integration](../../crates/radium-core/src/context/manager.rs) - How context is integrated into prompts
+- [Context Files Implementation](https://github.com/Unicorn/Radium/tree/main/crates/radium-core/src/context/files.rs) - Technical implementation details
+- [Context Manager Integration](https://github.com/Unicorn/Radium/tree/main/crates/radium-core/src/context/manager.rs) - How context is integrated into prompts
 - [Agent Configuration Guide](../user-guide/agent-configuration.md) - Configuring agents that use context
 

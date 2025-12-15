@@ -315,7 +315,7 @@ For typical plans (10-50 tasks, 20-100 dependencies), all operations are very fa
 
 ## See Also
 
-- [API Reference](../../crates/radium-core/src/planning/dag.rs) - Complete API documentation
+- [API Reference](https://github.com/Unicorn/Radium/tree/main/crates/radium-core/src/planning/dag.rs) - Complete API documentation
 - [Petgraph Documentation](https://docs.rs/petgraph/) - Underlying graph library
 - [Examples](../examples/) - Usage examples
 
