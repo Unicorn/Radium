@@ -120,7 +120,7 @@ curl http://localhost:8000/v1/models
 curl http://localhost:8080/v1/models
 ```
 
-See the [Self-Hosted Models Troubleshooting Guide](../../self-hosted-models/troubleshooting.md) for detailed diagnostic procedures.
+See the [Self-Hosted Models Troubleshooting Guide](../../self-hosted/troubleshooting.md) for detailed diagnostic procedures.
 
 ### Examples
 

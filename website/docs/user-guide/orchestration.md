@@ -378,7 +378,7 @@ Agents are automatically discovered from:
 - `./agents/` - Project-local agents
 - `~/.radium/agents/` - User agents
 
-Agent descriptions and capabilities are used by the orchestrator to route tasks. See [agent-creation-guide.md](../guides/agent-creation-guide.md) for creating custom agents.
+Agent descriptions and capabilities are used by the orchestrator to route tasks. See [agent-creation-guide.md](./guides/agent-creation-guide.md) for creating custom agents.
 
 ### Performance Optimization
 
@@ -393,5 +393,5 @@ Agent descriptions and capabilities are used by the orchestrator to route tasks.
 - [Orchestration Testing Guide](./orchestration-testing.md) - Manual testing procedures
 - [Agent Configuration](./agent-configuration.md) - Agent setup
 - [Orchestration Workflows](../examples/orchestration-workflows.md) - Example workflows
-- [Agent Creation Guide](../guides/agent-creation-guide.md) - Creating custom agents
+- [Agent Creation Guide](./guides/agent-creation-guide.md) - Creating custom agents
 

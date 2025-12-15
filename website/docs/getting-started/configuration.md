@@ -230,7 +230,7 @@ Extensions are configured via `radium-extension.json`:
 }
 ```
 
-**Learn more**: [Extension System](../extensions/README.md)
+**Learn more**: [Extension System](../extensions/README)
 
 ## Context Sources Configuration
 
@@ -372,5 +372,5 @@ find . -name "*.toml" -path "*/agents/*"
 
 ---
 
-**Need help?** Check the [Troubleshooting Guide](../cli/troubleshooting.md) or [open an issue](https://github.com/clay-curry/RAD/issues).
+**Need help?** Check the [Troubleshooting Guide](../cli/troubleshooting.md) or [open an issue](https://github.com/Unicorn/Radium/issues).
 

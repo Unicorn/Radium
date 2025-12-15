@@ -260,5 +260,5 @@ rad run test-suite
 
 - [Policy Engine](./policy-engine.md) - Static policy rules
 - [Workflow Behaviors](./workflow-behaviors.md) - Dynamic execution control
-- [CLI Reference](../cli/commands/constitution.md) - Command documentation
+- [CLI Reference](../cli/README.md) - Command documentation
 

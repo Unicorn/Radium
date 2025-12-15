@@ -55,6 +55,8 @@ pub struct PromptData {
     pub chat_history_focused: bool,
     /// Scroll offset for chat history pane (independent from scrollback_offset)
     pub chat_scroll_offset: usize,
+    /// Active thinking content from streaming (for display in chat)
+    pub active_thinking: Option<String>,
 }
 
 impl PromptData {
@@ -87,6 +89,7 @@ impl PromptData {
             previous_selected_index: 0,
             chat_history_focused: false, // Prompt editor focused by default
             chat_scroll_offset: 0, // Start at top of conversation
+            active_thinking: None,
         }
     }
 

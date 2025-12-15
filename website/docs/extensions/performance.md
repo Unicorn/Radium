@@ -15,8 +15,8 @@ The extension system is designed to meet the following performance targets:
 - **Discovery**: &lt;100ms for discovering all extensions
 - **Installation**: &lt;500ms for typical extension installation
 - **Marketplace queries**: &lt;200ms for search operations
-- **Signature verification**: <50ms per extension
-- **Dependency resolution**: <100ms for typical dependency chains
+- **Signature verification**: &lt;50ms per extension
+- **Dependency resolution**: &lt;100ms for typical dependency chains
 
 ## Benchmarking
 
@@ -123,7 +123,7 @@ perf report
 
 ### Slow Discovery
 
-**Symptoms**: Extension discovery takes >100ms
+**Symptoms**: Extension discovery takes &gt;100ms
 
 **Solutions**:
 - Reduce number of search paths
@@ -132,7 +132,7 @@ perf report
 
 ### Slow Installation
 
-**Symptoms**: Installation takes >500ms
+**Symptoms**: Installation takes &gt;500ms
 
 **Solutions**:
 - Use local installations instead of URLs when possible
@@ -152,7 +152,7 @@ perf report
 
 ### Manifest Optimization
 
-- Keep manifest files small (<10KB)
+- Keep manifest files small (less than 10KB)
 - Minimize metadata
 - Use efficient JSON structure
 
@@ -200,7 +200,7 @@ if duration.as_millis() > 100 {
 Performance regression tests run in CI:
 
 - Compare benchmark results against baseline
-- Fail if regression >10%
+- Fail if regression &gt;10%
 - Generate performance reports
 
 ## Next Steps

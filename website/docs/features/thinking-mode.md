@@ -141,7 +141,7 @@ Higher reasoning effort levels result in more thinking tokens, increasing overal
 
 ## See Also
 
-- [Reasoning Configuration Guide](reasoning-configuration.md)
+- [Reasoning Configuration Guide](../user-guide/guides/reasoning-configuration.md)
 - [Agent Configuration](../user-guide/agent-configuration.md)
-- [CLI Reference](../cli-reference.md)
+- [CLI Reference](../cli/README.md)
 

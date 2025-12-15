@@ -202,6 +202,6 @@ If signing fails:
 
 - Learn about [extension architecture](architecture.md)
 - Read the [creating extensions guide](creating-extensions.md)
-- Explore [marketplace features](../user-guide/marketplace.md)
+- Explore [marketplace features](./marketplace.md)
 - Join the community to share your extensions!
 

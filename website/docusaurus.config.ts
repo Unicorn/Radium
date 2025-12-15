@@ -22,8 +22,8 @@ const config: Config = {
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
-  organizationName: 'clay-curry', // Usually your GitHub org/user name.
-  projectName: 'RAD', // Usually your repo name.
+  organizationName: 'Unicorn', // Usually your GitHub org/user name.
+  projectName: 'Radium', // Usually your repo name.
 
   onBrokenLinks: 'warn', // Set to 'throw' after verifying all links are working
 
@@ -42,7 +42,7 @@ const config: Config = {
         docs: {
           sidebarPath: './sidebars.ts',
           // Edit page links point to the docs folder in the main repo
-          editUrl: 'https://github.com/clay-curry/RAD/tree/main/docs/',
+          editUrl: 'https://github.com/Unicorn/Radium/tree/main/website/docs/',
         },
         blog: false,
         theme: {

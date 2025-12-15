@@ -226,6 +226,6 @@ Behaviors are automatically integrated with the `WorkflowExecutor`. The executor
 
 - [Policy Engine](./policy-engine.md) - Tool execution control
 - [Constitution System](./constitution-system.md) - Session-based rules
-- [Workflow Templates](../user-guide/workflow-templates.md) - Reusable workflows
+- [Workflow Behaviors](./workflow-behaviors.md) - Workflow configuration
 - [Behavior Examples](../../examples/behaviors/) - Example behavior.json files
 

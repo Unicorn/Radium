@@ -377,6 +377,6 @@ fallback = "meta-llama/Llama-3-70B-Instruct"
 
 - [vLLM Official Documentation](https://docs.vllm.ai/)
 - [vLLM GitHub Repository](https://github.com/vllm-project/vllm)
-- [Radium Universal Provider Guide](../../universal-provider-guide.md)
+- [Radium Universal Provider Guide](../universal-provider-guide.md)
 - [Troubleshooting Guide](../troubleshooting.md)
 

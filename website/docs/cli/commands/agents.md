@@ -102,7 +102,7 @@ export UNIVERSAL_BASE_URL="http://localhost:8000/v1"
 export UNIVERSAL_BASE_URL="http://localhost:8080/v1"
 ```
 
-See the [Self-Hosted Models Documentation](../../self-hosted-models/README.md) for complete setup guides and examples.
+See the [Self-Hosted Models Documentation](../../self-hosted/README.md) for complete setup guides and examples.
 
 ## `rad templates`
 

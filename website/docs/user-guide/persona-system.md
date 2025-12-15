@@ -383,6 +383,6 @@ See the core agents for examples:
 
 ## Further Reading
 
-- [Agent Creation Guide](../guides/agent-creation-guide.md) - Complete guide to creating agents
+- [Agent Creation Guide](./guides/agent-creation-guide.md) - Complete guide to creating agents
 - [Persona System Architecture](../../docs/design/persona-system-architecture.md) - Technical architecture details
 

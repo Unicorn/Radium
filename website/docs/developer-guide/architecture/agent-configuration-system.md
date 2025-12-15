@@ -732,7 +732,7 @@ See `crates/radium-core/tests/agent_config_integration_test.rs` for comprehensiv
 
 ## References
 
-- [Agent Creation Guide](../guides/agent-creation-guide.md) - User guide for creating agents
+- [Agent Creation Guide](../../user-guide/guides/agent-creation-guide.md) - User guide for creating agents
 - [Agent Configuration Implementation](../../crates/radium-core/src/agents/config.rs)
 - [Agent Discovery Implementation](../../crates/radium-core/src/agents/discovery.rs)
 - [Agent Registry Implementation](../../crates/radium-core/src/agents/registry.rs)

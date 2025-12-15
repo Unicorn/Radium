@@ -34,6 +34,7 @@ pub fn render_orchestrator_view(
     orchestrator_panel: &mut OrchestratorThinkingPanel,
     panel_visibility: (bool, bool), // (task_panel_visible, orchestrator_panel_visible)
     focused_panel: PanelFocus,
+    thinking_visible: bool,
 ) {
     let theme = crate::theme::get_theme();
     let (task_panel_visible, orchestrator_panel_visible) = panel_visibility;
@@ -52,6 +53,7 @@ pub fn render_orchestrator_view(
             orchestrator_panel_visible,
             focused_panel,
             &theme,
+            thinking_visible,
         );
     } else if area.width >= 60 {
         // Narrow terminal: vertical stack (chat 60% top, task/orchestrator 40% bottom split)
@@ -66,6 +68,7 @@ pub fn render_orchestrator_view(
             orchestrator_panel_visible,
             focused_panel,
             &theme,
+            thinking_visible,
         );
     } else {
         // Very narrow terminal: chat only with toggle indicators
@@ -92,6 +95,7 @@ fn render_wide_layout(
     orchestrator_panel_visible: bool,
     focused_panel: PanelFocus,
     theme: &crate::theme::RadiumTheme,
+    thinking_visible: bool,
 ) {
     // Calculate constraints based on panel visibility
     let constraints = if task_panel_visible && orchestrator_panel_visible {
@@ -128,6 +132,7 @@ fn render_wide_layout(
         prompt_data,
         theme,
         focused_panel == PanelFocus::Chat,
+        thinking_visible,
     );
     chunk_idx += 1;
 
@@ -169,6 +174,7 @@ fn render_narrow_layout(
     orchestrator_panel_visible: bool,
     focused_panel: PanelFocus,
     theme: &crate::theme::RadiumTheme,
+    thinking_visible: bool,
 ) {
     // Split vertically: chat 60% top, task/orchestrator 40% bottom
     let vertical_chunks = Layout::default()
@@ -186,6 +192,7 @@ fn render_narrow_layout(
         prompt_data,
         theme,
         focused_panel == PanelFocus::Chat,
+        thinking_visible,
     );
 
     // Split bottom area horizontally for task/orchestrator
@@ -321,6 +328,7 @@ fn render_chat_log(
     prompt_data: &PromptData,
     theme: &crate::theme::RadiumTheme,
     focused: bool,
+    thinking_visible: bool,
 ) {
     // Calculate viewport height (account for padding)
     let viewport_height = area.height.saturating_sub(4) as usize; // Extra space for padding
@@ -378,6 +386,34 @@ fn render_chat_log(
             styled_lines.push(Line::from(Span::styled(line.clone(), Style::default().fg(theme.text))));
         }
         styled_lines.push(Line::from("")); // Add spacing between messages
+    }
+
+    // Render thinking section if active
+    if let Some(ref thinking_text) = prompt_data.active_thinking {
+        if thinking_visible {
+            // Expanded: show full thinking
+            styled_lines.push(Line::from(""));
+            styled_lines.push(Line::from(vec![
+                Span::styled("╭─ ", Style::default().fg(theme.text_muted)),
+                Span::styled("💭 Thinking...", Style::default().fg(theme.text_muted).add_modifier(Modifier::ITALIC)),
+            ]));
+
+            for line in thinking_text.lines() {
+                styled_lines.push(Line::from(vec![
+                    Span::styled("│ ", Style::default().fg(theme.text_muted)),
+                    Span::styled(line, Style::default().fg(theme.text_dim)),
+                ]));
+            }
+
+            styled_lines.push(Line::from(Span::styled("╰─", Style::default().fg(theme.text_muted))));
+        } else {
+            // Collapsed: single line indicator
+            styled_lines.push(Line::from(""));
+            styled_lines.push(Line::from(vec![
+                Span::styled("💭 Thinking... ", Style::default().fg(theme.text_muted).add_modifier(Modifier::ITALIC)),
+                Span::styled("(Ctrl+T to expand)", Style::default().fg(theme.text_dim)),
+            ]));
+        }
     }
 
     let chat_widget = Paragraph::new(styled_lines)

@@ -240,5 +240,5 @@ pub type Result<T> = std::result::Result<T, BoundaryError>; // in boundary modul
 
 ## See Also
 
-- [File Editing Overview](./file-editing.md) - Feature overview
+- [File Editing Overview](../file-editing.md) - Feature overview
 - [File Editing Examples](./examples.md) - Usage examples

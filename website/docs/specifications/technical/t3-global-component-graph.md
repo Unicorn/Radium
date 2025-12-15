@@ -8,7 +8,7 @@ sidebar_label: "T3: Global Component Graph"
 
 **Source**: `T3_ Global Component Graph Design.pdf`
 **Status**: 🚧 Extraction in Progress
-**Roadmap**: [Technical Architecture Roadmap](../../roadmap/technical-architecture.md#global-component-graph-design-t3)
+**Roadmap**: [Technical Architecture Roadmap](../../roadmap/roadmap-technical-architecture.md#global-component-graph-design-t3)
 
 ## Overview
 
@@ -383,7 +383,7 @@ pub trait FederationProtocol {
 
 ## Related Documentation
 
-- **[Technical Architecture Roadmap](../../roadmap/technical-architecture.md#global-component-graph-design-t3)**
+- **[Technical Architecture Roadmap](../../roadmap/roadmap-technical-architecture.md#global-component-graph-design-t3)**
 - **[Component Foundry Specification](./t2-component-foundry.md)**
 - **[Extension System](../../extensions/architecture.md)**
 

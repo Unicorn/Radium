@@ -346,7 +346,7 @@ pub struct LoggingHook {
 }
 ```
 
-### Low Priority (<100)
+### Low Priority (&lt;100)
 
 Use for:
 - Optional monitoring

@@ -7,7 +7,7 @@ sidebar_label: "YOLO Mode Integration Map"
 # YOLO Mode Integration Map
 
 **Last Updated:** 2025-12-07
-**Related ADR:** [ADR-001: YOLO Mode Architecture](../adr/001-yolo-mode-architecture.md)
+**Related ADR:** [ADR-001: YOLO Mode Architecture](../../developer-guide/adr/001-yolo-mode-architecture.md)
 
 This document maps existing Radium systems to YOLO Mode requirements and identifies integration points.
 

@@ -146,7 +146,7 @@ If a server name exists in both, workspace config takes precedence.
 
 ## Thread Safety
 
-All shared state uses Arc<Mutex<>>:
+All shared state uses Arc&lt;Mutex&lt;&gt;&gt;:
 - `McpIntegration::clients` - Thread-safe client storage
 - `McpIntegration::tool_registries` - Thread-safe registry access
 - `McpIntegration::slash_registry` - Thread-safe command registry

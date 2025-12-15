@@ -205,7 +205,7 @@ code --install-extension radium-vscode-1.0.0.vsix
 
 ## See Also
 
-- [Extension README](../../extensions/radium-vscode/README.md)
+- [Extension README](https://github.com/Unicorn/Radium/tree/main/extensions/radium-vscode) (external repository)
 - [Architecture Documentation](./architecture.md)
 - [Troubleshooting Guide](./troubleshooting.md)
 

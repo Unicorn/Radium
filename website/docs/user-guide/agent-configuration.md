@@ -42,7 +42,7 @@ prompt_path = "prompts/agents/my-category/my-agent.md"
 - **`capabilities`** (object): Agent capabilities for dynamic model selection (see [Capabilities](#capabilities) section)
 - **`sandbox`** (object): Sandbox configuration for safe command execution (see [Sandbox Configuration](#sandbox-configuration) section)
 
-**Note**: For self-hosted models (Ollama, vLLM, LocalAI), use `engine = "universal"` and configure the base URL via environment variables. See the [Self-Hosted Models Guide](../self-hosted-models/README.md) for complete setup instructions.
+**Note**: For self-hosted models (Ollama, vLLM, LocalAI), use `engine = "universal"` and configure the base URL via environment variables. See the [Self-Hosted Models Guide](../self-hosted/README.md) for complete setup instructions.
 
 ### Example: Minimal Configuration
 
@@ -569,7 +569,7 @@ See the `examples/agents/` directory for complete example configurations:
 
 ## Further Reading
 
-- [Self-Hosted Models Guide](../self-hosted-models/README.md) - Setup and configuration for Ollama, vLLM, and LocalAI
+- [Self-Hosted Models Guide](../self-hosted/README.md) - Setup and configuration for Ollama, vLLM, and LocalAI
 - [Developer Guide: Agent System Architecture](../developer-guide/agent-system-architecture.md) - Technical details for developers
-- [CLI Reference](../../README.md#agent-configuration) - Command-line interface documentation
+- [CLI Reference](../cli/README.md) - Command-line interface documentation
 

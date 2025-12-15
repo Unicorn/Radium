@@ -330,6 +330,6 @@ fallback = "llama3.2:13b"
 
 - [Ollama Official Documentation](https://ollama.com/docs)
 - [Ollama Model Library](https://ollama.com/library)
-- [Radium Universal Provider Guide](../../universal-provider-guide.md)
+- [Radium Universal Provider Guide](../universal-provider-guide.md)
 - [Troubleshooting Guide](../troubleshooting.md)
 

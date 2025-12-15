@@ -257,6 +257,6 @@ Profiles use glob patterns to match tools and arguments:
 ## See Also
 
 - [Policy Engine Documentation](../features/policy-engine.md)
-- [Policy Best Practices](../security/policy-best-practices.md)
+- [Policy Best Practices](../features/security/policy-best-practices.md)
 - [Agent Configuration Guide](../user-guide/agent-configuration.md)
 

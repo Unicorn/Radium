@@ -319,7 +319,7 @@ pub struct GrowthManagement {
 
 - **[Governance & Operations Roadmap](../../roadmap/governance-operations.md#phase-evolution-g2)**
 - **[DAO Structure](./g1-dao-structure.md)**
-- **[Roadmap Overview](../../roadmap/index.md)**
+- **[Roadmap Overview](../../roadmap/roadmap.md)**
 
 ---
 

@@ -296,5 +296,5 @@ approval_mode = "ask"  # Safe default
 
 - [Policy Engine Documentation](../features/policy-engine.md)
 - [Example Configurations](../../examples/policy-examples.toml)
-- [CLI Reference](../cli/commands/policy.md)
+- [CLI Reference](../../cli/README.md)
 

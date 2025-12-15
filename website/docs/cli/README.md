@@ -57,7 +57,7 @@ rad complete spec.md
 
 ## Related Documentation
 
-- **[Self-Hosted Models](../self-hosted-models/README.md)** - Setup guides for Ollama, vLLM, and LocalAI
+- **[Self-Hosted Models](../self-hosted/README.md)** - Setup guides for Ollama, vLLM, and LocalAI
 - **[Agent Configuration Guide](../user-guide/agent-configuration.md)** - Complete agent configuration reference
 
 ## Common Workflows

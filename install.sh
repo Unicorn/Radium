@@ -25,7 +25,7 @@ trap "rm -rf $TMPDIR" EXIT
 
 echo "📦 Cloning repository..."
 cd "$TMPDIR"
-git clone https://github.com/clay-curry/RAD.git
+git clone https://github.com/Unicorn/Radium.git
 cd RAD
 
 echo "🔨 Building Radium (this may take a few minutes)..."

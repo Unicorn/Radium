@@ -30,7 +30,7 @@ Radium provides a comprehensive framework for:
 - [Developer Guide](./developer-guide/overview.md) - Extend Radium's capabilities
 - [API Reference](./api/overview.md) - Complete Rust API documentation
 - [Architecture](./developer-guide/architecture/overview.md) - Understand how Radium works
-- [Roadmap](./roadmap/index.md) - View our open-source roadmap and vision
+- [Roadmap](./roadmap/roadmap.md) - View our open-source roadmap and vision
 
 ## Key Features
 
@@ -79,7 +79,7 @@ Deep reasoning support for complex problems with transparent thinking process di
 - **Autonomous Assembly** - Systems that compose themselves from available components
 - **Self-Healing Systems** - Continuous remediation and quality maintenance
 
-Learn more in our [Roadmap](./roadmap/index.md) and [Vision](./roadmap/vision.md).
+Learn more in our [Roadmap](./roadmap/roadmap.md) and [Vision](./roadmap/roadmap-vision.md).
 
 ## Getting Started
 
@@ -88,12 +88,12 @@ The fastest way to get started is:
 1. **Install Radium**
    ```bash
    # From source (recommended)
-   git clone https://github.com/clay-curry/RAD.git
+   git clone https://github.com/Unicorn/Radium.git
    cd RAD
    cargo install --path apps/cli
 
    # Or use the install script
-   curl -sSf https://raw.githubusercontent.com/clay-curry/RAD/main/install.sh | sh
+   curl -sSf https://raw.githubusercontent.com/Unicorn/Radium/main/install.sh | sh
    ```
 
 2. **Create your first agent**
@@ -110,14 +110,14 @@ That's it! You're now ready to explore the full power of Radium.
 
 ## Community & Support
 
-- **GitHub**: [clay-curry/RAD](https://github.com/clay-curry/RAD)
-- **Issues**: [Report bugs or request features](https://github.com/clay-curry/RAD/issues)
-- **Discussions**: [Ask questions and share ideas](https://github.com/clay-curry/RAD/discussions)
+- **GitHub**: [Unicorn/Radium](https://github.com/Unicorn/Radium)
+- **Issues**: [Report bugs or request features](https://github.com/Unicorn/Radium/issues)
+- **Discussions**: [Ask questions and share ideas](https://github.com/Unicorn/Radium/discussions)
 
 ## Roadmap & Vision
 
-Radium is evolving toward a comprehensive composable intelligence infrastructure. Check out our [open-source roadmap](./roadmap/index.md) to see our vision, technical architecture plans, and implementation milestones.
+Radium is evolving toward a comprehensive composable intelligence infrastructure. Check out our [open-source roadmap](./roadmap/roadmap.md) to see our vision, technical architecture plans, and implementation milestones.
 
 ## What's Next?
 
-Continue to [Installation](./getting-started/installation.md) to set up Radium on your system, or explore our [Roadmap](./roadmap/index.md) to see where we're heading.
+Continue to [Installation](./getting-started/installation.md) to set up Radium on your system, or explore our [Roadmap](./roadmap/roadmap.md) to see where we're heading.

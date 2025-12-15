@@ -343,7 +343,7 @@ All `.json` and `.toml` files in the `mcp/` directory are loaded.
 
 - [MCP User Guide](../mcp/user-guide.md) - User-facing MCP documentation
 - [MCP Configuration](../mcp/configuration.md) - Configuration reference
-- [Creating Extensions](creating-extensions.md) - How to create extensions
+- [Creating Extensions](../extensions/creating-extensions.md) - How to create extensions
 - [Extension Architecture](../extensions/architecture.md) - Extension system overview
 
 ## Examples

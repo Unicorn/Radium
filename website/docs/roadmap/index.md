@@ -85,7 +85,7 @@ We welcome community input on the roadmap. If you'd like to:
 ## Related Documentation
 
 - [Architecture Overview](../developer-guide/architecture/agent-configuration-system.md)
-- [Extension System](../extensions/README.md)
+- [Extension System](../extensions/README)
 - [Agent System](../developer-guide/agent-system-architecture.md)
 - [Planning Features](../features/planning/autonomous-planning.md)
 

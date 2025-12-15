@@ -37,18 +37,18 @@ All 20 OpenKor PDF documents have been successfully extracted and migrated to th
 - ✅ B3/B4: Commons Tier → `specifications/governance/b3-commons-tier.md`
 
 #### Vision & Innovation (5)
-- ✅ Component Foundry Pattern → `roadmap/vision.md` + `specifications/technical/t2-component-foundry.md`
-- ✅ DACR Pattern → `roadmap/vision.md`
-- ✅ DRCG System → `roadmap/vision.md`
-- ✅ ACCA System → `roadmap/vision.md`
+- ✅ Component Foundry Pattern → `roadmap/roadmap-vision.md` + `specifications/technical/t2-component-foundry.md`
+- ✅ DACR Pattern → `roadmap/roadmap-vision.md`
+- ✅ DRCG System → `roadmap/roadmap-vision.md`
+- ✅ ACCA System → `roadmap/roadmap-vision.md`
 - ✅ Whitepaper Architecture → `specifications/vision/whitepaper-architecture.md`
 
 ## Documentation Created
 
 ### Roadmap Documents (5)
-- `roadmap/index.md` - Main roadmap
-- `roadmap/vision.md` - Vision and innovations
-- `roadmap/technical-architecture.md` - Technical roadmap
+- `roadmap/roadmap.md` - Main roadmap
+- `roadmap/roadmap-vision.md` - Vision and innovations
+- `roadmap/roadmap-technical-architecture.md` - Technical roadmap
 - `roadmap/protocol-specifications.md` - Protocol roadmap
 - `roadmap/governance-operations.md` - Governance roadmap
 

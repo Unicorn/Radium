@@ -379,5 +379,5 @@ Define arrays with item constraints:
 
 - [CLI Documentation](docs/cli/)
 - [Model Parameters Guide](docs/features/)
-- [Provider Comparison](docs/requirements/provider-agnostic-features.md)
+- [Model Providers](../self-hosted/universal-provider-guide.md) - Provider-agnostic setup
 

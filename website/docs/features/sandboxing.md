@@ -235,11 +235,11 @@ See the [examples directory](../../examples/agents/) for example agent configura
 
 ## Troubleshooting
 
-See [Sandbox Setup Guide](../guides/sandbox-setup.md) for detailed troubleshooting information.
+See [Sandbox Setup Guide](../user-guide/guides/sandbox-setup.md) for detailed troubleshooting information.
 
 ## References
 
-- [Sandbox Setup Guide](../guides/sandbox-setup.md)
+- [Sandbox Setup Guide](../user-guide/guides/sandbox-setup.md)
 - [Agent Configuration](../user-guide/agent-configuration.md)
 - [Sandbox Implementation](../../crates/radium-core/src/sandbox/)
 

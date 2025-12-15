@@ -114,12 +114,12 @@ All self-hosted models are accessed through Radium's Universal provider, which i
 
 - **Troubleshooting**: See the [troubleshooting guide](troubleshooting.md) for common issues
 - **API Reference**: Check the [API reference](api-reference.md) for implementation details
-- **Universal Provider Guide**: See [Universal Provider Guide](../universal-provider-guide.md) for technical details
+- **Universal Provider Guide**: See [Universal Provider Guide](./universal-provider-guide.md) for technical details
 - **Issues**: Report problems on GitHub or consult the community
 
 ## Related Documentation
 
-- [Universal Provider Guide](../universal-provider-guide.md) - Technical API documentation
+- [Universal Provider Guide](./universal-provider-guide.md) - Technical API documentation
 - [Agent Configuration Guide](../user-guide/agent-configuration.md) - General agent configuration
 - [CLI Commands](../cli/commands/agents.md) - Agent management commands
 

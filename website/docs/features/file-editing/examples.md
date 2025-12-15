@@ -394,6 +394,6 @@ if !result.success {
 
 ## See Also
 
-- [File Editing Overview](./file-editing.md) - Complete feature documentation
+- [File Editing Overview](../file-editing.md) - Complete feature documentation
 - [Policy Engine](../policy-engine.md) - Policy configuration
 - [Error Handling](../../cli/error-handling.md) - Error handling patterns

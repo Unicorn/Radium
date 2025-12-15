@@ -8,7 +8,7 @@ sidebar_label: "T1: Core Architecture"
 
 **Source**: `T1_ Core Architecture Specification.pdf`
 **Status**: 🚧 Extraction in Progress
-**Roadmap**: [Technical Architecture Roadmap](../../roadmap/technical-architecture.md#core-architecture-specification-t1)
+**Roadmap**: [Technical Architecture Roadmap](../../roadmap/roadmap-technical-architecture.md#core-architecture-specification-t1)
 
 ## Overview
 
@@ -388,7 +388,7 @@ pub enum CoreError {
 
 ## Related Documentation
 
-- **[Technical Architecture Roadmap](../../roadmap/technical-architecture.md#core-architecture-specification-t1)**
+- **[Technical Architecture Roadmap](../../roadmap/roadmap-technical-architecture.md#core-architecture-specification-t1)**
 - **[Agent System Architecture](../../developer-guide/agent-system-architecture.md)**
 - **[Extension System Architecture](../../extensions/architecture.md)**
 - **[Architecture Overview](../../developer-guide/architecture/overview.md)**

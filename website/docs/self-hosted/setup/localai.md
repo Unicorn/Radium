@@ -358,6 +358,6 @@ Both models will be available via the API.
 - [LocalAI Official Documentation](https://localai.io/)
 - [LocalAI GitHub Repository](https://github.com/go-skynet/LocalAI)
 - [Model Gallery](https://github.com/go-skynet/model-gallery)
-- [Radium Universal Provider Guide](../../universal-provider-guide.md)
+- [Radium Universal Provider Guide](../universal-provider-guide.md)
 - [Troubleshooting Guide](../troubleshooting.md)
 

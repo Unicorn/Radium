@@ -44,17 +44,17 @@ cargo bench -p radium-cli --bench workspace_bench
 
 ### Common Operations
 
-- **Workspace discovery**: <50ms (even in deep directory trees)
-- **Agent list**: <200ms (for 100+ agents)
-- **Status command**: <300ms (including all checks)
-- **Plan generation**: <2s (excluding AI model calls)
-- **JSON output**: <10ms overhead per command
+- **Workspace discovery**: &lt;50ms (even in deep directory trees)
+- **Agent list**: &lt;200ms (for 100+ agents)
+- **Status command**: &lt;300ms (including all checks)
+- **Plan generation**: &lt;2s (excluding AI model calls)
+- **JSON output**: &lt;10ms overhead per command
 
 ### File Operations
 
-- **Workspace init**: <500ms
-- **File reading**: <100ms per file
-- **Directory traversal**: <200ms for typical workspace
+- **Workspace init**: less than 500ms
+- **File reading**: less than 100ms per file
+- **Directory traversal**: less than 200ms for typical workspace
 
 ## Optimization Strategies
 
@@ -223,7 +223,7 @@ fn test_command_performance() {
     let duration = start.elapsed();
     assert!(
         duration.as_millis() < 1000,
-        "Command took {}ms, target is <1000ms",
+        "Command took {}ms, target is &lt;1000ms",
         duration.as_millis()
     );
 }
@@ -233,9 +233,9 @@ fn test_command_performance() {
 
 ### Targets
 
-- **Command startup**: <10MB
-- **Typical command execution**: <50MB
-- **Large operations (plan generation)**: <200MB
+- **Command startup**: less than 10MB
+- **Typical command execution**: less than 50MB
+- **Large operations (plan generation)**: less than 200MB
 
 ### Monitoring
 

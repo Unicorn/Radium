@@ -126,7 +126,7 @@ Step-by-step guides for common tasks:
 
 ### Extensions
 
-- **[Extension System](../extensions/README.md)** - Package and share components
+- **[Extension System](../extensions/README)** - Package and share components
 - **[Extension Quickstart](../extensions/quickstart.md)** - Get started with extensions
 - **[Creating Extensions](../extensions/creating-extensions.md)** - Build your own extensions
 - **[Extension Marketplace](../extensions/marketplace.md)** - Discover and share extensions
@@ -152,9 +152,9 @@ Step-by-step guides for common tasks:
 
 ## Roadmap & Vision
 
-- **[Roadmap](../roadmap/index.md)** - Open-source roadmap and vision
-- **[Vision & Innovation](../roadmap/vision.md)** - Long-term vision and innovations
-- **[Technical Architecture](../roadmap/technical-architecture.md)** - Technical roadmap
+- **[Roadmap](../roadmap/roadmap.md)** - Open-source roadmap and vision
+- **[Vision & Innovation](../roadmap/roadmap-vision.md)** - Long-term vision and innovations
+- **[Technical Architecture](../roadmap/roadmap-technical-architecture.md)** - Technical roadmap
 
 ## Best Practices
 

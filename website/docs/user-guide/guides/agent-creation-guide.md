@@ -1051,7 +1051,7 @@ rad agents info arch-agent
 - [Agent Configuration Guide](../user-guide/agent-configuration.md) - Detailed configuration reference
 - [Agent System Architecture](../developer-guide/agent-system-architecture.md) - Technical architecture details
 - [Example Agents](../../examples/agents/) - Example agent configurations
-- [CLI Documentation](../../README.md) - Command-line interface reference
+- [CLI Documentation](../../cli/README.md) - Command-line interface reference
 
 ## Conclusion
 

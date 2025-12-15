@@ -23,32 +23,32 @@ The website documentation now provides **100% coverage** of all OpenKor technica
 ### Technical Specifications (6 documents) ✅
 
 1. **T1: Core Architecture Specification**
-   - Roadmap: `roadmap/technical-architecture.md#core-architecture-specification-t1`
+   - Roadmap: `roadmap/roadmap-technical-architecture.md#core-architecture-specification-t1`
    - Specification: `specifications/technical/t1-core-architecture.md`
    - Coverage: ✅ Complete - Architecture, interfaces, data models, performance requirements
 
 2. **T2: Component Foundry Implementation Guide**
-   - Roadmap: `roadmap/technical-architecture.md#component-foundry-implementation-guide-t2`
+   - Roadmap: `roadmap/roadmap-technical-architecture.md#component-foundry-implementation-guide-t2`
    - Specification: `specifications/technical/t2-component-foundry.md`
    - Coverage: ✅ Complete - Metadata schemas, validation, versioning, composition
 
 3. **T3: Global Component Graph Design**
-   - Roadmap: `roadmap/technical-architecture.md#global-component-graph-design-t3`
+   - Roadmap: `roadmap/roadmap-technical-architecture.md#global-component-graph-design-t3`
    - Specification: `specifications/technical/t3-global-component-graph.md`
    - Coverage: ✅ Complete - Graph structure, query language, discovery, composition
 
 4. **T4: Agentic Component Integration**
-   - Roadmap: `roadmap/technical-architecture.md#agentic-component-integration-t4`
+   - Roadmap: `roadmap/roadmap-technical-architecture.md#agentic-component-integration-t4`
    - Specification: `specifications/technical/t4-agentic-integration.md`
    - Coverage: ✅ Complete - Agent-component bridge, intelligent composition, multi-agent coordination
 
 5. **T5: Performance & Scalability Analysis**
-   - Roadmap: `roadmap/technical-architecture.md#performance--scalability-analysis-t5`
+   - Roadmap: `roadmap/roadmap-technical-architecture.md#performance--scalability-analysis-t5`
    - Specification: `specifications/technical/t5-performance-scalability.md`
    - Coverage: ✅ Complete - Performance requirements, optimization, scaling, monitoring
 
 6. **T6: Integrated Architecture Overview**
-   - Roadmap: `roadmap/technical-architecture.md#integrated-architecture-overview-t6`
+   - Roadmap: `roadmap/roadmap-technical-architecture.md#integrated-architecture-overview-t6`
    - Specification: `specifications/technical/t6-integrated-architecture.md`
    - Coverage: ✅ Complete - System integration, deployment, operations, security
 
@@ -104,24 +104,24 @@ The website documentation now provides **100% coverage** of all OpenKor technica
 ### Vision & Innovation (5 documents) ✅
 
 16. **Component Foundry Pattern (CFP)**
-    - Roadmap: `roadmap/vision.md#1-component-foundry-pattern-cfp`
+    - Roadmap: `roadmap/roadmap-vision.md#1-component-foundry-pattern-cfp`
     - Specification: `specifications/technical/t2-component-foundry.md`
     - Coverage: ✅ Complete - Pattern description, principles, implementation
 
 17. **DACR Pattern**
-    - Roadmap: `roadmap/vision.md#2-durable-autonomous-continuous-remediation-dacr`
+    - Roadmap: `roadmap/roadmap-vision.md#2-durable-autonomous-continuous-remediation-dacr`
     - Coverage: ✅ Complete - Pattern description, features, roadmap
 
 18. **DRCG System**
-    - Roadmap: `roadmap/vision.md#3-durable-recursive-component-generation-drcg`
+    - Roadmap: `roadmap/roadmap-vision.md#3-durable-recursive-component-generation-drcg`
     - Coverage: ✅ Complete - System description, capabilities, roadmap
 
 19. **ACCA System**
-    - Roadmap: `roadmap/vision.md#4-autonomous-component-centric-assembly-acca`
+    - Roadmap: `roadmap/roadmap-vision.md#4-autonomous-component-centric-assembly-acca`
     - Coverage: ✅ Complete - System description, mechanisms, roadmap
 
 20. **Whitepaper: Composable Intelligence Architecture**
-    - Roadmap: `roadmap/vision.md`
+    - Roadmap: `roadmap/roadmap-vision.md`
     - Specification: `specifications/vision/whitepaper-architecture.md`
     - Coverage: ✅ Complete - Architectural patterns, principles, system design
 
@@ -163,9 +163,9 @@ The website documentation now provides **100% coverage** of all OpenKor technica
 ## Documentation Structure
 
 ### Roadmap Documents (High-Level)
-- `roadmap/index.md` - Main roadmap overview
-- `roadmap/vision.md` - Vision and innovations
-- `roadmap/technical-architecture.md` - Technical roadmap
+- `roadmap/roadmap.md` - Main roadmap overview
+- `roadmap/roadmap-vision.md` - Vision and innovations
+- `roadmap/roadmap-technical-architecture.md` - Technical roadmap
 - `roadmap/protocol-specifications.md` - Protocol roadmap
 - `roadmap/governance-operations.md` - Governance roadmap
 

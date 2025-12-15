@@ -8,7 +8,7 @@ sidebar_label: "T2: Component Foundry"
 
 **Source**: `T2_ Component Foundry Implementation Guide.pdf`
 **Status**: 🚧 Extraction in Progress
-**Roadmap**: [Technical Architecture Roadmap](../../roadmap/technical-architecture.md#component-foundry-implementation-guide-t2)
+**Roadmap**: [Technical Architecture Roadmap](../../roadmap/roadmap-technical-architecture.md#component-foundry-implementation-guide-t2)
 
 ## Overview
 
@@ -359,8 +359,8 @@ pub trait CompositionEngine {
 
 ## Related Documentation
 
-- **[Technical Architecture Roadmap](../../roadmap/technical-architecture.md#component-foundry-implementation-guide-t2)**
-- **[Vision: Component Foundry Pattern](../../roadmap/vision.md#1-component-foundry-pattern-cfp)**
+- **[Technical Architecture Roadmap](../../roadmap/roadmap-technical-architecture.md#component-foundry-implementation-guide-t2)**
+- **[Vision: Component Foundry Pattern](../../roadmap/roadmap-vision.md#1-component-foundry-pattern-cfp)**
 - **[Extension System](../../extensions/architecture.md)**
 
 ---

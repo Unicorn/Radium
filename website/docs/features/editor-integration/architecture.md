@@ -283,8 +283,8 @@ The system is extensible:
 
 ## See Also
 
-- [Extension System Documentation](../extensions/README.md)
-- [Hook System Documentation](../hooks/README.md)
+- [Extension System Documentation](../extensions/README)
+- [Hook System Documentation](../hooks/README)
 - [Neovim Integration](./neovim.md)
 - [VS Code Integration](./vscode.md)
 

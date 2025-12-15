@@ -211,6 +211,38 @@ pub struct App {
     pub confirmation_request_rx: Option<tokio::sync::mpsc::Receiver<ConfirmationRequest>>,
     /// Sender for command confirmation requests (cloned for each chat execution)
     pub confirmation_request_tx: Option<tokio::sync::mpsc::Sender<ConfirmationRequest>>,
+    /// Background orchestration task for non-blocking chat
+    pub orchestration_task: Option<OrchestrationTask>,
+    /// Whether thinking tokens should be displayed
+    pub thinking_visible: bool,
+}
+
+/// Background orchestration task state
+pub struct OrchestrationTask {
+    /// Task handle for cancellation/cleanup
+    pub handle: tokio::task::JoinHandle<Result<OrchestrationResult>>,
+    /// Progress updates from background task
+    pub result_rx: tokio::sync::mpsc::Receiver<OrchestrationProgress>,
+    /// Session ID for this orchestration
+    pub session_id: String,
+}
+
+/// Progress updates during orchestration
+pub enum OrchestrationProgress {
+    /// User message has been displayed (UI can refresh)
+    UserMessageDisplayed,
+    /// Thinking indicator started
+    ThinkingStarted,
+    /// Error occurred
+    Error(String),
+}
+
+/// Final result from orchestration
+pub struct OrchestrationResult {
+    /// The complete response text
+    pub response: String,
+    /// Time taken for orchestration
+    pub elapsed_time: std::time::Duration,
 }
 
 /// Model filter for capability-based filtering
@@ -394,6 +426,8 @@ impl App {
             command_allowlist: HashSet::new(),
             confirmation_request_rx: Some(confirmation_rx),
             confirmation_request_tx: Some(confirmation_tx),
+            orchestration_task: None,
+            thinking_visible: true,
         };
 
         // Check for resumable executions on startup
@@ -1172,12 +1206,25 @@ impl App {
             KeyCode::Tab if self.orchestration_running && !self.prompt_data.command_state.is_active => {
                 self.cycle_panel_focus();
             }
-            KeyCode::Char('t') if modifiers.contains(KeyModifiers::CONTROL) && self.orchestration_running => {
-                self.task_panel_visible = !self.task_panel_visible;
-                // If hiding focused panel, move focus to next visible panel
-                if !self.task_panel_visible && self.panel_focus == crate::views::orchestrator_view::PanelFocus::TaskList {
-                    self.cycle_panel_focus();
+            KeyCode::Char('t') if modifiers.contains(KeyModifiers::CONTROL) => {
+                if self.orchestration_running {
+                    // Existing behavior: toggle task panel during orchestration
+                    self.task_panel_visible = !self.task_panel_visible;
+                    // If hiding focused panel, move focus to next visible panel
+                    if !self.task_panel_visible && self.panel_focus == crate::views::orchestrator_view::PanelFocus::TaskList {
+                        self.cycle_panel_focus();
+                    }
+                } else if matches!(self.prompt_data.context, DisplayContext::Chat { .. }) {
+                    // NEW: Toggle thinking visibility in chat mode
+                    self.thinking_visible = !self.thinking_visible;
+                    let message = if self.thinking_visible {
+                        "💭 Thinking: Visible"
+                    } else {
+                        "💭 Thinking: Hidden"
+                    };
+                    self.toast_manager.info(message.to_string());
                 }
+                return Ok(());
             }
             KeyCode::Char('o') if modifiers.contains(KeyModifiers::CONTROL) && self.orchestration_running => {
                 self.orchestrator_panel_visible = !self.orchestrator_panel_visible;
@@ -1354,12 +1401,25 @@ impl App {
             KeyCode::Tab if self.orchestration_running && !self.prompt_data.command_state.is_active => {
                 self.cycle_panel_focus();
             }
-            KeyCode::Char('t') if modifiers.contains(KeyModifiers::CONTROL) && self.orchestration_running => {
-                self.task_panel_visible = !self.task_panel_visible;
-                // If hiding focused panel, move focus to next visible panel
-                if !self.task_panel_visible && self.panel_focus == crate::views::orchestrator_view::PanelFocus::TaskList {
-                    self.cycle_panel_focus();
+            KeyCode::Char('t') if modifiers.contains(KeyModifiers::CONTROL) => {
+                if self.orchestration_running {
+                    // Existing behavior: toggle task panel during orchestration
+                    self.task_panel_visible = !self.task_panel_visible;
+                    // If hiding focused panel, move focus to next visible panel
+                    if !self.task_panel_visible && self.panel_focus == crate::views::orchestrator_view::PanelFocus::TaskList {
+                        self.cycle_panel_focus();
+                    }
+                } else if matches!(self.prompt_data.context, DisplayContext::Chat { .. }) {
+                    // NEW: Toggle thinking visibility in chat mode
+                    self.thinking_visible = !self.thinking_visible;
+                    let message = if self.thinking_visible {
+                        "💭 Thinking: Visible"
+                    } else {
+                        "💭 Thinking: Hidden"
+                    };
+                    self.toast_manager.info(message.to_string());
                 }
+                return Ok(());
             }
             KeyCode::Char('o') if modifiers.contains(KeyModifiers::CONTROL) && self.orchestration_running => {
                 self.orchestrator_panel_visible = !self.orchestrator_panel_visible;
@@ -2712,9 +2772,6 @@ impl App {
         // Show thinking indicator
         self.prompt_data.add_conversation_message("🤔 Analyzing...".to_string(), max_history);
 
-        // Record start time for elapsed time calculation
-        let start_time = std::time::Instant::now();
-
         // Ensure service is initialized
         // If initialization fails, we'll show error but keep orchestration enabled
         // so user can fix config and retry
@@ -2738,13 +2795,76 @@ impl App {
             return Err(anyhow::anyhow!(error_msg));
         }
 
-        // Execute orchestration
+        // Get current working directory for context file loading
+        let current_dir = self.workspace_status.as_ref()
+            .and_then(|ws| ws.root.as_ref())
+            .map(|p| p.to_path_buf());
+
+        // Spawn background task (NO AWAIT!) for non-blocking orchestration
         if let Some(ref service) = self.orchestration_service {
-            // Get current working directory for context file loading
+            self.orchestration_task = Some(Self::spawn_orchestration_task(
+                service.clone(),
+                session_id,
+                input,
+                current_dir,
+            ));
+        } else {
+            // Remove thinking indicator
+            self.prompt_data.conversation.pop();
+            let error_msg = "Orchestration service not available";
+            self.prompt_data.add_conversation_message(
+                format!("❌ {}", error_msg),
+                max_history
+            );
+            return Err(anyhow::anyhow!(error_msg));
+        }
+
+        // Return immediately - UI can now render!
+        // The event loop will poll for results via try_recv()
+        Ok(())
+    }
+
+    // OLD CODE BELOW - REPLACED WITH NON-BLOCKING VERSION ABOVE
+    // Keeping for reference during transition
+    #[allow(dead_code)]
+    async fn handle_orchestrated_input_old(&mut self, input: String) -> Result<()> {
+        let session_id = self.current_session.clone().unwrap_or_else(|| {
+            let id = format!("session_{}", chrono::Utc::now().format("%Y%m%d_%H%M%S"));
+            self.current_session = Some(id.clone());
+            id
+        });
+
+        self.prompt_data.context = DisplayContext::Chat {
+            agent_id: "orchestrator".to_string(),
+            session_id: session_id.clone(),
+        };
+
+        self.orchestration_running = true;
+        let max_history = self.config.performance.max_conversation_history;
+        self.prompt_data.add_conversation_message(format!("You: {}", input), max_history);
+        self.prompt_data.add_conversation_message("🤔 Analyzing...".to_string(), max_history);
+        let start_time = std::time::Instant::now();
+
+        if let Err(e) = self.ensure_orchestration_service().await {
+            self.prompt_data.conversation.pop();
+            return Err(e);
+        }
+
+        if self.orchestration_service.is_none() {
+            self.prompt_data.conversation.pop();
+            let error_msg = "Orchestration service not available. Check configuration and API keys.";
+            self.prompt_data.add_conversation_message(
+                format!("❌ {}", error_msg),
+                max_history
+            );
+            return Err(anyhow::anyhow!(error_msg));
+        }
+
+        if let Some(ref service) = self.orchestration_service {
             let current_dir = self.workspace_status.as_ref()
                 .and_then(|ws| ws.root.as_ref())
                 .map(|p| p.as_path());
-            
+
             match service.handle_input(&session_id, &input, current_dir).await {
                 Ok(result) => {
                     // Remove thinking indicator
@@ -2897,6 +3017,57 @@ impl App {
         self.orchestration_running = false;
 
         Ok(())
+    }
+
+    /// Spawns orchestration in a background task for non-blocking UI.
+    ///
+    /// This allows the UI to remain responsive while orchestration runs.
+    /// Progress updates are sent via the returned channel and can be
+    /// polled with try_recv() in the event loop.
+    ///
+    /// # Returns
+    /// OrchestrationTask containing:
+    /// - handle: JoinHandle for cleanup/cancellation
+    /// - result_rx: Channel for progress updates
+    /// - session_id: Session identifier
+    fn spawn_orchestration_task(
+        service: Arc<OrchestrationService>,
+        session_id: String,
+        input: String,
+        current_dir: Option<std::path::PathBuf>,
+    ) -> OrchestrationTask {
+        let (progress_tx, progress_rx) = tokio::sync::mpsc::channel(10);
+
+        // Clone session_id for the task handle before moving into closure
+        let session_id_for_task = session_id.clone();
+
+        let handle = tokio::spawn(async move {
+            // Signal that UI can refresh now
+            let _ = progress_tx.send(OrchestrationProgress::UserMessageDisplayed).await;
+
+            // Start thinking
+            let _ = progress_tx.send(OrchestrationProgress::ThinkingStarted).await;
+
+            let start_time = std::time::Instant::now();
+
+            // Execute orchestration
+            match service.handle_input(&session_id, &input, current_dir.as_deref()).await {
+                Ok(result) => Ok(OrchestrationResult {
+                    response: result.response,
+                    elapsed_time: start_time.elapsed(),
+                }),
+                Err(e) => {
+                    let _ = progress_tx.send(OrchestrationProgress::Error(e.to_string())).await;
+                    Err(anyhow::anyhow!("Orchestration error: {}", e))
+                }
+            }
+        });
+
+        OrchestrationTask {
+            handle,
+            result_rx: progress_rx,
+            session_id: session_id_for_task,
+        }
     }
 
     /// Handle /orchestrator command

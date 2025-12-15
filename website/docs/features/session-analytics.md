@@ -250,6 +250,6 @@ If `rad stats history` is slow:
 
 ## Related Documentation
 
-- [Optimizing Costs](optimizing-costs.md) - Strategies for reducing session costs
-- [Monitoring & Telemetry](../development/agent-instructions.md) - Underlying telemetry system
+- [Optimizing Costs](../user-guide/guides/optimizing-costs.md) - Strategies for reducing session costs
+- [Monitoring & Telemetry](../developer-guide/development/agent-instructions.md) - Underlying telemetry system
 

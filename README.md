@@ -32,7 +32,7 @@ Radium is a high-performance, Rust-based platform for creating, managing, and de
 
 ```bash
 # Clone the repository
-git clone https://github.com/clay-curry/RAD.git
+git clone https://github.com/Unicorn/Radium.git
 cd RAD
 
 # Build the project

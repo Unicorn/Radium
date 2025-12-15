@@ -181,7 +181,7 @@ Common validation errors and how to fix them:
 
 ## See Also
 
-- [DAG Dependencies](./dag-dependencies.md) - Understanding dependency graphs
+- [DAG Dependencies](../dag-dependencies.md) - Understanding dependency graphs
 - [Execution Modes](./execution-modes.md) - Running plans
 - [Error Handling](./error-handling.md) - Handling execution errors
 

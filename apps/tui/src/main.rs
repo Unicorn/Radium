@@ -194,12 +194,23 @@ async fn main() -> Result<()> {
                             // Add token to buffer
                             stream_ctx.add_token(stream_item);
 
-                            // Flush buffer if it reaches 5-10 tokens
+                            // Flush answer buffer if it reaches 5-10 tokens
                             if stream_ctx.should_flush() {
                                 let flushed = stream_ctx.flush_buffer();
                                 if !flushed.is_empty() {
                                     app.prompt_data.add_output(flushed);
                                 }
+                            }
+
+                            // Flush thinking buffer if it reaches 5 tokens
+                            if stream_ctx.should_flush_thinking() {
+                                let thinking_text = stream_ctx.flush_thinking_buffer();
+                                app.prompt_data.active_thinking = Some(
+                                    app.prompt_data.active_thinking
+                                        .as_ref()
+                                        .map(|t| format!("{}{}", t, thinking_text))
+                                        .unwrap_or(thinking_text)
+                                );
                             }
                         }
                     }
@@ -213,7 +224,21 @@ async fn main() -> Result<()> {
                         if !remaining.is_empty() {
                             app.prompt_data.add_output(remaining);
                         }
-                        
+
+                        // Flush remaining thinking tokens
+                        let remaining_thinking = stream_ctx.flush_thinking_buffer();
+                        if !remaining_thinking.is_empty() {
+                            app.prompt_data.active_thinking = Some(
+                                app.prompt_data.active_thinking
+                                    .as_ref()
+                                    .map(|t| format!("{}{}", t, remaining_thinking))
+                                    .unwrap_or(remaining_thinking)
+                            );
+                        }
+
+                        // Clear active thinking when stream completes
+                        app.prompt_data.active_thinking = None;
+
                         // Update state based on current state
                         match stream_ctx.state {
                             StreamingState::Cancelled => {
@@ -389,6 +414,74 @@ async fn main() -> Result<()> {
             }
         }
 
+        // Poll active orchestration task
+        if let Some(ref mut task) = app.orchestration_task {
+            match task.result_rx.try_recv() {
+                Ok(radium_tui::app::OrchestrationProgress::Error(err)) => {
+                    let max_history = app.config.performance.max_conversation_history;
+                    app.prompt_data.conversation.pop(); // Remove thinking indicator
+                    app.prompt_data.add_conversation_message(format!("❌ Error: {}", err), max_history);
+                    app.orchestration_running = false;
+                    app.orchestration_task = None;
+                }
+                Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
+                    // Task finished, check result
+                    if task.handle.is_finished() {
+                        // Use block_in_place to safely await in sync context
+                        let result = tokio::task::block_in_place(|| {
+                            futures::executor::block_on(async {
+                                match &mut task.handle {
+                                    handle => handle.await
+                                }
+                            })
+                        });
+
+                        match result {
+                            Ok(Ok(orch_result)) => {
+                                let max_history = app.config.performance.max_conversation_history;
+                                app.prompt_data.conversation.pop(); // Remove thinking
+                                app.prompt_data.add_conversation_message(
+                                    format!("Assistant: {}", orch_result.response),
+                                    max_history
+                                );
+                                let elapsed_secs = orch_result.elapsed_time.as_secs_f64();
+                                app.prompt_data.add_conversation_message(
+                                    format!("⏱️  Completed in {:.1}s", elapsed_secs),
+                                    max_history
+                                );
+                            }
+                            Ok(Err(e)) => {
+                                let max_history = app.config.performance.max_conversation_history;
+                                app.prompt_data.conversation.pop();
+                                app.prompt_data.add_conversation_message(
+                                    format!("❌ Error: {}", e),
+                                    max_history
+                                );
+                            }
+                            Err(join_err) => {
+                                let max_history = app.config.performance.max_conversation_history;
+                                app.prompt_data.conversation.pop();
+                                app.prompt_data.add_conversation_message(
+                                    format!("❌ Task error: {}", join_err),
+                                    max_history
+                                );
+                            }
+                        }
+
+                        app.orchestration_running = false;
+                        app.orchestration_task = None;
+                    }
+                }
+                Ok(radium_tui::app::OrchestrationProgress::UserMessageDisplayed)
+                | Ok(radium_tui::app::OrchestrationProgress::ThinkingStarted) => {
+                    // These progress updates don't require action
+                }
+                Err(tokio::sync::mpsc::error::TryRecvError::Empty) => {
+                    // No updates available, continue
+                }
+            }
+        }
+
         // Draw UI
         terminal.draw(|frame| {
             let area = frame.area();
@@ -484,6 +577,7 @@ async fn main() -> Result<()> {
                     &mut app.orchestrator_panel,
                     (app.task_panel_visible, app.orchestrator_panel_visible),
                     app.panel_focus,
+                    app.thinking_visible,
                 );
             } else {
                 // Check if we should show start page (Help context) or regular prompt

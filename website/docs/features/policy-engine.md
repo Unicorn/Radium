@@ -291,7 +291,7 @@ The policy engine is automatically integrated with workflow execution:
 
 ## See Also
 
-- [Policy Best Practices](../security/policy-best-practices.md)
+- [Policy Best Practices](./security/policy-best-practices.md)
 - [Example Configurations](../../examples/policy-examples.toml)
-- [CLI Reference](../cli/commands/policy.md)
+- [CLI Reference](../cli/README.md)
 

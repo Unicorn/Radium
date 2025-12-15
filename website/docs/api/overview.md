@@ -221,7 +221,7 @@ Radium APIs follow semantic versioning:
 - **[Developer Guide](../developer-guide/overview.md)** - Development documentation
 - **[Architecture Overview](../developer-guide/architecture/overview.md)** - System architecture
 - **[Examples](../examples/)** - Code examples
-- **[GitHub Issues](https://github.com/clay-curry/RAD/issues)** - Report issues
+- **[GitHub Issues](https://github.com/Unicorn/Radium/issues)** - Report issues
 
 ## Next Steps
 
@@ -231,5 +231,5 @@ Radium APIs follow semantic versioning:
 
 ---
 
-**Need help?** Check the [Developer Guide](../developer-guide/overview.md) or [open an issue](https://github.com/clay-curry/RAD/issues).
+**Need help?** Check the [Developer Guide](../developer-guide/overview.md) or [open an issue](https://github.com/Unicorn/Radium/issues).
 

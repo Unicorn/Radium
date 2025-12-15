@@ -495,7 +495,7 @@ if status == 429 {
 
 ## Related Documentation
 
-- [Universal Provider Guide](../universal-provider-guide.md) - Detailed UniversalModel usage
+- [Universal Provider Guide](./universal-provider-guide.md) - Detailed UniversalModel usage
 - [Setup Guides](setup/) - Provider-specific setup instructions
 - [Configuration Guide](configuration/agent-config.md) - Agent configuration examples
 - [Source Code](../../crates/radium-abstraction/src/lib.rs) - Model trait definition

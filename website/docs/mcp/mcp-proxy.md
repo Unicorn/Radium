@@ -201,6 +201,6 @@ Check if the proxy server is running and display status information.
 ## Next Steps
 
 - [Configuration Reference](./mcp-proxy-config.md)
-- [MCP Client Documentation](../cli/mcp.md)
-- [MCP Integration Guide](../guides/mcp-integration.md)
+- [MCP Client Documentation](../cli/commands/mcp.md)
+- [MCP Integration Guide](./user-guide.md)
 

@@ -27,7 +27,7 @@ This is the recommended installation method as it ensures you have the latest ve
 
 ### From Pre-built Binaries
 
-1. Download the latest release for your platform from [GitHub Releases](https://github.com/clay-curry/RAD/releases)
+1. Download the latest release for your platform from [GitHub Releases](https://github.com/Unicorn/Radium/releases)
 
 2. Extract the archive:
    ```bash
@@ -46,7 +46,7 @@ This is the recommended installation method as it ensures you have the latest ve
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/clay-curry/RAD.git
+   git clone https://github.com/Unicorn/Radium.git
    cd RAD
    ```
 
@@ -69,7 +69,7 @@ This is the recommended installation method as it ensures you have the latest ve
 If you prefer an automated installation, you can use the install script:
 
 ```bash
-curl -sSf https://raw.githubusercontent.com/clay-curry/RAD/main/install.sh | sh
+curl -sSf https://raw.githubusercontent.com/Unicorn/Radium/main/install.sh | sh
 ```
 
 **Note**: The install script builds from source, so it requires Rust to be installed. It will:
@@ -137,4 +137,4 @@ If you see authentication errors, ensure your API key is correctly set:
 echo $ANTHROPIC_API_KEY  # Should output your API key
 ```
 
-For more help, see the [CLI Troubleshooting Guide](../cli/troubleshooting.md) or [open an issue](https://github.com/clay-curry/RAD/issues).
+For more help, see the [CLI Troubleshooting Guide](../cli/troubleshooting.md) or [open an issue](https://github.com/Unicorn/Radium/issues).

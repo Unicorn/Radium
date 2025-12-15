@@ -203,7 +203,7 @@ rad server start
 - **[Installation](./installation.md)** - Detailed installation instructions
 - **[Core Concepts](./core-concepts.md)** - Deep dive into Radium concepts
 - **[User Guide](../user-guide/overview.md)** - Complete user documentation
-- **[Roadmap](../roadmap/index.md)** - See where Radium is heading
+- **[Roadmap](../roadmap/roadmap.md)** - See where Radium is heading
 
 ---
 

@@ -38,7 +38,7 @@ New to Radium development?
 
 ### Extension System
 
-- **[Extension System](../extensions/README.md)** - Overview of extension system
+- **[Extension System](../extensions/README)** - Overview of extension system
 - **[Creating Extensions](../extensions/creating-extensions.md)** - Build extensions
 - **[Extension Architecture](../extensions/architecture.md)** - Technical architecture
 - **[Extension API Reference](../extensions/api-reference.md)** - API documentation
@@ -74,7 +74,7 @@ New to Radium development?
 
 ### Technical Roadmap
 
-- **[Technical Architecture Roadmap](../roadmap/technical-architecture.md)** - Technical implementation roadmap
+- **[Technical Architecture Roadmap](../roadmap/roadmap-technical-architecture.md)** - Technical implementation roadmap
   - Core Architecture Specification
   - Component Foundry Implementation
   - Global Component Graph Design
@@ -83,7 +83,7 @@ New to Radium development?
 
 ### Vision & Innovation
 
-- **[Vision & Innovation](../roadmap/vision.md)** - Long-term vision
+- **[Vision & Innovation](../roadmap/roadmap-vision.md)** - Long-term vision
   - Component Foundry Pattern (CFP)
   - Durable Autonomous Continuous Remediation (DACR)
   - Durable Recursive Component Generation (DRCG)
@@ -195,28 +195,28 @@ cargo check --workspace
 Systematic approach to creating, validating, and composing reusable components.
 
 **Status**: 📋 Planned
-**Learn more**: [Roadmap: Component Foundry](../roadmap/vision.md#1-component-foundry-pattern-cfp)
+**Learn more**: [Roadmap: Component Foundry](../roadmap/roadmap-vision.md#1-component-foundry-pattern-cfp)
 
 ### Durable Autonomous Continuous Remediation (DACR)
 
 Self-healing systems that maintain component quality over time.
 
 **Status**: 🔮 Future
-**Learn more**: [Roadmap: DACR](../roadmap/vision.md#2-durable-autonomous-continuous-remediation-dacr)
+**Learn more**: [Roadmap: DACR](../roadmap/roadmap-vision.md#2-durable-autonomous-continuous-remediation-dacr)
 
 ### Durable Recursive Component Generation (DRCG)
 
 Components that generate other components recursively.
 
 **Status**: 🔮 Future
-**Learn more**: [Roadmap: DRCG](../roadmap/vision.md#3-durable-recursive-component-generation-drcg)
+**Learn more**: [Roadmap: DRCG](../roadmap/roadmap-vision.md#3-durable-recursive-component-generation-drcg)
 
 ### Autonomous Component-Centric Assembly (ACCA)
 
 Systems that automatically assemble themselves from available components.
 
 **Status**: 🔮 Future
-**Learn more**: [Roadmap: ACCA](../roadmap/vision.md#4-autonomous-component-centric-assembly-acca)
+**Learn more**: [Roadmap: ACCA](../roadmap/roadmap-vision.md#4-autonomous-component-centric-assembly-acca)
 
 ## Resources
 
@@ -228,9 +228,9 @@ Systems that automatically assemble themselves from available components.
 
 ### External Resources
 
-- **[GitHub Repository](https://github.com/clay-curry/RAD)** - Source code
-- **[Issues](https://github.com/clay-curry/RAD/issues)** - Bug reports and feature requests
-- **[Discussions](https://github.com/clay-curry/RAD/discussions)** - Community discussions
+- **[GitHub Repository](https://github.com/Unicorn/Radium)** - Source code
+- **[Issues](https://github.com/Unicorn/Radium/issues)** - Bug reports and feature requests
+- **[Discussions](https://github.com/Unicorn/Radium/discussions)** - Community discussions
 
 ## Next Steps
 

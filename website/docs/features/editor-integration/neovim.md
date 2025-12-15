@@ -206,7 +206,7 @@ local output = vim.b.radium_last_output
 
 ## See Also
 
-- [Extension README](../../extensions/radium-nvim/README.md)
+- [Extension README](https://github.com/Unicorn/Radium/tree/main/extensions/radium-nvim) (external repository)
 - [Architecture Documentation](./architecture.md)
 - [Troubleshooting Guide](./troubleshooting.md)
 

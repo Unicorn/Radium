@@ -65,6 +65,12 @@ pub struct StreamingContext {
     pub start_time: std::time::Instant,
     /// Timestamps of last 10 tokens for rate calculation
     pub token_timestamps: std::collections::VecDeque<std::time::Instant>,
+    /// Buffer for accumulating thinking tokens before display
+    pub thinking_buffer: Vec<String>,
+    /// Full accumulated thinking content
+    pub accumulated_thinking: String,
+    /// Total thinking token count
+    pub thinking_token_count: usize,
 }
 
 impl StreamingContext {
@@ -83,6 +89,9 @@ impl StreamingContext {
             token_count: 0,
             start_time: std::time::Instant::now(),
             token_timestamps: std::collections::VecDeque::with_capacity(10),
+            thinking_buffer: Vec::new(),
+            accumulated_thinking: String::new(),
+            thinking_token_count: 0,
         }
     }
 
@@ -113,13 +122,25 @@ impl StreamingContext {
 
     /// Adds a token to the buffer
     pub fn add_token(&mut self, token: radium_abstraction::StreamItem) {
-        // Extract string from StreamItem
-        let token_str = match token {
-            radium_abstraction::StreamItem::ThinkingToken(s) => s,
-            radium_abstraction::StreamItem::AnswerToken(s) => s,
-            radium_abstraction::StreamItem::Metadata(_) => return, // Ignore metadata
-        };
-        self.token_buffer.push(token_str);
+        match token {
+            radium_abstraction::StreamItem::ThinkingToken(s) => {
+                self.thinking_buffer.push(s);
+                self.thinking_token_count += 1;
+                self.token_timestamps.push_back(std::time::Instant::now());
+                if self.token_timestamps.len() > 10 {
+                    self.token_timestamps.pop_front();
+                }
+            }
+            radium_abstraction::StreamItem::AnswerToken(s) => {
+                self.token_buffer.push(s);
+                self.token_count += 1;
+                self.token_timestamps.push_back(std::time::Instant::now());
+                if self.token_timestamps.len() > 10 {
+                    self.token_timestamps.pop_front();
+                }
+            }
+            radium_abstraction::StreamItem::Metadata(_) => {} // Ignore metadata
+        }
     }
 
     /// Checks if buffer should be flushed (5-10 tokens)
@@ -134,6 +155,40 @@ impl StreamingContext {
             self.accumulated_response.clone()
         } else {
             format!("{}{}", self.accumulated_response, self.token_buffer.join(""))
+        }
+    }
+
+    /// Flushes thinking buffer to accumulated_thinking and returns the flushed content
+    pub fn flush_thinking_buffer(&mut self) -> String {
+        let result = self.thinking_buffer.join("");
+        self.accumulated_thinking.push_str(&result);
+        self.thinking_buffer.clear();
+
+        // Cap at 50KB to prevent memory issues
+        const MAX_THINKING_SIZE: usize = 50_000;
+        if self.accumulated_thinking.len() > MAX_THINKING_SIZE {
+            let truncate_at = self.accumulated_thinking.len() - MAX_THINKING_SIZE;
+            self.accumulated_thinking = format!(
+                "[...{} bytes truncated...]\n{}",
+                truncate_at,
+                &self.accumulated_thinking[truncate_at..]
+            );
+        }
+
+        result
+    }
+
+    /// Checks if thinking buffer should be flushed (5 tokens)
+    pub fn should_flush_thinking(&self) -> bool {
+        self.thinking_buffer.len() >= 5
+    }
+
+    /// Gets the full accumulated thinking content
+    pub fn get_full_thinking(&self) -> String {
+        if self.thinking_buffer.is_empty() {
+            self.accumulated_thinking.clone()
+        } else {
+            format!("{}{}", self.accumulated_thinking, self.thinking_buffer.join(""))
         }
     }
 }
