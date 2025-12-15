@@ -103,41 +103,50 @@
    ============================================ */
 
 .marketing-feature-card {
-  background: var(--ifm-card-background-color, white);
-  border: 1px solid var(--ifm-color-emphasis-200);
+  background: var(--radium-bg-panel);
+  border: 1px solid var(--radium-border);
   border-radius: var(--marketing-border-radius);
   padding: 2rem;
   box-shadow: var(--marketing-shadow-sm);
   transition: all var(--marketing-transition-normal);
+  backdrop-filter: blur(10px);
 }
 
 .marketing-feature-card:hover {
-  box-shadow: var(--marketing-shadow-md);
+  box-shadow: var(--marketing-shadow-md), var(--glow-green);
   transform: translateY(-4px);
+  border-color: var(--voiceflow-green-primary);
 }
 
 .marketing-feature-card__icon {
   width: 64px;
   height: 64px;
   margin-bottom: 1.5rem;
-  color: var(--ifm-color-primary);
+  color: var(--voiceflow-green-primary);
+  transition: color var(--marketing-transition-normal);
+}
+
+.marketing-feature-card:hover .marketing-feature-card__icon {
+  color: var(--voiceflow-green-light);
+  filter: drop-shadow(0 0 8px var(--glow-green));
 }
 
 .marketing-feature-card__title {
   font-size: 1.5rem;
   font-weight: 600;
   margin-bottom: 1rem;
+  color: var(--radium-text);
 }
 
 .marketing-feature-card__description {
-  color: var(--ifm-color-emphasis-700);
+  color: var(--radium-text-muted);
   line-height: 1.6;
   margin-bottom: 1rem;
 }
 
 [data-theme='dark'] .marketing-feature-card {
-  background: var(--ifm-background-surface-color);
-  border-color: var(--ifm-color-emphasis-300);
+  background: var(--radium-bg-panel);
+  border-color: var(--radium-border);
 }
 
 /* ============================================
@@ -200,7 +209,7 @@
 .marketing-stats-bar__value {
   font-size: 2.5rem;
   font-weight: 700;
-  color: var(--ifm-color-primary);
+  color: var(--voiceflow-green-primary);
   display: block;
   line-height: 1;
   margin-bottom: 0.5rem;
@@ -231,6 +240,7 @@
   text-align: center;
   border-radius: var(--marketing-border-radius-lg);
   margin: 4rem 0;
+  box-shadow: var(--marketing-shadow-lg), var(--glow-green-strong);
 }
 
 .marketing-cta__heading {

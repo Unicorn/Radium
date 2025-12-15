@@ -7,7 +7,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 const config: Config = {
   title: 'Radium',
   tagline: 'Next-generation agentic orchestration platform',
-  favicon: 'img/favicon.ico',
+  favicon: 'img/logo-apple.png',
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
@@ -46,7 +46,7 @@ const config: Config = {
         },
         blog: false,
         theme: {
-          customCss: ['./src/css/custom.css', './src/css/marketing.css'],
+          customCss: ['./src/css/custom.css', './src/css/marketing.css', './src/css/radium-theme.css'],
         },
       } satisfies Preset.Options,
     ],
@@ -55,13 +55,15 @@ const config: Config = {
   themeConfig: {
     image: 'img/radium-social-card.png',
     colorMode: {
-      respectPrefersColorScheme: true,
+      defaultMode: 'dark',
+      respectPrefersColorScheme: false,
     },
     navbar: {
-      title: 'Radium',
       logo: {
         alt: 'Radium Logo',
-        src: '/img/logo.png',
+        src: 'img/logo-apple.png',
+        width: 32,
+        height: 32,
       },
       items: [
         {

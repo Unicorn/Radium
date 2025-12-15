@@ -14,8 +14,8 @@
   right: 0;
   bottom: 0;
   background:
-    radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
-    radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
+    radial-gradient(circle at 20% 50%, var(--glow-green) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, var(--glow-cyan) 0%, transparent 50%);
   pointer-events: none;
 }
 
@@ -36,16 +36,18 @@
 
 .tagline {
   display: inline-block;
-  background: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(0, 255, 136, 0.15);
+  border: 1px solid var(--voiceflow-green-primary);
   padding: 0.5rem 1rem;
-  border-radius: 24px;
+  border-radius: var(--marketing-border-radius-pill);
   font-size: 0.875rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 1.5rem;
   backdrop-filter: blur(10px);
+  color: var(--voiceflow-green-primary);
+  box-shadow: 0 0 12px var(--glow-green);
 }
 
 .title {
@@ -73,15 +75,17 @@
 }
 
 .primaryCta {
-  background: white;
-  color: var(--ifm-color-primary);
-  border-color: white;
+  background: var(--voiceflow-green-primary);
+  color: #0a0a0a;
+  border-color: var(--voiceflow-green-primary);
+  box-shadow: 0 4px 16px var(--glow-green);
 }
 
 .primaryCta:hover {
-  background: rgba(255, 255, 255, 0.9);
-  color: var(--ifm-color-primary-dark);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  background: var(--voiceflow-green-light);
+  border-color: var(--voiceflow-green-light);
+  box-shadow: 0 8px 24px var(--glow-green-strong);
+  transform: translateY(-2px);
 }
 
 .githubButton {
@@ -92,19 +96,19 @@
   font-size: 1rem;
   font-weight: 600;
   color: white;
-  background: rgba(255, 255, 255, 0.1);
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 8px;
+  background: rgba(167, 139, 250, 0.2);
+  border: 2px solid var(--radium-secondary);
+  border-radius: var(--marketing-border-radius-pill);
   text-decoration: none;
   transition: all 0.2s ease;
   backdrop-filter: blur(10px);
 }
 
 .githubButton:hover {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.5);
+  background: var(--radium-secondary);
+  border-color: var(--radium-secondary);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 12px var(--glow-purple);
   color: white;
 }
 

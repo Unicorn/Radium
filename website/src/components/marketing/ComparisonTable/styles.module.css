@@ -14,7 +14,7 @@
 .subtitle {
   text-align: center;
   font-size: var(--marketing-body-lg);
-  color: var(--ifm-color-emphasis-700);
+  color: var(--radium-text-muted);
   margin-bottom: 2rem;
 }
 
@@ -28,21 +28,23 @@
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  background: var(--ifm-card-background-color, white);
-  border: 1px solid var(--ifm-color-emphasis-200);
+  background: var(--radium-bg-panel);
+  border: 1px solid var(--radium-border);
   border-radius: var(--marketing-border-radius);
   overflow: hidden;
+  backdrop-filter: blur(10px);
 }
 
 .comparisonTable thead {
-  background: var(--ifm-color-emphasis-100);
+  background: var(--radium-bg-element);
 }
 
 .comparisonTable th {
   padding: 1rem;
   text-align: center;
   font-weight: 600;
-  border-bottom: 2px solid var(--ifm-color-emphasis-200);
+  border-bottom: 2px solid var(--radium-border);
+  color: var(--radium-text);
 }
 
 .headerFeature {
@@ -55,7 +57,9 @@
 }
 
 .headerRadium {
-  background: var(--ifm-color-primary-lightest);
+  background: rgba(0, 255, 136, 0.15);
+  border-color: var(--voiceflow-green-primary);
+  box-shadow: 0 0 12px var(--glow-green);
 }
 
 .productName {
@@ -64,7 +68,7 @@
 }
 
 .comparisonTable tbody tr {
-  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+  border-bottom: 1px solid var(--radium-border);
 }
 
 .comparisonTable tbody tr:last-child {
@@ -72,7 +76,7 @@
 }
 
 .comparisonTable tbody tr:hover {
-  background: var(--ifm-color-emphasis-50);
+  background: var(--radium-bg-element);
 }
 
 .cellFeature {
@@ -83,12 +87,12 @@
 .featureName {
   font-weight: 500;
   margin-bottom: 0.25rem;
-  color: var(--ifm-font-color-base);
+  color: var(--radium-text);
 }
 
 .featureDescription {
   font-size: 0.8125rem;
-  color: var(--ifm-color-emphasis-600);
+  color: var(--radium-text-muted);
   line-height: 1.4;
 }
 
@@ -99,8 +103,9 @@
 }
 
 .cellRadium {
-  background: var(--ifm-color-primary-lightest);
+  background: rgba(0, 255, 136, 0.1);
   font-weight: 600;
+  color: var(--voiceflow-green-primary);
 }
 
 .icon {
@@ -115,18 +120,18 @@
 }
 
 .iconFull {
-  background: var(--ifm-color-success-lightest);
-  color: var(--ifm-color-success-dark);
+  background: var(--radium-success);
+  color: white;
 }
 
 .iconPartial {
-  background: var(--ifm-color-warning-lightest);
-  color: var(--ifm-color-warning-dark);
+  background: var(--radium-warning);
+  color: white;
 }
 
 .iconNone {
-  background: var(--ifm-color-emphasis-200);
-  color: var(--ifm-color-emphasis-600);
+  background: var(--radium-border);
+  color: var(--radium-text-muted);
 }
 
 .legend {
@@ -141,57 +146,61 @@
   align-items: center;
   gap: 0.5rem;
   font-size: 0.875rem;
-  color: var(--ifm-color-emphasis-700);
+  color: var(--radium-text-muted);
 }
 
-/* Dark mode support */
+/* Dark mode support - using Radium colors */
 [data-theme='dark'] .comparisonTable {
-  background: var(--ifm-background-surface-color);
-  border-color: var(--ifm-color-emphasis-300);
+  background: var(--radium-bg-panel);
+  border-color: var(--radium-border);
 }
 
 [data-theme='dark'] .comparisonTable thead {
-  background: var(--ifm-color-emphasis-200);
+  background: var(--radium-bg-element);
 }
 
 [data-theme='dark'] .comparisonTable th {
-  border-color: var(--ifm-color-emphasis-300);
+  border-color: var(--radium-border);
+  color: var(--radium-text);
 }
 
 [data-theme='dark'] .headerRadium {
-  background: var(--ifm-color-primary-darkest);
+  background: rgba(0, 255, 136, 0.15);
+  border-color: var(--voiceflow-green-primary);
+  box-shadow: 0 0 12px var(--glow-green);
 }
 
 [data-theme='dark'] .comparisonTable tbody tr {
-  border-color: var(--ifm-color-emphasis-300);
+  border-color: var(--radium-border);
 }
 
 [data-theme='dark'] .comparisonTable tbody tr:hover {
-  background: var(--ifm-color-emphasis-200);
+  background: var(--radium-bg-element);
 }
 
 [data-theme='dark'] .cellRadium {
-  background: var(--ifm-color-primary-darkest);
+  background: rgba(0, 255, 136, 0.1);
+  color: var(--voiceflow-green-primary);
 }
 
 [data-theme='dark'] .subtitle,
 [data-theme='dark'] .featureDescription {
-  color: var(--ifm-color-emphasis-600);
+  color: var(--radium-text-muted);
 }
 
 [data-theme='dark'] .iconFull {
-  background: var(--ifm-color-success-darkest);
-  color: var(--ifm-color-success-light);
+  background: var(--radium-success);
+  color: white;
 }
 
 [data-theme='dark'] .iconPartial {
-  background: var(--ifm-color-warning-darkest);
-  color: var(--ifm-color-warning-light);
+  background: var(--radium-warning);
+  color: white;
 }
 
 [data-theme='dark'] .iconNone {
-  background: var(--ifm-color-emphasis-300);
-  color: var(--ifm-color-emphasis-700);
+  background: var(--radium-border);
+  color: var(--radium-text-muted);
 }
 
 /* Responsive */

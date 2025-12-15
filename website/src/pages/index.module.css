@@ -25,7 +25,7 @@
 /* Problem/Solution Section */
 .problemSolution {
   padding: 4rem 2rem;
-  background: var(--ifm-background-surface-color);
+  background: var(--radium-bg-panel);
 }
 
 .problemSolutionContent {

@@ -14,7 +14,7 @@
 .description {
   text-align: center;
   font-size: var(--marketing-body-lg);
-  color: var(--ifm-color-emphasis-700);
+  color: var(--radium-text-muted);
   max-width: 750px;
   margin: 0 auto 3rem;
   line-height: 1.6;
@@ -27,23 +27,25 @@
 }
 
 .panel {
-  background: var(--ifm-card-background-color, white);
-  border: 1px solid var(--ifm-color-emphasis-200);
+  background: var(--radium-bg-panel);
+  border: 1px solid var(--radium-border);
   border-radius: var(--marketing-border-radius);
   overflow: hidden;
   box-shadow: var(--marketing-shadow-md);
   transition: all var(--marketing-transition-normal);
+  backdrop-filter: blur(10px);
 }
 
 .panel:hover {
-  box-shadow: var(--marketing-shadow-lg);
+  box-shadow: var(--marketing-shadow-lg), var(--glow-green);
   transform: translateY(-4px);
+  border-color: var(--voiceflow-green-primary);
 }
 
 .panelHeader {
-  background: var(--ifm-color-emphasis-100);
+  background: var(--radium-bg-element);
   padding: 1rem 1.5rem;
-  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+  border-bottom: 1px solid var(--radium-border);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -59,19 +61,19 @@
   font-size: 1rem;
   font-weight: 600;
   margin: 0;
-  color: var(--ifm-heading-color);
+  color: var(--radium-text);
 }
 
 .panelSubtitle {
   font-size: 0.75rem;
-  color: var(--ifm-color-emphasis-600);
+  color: var(--radium-text-muted);
   display: block;
   margin-top: 0.25rem;
 }
 
 .panelBody {
   padding: 1.5rem;
-  background: var(--ifm-code-background);
+  background: var(--radium-bg-element);
   overflow-x: auto;
   max-height: 500px;
   overflow-y: auto;
@@ -83,7 +85,7 @@
   font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
   font-size: 0.875rem;
   line-height: 1.6;
-  color: var(--ifm-font-color-base);
+  color: var(--radium-text);
 }
 
 .codeBlock code {
@@ -94,46 +96,51 @@
   font-family: inherit;
 }
 
-/* Syntax highlighting hints */
+/* Syntax highlighting hints - using Radium colors */
 .codeBlock :global(.comment) {
-  color: var(--ifm-color-emphasis-600);
+  color: var(--radium-text-muted);
   font-style: italic;
 }
 
 .codeBlock :global(.keyword) {
-  color: var(--ifm-color-primary);
+  color: var(--voiceflow-green-primary);
   font-weight: 600;
 }
 
 .codeBlock :global(.string) {
-  color: #22863a;
+  color: var(--radium-success);
 }
 
 .codeBlock :global(.function) {
-  color: #6f42c1;
+  color: var(--radium-secondary);
 }
 
-/* Dark mode support */
+/* Dark mode support - using Radium colors */
 [data-theme='dark'] .panel {
-  background: var(--ifm-background-surface-color);
-  border-color: var(--ifm-color-emphasis-300);
+  background: var(--radium-bg-panel);
+  border-color: var(--radium-border);
+}
+
+[data-theme='dark'] .panel:hover {
+  border-color: var(--voiceflow-green-primary);
+  box-shadow: var(--marketing-shadow-lg), var(--glow-green);
 }
 
 [data-theme='dark'] .panelHeader {
-  background: var(--ifm-color-emphasis-200);
-  border-color: var(--ifm-color-emphasis-300);
+  background: var(--radium-bg-element);
+  border-color: var(--radium-border);
 }
 
 [data-theme='dark'] .description {
-  color: var(--ifm-color-emphasis-600);
+  color: var(--radium-text-muted);
 }
 
 [data-theme='dark'] .codeBlock :global(.string) {
-  color: #9ecbff;
+  color: var(--radium-success);
 }
 
 [data-theme='dark'] .codeBlock :global(.function) {
-  color: #b392f0;
+  color: var(--radium-secondary);
 }
 
 /* Responsive */

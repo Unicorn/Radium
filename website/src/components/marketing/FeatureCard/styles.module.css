@@ -1,6 +1,6 @@
 .featureCard {
-  background: var(--ifm-card-background-color, white);
-  border: 1px solid var(--ifm-color-emphasis-200);
+  background: var(--radium-bg-panel);
+  border: 1px solid var(--radium-border);
   border-radius: var(--marketing-border-radius);
   padding: 1.5rem;
   box-shadow: var(--marketing-shadow-md);
@@ -8,12 +8,13 @@
   height: 100%;
   display: flex;
   flex-direction: column;
+  backdrop-filter: blur(10px);
 }
 
 .featureCard:hover {
-  box-shadow: var(--marketing-shadow-lg);
+  box-shadow: var(--marketing-shadow-lg), var(--glow-green);
   transform: translateY(-4px);
-  border-color: var(--ifm-color-primary-light);
+  border-color: var(--voiceflow-green-primary);
 }
 
 .featureHeader {
@@ -26,21 +27,27 @@
 .featureIcon {
   flex-shrink: 0;
   font-size: 2rem;
-  color: var(--ifm-color-primary);
+  color: var(--voiceflow-green-primary);
+  transition: all var(--marketing-transition-normal);
+}
+
+.featureCard:hover .featureIcon {
+  color: var(--voiceflow-green-light);
+  filter: drop-shadow(0 0 8px var(--glow-green));
 }
 
 .featureTitle {
   font-size: 1.25rem;
   font-weight: 600;
   margin: 0;
-  color: var(--ifm-heading-color);
+  color: var(--radium-text);
   line-height: 1.4;
 }
 
 .featureDescription {
   font-size: 0.9375rem;
   line-height: 1.6;
-  color: var(--ifm-color-emphasis-700);
+  color: var(--radium-text-muted);
   margin-bottom: 1.5rem;
   flex-grow: 1;
 }
@@ -83,22 +90,23 @@
   flex: 0 0 auto;
 }
 
-/* Dark mode support */
+/* Dark mode support - using Radium colors */
 [data-theme='dark'] .featureCard {
-  background: var(--ifm-background-surface-color);
-  border-color: var(--ifm-color-emphasis-300);
+  background: var(--radium-bg-panel);
+  border-color: var(--radium-border);
 }
 
 [data-theme='dark'] .featureCard:hover {
-  border-color: var(--ifm-color-primary);
+  border-color: var(--voiceflow-green-primary);
+  box-shadow: var(--marketing-shadow-lg), var(--glow-green);
 }
 
 [data-theme='dark'] .featureDescription {
-  color: var(--ifm-color-emphasis-600);
+  color: var(--radium-text-muted);
 }
 
 [data-theme='dark'] .featureLinks {
-  border-color: var(--ifm-color-emphasis-300);
+  border-color: var(--radium-border);
 }
 
 /* Responsive */

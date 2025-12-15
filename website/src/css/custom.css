@@ -4,32 +4,108 @@
  * work well for content-centric websites.
  */
 
-/* You can override the default Infima variables here. */
+/* ============================================
+   VoiceFlow Green Theme Colors (Primary)
+   ============================================ */
 :root {
-  --ifm-color-primary: #2e8555;
-  --ifm-color-primary-dark: #29784c;
-  --ifm-color-primary-darker: #277148;
-  --ifm-color-primary-darkest: #205d3b;
-  --ifm-color-primary-light: #33925d;
-  --ifm-color-primary-lighter: #359962;
-  --ifm-color-primary-lightest: #3cad6e;
+  /* Primary Theme Colors - VoiceFlow Green */
+  --voiceflow-green-primary: #00ff88;
+  --voiceflow-green-dark: #00d9a5;
+  --voiceflow-green-darker: #00b882;
+  --voiceflow-green-darkest: #009966;
+  --voiceflow-green-light: #33ffaa;
+  --voiceflow-green-lighter: #66ffbb;
+  --voiceflow-green-lightest: #99ffcc;
+  --voiceflow-green-glow: rgba(0, 255, 136, 0.2);
+  --voiceflow-green-glow-strong: rgba(0, 255, 136, 0.4);
+  --voiceflow-bg-gradient-start: #0a1f1a;
+  --voiceflow-bg-gradient-mid: #1a1a1a;
+  --voiceflow-bg-gradient-end: #0a0a0a;
+}
+
+/* ============================================
+   Radium Brand Colors (Available Palette)
+   Source: apps/tui/src/theme.rs (RadiumTheme::radium())
+   ============================================ */
+:root {
+  /* Primary Brand Colors */
+  --radium-primary: #00D9FF; /* Cyan */
+  --radium-secondary: #A78BFA; /* Purple */
+  --radium-purple-accent: #6250d0;
+  
+  /* Status Colors */
+  --radium-success: #10B981; /* Green */
+  --radium-warning: #F59E0B; /* Yellow */
+  --radium-error: #EF4444; /* Red */
+  --radium-info: #06B6D4; /* Blue */
+  
+  /* Text Colors */
+  --radium-text: #eeeeee;
+  --radium-text-muted: #808080;
+  --radium-text-dim: #606060;
+  
+  /* Background Colors */
+  --radium-bg-primary: #181D27;
+  --radium-bg-panel: #141414;
+  --radium-bg-element: #1e1e1e;
+  
+  /* Border Colors */
+  --radium-border: #484848;
+  --radium-border-active: #606060;
+  --radium-border-subtle: #3c3c3c;
+  
+  /* Glow Effects */
+  --radium-glow-cyan: rgba(0, 217, 255, 0.2);
+  --radium-glow-cyan-strong: rgba(0, 217, 255, 0.4);
+  --radium-glow-purple: rgba(167, 139, 250, 0.2);
+  --radium-glow-purple-strong: rgba(167, 139, 250, 0.4);
+}
+
+/* ============================================
+   Docusaurus/Infima Color Mapping
+   ============================================ */
+:root {
+  /* Use VoiceFlow green as primary for Docusaurus */
+  --ifm-color-primary: var(--voiceflow-green-primary);
+  --ifm-color-primary-dark: var(--voiceflow-green-dark);
+  --ifm-color-primary-darker: var(--voiceflow-green-darker);
+  --ifm-color-primary-darkest: var(--voiceflow-green-darkest);
+  --ifm-color-primary-light: var(--voiceflow-green-light);
+  --ifm-color-primary-lighter: var(--voiceflow-green-lighter);
+  --ifm-color-primary-lightest: var(--voiceflow-green-lightest);
+  
+  /* Semantic color variables for flexibility */
+  --color-primary: var(--voiceflow-green-primary);
+  --color-secondary: var(--radium-secondary);
+  --color-accent: var(--radium-primary);
+  
   --ifm-code-font-size: 95%;
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
 }
 
-/* For readability concerns, you should choose a lighter palette in dark mode. */
+/* ============================================
+   Dark Mode (Default)
+   ============================================ */
 [data-theme='dark'] {
-  --ifm-color-primary: #25c2a0;
-  --ifm-color-primary-dark: #21af90;
-  --ifm-color-primary-darker: #1fa588;
-  --ifm-color-primary-darkest: #1a8870;
-  --ifm-color-primary-light: #29d5b0;
-  --ifm-color-primary-lighter: #32d8b4;
-  --ifm-color-primary-lightest: #4fddbf;
+  /* Keep VoiceFlow green as primary in dark mode */
+  --ifm-color-primary: var(--voiceflow-green-primary);
+  --ifm-color-primary-dark: var(--voiceflow-green-dark);
+  --ifm-color-primary-darker: var(--voiceflow-green-darker);
+  --ifm-color-primary-darkest: var(--voiceflow-green-darkest);
+  --ifm-color-primary-light: var(--voiceflow-green-light);
+  --ifm-color-primary-lighter: var(--voiceflow-green-lighter);
+  --ifm-color-primary-lightest: var(--voiceflow-green-lightest);
+  
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+  
+  /* Set global background to VoiceFlow dark gradient */
+  --ifm-background-color: var(--voiceflow-bg-gradient-end);
+  --ifm-background-surface-color: var(--radium-bg-panel);
 }
 
-/* Marketing-specific CSS Variables */
+/* ============================================
+   Marketing-specific CSS Variables
+   ============================================ */
 :root {
   /* Spacing */
   --marketing-section-padding: 4rem 0;
@@ -55,10 +131,21 @@
   --marketing-border-radius: 12px;
   --marketing-border-radius-sm: 8px;
   --marketing-border-radius-lg: 16px;
+  --marketing-border-radius-pill: 24px; /* Pill-shaped buttons */
 
-  /* Gradients */
-  --marketing-gradient-primary: linear-gradient(135deg, var(--ifm-color-primary) 0%, var(--ifm-color-primary-dark) 100%);
-  --marketing-gradient-hero: linear-gradient(135deg, #2e8555 0%, #25c2a0 100%);
+  /* Gradients - VoiceFlow Green Primary */
+  --marketing-gradient-primary: linear-gradient(135deg, var(--voiceflow-green-primary) 0%, var(--voiceflow-green-dark) 100%);
+  --marketing-gradient-hero: linear-gradient(135deg, var(--voiceflow-bg-gradient-start) 0%, var(--voiceflow-bg-gradient-mid) 50%, var(--voiceflow-bg-gradient-end) 100%);
+  --marketing-gradient-cyan: linear-gradient(135deg, var(--radium-primary) 0%, var(--radium-info) 100%);
+  --marketing-gradient-purple: linear-gradient(135deg, var(--radium-secondary) 0%, var(--radium-purple-accent) 100%);
+
+  /* Glow Effects */
+  --glow-green: var(--voiceflow-green-glow);
+  --glow-green-strong: var(--voiceflow-green-glow-strong);
+  --glow-cyan: var(--radium-glow-cyan);
+  --glow-cyan-strong: var(--radium-glow-cyan-strong);
+  --glow-purple: var(--radium-glow-purple);
+  --glow-purple-strong: var(--radium-glow-purple-strong);
 
   /* Transitions */
   --marketing-transition-fast: 0.15s ease;
@@ -73,6 +160,75 @@
   --marketing-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
   --marketing-shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.6);
 
-  /* Adjust gradients for dark mode */
-  --marketing-gradient-hero: linear-gradient(135deg, #25c2a0 0%, #1a8870 100%);
+  /* Keep VoiceFlow gradient for dark mode */
+  --marketing-gradient-hero: linear-gradient(135deg, var(--voiceflow-bg-gradient-start) 0%, var(--voiceflow-bg-gradient-mid) 50%, var(--voiceflow-bg-gradient-end) 100%);
+}
+
+/* ============================================
+   Global Styles
+   ============================================ */
+
+/* Set global background to VoiceFlow dark gradient */
+html {
+  background: var(--marketing-gradient-hero);
+  background-attachment: fixed;
+}
+
+body {
+  background: transparent;
+}
+
+/* Links - Green primary, Cyan for external/secondary */
+a {
+  color: var(--voiceflow-green-primary);
+  transition: color var(--marketing-transition-fast);
+}
+
+a:hover {
+  color: var(--voiceflow-green-light);
+}
+
+/* External links or secondary links can use cyan */
+a[href^="http"]:not([href*="clay-curry.github.io"]):not([href*="localhost"]) {
+  color: var(--radium-primary);
+}
+
+a[href^="http"]:not([href*="clay-curry.github.io"]):not([href*="localhost"]):hover {
+  color: var(--radium-info);
+}
+
+/* Status messages using Radium colors */
+.alert--success {
+  --ifm-alert-color: var(--radium-success);
+  border-color: var(--radium-success);
+}
+
+.alert--warning {
+  --ifm-alert-color: var(--radium-warning);
+  border-color: var(--radium-warning);
+}
+
+.alert--danger,
+.alert--error {
+  --ifm-alert-color: var(--radium-error);
+  border-color: var(--radium-error);
+}
+
+.alert--info {
+  --ifm-alert-color: var(--radium-info);
+  border-color: var(--radium-info);
+}
+
+/* Code blocks - use Radium colors for better contrast */
+code {
+  background: var(--radium-bg-element);
+  color: var(--radium-text);
+  border: 1px solid var(--radium-border);
+}
+
+/* Smooth transitions for theme elements */
+* {
+  transition: background-color var(--marketing-transition-normal),
+              border-color var(--marketing-transition-normal),
+              color var(--marketing-transition-normal);
 }
