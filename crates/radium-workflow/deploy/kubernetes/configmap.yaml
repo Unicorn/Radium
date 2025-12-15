@@ -1,0 +1,34 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: radium-workflow-config
+  labels:
+    app: radium-workflow
+    component: compiler
+data:
+  # Logging configuration
+  RUST_LOG: "info,radium_workflow=debug"
+
+  # Server configuration
+  PORT: "3000"
+
+  # Compilation settings
+  COMPILATION_TIMEOUT_MS: "30000"
+  MAX_WORKFLOW_SIZE: "1048576"
+  MAX_COMPONENTS_PER_WORKFLOW: "1000"
+
+  # Cache settings
+  CACHE_MAX_ENTRIES: "1000"
+  CACHE_TTL_SECS: "3600"
+
+  # Rate limiting
+  RATE_LIMIT_REQUESTS: "100"
+  RATE_LIMIT_WINDOW_SECS: "60"
+  RATE_LIMIT_BURST: "20"
+
+  # Health check settings
+  HEALTH_CHECK_INTERVAL_SECS: "30"
+
+  # Metrics settings
+  METRICS_ENABLED: "true"
+  METRICS_PATH: "/metrics"

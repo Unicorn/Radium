@@ -1,0 +1,34 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: radium-workflow
+  labels:
+    app: radium-workflow
+    component: compiler
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+  selector:
+    app: radium-workflow
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: radium-workflow-headless
+  labels:
+    app: radium-workflow
+    component: compiler
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+  selector:
+    app: radium-workflow
