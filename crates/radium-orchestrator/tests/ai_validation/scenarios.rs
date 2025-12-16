@@ -197,6 +197,50 @@ pub fn git_status_clean_workspace() -> TestScenario {
     }
 }
 
+//
+// File Operation Scenarios
+//
+
+/// Test that AI creates directory before writing file
+pub fn file_ops_create_dir_first() -> TestScenario {
+    TestScenario {
+        name: "Create Directory Before File".to_string(),
+        description: "Tests whether orchestrator creates necessary directories before writing files".to_string(),
+        user_input: "Create a file at docs/new-feature.md with content '# New Feature'".to_string(),
+        expected_behavior: "Should first call create_dir for 'docs' directory (or verify it exists), then call write_file with path 'docs/new-feature.md'. Should not attempt to write file without ensuring parent directory exists, though write_file does auto-create parents.".to_string(),
+    }
+}
+
+/// Test that AI handles leading slashes correctly
+pub fn file_ops_leading_slash_handling() -> TestScenario {
+    TestScenario {
+        name: "Leading Slash Auto-Correction".to_string(),
+        description: "Tests whether orchestrator correctly handles paths with leading slashes".to_string(),
+        user_input: "Create a file at /config/settings.json with empty JSON {}".to_string(),
+        expected_behavior: "Should use write_file tool with path '/config/settings.json' (leading slash is auto-stripped internally). The file should be created at workspace_root/config/settings.json, NOT at system root. Should not show confusion or ask about the leading slash.".to_string(),
+    }
+}
+
+/// Test that AI uses rename_file tool appropriately
+pub fn file_ops_rename_file_usage() -> TestScenario {
+    TestScenario {
+        name: "Rename File Tool Usage".to_string(),
+        description: "Tests whether orchestrator uses rename_file tool for moving/renaming operations".to_string(),
+        user_input: "Move the file old_name.txt to archive/old_name.txt".to_string(),
+        expected_behavior: "Should call rename_file tool with old_path='old_name.txt' and new_path='archive/old_name.txt'. Should not use combination of read+write+delete. May optionally call create_dir for 'archive' first, though rename_file auto-creates parent directories.".to_string(),
+    }
+}
+
+/// Test that AI deletes files safely
+pub fn file_ops_delete_safely() -> TestScenario {
+    TestScenario {
+        name: "Safe File Deletion".to_string(),
+        description: "Tests whether orchestrator uses delete_file tool correctly and safely".to_string(),
+        user_input: "Delete the file temporary_file.txt".to_string(),
+        expected_behavior: "Should call delete_file tool with path 'temporary_file.txt'. Should not attempt to delete directories with this tool (delete_file rejects directories). Should use the tool directly without asking for confirmation unless the context suggests caution is needed.".to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -220,6 +264,10 @@ mod tests {
             git_status_basic(),
             git_status_unstaged_changes(),
             git_status_clean_workspace(),
+            file_ops_create_dir_first(),
+            file_ops_leading_slash_handling(),
+            file_ops_rename_file_usage(),
+            file_ops_delete_safely(),
         ];
 
         for scenario in scenarios {

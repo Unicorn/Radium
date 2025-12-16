@@ -384,7 +384,7 @@ impl ToolHandler for GitStatusHandler {
         }
 
         let status_output = String::from_utf8_lossy(&output.stdout);
-        
+
         // Get branch information
         let branch_output = Command::new("git")
             .arg("branch")
@@ -826,6 +826,7 @@ pub fn create_git_extended_tools(workspace_root: Arc<dyn WorkspaceRootProvider>)
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
     use tempfile::TempDir;
     use tokio::fs;
 

@@ -258,17 +258,20 @@ struct SubtaskResponse {
 mod tests {
     use super::*;
     use super::super::agent_tools::AgentMetadata;
+    use super::super::tool::Tool;
+    use super::super::{OrchestrationResult, FinishReason};
     use std::collections::HashMap;
 
     // Mock provider for testing
     struct MockProvider;
+    #[async_trait::async_trait]
     impl OrchestrationProvider for MockProvider {
         async fn execute_with_tools(
             &self,
             _input: &str,
-            _tools: &[super::super::tool::Tool],
+            _tools: &[Tool],
             _context: &OrchestrationContext,
-        ) -> Result<super::super::OrchestrationResult> {
+        ) -> Result<OrchestrationResult> {
             // Return mock decomposition
             let response = r#"{
                 "subtasks": [
@@ -284,10 +287,10 @@ mod tests {
                     }
                 ]
             }"#;
-            Ok(super::super::OrchestrationResult::new(
+            Ok(OrchestrationResult::new(
                 response.to_string(),
                 vec![],
-                super::super::FinishReason::Stop,
+                FinishReason::Stop,
             ))
         }
 
