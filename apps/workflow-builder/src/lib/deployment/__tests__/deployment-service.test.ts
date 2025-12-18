@@ -10,6 +10,7 @@ import { join } from 'path';
 describe('DeploymentService', () => {
   let service: DeploymentService;
   const testWorkflowsDir = '/tmp/workflow-builder-test/workflows';
+  let fetchSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     // Override environment variables for testing
@@ -18,8 +19,8 @@ describe('DeploymentService', () => {
 
     service = new DeploymentService();
 
-    // Mock fetch for worker notifications
-    global.fetch = vi.fn().mockResolvedValue({
+    // Mock fetch for worker notifications using spyOn (properly restored by vi.restoreAllMocks)
+    fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({ success: true }),
     } as Response);
@@ -142,14 +143,13 @@ describe('DeploymentService', () => {
     }, 30000);
 
     it('should notify worker on successful deployment', async () => {
-      const fetchSpy = vi.spyOn(global, 'fetch');
-
       await service.deployWorkflow('test-workflow-notify', {
         workflowCode: 'export async function test() { return "ok"; }',
         activitiesCode: 'export async function test() {}',
         workerCode: 'console.log("test");',
       });
 
+      // Use the fetchSpy from beforeEach
       expect(fetchSpy).toHaveBeenCalledWith(
         'http://localhost:3011/workflows/reload',
         expect.objectContaining({

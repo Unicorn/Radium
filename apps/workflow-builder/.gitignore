@@ -41,3 +41,12 @@ next-env.d.ts
 
 # Local plans (not tracked in git)
 plans/
+
+# Playwright
+playwright-report/
+playwright/.auth/
+test-results/
+
+# Test infrastructure
+.test-setup-complete
+supabase/volumes/db/data/

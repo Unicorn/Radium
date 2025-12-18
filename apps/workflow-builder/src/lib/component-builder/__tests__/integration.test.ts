@@ -5,14 +5,16 @@
  * Requires ANTHROPIC_API_KEY in environment.
  *
  * Run with: npx vitest run src/lib/component-builder/__tests__/integration.test.ts
+ *
+ * @vitest-environment node
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import { config } from 'dotenv';
 import * as path from 'path';
 
-// Load .env from Radium root
-config({ path: path.resolve(__dirname, '../../../../../../.env') });
+// Load .env.test from workflow-builder directory
+config({ path: path.resolve(__dirname, '../../../../.env.test') });
 
 import { MigrationRecordProcessor } from '../knowledge-base/processor';
 import { KnowledgeRetrieval } from '../knowledge-base/retrieval';

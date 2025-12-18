@@ -2,8 +2,9 @@
  * Tests for DataInNode Component
  */
 
+import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen } from '@tests/utils/test-render';
 import { DataInNode } from '../DataInNode';
 import type { NodeProps } from 'react-flow-renderer';
 

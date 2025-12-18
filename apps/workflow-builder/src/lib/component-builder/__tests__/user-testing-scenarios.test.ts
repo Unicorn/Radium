@@ -5,9 +5,12 @@
  * They validate the complete user experience from start to finish.
  *
  * Run with: npx vitest run src/lib/component-builder/__tests__/user-testing-scenarios.test.ts
+ *
+ * TESTING POLICY COMPLIANCE:
+ * - Anthropic SDK: Mocked (external third-party API - acceptable)
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { config } from 'dotenv';
 import * as path from 'path';
 import { ComponentBuilderAgent } from '../agent/builder-agent';
@@ -20,8 +23,19 @@ import {
   type StoredComponent,
 } from '../storage';
 
-// Load .env from Radium root
-config({ path: path.resolve(__dirname, '../../../../../../.env') });
+// Mock Anthropic SDK (external third-party - acceptable per testing policy)
+vi.mock('@anthropic-ai/sdk', () => ({
+  default: vi.fn().mockImplementation(() => ({
+    messages: {
+      create: vi.fn().mockResolvedValue({
+        content: [{ type: 'text', text: 'Mock AI response for testing' }],
+      }),
+    },
+  })),
+}));
+
+// Load .env.test from workflow-builder directory
+config({ path: path.resolve(__dirname, '../../../../.env.test') });
 
 // Check if API key is available
 const hasApiKey = !!process.env.ANTHROPIC_API_KEY;

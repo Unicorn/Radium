@@ -233,7 +233,8 @@ export class KongClient {
     }
   ): Promise<void> {
     const pluginConfig = {
-      key_claim_name: config?.keyClaimName || 'sub',
+      // Kong JWT plugin uses 'iss' claim to lookup consumer credentials by default
+      key_claim_name: config?.keyClaimName || 'iss',
       claims_to_verify: config?.claimsToVerify || ['exp'],
       secret_is_base64: false,
       run_on_preflight: true,
@@ -246,11 +247,16 @@ export class KongClient {
   /**
    * Create a JWT consumer and credentials
    * This is needed for Kong to validate JWTs
+   * @param consumerId - Username for the Kong consumer
+   * @param jwtSecret - Secret used to sign JWTs
+   * @param algorithm - JWT signing algorithm (default: HS256)
+   * @param key - The key that will be used in the JWT 'iss' claim to identify this credential
    */
   async createJwtConsumer(
     consumerId: string,
     jwtSecret: string,
-    algorithm: 'HS256' | 'HS384' | 'HS512' | 'RS256' | 'RS384' | 'RS512' = 'HS256'
+    algorithm: 'HS256' | 'HS384' | 'HS512' | 'RS256' | 'RS384' | 'RS512' = 'HS256',
+    key?: string
   ): Promise<{ key: string; secret: string }> {
     // First create or get consumer
     let consumer;
@@ -285,16 +291,42 @@ export class KongClient {
     }
 
     // Create JWT credential for consumer
+    // The 'key' field is what Kong matches against the JWT's 'iss' claim
+    const credentialBody: Record<string, unknown> = {
+      algorithm,
+      secret: jwtSecret,
+    };
+    if (key) {
+      credentialBody.key = key;
+    }
+
     const response = await fetch(`${this.adminUrl}/consumers/${consumer.id}/jwt`, {
       method: 'POST',
       headers: this.getHeaders(),
-      body: JSON.stringify({
-        algorithm,
-        secret: jwtSecret,
-      }),
+      body: JSON.stringify(credentialBody),
     });
 
     if (!response.ok) {
+      // Handle case where credential already exists
+      if (response.status === 409 && key) {
+        // Credential with this key already exists, fetch it
+        const listResponse = await fetch(`${this.adminUrl}/consumers/${consumer.id}/jwt`, {
+          method: 'GET',
+          headers: this.getHeaders(),
+        });
+
+        if (listResponse.ok) {
+          const listData = await listResponse.json();
+          const existingCred = listData.data?.find((c: any) => c.key === key);
+          if (existingCred) {
+            return {
+              key: existingCred.key,
+              secret: existingCred.secret,
+            };
+          }
+        }
+      }
+
       const error = await response.text();
       throw new Error(`Failed to create JWT credential: ${response.status} ${error}`);
     }

@@ -185,13 +185,12 @@ describe('Connector Classifications', () => {
         eq: vi.fn().mockReturnThis(),
       };
 
+      // Mock the chain: delete().eq('connector_id', ...).eq('classification', ...) -> resolves to error
       (mockQuery.eq as any).mockImplementation((field: string, value: any) => {
         if (field === 'connector_id') {
           return {
-            eq: (field2: string, value2: any) => ({
-              eq: vi.fn().mockResolvedValue({
-                error: { message: 'Deletion failed' },
-              }),
+            eq: vi.fn().mockResolvedValue({
+              error: { message: 'Deletion failed' },
             }),
           };
         }

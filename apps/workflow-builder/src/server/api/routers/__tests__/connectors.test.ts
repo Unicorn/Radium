@@ -8,30 +8,53 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 /**
  * Test Helper: Create a mock tRPC context
  */
+// Valid UUIDs for testing
+const TEST_IDS = {
+  authUser: '11111111-1111-1111-1111-111111111111',
+  user: '22222222-2222-2222-2222-222222222222',
+  project: '33333333-3333-3333-3333-333333333333',
+  connector: '44444444-4444-4444-4444-444444444444',
+  role: '55555555-5555-5555-5555-555555555555',
+  org: '66666666-6666-6666-6666-666666666666',
+  visibility: '77777777-7777-7777-7777-777777777777',
+  otherUser: '88888888-8888-8888-8888-888888888888',
+};
+
 function createMockContext() {
+  // Mock auth user (from Supabase auth.getUser())
+  const mockAuthUser = {
+    id: TEST_IDS.authUser,
+    email: 'test@example.com',
+    app_metadata: {},
+    user_metadata: {},
+    aud: 'authenticated',
+    created_at: new Date().toISOString(),
+  };
+
+  // Mock user record (from users table)
   const mockUser = {
-    id: 'user-123',
+    id: TEST_IDS.user,
     email: 'test@example.com',
     display_name: 'Test User',
-    auth_user_id: 'auth-123',
-    role_id: 'role-123',
-    organization_id: 'org-123',
+    auth_user_id: TEST_IDS.authUser,
+    role_id: TEST_IDS.role,
+    organization_id: TEST_IDS.org,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     last_seen_at: new Date().toISOString(),
-    default_visibility_id: 'vis-123',
+    default_visibility_id: TEST_IDS.visibility,
     archived_at: null,
   };
 
   const mockProject = {
-    id: 'project-123',
+    id: TEST_IDS.project,
     name: 'Test Project',
-    created_by: 'user-123',
+    created_by: TEST_IDS.user,
   };
 
   const mockConnector = {
-    id: 'connector-123',
-    project_id: 'project-123',
+    id: TEST_IDS.connector,
+    project_id: TEST_IDS.project,
     connector_type: 'database',
     name: 'upstash-redis',
     display_name: 'Upstash Redis',
@@ -44,11 +67,17 @@ function createMockContext() {
     from: vi.fn(),
   };
 
+  // getUserRecord function required by protectedProcedure
+  const getUserRecord = vi.fn().mockResolvedValue(mockUser);
+
   return {
-    user: mockUser,
+    authUser: mockAuthUser,  // tRPC protectedProcedure checks this first
+    user: mockUser,          // After middleware runs, this is populated
     supabase: mockSupabase as any,
+    getUserRecord,           // Function to load user record
     project: mockProject,
     connector: mockConnector,
+    mockUser,                // Expose for test assertions
   };
 }
 
@@ -60,7 +89,7 @@ describe('Connectors Router - Classification Endpoints', () => {
 
       const mockConnectors = [
         {
-          id: 'connector-123',
+          id: TEST_IDS.connector,
           name: 'upstash-redis',
           display_name: 'Upstash Redis',
           description: 'Redis connector',
@@ -100,12 +129,12 @@ describe('Connectors Router - Classification Endpoints', () => {
       const caller = connectorsRouter.createCaller(ctx as any);
 
       const result = await caller.getByClassification({
-        projectId: 'project-123',
+        projectId: TEST_IDS.project,
         classification: 'redis',
       });
 
       expect(result).toHaveLength(1);
-      expect(result[0]?.id).toBe('connector-123');
+      expect(result[0]?.id).toBe(TEST_IDS.connector);
       expect(result[0]?.classifications).toEqual(['redis']);
     });
 
@@ -128,7 +157,7 @@ describe('Connectors Router - Classification Endpoints', () => {
 
       await expect(
         caller.getByClassification({
-          projectId: 'project-123',
+          projectId: TEST_IDS.project,
           classification: 'redis',
         })
       ).rejects.toThrow('Project not found');
@@ -139,9 +168,9 @@ describe('Connectors Router - Classification Endpoints', () => {
       const ctx = createMockContext();
 
       const mockProject = {
-        id: 'project-123',
+        id: TEST_IDS.project,
         name: 'Test Project',
-        created_by: 'other-user',
+        created_by: TEST_IDS.otherUser,
       };
 
       const mockProjectQuery = {
@@ -159,7 +188,7 @@ describe('Connectors Router - Classification Endpoints', () => {
 
       await expect(
         caller.getByClassification({
-          projectId: 'project-123',
+          projectId: TEST_IDS.project,
           classification: 'redis',
         })
       ).rejects.toThrow('You do not have access to this project');
@@ -177,7 +206,7 @@ describe('Connectors Router - Classification Endpoints', () => {
         eq: vi.fn().mockReturnThis(),
         single: vi.fn().mockResolvedValue({
           data: {
-            id: 'connector-123',
+            id: TEST_IDS.connector,
             project: ctx.project,
           },
           error: null,
@@ -198,13 +227,13 @@ describe('Connectors Router - Classification Endpoints', () => {
       const caller = connectorsRouter.createCaller(ctx as any);
 
       const result = await caller.addClassification({
-        connectorId: 'connector-123',
+        connectorId: TEST_IDS.connector,
         classification: 'redis',
       });
 
       expect(result.success).toBe(true);
       expect(mockClassificationQuery.insert).toHaveBeenCalledWith({
-        connector_id: 'connector-123',
+        connector_id: TEST_IDS.connector,
         classification: 'redis',
       });
     });
@@ -218,7 +247,7 @@ describe('Connectors Router - Classification Endpoints', () => {
         eq: vi.fn().mockReturnThis(),
         single: vi.fn().mockResolvedValue({
           data: {
-            id: 'connector-123',
+            id: TEST_IDS.connector,
             project: ctx.project,
           },
           error: null,
@@ -241,7 +270,7 @@ describe('Connectors Router - Classification Endpoints', () => {
 
       // Should not throw for unique constraint violation
       const result = await caller.addClassification({
-        connectorId: 'connector-123',
+        connectorId: TEST_IDS.connector,
         classification: 'redis',
       });
 
@@ -257,8 +286,8 @@ describe('Connectors Router - Classification Endpoints', () => {
         eq: vi.fn().mockReturnThis(),
         single: vi.fn().mockResolvedValue({
           data: {
-            id: 'connector-123',
-            project: { id: 'project-123', created_by: 'other-user' },
+            id: TEST_IDS.connector,
+            project: { id: TEST_IDS.project, created_by: TEST_IDS.otherUser },
           },
           error: null,
         }),
@@ -270,7 +299,7 @@ describe('Connectors Router - Classification Endpoints', () => {
 
       await expect(
         caller.addClassification({
-          connectorId: 'connector-123',
+          connectorId: TEST_IDS.connector,
           classification: 'redis',
         })
       ).rejects.toThrow('You do not have access to this connector');
@@ -287,7 +316,7 @@ describe('Connectors Router - Classification Endpoints', () => {
         eq: vi.fn().mockReturnThis(),
         single: vi.fn().mockResolvedValue({
           data: {
-            id: 'connector-123',
+            id: TEST_IDS.connector,
             project: ctx.project,
           },
           error: null,
@@ -319,7 +348,7 @@ describe('Connectors Router - Classification Endpoints', () => {
       const caller = connectorsRouter.createCaller(ctx as any);
 
       const result = await caller.removeClassification({
-        connectorId: 'connector-123',
+        connectorId: TEST_IDS.connector,
         classification: 'redis',
       });
 
@@ -346,7 +375,7 @@ describe('Connectors Router - Classification Endpoints', () => {
 
       await expect(
         caller.removeClassification({
-          connectorId: 'connector-123',
+          connectorId: TEST_IDS.connector,
           classification: 'redis',
         })
       ).rejects.toThrow('Connector not found');

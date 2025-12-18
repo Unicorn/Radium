@@ -284,66 +284,64 @@ describe('Interface Component Manager', () => {
         is_public: true,
       };
 
-      // Mock component fetch
-      const mockSelect = vi.fn().mockReturnThis();
-      const mockEq = vi.fn().mockReturnThis();
-      const mockSingle = vi.fn().mockResolvedValue({
+      // Mock component fetch - Chain: .from('components').select().eq().single()
+      const mockComponentSelect = vi.fn().mockReturnThis();
+      const mockComponentEq = vi.fn().mockReturnThis();
+      const mockComponentSingle = vi.fn().mockResolvedValue({
         data: mockComponent,
         error: null,
       });
 
-      mockFrom.mockReturnValueOnce({
-        select: mockSelect,
-        eq: mockEq,
-        single: mockSingle,
-      });
-
       // Mock service interface insert (fails with unique constraint)
-      const mockInsert = vi.fn().mockReturnThis();
-      const mockInsertSelect = vi.fn().mockReturnThis();
+      // Chain: .from('service_interfaces').insert().select().single()
       const mockInsertSingle = vi.fn().mockResolvedValue({
         data: null,
         error: { code: '23505', message: 'Unique constraint violation' },
       });
+      const mockInsertSelectChain = { single: mockInsertSingle };
+      const mockInsertChain = { select: vi.fn().mockReturnValue(mockInsertSelectChain) };
+      const mockInsert = vi.fn().mockReturnValue(mockInsertChain);
 
       // Mock existing interface fetch
-      const mockExistingSelect = vi.fn().mockReturnThis();
-      const mockExistingEq = vi.fn().mockReturnThis();
+      // Chain: .from('service_interfaces').select().eq().eq().single()
       const mockExistingSingle = vi.fn().mockResolvedValue({
         data: existingInterface,
         error: null,
       });
+      const mockExistingEqChain = {
+        eq: vi.fn().mockReturnValue({ single: mockExistingSingle }),
+      };
+      const mockExistingSelectChain = { eq: vi.fn().mockReturnValue(mockExistingEqChain) };
 
       // Mock update
-      const mockUpdate = vi.fn().mockReturnThis();
-      const mockUpdateEq = vi.fn().mockReturnThis();
-      const mockUpdateSelect = vi.fn().mockReturnThis();
+      // Chain: .from('service_interfaces').update().eq().select().single()
       const mockUpdateSingle = vi.fn().mockResolvedValue({
         data: updatedInterface,
         error: null,
       });
+      const mockUpdateSelectChain = { single: mockUpdateSingle };
+      const mockUpdateEqChain = { select: vi.fn().mockReturnValue(mockUpdateSelectChain) };
+      const mockUpdate = vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue(mockUpdateEqChain) });
 
+      // Set up mock returns in order of calls:
+      // 1. Component fetch
+      // 2. Service interface insert (fails)
+      // 3. Existing interface fetch
+      // 4. Update existing interface
       mockFrom
         .mockReturnValueOnce({
-          select: mockSelect,
-          eq: mockEq,
-          single: mockSingle,
+          select: mockComponentSelect,
+          eq: mockComponentEq,
+          single: mockComponentSingle,
         })
         .mockReturnValueOnce({
           insert: mockInsert,
-          select: mockInsertSelect,
-          single: mockInsertSingle,
         })
         .mockReturnValueOnce({
-          select: mockExistingSelect,
-          eq: mockExistingEq,
-          single: mockExistingSingle,
+          select: vi.fn().mockReturnValue(mockExistingSelectChain),
         })
         .mockReturnValueOnce({
           update: mockUpdate,
-          eq: mockUpdateEq,
-          select: mockUpdateSelect,
-          single: mockUpdateSingle,
         });
 
       const result = await createServiceInterfaceFromComponent(
@@ -423,14 +421,13 @@ describe('Interface Component Manager', () => {
       const componentId = 'comp-123';
       const workflowId = 'wf-123';
 
-      const mockDelete = vi.fn().mockReturnThis();
-      const mockEq = vi.fn().mockResolvedValue({
-        error: null,
-      });
+      // Chain: .from().delete().eq('workflow_id', ...).eq('activity_connection_id', ...)
+      const mockFinalEq = vi.fn().mockResolvedValue({ error: null });
+      const mockFirstEq = vi.fn().mockReturnValue({ eq: mockFinalEq });
+      const mockDelete = vi.fn().mockReturnValue({ eq: mockFirstEq });
 
       mockFrom.mockReturnValueOnce({
         delete: mockDelete,
-        eq: mockEq,
       });
 
       await deleteServiceInterfaceForComponent(componentId, workflowId, mockSupabase);
@@ -443,14 +440,13 @@ describe('Interface Component Manager', () => {
       const componentId = 'comp-123';
       const workflowId = 'wf-123';
 
-      const mockDelete = vi.fn().mockReturnThis();
-      const mockEq = vi.fn().mockResolvedValue({
-        error: { message: 'Delete failed' },
-      });
+      // Chain: .from().delete().eq('workflow_id', ...).eq('activity_connection_id', ...) -> error
+      const mockFinalEq = vi.fn().mockResolvedValue({ error: { message: 'Delete failed' } });
+      const mockFirstEq = vi.fn().mockReturnValue({ eq: mockFinalEq });
+      const mockDelete = vi.fn().mockReturnValue({ eq: mockFirstEq });
 
       mockFrom.mockReturnValueOnce({
         delete: mockDelete,
-        eq: mockEq,
       });
 
       await expect(

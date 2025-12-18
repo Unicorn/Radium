@@ -2,13 +2,27 @@
  * Knowledge Base Tests
  *
  * Tests for the migration record processor and knowledge retrieval system.
+ *
+ * TESTING POLICY COMPLIANCE:
+ * - Anthropic SDK: Mocked (external third-party API - acceptable)
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { MigrationRecordProcessor } from '../knowledge-base/processor';
 import { KnowledgeRetrieval } from '../knowledge-base/retrieval';
 import type { ProcessedRecord, MigrationRecord } from '../knowledge-base/types';
 import * as path from 'path';
+
+// Mock Anthropic SDK (external third-party - acceptable per testing policy)
+vi.mock('@anthropic-ai/sdk', () => ({
+  default: vi.fn().mockImplementation(() => ({
+    messages: {
+      create: vi.fn().mockResolvedValue({
+        content: [{ type: 'text', text: 'Mock response' }],
+      }),
+    },
+  })),
+}));
 
 describe('MigrationRecordProcessor', () => {
   let processor: MigrationRecordProcessor;

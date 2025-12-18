@@ -2,8 +2,9 @@
  * Tests for KongCorsNode component
  */
 
+import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen } from '@tests/utils/test-render';
 import { KongCorsNode } from '../KongCorsNode';
 import type { NodeProps } from 'react-flow-renderer';
 

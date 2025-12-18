@@ -191,7 +191,7 @@ describe('WorkflowCompiler', () => {
       const result = compiler.compile(workflow);
 
       expect(result.success).toBe(true);
-      expect(result.workflowCode).toContain('export async function testWorkflowWorkflow');
+      expect(result.workflowCode).toContain('export async function TestWorkflow');
       expect(result.workflowCode).toContain('proxyActivities');
       expect(result.workflowCode).toContain('testActivity');
     });

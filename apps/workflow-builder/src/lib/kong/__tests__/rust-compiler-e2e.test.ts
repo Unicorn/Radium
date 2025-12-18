@@ -298,9 +298,9 @@ describeE2E('Rust Compiler E2E Tests', () => {
           const data = await response.json();
           expect(data.status).toBe('healthy');
         } else {
-          // Routing works but backend is down
-          expect([502, 503]).toContain(response.status);
-          console.log('Rust compiler not running - routing verified but backend unavailable');
+          // Routing works but backend is down or rate limited
+          expect([429, 502, 503]).toContain(response.status);
+          console.log('Rust compiler not running or rate limited - routing verified');
         }
       });
 
@@ -315,8 +315,8 @@ describeE2E('Rust Compiler E2E Tests', () => {
           const data = await response.json();
           expect(data.success).toBeDefined();
         } else {
-          // Backend unavailable is fine - routing was verified
-          expect([502, 503]).toContain(response.status);
+          // Backend unavailable or rate limited is fine - routing was verified
+          expect([429, 502, 503]).toContain(response.status);
         }
       });
 
@@ -331,7 +331,8 @@ describeE2E('Rust Compiler E2E Tests', () => {
           const data = await response.json();
           expect(data.valid).toBeDefined();
         } else {
-          expect([502, 503]).toContain(response.status);
+          // Backend unavailable or rate limited
+          expect([429, 502, 503]).toContain(response.status);
         }
       });
     });
@@ -359,7 +360,8 @@ describeE2E('Rust Compiler E2E Tests', () => {
         const elapsed = performance.now() - start;
 
         // Request should complete (not timeout at 5s default)
-        expect(response.ok || [502, 503].includes(response.status)).toBe(true);
+        // 429 is also acceptable if rate limited
+        expect(response.ok || [429, 502, 503].includes(response.status)).toBe(true);
         console.log(`Request completed in ${elapsed.toFixed(2)}ms`);
       });
     });
@@ -382,7 +384,12 @@ describeE2E('Rust Compiler E2E Tests', () => {
       });
     });
 
-    describe('Failover Behavior', () => {
+    // Failover behavior tests require Kong in database mode (not declarative)
+    // because they create dynamic routes via Kong Admin API
+    const isKongDatabaseMode = process.env.KONG_E2E === 'true';
+    const describeKongDynamic = isKongDatabaseMode ? describe : describe.skip;
+
+    describeKongDynamic('Failover Behavior', () => {
       it(
         'should return 502/503 when Rust compiler is unavailable',
         async () => {

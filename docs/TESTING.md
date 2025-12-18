@@ -24,6 +24,53 @@ This document provides comprehensive guidelines for testing Radium components ac
 
 Radium follows a comprehensive testing strategy with three layers:
 
+### ⚠️ CRITICAL: No Mocking Internal Code
+
+**If we own it or write it, we test it directly - we do NOT mock it in tests.**
+
+This is a fundamental principle of our testing philosophy:
+
+#### What We Do NOT Mock (Use Real Implementations):
+- ❌ **Database/Supabase** - Use real database instances (test database, Docker containers)
+- ❌ **Internal APIs** - Use real HTTP calls to our own endpoints
+- ❌ **tRPC routers** - Test with real context and real database connections
+- ❌ **Internal services** - Execution service, compiler, deployment service, etc.
+- ❌ **Temporal connections** - Use real Temporal client (local or test cluster)
+- ❌ **Internal handlers** - MCP handlers, GraphQL handlers, resource handlers
+- ❌ **Our own modules** - Any code that lives in this repository
+
+#### What We CAN Mock (External Third-Party Only):
+- ✅ **External AI providers** - Anthropic, OpenAI, Gemini APIs
+- ✅ **External SaaS services** - Stripe, SendGrid, Twilio, etc.
+- ✅ **Third-party APIs** - Services we don't own or control
+- ✅ **External webhooks** - Outbound calls to customer systems
+
+#### Why This Matters:
+1. **Mocks can lie** - Mocked implementations drift from real behavior over time
+2. **False confidence** - Tests pass but production fails because mocks don't reflect reality
+3. **Integration gaps** - Mocking hides integration bugs that only surface in production
+4. **Maintenance burden** - Mock updates lag behind real implementation changes
+
+#### How to Test Internal Code:
+```bash
+# Use Docker Compose for ephemeral test infrastructure
+docker-compose -f docker-compose.test.yml up -d
+
+# Run tests against real database
+DATABASE_URL=postgresql://test:test@localhost:5433/test cargo test
+
+# For E2E tests with full stack
+npm run test:e2e  # Uses authenticated test database
+```
+
+#### Exception Process:
+If you believe a mock is absolutely necessary for internal code, you MUST:
+1. Document WHY in the test file with a `// MOCK_JUSTIFICATION:` comment
+2. Create a corresponding validation test that verifies the mock matches reality
+3. Get approval in code review
+
+**Remember: Tables, code, configuration, and definitions that we own—including those affecting code inside third-party systems—should be tested with real implementations because we own them.**
+
 ### Test Pyramid
 
 ```
@@ -249,9 +296,11 @@ mod tests {
 }
 ```
 
-### Mocking External Dependencies
+### Mocking External Third-Party Dependencies ONLY
 
-For integration tests with external providers (Gemini, OpenAI), use mocks:
+**⚠️ IMPORTANT: Mocks are ONLY allowed for external third-party services we do not own or control.**
+
+For integration tests with external providers (Gemini, OpenAI, Anthropic), use mocks:
 
 ```rust
 #[cfg(test)]
@@ -260,6 +309,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_model_with_mock_provider() {
+        // ✅ ACCEPTABLE: Mocking external AI provider (Anthropic, OpenAI, etc.)
         let mock_provider = MockProvider::new()
             .with_response("Test response")
             .with_token_count(100);
@@ -268,6 +318,21 @@ mod tests {
 
         assert_eq!(result.content, "Test response");
         assert_eq!(result.tokens, 100);
+    }
+
+    #[tokio::test]
+    async fn test_workflow_execution() {
+        // ❌ NEVER DO THIS: Do not mock internal services
+        // let mock_supabase = MockSupabase::new();  // WRONG!
+        // let mock_temporal = MockTemporalClient::new();  // WRONG!
+
+        // ✅ CORRECT: Use real database and real Temporal client
+        let supabase = create_test_supabase_client().await;
+        let temporal = get_temporal_client().await.unwrap();
+
+        // Test with real implementations
+        let result = execute_workflow(&supabase, &temporal, input).await;
+        assert!(result.is_ok());
     }
 }
 ```

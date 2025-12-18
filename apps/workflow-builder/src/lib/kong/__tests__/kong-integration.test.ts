@@ -28,6 +28,11 @@ describe('Kong Integration', () => {
       kong = new KongClient(TEST_CONFIG.adminUrl);
     });
 
+    afterEach(() => {
+      // Ensure all mocks are restored after each test
+      vi.restoreAllMocks();
+    });
+
     describe('healthCheck', () => {
       it('should return true when Kong is healthy', async () => {
         // Mock the fetch for unit testing

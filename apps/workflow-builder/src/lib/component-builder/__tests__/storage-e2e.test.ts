@@ -9,6 +9,8 @@
  * 2. ANTHROPIC_API_KEY is set in .env.test
  *
  * Run with: npx vitest run src/lib/component-builder/__tests__/storage-e2e.test.ts
+ *
+ * @vitest-environment node
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
