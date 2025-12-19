@@ -577,7 +577,6 @@ async fn main() -> Result<()> {
                     &mut app.orchestrator_panel,
                     (app.task_panel_visible, app.orchestrator_panel_visible),
                     app.panel_focus,
-                    app.thinking_visible,
                 );
             } else {
                 // Check if we should show start page (Help context) or regular prompt
@@ -717,6 +716,12 @@ async fn main() -> Result<()> {
             if let Some(ref confirmation) = app.command_confirmation {
                 use radium_tui::components::render_command_confirmation;
                 render_command_confirmation(frame, area, confirmation);
+            }
+
+            // Render fix approval modal (on top of everything except toasts)
+            if let Some(ref modal) = app.active_fix_approval {
+                use radium_tui::components::render_fix_approval_modal;
+                render_fix_approval_modal(frame, area, modal);
             }
 
             // Render toasts (on top of everything)

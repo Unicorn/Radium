@@ -215,6 +215,16 @@ pub struct App {
     pub orchestration_task: Option<OrchestrationTask>,
     /// Whether thinking tokens should be displayed
     pub thinking_visible: bool,
+    /// Process registry for spawning and tracking processes
+    pub process_registry: Option<Arc<radium_core::ProcessRegistry>>,
+    /// Error router for delegating errors to agents
+    pub error_router: Option<Arc<radium_orchestrator::ErrorRouter>>,
+    /// Process panel state
+    pub process_panel_state: Option<crate::state::ProcessPanelState>,
+    /// Whether process panel is visible
+    pub show_process_panel: bool,
+    /// Active fix approval modal
+    pub active_fix_approval: Option<crate::components::FixApprovalModal>,
 }
 
 /// Background orchestration task state
@@ -428,11 +438,16 @@ impl App {
             confirmation_request_tx: Some(confirmation_tx),
             orchestration_task: None,
             thinking_visible: true,
+            process_registry: None,
+            error_router: None,
+            process_panel_state: None,
+            show_process_panel: false,
+            active_fix_approval: None,
         };
 
         // Check for resumable executions on startup
         let workspace_root = workspace_status_clone.as_ref().and_then(|ws| ws.root.clone());
-        if let Some(root) = workspace_root {
+        if let Some(root) = workspace_root.clone() {
             use radium_core::workflow::StatePersistence;
             let state_persistence = StatePersistence::new(root);
             if let Ok(resumable) = state_persistence.list_resumable() {
@@ -445,6 +460,16 @@ impl App {
                     };
                     app.toast_manager.info(msg);
                 }
+            }
+        }
+
+        // Initialize process monitoring system
+        if let Some(root) = workspace_root {
+            let log_dir = root.join(".radium").join("process-logs");
+            if let Ok(registry) = radium_core::ProcessRegistry::new(log_dir) {
+                app.process_registry = Some(Arc::new(registry));
+                app.error_router = Some(Arc::new(radium_orchestrator::ErrorRouter::new()));
+                app.process_panel_state = Some(crate::state::ProcessPanelState::new());
             }
         }
 
@@ -801,6 +826,77 @@ impl App {
             }
         }
 
+        // If fix approval modal is open, handle it first
+        if self.active_fix_approval.is_some() {
+            match key {
+                KeyCode::Up => {
+                    if let Some(ref mut modal) = self.active_fix_approval {
+                        modal.move_up();
+                    }
+                    return Ok(());
+                }
+                KeyCode::Down => {
+                    if let Some(ref mut modal) = self.active_fix_approval {
+                        modal.move_down();
+                    }
+                    return Ok(());
+                }
+                KeyCode::Char('d') => {
+                    if let Some(ref mut modal) = self.active_fix_approval {
+                        modal.toggle_details();
+                    }
+                    return Ok(());
+                }
+                KeyCode::Enter => {
+                    if let Some(mut modal) = self.active_fix_approval.take() {
+                        use crate::components::ApprovalAction;
+                        let action = modal.selected_action();
+
+                        match action {
+                            ApprovalAction::Approved => {
+                                // Send approval through response channel
+                                if let Some(response_tx) = modal.response_tx.take() {
+                                    let _ = response_tx.send(ApprovalAction::Approved);
+                                }
+                                self.toast_manager.success("Fix approved - applying...");
+                                // TODO: Actually apply the fix via error_router
+                            }
+                            ApprovalAction::Rejected => {
+                                if let Some(response_tx) = modal.response_tx.take() {
+                                    let _ = response_tx.send(ApprovalAction::Rejected);
+                                }
+                                self.toast_manager.info("Fix rejected");
+                            }
+                            ApprovalAction::ViewDetails => {
+                                // Toggle details view and keep modal open
+                                modal.toggle_details();
+                                self.active_fix_approval = Some(modal);
+                            }
+                            ApprovalAction::Cancelled => {
+                                if let Some(response_tx) = modal.response_tx.take() {
+                                    let _ = response_tx.send(ApprovalAction::Cancelled);
+                                }
+                            }
+                        }
+                    }
+                    return Ok(());
+                }
+                KeyCode::Esc => {
+                    if let Some(mut modal) = self.active_fix_approval.take() {
+                        use crate::components::ApprovalAction;
+                        if let Some(response_tx) = modal.response_tx.take() {
+                            let _ = response_tx.send(ApprovalAction::Cancelled);
+                        }
+                    }
+                    return Ok(());
+                }
+                _ => {
+                    // Ignore other keys when modal is open
+                    return Ok(());
+                }
+            }
+        }
+
         // If dialog is open, handle dialog input first
         if self.dialog_manager.is_open() {
             if let Some(_value) = self.dialog_manager.handle_key(key) {
@@ -964,6 +1060,40 @@ impl App {
                     self.privacy_state.toggle();
                     let status = if self.privacy_state.enabled { "ON" } else { "OFF" };
                     self.toast_manager.info(format!("Privacy mode: {}", status));
+                    return Ok(());
+                }
+
+                // Handle Ctrl+Shift+P to toggle process panel
+                if modifiers.contains(KeyModifiers::CONTROL | KeyModifiers::SHIFT) && key == KeyCode::Char('P') {
+                    self.show_process_panel = !self.show_process_panel;
+                    let status = if self.show_process_panel { "shown" } else { "hidden" };
+                    self.toast_manager.info(format!("Process panel {}", status));
+                    return Ok(());
+                }
+
+                // Handle Ctrl+N to spawn new process (when process panel is visible)
+                if modifiers.contains(KeyModifiers::CONTROL) && key == KeyCode::Char('n') {
+                    if self.show_process_panel && self.process_registry.is_some() {
+                        // TODO: Show process spawn dialog
+                        self.toast_manager.info("Process spawn dialog not yet implemented");
+                    }
+                    return Ok(());
+                }
+
+                // Handle Ctrl+A to show pending fix approvals
+                if modifiers.contains(KeyModifiers::CONTROL) && key == KeyCode::Char('a') {
+                    if let Some(ref mut panel_state) = self.process_panel_state {
+                        if panel_state.has_pending_approvals() {
+                            if let Some(proposal) = panel_state.get_next_approval() {
+                                let (response_tx, _response_rx) = tokio::sync::oneshot::channel();
+                                let modal = crate::components::FixApprovalModal::new(proposal, response_tx);
+                                self.active_fix_approval = Some(modal);
+                                self.toast_manager.info("Fix approval modal opened");
+                            }
+                        } else {
+                            self.toast_manager.info("No pending fix approvals");
+                        }
+                    }
                     return Ok(());
                 }
 
