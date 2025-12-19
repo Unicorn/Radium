@@ -577,6 +577,8 @@ async fn main() -> Result<()> {
                     &mut app.orchestrator_panel,
                     (app.task_panel_visible, app.orchestrator_panel_visible),
                     app.panel_focus,
+                    app.process_panel_state.as_ref(),
+                    app.show_process_panel,
                 );
             } else {
                 // Check if we should show start page (Help context) or regular prompt

@@ -9,8 +9,8 @@ use ratatui::{
     layout::Constraint,
 };
 
-use crate::components::{InteractiveTable, TaskListPanel, OrchestratorThinkingPanel};
-use crate::state::TaskListState;
+use crate::components::{InteractiveTable, TaskListPanel, OrchestratorThinkingPanel, ProcessPanel};
+use crate::state::{TaskListState, ProcessPanelState};
 use crate::views::prompt::PromptData;
 
 /// Panel focus for keyboard navigation
@@ -22,6 +22,8 @@ pub enum PanelFocus {
     TaskList,
     /// Orchestrator thinking panel is focused
     Orchestrator,
+    /// Process panel is focused
+    Process,
 }
 
 /// Renders the orchestrator view with three-panel split layout
@@ -34,7 +36,8 @@ pub fn render_orchestrator_view(
     orchestrator_panel: &mut OrchestratorThinkingPanel,
     panel_visibility: (bool, bool), // (task_panel_visible, orchestrator_panel_visible)
     focused_panel: PanelFocus,
-    thinking_visible: bool,
+    process_panel_state: Option<&ProcessPanelState>,
+    show_process_panel: bool,
 ) {
     let theme = crate::theme::get_theme();
     let (task_panel_visible, orchestrator_panel_visible) = panel_visibility;
@@ -53,7 +56,8 @@ pub fn render_orchestrator_view(
             orchestrator_panel_visible,
             focused_panel,
             &theme,
-            thinking_visible,
+            process_panel_state,
+            show_process_panel,
         );
     } else if area.width >= 60 {
         // Narrow terminal: vertical stack (chat 60% top, task/orchestrator 40% bottom split)
@@ -68,7 +72,8 @@ pub fn render_orchestrator_view(
             orchestrator_panel_visible,
             focused_panel,
             &theme,
-            thinking_visible,
+            process_panel_state,
+            show_process_panel,
         );
     } else {
         // Very narrow terminal: chat only with toggle indicators
@@ -95,7 +100,8 @@ fn render_wide_layout(
     orchestrator_panel_visible: bool,
     focused_panel: PanelFocus,
     theme: &crate::theme::RadiumTheme,
-    thinking_visible: bool,
+    process_panel_state: Option<&ProcessPanelState>,
+    show_process_panel: bool,
 ) {
     // Calculate constraints based on panel visibility
     let constraints = if task_panel_visible && orchestrator_panel_visible {
@@ -132,7 +138,6 @@ fn render_wide_layout(
         prompt_data,
         theme,
         focused_panel == PanelFocus::Chat,
-        thinking_visible,
     );
     chunk_idx += 1;
 
@@ -152,13 +157,31 @@ fn render_wide_layout(
         chunk_idx += 1;
     }
 
-    // Render orchestrator thinking if visible
+    // Render orchestrator thinking or process panel if visible
     if orchestrator_panel_visible {
-        orchestrator_panel.render(
-            frame,
-            chunks[chunk_idx],
-            focused_panel == PanelFocus::Orchestrator,
-        );
+        if show_process_panel {
+            // Render process panel instead of orchestrator thinking
+            if let Some(ref panel_state) = process_panel_state {
+                let mut process_panel = ProcessPanel::new();
+                let processes = panel_state.processes.clone();
+                process_panel.render(
+                    frame,
+                    chunks[chunk_idx],
+                    &processes,
+                    panel_state.selected_index,
+                    focused_panel == PanelFocus::Process,
+                );
+            } else {
+                render_empty_panel(frame, chunks[chunk_idx], "Processes", "Process monitoring not initialized", theme);
+            }
+        } else {
+            // Render orchestrator thinking panel
+            orchestrator_panel.render(
+                frame,
+                chunks[chunk_idx],
+                focused_panel == PanelFocus::Orchestrator,
+            );
+        }
     }
 }
 
@@ -174,7 +197,8 @@ fn render_narrow_layout(
     orchestrator_panel_visible: bool,
     focused_panel: PanelFocus,
     theme: &crate::theme::RadiumTheme,
-    thinking_visible: bool,
+    process_panel_state: Option<&ProcessPanelState>,
+    show_process_panel: bool,
 ) {
     // Split vertically: chat 60% top, task/orchestrator 40% bottom
     let vertical_chunks = Layout::default()
@@ -192,7 +216,6 @@ fn render_narrow_layout(
         prompt_data,
         theme,
         focused_panel == PanelFocus::Chat,
-        thinking_visible,
     );
 
     // Split bottom area horizontally for task/orchestrator
@@ -217,11 +240,28 @@ fn render_narrow_layout(
             render_empty_panel(frame, bottom_chunks[0], "Task List", "No active workflow", theme);
         }
 
-        orchestrator_panel.render(
-            frame,
-            bottom_chunks[1],
-            focused_panel == PanelFocus::Orchestrator,
-        );
+        // Render orchestrator thinking or process panel
+        if show_process_panel {
+            if let Some(ref panel_state) = process_panel_state {
+                let mut process_panel = ProcessPanel::new();
+                let processes = panel_state.processes.clone();
+                process_panel.render(
+                    frame,
+                    bottom_chunks[1],
+                    &processes,
+                    panel_state.selected_index,
+                    focused_panel == PanelFocus::Process,
+                );
+            } else {
+                render_empty_panel(frame, bottom_chunks[1], "Processes", "Process monitoring not initialized", theme);
+            }
+        } else {
+            orchestrator_panel.render(
+                frame,
+                bottom_chunks[1],
+                focused_panel == PanelFocus::Orchestrator,
+            );
+        }
     } else if task_panel_visible {
         if let Some(ref task_state) = task_state {
             let mut task_panel = TaskListPanel::new();
@@ -235,11 +275,28 @@ fn render_narrow_layout(
             render_empty_panel(frame, vertical_chunks[1], "Task List", "No active workflow", theme);
         }
     } else if orchestrator_panel_visible {
-        orchestrator_panel.render(
-            frame,
-            vertical_chunks[1],
-            focused_panel == PanelFocus::Orchestrator,
-        );
+        // Render orchestrator thinking or process panel
+        if show_process_panel {
+            if let Some(ref panel_state) = process_panel_state {
+                let mut process_panel = ProcessPanel::new();
+                let processes = panel_state.processes.clone();
+                process_panel.render(
+                    frame,
+                    vertical_chunks[1],
+                    &processes,
+                    panel_state.selected_index,
+                    focused_panel == PanelFocus::Process,
+                );
+            } else {
+                render_empty_panel(frame, vertical_chunks[1], "Processes", "Process monitoring not initialized", theme);
+            }
+        } else {
+            orchestrator_panel.render(
+                frame,
+                vertical_chunks[1],
+                focused_panel == PanelFocus::Orchestrator,
+            );
+        }
     }
 }
 
@@ -328,7 +385,6 @@ fn render_chat_log(
     prompt_data: &PromptData,
     theme: &crate::theme::RadiumTheme,
     focused: bool,
-    thinking_visible: bool,
 ) {
     // Calculate viewport height (account for padding)
     let viewport_height = area.height.saturating_sub(4) as usize; // Extra space for padding
@@ -343,7 +399,7 @@ fn render_chat_log(
             // User message - use primary color with box drawing character
             let content = line.strip_prefix("You: ").unwrap_or(line);
             styled_lines.push(Line::from(vec![
-                Span::styled("┌─ ", Style::default().fg(theme.primary)),
+                Span::styled("╭─ ", Style::default().fg(theme.primary)),
                 Span::styled("You", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
             ]));
             styled_lines.push(Line::from(vec![
@@ -351,7 +407,7 @@ fn render_chat_log(
                 Span::styled(content, Style::default().fg(theme.text)),
             ]));
             styled_lines.push(Line::from(
-                Span::styled("└─", Style::default().fg(theme.primary))
+                Span::styled("╰─", Style::default().fg(theme.primary))
             ));
         } else if line.starts_with("Agent: ") || line.starts_with("Assistant: ") {
             // AI message - use info/secondary color with different box drawing
@@ -390,30 +446,27 @@ fn render_chat_log(
 
     // Render thinking section if active
     if let Some(ref thinking_text) = prompt_data.active_thinking {
-        if thinking_visible {
-            // Expanded: show full thinking
-            styled_lines.push(Line::from(""));
-            styled_lines.push(Line::from(vec![
-                Span::styled("╭─ ", Style::default().fg(theme.text_muted)),
-                Span::styled("💭 Thinking...", Style::default().fg(theme.text_muted).add_modifier(Modifier::ITALIC)),
-            ]));
+        styled_lines.push(Line::from(""));
+        styled_lines.push(Line::from(vec![
+            Span::styled("✦ ", Style::default().fg(theme.primary)),
+            Span::styled(thinking_text, Style::default().fg(theme.text_muted).add_modifier(Modifier::ITALIC)),
+        ]));
+        styled_lines.push(Line::from(""));
+        styled_lines.push(Line::from(
+            Span::styled("╭".to_string() + &"─".repeat(area.width.saturating_sub(2) as usize) + "╮", Style::default().fg(theme.border))
+        ));
 
-            for line in thinking_text.lines() {
-                styled_lines.push(Line::from(vec![
-                    Span::styled("│ ", Style::default().fg(theme.text_muted)),
-                    Span::styled(line, Style::default().fg(theme.text_dim)),
-                ]));
-            }
-
-            styled_lines.push(Line::from(Span::styled("╰─", Style::default().fg(theme.text_muted))));
-        } else {
-            // Collapsed: single line indicator
-            styled_lines.push(Line::from(""));
+        // Split thinking_text into lines and render them inside the box
+        for line in thinking_text.lines() {
             styled_lines.push(Line::from(vec![
-                Span::styled("💭 Thinking... ", Style::default().fg(theme.text_muted).add_modifier(Modifier::ITALIC)),
-                Span::styled("(Ctrl+T to expand)", Style::default().fg(theme.text_dim)),
+                Span::styled("│ ", Style::default().fg(theme.border)),
+                Span::styled(line, Style::default().fg(theme.text)),
             ]));
         }
+
+        styled_lines.push(Line::from(
+            Span::styled("╰".to_string() + &"─".repeat(area.width.saturating_sub(2) as usize) + "╯", Style::default().fg(theme.border))
+        ));
     }
 
     let chat_widget = Paragraph::new(styled_lines)
