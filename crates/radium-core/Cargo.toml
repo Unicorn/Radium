@@ -137,6 +137,7 @@ radium-abstraction.workspace = true
 radium-models.workspace = true
 radium-training.workspace = true
 radium-orchestrator = { workspace = true, optional = true }
+md5 = "0.8.0"
 
 [build-dependencies]
 tonic-build.workspace = true

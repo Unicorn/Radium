@@ -44,6 +44,7 @@ pub mod oversight;
 pub mod planning;
 pub mod playbooks;
 pub mod policy;
+pub mod process;
 pub mod prompts;
 pub mod analysis;
 pub mod sandbox;
@@ -111,6 +112,10 @@ pub use models::agent::{Agent, AgentConfig, AgentError, AgentState};
 pub use models::plan::{Iteration, Plan, PlanError, PlanManifest, PlanStatus, PlanTask};
 pub use models::task::{Task, TaskError, TaskQueue, TaskResult, TaskState};
 pub use models::workflow::{Workflow, WorkflowError, WorkflowState, WorkflowStep};
+pub use monitoring::{
+    ClassificationResult, ErrorClassifier, ErrorSeverity, ErrorType, LogManager,
+    MonitoringError, SeverityWeights,
+};
 // pub use monitoring::{  // DISABLED: monitoring module
 //     AgentRecord, AgentStatus, LogManager, MonitoringError, MonitoringService,
 //     Result as MonitoringResult, TelemetryParser, TelemetryRecord, TelemetryTracking,
@@ -130,6 +135,7 @@ pub use policy::{
     ApprovalMode, ConstitutionManager, PolicyAction, PolicyDecision, PolicyEngine, PolicyError,
     PolicyPriority, PolicyResult, PolicyRule,
 };
+pub use process::{LogWatcher, ProcessHandle, ProcessRegistry, ProcessStatus};
 pub use prompts::{PromptContext, PromptError, PromptTemplate};
 pub use proto::radium_client;
 pub use proto::{PingRequest, PingResponse};
