@@ -14,7 +14,7 @@
     "register:activities": "tsx scripts/register-activities.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:with-db": "AUTO_START_TEST_DB=true vitest run",
+    "test:quick": "SKIP_TEST_INFRA=true vitest run",
     "test:db:start": "./scripts/test-db-start.sh",
     "test:db:start:full": "./scripts/test-db-start.sh --with-rust-compiler",
     "test:db:stop": "./scripts/test-db-stop.sh",

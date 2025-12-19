@@ -2,13 +2,16 @@
  * Vitest Global Setup
  *
  * This file runs ONCE before all test files.
- * It can optionally start the test Docker infrastructure.
+ * By default, it starts the test Docker infrastructure.
  *
  * Usage:
- *   npm test                    - Run tests (assumes Docker already running)
- *   npm run test:with-db        - Start Docker, run tests, stop Docker
+ *   npm test                    - Start Docker, run tests (default)
+ *   npm run test:quick          - Run tests without starting Docker (unit tests only)
  *   npm run test:db:start       - Just start Docker
  *   npm run test:db:stop        - Just stop Docker
+ *
+ * Environment variables:
+ *   SKIP_TEST_INFRA=true        - Skip starting infrastructure (for quick unit tests)
  */
 
 import { execSync } from 'child_process';
@@ -18,12 +21,12 @@ const PROJECT_ROOT = path.resolve(__dirname, '..');
 const START_SCRIPT = path.join(PROJECT_ROOT, 'scripts/test-db-start.sh');
 const STOP_SCRIPT = path.join(PROJECT_ROOT, 'scripts/test-db-stop.sh');
 
-// Check if we should auto-start Docker
-const AUTO_START_DB = process.env.AUTO_START_TEST_DB === 'true';
+// Start infrastructure by default, skip only if explicitly disabled
+const SKIP_INFRA = process.env.SKIP_TEST_INFRA === 'true';
 
 export async function setup() {
-  if (AUTO_START_DB) {
-    console.log('\n[Global Setup] Starting test database infrastructure...\n');
+  if (!SKIP_INFRA) {
+    console.log('\n[Global Setup] Starting test infrastructure...\n');
     try {
       execSync(`bash "${START_SCRIPT}"`, { stdio: 'inherit' });
     } catch (error) {
@@ -34,8 +37,8 @@ export async function setup() {
 }
 
 export async function teardown() {
-  if (AUTO_START_DB) {
-    console.log('\n[Global Teardown] Stopping test database infrastructure...\n');
+  if (!SKIP_INFRA) {
+    console.log('\n[Global Teardown] Stopping test infrastructure...\n');
     try {
       execSync(`bash "${STOP_SCRIPT}"`, { stdio: 'inherit' });
     } catch (error) {
