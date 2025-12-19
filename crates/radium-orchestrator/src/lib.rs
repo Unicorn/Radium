@@ -6,6 +6,7 @@ pub mod agents;
 // pub mod batch_executor; // TODO: Fix compilation errors - incomplete implementation
 pub mod dispatcher;
 pub mod error;
+pub mod error_router;
 pub mod executor;
 pub mod lifecycle;
 pub mod load_balancer;
@@ -32,6 +33,9 @@ use tracing::{debug, error, warn};
 pub use agents::{ChatAgent, SimpleAgent};
 // pub use batch_executor::BatchExecutor; // TODO: Fix compilation errors
 pub use dispatcher::{TaskDispatcher, TaskDispatcherConfig};
+pub use error_router::{
+    ErrorContext, ErrorRouter, FixProposal, FixVerificationResult, ProposalStatus,
+};
 pub use executor::{
     AgentExecutor, ExecutionResult, ExecutionTelemetry, HookExecutor, HookResult, QueueProcessor, QueueProcessorConfig, SandboxManager,
 };
