@@ -88,7 +88,7 @@ impl PromptData {
             command_palette_query: String::new(),
             previous_selected_index: 0,
             chat_history_focused: false, // Prompt editor focused by default
-            chat_scroll_offset: 0, // Start at top of conversation
+            chat_scroll_offset: usize::MAX, // Start at bottom of conversation (auto-scroll)
             active_thinking: None,
         }
     }
@@ -441,7 +441,9 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData, model_fil
         DisplayContext::Chat { .. } => {
             // Render only chat history (input is in status footer)
             let viewport_height = area.height.saturating_sub(2) as usize;
-            let visible_conversation = data.get_visible_conversation(viewport_height);
+            // Reduce messages shown since each message expands to ~4 rendered lines on average
+            let messages_to_show = (viewport_height / 4).max(5); // Show at least 5 messages
+            let visible_conversation = data.get_visible_conversation(messages_to_show);
 
             // Parse visible conversation lines as markdown with visual distinction
             let mut markdown_lines = Vec::new();

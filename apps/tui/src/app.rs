@@ -233,6 +233,8 @@ pub struct App {
     pub recommendations_panel: crate::views::RecommendationsPanel,
     /// Orchestration event receiver for thinking/recommendations updates
     pub orchestration_event_rx: Option<tokio::sync::broadcast::Receiver<radium_orchestrator::orchestration::events::OrchestrationEvent>>,
+    /// Buffered final assistant response (displayed only when orchestration completes)
+    pub pending_assistant_response: Option<String>,
 }
 
 /// Background orchestration task state
@@ -455,6 +457,7 @@ impl App {
             thinking_panel: crate::views::ThinkingPanel::new(),
             recommendations_panel: crate::views::RecommendationsPanel::new(),
             orchestration_event_rx: None,
+            pending_assistant_response: None,
         };
 
         // Check for resumable executions on startup
@@ -1190,7 +1193,8 @@ impl App {
                         KeyCode::Char('y') | KeyCode::Char('Y') => {
                             if self.recommendations_panel.confirm_execution() {
                                 self.toast_manager.info("Executing recommendations...".to_string());
-                                // TODO: Actually execute the recommendations
+                                // Execute recommendations in sequence
+                                self.execute_recommendations();
                             }
                             return Ok(());
                         }
@@ -2633,6 +2637,86 @@ impl App {
         Ok(())
     }
 
+    /// Execute recommendations sequentially
+    fn execute_recommendations(&mut self) {
+        use std::process::Command;
+
+        loop {
+            // Get next recommendation to execute and clone needed data
+            let (index, description, command) = match self.recommendations_panel.get_next_to_execute() {
+                Some((idx, rec)) => (idx, rec.description.clone(), rec.command.clone()),
+                None => break, // No more recommendations
+            };
+
+            // Mark as executing
+            self.recommendations_panel.mark_executing(index);
+
+            // If recommendation has a command, execute it
+            if let Some(ref cmd) = command {
+                self.toast_manager.info(format!("Running: {}", cmd));
+
+                // Execute command using shell
+                let result = if cfg!(target_os = "windows") {
+                    Command::new("cmd")
+                        .args(["/C", cmd.as_str()])
+                        .output()
+                } else {
+                    Command::new("sh")
+                        .arg("-c")
+                        .arg(cmd.as_str())
+                        .output()
+                };
+
+                match result {
+                    Ok(output) => {
+                        let stdout = String::from_utf8_lossy(&output.stdout);
+                        let stderr = String::from_utf8_lossy(&output.stderr);
+
+                        if output.status.success() {
+                            let result_msg = if !stdout.is_empty() {
+                                stdout.trim().to_string()
+                            } else {
+                                "Command completed successfully".to_string()
+                            };
+                            self.recommendations_panel.mark_completed(index, result_msg.clone());
+                            self.toast_manager.success(format!("✓ {}", description));
+
+                            // Add to chat history
+                            let max_history = self.config.performance.max_conversation_history;
+                            self.prompt_data.add_conversation_message(
+                                format!("Executed: {} → {}", cmd, result_msg),
+                                max_history
+                            );
+                        } else {
+                            let error_msg = if !stderr.is_empty() {
+                                stderr.trim().to_string()
+                            } else {
+                                format!("Command failed with exit code {:?}", output.status.code())
+                            };
+                            self.recommendations_panel.mark_failed(index, error_msg.clone());
+                            self.toast_manager.error(format!("✗ {}: {}", description, error_msg));
+                            break; // Stop on failure
+                        }
+                    }
+                    Err(e) => {
+                        let error_msg = format!("Failed to execute: {}", e);
+                        self.recommendations_panel.mark_failed(index, error_msg.clone());
+                        self.toast_manager.error(format!("✗ {}: {}", description, error_msg));
+                        break; // Stop on failure
+                    }
+                }
+            } else {
+                // No command to execute - just mark as completed
+                self.recommendations_panel.mark_completed(index, "Action noted".to_string());
+            }
+        }
+
+        // All recommendations processed
+        if !self.recommendations_panel.is_executing() {
+            self.toast_manager.success("All recommendations completed".to_string());
+        }
+    }
+
     fn update_command_suggestions(&mut self) {
         let input = self.prompt_data.input.text();
 
@@ -3206,10 +3290,8 @@ impl App {
                     }
 
                     let max_history = self.config.performance.max_conversation_history;
-                    // Add response
-                    if !result.response.is_empty() {
-                        self.prompt_data.add_conversation_message(format!("Assistant: {}", result.response), max_history);
-                    }
+                    // Response is now added via Done event in main.rs event loop
+                    // (removed duplicate to prevent showing response twice)
 
                     // Show completion status
                     if result.is_success() {

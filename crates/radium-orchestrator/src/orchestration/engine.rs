@@ -65,6 +65,113 @@ fn get_failure_suggestion(tool_name: &str, error: &str) -> &'static str {
     }
 }
 
+/// Recommendation for next steps
+struct Recommendation {
+    description: String,
+    command: Option<String>,
+    details: Option<String>,
+}
+
+/// Generate smart recommendations based on orchestration results
+fn generate_recommendations(context: &OrchestrationContext, input: &str) -> Vec<Recommendation> {
+    let mut recommendations = Vec::new();
+
+    // Analyze conversation history to see what tools were used
+    let mut tools_used: Vec<String> = Vec::new();
+    for msg in &context.conversation_history {
+        if msg.role == "assistant" && msg.content.contains("ACTION:") {
+            // Extract tool names from assistant messages
+            if msg.content.contains("project_scan") {
+                tools_used.push("project_scan".to_string());
+            }
+            if msg.content.contains("list_dir") {
+                tools_used.push("list_dir".to_string());
+            }
+            if msg.content.contains("read_file") {
+                tools_used.push("read_file".to_string());
+            }
+            if msg.content.contains("search_code") {
+                tools_used.push("search_code".to_string());
+            }
+            if msg.content.contains("run_terminal_cmd") {
+                tools_used.push("run_terminal_cmd".to_string());
+            }
+        }
+    }
+
+    // Generate context-aware recommendations
+    let input_lower = input.to_lowercase();
+
+    // Project exploration recommendations
+    if tools_used.contains(&"project_scan".to_string()) {
+        recommendations.push(Recommendation {
+            description: "Explore specific directories".to_string(),
+            command: None,
+            details: Some("Use list_dir or read_file to dive deeper into interesting areas".to_string()),
+        });
+    }
+
+    // Code analysis recommendations
+    if tools_used.contains(&"search_code".to_string()) || tools_used.contains(&"read_file".to_string()) {
+        if input_lower.contains("test") || input_lower.contains("coverage") {
+            recommendations.push(Recommendation {
+                description: "Run tests to verify coverage".to_string(),
+                command: Some("cargo test".to_string()),
+                details: Some("Check if tests pass and coverage is adequate".to_string()),
+            });
+        } else {
+            recommendations.push(Recommendation {
+                description: "Search for related code patterns".to_string(),
+                command: None,
+                details: Some("Use search_code to find similar implementations".to_string()),
+            });
+        }
+    }
+
+    // Build/compile recommendations
+    if input_lower.contains("build") || input_lower.contains("compile") {
+        recommendations.push(Recommendation {
+            description: "Run the build".to_string(),
+            command: Some("cargo build --release".to_string()),
+            details: Some("Verify the project compiles successfully".to_string()),
+        });
+    }
+
+    // Testing recommendations
+    if input_lower.contains("test") {
+        recommendations.push(Recommendation {
+            description: "Run tests".to_string(),
+            command: Some("cargo test".to_string()),
+            details: Some("Execute the test suite".to_string()),
+        });
+        recommendations.push(Recommendation {
+            description: "Check test coverage".to_string(),
+            command: Some("cargo tarpaulin".to_string()),
+            details: Some("Generate coverage report (requires cargo-tarpaulin)".to_string()),
+        });
+    }
+
+    // Documentation recommendations
+    if input_lower.contains("document") || input_lower.contains("docs") {
+        recommendations.push(Recommendation {
+            description: "Build documentation".to_string(),
+            command: Some("cargo doc --open".to_string()),
+            details: Some("Generate and view API documentation".to_string()),
+        });
+    }
+
+    // General "what's next" recommendations if none were generated
+    if recommendations.is_empty() {
+        recommendations.push(Recommendation {
+            description: "Ask a follow-up question".to_string(),
+            command: None,
+            details: Some("Need more information? Ask for clarification or details".to_string()),
+        });
+    }
+
+    recommendations
+}
+
 /// Orchestration engine coordinating providers and tool execution
 pub struct OrchestrationEngine {
     /// Provider for orchestration decisions
@@ -289,6 +396,28 @@ impl OrchestrationEngine {
                     correlation_id: correlation_id.clone(),
                     content: result.response.clone(),
                 });
+
+                // Generate recommendations for next steps
+                let recommendations = generate_recommendations(context, input);
+                if !recommendations.is_empty() {
+                    self.emit(OrchestrationEvent::RecommendationsSessionStarted {
+                        correlation_id: correlation_id.clone(),
+                        context: "Based on this task, here are some suggested next steps".to_string(),
+                    });
+
+                    for rec in recommendations {
+                        self.emit(OrchestrationEvent::RecommendationAdded {
+                            correlation_id: correlation_id.clone(),
+                            description: rec.description,
+                            command: rec.command,
+                            details: rec.details,
+                        });
+                    }
+
+                    self.emit(OrchestrationEvent::RecommendationsExecutionRequested {
+                        correlation_id: correlation_id.clone(),
+                    });
+                }
 
                 // End thinking session
                 self.emit(OrchestrationEvent::ThinkingSessionEnded {

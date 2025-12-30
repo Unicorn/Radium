@@ -450,10 +450,7 @@ async fn main() -> Result<()> {
                             Ok(Ok(orch_result)) => {
                                 let max_history = app.config.performance.max_conversation_history;
                                 app.prompt_data.conversation.pop(); // Remove thinking
-                                app.prompt_data.add_conversation_message(
-                                    format!("Assistant: {}", orch_result.response),
-                                    max_history
-                                );
+                                // Response is added via Done event in event loop (prevents duplicate)
                                 let elapsed_secs = orch_result.elapsed_time.as_secs_f64();
                                 app.prompt_data.add_conversation_message(
                                     format!("⏱️  Completed in {:.1}s", elapsed_secs),
@@ -527,8 +524,27 @@ async fn main() -> Result<()> {
                             OrchestrationEvent::RecommendationsExecutionRequested { .. } => {
                                 app.recommendations_panel.request_execution();
                             }
+                            OrchestrationEvent::AssistantMessage { content, .. } => {
+                                // Buffer assistant response - only display when orchestration completes
+                                // This avoids showing intermediate "ACTION:" messages during tool calls
+                                if !content.trim().is_empty() {
+                                    app.pending_assistant_response = Some(content);
+                                }
+                            }
+                            OrchestrationEvent::Done { .. } => {
+                                // Orchestration completed - display final response
+                                if let Some(response) = app.pending_assistant_response.take() {
+                                    let max_history = app.config.performance.max_conversation_history;
+                                    app.prompt_data.add_conversation_message(
+                                        format!("Assistant: {}", response),
+                                        max_history
+                                    );
+                                }
+                                app.orchestration_running = false;
+                                app.orchestration_task = None;
+                            }
                             _ => {
-                                // Ignore other events for now
+                                // Ignore other events
                             }
                         }
                     }
@@ -612,20 +628,45 @@ async fn main() -> Result<()> {
             // Note: Table animations are handled at render time, but we track state here
             // The actual animation will be applied when the table is rendered
 
+            // Split main_area if panels are visible
+            let (content_area, panel_area) = if app.thinking_panel.is_visible() || app.recommendations_panel.is_visible() {
+                // Reserve bottom 40% for panels
+                let split_y = main_area.y + (main_area.height * 60 / 100);
+                let content_height = split_y.saturating_sub(main_area.y);
+                let panel_height = main_area.height.saturating_sub(content_height);
+
+                (
+                    Rect {
+                        x: main_area.x,
+                        y: main_area.y,
+                        width: main_area.width,
+                        height: content_height,
+                    },
+                    Rect {
+                        x: main_area.x,
+                        y: split_y,
+                        width: main_area.width,
+                        height: panel_height,
+                    },
+                )
+            } else {
+                (main_area, Rect::default())
+            };
+
             // Render main content area (context-aware)
             if app.show_checkpoint_browser {
                 if let Some(ref browser_state) = app.checkpoint_browser_state {
-                    render_checkpoint_browser(frame, main_area, browser_state);
+                    render_checkpoint_browser(frame, content_area, browser_state);
                 }
             } else if app.show_shortcuts {
-                render_shortcuts(frame, main_area);
+                render_shortcuts(frame, content_area);
             } else if let Some(wizard) = &app.setup_wizard {
-                render_setup_wizard(frame, main_area, wizard);
+                render_setup_wizard(frame, content_area, wizard);
             } else if let Some(ref workflow_state) = app.workflow_state {
                 // Workflow mode: split-panel layout
                 render_workflow(
                     frame,
-                    main_area,
+                    content_area,
                     workflow_state,
                     app.selected_agent_id.as_deref(),
                     app.spinner_frame,
@@ -638,7 +679,7 @@ async fn main() -> Result<()> {
                 let active_agents: Vec<(String, String, String)> = vec![]; // TODO: Get from orchestration service
                 render_orchestrator_view(
                     frame,
-                    main_area,
+                    content_area,
                     &app.prompt_data,
                     &active_agents,
                     app.task_list_state.as_ref(),
@@ -659,7 +700,7 @@ async fn main() -> Result<()> {
                                 let monitoring_path = workspace.radium_dir().join("monitoring.db");
                                 if let Ok(monitoring) = radium_core::monitoring::MonitoringService::open(monitoring_path) {
                                     let analytics = radium_core::analytics::CostAnalytics::new(&monitoring);
-                                    radium_tui::views::render_cost_dashboard(frame, main_area, state, &analytics);
+                                    radium_tui::views::render_cost_dashboard(frame, content_area, state, &analytics);
                                 } else {
                                     // Error: show message
                                     let error_text = "Error: Failed to open monitoring database";
@@ -669,7 +710,7 @@ async fn main() -> Result<()> {
                                         .block(ratatui::widgets::Block::default()
                                             .borders(ratatui::widgets::Borders::ALL)
                                             .title(" Error "));
-                                    frame.render_widget(widget, main_area);
+                                    frame.render_widget(widget, content_area);
                                 }
                             } else {
                                 // Error: show message
@@ -680,7 +721,7 @@ async fn main() -> Result<()> {
                                     .block(ratatui::widgets::Block::default()
                                         .borders(ratatui::widgets::Borders::ALL)
                                         .title(" Error "));
-                                frame.render_widget(widget, main_area);
+                                frame.render_widget(widget, content_area);
                             }
                         } else {
                             // No state: show loading or error
@@ -689,16 +730,16 @@ async fn main() -> Result<()> {
                                 .block(ratatui::widgets::Block::default()
                                     .borders(ratatui::widgets::Borders::ALL)
                                     .title(" Loading "));
-                            frame.render_widget(widget, main_area);
+                            frame.render_widget(widget, content_area);
                         }
                     }
                     DisplayContext::Help => {
                         // Start page mode: codemachine-style start page
-                        render_start_page(frame, main_area, &app.prompt_data);
+                        render_start_page(frame, content_area, &app.prompt_data);
                     }
                     _ => {
                         // Prompt mode: unified prompt interface (without input - that's in status bar)
-                        render_prompt(frame, main_area, &app.prompt_data, Some(&app.model_filter));
+                        render_prompt(frame, content_area, &app.prompt_data, Some(&app.model_filter));
                     }
                 }
             }
@@ -801,24 +842,24 @@ async fn main() -> Result<()> {
 
             // Render thinking panel (transparent reasoning)
             if app.thinking_panel.is_visible() {
-                // Position thinking panel in bottom-left quadrant
+                // Position thinking panel in left half of panel_area
                 let thinking_area = Rect {
-                    x: area.x,
-                    y: area.y + (area.height / 2),
-                    width: area.width / 2,
-                    height: area.height / 2,
+                    x: panel_area.x,
+                    y: panel_area.y,
+                    width: panel_area.width / 2,
+                    height: panel_area.height,
                 };
                 app.thinking_panel.render(frame, thinking_area);
             }
 
             // Render recommendations panel (interactive next steps)
             if app.recommendations_panel.is_visible() {
-                // Position recommendations panel in bottom-right quadrant
+                // Position recommendations panel in right half of panel_area
                 let rec_area = Rect {
-                    x: area.x + (area.width / 2),
-                    y: area.y + (area.height / 2),
-                    width: area.width / 2,
-                    height: area.height / 2,
+                    x: panel_area.x + (panel_area.width / 2),
+                    y: panel_area.y,
+                    width: panel_area.width / 2,
+                    height: panel_area.height,
                 };
                 app.recommendations_panel.render(frame, rec_area);
             }
@@ -867,8 +908,8 @@ async fn main() -> Result<()> {
             }
         }
 
-        // Handle events with timeout
-        if event::poll(Duration::from_millis(100))? {
+        // Handle events with timeout (~60 FPS for smooth thinking panel updates)
+        if event::poll(Duration::from_millis(16))? {
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
                     app.handle_key(key.code, key.modifiers).await?;
