@@ -275,14 +275,9 @@ impl AutonomousOrchestrator {
         };
 
         // Initialize agent reassignment if enabled
+        // Note: Uses reassignment::AgentSelector, not agent_selector::AgentSelector
         let reassignment = if config.enable_reassignment {
-            let selector = if let Some(ref router) = skill_router {
-                // Use skill-based routing
-                AgentSelector::with_skill_router(agent_registry.clone(), Arc::clone(router))
-            } else {
-                // Fall back to keyword-based routing
-                AgentSelector::new(agent_registry.clone())
-            };
+            let selector = AgentSelector::new(agent_registry.clone());
             Some(AgentReassignment::new(selector, Some(2)))
         } else {
             None
@@ -363,34 +358,45 @@ impl AutonomousOrchestrator {
         );
 
         // Create skill router
-        let mut router = SkillRouter::new();
+        let router = SkillRouter::new();
 
-        // Load skills from configured paths
-        for path_str in &config.skill_paths {
-            let path = Path::new(path_str);
+        // Load skills from configured paths (must use blocking context for async calls)
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                let mut total_loaded = 0;
 
-            if !path.exists() {
-                tracing::warn!("Skill path does not exist: {}", path_str);
-                continue;
-            }
+                for path_str in &config.skill_paths {
+                    let path = Path::new(path_str);
 
-            if path.is_dir() {
-                // Load all SKILL.md files from directory recursively
-                router.load_skills_from_directory(path)?;
-            } else if path.extension().and_then(|s| s.to_str()) == Some("md") {
-                // Load single skill file
-                router.load_skill_file(path)?;
-            } else {
-                tracing::warn!("Skipping non-skill file: {}", path_str);
-            }
-        }
+                    if !path.exists() {
+                        tracing::warn!("Skill path does not exist: {}", path_str);
+                        continue;
+                    }
 
-        let skill_count = router.skill_count();
-        tracing::info!("Loaded {} skills for routing", skill_count);
+                    if path.is_dir() {
+                        // Load all SKILL.md files from directory recursively
+                        match router.load_skills_from_directory(path).await {
+                            Ok(count) => {
+                                tracing::info!("Loaded {} skills from {}", count, path_str);
+                                total_loaded += count;
+                            }
+                            Err(e) => {
+                                tracing::warn!("Failed to load skills from {}: {}", path_str, e);
+                            }
+                        }
+                    } else {
+                        tracing::warn!("Skipping non-directory path: {}", path_str);
+                    }
+                }
 
-        if skill_count == 0 {
-            anyhow::bail!("No skills loaded from configured paths");
-        }
+                if total_loaded == 0 {
+                    anyhow::bail!("No skills loaded from configured paths");
+                }
+
+                tracing::info!("Loaded {} total skills for routing", total_loaded);
+                Ok::<(), anyhow::Error>(())
+            })
+        })?;
 
         Ok(router)
     }

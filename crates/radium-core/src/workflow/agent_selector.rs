@@ -87,15 +87,19 @@ impl AgentSelector {
         // Try skill-based routing first (REQ-245)
         let (agent_id, routing_method, confidence) = if let Some(ref skill_router) = self.skill_router {
             match skill_router.route(&text).await {
-                Ok(result) => {
+                Ok(Some(result)) => {
                     // Skill routing succeeded
-                    let confidence = result.confidence;
                     tracing::debug!(
                         "Skill routing selected agent '{}' with confidence {}",
                         result.skill_name,
-                        confidence
+                        result.confidence
                     );
-                    (result.skill_name, "skill".to_string(), Some(confidence))
+                    (result.skill_name, "skill".to_string(), Some(result.confidence))
+                }
+                Ok(None) => {
+                    // No skills matched above threshold, fall back to keyword matching
+                    tracing::debug!("No skills matched above threshold, falling back to keyword matching");
+                    (Self::match_keywords(&text.to_lowercase()), "keyword".to_string(), None)
                 }
                 Err(e) => {
                     // Skill routing failed, fall back to keyword matching
@@ -125,7 +129,7 @@ impl AgentSelector {
         // Validate agent exists
         self.validate_agent(&agent_id).await?;
 
-        Ok(agent_id)
+        Ok(agent_id.to_string())
     }
 
     /// Validates that an agent exists in the registry.

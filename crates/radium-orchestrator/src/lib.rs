@@ -55,7 +55,7 @@ pub use queue::{ExecutionQueue, ExecutionTask, Priority, QueueMetrics};
 pub use registry::{AgentMetadata, AgentRegistry};
 pub use routing::{
     ComplexityEstimator, ComplexityScore, ComplexityWeights, DecisionType, ModelRouter,
-    RoutingDecision, RoutingTier, TaskType,
+    RoutingConfig, RoutingDecision, RoutingTier, SkillRouter, SkillRoutingConfig, TaskType,
 };
 pub use selector::{AgentSelector, ModelClass, SelectionCriteria, SelectionError};
 

@@ -117,6 +117,7 @@ impl RequirementExecutor {
             db,
             agent_registry,
             config,
+            None, // routing_config: disabled by default for backward compatibility
         )
         .map_err(|e| RequirementExecutionError::Configuration(e.to_string()))?;
 
