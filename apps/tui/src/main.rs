@@ -741,6 +741,30 @@ async fn main() -> Result<()> {
                 app.feedback_view.render(frame, area);
             }
 
+            // Render thinking panel (transparent reasoning)
+            if app.thinking_panel.is_visible() {
+                // Position thinking panel in bottom-left quadrant
+                let thinking_area = Rect {
+                    x: area.x,
+                    y: area.y + (area.height / 2),
+                    width: area.width / 2,
+                    height: area.height / 2,
+                };
+                app.thinking_panel.render(frame, thinking_area);
+            }
+
+            // Render recommendations panel (interactive next steps)
+            if app.recommendations_panel.is_visible() {
+                // Position recommendations panel in bottom-right quadrant
+                let rec_area = Rect {
+                    x: area.x + (area.width / 2),
+                    y: area.y + (area.height / 2),
+                    width: area.width / 2,
+                    height: area.height / 2,
+                };
+                app.recommendations_panel.render(frame, rec_area);
+            }
+
             // Render toasts (on top of everything)
             let toast_areas = render_toasts_with_areas(frame, area, &app.toast_manager);
 

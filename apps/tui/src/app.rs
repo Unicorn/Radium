@@ -227,6 +227,10 @@ pub struct App {
     pub active_fix_approval: Option<crate::components::FixApprovalModal>,
     /// Feedback collection view for routing decisions (Phase 2 - REQ-246)
     pub feedback_view: crate::views::FeedbackView,
+    /// Thinking process panel for transparent agent reasoning
+    pub thinking_panel: crate::views::ThinkingPanel,
+    /// Recommendations panel for interactive next steps
+    pub recommendations_panel: crate::views::RecommendationsPanel,
 }
 
 /// Background orchestration task state
@@ -446,6 +450,8 @@ impl App {
             show_process_panel: false,
             active_fix_approval: None,
             feedback_view: crate::views::FeedbackView::new(),
+            thinking_panel: crate::views::ThinkingPanel::new(),
+            recommendations_panel: crate::views::RecommendationsPanel::new(),
         };
 
         // Check for resumable executions on startup
@@ -1161,7 +1167,36 @@ impl App {
                     self.show_costs_dashboard().await?;
                     return Ok(());
                 }
-                
+
+                // Handle 't' to toggle thinking panel
+                if key == KeyCode::Char('t') && !modifiers.contains(KeyModifiers::CONTROL) {
+                    if self.thinking_panel.is_visible() {
+                        self.thinking_panel.toggle_expanded();
+                        let state = if self.thinking_panel.is_expanded() { "expanded" } else { "collapsed" };
+                        self.toast_manager.info(format!("Thinking panel {}", state));
+                    }
+                    return Ok(());
+                }
+
+                // Handle recommendations panel interaction
+                if self.recommendations_panel.is_awaiting_confirmation() {
+                    match key {
+                        KeyCode::Char('y') | KeyCode::Char('Y') => {
+                            if self.recommendations_panel.confirm_execution() {
+                                self.toast_manager.info("Executing recommendations...".to_string());
+                                // TODO: Actually execute the recommendations
+                            }
+                            return Ok(());
+                        }
+                        KeyCode::Char('n') | KeyCode::Char('N') => {
+                            self.recommendations_panel.decline_execution();
+                            self.toast_manager.info("Recommendations skipped".to_string());
+                            return Ok(());
+                        }
+                        _ => {}
+                    }
+                }
+
                 // Handle execution view shortcuts when no view is active
                 // Only process hotkeys when input is empty (user is not actively typing)
                 let input_is_empty = self.prompt_data.input_text().trim().is_empty();
