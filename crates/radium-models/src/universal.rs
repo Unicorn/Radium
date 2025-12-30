@@ -13,7 +13,7 @@
 //!
 //! ```no_run
 //! use radium_models::UniversalModel;
-//! use radium_abstraction::{ChatMessage, Model};
+//! use radium_abstraction::{ChatMessage, MessageContent, Model};
 //!
 //! # async fn example() -> Result<(), radium_abstraction::ModelError> {
 //! let model = UniversalModel::without_auth(
@@ -388,6 +388,7 @@ impl UniversalModel {
     /// ```no_run
     /// use futures::StreamExt;
     /// use radium_models::UniversalModel;
+    /// use radium_abstraction::MessageContent;
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let model = UniversalModel::without_auth(

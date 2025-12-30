@@ -19,7 +19,7 @@ pub struct UpstreamConnection {
     /// Upstream configuration.
     pub config: UpstreamConfig,
     /// MCP client for this upstream.
-    pub client: Arc<Mutex<McpClient>>,
+    pub client: Option<Arc<Mutex<McpClient>>>,
     /// Current connection state.
     pub state: ConnectionState,
     /// Timestamp of last successful connection.
@@ -66,7 +66,7 @@ impl UpstreamPool {
             Ok(client) => {
                 let last_connected = Some(SystemTime::now());
                 (
-                    Arc::new(Mutex::new(client)),
+                    Some(Arc::new(Mutex::new(client))),
                     ConnectionState::Connected,
                     last_connected,
                     0,
@@ -78,15 +78,13 @@ impl UpstreamPool {
                     error = %e,
                     "Failed to connect to upstream server, will retry later"
                 );
-                // For failed connections, we still want to track the upstream
-                // but we can't create a client without a successful connection.
-                // We'll use a dummy approach: try to create client again but catch the error
-                // In practice, reconnection will happen via reconnect_upstream() in Task 4
-                // For now, we'll return the error but note that the upstream should still
-                // be trackable. The limitation is that McpClient requires a successful connection.
-                // We could use Option<Arc<Mutex<McpClient>>> but that complicates the API.
-                // For Task 3 scope, we'll return error - reconnection logic in Task 4 will handle this better.
-                return Err(e);
+                // Return Disconnected state with no client
+                (
+                    None,
+                    ConnectionState::Disconnected,
+                    None,
+                    0,
+                )
             }
         };
 
@@ -121,14 +119,16 @@ impl UpstreamPool {
         if let Some(connection) = upstreams.remove(name) {
             // Attempt graceful disconnection if connected
             if matches!(connection.state, ConnectionState::Connected) {
-                let mut client = connection.client.lock().await;
-                if let Err(e) = client.disconnect().await {
-                    tracing::warn!(
-                        upstream_name = %name,
-                        error = %e,
-                        "Error during upstream disconnection"
-                    );
-                    // Continue with removal even if disconnect fails
+                if let Some(client_arc) = &connection.client {
+                    let mut client = client_arc.lock().await;
+                    if let Err(e) = client.disconnect().await {
+                        tracing::warn!(
+                            upstream_name = %name,
+                            error = %e,
+                            "Error during upstream disconnection"
+                        );
+                        // Continue with removal even if disconnect fails
+                    }
                 }
             }
         } else {
@@ -159,7 +159,7 @@ impl UpstreamPool {
 
         upstreams.get(name).and_then(|connection| {
             match connection.state {
-                ConnectionState::Connected => Some(Arc::clone(&connection.client)),
+                ConnectionState::Connected => connection.client.clone(),
                 _ => None,
             }
         })
@@ -259,7 +259,7 @@ impl UpstreamPool {
             Ok(new_client) => {
                 let mut upstreams = self.upstreams.write().await;
                 if let Some(connection) = upstreams.get_mut(name) {
-                    connection.client = Arc::new(Mutex::new(new_client));
+                    connection.client = Some(Arc::new(Mutex::new(new_client)));
                     connection.state = ConnectionState::Connected;
                     connection.last_connected = Some(SystemTime::now());
                     connection.failure_count = 0;
@@ -353,7 +353,7 @@ mod tests {
 
         let upstreams = pool.list_upstreams().await;
         // Should have both upstreams (even if connection failed)
-        assert!(upstreams.len() >= 0); // Connection may fail, but upstreams should be tracked
+        assert_eq!(upstreams.len(), 2); // Connection may fail, but upstreams should be tracked
     }
 
     #[tokio::test]

@@ -1,18 +1,15 @@
 //! Batch executor for orchestrator integration.
 
-use radium_core::batch::{BatchProcessor, BatchResult, RetryPolicy};
-use radium_core::monitoring::MonitoringService;
+use radium_abstraction::batch::{BatchProcessor, BatchResult, RetryPolicy};
 use crate::progress::{ProgressEvent, ProgressReporter};
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::info;
 
-/// Batch executor that integrates with orchestrator and monitoring services.
+/// Batch executor that integrates with orchestrator progress reporting.
 pub struct BatchExecutor {
     /// Batch processor for parallel execution.
     batch_processor: BatchProcessor<String, String>,
-    /// Monitoring service for telemetry tracking.
-    monitoring_service: Arc<MonitoringService>,
     /// Progress reporter for event emission.
     progress_reporter: Arc<ProgressReporter>,
 }
@@ -22,7 +19,6 @@ impl BatchExecutor {
     pub fn new(
         concurrency: usize,
         timeout: Duration,
-        monitoring_service: Arc<MonitoringService>,
         progress_reporter: Arc<ProgressReporter>,
     ) -> Self {
         let retry_policy = RetryPolicy::default();
@@ -30,7 +26,6 @@ impl BatchExecutor {
 
         Self {
             batch_processor,
-            monitoring_service,
             progress_reporter,
         }
     }

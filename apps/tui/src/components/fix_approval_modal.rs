@@ -281,7 +281,7 @@ pub fn render_fix_approval_modal(frame: &mut Frame, area: Rect, modal: &FixAppro
     } else if modal.proposal.confidence >= 0.6 {
         theme.warning
     } else {
-        theme.danger
+        theme.error
     };
 
     let modal_border = Block::default()

@@ -1,18 +1,19 @@
 //! Batch processing module for parallel execution of async operations.
+//!
+//! Core batch processing (processor, types, error) is provided by radium-abstraction.
+//! This module extends it with UI-specific functionality (formats, input parsing, progress, UI rendering).
 
-pub mod error;
+// Re-export core batch types from radium-abstraction
+pub use radium_abstraction::batch::{BatchError, BatchProcessor, BatchResult, RetryPolicy};
+
+// UI-specific modules remain in radium-core
 pub mod formats;
 pub mod input;
-pub mod processor;
 pub mod progress;
-pub mod types;
 pub mod ui;
 
-pub use error::BatchError;
 pub use formats::{detect_format, InputFormat};
 pub use input::{parse_input_file, BatchInput};
-pub use processor::BatchProcessor;
 pub use progress::BatchProgressTracker;
-pub use types::{BatchResult, RetryPolicy};
 pub use ui::{render_progress, render_summary};
 

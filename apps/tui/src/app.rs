@@ -858,14 +858,14 @@ impl App {
                                 if let Some(response_tx) = modal.response_tx.take() {
                                     let _ = response_tx.send(ApprovalAction::Approved);
                                 }
-                                self.toast_manager.success("Fix approved - applying...");
+                                self.toast_manager.success("Fix approved - applying...".to_string());
                                 // TODO: Actually apply the fix via error_router
                             }
                             ApprovalAction::Rejected => {
                                 if let Some(response_tx) = modal.response_tx.take() {
                                     let _ = response_tx.send(ApprovalAction::Rejected);
                                 }
-                                self.toast_manager.info("Fix rejected");
+                                self.toast_manager.info("Fix rejected".to_string());
                             }
                             ApprovalAction::ViewDetails => {
                                 // Toggle details view and keep modal open
@@ -1075,7 +1075,7 @@ impl App {
                 if modifiers.contains(KeyModifiers::CONTROL) && key == KeyCode::Char('n') {
                     if self.show_process_panel && self.process_registry.is_some() {
                         // TODO: Show process spawn dialog
-                        self.toast_manager.info("Process spawn dialog not yet implemented");
+                        self.toast_manager.info("Process spawn dialog not yet implemented".to_string());
                     }
                     return Ok(());
                 }
@@ -1088,10 +1088,10 @@ impl App {
                                 let (response_tx, _response_rx) = tokio::sync::oneshot::channel();
                                 let modal = crate::components::FixApprovalModal::new(proposal, response_tx);
                                 self.active_fix_approval = Some(modal);
-                                self.toast_manager.info("Fix approval modal opened");
+                                self.toast_manager.info("Fix approval modal opened".to_string());
                             }
                         } else {
-                            self.toast_manager.info("No pending fix approvals");
+                            self.toast_manager.info("No pending fix approvals".to_string());
                         }
                     }
                     return Ok(());
@@ -1683,20 +1683,29 @@ impl App {
                 PanelFocus::Chat => {
                     if self.task_panel_visible {
                         PanelFocus::TaskList
-                    } else if self.orchestrator_panel_visible {
-                        PanelFocus::Orchestrator
+                    } else if self.orchestrator_panel_visible || self.show_process_panel {
+                        if self.show_process_panel {
+                            PanelFocus::Process
+                        } else {
+                            PanelFocus::Orchestrator
+                        }
                     } else {
                         PanelFocus::Chat // Stay on chat if no other panels visible
                     }
                 }
                 PanelFocus::TaskList => {
-                    if self.orchestrator_panel_visible {
-                        PanelFocus::Orchestrator
+                    if self.orchestrator_panel_visible || self.show_process_panel {
+                        if self.show_process_panel {
+                            PanelFocus::Process
+                        } else {
+                            PanelFocus::Orchestrator
+                        }
                     } else {
                         PanelFocus::Chat
                     }
                 }
                 PanelFocus::Orchestrator => PanelFocus::Chat,
+                PanelFocus::Process => PanelFocus::Chat,
             };
             
             // If we're on a visible panel, we're done
@@ -1704,6 +1713,7 @@ impl App {
                 PanelFocus::Chat => break,
                 PanelFocus::TaskList if self.task_panel_visible => break,
                 PanelFocus::Orchestrator if self.orchestrator_panel_visible => break,
+                PanelFocus::Process if self.show_process_panel => break,
                 _ => continue, // Keep cycling if panel is hidden
             }
         }
@@ -1726,6 +1736,11 @@ impl App {
                     self.orchestrator_panel.scroll_down(amount);
                 }
             }
+            PanelFocus::Process => {
+                // Process panel scrolling would be handled here
+                // For now, the panel doesn't maintain scroll state between renders
+                // This would need to be added to ProcessPanel if needed
+            }
             PanelFocus::Chat => {
                 // Chat scrolling is handled by prompt_data.scrollback_offset
                 if up {
@@ -1743,13 +1758,16 @@ impl App {
     /// Scrolls the focused panel to the top.
     fn handle_panel_scroll_to_top(&mut self) {
         use crate::views::orchestrator_view::PanelFocus;
-        
+
         match self.panel_focus {
             PanelFocus::TaskList => {
                 // Task list panel scrolling would be handled here
             }
             PanelFocus::Orchestrator => {
                 self.orchestrator_panel.scroll_to_top();
+            }
+            PanelFocus::Process => {
+                // Process panel scrolling would be handled here
             }
             PanelFocus::Chat => {
                 self.prompt_data.scrollback_offset = 0;
@@ -1768,6 +1786,9 @@ impl App {
             PanelFocus::Orchestrator => {
                 let _max_items = self.orchestrator_panel.len();
                 self.orchestrator_panel.scroll_to_bottom();
+            }
+            PanelFocus::Process => {
+                // Process panel scrolling would be handled here
             }
             PanelFocus::Chat => {
                 self.prompt_data.scrollback_offset = self.prompt_data.conversation.len().saturating_sub(1);

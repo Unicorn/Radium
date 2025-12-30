@@ -1,6 +1,6 @@
 //! Input format detection and parsing for batch processing.
 
-use crate::batch::error::BatchError;
+use crate::batch::BatchError;
 
 /// Supported input formats for batch processing.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -298,6 +298,7 @@ impl DailySpendAggregator {
 mod tests {
     use super::*;
     use crate::monitoring::{MonitoringService, TelemetryRecord};
+    use std::time::Duration;
 
     #[test]
     fn test_cache_ttl() {

@@ -2,6 +2,8 @@
 //!
 //! This module defines the core traits and types for interacting with AI models.
 
+pub mod batch;
+
 use async_trait::async_trait;
 use futures::stream::Stream;
 use serde::{Deserialize, Serialize};

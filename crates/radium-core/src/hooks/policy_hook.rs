@@ -211,14 +211,14 @@ impl PolicyHookRegistrar {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::policy::types::ApprovalMode;
+    use crate::policy::ApprovalMode;
 
     #[tokio::test]
     async fn test_policy_hook_allows_non_mutating_operations() {
         let engine = Arc::new(PolicyEngine::new(ApprovalMode::Ask).unwrap());
         let hook = PolicyHook::new(engine);
 
-        let context = HookContext::new(serde_json::json!({
+        let context = HookContext::new("before_tool", serde_json::json!({
             "tool_name": "read_file",
             "arguments": {"file_path": "test.txt"}
         }));
@@ -232,7 +232,7 @@ mod tests {
         let engine = Arc::new(PolicyEngine::new(ApprovalMode::Ask).unwrap());
         let hook = PolicyHook::new(engine);
 
-        let context = HookContext::new(serde_json::json!({
+        let context = HookContext::new("before_tool", serde_json::json!({
             "tool_name": "write_file",
             "arguments": {"file_path": "test.txt", "content": "test"}
         }));

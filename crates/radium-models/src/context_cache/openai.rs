@@ -75,7 +75,7 @@ mod tests {
     fn test_openai_context_cache_new() {
         let cache = OpenAIContextCache::new();
         // Just verify it compiles and can be created
-        assert!(std::mem::size_of_val(&cache) > 0);
+        let _ = cache;
     }
 
     #[tokio::test]

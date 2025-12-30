@@ -1,6 +1,6 @@
 //! Input parsing for batch processing.
 
-use crate::batch::error::BatchError;
+use crate::batch::BatchError;
 use crate::batch::formats::{detect_format, InputFormat};
 use serde_json::Value;
 use std::path::Path;

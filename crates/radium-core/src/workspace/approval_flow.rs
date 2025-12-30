@@ -66,7 +66,7 @@ impl ApprovalFlow {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::policy::types::ApprovalMode;
+    use crate::policy::ApprovalMode;
 
     #[tokio::test]
     async fn test_approval_flow_check() {

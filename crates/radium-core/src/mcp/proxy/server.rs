@@ -440,7 +440,8 @@ impl ProxyServer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mcp::proxy::{ConflictStrategy, ProxyTransport, SecurityConfig};
+    use crate::mcp::proxy::{ConflictStrategy, ProxyTransport, SecurityConfig, UpstreamPool, DefaultToolRouter, DefaultToolCatalog, DefaultSecurityLayer};
+    use std::collections::HashMap;
 
     #[tokio::test]
     async fn test_proxy_server_creation() {

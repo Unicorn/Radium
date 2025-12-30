@@ -240,6 +240,7 @@ fn count_tokens(text: &str) -> u32 {
 mod tests {
     use super::*;
     use futures::StreamExt;
+    use radium_abstraction::StreamItem;
 
     #[tokio::test]
     async fn test_mock_model_streaming() {

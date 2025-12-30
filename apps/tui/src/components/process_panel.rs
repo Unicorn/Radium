@@ -132,7 +132,7 @@ impl ProcessPanel {
                 ];
 
                 let row_style = if is_selected {
-                    Style::default().bg(theme.selection_bg).fg(theme.selection_fg)
+                    Style::default().bg(theme.bg_element).fg(theme.text)
                 } else {
                     Style::default()
                 };
@@ -153,7 +153,7 @@ impl ProcessPanel {
 
         // Create table
         let border_style = if self.focused {
-            Style::default().fg(theme.border_focused)
+            Style::default().fg(theme.border_active)
         } else {
             Style::default().fg(theme.border)
         };
@@ -174,10 +174,10 @@ impl ProcessPanel {
                     .title(title)
                     .title_style(Style::default().fg(theme.text).bold()),
             )
-            .highlight_style(
+            .row_highlight_style(
                 Style::default()
-                    .bg(theme.selection_bg)
-                    .fg(theme.selection_fg)
+                    .bg(theme.bg_element)
+                    .fg(theme.text)
                     .add_modifier(Modifier::BOLD),
             );
 

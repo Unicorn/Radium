@@ -2250,7 +2250,7 @@ mod mime_utils {
             Some("image/jpeg".to_string())
         }
         // WebP: RIFF...WEBP
-        else if data.starts_with(b"RIFF") && data.len() > 12 && &data[8..12] == b"WEBP" {
+        else if data.starts_with(b"RIFF") && data.len() >= 12 && &data[8..12] == b"WEBP" {
             Some("image/webp".to_string())
         }
         // PDF: %PDF
@@ -2623,15 +2623,11 @@ mod tests {
     }
 
     #[test]
-    fn test_exactly_20mb_uses_inline() {
-        // Exactly 20MB should use inline (at the limit, not over)
+    fn test_exactly_20mb_uses_file() {
+        // Exactly 20MB raw size becomes > 20MB when base64 encoded, so it must use file URI
         let size = validation_utils::MAX_INLINE_SIZE;
-        let encoded_size = validation_utils::calculate_base64_size(size);
-        // If encoded size exceeds limit, should use file URI
-        // But original 20MB might be close to limit after encoding
         let should_use_file = validation_utils::should_use_file_uri(size);
-        // This depends on the exact calculation, but 20MB raw should be close to limit
-        assert!(!should_use_file || encoded_size <= validation_utils::MAX_INLINE_SIZE);
+        assert!(should_use_file, "20MB raw data should use file URI because encoded size exceeds limit");
     }
 
     #[test]
@@ -2859,13 +2855,11 @@ mod tests {
 
     #[test]
     fn test_size_edge_cases() {
-        // Test exactly at 20MB limit
+        // Test exactly at 20MB limit (raw size)
         let size = validation_utils::MAX_INLINE_SIZE;
-        let encoded_size = validation_utils::calculate_base64_size(size);
-        // Encoded size might exceed limit, but original at limit should be close
+        // Encoded size exceeds limit, so must use file URI
         let should_use_file = validation_utils::should_use_file_uri(size);
-        // This is edge case - depends on exact calculation
-        assert!(!should_use_file || encoded_size <= validation_utils::MAX_INLINE_SIZE);
+        assert!(should_use_file);
 
         // Test 20MB + 1 byte
         let size_plus_one = validation_utils::MAX_INLINE_SIZE + 1;
@@ -2895,7 +2889,7 @@ mod tests {
             },
         };
         let json = serde_json::to_string(&inline_part).unwrap();
-        assert!(json.contains("inline_data"));
+        assert!(json.contains("inlineData"));
         assert!(json.contains("mime_type"));
 
         let file_part = GeminiPart::FileData {
@@ -2905,7 +2899,7 @@ mod tests {
             },
         };
         let json = serde_json::to_string(&file_part).unwrap();
-        assert!(json.contains("file_data"));
+        assert!(json.contains("fileData"));
         assert!(json.contains("file_uri"));
     }
 

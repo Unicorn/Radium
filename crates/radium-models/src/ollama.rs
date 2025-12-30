@@ -39,7 +39,7 @@
 //!     let mut stream = model.generate_stream("Write a story", None).await?;
 //!     
 //!     while let Some(token) = stream.next().await {
-//!         print!("{}", token?);
+//!         print!("{:?}", token?);
 //!     }
 //!     Ok(())
 //! }

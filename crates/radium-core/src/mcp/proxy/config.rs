@@ -446,6 +446,7 @@ impl ProxyConfigManager {
 mod tests {
     use super::*;
     use tempfile::TempDir;
+    use crate::mcp::McpServerConfig;
 
     #[test]
     fn test_generate_default() {

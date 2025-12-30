@@ -1,6 +1,6 @@
 //! Terminal UI rendering for batch progress.
 
-use crate::batch::error::BatchError;
+use crate::batch::BatchError;
 use crate::batch::progress::BatchProgressTracker;
 use std::io::{self, Write};
 
