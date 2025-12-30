@@ -85,7 +85,7 @@ http-body-util = "0.1"
 hyper-util = { version = "0.1", features = ["full"] }
 
 # Progress indicators (optional, for CLI usage)
-indicatif = { version = "0.17", optional = true }
+indicatif = { version = "0.18", optional = true }
 
 # URL encoding
 urlencoding = "2.1"
