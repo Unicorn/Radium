@@ -189,6 +189,16 @@ impl OrchestrationEngine {
             content: current_input.clone(),
         });
 
+        // Start thinking session for transparent reasoning
+        self.emit(OrchestrationEvent::ThinkingSessionStarted {
+            correlation_id: correlation_id.clone(),
+            context: format!("Processing request: {}", if input.len() > 60 {
+                format!("{}...", &input[..60])
+            } else {
+                input.to_string()
+            }),
+        });
+
         loop {
             // Check iteration limit
             if iterations >= self.config.max_iterations {
@@ -210,6 +220,9 @@ impl OrchestrationEngine {
                     }
                 );
                 warn!("Orchestration reached max iterations: {}", iterations);
+                self.emit(OrchestrationEvent::ThinkingSessionEnded {
+                    correlation_id: correlation_id.clone(),
+                });
                 self.emit(OrchestrationEvent::Done {
                     correlation_id: correlation_id.clone(),
                     finish_reason: FinishReason::MaxIterations.to_string(),
@@ -217,12 +230,26 @@ impl OrchestrationEngine {
                 return Ok(OrchestrationResult::new(error_msg, vec![], FinishReason::MaxIterations));
             }
 
+            // Emit thinking step: Analyzing request
+            self.emit(OrchestrationEvent::ThinkingStepAdded {
+                correlation_id: correlation_id.clone(),
+                description: format!("Analyzing request (iteration {})", iterations + 1),
+            });
+
             // Get orchestration decision from provider
             let result = match self.provider.execute_with_tools(&current_input, &self.tools, context).await {
                 Ok(r) => r,
                 Err(e) => {
                     // Provider error - check if it's a function calling error that should trigger fallback
                     // This will be handled by the service layer if fallback is enabled
+                    self.emit(OrchestrationEvent::ThinkingStepUpdated {
+                        correlation_id: correlation_id.clone(),
+                        status: super::events::ThinkingStatus::Failed,
+                        details: Some(format!("Provider error: {}", e)),
+                    });
+                    self.emit(OrchestrationEvent::ThinkingSessionEnded {
+                        correlation_id: correlation_id.clone(),
+                    });
                     self.emit(OrchestrationEvent::Error {
                         correlation_id: correlation_id.clone(),
                         message: e.to_string(),
@@ -230,6 +257,27 @@ impl OrchestrationEngine {
                     return Err(e);
                 }
             };
+
+            // Update thinking step with provider decision
+            if result.tool_calls.is_empty() {
+                self.emit(OrchestrationEvent::ThinkingStepUpdated {
+                    correlation_id: correlation_id.clone(),
+                    status: super::events::ThinkingStatus::Completed,
+                    details: Some("Request analyzed - no tools needed, generating response".to_string()),
+                });
+            } else {
+                self.emit(OrchestrationEvent::ThinkingStepUpdated {
+                    correlation_id: correlation_id.clone(),
+                    status: super::events::ThinkingStatus::CompletedWithFindings,
+                    details: Some(format!("Found {} tool(s) to execute: {}",
+                        result.tool_calls.len(),
+                        result.tool_calls.iter()
+                            .map(|t| t.name.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )),
+                });
+            }
 
             // If no tool calls, we're done
             if result.tool_calls.is_empty() {
@@ -241,6 +289,12 @@ impl OrchestrationEngine {
                     correlation_id: correlation_id.clone(),
                     content: result.response.clone(),
                 });
+
+                // End thinking session
+                self.emit(OrchestrationEvent::ThinkingSessionEnded {
+                    correlation_id: correlation_id.clone(),
+                });
+
                 self.emit(OrchestrationEvent::Done {
                     correlation_id: correlation_id.clone(),
                     finish_reason: result.finish_reason.to_string(),
@@ -262,7 +316,30 @@ impl OrchestrationEngine {
                 });
             }
 
+            // Add thinking step for tool execution
+            self.emit(OrchestrationEvent::ThinkingStepAdded {
+                correlation_id: correlation_id.clone(),
+                description: format!("Executing {} tool(s)", result.tool_calls.len()),
+            });
+
             let tool_results = self.execute_tools(&correlation_id, &result.tool_calls).await?;
+
+            // Update thinking step with tool results
+            let successful_count = tool_results.iter().filter(|r| r.success).count();
+            let failed_count = tool_results.len() - successful_count;
+            if failed_count == 0 {
+                self.emit(OrchestrationEvent::ThinkingStepUpdated {
+                    correlation_id: correlation_id.clone(),
+                    status: super::events::ThinkingStatus::Completed,
+                    details: Some(format!("All {} tool(s) executed successfully", tool_results.len())),
+                });
+            } else {
+                self.emit(OrchestrationEvent::ThinkingStepUpdated {
+                    correlation_id: correlation_id.clone(),
+                    status: super::events::ThinkingStatus::CompletedWithFindings,
+                    details: Some(format!("{} succeeded, {} failed", successful_count, failed_count)),
+                });
+            }
 
             // Add assistant message with tool calls to conversation
             if !result.response.is_empty() {
