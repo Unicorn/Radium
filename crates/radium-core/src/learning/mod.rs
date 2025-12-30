@@ -6,6 +6,8 @@
 
 #[cfg(feature = "workflow")]
 pub mod integration;
+#[cfg(feature = "workflow")]
+pub mod metrics_aggregator;
 #[cfg(feature = "monitoring")]
 pub mod pattern_analyzer;
 #[cfg(feature = "workflow")]
@@ -17,6 +19,10 @@ pub mod updates;
 
 #[cfg(feature = "workflow")]
 pub use integration::{LearningConfig, LearningIntegration};
+#[cfg(feature = "workflow")]
+pub use metrics_aggregator::{
+    AgentMetrics, ConfidenceStats, MetricsAggregator, RoutingQualityMetrics,
+};
 #[cfg(feature = "workflow")]
 pub use recovery_learning::{
     RecoveryLearning, RecoveryLearningError, RecoveryPattern, Result as RecoveryLearningResult,
