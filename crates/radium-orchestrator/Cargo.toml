@@ -14,6 +14,7 @@ workspace = true
 # Internal crates
 radium-abstraction.workspace = true
 radium-models.workspace = true
+radium-ml = { path = "../radium-ml" }
 
 # Async runtime
 tokio.workspace = true
@@ -23,6 +24,7 @@ tokio-util = "0.7"
 serde.workspace = true
 serde_json.workspace = true
 toml = "0.8"
+serde_yaml = "0.9"
 
 # Error handling
 anyhow.workspace = true
@@ -59,6 +61,7 @@ ignore = "0.4"
 grep-searcher = "0.1"
 grep-regex = "0.1"
 glob = "0.3"
+walkdir = "2.4"
 # Tree-sitter for AST analysis
 tree-sitter = "0.20.10"
 tree-sitter-rust = "0.20.4"
@@ -71,4 +74,12 @@ radium-core = { workspace = true, features = ["monitoring"] }
 
 [[bench]]
 name = "orchestration_benchmark"
+harness = false
+
+[[bench]]
+name = "skill_routing_benchmark"
+harness = false
+
+[[bench]]
+name = "routing_evaluation"
 harness = false

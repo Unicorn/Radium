@@ -29,23 +29,58 @@ pub type Result<T> = std::result::Result<T, ConfigError>;
 #[derive(Debug, Clone, Deserialize)]
 pub struct RoutingConfig {
     /// Default routing strategy.
+    /// Options: "complexity_based" (legacy), "skill_based" (REQ-245), "adaptive" (REQ-246)
     #[serde(default = "default_strategy")]
     pub default_strategy: String,
-    
+
     /// Complexity threshold for routing (optional, uses router default if not set).
     pub threshold: Option<f64>,
-    
+
     /// Fallback chains.
     #[serde(default)]
     pub chains: Vec<FallbackChainConfig>,
-    
+
     /// Routing rules.
     #[serde(default)]
     pub rules: Vec<RoutingRule>,
+
+    /// Skill-based routing configuration (REQ-245).
+    #[serde(default)]
+    pub skill_routing: SkillRoutingConfig,
 }
 
 fn default_strategy() -> String {
     "complexity_based".to_string()
+}
+
+/// Configuration for skill-based routing (REQ-245).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct SkillRoutingConfig {
+    /// Enable skill-based routing.
+    pub enabled: bool,
+
+    /// Paths to skill directories or SKILL.md files.
+    /// Example: ["./skills", "./custom-skills"]
+    pub skill_paths: Vec<String>,
+
+    /// Minimum confidence threshold for skill routing (0.0-1.0).
+    /// If routing confidence is below this, fall back to keyword matching.
+    pub confidence_threshold: f32,
+
+    /// Enable telemetry collection for routing decisions.
+    pub collect_metrics: bool,
+}
+
+impl Default for SkillRoutingConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,  // Disabled by default for backward compatibility
+            skill_paths: vec!["./skills".to_string()],
+            confidence_threshold: 0.5,
+            collect_metrics: true,
+        }
+    }
 }
 
 /// Fallback chain configuration.

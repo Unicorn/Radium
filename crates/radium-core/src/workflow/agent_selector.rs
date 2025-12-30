@@ -4,7 +4,7 @@
 //! agent for executing a task based on task description keywords and explicit agent type hints.
 
 use crate::context::braingrid_client::BraingridTask;
-use radium_orchestrator::AgentRegistry;
+use radium_orchestrator::{AgentRegistry, SkillRouter};
 use std::sync::Arc;
 
 /// Errors that can occur during agent selection.
@@ -17,30 +17,54 @@ pub enum AgentSelectionError {
     /// No agents available in registry.
     #[error("No agents available in registry")]
     NoAgentsAvailable,
+
+    /// Skill routing error.
+    #[error("Skill routing error: {0}")]
+    SkillRoutingError(String),
 }
 
 /// Agent selector for intelligent task-to-agent mapping.
 ///
 /// Maps task keywords to agent types and validates agent availability.
+/// Supports both keyword-based routing (legacy) and skill-based routing (REQ-245).
 pub struct AgentSelector {
     /// Agent registry for validation.
     registry: Arc<AgentRegistry>,
+
+    /// Optional skill router for intelligent agent selection (REQ-245).
+    /// When present, skill routing is used instead of keyword matching.
+    skill_router: Option<Arc<SkillRouter>>,
 }
 
 impl AgentSelector {
-    /// Creates a new agent selector.
+    /// Creates a new agent selector with keyword-based routing (legacy).
     ///
     /// # Arguments
     /// * `registry` - The agent registry to use for validation
     pub fn new(registry: Arc<AgentRegistry>) -> Self {
-        Self { registry }
+        Self {
+            registry,
+            skill_router: None,
+        }
+    }
+
+    /// Creates a new agent selector with skill-based routing enabled (REQ-245).
+    ///
+    /// # Arguments
+    /// * `registry` - The agent registry to use for validation
+    /// * `skill_router` - The skill router for intelligent agent selection
+    pub fn with_skill_router(registry: Arc<AgentRegistry>, skill_router: Arc<SkillRouter>) -> Self {
+        Self {
+            registry,
+            skill_router: Some(skill_router),
+        }
     }
 
     /// Selects the appropriate agent for a task.
     ///
     /// Selection priority:
-    /// 1. Explicit `agent_type` field in task (if present and valid)
-    /// 2. Keyword matching in task title and description
+    /// 1. Skill-based routing (if enabled via REQ-245) with fallback to keywords
+    /// 2. Keyword matching in task title and description (legacy)
     /// 3. Default to code-agent
     ///
     /// # Arguments
@@ -49,22 +73,54 @@ impl AgentSelector {
     /// # Returns
     /// The selected agent ID, or error if agent not found
     pub async fn select_agent(&self, task: &BraingridTask) -> Result<String, AgentSelectionError> {
-        // Check if task has explicit agent_type hint
-        // Note: BraingridTask doesn't currently have agent_type field, but we'll check
-        // for it in the future. For now, we'll rely on keyword matching.
+        use std::time::Instant;
 
-        // Extract keywords from task title and description
+        // Extract task text
         let text = format!(
             "{} {}",
-            task.title.to_lowercase(),
-            task.description
-                .as_ref()
-                .map(|d| d.to_lowercase())
-                .unwrap_or_default()
+            task.title,
+            task.description.as_ref().unwrap_or(&String::new())
         );
 
-        // Match keywords to agent types
-        let agent_id = Self::match_keywords(&text);
+        let start = Instant::now();
+
+        // Try skill-based routing first (REQ-245)
+        let (agent_id, routing_method, confidence) = if let Some(ref skill_router) = self.skill_router {
+            match skill_router.route(&text).await {
+                Ok(result) => {
+                    // Skill routing succeeded
+                    let confidence = result.confidence;
+                    tracing::debug!(
+                        "Skill routing selected agent '{}' with confidence {}",
+                        result.skill_name,
+                        confidence
+                    );
+                    (result.skill_name, "skill".to_string(), Some(confidence))
+                }
+                Err(e) => {
+                    // Skill routing failed, fall back to keyword matching
+                    tracing::warn!(
+                        "Skill routing failed: {}, falling back to keyword matching",
+                        e
+                    );
+                    (Self::match_keywords(&text.to_lowercase()), "keyword".to_string(), None)
+                }
+            }
+        } else {
+            // Skill routing not enabled, use keyword matching
+            (Self::match_keywords(&text.to_lowercase()), "keyword".to_string(), None)
+        };
+
+        let routing_latency_ns = start.elapsed().as_nanos() as u64;
+
+        // Log routing metrics
+        tracing::info!(
+            routing_method = %routing_method,
+            routing_confidence = ?confidence,
+            routing_latency_ns = routing_latency_ns,
+            selected_agent = %agent_id,
+            "Agent routing decision"
+        );
 
         // Validate agent exists
         self.validate_agent(&agent_id).await?;
@@ -148,6 +204,11 @@ impl AgentSelector {
 mod tests {
     use super::*;
     use crate::context::braingrid_client::TaskStatus;
+    use radium_orchestrator::{Agent, AgentInfo, SkillRoutingResult};
+    use std::sync::Arc;
+    use async_trait::async_trait;
+
+    // ===== Test Helpers =====
 
     fn create_test_task(title: &str, description: Option<&str>) -> BraingridTask {
         BraingridTask {
@@ -161,6 +222,171 @@ mod tests {
             dependencies: vec![],
         }
     }
+
+    // ===== Mock Implementations =====
+
+    struct MockAgent {
+        id: String,
+    }
+
+    #[async_trait]
+    impl Agent for MockAgent {
+        fn info(&self) -> AgentInfo {
+            AgentInfo {
+                id: self.id.clone(),
+                name: format!("Mock {}", self.id),
+                description: "Mock agent for testing".to_string(),
+                capabilities: vec![],
+            }
+        }
+
+        async fn execute(
+            &self,
+            _context: radium_orchestrator::OrchestrationContext,
+        ) -> Result<radium_orchestrator::AgentResult, radium_orchestrator::AgentError> {
+            Ok(radium_orchestrator::AgentResult {
+                success: true,
+                output: "Mock execution".to_string(),
+                metadata: std::collections::HashMap::new(),
+            })
+        }
+    }
+
+    struct MockAgentRegistry {
+        agents: Vec<AgentInfo>,
+    }
+
+    impl MockAgentRegistry {
+        fn new(agent_ids: Vec<&str>) -> Arc<AgentRegistry> {
+            let agents: Vec<AgentInfo> = agent_ids
+                .iter()
+                .map(|id| AgentInfo {
+                    id: id.to_string(),
+                    name: format!("Mock {}", id),
+                    description: "Mock agent".to_string(),
+                    capabilities: vec![],
+                })
+                .collect();
+
+            let registry = AgentRegistry::new();
+            for agent_id in agent_ids {
+                let agent = MockAgent {
+                    id: agent_id.to_string(),
+                };
+                tokio::task::block_in_place(|| {
+                    tokio::runtime::Handle::current().block_on(async {
+                        registry.register(Arc::new(agent)).await;
+                    })
+                });
+            }
+
+            Arc::new(registry)
+        }
+    }
+
+    struct MockSkillRouter {
+        result: Option<Result<SkillRoutingResult, anyhow::Error>>,
+    }
+
+    impl MockSkillRouter {
+        fn with_success(skill_name: &str, confidence: f32) -> Arc<radium_orchestrator::SkillRouter> {
+            // Create a real SkillRouter for testing
+            Arc::new(radium_orchestrator::SkillRouter::new())
+        }
+
+        fn with_failure(error_msg: &str) -> Arc<radium_orchestrator::SkillRouter> {
+            // Create an empty SkillRouter (will fail to route with no skills)
+            Arc::new(radium_orchestrator::SkillRouter::new())
+        }
+    }
+
+    // ===== Integration Tests (Skill Routing) =====
+
+    #[tokio::test]
+    async fn test_select_agent_keyword_routing_only() {
+        // Test keyword-based routing without skill router
+        let registry = MockAgentRegistry::new(vec!["code-agent", "review-agent", "doc-agent"]);
+        let selector = AgentSelector::new(registry);
+
+        let task = create_test_task("Implement authentication", Some("Build user login"));
+        let result = selector.select_agent(&task).await;
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "code-agent");
+    }
+
+    #[tokio::test]
+    async fn test_select_agent_with_empty_skill_router_fallback() {
+        // Test fallback to keyword matching when skill router has no skills
+        let registry = MockAgentRegistry::new(vec!["code-agent", "review-agent"]);
+        let skill_router = Arc::new(radium_orchestrator::SkillRouter::new()); // Empty router
+        let selector = AgentSelector::with_skill_router(registry, skill_router);
+
+        let task = create_test_task("Test the API", Some("Write integration tests"));
+        let result = selector.select_agent(&task).await;
+
+        // Should fall back to keyword matching and select review-agent
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "review-agent");
+    }
+
+    #[tokio::test]
+    async fn test_validate_agent_success() {
+        let registry = MockAgentRegistry::new(vec!["code-agent", "review-agent"]);
+        let selector = AgentSelector::new(registry);
+
+        let result = selector.validate_agent("code-agent").await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_validate_agent_not_found() {
+        let registry = MockAgentRegistry::new(vec!["code-agent"]);
+        let selector = AgentSelector::new(registry);
+
+        let result = selector.validate_agent("nonexistent-agent").await;
+        assert!(result.is_err());
+        match result {
+            Err(AgentSelectionError::AgentNotFound(agent_id)) => {
+                assert_eq!(agent_id, "nonexistent-agent");
+            }
+            _ => panic!("Expected AgentNotFound error"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_validate_agent_no_agents_available() {
+        let registry = Arc::new(AgentRegistry::new()); // Empty registry
+        let selector = AgentSelector::new(registry);
+
+        let result = selector.validate_agent("any-agent").await;
+        assert!(result.is_err());
+        match result {
+            Err(AgentSelectionError::NoAgentsAvailable) => {}
+            _ => panic!("Expected NoAgentsAvailable error"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_select_agent_validates_result() {
+        // Test that select_agent validates the selected agent exists
+        let registry = MockAgentRegistry::new(vec!["review-agent"]); // Only review-agent
+        let selector = AgentSelector::new(registry);
+
+        // This task should select "code-agent" by keywords, but it doesn't exist
+        let task = create_test_task("Implement feature", None);
+        let result = selector.select_agent(&task).await;
+
+        assert!(result.is_err());
+        match result {
+            Err(AgentSelectionError::AgentNotFound(agent_id)) => {
+                assert_eq!(agent_id, "code-agent");
+            }
+            _ => panic!("Expected AgentNotFound error"),
+        }
+    }
+
+    // ===== Unit Tests (Keyword Matching) =====
 
     #[test]
     fn test_match_keywords_code_agent() {

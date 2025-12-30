@@ -95,18 +95,35 @@ pub struct TelemetryRecord {
     
     /// A/B test group assignment ("control" | "test") if A/B testing was used.
     pub ab_test_group: Option<String>,
-    
+
     /// Finish reason from model response (e.g., "stop", "length", "safety").
     pub finish_reason: Option<String>,
-    
+
     /// Whether content was blocked by safety filters.
     pub safety_blocked: bool,
-    
+
     /// Number of citations in the response.
     pub citation_count: Option<u32>,
-    
+
     /// Number of code executions performed (for providers that support code execution).
     pub code_executions: u64,
+
+    // ===== Skill-Based Routing Metrics (REQ-245) =====
+
+    /// Routing method used ("keyword" | "skill" | "ml" | "adaptive").
+    pub routing_method: Option<String>,
+
+    /// Routing confidence score (0.0-1.0) for skill/ML routing.
+    pub routing_confidence: Option<f32>,
+
+    /// Routing latency in nanoseconds.
+    pub routing_latency_ns: Option<u64>,
+
+    /// Selected skill/agent name from routing.
+    pub selected_skill: Option<String>,
+
+    /// Alternative skills considered (JSON array of {"skill": str, "confidence": f32}).
+    pub routing_alternatives: Option<String>,
 }
 
 impl TelemetryRecord {
@@ -147,6 +164,11 @@ impl TelemetryRecord {
             safety_blocked: false,
             citation_count: None,
             code_executions: 0,
+            routing_method: None,
+            routing_confidence: None,
+            routing_latency_ns: None,
+            selected_skill: None,
+            routing_alternatives: None,
         }
     }
 
@@ -603,6 +625,11 @@ impl TelemetryTracking for MonitoringService {
                     safety_blocked: row.get(29).unwrap_or(false),
                     citation_count: row.get(30).ok(),
                     code_executions: row.get(31).unwrap_or(0),
+                    routing_method: row.get(32).ok(),
+                    routing_confidence: row.get(33).ok(),
+                    routing_latency_ns: row.get(34).ok(),
+                    selected_skill: row.get(35).ok(),
+                    routing_alternatives: row.get(36).ok(),
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -672,7 +699,8 @@ impl TelemetryTracking for MonitoringService {
                     behavior_type, behavior_invocation_count, behavior_duration_ms, behavior_outcome,
                     api_key_id, team_name, project_name, cost_center,
                     model_tier, routing_decision, complexity_score, ab_test_group,
-                    finish_reason, safety_blocked, citation_count
+                    finish_reason, safety_blocked, citation_count, code_executions,
+                    routing_method, routing_confidence, routing_latency_ns, selected_skill, routing_alternatives
              FROM telemetry WHERE behavior_type IS NOT NULL ORDER BY timestamp DESC"
         } else {
             "SELECT agent_id, timestamp, input_tokens, output_tokens, cached_tokens,
@@ -681,7 +709,8 @@ impl TelemetryTracking for MonitoringService {
                     behavior_type, behavior_invocation_count, behavior_duration_ms, behavior_outcome,
                     api_key_id, team_name, project_name, cost_center,
                     model_tier, routing_decision, complexity_score, ab_test_group,
-                    finish_reason, safety_blocked, citation_count
+                    finish_reason, safety_blocked, citation_count, code_executions,
+                    routing_method, routing_confidence, routing_latency_ns, selected_skill, routing_alternatives
              FROM telemetry WHERE behavior_type IS NOT NULL ORDER BY timestamp DESC"
         };
         
@@ -720,6 +749,11 @@ impl TelemetryTracking for MonitoringService {
                 safety_blocked: row.get(29).unwrap_or(false),
                 citation_count: row.get(30).ok(),
                 code_executions: row.get(31).unwrap_or(0),
+                routing_method: row.get(32).ok(),
+                routing_confidence: row.get(33).ok(),
+                routing_latency_ns: row.get(34).ok(),
+                selected_skill: row.get(35).ok(),
+                routing_alternatives: row.get(36).ok(),
             })
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -735,7 +769,8 @@ impl TelemetryTracking for MonitoringService {
                     behavior_type, behavior_invocation_count, behavior_duration_ms, behavior_outcome,
                     api_key_id, team_name, project_name, cost_center,
                     model_tier, routing_decision, complexity_score, ab_test_group,
-                    finish_reason, safety_blocked, citation_count
+                    finish_reason, safety_blocked, citation_count, code_executions,
+                    routing_method, routing_confidence, routing_latency_ns, selected_skill, routing_alternatives
              FROM telemetry WHERE behavior_type = ?1 ORDER BY timestamp DESC",
         )?;
         
@@ -773,6 +808,11 @@ impl TelemetryTracking for MonitoringService {
                 safety_blocked: row.get(29).unwrap_or(false),
                 citation_count: row.get(30).ok(),
                 code_executions: row.get(31).unwrap_or(0),
+                routing_method: row.get(32).ok(),
+                routing_confidence: row.get(33).ok(),
+                routing_latency_ns: row.get(34).ok(),
+                selected_skill: row.get(35).ok(),
+                routing_alternatives: row.get(36).ok(),
             })
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;

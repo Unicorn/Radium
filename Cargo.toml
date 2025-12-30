@@ -6,6 +6,7 @@ members = [
   'crates/radium-models',
   'crates/radium-training',
   'crates/radium-orchestrator',
+  'crates/radium-ml',
   'apps/cli',
   'apps/tui',
 ]

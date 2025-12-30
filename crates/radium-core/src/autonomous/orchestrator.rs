@@ -195,6 +195,8 @@ pub struct AutonomousOrchestrator {
     monitor: Arc<Mutex<ExecutionMonitor>>,
     /// Task dispatcher for autonomous execution.
     dispatcher: Option<Arc<Mutex<TaskDispatcher>>>,
+    /// Skill router for intelligent agent selection (REQ-245).
+    skill_router: Option<Arc<radium_orchestrator::SkillRouter>>,
 }
 
 impl AutonomousOrchestrator {
@@ -206,6 +208,7 @@ impl AutonomousOrchestrator {
     /// * `db` - The database
     /// * `agent_registry` - The agent registry
     /// * `config` - Autonomous configuration
+    /// * `routing_config` - Optional routing configuration for skill-based routing (REQ-245)
     ///
     /// # Returns
     /// A new orchestrator instance
@@ -215,6 +218,7 @@ impl AutonomousOrchestrator {
         db: &Arc<std::sync::Mutex<crate::storage::Database>>,
         agent_registry: Arc<AgentRegistry>,
         config: AutonomousConfig,
+        routing_config: Option<radium_orchestrator::RoutingConfig>,
     ) -> Result<Self> {
         // Initialize workflow service
         let workflow_service = WorkflowService::new(orchestrator, executor, db);
@@ -244,9 +248,41 @@ impl AutonomousOrchestrator {
             None
         };
 
+        // Initialize skill router if enabled (REQ-245)
+        let skill_router = if let Some(ref routing_cfg) = routing_config {
+            if routing_cfg.skill_routing.enabled {
+                match Self::init_skill_router(&routing_cfg.skill_routing) {
+                    Ok(router) => {
+                        tracing::info!(
+                            "Skill-based routing enabled with {} skill paths",
+                            routing_cfg.skill_routing.skill_paths.len()
+                        );
+                        Some(Arc::new(router))
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            "Failed to initialize skill router: {}, falling back to keyword routing",
+                            e
+                        );
+                        None
+                    }
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
         // Initialize agent reassignment if enabled
         let reassignment = if config.enable_reassignment {
-            let selector = AgentSelector::new(agent_registry.clone());
+            let selector = if let Some(ref router) = skill_router {
+                // Use skill-based routing
+                AgentSelector::with_skill_router(agent_registry.clone(), Arc::clone(router))
+            } else {
+                // Fall back to keyword-based routing
+                AgentSelector::new(agent_registry.clone())
+            };
             Some(AgentReassignment::new(selector, Some(2)))
         } else {
             None
@@ -301,7 +337,62 @@ impl AutonomousOrchestrator {
             config,
             monitor,
             dispatcher,
+            skill_router,
         })
+    }
+
+    /// Initializes the skill router from configuration.
+    ///
+    /// # Arguments
+    /// * `config` - Skill routing configuration
+    ///
+    /// # Returns
+    /// Initialized skill router or error
+    ///
+    /// # Errors
+    /// Returns error if skill loading fails
+    fn init_skill_router(
+        config: &radium_orchestrator::SkillRoutingConfig,
+    ) -> anyhow::Result<radium_orchestrator::SkillRouter> {
+        use radium_orchestrator::SkillRouter;
+        use std::path::Path;
+
+        tracing::debug!(
+            "Initializing skill router with paths: {:?}",
+            config.skill_paths
+        );
+
+        // Create skill router
+        let mut router = SkillRouter::new();
+
+        // Load skills from configured paths
+        for path_str in &config.skill_paths {
+            let path = Path::new(path_str);
+
+            if !path.exists() {
+                tracing::warn!("Skill path does not exist: {}", path_str);
+                continue;
+            }
+
+            if path.is_dir() {
+                // Load all SKILL.md files from directory recursively
+                router.load_skills_from_directory(path)?;
+            } else if path.extension().and_then(|s| s.to_str()) == Some("md") {
+                // Load single skill file
+                router.load_skill_file(path)?;
+            } else {
+                tracing::warn!("Skipping non-skill file: {}", path_str);
+            }
+        }
+
+        let skill_count = router.skill_count();
+        tracing::info!("Loaded {} skills for routing", skill_count);
+
+        if skill_count == 0 {
+            anyhow::bail!("No skills loaded from configured paths");
+        }
+
+        Ok(router)
     }
 
     /// Executes autonomously from a high-level goal.

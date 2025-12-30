@@ -1,0 +1,47 @@
+[package]
+name = "radium-ml"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Internal crates
+radium-abstraction.workspace = true
+
+# Async runtime
+tokio.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Error handling
+anyhow.workspace = true
+thiserror.workspace = true
+
+# Logging
+tracing.workspace = true
+
+# HTTP client (for Python bridge via HTTP)
+reqwest = { version = "0.12", features = ["json"], optional = true }
+
+# Process execution (for Python subprocess)
+tokio-process = { version = "0.2", optional = true }
+
+[features]
+default = ["python-bridge"]
+
+# Python bridge via subprocess
+python-bridge = ["tokio-process"]
+
+# Python bridge via HTTP server
+http-bridge = ["reqwest"]
+
+# ONNX runtime (future: pure Rust inference)
+# onnx-runtime = ["ort"]
