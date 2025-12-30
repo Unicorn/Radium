@@ -355,6 +355,16 @@ async fn main() -> Result<()> {
                                 app.execution_history.finalize_active_record(task_id);
                             }
                         }
+                        radium_tui::progress_channel::ProgressMessage::RoutingDecision { task_id: _, decision } => {
+                            // Trigger feedback collection for this routing decision (Phase 2 - REQ-246)
+                            app.start_routing_feedback(
+                                decision.task_description.clone(),
+                                decision.selected_agent.clone(),
+                                decision.routing_method.clone(),
+                                decision.confidence,
+                                decision.execution_success,
+                            );
+                        }
                         radium_tui::progress_channel::ProgressMessage::RequirementComplete { requirement_id, result } => {
                             if result.tasks_failed == 0 {
                                 app.toast_manager.success(format!(
