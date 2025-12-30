@@ -5,7 +5,9 @@
 
 use crate::context::braingrid_client::BraingridTask;
 use radium_orchestrator::{AgentRegistry, SkillRouter};
-use std::sync::Arc;
+use radium_orchestrator::routing::{FeedbackRating, RoutingFeedbackRecord, RoutingPreferences};
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 /// Routing decision metadata for feedback collection (Phase 2 - REQ-246).
 #[derive(Debug, Clone)]
@@ -40,6 +42,7 @@ pub enum AgentSelectionError {
 ///
 /// Maps task keywords to agent types and validates agent availability.
 /// Supports both keyword-based routing (legacy) and skill-based routing (REQ-245).
+/// With Phase 2 (REQ-246), supports per-project routing preferences for adaptive learning.
 pub struct AgentSelector {
     /// Agent registry for validation.
     registry: Arc<AgentRegistry>,
@@ -47,6 +50,10 @@ pub struct AgentSelector {
     /// Optional skill router for intelligent agent selection (REQ-245).
     /// When present, skill routing is used instead of keyword matching.
     skill_router: Option<Arc<SkillRouter>>,
+
+    /// Optional routing preferences for adaptive routing (Phase 2 - REQ-246).
+    /// Loaded from per-project `.radium/routing_preferences.json`.
+    routing_preferences: Option<Arc<Mutex<RoutingPreferences>>>,
 }
 
 impl AgentSelector {
@@ -58,6 +65,7 @@ impl AgentSelector {
         Self {
             registry,
             skill_router: None,
+            routing_preferences: None,
         }
     }
 
@@ -70,7 +78,40 @@ impl AgentSelector {
         Self {
             registry,
             skill_router: Some(skill_router),
+            routing_preferences: None,
         }
+    }
+
+    /// Loads routing preferences from workspace root (Phase 2 - REQ-246).
+    ///
+    /// # Arguments
+    /// * `workspace_root` - Path to the workspace root directory
+    ///
+    /// # Returns
+    /// The AgentSelector instance with preferences loaded (if available)
+    pub fn with_preferences(mut self, workspace_root: &PathBuf) -> Self {
+        match RoutingPreferences::load(workspace_root) {
+            Ok(prefs) => {
+                tracing::info!(
+                    workspace = %workspace_root.display(),
+                    accuracy = %prefs.accuracy_estimate,
+                    feedback_count = prefs.feedback_history.len(),
+                    "Loaded routing preferences"
+                );
+                self.routing_preferences = Some(Arc::new(Mutex::new(prefs)));
+            }
+            Err(e) => {
+                tracing::debug!(
+                    workspace = %workspace_root.display(),
+                    error = %e,
+                    "No existing routing preferences found, starting fresh"
+                );
+                // Create new preferences for this workspace
+                let prefs = RoutingPreferences::new(workspace_root.clone());
+                self.routing_preferences = Some(Arc::new(Mutex::new(prefs)));
+            }
+        }
+        self
     }
 
     /// Selects the appropriate agent for a task.
@@ -130,23 +171,61 @@ impl AgentSelector {
 
         let routing_latency_ns = start.elapsed().as_nanos() as u64;
 
+        // Apply routing preferences (Phase 2 - REQ-246)
+        let (final_agent_id, adjusted_confidence) = if let Some(ref prefs) = self.routing_preferences {
+            let prefs_guard = prefs.lock().unwrap();
+
+            // Check if agent is blocked
+            if prefs_guard.blocked_agents.contains(&agent_id) {
+                tracing::warn!(
+                    blocked_agent = %agent_id,
+                    "Agent is blocked by user preferences, using fallback"
+                );
+                // Fallback to code-agent (or could pick next best alternative)
+                ("code-agent".to_string(), confidence)
+            } else {
+                // Apply confidence override if available
+                let adjusted_conf = if let Some(base_conf) = confidence {
+                    if let Some(&multiplier) = prefs_guard.skill_confidence_overrides.get(&agent_id) {
+                        let adjusted = base_conf * multiplier;
+                        tracing::debug!(
+                            agent = %agent_id,
+                            base_confidence = base_conf,
+                            multiplier = multiplier,
+                            adjusted_confidence = adjusted,
+                            "Applied confidence override from preferences"
+                        );
+                        Some(adjusted)
+                    } else {
+                        Some(base_conf)
+                    }
+                } else {
+                    None
+                };
+
+                (agent_id, adjusted_conf)
+            }
+        } else {
+            (agent_id, confidence)
+        };
+
         // Log routing metrics
         tracing::info!(
             routing_method = %routing_method,
-            routing_confidence = ?confidence,
+            routing_confidence = ?adjusted_confidence,
             routing_latency_ns = routing_latency_ns,
-            selected_agent = %agent_id,
+            selected_agent = %final_agent_id,
             "Agent routing decision"
         );
 
         // Validate agent exists
-        self.validate_agent(&agent_id).await?;
+        self.validate_agent(&final_agent_id).await?;
 
         // Return routing decision metadata (Phase 2 - REQ-246)
         Ok(RoutingDecisionMetadata {
-            agent_id: agent_id.to_string(),
+            agent_id: final_agent_id.to_string(),
             routing_method,
-            confidence,
+            confidence: adjusted_confidence,
             task_description: text,
         })
     }
@@ -220,6 +299,73 @@ impl AgentSelector {
     /// The agent if found, None otherwise
     pub async fn get_agent(&self, agent_id: &str) -> Option<std::sync::Arc<dyn radium_orchestrator::Agent + Send + Sync>> {
         self.registry.get_agent(agent_id).await
+    }
+
+    /// Records routing feedback to update preferences (Phase 2 - REQ-246).
+    ///
+    /// # Arguments
+    /// * `metadata` - The routing decision metadata
+    /// * `execution_success` - Whether task execution succeeded
+    /// * `user_rating` - Optional explicit user feedback rating
+    ///
+    /// This method updates the routing preferences with execution outcomes and
+    /// saves them to disk for future routing decisions.
+    pub fn record_feedback(
+        &self,
+        metadata: &RoutingDecisionMetadata,
+        execution_success: bool,
+        user_rating: Option<FeedbackRating>,
+    ) -> Result<(), AgentSelectionError> {
+        if let Some(ref prefs) = self.routing_preferences {
+            let mut prefs_guard = prefs.lock().unwrap();
+
+            // Determine feedback rating (use explicit rating or infer from execution)
+            let rating = user_rating.unwrap_or_else(|| {
+                if execution_success {
+                    FeedbackRating::Positive
+                } else {
+                    FeedbackRating::Negative
+                }
+            });
+
+            let feedback = RoutingFeedbackRecord {
+                timestamp: std::time::SystemTime::now(),
+                task_description: metadata.task_description.clone(),
+                selected_agent: metadata.agent_id.clone(),
+                confidence: metadata.confidence.unwrap_or(0.0),
+                user_feedback: rating,
+                execution_success,
+                retry_count: 0, // Could be tracked in future iterations
+            };
+
+            prefs_guard.record_feedback(feedback);
+
+            // Save to disk
+            if let Err(e) = prefs_guard.save() {
+                tracing::error!(
+                    error = %e,
+                    workspace = %prefs_guard.workspace_root.display(),
+                    "Failed to save routing preferences"
+                );
+                // Don't fail - just log the error
+            } else {
+                tracing::debug!(
+                    agent = %metadata.agent_id,
+                    rating = ?prefs_guard.feedback_history.last().map(|f| &f.user_feedback),
+                    accuracy = %prefs_guard.accuracy_estimate,
+                    "Recorded routing feedback"
+                );
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Gets a clone of the current routing preferences (if loaded).
+    pub fn get_preferences(&self) -> Option<RoutingPreferences> {
+        self.routing_preferences.as_ref().map(|prefs| {
+            prefs.lock().unwrap().clone()
+        })
     }
 }
 
