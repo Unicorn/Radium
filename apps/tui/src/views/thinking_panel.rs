@@ -175,14 +175,15 @@ impl ThinkingPanel {
 
         // Build title with toggle hint
         let title = if self.expanded {
-            " 💭 Thinking (Press 't' to collapse) "
+            " 💭 Thinking "
         } else {
-            " 💭 Thinking (Press 't' to expand) "
+            " 💭 Thinking "
         };
 
         let block = Block::default()
-            .borders(Borders::ALL)
+            .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
             .border_style(border_style)
+            .border_type(ratatui::widgets::BorderType::Rounded)
             .title(title)
             .padding(ratatui::widgets::Padding::new(1, 1, 0, 0));
 

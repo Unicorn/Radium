@@ -256,9 +256,9 @@ impl RecommendationsPanel {
         // Create title based on mode
         let title = match self.mode {
             InteractionMode::Display => " 📋 Next Steps ",
-            InteractionMode::AwaitingConfirmation => " 📋 Next Steps - Execute? (Y/N) ",
-            InteractionMode::Executing => " 📋 Executing Steps... ",
-            InteractionMode::Completed => " 📋 Steps Completed ",
+            InteractionMode::AwaitingConfirmation => " 📋 Execute? (Y/N) ",
+            InteractionMode::Executing => " 📋 Executing... ",
+            InteractionMode::Completed => " 📋 Completed ",
         };
 
         let border_color = match self.mode {
@@ -269,8 +269,9 @@ impl RecommendationsPanel {
         };
 
         let block = Block::default()
-            .borders(Borders::ALL)
+            .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
             .border_style(Style::default().fg(border_color))
+            .border_type(ratatui::widgets::BorderType::Rounded)
             .title(title)
             .padding(ratatui::widgets::Padding::new(1, 1, 0, 0));
 

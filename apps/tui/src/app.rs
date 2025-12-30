@@ -1174,8 +1174,8 @@ impl App {
                     return Ok(());
                 }
 
-                // Handle 't' to toggle thinking panel
-                if key == KeyCode::Char('t') && !modifiers.contains(KeyModifiers::CONTROL) {
+                // Handle Ctrl+O to toggle thinking panel
+                if key == KeyCode::Char('o') && modifiers.contains(KeyModifiers::CONTROL) {
                     if self.thinking_panel.is_visible() {
                         self.thinking_panel.toggle_expanded();
                         let state = if self.thinking_panel.is_expanded() { "expanded" } else { "collapsed" };
