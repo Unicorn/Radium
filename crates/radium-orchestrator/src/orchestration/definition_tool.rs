@@ -7,8 +7,8 @@ use async_trait::async_trait;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tree_sitter::{Node, Parser};
-use tree_sitter_rust::language as rust_language;
-use tree_sitter_typescript::{language_tsx, language_typescript};
+use tree_sitter_rust::LANGUAGE as RUST_LANGUAGE;
+use tree_sitter_typescript::{LANGUAGE_TSX, LANGUAGE_TYPESCRIPT};
 
 use super::file_tools::WorkspaceRootProvider;
 use super::tool::{Tool, ToolArguments, ToolHandler, ToolParameters, ToolResult};
@@ -32,7 +32,7 @@ struct RustDefinitionFinder {
 impl RustDefinitionFinder {
     fn new() -> Self {
         let mut parser = Parser::new();
-        parser.set_language(rust_language()).expect("Failed to load Rust grammar");
+        parser.set_language(&RUST_LANGUAGE.into()).expect("Failed to load Rust grammar");
         Self { parser }
     }
 
@@ -61,7 +61,7 @@ impl RustDefinitionFinder {
         }
 
         for i in 0..node.child_count() {
-            if let Some(child) = node.child(i) {
+            if let Some(child) = node.child(i as u32) {
                 if let Some(def) = self.search_node(&child, source, symbol_name) {
                     return Some(def);
                 }
@@ -81,10 +81,10 @@ struct TypeScriptDefinitionFinder {
 impl TypeScriptDefinitionFinder {
     fn new() -> Self {
         let mut parser = Parser::new();
-        let ts_language = language_typescript();
-        let tsx_language = language_tsx();
-        parser.set_language(ts_language).expect("Failed to load TypeScript grammar");
-        
+        let ts_language = LANGUAGE_TYPESCRIPT.into();
+        let tsx_language = LANGUAGE_TSX.into();
+        parser.set_language(&ts_language).expect("Failed to load TypeScript grammar");
+
         Self {
             parser,
             ts_language,
@@ -93,7 +93,7 @@ impl TypeScriptDefinitionFinder {
     }
 
     fn find_definition(&mut self, source: &str, symbol_name: &str, is_tsx: bool) -> Option<Definition> {
-        let language = if is_tsx { self.tsx_language } else { self.ts_language };
+        let language = if is_tsx { &self.tsx_language } else { &self.ts_language };
         self.parser.set_language(language).ok()?;
         
         let tree = self.parser.parse(source, None)?;
@@ -135,7 +135,7 @@ impl TypeScriptDefinitionFinder {
         }
 
         for i in 0..node.child_count() {
-            if let Some(child) = node.child(i) {
+            if let Some(child) = node.child(i as u32) {
                 if let Some(def) = self.search_node(&child, source, symbol_name) {
                     return Some(def);
                 }

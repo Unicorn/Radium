@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 use tree_sitter::{Node, Parser};
-use tree_sitter_typescript::{language_tsx, language_typescript};
+use tree_sitter_typescript::{LANGUAGE_TSX, LANGUAGE_TYPESCRIPT};
 use crate::analysis::symbols::{Symbol, SymbolKind, SymbolSearchResult};
 
 /// TypeScript code analyzer for symbol extraction.
@@ -16,11 +16,11 @@ impl TypeScriptAnalyzer {
     /// Create a new TypeScript analyzer.
     pub fn new() -> Self {
         let mut parser = Parser::new();
-        let ts_language = language_typescript();
-        let tsx_language = language_tsx();
-        
+        let ts_language = LANGUAGE_TYPESCRIPT.into();
+        let tsx_language = LANGUAGE_TSX.into();
+
         // Default to TypeScript (can switch per file)
-        parser.set_language(ts_language).expect("Failed to load TypeScript grammar");
+        parser.set_language(&ts_language).expect("Failed to load TypeScript grammar");
 
         Self {
             parser,
@@ -31,7 +31,7 @@ impl TypeScriptAnalyzer {
 
     /// Extract all symbols from a TypeScript/TSX source file.
     pub fn extract_symbols(&mut self, source: &str, file_path: PathBuf, is_tsx: bool) -> Result<Vec<Symbol>, String> {
-        let language = if is_tsx { self.tsx_language } else { self.ts_language };
+        let language = if is_tsx { &self.tsx_language } else { &self.ts_language };
         self.parser.set_language(language).map_err(|e| format!("Failed to set language: {:?}", e))?;
         
         let tree = self.parser.parse(source, None)
@@ -114,7 +114,7 @@ impl TypeScriptAnalyzer {
 
         // Recursively process children
         for i in 0..node.child_count() {
-            if let Some(child) = node.child(i) {
+            if let Some(child) = node.child(i as u32) {
                 self.extract_from_node(&child, source, file_path, symbols);
             }
         }
@@ -138,7 +138,7 @@ impl TypeScriptAnalyzer {
         
         // Check for async keyword in the node itself
         for i in 0..node.child_count() {
-            if let Some(child) = node.child(i) {
+            if let Some(child) = node.child(i as u32) {
                 if child.kind() == "async" {
                     metadata.push("async".to_string());
                 }

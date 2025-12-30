@@ -11,9 +11,9 @@ impl TreeSitterParser {
     /// Create a new tree-sitter parser.
     pub fn new() -> Self {
         let mut parser = Parser::new();
-        let rust_language = tree_sitter_rust::language();
-        
-        parser.set_language(rust_language).expect("Failed to load Rust grammar");
+        let rust_language = tree_sitter_rust::LANGUAGE.into();
+
+        parser.set_language(&rust_language).expect("Failed to load Rust grammar");
 
         Self {
             parser,

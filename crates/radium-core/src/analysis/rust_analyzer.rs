@@ -118,7 +118,7 @@ impl RustAnalyzer {
 
         // Recursively process children
         for i in 0..node.child_count() {
-            if let Some(child) = node.child(i) {
+            if let Some(child) = node.child(i as u32) {
                 self.extract_from_node(child, source, file_path, symbols);
             }
         }
@@ -130,7 +130,7 @@ impl RustAnalyzer {
 
         // Check for visibility modifiers
         for i in 0..node.child_count() {
-            if let Some(child) = node.child(i) {
+            if let Some(child) = node.child(i as u32) {
                 match child.kind() {
                     "visibility_modifier" => {
                         let vis_text = child.utf8_text(source.as_bytes()).unwrap_or("").trim();
@@ -161,7 +161,7 @@ impl RustAnalyzer {
         let mut visibility = None;
 
         for i in 0..node.child_count() {
-            if let Some(child) = node.child(i) {
+            if let Some(child) = node.child(i as u32) {
                 if child.kind() == "visibility_modifier" {
                     let vis_text = child.utf8_text(source.as_bytes()).unwrap_or("").trim();
                     if vis_text == "pub" {
@@ -185,7 +185,7 @@ impl RustAnalyzer {
         let mut visibility = None;
 
         for i in 0..node.child_count() {
-            if let Some(child) = node.child(i) {
+            if let Some(child) = node.child(i as u32) {
                 if child.kind() == "visibility_modifier" {
                     let vis_text = child.utf8_text(source.as_bytes()).unwrap_or("").trim();
                     if vis_text == "pub" {
@@ -209,7 +209,7 @@ impl RustAnalyzer {
         let mut visibility = None;
 
         for i in 0..node.child_count() {
-            if let Some(child) = node.child(i) {
+            if let Some(child) = node.child(i as u32) {
                 if child.kind() == "visibility_modifier" {
                     let vis_text = child.utf8_text(source.as_bytes()).unwrap_or("").trim();
                     if vis_text == "pub" {

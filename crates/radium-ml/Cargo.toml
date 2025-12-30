@@ -29,16 +29,13 @@ thiserror.workspace = true
 tracing.workspace = true
 
 # HTTP client (for Python bridge via HTTP)
-reqwest = { version = "0.12", features = ["json"], optional = true }
-
-# Process execution (for Python subprocess)
-tokio-process = { version = "0.2", optional = true }
+reqwest = { workspace = true, features = ["json"], optional = true }
 
 [features]
 default = ["python-bridge"]
 
-# Python bridge via subprocess
-python-bridge = ["tokio-process"]
+# Python bridge via subprocess (uses tokio::process::Command from modern tokio)
+python-bridge = []
 
 # Python bridge via HTTP server
 http-bridge = ["reqwest"]

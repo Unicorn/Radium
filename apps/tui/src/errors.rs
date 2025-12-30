@@ -134,10 +134,10 @@ impl TuiError {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_style(Style::default().fg(THEME.error()))
-            .title(ratatui::widgets::block::Title::from(Span::styled(
+            .title(Span::styled(
                 self.title(),
                 Style::default().fg(THEME.error()).add_modifier(Modifier::BOLD),
-            )));
+            ));
 
         let inner = block.inner(area);
         block.render(area, buf);

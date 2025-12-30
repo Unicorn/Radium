@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tree_sitter::{Language, Node, Parser};
-use tree_sitter_typescript::{language_tsx, language_typescript};
+use tree_sitter_typescript::{LANGUAGE_TSX, LANGUAGE_TYPESCRIPT};
 
 use super::file_tools::WorkspaceRootProvider;
 use super::tool::{Tool, ToolArguments, ToolHandler, ToolParameters, ToolResult};
@@ -47,9 +47,9 @@ struct TypeScriptAnalyzer {
 impl TypeScriptAnalyzer {
     fn new() -> Self {
         let mut parser = Parser::new();
-        let ts_language = language_typescript();
-        let tsx_language = language_tsx();
-        parser.set_language(ts_language).expect("Failed to load TypeScript grammar");
+        let ts_language = LANGUAGE_TYPESCRIPT.into();
+        let tsx_language = LANGUAGE_TSX.into();
+        parser.set_language(&ts_language).expect("Failed to load TypeScript grammar");
         
         Self {
             parser,
@@ -59,7 +59,7 @@ impl TypeScriptAnalyzer {
     }
 
     fn search_symbols(&mut self, source: &str, file_path: PathBuf, query: &str, is_tsx: bool) -> std::result::Result<Vec<Symbol>, String> {
-        let language = if is_tsx { self.tsx_language } else { self.ts_language };
+        let language = if is_tsx { &self.tsx_language } else { &self.ts_language };
         self.parser.set_language(language).map_err(|e| format!("Failed to set language: {:?}", e))?;
         
         let all_symbols = self.extract_symbols(source, file_path, is_tsx)?;
@@ -75,7 +75,7 @@ impl TypeScriptAnalyzer {
     }
 
     fn extract_symbols(&mut self, source: &str, file_path: PathBuf, is_tsx: bool) -> std::result::Result<Vec<Symbol>, String> {
-        let language = if is_tsx { self.tsx_language } else { self.ts_language };
+        let language = if is_tsx { &self.tsx_language } else { &self.ts_language };
         self.parser.set_language(language).map_err(|e| format!("Failed to set language: {:?}", e))?;
         
         let tree = self.parser.parse(source, None)
@@ -124,7 +124,7 @@ impl TypeScriptAnalyzer {
         }
 
         for i in 0..node.child_count() {
-            if let Some(child) = node.child(i) {
+            if let Some(child) = node.child(i as u32) {
                 self.extract_from_node(&child, source, file_path, symbols);
             }
         }
@@ -143,7 +143,7 @@ impl TypeScriptAnalyzer {
         }
 
         for i in 0..node.child_count() {
-            if let Some(child) = node.child(i) {
+            if let Some(child) = node.child(i as u32) {
                 if child.kind() == "async" {
                     metadata.push("async".to_string());
                 }
@@ -233,8 +233,8 @@ struct RustAnalyzer {
 impl RustAnalyzer {
     fn new() -> Self {
         let mut parser = Parser::new();
-        let rust_language = tree_sitter_rust::language();
-        parser.set_language(rust_language).expect("Failed to load Rust grammar");
+        let rust_language = tree_sitter_rust::LANGUAGE.into();
+        parser.set_language(&rust_language).expect("Failed to load Rust grammar");
         
         Self {
             parser,
@@ -308,7 +308,7 @@ impl RustAnalyzer {
         }
 
         for i in 0..node.child_count() {
-            if let Some(child) = node.child(i) {
+            if let Some(child) = node.child(i as u32) {
                 self.extract_from_node(&child, source, file_path, symbols);
             }
         }
@@ -319,7 +319,7 @@ impl RustAnalyzer {
         let mut visibility = None;
 
         for i in 0..node.child_count() {
-            if let Some(child) = node.child(i) {
+            if let Some(child) = node.child(i as u32) {
                 match child.kind() {
                     "visibility_modifier" => {
                         let vis_text = child.utf8_text(source.as_bytes()).unwrap_or("").trim();
@@ -399,7 +399,7 @@ impl RustAnalyzer {
 
     fn extract_visibility(&self, node: &Node, source: &str) -> Option<String> {
         for i in 0..node.child_count() {
-            if let Some(child) = node.child(i) {
+            if let Some(child) = node.child(i as u32) {
                 if child.kind() == "visibility_modifier" {
                     let vis_text = child.utf8_text(source.as_bytes()).unwrap_or("").trim();
                     if vis_text == "pub" {

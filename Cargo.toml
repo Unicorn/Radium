@@ -73,6 +73,11 @@ base64 = '0.22'
 clap = { version = '4.5', features = ['derive'] }
 assert_cmd = "2.0"
 predicates = "3.1"
+reqwest = '0.12'
+
+# Security: Force minimum versions to fix vulnerabilities
+ring = "0.17.14"  # Fix RUSTSEC-2025-0009 (requires >=0.17.12)
+
 radium-abstraction = { path = 'crates/radium-abstraction' }
 radium-models = { path = 'crates/radium-models' }
 radium-core = { path = 'crates/radium-core' }
