@@ -492,6 +492,64 @@ async fn main() -> Result<()> {
             }
         }
 
+        // Poll orchestration events for thinking/recommendations updates
+        if let Some(ref mut event_rx) = app.orchestration_event_rx {
+            loop {
+                match event_rx.try_recv() {
+                    Ok(event) => {
+                        use radium_orchestrator::orchestration::events::OrchestrationEvent;
+                        match event {
+                            OrchestrationEvent::ThinkingSessionStarted { context, .. } => {
+                                app.thinking_panel.start_session(context);
+                            }
+                            OrchestrationEvent::ThinkingStepAdded { description, .. } => {
+                                app.thinking_panel.add_step(description);
+                            }
+                            OrchestrationEvent::ThinkingStepUpdated { status, details, .. } => {
+                                use radium_tui::views::ThinkingStepStatus;
+                                let tui_status = match status {
+                                    radium_orchestrator::orchestration::events::ThinkingStatus::InProgress => ThinkingStepStatus::InProgress,
+                                    radium_orchestrator::orchestration::events::ThinkingStatus::Completed => ThinkingStepStatus::Completed,
+                                    radium_orchestrator::orchestration::events::ThinkingStatus::CompletedWithFindings => ThinkingStepStatus::CompletedWithFindings,
+                                    radium_orchestrator::orchestration::events::ThinkingStatus::Failed => ThinkingStepStatus::Failed,
+                                };
+                                app.thinking_panel.update_last_step(tui_status, details);
+                            }
+                            OrchestrationEvent::ThinkingSessionEnded { .. } => {
+                                app.thinking_panel.end_session();
+                            }
+                            OrchestrationEvent::RecommendationsSessionStarted { context, .. } => {
+                                app.recommendations_panel.start_session(context);
+                            }
+                            OrchestrationEvent::RecommendationAdded { description, command, details, .. } => {
+                                app.recommendations_panel.add_recommendation(description, command, details);
+                            }
+                            OrchestrationEvent::RecommendationsExecutionRequested { .. } => {
+                                app.recommendations_panel.request_execution();
+                            }
+                            _ => {
+                                // Ignore other events for now
+                            }
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::TryRecvError::Empty) => {
+                        // No more events available
+                        break;
+                    }
+                    Err(tokio::sync::broadcast::error::TryRecvError::Lagged(skipped)) => {
+                        // Events were skipped (buffer too full)
+                        tracing::warn!("Orchestration events lagged: {} events skipped", skipped);
+                        // Continue processing remaining events
+                    }
+                    Err(tokio::sync::broadcast::error::TryRecvError::Closed) => {
+                        // Event channel closed
+                        app.orchestration_event_rx = None;
+                        break;
+                    }
+                }
+            }
+        }
+
         // Draw UI
         terminal.draw(|frame| {
             let area = frame.area();

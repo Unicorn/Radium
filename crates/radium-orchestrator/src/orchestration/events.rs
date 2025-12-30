@@ -64,5 +64,62 @@ pub enum OrchestrationEvent {
         correlation_id: CorrelationId,
         finish_reason: String,
     },
+
+    /// Agent started a thinking session (transparent reasoning).
+    ThinkingSessionStarted {
+        correlation_id: CorrelationId,
+        context: String,
+    },
+
+    /// Agent added a thinking step.
+    ThinkingStepAdded {
+        correlation_id: CorrelationId,
+        description: String,
+    },
+
+    /// Agent updated a thinking step with status and findings.
+    ThinkingStepUpdated {
+        correlation_id: CorrelationId,
+        status: ThinkingStatus,
+        details: Option<String>,
+    },
+
+    /// Agent finished thinking session.
+    ThinkingSessionEnded {
+        correlation_id: CorrelationId,
+    },
+
+    /// Agent started a recommendations session.
+    RecommendationsSessionStarted {
+        correlation_id: CorrelationId,
+        context: String,
+    },
+
+    /// Agent added a recommendation.
+    RecommendationAdded {
+        correlation_id: CorrelationId,
+        description: String,
+        command: Option<String>,
+        details: Option<String>,
+    },
+
+    /// Agent requesting user confirmation to execute recommendations.
+    RecommendationsExecutionRequested {
+        correlation_id: CorrelationId,
+    },
+}
+
+/// Status of a thinking step for transparent reasoning.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ThinkingStatus {
+    /// Step is in progress
+    InProgress,
+    /// Step completed successfully
+    Completed,
+    /// Step completed with findings
+    CompletedWithFindings,
+    /// Step failed
+    Failed,
 }
 

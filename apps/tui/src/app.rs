@@ -231,6 +231,8 @@ pub struct App {
     pub thinking_panel: crate::views::ThinkingPanel,
     /// Recommendations panel for interactive next steps
     pub recommendations_panel: crate::views::RecommendationsPanel,
+    /// Orchestration event receiver for thinking/recommendations updates
+    pub orchestration_event_rx: Option<tokio::sync::broadcast::Receiver<radium_orchestrator::orchestration::events::OrchestrationEvent>>,
 }
 
 /// Background orchestration task state
@@ -452,6 +454,7 @@ impl App {
             feedback_view: crate::views::FeedbackView::new(),
             thinking_panel: crate::views::ThinkingPanel::new(),
             recommendations_panel: crate::views::RecommendationsPanel::new(),
+            orchestration_event_rx: None,
         };
 
         // Check for resumable executions on startup
@@ -657,6 +660,9 @@ impl App {
         
         match OrchestrationService::initialize(config, mcp_tools, workspace_root, sandbox_manager, context_loader, hook_executor).await {
                 Ok(service) => {
+                    // Subscribe to orchestration events for thinking/recommendations updates
+                    let mut event_rx = service.subscribe_events();
+                    self.orchestration_event_rx = Some(event_rx);
                     self.orchestration_service = Some(Arc::new(service));
                     tracing::info!("Orchestration service initialized successfully");
                 }
@@ -2462,6 +2468,13 @@ impl App {
                             radium_orchestrator::orchestration::events::OrchestrationEvent::ApprovalRequired { correlation_id, .. } => correlation_id,
                             radium_orchestrator::orchestration::events::OrchestrationEvent::Error { correlation_id, .. } => correlation_id,
                             radium_orchestrator::orchestration::events::OrchestrationEvent::Done { correlation_id, .. } => correlation_id,
+                            radium_orchestrator::orchestration::events::OrchestrationEvent::ThinkingSessionStarted { correlation_id, .. } => correlation_id,
+                            radium_orchestrator::orchestration::events::OrchestrationEvent::ThinkingStepAdded { correlation_id, .. } => correlation_id,
+                            radium_orchestrator::orchestration::events::OrchestrationEvent::ThinkingStepUpdated { correlation_id, .. } => correlation_id,
+                            radium_orchestrator::orchestration::events::OrchestrationEvent::ThinkingSessionEnded { correlation_id, .. } => correlation_id,
+                            radium_orchestrator::orchestration::events::OrchestrationEvent::RecommendationsSessionStarted { correlation_id, .. } => correlation_id,
+                            radium_orchestrator::orchestration::events::OrchestrationEvent::RecommendationAdded { correlation_id, .. } => correlation_id,
+                            radium_orchestrator::orchestration::events::OrchestrationEvent::RecommendationsExecutionRequested { correlation_id, .. } => correlation_id,
                         };
 
                         if event_correlation_id == &session_id_clone {
@@ -3568,8 +3581,11 @@ impl App {
 
         match OrchestrationService::initialize(config.clone(), mcp_tools, workspace_root, sandbox_manager, context_loader, hook_executor).await {
             Ok(service) => {
+                // Subscribe to orchestration events for thinking/recommendations updates
+                let mut event_rx = service.subscribe_events();
+                self.orchestration_event_rx = Some(event_rx);
                 self.orchestration_service = Some(Arc::new(service));
-                
+
                 // Save config to workspace (or default path)
                 let save_result = if let Ok(workspace) = radium_core::Workspace::discover() {
                     let workspace_config_path = workspace.structure().orchestration_config_file();
@@ -3726,8 +3742,11 @@ impl App {
 
         match OrchestrationService::initialize(config.clone(), mcp_tools, workspace_root, sandbox_manager, context_loader, hook_executor).await {
             Ok(service) => {
+                // Subscribe to orchestration events for thinking/recommendations updates
+                let mut event_rx = service.subscribe_events();
+                self.orchestration_event_rx = Some(event_rx);
                 self.orchestration_service = Some(Arc::new(service));
-                
+
                 // Save orchestration config to workspace (or default path)
                 let save_result = if let Ok(workspace) = radium_core::Workspace::discover() {
                     let workspace_config_path = workspace.structure().orchestration_config_file();
