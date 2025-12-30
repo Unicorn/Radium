@@ -225,6 +225,8 @@ pub struct App {
     pub show_process_panel: bool,
     /// Active fix approval modal
     pub active_fix_approval: Option<crate::components::FixApprovalModal>,
+    /// Feedback collection view for routing decisions (Phase 2 - REQ-246)
+    pub feedback_view: crate::views::FeedbackView,
 }
 
 /// Background orchestration task state
@@ -443,6 +445,7 @@ impl App {
             process_panel_state: None,
             show_process_panel: false,
             active_fix_approval: None,
+            feedback_view: crate::views::FeedbackView::new(),
         };
 
         // Check for resumable executions on startup
@@ -769,11 +772,67 @@ impl App {
         );
     }
 
+    /// Start routing feedback collection (Phase 2 - REQ-246).
+    ///
+    /// This method initiates the interactive feedback flow for a routing decision,
+    /// showing the user a modal to rate the agent selection.
+    ///
+    /// # Arguments
+    /// * `task_description` - The task that was routed
+    /// * `selected_agent` - The agent that was chosen
+    /// * `routing_method` - The routing method used ("skill", "keyword", "ml", etc.)
+    /// * `confidence` - Routing confidence score (0.0-1.0)
+    /// * `execution_success` - Whether the agent execution succeeded
+    pub fn start_routing_feedback(
+        &mut self,
+        task_description: String,
+        selected_agent: String,
+        routing_method: String,
+        confidence: f32,
+        execution_success: bool,
+    ) {
+        let decision = crate::views::RoutingDecision {
+            task_description,
+            selected_agent,
+            routing_method,
+            confidence,
+            alternatives: vec![], // TODO: Add alternatives from routing context
+            execution_success,
+        };
+
+        self.feedback_view.start_feedback(decision);
+        tracing::debug!("Started routing feedback collection");
+    }
 
     pub async fn handle_key(&mut self, key: KeyCode, modifiers: KeyModifiers) -> Result<()> {
         // If checkpoint interrupt is active, handle interrupt input first
         if self.is_interrupt_active() {
             return self.handle_checkpoint_interrupt_key(key).await;
+        }
+
+        // If routing feedback view is active, handle feedback input first (Phase 2 - REQ-246)
+        if self.feedback_view.is_active() {
+            let key_event = crossterm::event::KeyEvent::new(key, modifiers);
+            let handled = self.feedback_view.handle_key(key_event);
+
+            // Check if feedback was completed
+            if self.feedback_view.is_completed() {
+                // Extract feedback record and save it
+                if let Some(feedback_record) = self.feedback_view.get_feedback() {
+                    // TODO: Save feedback to RoutingPreferences (next task)
+                    tracing::info!(
+                        agent = %feedback_record.selected_agent,
+                        rating = ?feedback_record.user_feedback,
+                        "User feedback collected for routing decision"
+                    );
+                }
+                // Reset feedback view to idle state
+                self.feedback_view.reset();
+            }
+
+            if handled {
+                return Ok(());
+            }
         }
 
         // If command confirmation modal is open, handle it first

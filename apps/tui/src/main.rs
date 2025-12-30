@@ -726,6 +726,11 @@ async fn main() -> Result<()> {
                 render_fix_approval_modal(frame, area, modal);
             }
 
+            // Render routing feedback view (Phase 2 - REQ-246)
+            if app.feedback_view.is_active() {
+                app.feedback_view.render(frame, area);
+            }
+
             // Render toasts (on top of everything)
             let toast_areas = render_toasts_with_areas(frame, area, &app.toast_manager);
 

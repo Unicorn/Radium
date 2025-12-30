@@ -3,6 +3,7 @@
 pub mod budget_analytics;
 pub mod checkpoint_browser;
 pub mod cost_dashboard;
+pub mod feedback_view;
 pub mod header;
 pub mod history;
 pub mod layout;
@@ -21,6 +22,7 @@ pub mod workflow;
 pub use checkpoint_browser::render_checkpoint_browser;
 pub use cost_dashboard::{handle_cost_dashboard_key, render_cost_dashboard};
 pub use budget_analytics::{AnalyticsTab, BudgetAnalyticsView};
+pub use feedback_view::{FeedbackView, FeedbackState, RoutingDecision};
 pub use header::{HeaderInfo, render_header};
 pub use history::{HistoryEntry, render_history, render_history_with_log};
 pub use layout::GlobalLayout;
