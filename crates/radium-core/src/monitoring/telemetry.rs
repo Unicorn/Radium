@@ -9,6 +9,28 @@ use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// User feedback rating for routing decisions (Phase 2 - REQ-246).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum FeedbackRating {
+    /// Positive feedback (thumbs up / correct routing).
+    Positive,
+    /// Negative feedback (thumbs down / incorrect routing).
+    Negative,
+    /// Neutral / no strong opinion.
+    Neutral,
+}
+
+/// User feedback for a routing decision (Phase 2 - REQ-246).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserFeedback {
+    /// User's rating of the routing decision.
+    pub rating: FeedbackRating,
+    /// Timestamp when feedback was provided.
+    pub timestamp: u64,
+    /// Optional user comment explaining the feedback.
+    pub comment: Option<String>,
+}
+
 /// Telemetry record for token usage and costs.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TelemetryRecord {
@@ -124,6 +146,26 @@ pub struct TelemetryRecord {
 
     /// Alternative skills considered (JSON array of {"skill": str, "confidence": f32}).
     pub routing_alternatives: Option<String>,
+
+    // ===== Routing Outcome Tracking (Phase 2 - REQ-246) =====
+
+    /// User feedback on the routing decision.
+    pub user_feedback: Option<String>, // JSON-serialized UserFeedback
+
+    /// Number of times the user retried this task (implicit negative signal).
+    pub retry_count: u32,
+
+    /// Whether the user manually changed the agent (escalation).
+    pub escalated: bool,
+
+    /// Whether the execution succeeded.
+    pub execution_success: bool,
+
+    /// Execution duration in milliseconds.
+    pub execution_duration_ms: u64,
+
+    /// Error type if execution failed.
+    pub error_type: Option<String>,
 }
 
 impl TelemetryRecord {
@@ -169,6 +211,12 @@ impl TelemetryRecord {
             routing_latency_ns: None,
             selected_skill: None,
             routing_alternatives: None,
+            user_feedback: None,
+            retry_count: 0,
+            escalated: false,
+            execution_success: false,
+            execution_duration_ms: 0,
+            error_type: None,
         }
     }
 
@@ -586,7 +634,9 @@ impl TelemetryTracking for MonitoringService {
                     behavior_type, behavior_invocation_count, behavior_duration_ms, behavior_outcome,
                     api_key_id, team_name, project_name, cost_center,
                     model_tier, routing_decision, complexity_score, ab_test_group,
-                    finish_reason, safety_blocked, citation_count
+                    finish_reason, safety_blocked, citation_count, code_executions,
+                    routing_method, routing_confidence, routing_latency_ns, selected_skill, routing_alternatives,
+                    user_feedback, retry_count, escalated, execution_success, execution_duration_ms, error_type
              FROM telemetry WHERE agent_id = ?1 ORDER BY timestamp DESC",
         )?;
 
@@ -630,6 +680,12 @@ impl TelemetryTracking for MonitoringService {
                     routing_latency_ns: row.get(34).ok(),
                     selected_skill: row.get(35).ok(),
                     routing_alternatives: row.get(36).ok(),
+                    user_feedback: row.get(37).ok(),
+                    retry_count: row.get(38).unwrap_or(0),
+                    escalated: row.get(39).unwrap_or(false),
+                    execution_success: row.get(40).unwrap_or(false),
+                    execution_duration_ms: row.get(41).unwrap_or(0),
+                    error_type: row.get(42).ok(),
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -700,7 +756,8 @@ impl TelemetryTracking for MonitoringService {
                     api_key_id, team_name, project_name, cost_center,
                     model_tier, routing_decision, complexity_score, ab_test_group,
                     finish_reason, safety_blocked, citation_count, code_executions,
-                    routing_method, routing_confidence, routing_latency_ns, selected_skill, routing_alternatives
+                    routing_method, routing_confidence, routing_latency_ns, selected_skill, routing_alternatives,
+                    user_feedback, retry_count, escalated, execution_success, execution_duration_ms, error_type
              FROM telemetry WHERE behavior_type IS NOT NULL ORDER BY timestamp DESC"
         } else {
             "SELECT agent_id, timestamp, input_tokens, output_tokens, cached_tokens,
@@ -710,7 +767,8 @@ impl TelemetryTracking for MonitoringService {
                     api_key_id, team_name, project_name, cost_center,
                     model_tier, routing_decision, complexity_score, ab_test_group,
                     finish_reason, safety_blocked, citation_count, code_executions,
-                    routing_method, routing_confidence, routing_latency_ns, selected_skill, routing_alternatives
+                    routing_method, routing_confidence, routing_latency_ns, selected_skill, routing_alternatives,
+                    user_feedback, retry_count, escalated, execution_success, execution_duration_ms, error_type
              FROM telemetry WHERE behavior_type IS NOT NULL ORDER BY timestamp DESC"
         };
         
@@ -754,6 +812,12 @@ impl TelemetryTracking for MonitoringService {
                 routing_latency_ns: row.get(34).ok(),
                 selected_skill: row.get(35).ok(),
                 routing_alternatives: row.get(36).ok(),
+                user_feedback: row.get(37).ok(),
+                retry_count: row.get(38).unwrap_or(0),
+                escalated: row.get(39).unwrap_or(false),
+                execution_success: row.get(40).unwrap_or(false),
+                execution_duration_ms: row.get(41).unwrap_or(0),
+                error_type: row.get(42).ok(),
             })
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -770,7 +834,8 @@ impl TelemetryTracking for MonitoringService {
                     api_key_id, team_name, project_name, cost_center,
                     model_tier, routing_decision, complexity_score, ab_test_group,
                     finish_reason, safety_blocked, citation_count, code_executions,
-                    routing_method, routing_confidence, routing_latency_ns, selected_skill, routing_alternatives
+                    routing_method, routing_confidence, routing_latency_ns, selected_skill, routing_alternatives,
+                    user_feedback, retry_count, escalated, execution_success, execution_duration_ms, error_type
              FROM telemetry WHERE behavior_type = ?1 ORDER BY timestamp DESC",
         )?;
         
@@ -813,6 +878,12 @@ impl TelemetryTracking for MonitoringService {
                 routing_latency_ns: row.get(34).ok(),
                 selected_skill: row.get(35).ok(),
                 routing_alternatives: row.get(36).ok(),
+                user_feedback: row.get(37).ok(),
+                retry_count: row.get(38).unwrap_or(0),
+                escalated: row.get(39).unwrap_or(false),
+                execution_success: row.get(40).unwrap_or(false),
+                execution_duration_ms: row.get(41).unwrap_or(0),
+                error_type: row.get(42).ok(),
             })
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;

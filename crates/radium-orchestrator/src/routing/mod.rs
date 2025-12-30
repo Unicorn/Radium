@@ -13,6 +13,7 @@ pub mod cost_tracker;
 pub mod ml_router;
 pub mod question_type;
 pub mod router;
+pub mod routing_preferences;
 pub mod skill_router;
 pub mod types;
 
@@ -25,6 +26,7 @@ pub use cost_tracker::{CostMetrics, CostTracker, TierMetrics};
 pub use ml_router::{MLRouter, MLRouterConfig, MLRoutingResult, RoutingMethod};
 pub use question_type::{AnalysisPlan, QuestionType};
 pub use router::{DecisionType, ModelRouter, RoutingDecision};
+pub use routing_preferences::{FeedbackRating, RoutingFeedbackRecord, RoutingPreferences, TaskType as RoutingTaskType};
 pub use skill_router::{SkillDefinition, SkillRouter, SkillRoutingResult};
 pub use types::{ComplexityScore, ComplexityWeights, FailureRecord, FallbackChain, ModelMetadata, RoutingError, RoutingStrategy, RoutingTier, TaskType};
 
