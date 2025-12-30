@@ -209,7 +209,7 @@ mod tests {
         ];
         state.update_processes(processes);
 
-        assert_eq!(state.get_selected_process(), None);
+        assert!(state.get_selected_process().is_none());
 
         state.select_next();
         let selected = state.get_selected_process();
