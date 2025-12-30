@@ -55,7 +55,7 @@ pub use templates::{
     ModuleBehavior, ModuleBehaviorAction, ModuleBehaviorType, WorkflowStep, WorkflowStepConfig,
     WorkflowStepType, WorkflowTemplate, WorkflowTemplateError,
 };
-pub use agent_selector::{AgentSelectionError, AgentSelector};
+pub use agent_selector::{AgentSelectionError, AgentSelector, RoutingDecisionMetadata};
 pub use execution_state::{ExecutionState, TaskExecutionStatus, TaskResult};
 pub use graph_visualizer::GraphVisualizer;
 pub use parallel_executor::{ExecutionReport, ParallelExecutor};

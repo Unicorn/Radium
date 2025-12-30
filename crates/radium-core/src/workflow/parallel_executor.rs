@@ -5,7 +5,7 @@
 
 use crate::context::braingrid_client::{BraingridClient, BraingridTask, TaskStatus};
 use crate::planning::dag::DependencyGraph;
-use crate::workflow::agent_selector::AgentSelector;
+use crate::workflow::agent_selector::{AgentSelector, RoutingDecisionMetadata};
 use crate::workflow::execution_state::{ExecutionState, TaskExecutionStatus, TaskResult};
 use chrono::Utc;
 use radium_orchestrator::{AgentExecutor, AgentOutput};
@@ -13,6 +13,11 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 use tracing::{error, info, warn};
+
+/// Callback type for routing decisions (Phase 2 - REQ-246).
+/// Called after agent selection with routing metadata and execution result.
+pub type RoutingDecisionCallback =
+    Arc<dyn Fn(RoutingDecisionMetadata, bool) + Send + Sync>;
 
 /// Execution report summarizing task execution results.
 #[derive(Debug, Clone)]
@@ -84,6 +89,7 @@ impl ParallelExecutor {
         tasks: Vec<BraingridTask>,
         dep_graph: &DependencyGraph,
         requirement_id: &str,
+        routing_callback: Option<RoutingDecisionCallback>,
     ) -> Result<(ExecutionReport, Arc<ExecutionState>), String> {
         let start_time = std::time::Instant::now();
 
@@ -178,6 +184,7 @@ impl ParallelExecutor {
                 let agent_executor_clone = Arc::clone(&self.agent_executor);
                 let agent_selector_clone = Arc::clone(&self.agent_selector);
                 let semaphore_clone = Arc::clone(&self.semaphore);
+                let routing_callback_clone = routing_callback.clone(); // Phase 2 - REQ-246
 
                 // Spawn task execution
                 let handle = tokio::spawn(async move {
@@ -201,9 +208,12 @@ impl ParallelExecutor {
 
                     let started_at = Utc::now();
 
-                    // Select agent
-                    let agent_id = match agent_selector_clone.select_agent(&task_clone).await {
-                        Ok(id) => id,
+                    // Select agent and capture routing metadata (Phase 2 - REQ-246)
+                    let (agent_id, routing_metadata) = match agent_selector_clone.select_agent(&task_clone).await {
+                        Ok(metadata) => {
+                            let agent_id = metadata.agent_id.clone();
+                            (agent_id, Some(metadata))
+                        }
                         Err(e) => {
                             error!(
                                 requirement_id = %requirement_id_clone,
@@ -211,7 +221,7 @@ impl ParallelExecutor {
                                 error = %e,
                                 "Failed to select agent, using code-agent as fallback"
                             );
-                            "code-agent".to_string()
+                            ("code-agent".to_string(), None)
                         }
                     };
 
@@ -336,6 +346,11 @@ impl ParallelExecutor {
                                 "Task completed successfully"
                             );
 
+                            // Trigger routing feedback callback (Phase 2 - REQ-246)
+                            if let (Some(callback), Some(metadata)) = (&routing_callback_clone, &routing_metadata) {
+                                callback(metadata.clone(), true); // true = execution succeeded
+                            }
+
                             Ok(task_id_clone)
                         }
                         Ok(result) => {
@@ -383,6 +398,11 @@ impl ParallelExecutor {
                                 "Task execution failed"
                             );
 
+                            // Trigger routing feedback callback (Phase 2 - REQ-246)
+                            if let (Some(callback), Some(metadata)) = (&routing_callback_clone, &routing_metadata) {
+                                callback(metadata.clone(), false); // false = execution failed
+                            }
+
                             Err(error_msg)
                         }
                         Err(e) => {
@@ -414,6 +434,11 @@ impl ParallelExecutor {
                                 error = %error_msg,
                                 "Task execution error"
                             );
+
+                            // Trigger routing feedback callback (Phase 2 - REQ-246)
+                            if let (Some(callback), Some(metadata)) = (&routing_callback_clone, &routing_metadata) {
+                                callback(metadata.clone(), false); // false = execution failed
+                            }
 
                             Err(error_msg)
                         }

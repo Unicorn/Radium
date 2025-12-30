@@ -7,6 +7,19 @@ use crate::context::braingrid_client::BraingridTask;
 use radium_orchestrator::{AgentRegistry, SkillRouter};
 use std::sync::Arc;
 
+/// Routing decision metadata for feedback collection (Phase 2 - REQ-246).
+#[derive(Debug, Clone)]
+pub struct RoutingDecisionMetadata {
+    /// Selected agent ID.
+    pub agent_id: String,
+    /// Routing method used ("skill", "keyword").
+    pub routing_method: String,
+    /// Routing confidence score (0.0-1.0), if available.
+    pub confidence: Option<f32>,
+    /// Task description that was routed.
+    pub task_description: String,
+}
+
 /// Errors that can occur during agent selection.
 #[derive(Debug, thiserror::Error)]
 pub enum AgentSelectionError {
@@ -71,8 +84,8 @@ impl AgentSelector {
     /// * `task` - The Braingrid task to select an agent for
     ///
     /// # Returns
-    /// The selected agent ID, or error if agent not found
-    pub async fn select_agent(&self, task: &BraingridTask) -> Result<String, AgentSelectionError> {
+    /// Routing decision metadata including agent ID, method, confidence, and task description
+    pub async fn select_agent(&self, task: &BraingridTask) -> Result<RoutingDecisionMetadata, AgentSelectionError> {
         use std::time::Instant;
 
         // Extract task text
@@ -129,7 +142,13 @@ impl AgentSelector {
         // Validate agent exists
         self.validate_agent(&agent_id).await?;
 
-        Ok(agent_id.to_string())
+        // Return routing decision metadata (Phase 2 - REQ-246)
+        Ok(RoutingDecisionMetadata {
+            agent_id: agent_id.to_string(),
+            routing_method,
+            confidence,
+            task_description: text,
+        })
     }
 
     /// Validates that an agent exists in the registry.

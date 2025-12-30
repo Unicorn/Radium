@@ -346,7 +346,7 @@ async fn execute(
     println!();
 
     let (execution_report, execution_state) = parallel_executor
-        .execute_tasks(requirement.tasks.clone(), &dep_graph, &req_id)
+        .execute_tasks(requirement.tasks.clone(), &dep_graph, &req_id, None) // No routing callback in CLI
         .await
         .map_err(|e| anyhow::anyhow!("Parallel execution failed: {}", e))?;
 
