@@ -329,13 +329,18 @@ impl AgentSelector {
             });
 
             let feedback = RoutingFeedbackRecord {
-                timestamp: std::time::SystemTime::now(),
+                timestamp: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs(),
                 task_description: metadata.task_description.clone(),
                 selected_agent: metadata.agent_id.clone(),
                 confidence: metadata.confidence.unwrap_or(0.0),
+                routing_method: metadata.routing_method.clone(),
                 user_feedback: rating,
                 execution_success,
                 retry_count: 0, // Could be tracked in future iterations
+                comment: None,  // Could add user comment support in future
             };
 
             prefs_guard.record_feedback(feedback);
