@@ -23,6 +23,12 @@ pub struct TuiConfig {
     /// Model configuration
     #[serde(default)]
     pub model: ModelConfig,
+    /// Session configuration
+    #[serde(default)]
+    pub session: SessionConfig,
+    /// Whether the onboarding wizard has been completed
+    #[serde(default)]
+    pub onboarding_completed: bool,
 }
 
 /// Performance configuration.
@@ -139,6 +145,34 @@ impl Default for ModelConfig {
     }
 }
 
+/// Session configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionConfig {
+    /// Default agent to use for new sessions (default: "chat-assistant")
+    #[serde(default = "default_agent_id")]
+    pub default_agent: String,
+    /// Auto-save sessions during streaming (default: true)
+    #[serde(default = "default_auto_save")]
+    pub auto_save: bool,
+}
+
+fn default_agent_id() -> String {
+    "chat-assistant".to_string()
+}
+
+fn default_auto_save() -> bool {
+    true
+}
+
+impl Default for SessionConfig {
+    fn default() -> Self {
+        Self {
+            default_agent: default_agent_id(),
+            auto_save: true,
+        }
+    }
+}
+
 /// Theme configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ThemeConfig {
@@ -195,6 +229,8 @@ impl Default for TuiConfig {
             animations: AnimationConfig::default(),
             completion: CompletionConfig::default(),
             model: ModelConfig::default(),
+            session: SessionConfig::default(),
+            onboarding_completed: false,
         }
     }
 }
@@ -273,6 +309,12 @@ impl TuiConfig {
         toml.push_str("[model]\n");
         toml.push_str("# Default model to use (default: gemini-2.0-flash-thinking)\n");
         toml.push_str(&format!("default_model_id = \"{}\"\n\n", self.model.default_model_id));
+
+        toml.push_str("[session]\n");
+        toml.push_str("# Default agent to use for new sessions (default: chat-assistant)\n");
+        toml.push_str(&format!("default_agent = \"{}\"\n", self.session.default_agent));
+        toml.push_str("# Auto-save sessions during streaming (default: true)\n");
+        toml.push_str(&format!("auto_save = {}\n\n", self.session.auto_save));
 
         if let Some(ref colors) = self.theme.colors {
             toml.push_str("# Custom colors (only used if preset = \"custom\")\n");

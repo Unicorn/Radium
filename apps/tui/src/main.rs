@@ -12,11 +12,12 @@ use crossterm::{
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::prelude::*;
+use tracing::error;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use radium_tui::app::App;
 use radium_tui::commands::DisplayContext;
-use radium_tui::components::{render_dialog, render_title_bar, render_toasts_with_areas, AppMode, StatusFooter};
+use radium_tui::components::{render_dialog, render_hints_bar_with_state, render_title_bar, render_toasts_with_areas, AppMode, StatusFooter};
 use radium_tui::views::{render_checkpoint_browser, render_orchestrator_view, render_prompt, render_setup_wizard, render_shortcuts, render_splash, render_start_page, render_workflow, GlobalLayout};
 
 #[tokio::main]
@@ -198,7 +199,23 @@ async fn main() -> Result<()> {
                             if stream_ctx.should_flush() {
                                 let flushed = stream_ctx.flush_buffer();
                                 if !flushed.is_empty() {
-                                    app.prompt_data.add_output(flushed);
+                                    app.prompt_data.add_output(flushed.clone());
+
+                                    // Append to session history
+                                    if let Some(session_history) = &mut app.session_history {
+                                        session_history.append_streaming_token(&flushed);
+
+                                        // Auto-save every 10 tokens (if enabled in config)
+                                        if app.config.session.auto_save && session_history.should_auto_save() {
+                                            if let Some(ref ws) = app.workspace_status {
+                                                if let Some(ref root) = ws.root {
+                                                    if let Err(e) = session_history.save_to_disk(root) {
+                                                        error!("Failed to auto-save session history: {}", e);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
 
@@ -252,13 +269,26 @@ async fn main() -> Result<()> {
                                 stream_ctx.state = StreamingState::Completed;
                             }
                         }
-                        
+
                         // Get full response for history saving
-                        let full_response = stream_ctx.get_full_response();
-                        
-                        // Save to history (we'll need to get session info from context)
-                        // For now, just clear the streaming context after showing completion
-                        // TODO: Save to history when streaming completes
+                        let _full_response = stream_ctx.get_full_response();
+
+                        // Save to session history when streaming completes
+                        if let Some(session_history) = &mut app.session_history {
+                            session_history.mark_streaming_complete();
+
+                            // Save to disk (final save, if auto-save enabled)
+                            if app.config.session.auto_save {
+                                if let Some(ref ws) = app.workspace_status {
+                                    if let Some(ref root) = ws.root {
+                                        if let Err(e) = session_history.save_to_disk(root) {
+                                            error!("Failed to save session history: {}", e);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         // Clear after a brief delay to show completion message
                         app.streaming_context = None;
                         break;
@@ -580,7 +610,7 @@ async fn main() -> Result<()> {
             };
 
             // Create global layout structure
-            let [title_area, main_area, status_area] = GlobalLayout::create(padded_area);
+            let [title_area, main_area, status_area, hints_area] = GlobalLayout::create(padded_area);
 
             // Render title bar (always visible)
             let version = env!("CARGO_PKG_VERSION");
@@ -654,7 +684,9 @@ async fn main() -> Result<()> {
             };
 
             // Render main content area (context-aware)
-            if app.show_checkpoint_browser {
+            if let Some(ref onboarding) = app.onboarding_view {
+                radium_tui::views::render_onboarding(frame, content_area, onboarding);
+            } else if app.show_checkpoint_browser {
                 if let Some(ref browser_state) = app.checkpoint_browser_state {
                     render_checkpoint_browser(frame, content_area, browser_state);
                 }
@@ -773,6 +805,17 @@ async fn main() -> Result<()> {
                     Some(&app.privacy_state),
                 );
             }
+
+            // Render hints bar (gitui-style contextual shortcuts at bottom)
+            let has_last_task = app.last_executed_operation.is_some();
+            let has_streaming = app.streaming_context.is_some();
+            render_hints_bar_with_state(
+                frame,
+                hints_area,
+                mode,
+                has_last_task,
+                has_streaming,
+            );
 
             // Render dialogs (on top of everything except shortcuts)
             let dialog_areas = if !app.show_shortcuts {

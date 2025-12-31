@@ -199,6 +199,8 @@ pub struct App {
     pub privacy_state: PrivacyState,
     /// Last executed operation for CTRL+R retry functionality
     pub last_executed_operation: Option<LastOperation>,
+    /// Last chat message sent (for retry)
+    pub last_chat_message: Option<String>,
     /// Streaming context for real-time token display
     pub streaming_context: Option<crate::state::StreamingContext>,
     /// Cancellation state for visual feedback
@@ -235,6 +237,10 @@ pub struct App {
     pub orchestration_event_rx: Option<tokio::sync::broadcast::Receiver<radium_orchestrator::orchestration::events::OrchestrationEvent>>,
     /// Buffered final assistant response (displayed only when orchestration completes)
     pub pending_assistant_response: Option<String>,
+    /// Session history for persistence across app restarts
+    pub session_history: Option<crate::state::SessionHistory>,
+    /// Onboarding wizard for first-run experience
+    pub onboarding_view: Option<crate::views::OnboardingView>,
 }
 
 /// Background orchestration task state
@@ -440,6 +446,7 @@ impl App {
             model_filter: ModelFilter::default(),
             privacy_state: PrivacyState::default(),
             last_executed_operation: None,
+            last_chat_message: None,
             cancellation_state: None,
             streaming_context: None,
             command_confirmation: None,
@@ -458,7 +465,14 @@ impl App {
             recommendations_panel: crate::views::RecommendationsPanel::new(),
             orchestration_event_rx: None,
             pending_assistant_response: None,
+            session_history: None,
+            onboarding_view: None,
         };
+
+        // Show onboarding wizard if not completed
+        if !app.config.onboarding_completed {
+            app.onboarding_view = Some(crate::views::OnboardingView::new());
+        }
 
         // Check for resumable executions on startup
         let workspace_root = workspace_status_clone.as_ref().and_then(|ws| ws.root.clone());
@@ -664,7 +678,7 @@ impl App {
         match OrchestrationService::initialize(config, mcp_tools, workspace_root, sandbox_manager, context_loader, hook_executor).await {
                 Ok(service) => {
                     // Subscribe to orchestration events for thinking/recommendations updates
-                    let mut event_rx = service.subscribe_events();
+                    let event_rx = service.subscribe_events();
                     self.orchestration_event_rx = Some(event_rx);
                     self.orchestration_service = Some(Arc::new(service));
                     tracing::info!("Orchestration service initialized successfully");
@@ -820,6 +834,11 @@ impl App {
     }
 
     pub async fn handle_key(&mut self, key: KeyCode, modifiers: KeyModifiers) -> Result<()> {
+        // If onboarding is active, handle onboarding input first
+        if self.onboarding_view.is_some() {
+            return self.handle_onboarding_key(key).await;
+        }
+
         // If checkpoint interrupt is active, handle interrupt input first
         if self.is_interrupt_active() {
             return self.handle_checkpoint_interrupt_key(key).await;
@@ -834,12 +853,33 @@ impl App {
             if self.feedback_view.is_completed() {
                 // Extract feedback record and save it
                 if let Some(feedback_record) = self.feedback_view.get_feedback() {
-                    // TODO: Save feedback to RoutingPreferences (next task)
                     tracing::info!(
                         agent = %feedback_record.selected_agent,
                         rating = ?feedback_record.user_feedback,
                         "User feedback collected for routing decision"
                     );
+
+                    // Save feedback to RoutingPreferences
+                    if let Some(ref ws) = self.workspace_status {
+                        if let Some(ref root) = ws.root {
+                            match radium_orchestrator::routing::RoutingPreferences::load(root) {
+                                Ok(mut prefs) => {
+                                    prefs.record_feedback(feedback_record);
+                                    if let Err(e) = prefs.save() {
+                                        tracing::error!("Failed to save routing preferences: {}", e);
+                                        self.toast_manager.error(format!("Failed to save feedback: {}", e));
+                                    } else {
+                                        tracing::debug!("Routing feedback saved successfully");
+                                        self.toast_manager.success("Thank you for your feedback!".to_string());
+                                    }
+                                }
+                                Err(e) => {
+                                    tracing::error!("Failed to load routing preferences: {}", e);
+                                    self.toast_manager.error(format!("Failed to save feedback: {}", e));
+                                }
+                            }
+                        }
+                    }
                 }
                 // Reset feedback view to idle state
                 self.feedback_view.reset();
@@ -932,8 +972,23 @@ impl App {
                                 if let Some(response_tx) = modal.response_tx.take() {
                                     let _ = response_tx.send(ApprovalAction::Approved);
                                 }
-                                self.toast_manager.success("Fix approved - applying...".to_string());
-                                // TODO: Actually apply the fix via error_router
+
+                                // Apply the fix via error_router
+                                let proposal_id = modal.proposal.id.clone();
+                                if let Some(ref error_router) = self.error_router {
+                                    match error_router.apply_approved_fix(&proposal_id).await {
+                                        Ok(()) => {
+                                            self.toast_manager.success("Fix applied successfully!".to_string());
+                                            tracing::info!(proposal_id = %proposal_id, "Fix applied via user approval");
+                                        }
+                                        Err(e) => {
+                                            tracing::error!("Failed to apply fix {}: {}", proposal_id, e);
+                                            self.toast_manager.error(format!("Failed to apply fix: {}", e));
+                                        }
+                                    }
+                                } else {
+                                    self.toast_manager.warning("Error router not available - fix approval noted but not applied".to_string());
+                                }
                             }
                             ApprovalAction::Rejected => {
                                 if let Some(response_tx) = modal.response_tx.take() {
@@ -1353,10 +1408,25 @@ impl App {
                             }
                         }
                         LastOperation::Task(_task_id) => {
-                            self.toast_manager.info("Retrying last task...".to_string());
-                            // TODO: Implement task retry when task execution is available
-                            self.toast_manager.info("Task retry not yet implemented".to_string());
+                            // Task retry via last_executed_operation not implemented
+                            // Fall back to chat message retry if available
+                            if let Some(ref last_msg) = self.last_chat_message {
+                                self.toast_manager.info("Retrying last message...".to_string());
+                                let msg = last_msg.clone();
+                                if let Err(e) = self.send_chat_message(msg).await {
+                                    self.toast_manager.error(format!("Failed to retry message: {}", e));
+                                }
+                            } else {
+                                self.toast_manager.info("No message to retry".to_string());
+                            }
                         }
+                    }
+                } else if let Some(ref last_msg) = self.last_chat_message {
+                    // No last_executed_operation, but we have a chat message to retry
+                    self.toast_manager.info("Retrying last message...".to_string());
+                    let msg = last_msg.clone();
+                    if let Err(e) = self.send_chat_message(msg).await {
+                        self.toast_manager.error(format!("Failed to retry message: {}", e));
                     }
                 } else {
                     self.toast_manager.info("No operation to retry".to_string());
@@ -2382,6 +2452,9 @@ impl App {
                 return Ok(());
             }
         };
+
+        // Store message for retry
+        self.last_chat_message = Some(message.clone());
 
         // Add user message to conversation with limit
         let max_history = self.config.performance.max_conversation_history;
@@ -3664,7 +3737,7 @@ impl App {
         match OrchestrationService::initialize(config.clone(), mcp_tools, workspace_root, sandbox_manager, context_loader, hook_executor).await {
             Ok(service) => {
                 // Subscribe to orchestration events for thinking/recommendations updates
-                let mut event_rx = service.subscribe_events();
+                let event_rx = service.subscribe_events();
                 self.orchestration_event_rx = Some(event_rx);
                 self.orchestration_service = Some(Arc::new(service));
 
@@ -3825,7 +3898,7 @@ impl App {
         match OrchestrationService::initialize(config.clone(), mcp_tools, workspace_root, sandbox_manager, context_loader, hook_executor).await {
             Ok(service) => {
                 // Subscribe to orchestration events for thinking/recommendations updates
-                let mut event_rx = service.subscribe_events();
+                let event_rx = service.subscribe_events();
                 self.orchestration_event_rx = Some(event_rx);
                 self.orchestration_service = Some(Arc::new(service));
 
@@ -4420,6 +4493,68 @@ impl App {
             .as_ref()
             .map(|s| s.is_active())
             .unwrap_or(false)
+    }
+
+    /// Handles keyboard input for onboarding wizard.
+    async fn handle_onboarding_key(&mut self, key: KeyCode) -> Result<()> {
+        let onboarding = match &mut self.onboarding_view {
+            Some(view) => view,
+            None => return Ok(()),
+        };
+
+        use crate::views::OnboardingStep;
+
+        match key {
+            KeyCode::Esc => {
+                // Skip onboarding
+                self.onboarding_view = None;
+                self.config.onboarding_completed = true;
+                if let Err(e) = self.config.save() {
+                    self.toast_manager.error(format!("Failed to save config: {}", e));
+                } else {
+                    self.toast_manager.info("Onboarding skipped".to_string());
+                }
+            }
+            KeyCode::Enter | KeyCode::Right => {
+                // Next step or complete
+                if onboarding.current_step == OnboardingStep::FirstChat {
+                    // Complete onboarding
+                    self.onboarding_view = None;
+                    self.config.onboarding_completed = true;
+                    if let Err(e) = self.config.save() {
+                        self.toast_manager.error(format!("Failed to save config: {}", e));
+                    } else {
+                        self.toast_manager.success("Welcome to Radium! Type a message to get started.".to_string());
+                    }
+                } else {
+                    // Move to next step
+                    onboarding.next_step();
+                }
+            }
+            KeyCode::Left | KeyCode::Backspace => {
+                // Previous step
+                onboarding.previous_step();
+            }
+            KeyCode::Up => {
+                // Navigate selection up (in provider/agent lists)
+                match onboarding.current_step {
+                    OnboardingStep::ApiKey => onboarding.previous_provider(),
+                    OnboardingStep::Agents => onboarding.previous_agent(),
+                    _ => {}
+                }
+            }
+            KeyCode::Down => {
+                // Navigate selection down (in provider/agent lists)
+                match onboarding.current_step {
+                    OnboardingStep::ApiKey => onboarding.next_provider(),
+                    OnboardingStep::Agents => onboarding.next_agent(),
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
+
+        Ok(())
     }
 
     /// Handles keyboard input for checkpoint interrupt modal.

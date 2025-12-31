@@ -5,7 +5,7 @@
 
 use ratatui::{
     prelude::*,
-    widgets::{Block, Borders, List, ListItem, Paragraph, Wrap},
+    widgets::{Block, Borders, Paragraph, Wrap},
 };
 
 /// A single thinking step in the reasoning process.
@@ -286,6 +286,7 @@ mod tests {
     fn test_start_session() {
         let mut panel = ThinkingPanel::new();
         panel.start_session("Analyzing test coverage");
+        panel.add_step("Initial step");
 
         assert!(panel.is_visible());
         assert_eq!(panel.context, Some("Analyzing test coverage".to_string()));
@@ -317,6 +318,7 @@ mod tests {
     fn test_toggle_visibility() {
         let mut panel = ThinkingPanel::new();
         panel.start_session("Test");
+        panel.add_step("Test step");
 
         assert!(panel.is_visible());
         panel.toggle_visibility();

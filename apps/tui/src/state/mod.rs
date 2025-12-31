@@ -12,6 +12,7 @@ mod cost_state;
 mod execution_history;
 mod privacy_state;
 mod process_panel_state;
+mod session_state;
 mod telemetry_state;
 mod task_list_state;
 mod workflow_state;
@@ -25,6 +26,7 @@ pub use cost_state::{CostDashboardState, DateRangeFilter, DisplayRow, GroupingMo
 pub use execution_history::{AggregateStats, ExecutionHistory, ExecutionRecord, ExecutionStatus};
 pub use privacy_state::PrivacyState;
 pub use process_panel_state::ProcessPanelState;
+pub use session_state::{HistoricalMessage, SessionHistory};
 pub use telemetry_state::{TelemetryState, TokenMetrics};
 pub use task_list_state::{TaskListState, TaskListItem};
 pub use workflow_state::{WorkflowStatus, WorkflowUIState};
