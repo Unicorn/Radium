@@ -187,58 +187,34 @@ impl StatusFooter {
         area: Rect,
         stream_ctx: &StreamingContext,
         frame_counter: usize,
-        animations_enabled: bool,
-        reduced_motion: bool,
+        _animations_enabled: bool,
+        _reduced_motion: bool,
     ) {
+        use crate::components::{ProgressIndicator, render_progress_indicator};
         let theme = crate::theme::get_theme();
-        let spinner = Spinner::new();
-        
+
         match &stream_ctx.state {
             StreamingState::Connecting => {
-                let spinner_frame = spinner.current_frame(frame_counter, animations_enabled, reduced_motion);
-                let text = format!("{} Connecting to model...", spinner_frame);
-                let widget = Paragraph::new(text)
-                    .style(Style::default().fg(theme.primary))
-                    .block(
-                        Block::default()
-                            .borders(Borders::ALL)
-                            .border_style(Style::default().fg(theme.border))
-                            .style(Style::default().bg(theme.bg_panel)),
-                    );
-                frame.render_widget(widget, area);
+                // Create indeterminate progress indicator for connection
+                let mut indicator = ProgressIndicator::new_indeterminate("Connecting to model".to_string());
+                indicator.animation_frame = frame_counter % 8;
+                render_progress_indicator(frame, area, &indicator);
             }
             StreamingState::Streaming => {
-                let spinner_frame = spinner.current_frame(frame_counter, animations_enabled, reduced_motion);
-                let rate = stream_ctx.calculate_tokens_per_second();
-                let rate_text = if rate > 0.0 {
-                    format!(" ({:.1} tok/s)", rate)
-                } else {
-                    String::new()
-                };
-                let text = format!("{} Tokens: {}{}", spinner_frame, stream_ctx.token_count, rate_text);
-                let widget = Paragraph::new(text)
-                    .style(Style::default().fg(theme.primary))
-                    .block(
-                        Block::default()
-                            .borders(Borders::ALL)
-                            .border_style(Style::default().fg(theme.border))
-                            .style(Style::default().bg(theme.bg_panel)),
-                    );
-                frame.render_widget(widget, area);
+                // Create streaming progress indicator with token count and rate
+                let mut indicator = ProgressIndicator::new_streaming("Generating response".to_string());
+                indicator.token_count = stream_ctx.token_count as u64;
+                indicator.start_time = stream_ctx.start_time;
+                indicator.animation_frame = frame_counter % 8;
+                render_progress_indicator(frame, area, &indicator);
             }
             StreamingState::Completed => {
-                let duration = stream_ctx.start_time.elapsed();
-                let duration_secs = duration.as_secs_f64();
-                let text = format!("✓ Response complete ({:.1}s, {} tokens)", duration_secs, stream_ctx.token_count);
-                let widget = Paragraph::new(text)
-                    .style(Style::default().fg(Color::Green))
-                    .block(
-                        Block::default()
-                            .borders(Borders::ALL)
-                            .border_style(Style::default().fg(theme.border))
-                            .style(Style::default().bg(theme.bg_panel)),
-                    );
-                frame.render_widget(widget, area);
+                // Create completed streaming progress indicator
+                let mut indicator = ProgressIndicator::new_streaming("Response complete".to_string());
+                indicator.token_count = stream_ctx.token_count as u64;
+                indicator.start_time = stream_ctx.start_time;
+                indicator.complete();
+                render_progress_indicator(frame, area, &indicator);
             }
             StreamingState::Cancelled => {
                 let duration = stream_ctx.start_time.elapsed();

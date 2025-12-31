@@ -55,7 +55,7 @@ pub use orchestrator_thinking_panel::OrchestratorThinkingPanel;
 pub use output_window::OutputWindow;
 pub use process_panel::ProcessPanel;
 pub use fix_approval_modal::{ApprovalAction, FixApprovalModal, render_fix_approval_modal};
-pub use progress_indicator::{render_progress_bar_simple, render_progress_gauge, render_progress_gauge_custom};
+pub use progress_indicator::{ProgressIndicator, ProgressType, render_progress_indicator};
 pub use requirement_progress_bar::{render_requirement_progress, render_requirement_progress_new, render_inline_progress, render_inline_progress_new};
 pub use spinner::{Spinner, SpinnerFrames};
 pub use status_footer::{AppMode, StatusFooter};
