@@ -654,12 +654,15 @@ impl App {
                 let policy_file = workspace.radium_dir().join("policy.toml");
                 if policy_file.exists() {
                     PolicyEngine::from_file(&policy_file)
-                        .unwrap_or_else(|_| PolicyEngine::new(ApprovalMode::Ask).unwrap())
+                        .unwrap_or_else(|e| {
+                            tracing::error!("Failed to load policy from file: {}, using default Ask mode", e);
+                            PolicyEngine::new(ApprovalMode::Ask).expect("PolicyEngine::new should never fail with Ask mode")
+                        })
                 } else {
-                    PolicyEngine::new(ApprovalMode::Ask).unwrap()
+                    PolicyEngine::new(ApprovalMode::Ask).expect("PolicyEngine::new should never fail with Ask mode")
                 }
             } else {
-                PolicyEngine::new(ApprovalMode::Ask).unwrap()
+                PolicyEngine::new(ApprovalMode::Ask).expect("PolicyEngine::new should never fail with Ask mode")
             };
             
             // Register policy hook (best effort - don't fail if registration fails)
@@ -3757,10 +3760,13 @@ impl App {
                         e
                     ));
                 }
-                
+
+                let provider_name = self.orchestration_service.as_ref()
+                    .map(|svc| svc.provider_name())
+                    .unwrap_or("unknown");
                 self.prompt_data.add_output(format!(
                     "✅ Switched to {} successfully",
-                    self.orchestration_service.as_ref().unwrap().provider_name()
+                    provider_name
                 ));
 
                 // Show new configuration
@@ -4152,7 +4158,14 @@ impl App {
         // Initialize database
         self.prompt_data.add_output("💾 Initializing database...".to_string());
         let db_path = workspace.radium_dir().join("database.db");
-        let db = match Database::open(db_path.to_str().unwrap()) {
+        let db_path_str = match db_path.to_str() {
+            Some(path) => path,
+            None => {
+                self.prompt_data.add_output("   ❌ Database path contains invalid UTF-8 characters".to_string());
+                return Ok(());
+            }
+        };
+        let db = match Database::open(db_path_str) {
             Ok(database) => {
                 self.prompt_data.add_output("   ✓ Database initialized".to_string());
                 Arc::new(std::sync::Mutex::new(database))

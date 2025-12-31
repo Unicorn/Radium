@@ -80,10 +80,9 @@ async fn main() -> Result<()> {
         last_frame_time = current_time;
 
         // Update toast manager (remove expired toasts)
-        let toast_changed = app.toast_manager.update();
-        if toast_changed {
-            app.mark_dirty(); // Toast changes require re-render
-        }
+        app.toast_manager.update();
+        // Toast updates may have expired toasts, mark dirty to re-render
+        app.mark_dirty();
 
         // Poll for requirement progress updates (non-blocking) - old system
         if let Some(active_req) = &mut app.active_requirement {
@@ -158,20 +157,21 @@ async fn main() -> Result<()> {
         // The polling methods check elapsed time internally to avoid excessive calls
 
         // Poll for streaming tokens (non-blocking)
+        let mut streaming_needs_redraw = false;
         if let Some(stream_ctx) = &mut app.streaming_context {
             use radium_tui::state::StreamingState;
 
             // Update state to Streaming if it was Connecting
             if stream_ctx.state == StreamingState::Connecting {
                 stream_ctx.state = StreamingState::Streaming;
-                app.mark_dirty(); // State changed
+                streaming_needs_redraw = true;
             }
-            
+
             // Poll for tokens
             loop {
                 match stream_ctx.token_receiver.try_recv() {
                     Ok(stream_item) => {
-                        app.mark_dirty(); // New token received
+                        streaming_needs_redraw = true; // New token received
 
                         // Extract string from StreamItem
                         let token_str = match &stream_item {
@@ -305,13 +305,19 @@ async fn main() -> Result<()> {
             }
         }
 
+        // Mark dirty if streaming activity occurred
+        if streaming_needs_redraw {
+            app.mark_dirty();
+        }
+
         // Poll for requirement progress updates (non-blocking) - new ProgressMessage system
+        let mut progress_needs_redraw = false;
         if let Some(active_req_progress) = &mut app.active_requirement_progress {
             match active_req_progress.progress_rx.try_recv() {
                 Ok(message) => {
                     // Update active requirement progress state
                     active_req_progress.update(message.clone());
-                    app.mark_dirty(); // Progress update
+                    progress_needs_redraw = true;
 
                     // Track execution history
                     let req_id = active_req_progress.req_id.clone();
@@ -527,6 +533,11 @@ async fn main() -> Result<()> {
                     // No updates available, continue
                 }
             }
+        }
+
+        // Mark dirty if progress activity occurred
+        if progress_needs_redraw {
+            app.mark_dirty();
         }
 
         // Poll orchestration events for thinking/recommendations updates
