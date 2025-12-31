@@ -5001,6 +5001,10 @@ fn fuzzy_match(text: &str, query: &str) -> bool {
     true
 }
 
+#[cfg(test)]
+#[path = "app_tests.rs"]
+mod app_tests;
+
 impl Default for App {
     fn default() -> Self {
         Self::new()
