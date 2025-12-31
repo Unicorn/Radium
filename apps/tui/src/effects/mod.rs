@@ -91,6 +91,11 @@ impl AppEffectManager {
     pub fn is_running(&self) -> bool {
         self.manager.is_running()
     }
+
+    /// Returns whether there are active effects (alias for is_running)
+    pub fn has_active_effects(&self) -> bool {
+        self.is_running()
+    }
 }
 
 impl Default for AppEffectManager {

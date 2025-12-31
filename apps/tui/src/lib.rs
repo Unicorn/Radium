@@ -4,6 +4,7 @@ pub mod command_safety;
 pub mod commands;
 pub mod components;
 pub mod config;
+pub mod dirty_flags;
 pub mod effects;
 pub mod errors;
 pub mod icons;

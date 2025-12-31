@@ -78,8 +78,12 @@ async fn main() -> Result<()> {
         let current_time = std::time::Instant::now();
         let delta_time = last_frame_time.elapsed();
         last_frame_time = current_time;
+
         // Update toast manager (remove expired toasts)
-        app.toast_manager.update();
+        let toast_changed = app.toast_manager.update();
+        if toast_changed {
+            app.mark_dirty(); // Toast changes require re-render
+        }
 
         // Poll for requirement progress updates (non-blocking) - old system
         if let Some(active_req) = &mut app.active_requirement {
@@ -87,6 +91,7 @@ async fn main() -> Result<()> {
                 Ok(progress) => {
                     // Update active requirement state
                     active_req.update(progress.clone());
+                    app.mark_dirty(); // State changed
 
                     // Use toast notifications for key events
                     match &progress {
@@ -155,16 +160,19 @@ async fn main() -> Result<()> {
         // Poll for streaming tokens (non-blocking)
         if let Some(stream_ctx) = &mut app.streaming_context {
             use radium_tui::state::StreamingState;
-            
+
             // Update state to Streaming if it was Connecting
             if stream_ctx.state == StreamingState::Connecting {
                 stream_ctx.state = StreamingState::Streaming;
+                app.mark_dirty(); // State changed
             }
             
             // Poll for tokens
             loop {
                 match stream_ctx.token_receiver.try_recv() {
                     Ok(stream_item) => {
+                        app.mark_dirty(); // New token received
+
                         // Extract string from StreamItem
                         let token_str = match &stream_item {
                             radium_abstraction::StreamItem::ThinkingToken(s) => s.clone(),
@@ -303,6 +311,7 @@ async fn main() -> Result<()> {
                 Ok(message) => {
                     // Update active requirement progress state
                     active_req_progress.update(message.clone());
+                    app.mark_dirty(); // Progress update
 
                     // Track execution history
                     let req_id = active_req_progress.req_id.clone();
@@ -463,6 +472,7 @@ async fn main() -> Result<()> {
                     app.prompt_data.add_conversation_message(format!("❌ Error: {}", err), max_history);
                     app.orchestration_running = false;
                     app.orchestration_task = None;
+                    app.mark_dirty(); // State changed
                 }
                 Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
                     // Task finished, check result
@@ -521,9 +531,11 @@ async fn main() -> Result<()> {
 
         // Poll orchestration events for thinking/recommendations updates
         if let Some(ref mut event_rx) = app.orchestration_event_rx {
+            let mut event_received = false;
             loop {
                 match event_rx.try_recv() {
                     Ok(event) => {
+                        event_received = true; // Mark that we received an event
                         use radium_orchestrator::orchestration::events::OrchestrationEvent;
                         match event {
                             OrchestrationEvent::ThinkingSessionStarted { context, .. } => {
@@ -594,9 +606,35 @@ async fn main() -> Result<()> {
                     }
                 }
             }
+            // Mark dirty if we received any orchestration events
+            if event_received {
+                app.mark_dirty();
+            }
         }
 
-        // Draw UI
+        // Check for active animations and mark effects dirty if needed
+        app.check_animations();
+
+        // Only render if something changed (smart rendering - Phase 5.1)
+        if !app.is_dirty() {
+            // Nothing to render, skip this frame
+            // Still poll events to keep UI responsive
+            if event::poll(Duration::from_millis(16))? {
+                if let Event::Key(key) = event::read()? {
+                    if key.kind == KeyEventKind::Press {
+                        app.handle_key(key.code, key.modifiers).await?;
+                        app.mark_dirty(); // User input always requires re-render
+                    }
+                }
+            }
+
+            if app.should_quit {
+                break;
+            }
+            continue; // Skip rendering, go to next iteration
+        }
+
+        // Draw UI (only when dirty)
         terminal.draw(|frame| {
             let area = frame.area();
 
@@ -933,6 +971,9 @@ async fn main() -> Result<()> {
             app.spinner_frame = app.spinner_frame.wrapping_add(1);
         })?;
 
+        // Clear dirty flags after rendering (Phase 5.1: Smart Rendering)
+        app.clear_dirty();
+
         // Update previous state for transition detection (after rendering)
         app.previous_context = Some(app.prompt_data.context.clone());
         app.previous_dialog_open = app.dialog_manager.is_open();
@@ -948,6 +989,7 @@ async fn main() -> Result<()> {
                     request.analysis,
                     request.response_tx,
                 ));
+                app.mark_dirty(); // New confirmation modal
             }
         }
 
@@ -956,6 +998,7 @@ async fn main() -> Result<()> {
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
                     app.handle_key(key.code, key.modifiers).await?;
+                    app.mark_dirty(); // User input requires re-render
                 }
             }
         }

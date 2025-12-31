@@ -241,6 +241,8 @@ pub struct App {
     pub session_history: Option<crate::state::SessionHistory>,
     /// Onboarding wizard for first-run experience
     pub onboarding_view: Option<crate::views::OnboardingView>,
+    /// Dirty flags for smart rendering (Phase 5.1)
+    pub dirty_flags: crate::dirty_flags::DirtyFlags,
 }
 
 /// Background orchestration task state
@@ -467,6 +469,7 @@ impl App {
             pending_assistant_response: None,
             session_history: None,
             onboarding_view: None,
+            dirty_flags: crate::dirty_flags::DirtyFlags::force_render(), // Initial render
         };
 
         // Show onboarding wizard if not completed
@@ -4908,6 +4911,49 @@ impl App {
         // or use a new StreamOrchestratorLogs RPC method
 
         Ok(())
+    }
+
+    // Dirty flag helpers (Phase 5.1: Smart Rendering)
+
+    /// Mark content as dirty (state changed, user input, new message)
+    pub fn mark_dirty(&mut self) {
+        self.dirty_flags.mark_content_dirty();
+    }
+
+    /// Mark layout as dirty (window resized)
+    pub fn mark_layout_dirty(&mut self) {
+        self.dirty_flags.mark_layout_dirty();
+    }
+
+    /// Mark effects as dirty (animations running)
+    pub fn mark_effects_dirty(&mut self) {
+        self.dirty_flags.mark_effects_dirty();
+    }
+
+    /// Check if UI needs re-rendering
+    pub fn is_dirty(&self) -> bool {
+        self.dirty_flags.is_dirty()
+    }
+
+    /// Clear dirty flags after rendering
+    pub fn clear_dirty(&mut self) {
+        self.dirty_flags.clear();
+    }
+
+    /// Check if animations are active and mark effects dirty
+    pub fn check_animations(&mut self) {
+        // Mark effects dirty if:
+        // - Streaming is active (spinner animation)
+        // - Toast manager has active toasts
+        // - Effect manager has active effects
+        // - Orchestration is running (thinking indicator)
+        if self.streaming_context.is_some()
+            || !self.toast_manager.toasts().is_empty()
+            || self.effect_manager.has_active_effects()
+            || self.orchestration_running
+        {
+            self.mark_effects_dirty();
+        }
     }
 }
 
