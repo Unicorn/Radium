@@ -75,6 +75,10 @@ pub struct StreamingContext {
     pub accumulated_thinking: String,
     /// Total thinking token count
     pub thinking_token_count: usize,
+    /// Last time the buffer was flushed (Phase 5.3: Time-based buffering)
+    pub last_flush_time: std::time::Instant,
+    /// Buffer flush interval in milliseconds (Phase 5.3: Configurable, default 50ms)
+    pub flush_interval_ms: u64,
 }
 
 impl StreamingContext {
@@ -83,6 +87,7 @@ impl StreamingContext {
         token_receiver: tokio::sync::mpsc::Receiver<radium_abstraction::StreamItem>,
         cancellation_tx: Option<tokio::sync::oneshot::Sender<()>>,
     ) -> Self {
+        let now = std::time::Instant::now();
         Self {
             state: StreamingState::Connecting,
             token_buffer: Vec::new(),
@@ -91,11 +96,13 @@ impl StreamingContext {
             cancellation_tx,
             is_cancelled: false,
             token_count: 0,
-            start_time: std::time::Instant::now(),
+            start_time: now,
             token_timestamps: std::collections::VecDeque::with_capacity(10),
             thinking_buffer: Vec::new(),
             accumulated_thinking: String::new(),
             thinking_token_count: 0,
+            last_flush_time: now,
+            flush_interval_ms: 50, // Default 50ms = 20 FPS (Phase 5.3)
         }
     }
 
@@ -121,6 +128,7 @@ impl StreamingContext {
         let result = self.token_buffer.join("");
         self.accumulated_response.push_str(&result);
         self.token_buffer.clear();
+        self.last_flush_time = std::time::Instant::now(); // Reset flush timer (Phase 5.3)
         result
     }
 
@@ -147,9 +155,20 @@ impl StreamingContext {
         }
     }
 
-    /// Checks if buffer should be flushed (5-10 tokens)
+    /// Checks if buffer should be flushed (time-based: Phase 5.3)
+    ///
+    /// Flushes when flush_interval_ms has elapsed OR buffer has 10+ tokens (fallback).
+    /// Default 50ms interval = 20 FPS rendering during streaming.
     pub fn should_flush(&self) -> bool {
-        self.token_buffer.len() >= 5
+        // Time-based flush (primary): Check if interval elapsed
+        let elapsed_ms = self.last_flush_time.elapsed().as_millis() as u64;
+        let time_to_flush = elapsed_ms >= self.flush_interval_ms;
+
+        // Fallback: Also flush if buffer gets too large (10+ tokens)
+        let buffer_full = self.token_buffer.len() >= 10;
+
+        // Flush if either condition is met AND we have at least 1 token
+        !self.token_buffer.is_empty() && (time_to_flush || buffer_full)
     }
 
     /// Gets the full accumulated response
