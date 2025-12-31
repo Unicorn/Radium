@@ -4519,19 +4519,32 @@ impl App {
                 }
             }
             KeyCode::Enter | KeyCode::Right => {
-                // Next step or complete
-                if onboarding.current_step == OnboardingStep::FirstChat {
-                    // Complete onboarding
-                    self.onboarding_view = None;
-                    self.config.onboarding_completed = true;
-                    if let Err(e) = self.config.save() {
-                        self.toast_manager.error(format!("Failed to save config: {}", e));
-                    } else {
-                        self.toast_manager.success("Welcome to Radium! Type a message to get started.".to_string());
+                // Handle step-specific actions or navigate
+                match onboarding.current_step {
+                    OnboardingStep::FirstChat => {
+                        // Complete onboarding
+                        self.onboarding_view = None;
+                        self.config.onboarding_completed = true;
+                        if let Err(e) = self.config.save() {
+                            self.toast_manager.error(format!("Failed to save config: {}", e));
+                        } else {
+                            self.toast_manager.success("Welcome to Radium! Type a message to get started.".to_string());
+                        }
                     }
-                } else {
-                    // Move to next step
-                    onboarding.next_step();
+                    OnboardingStep::ApiKey => {
+                        // Launch auth wizard for selected provider (Phase 2.2)
+                        self.start_auth_wizard();
+                        self.toast_manager.info("Opening API key configuration...".to_string());
+
+                        // Mark as configured (will be verified when wizard completes)
+                        if let Some(ref mut onboarding) = self.onboarding_view {
+                            onboarding.api_key_configured = true;
+                        }
+                    }
+                    _ => {
+                        // Move to next step
+                        onboarding.next_step();
+                    }
                 }
             }
             KeyCode::Left | KeyCode::Backspace => {
