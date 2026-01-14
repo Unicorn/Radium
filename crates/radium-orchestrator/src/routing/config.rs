@@ -335,8 +335,9 @@ models = ["claude:sonnet-4.5", "openai:gpt-4-turbo"]
             threshold: None,
             chains: Vec::new(),
             rules: Vec::new(),
+            skill_routing: SkillRoutingConfig::default(),
         };
-        
+
         let result = RoutingConfigLoader::validate(&config);
         assert!(result.is_err());
     }
@@ -368,8 +369,9 @@ models = ["claude:sonnet-4.5", "openai:gpt-4-turbo"]
                 ],
             }],
             rules: Vec::new(),
+            skill_routing: SkillRoutingConfig::default(),
         };
-        
+
         let chains = RoutingConfigLoader::build_fallback_chains(&config).unwrap();
         assert_eq!(chains.len(), 1);
         assert_eq!(chains[0].0, "test");
