@@ -40,7 +40,7 @@ impl PolicySuggestionService {
 
         patterns
             .into_iter()
-            .zip(rules.into_iter())
+            .zip(rules)
             .enumerate()
             .map(|(idx, (pattern, rule))| {
                 let confidence = pattern.confidence;

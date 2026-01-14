@@ -4,7 +4,7 @@
 //! configuration structures, connection state, and trait definitions for
 //! pluggable components.
 
-use crate::mcp::{McpError, McpServerConfig, McpTool, Result, TransportType};
+use crate::mcp::{McpError, McpPrompt, McpServerConfig, McpTool, Result, TransportType};
 use crate::mcp::proxy::{DefaultSecurityLayer, DefaultToolCatalog, DefaultToolRouter, HealthChecker, ProxyServer, UpstreamPool};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -249,13 +249,44 @@ pub trait ToolCatalog: Send + Sync {
     ///
     /// The original tool name if found, None otherwise.
     async fn get_original_name(&self, registered_name: &str) -> Option<String>;
+
+    /// Get all aggregated prompts from all upstream servers.
+    ///
+    /// # Returns
+    ///
+    /// A vector of all available prompts (with conflict resolution applied).
+    async fn get_all_prompts(&self) -> Vec<McpPrompt>;
+
+    /// Get the upstream server name that provides a specific prompt.
+    ///
+    /// # Arguments
+    ///
+    /// * `registered_name` - The registered prompt name (may be prefixed)
+    ///
+    /// # Returns
+    ///
+    /// The upstream server name if the prompt exists, None otherwise.
+    async fn get_prompt_source(&self, registered_name: &str) -> Option<String>;
+
+    /// Get a specific prompt by name.
+    ///
+    /// # Arguments
+    ///
+    /// * `registered_name` - The registered prompt name (may be prefixed)
+    ///
+    /// # Returns
+    ///
+    /// The prompt if found, None otherwise.
+    async fn get_prompt(&self, registered_name: &str) -> Option<McpPrompt>;
 }
 
 /// Conflict resolution strategy for tool name conflicts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum ConflictStrategy {
     /// Automatically prefix conflicting tools with upstream name.
+    #[default]
     AutoPrefix,
     /// Reject duplicate tool names, keeping the first one.
     Reject,
@@ -263,11 +294,6 @@ pub enum ConflictStrategy {
     PriorityOverride,
 }
 
-impl Default for ConflictStrategy {
-    fn default() -> Self {
-        ConflictStrategy::AutoPrefix
-    }
-}
 
 /// MCP Proxy Server main struct.
 ///

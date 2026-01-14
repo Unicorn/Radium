@@ -248,6 +248,7 @@ pub struct ModelConfigToml {
 /// Gemini-specific safety configuration for TOML.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
+#[derive(Default)]
 pub struct GeminiSafetyConfigToml {
     /// Threshold for hate speech: "BLOCK_NONE", "BLOCK_LOW_AND_ABOVE", "BLOCK_MEDIUM_AND_ABOVE", or "BLOCK_ONLY_HIGH"
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -269,18 +270,6 @@ pub struct GeminiSafetyConfigToml {
     pub default: Option<String>,
 }
 
-impl Default for GeminiSafetyConfigToml {
-    fn default() -> Self {
-        Self {
-            hate_speech: None,
-            harassment: None,
-            sexually_explicit: None,
-            dangerous_content: None,
-            civic_integrity: None,
-            default: None,
-        }
-    }
-}
 
 impl GeminiSafetyConfigToml {
     /// Parse a threshold string into a SafetyThreshold enum.
@@ -492,8 +481,7 @@ impl AgentConfigFile {
                 }
             } else {
                 // Use agent's engine if available, otherwise default to gemini
-                let engine = self.agent.engine.as_ref()
-                    .map(|e| e.clone())
+                let engine = self.agent.engine.clone()
                     .unwrap_or_else(|| "gemini".to_string());
                 SimpleModelRecommendation {
                     engine,

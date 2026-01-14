@@ -76,7 +76,7 @@ pub fn generate_template(template_type: TemplateType) -> String {
 
 /// Generates the basic project context template.
 fn generate_basic_template() -> String {
-    r#"# Project Context
+    r"# Project Context
 
 This file provides persistent instructions to agents working on this project.
 
@@ -99,13 +99,13 @@ This file provides persistent instructions to agents working on this project.
 ## Documentation
 
 <!-- Add documentation requirements here -->
-"#
+"
     .to_string()
 }
 
 /// Generates the coding standards template.
 fn generate_coding_standards_template() -> String {
-    r#"# Coding Standards
+    r"# Coding Standards
 
 This document defines the coding standards and conventions for this project.
 
@@ -137,13 +137,13 @@ This document defines the coding standards and conventions for this project.
 ## Anti-Patterns
 
 <!-- List patterns to avoid -->
-"#
+"
     .to_string()
 }
 
 /// Generates the architecture template.
 fn generate_architecture_template() -> String {
-    r#"# Architecture Documentation
+    r"# Architecture Documentation
 
 This document describes the architecture of this project.
 
@@ -170,13 +170,13 @@ This document describes the architecture of this project.
 ## Future Considerations
 
 <!-- Document planned changes or improvements -->
-"#
+"
     .to_string()
 }
 
 /// Generates the team conventions template.
 fn generate_team_conventions_template() -> String {
-    r#"# Team Conventions
+    r"# Team Conventions
 
 This document defines team-specific conventions and guidelines.
 
@@ -208,7 +208,7 @@ This document defines team-specific conventions and guidelines.
 ## Onboarding
 
 <!-- Add information for new team members -->
-"#
+"
     .to_string()
 }
 

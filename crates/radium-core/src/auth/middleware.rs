@@ -59,9 +59,7 @@ fn is_localhost(peer_addr: &str) -> bool {
 pub fn authenticate_request<T>(request: &Request<T>, config: &AuthConfig) -> Result<(), Status> {
     // Get peer address
     let peer_addr = request
-        .remote_addr()
-        .map(|addr| addr.to_string())
-        .unwrap_or_else(|| "unknown".to_string());
+        .remote_addr().map_or_else(|| "unknown".to_string(), |addr| addr.to_string());
 
     debug!(peer_addr = %peer_addr, "Authenticating request");
 

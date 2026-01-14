@@ -135,7 +135,7 @@ fn collect_text_files(root: &Path, max_files: usize, options: &DatasetBuildOptio
             Err(_) => continue,
         };
 
-        if !entry.file_type().map(|ft| ft.is_file()).unwrap_or(false) {
+        if !entry.file_type().is_some_and(|ft| ft.is_file()) {
             continue;
         }
 

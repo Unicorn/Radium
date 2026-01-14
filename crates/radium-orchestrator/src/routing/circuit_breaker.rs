@@ -283,8 +283,7 @@ impl CircuitBreaker {
             let health_map = self.health.read().unwrap();
             health_map
                 .get(model_id)
-                .map(|h| h.calculate_failure_rate())
-                .unwrap_or(0.0)
+                .map_or(0.0, ModelHealth::calculate_failure_rate)
         };
         
         // Update circuit state
@@ -339,8 +338,7 @@ impl CircuitBreaker {
         let health_map = self.health.read().unwrap();
         health_map
             .get(model_id)
-            .map(|h| h.calculate_failure_rate())
-            .unwrap_or(0.0)
+            .map_or(0.0, ModelHealth::calculate_failure_rate)
     }
     
     /// Gets the current circuit state for a model.

@@ -40,16 +40,13 @@ pub enum DatasetSource {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum ScanDepth {
+    #[default]
     Quick,
     Full,
 }
 
-impl Default for ScanDepth {
-    fn default() -> Self {
-        Self::Quick
-    }
-}
 
 pub fn compute_dataset_id(examples: &[TrainingExample]) -> TrainingResult<DatasetId> {
     let mut hasher = Sha256::new();

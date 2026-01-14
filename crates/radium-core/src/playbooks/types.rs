@@ -83,10 +83,12 @@ impl Playbook {
 /// Determines when and how playbooks are included in agent context.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum PlaybookPriority {
     /// Optional playbooks - only included if explicitly requested.
     Optional = 0,
     /// Recommended playbooks - included by default when scope matches.
+    #[default]
     Recommended = 1,
     /// Required playbooks - always included when scope matches.
     Required = 2,
@@ -102,11 +104,6 @@ impl fmt::Display for PlaybookPriority {
     }
 }
 
-impl Default for PlaybookPriority {
-    fn default() -> Self {
-        Self::Recommended
-    }
-}
 
 #[cfg(test)]
 mod tests {

@@ -120,16 +120,15 @@ impl ConflictDetector {
                         example_tool: Self::find_example_match(&pattern1)?,
                         example_args: Vec::new(),
                     }));
-                } else {
-                    // Different priorities - priority conflict
-                    return Ok(Some(PolicyConflict {
-                        rule1: rule1.clone(),
-                        rule2: rule2.clone(),
-                        conflict_type: ConflictType::PriorityConflict,
-                        example_tool: Self::find_example_match(&pattern1)?,
-                        example_args: Vec::new(),
-                    }));
                 }
+                // Different priorities - priority conflict
+                return Ok(Some(PolicyConflict {
+                    rule1: rule1.clone(),
+                    rule2: rule2.clone(),
+                    conflict_type: ConflictType::PriorityConflict,
+                    example_tool: Self::find_example_match(&pattern1)?,
+                    example_args: Vec::new(),
+                }));
             }
             // Same pattern and same action - no conflict
             return Ok(None);
@@ -154,16 +153,15 @@ impl ConflictDetector {
                         example_tool,
                         example_args,
                     }));
-                } else {
-                    // Patterns overlap but neither is clearly more specific - conflicting actions
-                    return Ok(Some(PolicyConflict {
-                        rule1: rule1.clone(),
-                        rule2: rule2.clone(),
-                        conflict_type: ConflictType::ConflictingActions,
-                        example_tool,
-                        example_args,
-                    }));
                 }
+                // Patterns overlap but neither is clearly more specific - conflicting actions
+                return Ok(Some(PolicyConflict {
+                    rule1: rule1.clone(),
+                    rule2: rule2.clone(),
+                    conflict_type: ConflictType::ConflictingActions,
+                    example_tool,
+                    example_args,
+                }));
             }
             // Patterns overlap but same action - not a conflict (one will win based on priority)
             return Ok(None);
@@ -196,8 +194,8 @@ impl ConflictDetector {
         // If no example matches, try to generate one from the pattern
         // This is a simple heuristic - replace wildcards with common values
         let generated = pattern.as_str()
-            .replace("*", "example")
-            .replace("?", "x");
+            .replace('*', "example")
+            .replace('?', "x");
         
         Ok(generated)
     }
@@ -249,7 +247,7 @@ impl ConflictDetector {
         // If same number of wildcards, check if one is a prefix of the other
         if wildcards1 == wildcards2 {
             // If pattern1 is longer and starts with pattern2 (minus wildcards), it's more specific
-            if pattern1.len() > pattern2.len() && pattern2.replace("*", "").replace("?", "") == "" {
+            if pattern1.len() > pattern2.len() && pattern2.replace(['*', '?'], "").is_empty() {
                 return true;
             }
         }

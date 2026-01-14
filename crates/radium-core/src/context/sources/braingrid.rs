@@ -110,7 +110,7 @@ impl Default for BraingridReader {
 
 #[async_trait]
 impl SourceReader for BraingridReader {
-    fn scheme(&self) -> &str {
+    fn scheme(&self) -> &'static str {
         "braingrid"
     }
 

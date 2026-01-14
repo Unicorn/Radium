@@ -162,7 +162,7 @@ impl Model for MockModel {
         _tool_config: Option<&radium_abstraction::ToolConfig>,
     ) -> Result<ModelResponse, ModelError> {
         Err(ModelError::UnsupportedModelProvider(
-            format!("MockModel does not support function calling"),
+            "MockModel does not support function calling".to_string(),
         ))
     }
 
@@ -194,7 +194,7 @@ impl StreamingModel for MockModel {
         // Split response into words for realistic streaming
         let words: Vec<String> = response_content
             .split_whitespace()
-            .map(|w| w.to_string())
+            .map(std::string::ToString::to_string)
             .collect();
 
         // Create stream that yields accumulated content with delays

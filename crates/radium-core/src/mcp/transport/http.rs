@@ -102,9 +102,7 @@ impl McpTransport for HttpTransport {
             .await
             .map_err(|e| McpError::transport(
                 format!("Failed to send message via HTTP to {}: {}", self.url, e),
-                format!(
-                    "Failed to send message to the HTTP server. Common causes:\n  - Network connectivity issue\n  - Server not responding\n  - Authentication token expired\n\nTry:\n  - Check network connectivity\n  - Verify OAuth token: rad mcp auth status\n  - Check server logs",
-                ),
+                "Failed to send message to the HTTP server. Common causes:\n  - Network connectivity issue\n  - Server not responding\n  - Authentication token expired\n\nTry:\n  - Check network connectivity\n  - Verify OAuth token: rad mcp auth status\n  - Check server logs".to_string(),
             ))?;
 
         if !response.status().is_success() {
@@ -138,9 +136,7 @@ impl McpTransport for HttpTransport {
         let response = request.send().await.map_err(|e| {
             McpError::transport(
                 format!("Failed to receive message via HTTP from {}: {}", self.url, e),
-                format!(
-                    "Failed to receive message from the HTTP server. Common causes:\n  - Network connectivity issue\n  - Server not responding\n  - Authentication token expired\n\nTry:\n  - Check network connectivity\n  - Verify OAuth token: rad mcp auth status\n  - Check server logs",
-                ),
+                "Failed to receive message from the HTTP server. Common causes:\n  - Network connectivity issue\n  - Server not responding\n  - Authentication token expired\n\nTry:\n  - Check network connectivity\n  - Verify OAuth token: rad mcp auth status\n  - Check server logs".to_string(),
             )
         })?;
 

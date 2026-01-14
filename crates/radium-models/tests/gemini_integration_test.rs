@@ -227,7 +227,7 @@ async fn test_thinking_mode_with_reasoning_effort() {
     println!("Thinking mode response: {}", response.content);
 
     // The answer should be "5 cats" (common puzzle)
-    assert!(response.content.contains("5"));
+    assert!(response.content.contains('5'));
 }
 
 #[tokio::test]

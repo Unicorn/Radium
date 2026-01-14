@@ -3,10 +3,9 @@
 //! This module provides intelligent agent routing using the Arch-Router 1.5B ML model,
 //! with automatic fallback to skill-based routing when ML confidence is low.
 
-use super::capability_matcher::CapabilityMatcher;
-use super::skill_router::{SkillDefinition, SkillRouter, SkillRoutingResult};
+use super::skill_router::SkillRouter;
 use anyhow::{Context, Result};
-use radium_ml::{ArchRouterEngine, ArchRouterResult, RouteDefinition};
+use radium_ml::{ArchRouterEngine, RouteDefinition};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -173,13 +172,12 @@ impl MLRouter {
                         "ML routing succeeded with high confidence"
                     );
                     return Ok(ml_result);
-                } else {
-                    debug!(
-                        confidence = ml_result.confidence,
-                        threshold = self.config.ml_confidence_threshold,
-                        "ML confidence below threshold, falling back to skill-based routing"
-                    );
                 }
+                debug!(
+                    confidence = ml_result.confidence,
+                    threshold = self.config.ml_confidence_threshold,
+                    "ML confidence below threshold, falling back to skill-based routing"
+                );
             }
             Err(e) => {
                 warn!(
@@ -200,13 +198,12 @@ impl MLRouter {
                         "Skill routing succeeded"
                     );
                     return Ok(skill_result);
-                } else {
-                    debug!(
-                        confidence = skill_result.confidence,
-                        threshold = self.config.skill_confidence_threshold,
-                        "Skill confidence below threshold, using default agent"
-                    );
                 }
+                debug!(
+                    confidence = skill_result.confidence,
+                    threshold = self.config.skill_confidence_threshold,
+                    "Skill confidence below threshold, using default agent"
+                );
             }
             Err(e) => {
                 warn!(
@@ -329,7 +326,7 @@ impl MLRouter {
 
         // Combine primary result with alternatives
         let mut results = vec![(result.agent_id.clone(), result.confidence)];
-        results.extend(result.alternatives.clone());
+        results.extend(result.alternatives);
 
         // Sort by confidence descending and take top k
         results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));

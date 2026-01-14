@@ -71,7 +71,7 @@ impl PatternAnalyzer {
         for event in &approved_events {
             // Generate pattern from tool name
             let pattern = self.generate_tool_pattern(&event.tool_name);
-            tool_patterns.entry(pattern).or_insert_with(Vec::new).push(event);
+            tool_patterns.entry(pattern).or_default().push(event);
         }
 
         // Convert to Pattern structs
@@ -164,7 +164,7 @@ impl PatternAnalyzer {
         let frequency_boost = (pattern_count as f64 / 10.0).min(1.0);
         
         // Combined confidence
-        (frequency_ratio * 0.7 + frequency_boost * 0.3).min(1.0)
+        frequency_ratio.mul_add(0.7, frequency_boost * 0.3).min(1.0)
     }
 }
 
@@ -175,7 +175,7 @@ impl PolicySuggestionGenerator {
     /// Generates a policy rule suggestion from a pattern.
     pub fn generate_suggestion(&self, pattern: &Pattern) -> PolicyRule {
         PolicyRule::new(
-            format!("auto-allow-{}", pattern.tool_pattern.replace("*", "all")),
+            format!("auto-allow-{}", pattern.tool_pattern.replace('*', "all")),
             pattern.tool_pattern.clone(),
             PolicyAction::Allow,
         )

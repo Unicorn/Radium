@@ -162,7 +162,7 @@ impl SecretScanner {
             "mp3", "mp4", "avi", "mov", "wav",
         ]
         .iter()
-        .map(|s| s.to_string())
+        .map(|s| (*s).to_string())
         .collect()
     }
 
@@ -174,7 +174,7 @@ impl SecretScanner {
             "vendor", ".bundle", ".gradle",
         ]
         .iter()
-        .map(|s| s.to_string())
+        .map(|s| (*s).to_string())
         .collect()
     }
 

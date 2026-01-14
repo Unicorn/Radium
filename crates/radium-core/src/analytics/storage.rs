@@ -44,8 +44,7 @@ impl SessionStorage {
         // Check environment variable for compact JSON preference
         let compact_json = std::env::var("RADIUM_COMPACT_SESSION_JSON")
             .ok()
-            .map(|v| v == "true" || v == "1")
-            .unwrap_or(false);
+            .is_some_and(|v| v == "true" || v == "1");
 
         Ok(Self {
             sessions_dir,
@@ -207,7 +206,7 @@ impl SessionStorage {
 
         // Apply pagination
         let offset = offset.unwrap_or(0);
-        let limit = limit.map(|l| l + offset).unwrap_or(metadata_list.len());
+        let limit = limit.map_or(metadata_list.len(), |l| l + offset);
         let paginated_paths: Vec<_> = metadata_list
             .into_iter()
             .skip(offset)
@@ -271,14 +270,14 @@ impl SessionStorage {
                                         .to_string();
                                     let tool_calls = metrics
                                         .get("tool_calls")
-                                        .and_then(|v| v.as_u64())
+                                        .and_then(serde_json::Value::as_u64)
                                         .unwrap_or(0);
                                     
                                     // Calculate duration from wall_time if available
                                     // Duration serializes as { "secs": u64, "nanos": u32 }
                                     let duration = if let Some(wall_time_obj) = metrics.get("wall_time") {
-                                        if let Some(secs) = wall_time_obj.get("secs").and_then(|v| v.as_u64()) {
-                                            let nanos = wall_time_obj.get("nanos").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+                                        if let Some(secs) = wall_time_obj.get("secs").and_then(serde_json::Value::as_u64) {
+                                            let nanos = wall_time_obj.get("nanos").and_then(serde_json::Value::as_u64).unwrap_or(0) as u32;
                                             Duration::new(secs, nanos)
                                         } else {
                                             Duration::ZERO

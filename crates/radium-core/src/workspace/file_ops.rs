@@ -212,12 +212,11 @@ impl FileOperations {
             if validated_path.is_dir() {
                 // Directory already exists, return it
                 return Ok(validated_path);
-            } else {
-                return Err(FileOperationError::AlreadyExists {
-                    path: validated_path.display().to_string(),
-                    operation: "create_dir".to_string(),
-                });
             }
+            return Err(FileOperationError::AlreadyExists {
+                path: validated_path.display().to_string(),
+                operation: "create_dir".to_string(),
+            });
         }
 
         // Create directory (and parents)

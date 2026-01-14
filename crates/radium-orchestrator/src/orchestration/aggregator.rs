@@ -144,7 +144,7 @@ impl Aggregator {
                     .or_else(|| trimmed.strip_prefix("• "))
                     .or_else(|| {
                         // Remove leading number and dot
-                        trimmed.splitn(2, '.').nth(1)
+                        trimmed.split_once('.').map(|x| x.1)
                     })
                     .unwrap_or(trimmed)
                     .trim()
@@ -212,7 +212,7 @@ impl Aggregator {
 
         for finding in findings {
             let key = Self::normalize_for_grouping(&finding.content);
-            content_groups.entry(key).or_insert_with(Vec::new).push(finding);
+            content_groups.entry(key).or_default().push(finding);
         }
 
         // Process each group
@@ -273,7 +273,7 @@ impl Aggregator {
     fn generate_action_plan(findings: &[Finding]) -> Vec<Action> {
         let mut actions = Vec::new();
 
-        for (_idx, finding) in findings.iter().enumerate() {
+        for finding in findings {
             // Determine priority based on category
             let priority = match finding.category.as_str() {
                 "critical" | "error" | "bug" => 1,

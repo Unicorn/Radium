@@ -309,7 +309,7 @@ impl CustomCommand {
                 }
 
                 let command = parts[0];
-                let cmd_args: Vec<String> = parts[1..].iter().map(|s| s.to_string()).collect();
+                let cmd_args: Vec<String> = parts[1..].iter().map(|s| (*s).to_string()).collect();
 
                 rt.block_on(async {
                     sandbox.execute(command, &cmd_args, None).await

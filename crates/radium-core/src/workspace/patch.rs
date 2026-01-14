@@ -160,6 +160,7 @@ pub struct ChangedFile {
 
 /// Summary of patch application.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct PatchSummary {
     /// Total number of files in the patch.
     pub total_files: usize,
@@ -186,20 +187,6 @@ pub struct PatchSummary {
     pub total_lines_removed: usize,
 }
 
-impl Default for PatchSummary {
-    fn default() -> Self {
-        Self {
-            total_files: 0,
-            files_changed: 0,
-            files_failed: 0,
-            total_hunks: 0,
-            hunks_applied: 0,
-            hunks_failed: 0,
-            total_lines_added: 0,
-            total_lines_removed: 0,
-        }
-    }
-}
 
 impl PatchResult {
     /// Create a successful patch result.
@@ -533,7 +520,7 @@ impl PatchApplicator {
             String::new()
         };
 
-        let mut lines: Vec<String> = current_content.lines().map(|s| s.to_string()).collect();
+        let mut lines: Vec<String> = current_content.lines().map(std::string::ToString::to_string).collect();
         let mut hunks_applied = 0;
         let mut lines_added = 0;
         let mut lines_removed = 0;
@@ -639,9 +626,9 @@ impl PatchApplicator {
 
             let actual_context: Vec<&str> = lines[context_start..context_start + hunk.context_before.len()]
                 .iter()
-                .map(|s| s.as_str())
+                .map(std::string::String::as_str)
                 .collect();
-            let expected_context: Vec<&str> = hunk.context_before.iter().map(|s| s.as_str()).collect();
+            let expected_context: Vec<&str> = hunk.context_before.iter().map(std::string::String::as_str).collect();
 
             if !self.compare_lines(&actual_context, &expected_context, options) {
                 return Ok(false);
@@ -657,9 +644,9 @@ impl PatchApplicator {
 
             let actual_context: Vec<&str> = lines[after_start..after_start + hunk.context_after.len()]
                 .iter()
-                .map(|s| s.as_str())
+                .map(std::string::String::as_str)
                 .collect();
-            let expected_context: Vec<&str> = hunk.context_after.iter().map(|s| s.as_str()).collect();
+            let expected_context: Vec<&str> = hunk.context_after.iter().map(std::string::String::as_str).collect();
 
             if !self.compare_lines(&actual_context, &expected_context, options) {
                 return Ok(false);

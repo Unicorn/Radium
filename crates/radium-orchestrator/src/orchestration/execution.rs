@@ -187,16 +187,13 @@ async fn execute_concurrent(
             };
             
             // Find tool handler
-            let tool = match tools.iter().find(|t| t.name == call.name) {
-                Some(t) => t,
-                None => {
-                    let mut res = results.lock().unwrap();
-                    res[index] = Some(Err(OrchestrationError::Other(format!(
-                        "Tool '{}' not found",
-                        call.name
-                    ))));
-                    return;
-                }
+            let tool = if let Some(t) = tools.iter().find(|t| t.name == call.name) { t } else {
+                let mut res = results.lock().unwrap();
+                res[index] = Some(Err(OrchestrationError::Other(format!(
+                    "Tool '{}' not found",
+                    call.name
+                ))));
+                return;
             };
             
             // Execute with timeout

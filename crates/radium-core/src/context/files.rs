@@ -472,10 +472,10 @@ impl ContextFileLoader {
         import_stack: &mut Vec<PathBuf>,
         result: &mut String,
     ) -> Result<()> {
-        let mut lines = content.lines().peekable();
+        let lines = content.lines().peekable();
         let mut in_code_block = false;
 
-        while let Some(line) = lines.next() {
+        for line in lines {
             // Track code blocks to avoid processing imports inside them
             if line.trim().starts_with("```") {
                 in_code_block = !in_code_block;

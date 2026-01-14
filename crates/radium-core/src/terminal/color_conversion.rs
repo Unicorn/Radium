@@ -14,9 +14,9 @@ pub fn rgb_to_256(r: u8, g: u8, b: u8) -> u8 {
     // Otherwise, use the 6x6x6 color cube
     
     // Map to 6 levels (0, 95, 135, 175, 215, 255)
-    let r6 = ((r as u16 * 5) / 255) as u8;
-    let g6 = ((g as u16 * 5) / 255) as u8;
-    let b6 = ((b as u16 * 5) / 255) as u8;
+    let r6 = ((u16::from(r) * 5) / 255) as u8;
+    let g6 = ((u16::from(g) * 5) / 255) as u8;
+    let b6 = ((u16::from(b) * 5) / 255) as u8;
     
     // Calculate index in 6x6x6 cube (16-231)
     16 + (r6 * 36) + (g6 * 6) + b6
@@ -51,9 +51,9 @@ pub fn rgb_to_16(r: u8, g: u8, b: u8) -> u8 {
 
     for (i, &(ar, ag, ab)) in ansi_colors.iter().enumerate() {
         // Calculate Euclidean distance
-        let dr = (r as i32 - ar as i32).abs() as u32;
-        let dg = (g as i32 - ag as i32).abs() as u32;
-        let db = (b as i32 - ab as i32).abs() as u32;
+        let dr = (i32::from(r) - i32::from(ar)).unsigned_abs();
+        let dg = (i32::from(g) - i32::from(ag)).unsigned_abs();
+        let db = (i32::from(b) - i32::from(ab)).unsigned_abs();
         let distance = dr * dr + dg * dg + db * db;
 
         if distance < min_distance {

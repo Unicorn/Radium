@@ -57,12 +57,11 @@ impl SqliteBatchRepository {
 
         let completed_at: Option<String> = row.get(8)?;
         let completed_at = completed_at
-            .map(|s| {
+            .and_then(|s| {
                 DateTime::parse_from_rfc3339(&s)
                     .map(|dt| dt.with_timezone(&Utc))
                     .ok()
-            })
-            .flatten();
+            });
 
         Ok(BatchExecution {
             batch_id: row.get(0)?,
@@ -91,12 +90,11 @@ impl SqliteBatchRepository {
 
         let completed_at: Option<String> = row.get(9)?;
         let completed_at = completed_at
-            .map(|s| {
+            .and_then(|s| {
                 DateTime::parse_from_rfc3339(&s)
                     .map(|dt| dt.with_timezone(&Utc))
                     .ok()
-            })
-            .flatten();
+            });
 
         Ok(BatchRequestResult {
             id: row.get(0)?,

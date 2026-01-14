@@ -67,7 +67,7 @@ impl CapabilityMatcher {
         task_description: &str,
         skills: &[&'a SkillDefinition],
     ) -> Option<(&'a SkillDefinition, f32, String)> {
-        let mut rankings = self.rank_skills(task_description, skills).await;
+        let rankings = self.rank_skills(task_description, skills).await;
 
         rankings.into_iter().next()
     }
@@ -115,7 +115,7 @@ impl CapabilityMatcher {
         };
 
         // Weighted combination
-        let base_score = (keyword_score * 0.5) + (phrase_score * 0.4) + (name_score * 0.1);
+        let base_score = keyword_score.mul_add(0.5, phrase_score * 0.4) + (name_score * 0.1);
 
         // Cap at 1.0
         let final_score = base_score.min(1.0);

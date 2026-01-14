@@ -174,8 +174,7 @@ impl RecoveryManager {
                 .find(|cp| {
                     cp.description
                         .as_ref()
-                        .map(|d| d.contains(step_id))
-                        .unwrap_or(false)
+                        .is_some_and(|d| d.contains(step_id))
                 })
         } else {
             None

@@ -137,15 +137,15 @@ impl ParallelExecutor {
 
             // Filter to tasks that aren't already completed/failed and aren't blocked
             let mut batch_task_ids: Vec<String> = Vec::new();
-            for task_id in ready_task_ids.iter() {
+            for task_id in &ready_task_ids {
                 // Check if task is already completed or failed
-                if execution_state.is_completed(&task_id) || execution_state.is_failed(&task_id) {
+                if execution_state.is_completed(task_id) || execution_state.is_failed(task_id) {
                     continue;
                 }
 
                 // Check if task is blocked by failed dependencies
-                if self.is_blocked_by_failures(&task_id, &tasks, &execution_state) {
-                    execution_state.mark_blocked(&task_id);
+                if self.is_blocked_by_failures(task_id, &tasks, &execution_state) {
+                    execution_state.mark_blocked(task_id);
                     warn!(
                         requirement_id = %requirement_id,
                         task_id = %task_id,
@@ -154,7 +154,7 @@ impl ParallelExecutor {
                     continue;
                 }
 
-                batch_task_ids.push(task_id.to_string());
+                batch_task_ids.push(task_id.clone());
                 
                 // Limit batch size to max_concurrent
                 if batch_task_ids.len() >= self.max_concurrent {
@@ -226,34 +226,31 @@ impl ParallelExecutor {
                     };
 
                     // Get the actual agent object from the registry
-                    let agent = match agent_selector_clone.get_agent(&agent_id).await {
-                        Some(a) => a,
-                        None => {
-                            let error_msg = format!("Agent not found: {}", agent_id);
-                            error!(
-                                requirement_id = %requirement_id_clone,
-                                task_id = %task_id_clone,
-                                agent_id = %agent_id,
-                                "Agent not found in registry"
-                            );
-                            let task_result = TaskResult::failure(
-                                String::new(),
-                                started_at,
-                                Utc::now(),
-                                agent_id.clone(),
-                                error_msg.clone(),
-                            );
-                            execution_state_clone.mark_failed(&task_id_clone, task_result);
-                            let _ = braingrid_client_clone
-                                .update_task_status(
-                                    &task_clone.task_id(),
-                                    &requirement_id_clone,
-                                    TaskStatus::InProgress,
-                                    Some(&error_msg),
-                                )
-                                .await;
-                            return Err(error_msg);
-                        }
+                    let agent = if let Some(a) = agent_selector_clone.get_agent(&agent_id).await { a } else {
+                        let error_msg = format!("Agent not found: {}", agent_id);
+                        error!(
+                            requirement_id = %requirement_id_clone,
+                            task_id = %task_id_clone,
+                            agent_id = %agent_id,
+                            "Agent not found in registry"
+                        );
+                        let task_result = TaskResult::failure(
+                            String::new(),
+                            started_at,
+                            Utc::now(),
+                            agent_id.clone(),
+                            error_msg.clone(),
+                        );
+                        execution_state_clone.mark_failed(&task_id_clone, task_result);
+                        let _ = braingrid_client_clone
+                            .update_task_status(
+                                &task_clone.task_id(),
+                                &requirement_id_clone,
+                                TaskStatus::InProgress,
+                                Some(&error_msg),
+                            )
+                            .await;
+                        return Err(error_msg);
                     };
 
                     info!(
@@ -308,8 +305,8 @@ impl ParallelExecutor {
                                 AgentOutput::Terminate => "Terminated".to_string(),
                             };
 
-                            // TODO: Extract git commits from execution (requires git integration)
-                            let commits = vec![];
+                            // Extract git commits from execution output
+                            let commits = crate::workflow::git_integration::extract_commits_from_output(&output);
 
                             // TODO: Extract test results from execution (requires test integration)
                             let test_results = None;

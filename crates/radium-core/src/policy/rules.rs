@@ -260,7 +260,7 @@ impl PolicyEngine {
     pub async fn evaluate_tool(&self, tool_name: &str, args: &[&str]) -> PolicyResult<PolicyDecision> {
         // Execute BeforeTool hooks to allow modification
         let mut effective_tool_name = tool_name.to_string();
-        let mut effective_args: Vec<String> = args.iter().map(|s| s.to_string()).collect();
+        let mut effective_args: Vec<String> = args.iter().map(|s| (*s).to_string()).collect();
 
         if let Some(registry) = &self.hook_registry {
             let hook_context = HookContext::new(
@@ -288,7 +288,7 @@ impl PolicyEngine {
                         if let Some(new_args) = modified_data.get("args").and_then(|v| v.as_array()) {
                             effective_args = new_args
                                 .iter()
-                                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                                .filter_map(|v| v.as_str().map(std::string::ToString::to_string))
                                 .collect::<Vec<_>>();
                         }
                     }
@@ -297,7 +297,7 @@ impl PolicyEngine {
         }
 
         // Convert effective_args back to &[&str] for policy evaluation
-        let args_refs: Vec<&str> = effective_args.iter().map(|s| s.as_str()).collect();
+        let args_refs: Vec<&str> = effective_args.iter().map(std::string::String::as_str).collect();
 
         // Check rules in priority order
         for rule in &self.rules {
@@ -317,14 +317,14 @@ impl PolicyEngine {
                 // Send alert for violations (non-allow actions)
                 if let Some(ref alert_manager) = self.alert_manager {
                     if decision.action != PolicyAction::Allow {
-                        let args_str: Vec<&str> = args_refs.iter().copied().collect();
+                        let args_str: Vec<&str> = args_refs.clone();
                         alert_manager.send_alert(&decision, &effective_tool_name, &args_str, None).await;
                     }
                 }
 
                 // Record analytics event
                 if let Some(ref analytics) = self.analytics {
-                    let args_str: Vec<&str> = args_refs.iter().copied().collect();
+                    let args_str: Vec<&str> = args_refs.clone();
                     analytics.record_event(&decision, &effective_tool_name, &args_str, None);
                 }
 
@@ -364,14 +364,14 @@ impl PolicyEngine {
         // Send alert for violations (non-allow actions)
         if let Some(ref alert_manager) = self.alert_manager {
             if decision.action != PolicyAction::Allow {
-                let args_str: Vec<&str> = args_refs.iter().copied().collect();
+                let args_str: Vec<&str> = args_refs.clone();
                 alert_manager.send_alert(&decision, &effective_tool_name, &args_str, None).await;
             }
         }
 
         // Record analytics event
         if let Some(ref analytics) = self.analytics {
-            let args_str: Vec<&str> = args_refs.iter().copied().collect();
+            let args_str: Vec<&str> = args_refs.clone();
             analytics.record_event(&decision, &effective_tool_name, &args_str, None);
         }
 

@@ -257,27 +257,24 @@ impl OrchestrationEngine {
         let correlation_id = context.session_id.clone();
         
         // Wrap the entire execution in a timeout
-        match timeout(timeout_duration, self.execute_internal(input, context)).await {
-            Ok(result) => result,
-            Err(_) => {
-                // Timeout occurred
-                self.emit(OrchestrationEvent::Error {
-                    correlation_id: correlation_id.clone(),
-                    message: format!(
-                        "Orchestration timed out after {} seconds",
-                        self.config.timeout_seconds
-                    ),
-                });
-                self.emit(OrchestrationEvent::Done {
-                    correlation_id,
-                    finish_reason: FinishReason::Error.to_string(),
-                });
-                Ok(OrchestrationResult::new(
-                    format!("Orchestration timed out after {} seconds", self.config.timeout_seconds),
-                    vec![],
-                    FinishReason::Error,
-                ))
-            }
+        if let Ok(result) = timeout(timeout_duration, self.execute_internal(input, context)).await { result } else {
+            // Timeout occurred
+            self.emit(OrchestrationEvent::Error {
+                correlation_id: correlation_id.clone(),
+                message: format!(
+                    "Orchestration timed out after {} seconds",
+                    self.config.timeout_seconds
+                ),
+            });
+            self.emit(OrchestrationEvent::Done {
+                correlation_id,
+                finish_reason: FinishReason::Error.to_string(),
+            });
+            Ok(OrchestrationResult::new(
+                format!("Orchestration timed out after {} seconds", self.config.timeout_seconds),
+                vec![],
+                FinishReason::Error,
+            ))
         }
     }
 
@@ -672,7 +669,7 @@ impl OrchestrationEngine {
                 match hook_executor.after_tool_execution(&tool_call.name, &effective_arguments, &result_json).await {
                     Ok(modified_result) => {
                         // Update result if hooks modified it
-                        if let Some(success) = modified_result.get("success").and_then(|v| v.as_bool()) {
+                        if let Some(success) = modified_result.get("success").and_then(serde_json::Value::as_bool) {
                             result.success = success;
                         }
                         if let Some(output) = modified_result.get("output").and_then(|v| v.as_str()) {

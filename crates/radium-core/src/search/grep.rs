@@ -126,7 +126,7 @@ struct SearchSink<'a> {
     content: &'a str,
 }
 
-impl<'a> Sink for SearchSink<'a> {
+impl Sink for SearchSink<'_> {
     type Error = io::Error;
 
     fn matched(&mut self, _searcher: &Searcher, mat: &SinkMatch<'_>) -> Result<bool, Self::Error> {
@@ -145,24 +145,24 @@ impl<'a> Sink for SearchSink<'a> {
         let context_before: Vec<String> = if line_idx >= self.context_before {
             lines[line_idx - self.context_before..line_idx]
                 .iter()
-                .map(|s| s.to_string())
+                .map(|s| (*s).to_string())
                 .collect()
         } else {
             lines[..line_idx]
                 .iter()
-                .map(|s| s.to_string())
+                .map(|s| (*s).to_string())
                 .collect()
         };
 
         let context_after: Vec<String> = if line_idx + 1 + self.context_after <= lines.len() {
             lines[line_idx + 1..line_idx + 1 + self.context_after]
                 .iter()
-                .map(|s| s.to_string())
+                .map(|s| (*s).to_string())
                 .collect()
         } else {
             lines[line_idx + 1..]
                 .iter()
-                .map(|s| s.to_string())
+                .map(|s| (*s).to_string())
                 .collect()
         };
 

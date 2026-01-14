@@ -68,14 +68,14 @@ impl ToolHandler for ProjectScanHandler {
             if let Ok(file_counts) = count_files_by_type(&workspace_root).await {
                 scan_result.push_str("## File Statistics\n\n");
                 scan_result.push_str(&file_counts);
-                scan_result.push_str("\n");
+                scan_result.push('\n');
             }
 
             // 6. Detect frameworks/technologies
             if let Some(tech_stack) = detect_tech_stack(&workspace_root).await {
                 scan_result.push_str("## Detected Technologies\n\n");
                 scan_result.push_str(&tech_stack);
-                scan_result.push_str("\n");
+                scan_result.push('\n');
             }
         }
 

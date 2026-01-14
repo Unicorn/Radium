@@ -423,9 +423,7 @@ fn map_http_error(status: reqwest::StatusCode, error_text: &str, operation: &str
 /// Detects MIME type from file extension.
 fn detect_mime_type_from_extension(path: &Path) -> String {
     path.extension()
-        .and_then(|ext| ext.to_str())
-        .and_then(|ext| {
-            Some(match ext.to_lowercase().as_str() {
+        .and_then(|ext| ext.to_str()).map_or("application/octet-stream", |ext| match ext.to_lowercase().as_str() {
                 "png" => "image/png",
                 "jpg" | "jpeg" => "image/jpeg",
                 "gif" => "image/gif",
@@ -440,8 +438,6 @@ fn detect_mime_type_from_extension(path: &Path) -> String {
                 "md" => "text/markdown",
                 _ => "application/octet-stream",
             })
-        })
-        .unwrap_or("application/octet-stream")
         .to_string()
 }
 

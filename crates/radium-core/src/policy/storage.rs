@@ -46,7 +46,7 @@ impl PolicyAnalyticsStorage {
         
         // Create policy_events table
         conn.execute(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS policy_events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp INTEGER NOT NULL,
@@ -57,13 +57,13 @@ impl PolicyAnalyticsStorage {
                 reason TEXT,
                 user TEXT
             )
-            "#,
+            ",
             [],
         )?;
 
         // Create rule_metrics table for aggregated metrics
         conn.execute(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS rule_metrics (
                 rule_name TEXT PRIMARY KEY,
                 total_evaluations INTEGER NOT NULL DEFAULT 0,
@@ -73,7 +73,7 @@ impl PolicyAnalyticsStorage {
                 dry_run_count INTEGER NOT NULL DEFAULT 0,
                 last_updated INTEGER NOT NULL
             )
-            "#,
+            ",
             [],
         )?;
 
@@ -105,11 +105,11 @@ impl PolicyAnalyticsStorage {
     pub fn store_event(&self, event: &PolicyEvent) -> SqliteResult<()> {
         let conn = self.conn.lock().unwrap();
         conn.execute(
-            r#"
+            r"
             INSERT INTO policy_events 
             (timestamp, tool_name, arguments, action, matched_rule, reason, user)
             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
-            "#,
+            ",
             params![
                 event.timestamp,
                 event.tool_name,
@@ -136,7 +136,7 @@ impl PolicyAnalyticsStorage {
 
         // Try to update existing metrics
         let rows_affected = conn.execute(
-            r#"
+            r"
             UPDATE rule_metrics
             SET 
                 total_evaluations = total_evaluations + 1,
@@ -146,14 +146,14 @@ impl PolicyAnalyticsStorage {
                 dry_run_count = dry_run_count + CASE WHEN ?1 = 'dry_run_first' THEN 1 ELSE 0 END,
                 last_updated = ?2
             WHERE rule_name = ?3
-            "#,
+            ",
             params![action, timestamp, rule_name],
         )?;
 
         // If no rows were updated, insert new metrics
         if rows_affected == 0 {
             conn.execute(
-                r#"
+                r"
                 INSERT INTO rule_metrics 
                 (rule_name, total_evaluations, allow_count, deny_count, ask_count, dry_run_count, last_updated)
                 VALUES (?1, 1, 
@@ -162,7 +162,7 @@ impl PolicyAnalyticsStorage {
                     CASE WHEN ?2 = 'askuser' THEN 1 ELSE 0 END,
                     CASE WHEN ?2 = 'dry_run_first' THEN 1 ELSE 0 END,
                     ?3)
-                "#,
+                ",
                 params![rule_name, action, timestamp],
             )?;
         }
@@ -182,7 +182,7 @@ impl PolicyAnalyticsStorage {
         let start_timestamp = chrono::Utc::now().timestamp() - (days * 24 * 60 * 60);
 
         let mut stmt = conn.prepare(
-            r#"
+            r"
             SELECT 
                 date(datetime(timestamp, 'unixepoch')) as date,
                 COUNT(*) as violation_count
@@ -191,7 +191,7 @@ impl PolicyAnalyticsStorage {
                 AND action IN ('deny', 'askuser', 'dry_run_first')
             GROUP BY date
             ORDER BY date ASC
-            "#,
+            ",
         )?;
 
         let rows = stmt.query_map(params![start_timestamp], |row| {
@@ -213,7 +213,7 @@ impl PolicyAnalyticsStorage {
     pub fn get_rule_metrics(&self) -> SqliteResult<Vec<(String, i64, i64, i64, i64, i64)>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            r#"
+            r"
             SELECT 
                 rule_name,
                 total_evaluations,
@@ -223,7 +223,7 @@ impl PolicyAnalyticsStorage {
                 dry_run_count
             FROM rule_metrics
             ORDER BY total_evaluations DESC
-            "#,
+            ",
         )?;
 
         let rows = stmt.query_map([], |row| {

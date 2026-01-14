@@ -223,7 +223,7 @@ impl AgentSelector {
 
         // Return routing decision metadata (Phase 2 - REQ-246)
         Ok(RoutingDecisionMetadata {
-            agent_id: final_agent_id.to_string(),
+            agent_id: final_agent_id.clone(),
             routing_method,
             confidence: adjusted_confidence,
             task_description: text,
@@ -320,7 +320,7 @@ impl AgentSelector {
             let mut prefs_guard = prefs.lock().unwrap();
 
             // Determine feedback rating (use explicit rating or infer from execution)
-            let rating = user_rating.unwrap_or_else(|| {
+            let rating = user_rating.unwrap_or({
                 if execution_success {
                     FeedbackRating::Positive
                 } else {

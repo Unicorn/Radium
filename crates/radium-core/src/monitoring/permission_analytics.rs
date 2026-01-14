@@ -118,7 +118,7 @@ impl PermissionAnalytics {
         let mut stats: HashMap<String, AgentUsageStats> = HashMap::new();
         
         for event in &self.events {
-            let agent_id = event.agent_id.as_ref().map(|s| s.as_str()).unwrap_or("unknown");
+            let agent_id = event.agent_id.as_deref().unwrap_or("unknown");
             let agent_stats = stats.entry(agent_id.to_string()).or_insert_with(|| {
                 AgentUsageStats {
                     agent_id: agent_id.to_string(),

@@ -8,10 +8,12 @@ use std::collections::HashMap;
 /// Performance profile for model selection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum PerformanceProfile {
     /// Optimize for speed - fast models, lower cost.
     Speed,
     /// Balanced speed and quality.
+    #[default]
     Balanced,
     /// Optimize for deep reasoning.
     Thinking,
@@ -19,11 +21,6 @@ pub enum PerformanceProfile {
     Expert,
 }
 
-impl Default for PerformanceProfile {
-    fn default() -> Self {
-        Self::Balanced
-    }
-}
 
 impl std::fmt::Display for PerformanceProfile {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

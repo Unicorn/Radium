@@ -170,13 +170,12 @@ impl AgentLinter for PromptLinter {
         self.check_section(&content, "Notes", false, &mut result);
 
         // Check for examples if enabled
-        if self.check_examples {
-            if Self::extract_section(&content, "Examples").is_none() {
+        if self.check_examples
+            && Self::extract_section(&content, "Examples").is_none() {
                 result.add_warning(
                     "No Examples section found. Examples help clarify agent behavior.".to_string(),
                 );
             }
-        }
 
         Ok(result)
     }

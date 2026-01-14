@@ -19,18 +19,18 @@ pub fn render_progress(tracker: &BatchProgressTracker, agent_id: &str) -> io::Re
     // Progress bar
     let filled_bar = "━".repeat(filled);
     let empty_bar = "─".repeat(empty);
-    print!(
-        "Batch Execution: {}\n",
+    println!(
+        "Batch Execution: {}",
         agent_id
     );
-    print!(
-        "{}{} {}/{} ({:.1}%)\n",
+    println!(
+        "{}{} {}/{} ({:.1}%)",
         filled_bar, empty_bar, tracker.completed, tracker.total, percentage
     );
 
     // Metrics
-    print!(
-        "Active: {} | Queued: {} | Success: {} | Failed: {}\n",
+    println!(
+        "Active: {} | Queued: {} | Success: {} | Failed: {}",
         tracker.active, tracker.queued, tracker.successful, tracker.failed
     );
 

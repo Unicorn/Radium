@@ -36,7 +36,7 @@ impl CodeBlockParser {
                         let mut after_backticks = String::new();
                         
                         // Read until newline
-                        while let Some((_, c)) = chars.next() {
+                        for (_, c) in chars.by_ref() {
                             if c == '\n' {
                                 line_number += 1;
                                 break;
@@ -61,8 +61,8 @@ impl CodeBlockParser {
                             } else if c == '`' {
                                 // Check if this is closing fence
                                 let mut peek_chars = chars.clone();
-                                if peek_chars.next().map(|(_, c)| c) == Some('`') {
-                                    if peek_chars.next().map(|(_, c)| c) == Some('`') {
+                                if peek_chars.next().map(|(_, c)| c) == Some('`')
+                                    && peek_chars.next().map(|(_, c)| c) == Some('`') {
                                         // Found closing ```
                                         // Consume the closing backticks
                                         chars.next(); // `
@@ -81,7 +81,6 @@ impl CodeBlockParser {
                                         found_closing = true;
                                         break;
                                     }
-                                }
                                 content.push(c);
                             } else {
                                 content.push(c);
@@ -191,7 +190,7 @@ impl CodeBlockParser {
             }
             
             // Pattern: # path/to/file.py (Python/Ruby style)
-            if trimmed.starts_with("#") && !trimmed.starts_with("##") {
+            if trimmed.starts_with('#') && !trimmed.starts_with("##") {
                 let comment_content = trimmed[1..].trim();
                 if (comment_content.contains('/') || comment_content.contains('\\'))
                     && !comment_content.starts_with("http")

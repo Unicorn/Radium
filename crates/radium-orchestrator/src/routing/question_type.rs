@@ -378,7 +378,7 @@ impl AnalysisPlan {
         let recommended_files = question_type
             .recommended_files()
             .iter()
-            .map(|s| s.to_string())
+            .map(|s| (*s).to_string())
             .collect();
         let suggested_searches = question_type.suggested_searches(input);
         let synthesis_guidance = question_type.synthesis_guidance().to_string();

@@ -167,7 +167,7 @@ impl ExecutionError {
             || error_str.contains("timeout")
             || error_str.contains("network")
             || error_str.contains("connection")
-            || error_str.contains("5")
+            || error_str.contains('5')
             || error_str.contains("server error")
             || error_str.contains("file lock")
             || error_str.contains("temporary")
@@ -434,7 +434,7 @@ impl PlanExecutor {
                         || error_str.contains("timeout")
                         || error_str.contains("network")
                         || error_str.contains("connection")
-                        || error_str.contains("5");
+                        || error_str.contains('5');
                     
                     if !is_recoverable || attempt >= max_retries {
                         // Fatal error or retries exhausted
@@ -517,7 +517,7 @@ impl PlanExecutor {
 
         // Use ContextManager to build comprehensive context if available
         if let Some(ref context_manager) = self.config.context_manager {
-            let invocation = format!("{agent_id}");
+            let invocation = agent_id.clone();
             let requirement_id = self.config.requirement_id;
             let mut manager = context_manager.lock().map_err(|e| {
                 ExecutionError::Prompt(format!("Context manager lock failed: {}", e))
@@ -548,7 +548,7 @@ impl PlanExecutor {
                     .usage
                     .map(|u| (u.prompt_tokens as usize, u.completion_tokens as usize));
 
-                let response_content = response.content.clone();
+                let response_content = response.content;
 
                 // Store agent output to MemoryStore if available
                 if let Some(ref memory_store) = self.config.memory_store {

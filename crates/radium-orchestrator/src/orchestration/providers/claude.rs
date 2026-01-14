@@ -67,7 +67,7 @@ fn build_orchestration_system_prompt(tools: &[Tool]) -> String {
         for tool in tools_in_cat {
             prompt.push_str(&format!("**{}**: {}\n", tool.name, tool.description));
         }
-        prompt.push_str("\n");
+        prompt.push('\n');
     }
 
     prompt.push_str(

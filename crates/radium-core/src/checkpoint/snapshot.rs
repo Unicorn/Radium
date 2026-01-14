@@ -219,19 +219,19 @@ impl CheckpointManager {
             if let Some(workflow_id) = json.get("workflow_id").and_then(|v| v.as_str()) {
                 checkpoint = checkpoint.with_workflow_id(workflow_id.to_string());
             }
-            if let Some(timestamp) = json.get("timestamp").and_then(|v| v.as_u64()) {
+            if let Some(timestamp) = json.get("timestamp").and_then(serde_json::Value::as_u64) {
                 checkpoint.timestamp = timestamp;
             }
-            if let Some(duration) = json.get("execution_duration_secs").and_then(|v| v.as_u64()) {
+            if let Some(duration) = json.get("execution_duration_secs").and_then(serde_json::Value::as_u64) {
                 checkpoint.execution_duration_secs = Some(duration);
             }
-            if let Some(memory) = json.get("memory_usage_mb").and_then(|v| v.as_f64()) {
+            if let Some(memory) = json.get("memory_usage_mb").and_then(serde_json::Value::as_f64) {
                 checkpoint.memory_usage_mb = Some(memory);
             }
-            if let Some(cpu) = json.get("cpu_time_secs").and_then(|v| v.as_f64()) {
+            if let Some(cpu) = json.get("cpu_time_secs").and_then(serde_json::Value::as_f64) {
                 checkpoint.cpu_time_secs = Some(cpu);
             }
-            if let Some(tokens) = json.get("tokens_used").and_then(|v| v.as_u64()) {
+            if let Some(tokens) = json.get("tokens_used").and_then(serde_json::Value::as_u64) {
                 checkpoint.tokens_used = Some(tokens);
             }
         }
@@ -419,11 +419,10 @@ impl CheckpointManager {
             checkpoints
                 .into_iter()
                 .find(|cp| {
-                    cp.task_id.as_ref().map(|tid| tid == step_id).unwrap_or(false)
+                    cp.task_id.as_ref().is_some_and(|tid| tid == step_id)
                         || cp.description
                             .as_ref()
-                            .map(|d| d.contains(step_id))
-                            .unwrap_or(false)
+                            .is_some_and(|d| d.contains(step_id))
                 })
         } else {
             None

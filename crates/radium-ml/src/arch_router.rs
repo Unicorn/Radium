@@ -11,7 +11,6 @@
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -176,14 +175,14 @@ impl ArchRouterEngine {
                 }
 
                 // Name match bonus
-                let name_match = if task_lower.contains(&name_lower) || name_lower.contains(&task_lower.split_whitespace().next().unwrap_or("")) {
+                let name_match = if task_lower.contains(&name_lower) || name_lower.contains(task_lower.split_whitespace().next().unwrap_or("")) {
                     0.3
                 } else {
                     0.0
                 };
 
                 // Calculate normalized score (simulate ML confidence)
-                let base_score = (overlap_count as f32 / task_words.len().max(1) as f32) * 0.7 + name_match;
+                let base_score = (overlap_count as f32 / task_words.len().max(1) as f32).mul_add(0.7, name_match);
 
                 // Add some variance to simulate model uncertainty
                 let score = (base_score + 0.1).min(0.95);
@@ -202,7 +201,7 @@ impl ArchRouterEngine {
             agent_id: best_route,
             confidence: best_score,
             alternatives,
-            reasoning: Some(format!("Simulated routing based on keyword matching")),
+            reasoning: Some("Simulated routing based on keyword matching".to_string()),
         })
     }
 

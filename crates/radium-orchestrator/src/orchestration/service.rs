@@ -371,7 +371,7 @@ impl OrchestrationService {
 
         // Load and inject context files if loader is available
         if let Some(ref loader) = self.context_loader {
-            if let Some(dir) = current_dir.or_else(|| self.workspace_root.as_deref()) {
+            if let Some(dir) = current_dir.or(self.workspace_root.as_deref()) {
                 match loader.load_hierarchical(dir) {
                     Ok(context_content) => {
                         if !context_content.is_empty() {

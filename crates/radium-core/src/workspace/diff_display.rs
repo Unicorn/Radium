@@ -184,7 +184,7 @@ pub fn format_patch_result_for_tui(result: &PatchResult) -> Vec<String> {
         for file in &result.changed_files {
             let diff_lines: Vec<&str> = file.diff.lines().collect();
             let preview: Vec<&str> = diff_lines.iter().take(50).copied().collect();
-            lines.extend(preview.iter().map(|s| s.to_string()));
+            lines.extend(preview.iter().map(|s| (*s).to_string()));
             if diff_lines.len() > 50 {
                 lines.push(format!("... ({} more lines)", diff_lines.len() - 50));
             }

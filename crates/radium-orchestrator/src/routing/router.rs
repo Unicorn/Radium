@@ -607,22 +607,19 @@ impl ModelRouter {
         }
 
         // Estimate complexity
-        let complexity = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let complexity = if let Ok(score) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             self.estimator.estimate(input, agent_id)
-        })) {
-            Ok(score) => score,
-            Err(_) => {
-                warn!("Complexity estimation failed, defaulting to Smart tier");
-                return (
-                    self.smart_model.clone(),
-                    RoutingDecision {
-                        tier: RoutingTier::Smart,
-                        decision_type: DecisionType::Fallback,
-                        complexity_score: None,
-                        ab_test_group: None,
-                    },
-                );
-            }
+        })) { score } else {
+            warn!("Complexity estimation failed, defaulting to Smart tier");
+            return (
+                self.smart_model.clone(),
+                RoutingDecision {
+                    tier: RoutingTier::Smart,
+                    decision_type: DecisionType::Fallback,
+                    complexity_score: None,
+                    ab_test_group: None,
+                },
+            );
         };
 
         // Route based on strategy

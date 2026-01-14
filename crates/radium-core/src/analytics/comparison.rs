@@ -51,16 +51,8 @@ impl SessionComparison {
         let cost_delta = metrics_b.total_cost - metrics_a.total_cost;
 
         // Calculate time deltas
-        let wall_time_delta = if metrics_b.wall_time > metrics_a.wall_time {
-            metrics_b.wall_time - metrics_a.wall_time
-        } else {
-            metrics_a.wall_time - metrics_b.wall_time
-        };
-        let agent_active_time_delta = if metrics_b.agent_active_time > metrics_a.agent_active_time {
-            metrics_b.agent_active_time - metrics_a.agent_active_time
-        } else {
-            metrics_a.agent_active_time - metrics_b.agent_active_time
-        };
+        let wall_time_delta = metrics_b.wall_time.abs_diff(metrics_a.wall_time);
+        let agent_active_time_delta = metrics_b.agent_active_time.abs_diff(metrics_a.agent_active_time);
 
         // Calculate tool calls delta
         let tool_calls_delta = metrics_b.tool_calls as i64 - metrics_a.tool_calls as i64;
@@ -185,7 +177,7 @@ impl ComparisonFormatter {
                 comparison.metrics_b.agent_active_time.as_secs_f64()
             ))
         ));
-        output.push_str("\n");
+        output.push('\n');
 
         // Tool calls comparison
         output.push_str("Tool Calls\n");

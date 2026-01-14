@@ -331,7 +331,7 @@ impl GeminiModel {
                     }
                     ImageSource::Url { url } => {
                         // URL images - validate URI format
-                        validation_utils::validate_file_uri(&url)?;
+                        validation_utils::validate_file_uri(url)?;
                         // For URL images, we'd need to download and encode, or use as-is
                         // For now, return error as URL support needs more work
                         Err(ModelError::UnsupportedContentType {
@@ -469,8 +469,7 @@ impl GeminiModel {
     /// `GeminiTool::GoogleSearch` with configured dynamic retrieval settings.
     fn build_grounding_tool(threshold: Option<f32>) -> GeminiTool {
         let clamped_threshold = threshold
-            .map(|t| t.clamp(0.0, 1.0))
-            .unwrap_or(0.3);
+            .map_or(0.3, |t| t.clamp(0.0, 1.0));
 
         GeminiTool::GoogleSearch {
             google_search: GeminiGoogleSearch {
@@ -1392,8 +1391,8 @@ impl Stream for GeminiSSEStream {
                                 self.buffer = self.buffer[end_idx + 2..].to_string();
 
                                 // Parse SSE event
-                                if event.starts_with("data: ") {
-                                    let data = &event[6..]; // Skip "data: " prefix
+                                if let Some(data) = event.strip_prefix("data: ") {
+                                    // Skip "data: " prefix
 
                                     // Check for [DONE] signal or empty data
                                     if data.trim() == "[DONE]" || data.trim().is_empty() {
@@ -1514,9 +1513,7 @@ impl Stream for GeminiSSEStream {
                         let event = self.buffer[..end_idx].to_string();
                         self.buffer = self.buffer[end_idx + 2..].to_string();
 
-                        if event.starts_with("data: ") {
-                            let data = &event[6..];
-
+                        if let Some(data) = event.strip_prefix("data: ") {
                             if data.trim() == "[DONE]" || data.trim().is_empty() {
                                 self.done = true;
                                 if !self.accumulated.is_empty() {
@@ -2035,7 +2032,9 @@ mod provider_capabilities {
                 _ => false,
             };
 
-            if !supported {
+            if supported {
+                Ok(())
+            } else {
                 // Find providers that support this type
                 let _alternatives = self.find_supporting_providers(mime_type);
                 let supported_types = self.get_supported_types();
@@ -2044,8 +2043,6 @@ mod provider_capabilities {
                     mime_type: mime_type.to_string(),
                     supported_types,
                 })
-            } else {
-                Ok(())
             }
         }
 
@@ -2161,7 +2158,7 @@ mod validation_utils {
     /// The estimated size after base64 encoding
     pub fn calculate_base64_size(data_size: usize) -> usize {
         // Base64 encoding increases size by 4/3, plus padding
-        ((data_size + 2) / 3) * 4
+        data_size.div_ceil(3) * 4
     }
 
     /// Determine if file URI should be used instead of inline data.
@@ -2212,13 +2209,13 @@ mod validation_utils {
             .iter()
             .any(|scheme| uri.starts_with(scheme));
         
-        if !has_valid_scheme {
+        if has_valid_scheme {
+            Ok(())
+        } else {
             Err(ModelError::InvalidFileUri {
                 uri: uri.to_string(),
                 reason: "Unsupported URI scheme".to_string(),
             })
-        } else {
-            Ok(())
         }
     }
 }
@@ -2290,7 +2287,7 @@ mod mime_utils {
             supported.extend_from_slice(SUPPORTED_DOCUMENT_TYPES);
             Err(ModelError::UnsupportedMimeType {
                 mime_type: mime_type.to_string(),
-                supported_types: supported.iter().map(|s| s.to_string()).collect(),
+                supported_types: supported.iter().map(|s| (*s).to_string()).collect(),
             })
         }
     }
@@ -2396,8 +2393,7 @@ mod tests {
         use radium_abstraction::ChatMessage;
 
         // Test that system messages are filtered from contents array
-        let messages = vec![
-            ChatMessage {
+        let messages = [ChatMessage {
                 role: "system".to_string(),
                 content: MessageContent::Text("System instruction.".to_string()),
             },
@@ -2408,8 +2404,7 @@ mod tests {
             ChatMessage {
                 role: "assistant".to_string(),
                 content: MessageContent::Text("Assistant message.".to_string()),
-            },
-        ];
+            }];
 
         // Filter system messages (simulating what happens in generate_chat_completion)
         let filtered: Vec<&ChatMessage> = messages.iter().filter(|msg| msg.role != "system").collect();
@@ -2500,7 +2495,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_gemini_streaming_sse_parsing() {
-        use futures::StreamExt;
+        
         use mockito::Server;
 
         let mut server = Server::new_async().await;
@@ -2605,7 +2600,7 @@ mod tests {
         let encoded_size = validation_utils::calculate_base64_size(original_size);
         // Base64 increases size by ~33% (4/3 ratio)
         assert!(encoded_size > original_size);
-        assert_eq!(encoded_size, ((original_size + 2) / 3) * 4);
+        assert_eq!(encoded_size, original_size.div_ceil(3) * 4);
     }
 
     #[test]
@@ -2907,11 +2902,9 @@ mod tests {
     fn test_multiple_text_parts_concatenation() {
         // Test that multiple text parts would be concatenated
         // This tests the response parsing logic conceptually
-        let parts = vec![
-            GeminiPart::Text { text: "Hello".to_string() },
+        let parts = [GeminiPart::Text { text: "Hello".to_string() },
             GeminiPart::Text { text: " ".to_string() },
-            GeminiPart::Text { text: "World".to_string() },
-        ];
+            GeminiPart::Text { text: "World".to_string() }];
         let text_parts: Vec<String> = parts
             .iter()
             .filter_map(|p| match p {

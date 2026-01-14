@@ -488,8 +488,8 @@ impl BudgetManager {
     fn get_trend_data(&self, days: u32) -> MonitoringResult<Vec<DailySpend>> {
         if let Some(ref store) = self.telemetry_store {
             let conn = store.conn();
-            let now = Utc::now().timestamp() as i64;
-            let start_timestamp = now - (days as i64 * 86400);
+            let now = Utc::now().timestamp();
+            let start_timestamp = now - (i64::from(days) * 86400);
 
             // Try to use daily summaries first
             let stmt = conn.prepare(
@@ -799,7 +799,7 @@ pub fn get_provider_comparison(
             avg_cost_per_1m_tokens: avg_cost,
         };
         
-        comparisons.entry(pricing.tier).or_insert_with(Vec::new).push(cost_info);
+        comparisons.entry(pricing.tier).or_default().push(cost_info);
     }
     
     // Build comparison results

@@ -7,7 +7,7 @@ use crate::ExecutionTask;
 use crate::{
     Agent, AgentContext, AgentLifecycle, AgentOutput, AgentRegistry, AgentState, ExecutionQueue,
 };
-use radium_abstraction::ModelError;
+use radium_abstraction::{budget::{BudgetCheckResult, BudgetManagerTrait}, ModelError};
 use radium_models::{ModelConfig, ModelFactory, ModelType};
 use crate::routing::RoutingStrategy;
 use serde_json::Value;
@@ -104,34 +104,8 @@ struct FailoverContext {
     budget_status: Option<String>,
 }
 
-/// Trait for budget management to avoid circular dependency with radium-core.
-pub trait BudgetManagerTrait: Send + Sync {
-    /// Check if estimated cost is within budget.
-    fn check_budget_available(&self, estimated_cost: f64) -> Result<(), BudgetCheckResult>;
-    
-    /// Record an actual cost after execution.
-    fn record_cost(&self, actual_cost: f64);
-    
-    /// Get budget status as a formatted string.
-    fn get_budget_status_string(&self) -> Option<String>;
-}
-
-/// Result of budget check.
-#[derive(Debug, Clone)]
-pub enum BudgetCheckResult {
-    /// Budget limit exceeded.
-    BudgetExceeded {
-        spent: f64,
-        limit: f64,
-        requested: f64,
-    },
-    /// Budget warning threshold reached.
-    BudgetWarning {
-        spent: f64,
-        limit: f64,
-        percentage: f64,
-    },
-}
+// BudgetManagerTrait and BudgetCheckResult have been moved to radium-abstraction::budget
+// to avoid circular dependencies and enable reuse across crates.
 
 /// Trait for sandbox operations to avoid circular dependency with radium-core.
 #[async_trait::async_trait]
@@ -570,13 +544,40 @@ impl AgentExecutor {
             budget_status: None,
         };
 
-        // Budget checking disabled - requires radium_core dependency
-        // TODO: Re-enable budget checking when radium_core is available as dependency
-        if self.budget_manager.is_some() {
-            debug!(
-                agent_id = %agent_id,
-                "Budget manager present but checking disabled (radium_core not available)"
-            );
+        // Check budget before execution
+        if let Some(ref budget_manager) = self.budget_manager {
+            // Estimate cost based on input size (rough estimate: ~$0.01 per 1000 tokens)
+            let estimated_tokens = effective_input.len() as f64 / 4.0;
+            let estimated_cost = (estimated_tokens / 1000.0) * 0.01;
+
+            match budget_manager.check_budget_available(estimated_cost) {
+                Ok(()) => {
+                    debug!(
+                        agent_id = %agent_id,
+                        estimated_cost = %estimated_cost,
+                        "Budget check passed"
+                    );
+                }
+                Err(err) => {
+                    warn!(
+                        agent_id = %agent_id,
+                        estimated_cost = %estimated_cost,
+                        error = %err,
+                        "Budget check warning/exceeded"
+                    );
+                    // For exceeded budget, return error immediately
+                    if matches!(err, BudgetCheckResult::BudgetExceeded { .. }) {
+                        return ExecutionResult {
+                            output: AgentOutput::Text(String::new()),
+                            success: false,
+                            error: Some(format!("Budget exceeded: {}", err)),
+                            telemetry: None,
+                            routing_decision: None,
+                        };
+                    }
+                    // For warnings, continue but log
+                }
+            }
         }
 
         // Retry loop with provider failover
@@ -599,24 +600,29 @@ impl AgentExecutor {
                     info!(agent_id = %agent_id, output_type = ?output, provider = %current_provider, "Agent execution completed successfully");
                     
                     // Record cost after successful execution
-                    if let Some(ref _budget_manager) = self.budget_manager {
+                    if let Some(ref budget_manager) = self.budget_manager {
                         // Estimate actual cost from input/output (rough estimate)
                         let input_tokens = effective_input.len() as f64 / 4.0;
-                        let _output_tokens = if let AgentOutput::Text(ref text) = output {
+                        let output_tokens = if let AgentOutput::Text(ref text) = output {
                             text.len() as f64 / 4.0
                         } else {
                             input_tokens * 0.3 / 0.7 // Default estimate
                         };
-                        // Budget cost recording disabled - requires radium_core dependency
-                        // TODO: Re-enable when radium_core is available
+                        // Rough cost estimate: $0.01 per 1000 tokens (average across providers)
+                        let actual_cost = ((input_tokens + output_tokens) / 1000.0) * 0.01;
+
+                        budget_manager.record_cost(actual_cost);
                         debug!(
                             agent_id = %agent_id,
-                            "Budget manager present but cost recording disabled"
+                            input_tokens = %input_tokens,
+                            output_tokens = %output_tokens,
+                            actual_cost = %actual_cost,
+                            "Cost recorded to budget manager"
                         );
                     }
                     
                     ExecutionResult {
-                        output: output,
+                        output,
                         success: true,
                         error: None,
                         telemetry: None, // Will be populated when agents capture ModelResponse
@@ -925,7 +931,7 @@ impl AgentExecutor {
             // Create model from routed config
             let model = ModelFactory::create(ModelConfig::new(
                 model_config.model_type.clone(),
-                model_config.model_id.clone(),
+                model_config.model_id,
             ))?;
             
             (model, Some(decision))
@@ -964,7 +970,7 @@ impl AgentExecutor {
                     router.track_usage(
                         routing_decision.tier,
                         &usage,
-                        &model.model_id(),
+                        model.model_id(),
                     );
                 }
                 
@@ -1007,7 +1013,7 @@ impl AgentExecutor {
             // Create model from routed config
             let model = ModelFactory::create(ModelConfig::new(
                 model_config.model_type.clone(),
-                model_config.model_id.clone(),
+                model_config.model_id,
             ))?;
             
             (model, Some(decision))
@@ -1046,7 +1052,7 @@ impl AgentExecutor {
                     router.track_usage(
                         routing_decision.tier,
                         &usage,
-                        &model.model_id(),
+                        model.model_id(),
                     );
                 }
                 
@@ -1305,7 +1311,7 @@ impl QueueProcessor {
                                             Err(_) => Err(format!("Task timed out after {:?}", task_timeout)),
                                         }
                                     }
-                                    _ = cancellation_token_clone.cancelled() => {
+                                    () = cancellation_token_clone.cancelled() => {
                                         // Task was cancelled
                                         info!(
                                             task_id = %task_id_clone,

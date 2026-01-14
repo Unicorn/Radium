@@ -73,10 +73,7 @@ impl ComplexityScore {
         weights: &ComplexityWeights,
     ) -> Self {
         // Calculate weighted sum (0-1 scale)
-        let normalized_score = (weights.token_count * token_count_factor)
-            + (weights.task_type * task_type_factor)
-            + (weights.reasoning * reasoning_factor)
-            + (weights.context * context_factor);
+        let normalized_score = weights.context.mul_add(context_factor, weights.reasoning.mul_add(reasoning_factor, weights.token_count.mul_add(token_count_factor, weights.task_type * task_type_factor)));
 
         // Scale to 0-100 for threshold comparison
         let score = normalized_score * 100.0;

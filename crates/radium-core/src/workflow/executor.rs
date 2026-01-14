@@ -396,7 +396,7 @@ impl WorkflowExecutor {
                                 for result in results {
                                     if let Some(modified_data) = result.modified_data {
                                         if let Some(custom_fields) = modified_data.as_object() {
-                                            if let Some(new_cost) = custom_fields.get("estimated_cost").and_then(|v| v.as_f64()) {
+                                            if let Some(new_cost) = custom_fields.get("estimated_cost").and_then(serde_json::Value::as_f64) {
                                                 effective_record.estimated_cost = new_cost;
                                             }
                                         }
@@ -593,7 +593,7 @@ impl WorkflowExecutor {
                     let error_context = crate::hooks::error_hooks::ErrorHookContext::logging(
                         error_msg.clone(),
                         error_type.to_string(),
-                        error_source.map(|s| s.to_string()),
+                        error_source.map(std::string::ToString::to_string),
                     );
                     let hook_context = error_context.to_hook_context(
                         crate::hooks::error_hooks::ErrorHookType::Logging,
@@ -670,7 +670,7 @@ impl WorkflowExecutor {
             );
 
             // Check for vibecheck behavior and handle if present
-            if let Some(workspace) = Workspace::discover().ok() {
+            if let Ok(workspace) = Workspace::discover() {
                 let ws_structure = WorkspaceStructure::new(workspace.root());
                 let behavior_file = ws_structure.memory_dir().join("behavior.json");
                 
@@ -700,7 +700,7 @@ impl WorkflowExecutor {
 
             // Execute workflow step hooks for behavior evaluation
             if let Some(ref _registry) = self.hook_registry {
-                if let Some(workspace) = Workspace::discover().ok() {
+                if let Ok(workspace) = Workspace::discover() {
                     let ws_structure = WorkspaceStructure::new(workspace.root());
                     let behavior_file = ws_structure.memory_dir().join("behavior.json");
                     

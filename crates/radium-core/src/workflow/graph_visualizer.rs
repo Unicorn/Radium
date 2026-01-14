@@ -26,14 +26,14 @@ impl GraphVisualizer {
         // Group tasks by level
         let mut tasks_by_level: HashMap<u32, Vec<String>> = HashMap::new();
         for (task_id, level) in &levels {
-            tasks_by_level.entry(*level).or_insert_with(Vec::new).push(task_id.clone());
+            tasks_by_level.entry(*level).or_default().push(task_id.clone());
         }
 
         // Get max level
         let max_level = levels.values().max().copied().unwrap_or(0);
 
         let mut output = String::new();
-        output.push_str("\n");
+        output.push('\n');
         output.push_str("Dependency Graph:\n");
         output.push_str(&"=".repeat(80));
         output.push_str("\n\n");
@@ -60,7 +60,7 @@ impl GraphVisualizer {
                     }
                 }
                 
-                output.push_str("\n");
+                output.push('\n');
                 
                 // Draw connections to next level
                 if level < max_level {
@@ -68,19 +68,19 @@ impl GraphVisualizer {
                     for _ in 0..tasks.len() {
                         output.push_str("│   ");
                     }
-                    output.push_str("\n");
+                    output.push('\n');
                     output.push_str("        ");
                     for _ in 0..tasks.len() {
                         output.push_str("▼   ");
                     }
-                    output.push_str("\n");
+                    output.push('\n');
                 }
             }
         }
 
-        output.push_str("\n");
+        output.push('\n');
         output.push_str(&"=".repeat(80));
-        output.push_str("\n");
+        output.push('\n');
 
         output
     }

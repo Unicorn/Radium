@@ -12,7 +12,7 @@ fn test_cache_registry_operations() {
     };
     let context = CachedContext::new(handle.clone(), Duration::from_secs(300), 1000);
 
-    registry.register(&handle, context.clone()).unwrap();
+    registry.register(&handle, context).unwrap();
     let retrieved = registry.get(&handle).unwrap().unwrap();
     assert_eq!(retrieved.token_count, 1000);
 

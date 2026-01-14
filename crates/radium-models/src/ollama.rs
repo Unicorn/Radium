@@ -427,7 +427,7 @@ impl Model for OllamaModel {
         _tool_config: Option<&radium_abstraction::ToolConfig>,
     ) -> Result<ModelResponse, ModelError> {
         Err(ModelError::UnsupportedModelProvider(
-            format!("OllamaModel does not support function calling yet"),
+            "OllamaModel does not support function calling yet".to_string(),
         ))
     }
 
@@ -535,7 +535,7 @@ impl StreamingModel for OllamaModel {
                         // Split by newlines to handle NDJSON
                         let lines: Vec<String> = text
                             .lines()
-                            .map(|s| s.to_string())
+                            .map(std::string::ToString::to_string)
                             .filter(|s| !s.is_empty())
                             .collect();
 
@@ -554,10 +554,10 @@ impl StreamingModel for OllamaModel {
                                     Err(_e) => {
                                         // If it's not valid JSON, it might be a partial token
                                         // Just return it as-is
-                                        if !line.trim().is_empty() {
-                                            Some(Ok(radium_abstraction::StreamItem::AnswerToken(line)))
-                                        } else {
+                                        if line.trim().is_empty() {
                                             None
+                                        } else {
+                                            Some(Ok(radium_abstraction::StreamItem::AnswerToken(line)))
                                         }
                                     }
                                 }

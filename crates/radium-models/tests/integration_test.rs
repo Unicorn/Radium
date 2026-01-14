@@ -2,8 +2,6 @@
 
 use radium_abstraction::{ChatMessage, ContentBlock, ImageSource, MessageContent, Model, ModelError, Citation};
 use radium_models::{ClaudeModel, GeminiModel, MockModel, ModelFactory, OpenAIModel};
-use std::path::PathBuf;
-use serde_json;
 
 #[tokio::test]
 async fn test_mock_model_text_generation() {
@@ -254,7 +252,7 @@ async fn test_openai_image_url_support() {
     // Test that OpenAI vision models accept image URLs
     let model = OpenAIModel::with_api_key("gpt-4o".to_string(), "test-key".to_string());
     
-    let messages = vec![ChatMessage {
+    let messages = [ChatMessage {
         role: "user".to_string(),
         content: MessageContent::Blocks(vec![
             ContentBlock::Text {
@@ -279,7 +277,7 @@ async fn test_openai_base64_not_supported() {
     // Test that OpenAI rejects Base64 images with helpful error
     let model = OpenAIModel::with_api_key("gpt-4o".to_string(), "test-key".to_string());
     
-    let messages = vec![ChatMessage {
+    let messages = [ChatMessage {
         role: "user".to_string(),
         content: MessageContent::Blocks(vec![ContentBlock::Image {
             source: ImageSource::Base64 {
@@ -302,7 +300,7 @@ async fn test_gemini_url_not_supported() {
     // Test that Gemini rejects URL images with helpful error
     let model = GeminiModel::with_api_key("gemini-pro".to_string(), "test-key".to_string());
     
-    let messages = vec![ChatMessage {
+    let messages = [ChatMessage {
         role: "user".to_string(),
         content: MessageContent::Blocks(vec![ContentBlock::Image {
             source: ImageSource::Url {
@@ -325,7 +323,7 @@ async fn test_claude_multimodal_text_and_image() {
     // Test Claude with multimodal content (text + image)
     let model = ClaudeModel::with_api_key("claude-sonnet-4-5-20250929".to_string(), "test-key".to_string());
     
-    let messages = vec![ChatMessage {
+    let messages = [ChatMessage {
         role: "user".to_string(),
         content: MessageContent::Blocks(vec![
             ContentBlock::Text {
@@ -499,8 +497,8 @@ fn test_gemini_citation_parsing() {
             
             // Check first citation
             let first = &citations[0];
-            assert_eq!(first.get("startIndex").and_then(|v| v.as_u64()), Some(0));
-            assert_eq!(first.get("endIndex").and_then(|v| v.as_u64()), Some(10));
+            assert_eq!(first.get("startIndex").and_then(serde_json::Value::as_u64), Some(0));
+            assert_eq!(first.get("endIndex").and_then(serde_json::Value::as_u64), Some(10));
             assert_eq!(first.get("uri").and_then(|v| v.as_str()), Some("https://example.com/source1"));
             assert_eq!(first.get("title").and_then(|v| v.as_str()), Some("Example Source 1"));
         }
@@ -820,7 +818,7 @@ async fn test_grounding_threshold_configuration() {
 #[allow(unsafe_code)]
 fn test_config_file_parsing() {
     use std::fs;
-    use std::path::PathBuf;
+    
     use tempfile::TempDir;
 
     // Create temporary config file
@@ -830,11 +828,11 @@ fn test_config_file_parsing() {
     let config_path = config_dir.join("config.toml");
 
     // Write config with [gemini] section
-    let config_content = r#"
+    let config_content = r"
 [gemini]
 enable_grounding = true
 grounding_threshold = 0.4
-"#;
+";
     fs::write(&config_path, config_content).unwrap();
 
     // Set HOME to temp directory for config loading

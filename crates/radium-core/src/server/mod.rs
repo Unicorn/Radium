@@ -2,6 +2,7 @@
 //!
 //! This module contains the gRPC server implementation and service handlers.
 
+pub mod event_bridge;
 pub mod logging;
 pub mod manager;
 mod radium_service;

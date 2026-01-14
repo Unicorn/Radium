@@ -696,7 +696,7 @@ impl EngineRegistry {
 
         for (id, engine) in engines.iter() {
             let metadata = engine.metadata();
-            let is_default = default_id.as_ref().map_or(false, |d| d == id);
+            let is_default = default_id.as_ref() == Some(id);
 
             // Check credential status
             let credential_status = if metadata.requires_auth {

@@ -38,7 +38,7 @@ impl MarkdownExporter {
         let max_value = data
             .iter()
             .map(|(_, v)| *v)
-            .fold(0.0f64, |a, b| a.max(b));
+            .fold(0.0f64, f64::max);
 
         if max_value == 0.0 {
             return "No costs to display.".to_string();
@@ -132,9 +132,9 @@ impl Exporter for MarkdownExporter {
             )?;
         }
 
-        Ok(String::from_utf8(output).map_err(|e| {
+        String::from_utf8(output).map_err(|e| {
             ExportError::GenerationFailed(format!("Invalid UTF-8 in Markdown: {}", e))
-        })?)
+        })
     }
 
     fn export_summary(
@@ -277,9 +277,9 @@ impl Exporter for MarkdownExporter {
             writeln!(output)?;
         }
 
-        Ok(String::from_utf8(output).map_err(|e| {
+        String::from_utf8(output).map_err(|e| {
             ExportError::GenerationFailed(format!("Invalid UTF-8 in Markdown: {}", e))
-        })?)
+        })
     }
 }
 

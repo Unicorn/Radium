@@ -5,7 +5,6 @@ use crate::collaboration::lock_manager::{LockHandle, ResourceLockManager};
 use crate::collaboration::message_bus::{MessageBus, MessageType};
 use crate::collaboration::progress::{ProgressStatus, ProgressTracker};
 use crate::collaboration::Result;
-use radium_orchestrator::AgentContext;
 use std::sync::Arc;
 
 /// Context providing access to collaboration features for agents.

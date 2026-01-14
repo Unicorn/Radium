@@ -59,7 +59,7 @@ impl DependencyGraph {
             // Build reverse dependencies
             for dep in &deps {
                 reverse_deps.entry(dep.clone())
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(ext.name.clone());
             }
         }
@@ -79,7 +79,7 @@ impl DependencyGraph {
 
     /// Gets reverse dependencies (extensions that depend on this one).
     pub fn get_reverse_deps(&self, name: &str) -> &[String] {
-        self.reverse_deps.get(name).map(|v| v.as_slice()).unwrap_or(&[])
+        self.reverse_deps.get(name).map_or(&[], std::vec::Vec::as_slice)
     }
 
     /// Detects circular dependencies.
@@ -249,7 +249,7 @@ impl DependencyGraph {
             // Find root nodes (nodes with no dependencies or no reverse deps)
             let root_nodes: Vec<_> = self.nodes.values()
                 .filter(|n| n.dependencies.is_empty() || 
-                    self.reverse_deps.get(&n.name).map(|v| v.is_empty()).unwrap_or(true))
+                    self.reverse_deps.get(&n.name).is_none_or(std::vec::Vec::is_empty))
                 .collect();
 
             for (i, node) in root_nodes.iter().enumerate() {

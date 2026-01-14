@@ -249,17 +249,16 @@ impl TaskDispatcher {
                                         // Mark task as completed and break
                                         queue.mark_completed(&task_id).await;
                                         break;
-                                    } else {
-                                        error!(
-                                            task_id = %task_id,
-                                            agent_id = %agent_id,
-                                            error = %e,
-                                            "Task execution error"
-                                        );
-                                        progress_reporter
-                                            .emit_task_failed(task_id.clone(), agent_id.clone(), e.to_string())
-                                            .await;
                                     }
+                                    error!(
+                                        task_id = %task_id,
+                                        agent_id = %agent_id,
+                                        error = %e,
+                                        "Task execution error"
+                                    );
+                                    progress_reporter
+                                        .emit_task_failed(task_id.clone(), agent_id.clone(), e.to_string())
+                                        .await;
                                 }
                             }
 

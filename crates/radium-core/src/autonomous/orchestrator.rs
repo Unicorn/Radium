@@ -300,7 +300,7 @@ impl AutonomousOrchestrator {
         };
 
         // Initialize planner
-        let planner = AutonomousPlanner::new(agent_registry.clone());
+        let planner = AutonomousPlanner::new(agent_registry);
 
         // Initialize monitor
         let monitor = Arc::new(Mutex::new(ExecutionMonitor::new(
@@ -884,7 +884,7 @@ impl AutonomousOrchestrator {
 
             // Execute recovery
             let strategy = RecoveryStrategy::RestoreCheckpoint {
-                checkpoint_id: checkpoint.id.clone(),
+                checkpoint_id: checkpoint.id,
             };
 
             recovery_manager.execute_recovery(strategy, &recovery_context).map_err(|e| {

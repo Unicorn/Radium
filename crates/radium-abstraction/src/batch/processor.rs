@@ -304,7 +304,7 @@ mod tests {
             .await;
 
         // At least one should timeout
-        assert!(result.failed.len() >= 1);
+        assert!(!result.failed.is_empty());
     }
 
     #[tokio::test]

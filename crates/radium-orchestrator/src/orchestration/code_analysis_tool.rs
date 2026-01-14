@@ -199,8 +199,8 @@ fn analyze_rust_code(code: &str, detail_level: &str) -> String {
         for cap in &functions {
             let name = &cap[1];
             if detail_level == "detailed" {
-                let params = cap.get(3).map(|m| m.as_str()).unwrap_or("");
-                let return_type = cap.get(4).map(|m| m.as_str().trim()).unwrap_or("()");
+                let params = cap.get(3).map_or("", |m| m.as_str());
+                let return_type = cap.get(4).map_or("()", |m| m.as_str().trim());
                 output.push_str(&format!("- `fn {}({}) -> {}`\n", name, params, return_type));
             } else {
                 output.push_str(&format!("- `{}`\n", name));
@@ -361,7 +361,7 @@ fn analyze_python_code(code: &str, _detail_level: &str) -> String {
     }
 
     let total_lines = code.lines().count();
-    let code_lines = code.lines().filter(|l| !l.trim().is_empty() && !l.trim().starts_with("#")).count();
+    let code_lines = code.lines().filter(|l| !l.trim().is_empty() && !l.trim().starts_with('#')).count();
     output.push_str(&format!("## Statistics\n\n- Total lines: {}\n- Code lines (approx): {}\n", total_lines, code_lines));
 
     output

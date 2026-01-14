@@ -56,8 +56,7 @@ impl FileTypeFilter {
                 let path_str = path.to_string_lossy();
                 Pattern::new(pattern)
                     .ok()
-                    .map(|p| p.matches(&path_str))
-                    .unwrap_or(false)
+                    .is_some_and(|p| p.matches(&path_str))
             }
             FileTypeFilter::Language(lang) => {
                 let ext = path.extension()
@@ -183,7 +182,7 @@ pub fn search_code_internal(
             Err(_) => continue,
         };
 
-        if !entry.file_type().map(|ft| ft.is_file()).unwrap_or(false) {
+        if !entry.file_type().is_some_and(|ft| ft.is_file()) {
             continue;
         }
 
@@ -214,7 +213,7 @@ pub fn search_code_internal(
             content: &content,
         };
 
-        if let Err(_) = searcher.search_path(&matcher, &file_path, &mut sink) {
+        if searcher.search_path(&matcher, &file_path, &mut sink).is_err() {
             continue;
         }
 
@@ -236,7 +235,7 @@ struct SearchSink<'a> {
     content: &'a str,
 }
 
-impl<'a> Sink for SearchSink<'a> {
+impl Sink for SearchSink<'_> {
     type Error = io::Error;
 
     fn matched(&mut self, _searcher: &Searcher, mat: &SinkMatch<'_>) -> io::Result<bool> {
@@ -255,24 +254,24 @@ impl<'a> Sink for SearchSink<'a> {
         let context_before: Vec<String> = if line_idx >= self.context_before {
             lines[line_idx - self.context_before..line_idx]
                 .iter()
-                .map(|s| s.to_string())
+                .map(|s| (*s).to_string())
                 .collect()
         } else {
             lines[..line_idx]
                 .iter()
-                .map(|s| s.to_string())
+                .map(|s| (*s).to_string())
                 .collect()
         };
 
         let context_after: Vec<String> = if line_idx + 1 + self.context_after <= lines.len() {
             lines[line_idx + 1..line_idx + 1 + self.context_after]
                 .iter()
-                .map(|s| s.to_string())
+                .map(|s| (*s).to_string())
                 .collect()
         } else {
             lines[line_idx + 1..]
                 .iter()
-                .map(|s| s.to_string())
+                .map(|s| (*s).to_string())
                 .collect()
         };
 

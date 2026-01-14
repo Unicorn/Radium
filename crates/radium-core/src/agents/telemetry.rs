@@ -65,7 +65,7 @@ impl AgentTelemetryCollector {
 
         Ok(ExecutionTracker {
             agent_id: agent_id.to_string(),
-            category: category.map(|s| s.to_string()),
+            category: category.map(std::string::ToString::to_string),
             start_time: Instant::now(),
             enabled: true,
             tokens: 0,

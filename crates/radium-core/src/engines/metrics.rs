@@ -99,13 +99,13 @@ impl ExecutionMetrics {
                 (0.50, 1.50) // GPT-3.5 Turbo pricing
             }
             // Anthropic Claude models
-            ("claude", model) | ("anthropic", model) if model.contains("opus") => {
+            ("claude" | "anthropic", model) if model.contains("opus") => {
                 (15.0, 75.0) // Claude 3 Opus pricing
             }
-            ("claude", model) | ("anthropic", model) if model.contains("sonnet") => {
+            ("claude" | "anthropic", model) if model.contains("sonnet") => {
                 (3.0, 15.0) // Claude 3 Sonnet pricing (includes claude-3-5-sonnet)
             }
-            ("claude", model) | ("anthropic", model) if model.contains("haiku") => {
+            ("claude" | "anthropic", model) if model.contains("haiku") => {
                 (0.25, 1.25) // Claude 3 Haiku pricing
             }
             // Google Gemini models
@@ -117,7 +117,7 @@ impl ExecutionMetrics {
             }
             // Fallback to provider-level defaults
             ("openai", _) => (10.0, 30.0), // Default OpenAI (assumes GPT-4 tier)
-            ("claude", _) | ("anthropic", _) => (3.0, 15.0), // Default Anthropic (assumes Sonnet tier)
+            ("claude" | "anthropic", _) => (3.0, 15.0), // Default Anthropic (assumes Sonnet tier)
             ("gemini", _) => (0.50, 1.50), // Default Gemini (assumes Pro tier)
             _ => (5.0, 15.0), // Unknown provider default
         }

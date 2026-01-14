@@ -45,7 +45,7 @@ impl PolicyAnalytics {
             action,
             matched_rule: decision.matched_rule.clone(),
             reason: decision.reason.clone(),
-            user: user.map(|s| s.to_string()),
+            user: user.map(std::string::ToString::to_string),
         };
 
         if let Err(e) = self.storage.store_event(&event) {

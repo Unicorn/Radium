@@ -8,8 +8,8 @@
 //! - AC5: Output capture (stdout/stderr)
 //! - AC6: Multiple executions in single generation
 
-use radium_models::{GeminiModel, ModelFactory, ModelConfig, ModelType};
-use radium_abstraction::{Model, ModelParameters};
+use radium_models::{GeminiModel, ModelConfig, ModelType};
+use radium_abstraction::Model;
 
 /// Helper function to create a test Gemini model with code execution enabled.
 fn create_test_model_with_code_execution() -> GeminiModel {

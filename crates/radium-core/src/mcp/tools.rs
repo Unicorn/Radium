@@ -31,7 +31,7 @@ impl McpToolRegistry {
             original_name.clone()
         };
 
-        self.tool_name_map.insert(original_name.clone(), prefixed_name.clone());
+        self.tool_name_map.insert(original_name, prefixed_name.clone());
         self.tools.insert(prefixed_name, tool);
     }
 
@@ -124,7 +124,7 @@ impl McpClient {
             }
         }
 
-        let is_error = result.get("isError").and_then(|e| e.as_bool()).unwrap_or(false);
+        let is_error = result.get("isError").and_then(serde_json::Value::as_bool).unwrap_or(false);
 
         Ok(McpToolResult { content: mcp_content, is_error })
     }

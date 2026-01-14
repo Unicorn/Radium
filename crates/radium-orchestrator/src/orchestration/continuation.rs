@@ -3,16 +3,26 @@
 // This module implements automatic continuation of tool execution loops,
 // sending tool results back to the model for multi-turn agent orchestration.
 
-use radium_abstraction::{ChatMessage, MessageContent, Model, ModelError, ModelResponse};
+use radium_abstraction::{ChatMessage, MessageContent, Model, ModelResponse};
 use std::collections::HashMap;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use super::{
-    tool::{Tool, ToolCall, ToolResult},
+    tool::{Tool, ToolCall as OrchestrationToolCall, ToolResult},
+    tool_adapter::to_abstraction_tools,
     ContinuationBehavior, ContinuationCondition, ToolExecutionConfig,
 };
 use crate::error::OrchestrationError;
 use crate::orchestration::execution::execute_tool_calls;
+
+/// Convert radium_abstraction::ToolCall to orchestration::ToolCall
+fn to_orchestration_tool_call(call: &radium_abstraction::ToolCall) -> OrchestrationToolCall {
+    OrchestrationToolCall {
+        id: call.id.clone(),
+        name: call.name.clone(),
+        arguments: call.arguments.clone(),
+    }
+}
 
 /// Execute a tool-enabled conversation with automatic continuation.
 ///
@@ -50,9 +60,12 @@ pub async fn execute_with_continuation(
     let mut call_tracker = CallHistoryTracker::new();
 
     loop {
+        // Convert orchestration Tools to abstraction Tools for the model API
+        let abstraction_tools = to_abstraction_tools(tools);
+
         // Generate response with tools
         let response = model
-            .generate_with_tools(&messages, tools, None)
+            .generate_with_tools(&messages, &abstraction_tools, None)
             .await
             .map_err(|e| OrchestrationError::Model(e))?;
 
@@ -92,7 +105,13 @@ pub async fn execute_with_continuation(
             call_tracker.record_call(call);
         }
 
-        let execution_results = execute_tool_calls(tool_calls, tools, config).await;
+        // Convert abstraction ToolCalls to orchestration ToolCalls
+        let orch_tool_calls: Vec<OrchestrationToolCall> = tool_calls
+            .iter()
+            .map(to_orchestration_tool_call)
+            .collect();
+
+        let execution_results = execute_tool_calls(&orch_tool_calls, tools, config).await;
 
         // Convert execution results to ToolResults (handle errors according to strategy)
         let tool_results: Vec<ToolResult> = execution_results
@@ -199,13 +218,13 @@ impl CallHistoryTracker {
     }
 
     /// Record a tool call in history.
-    fn record_call(&mut self, call: &ToolCall) {
+    fn record_call(&mut self, call: &radium_abstraction::ToolCall) {
         let key = (call.name.clone(), hash_args(&call.arguments));
         *self.calls.entry(key).or_insert(0) += 1;
     }
 
     /// Check if a call would create a circular pattern (3+ identical calls).
-    fn check_circular(&self, call: &ToolCall) -> bool {
+    fn check_circular(&self, call: &radium_abstraction::ToolCall) -> bool {
         let key = (call.name.clone(), hash_args(&call.arguments));
         self.calls.get(&key).map_or(false, |&count| count >= 3)
     }

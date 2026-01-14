@@ -197,16 +197,12 @@ pub struct SecretManagementConfig {
 
 fn default_vault_path() -> String {
     #[allow(clippy::disallowed_methods)]
-    std::env::var("HOME")
-        .map(|home| format!("{}/.radium/auth/secrets.vault", home))
-        .unwrap_or_else(|_| "~/.radium/auth/secrets.vault".to_string())
+    std::env::var("HOME").map_or_else(|_| "~/.radium/auth/secrets.vault".to_string(), |home| format!("{}/.radium/auth/secrets.vault", home))
 }
 
 fn default_audit_log_path() -> String {
     #[allow(clippy::disallowed_methods)]
-    std::env::var("HOME")
-        .map(|home| format!("{}/.radium/auth/audit.log", home))
-        .unwrap_or_else(|_| "~/.radium/auth/audit.log".to_string())
+    std::env::var("HOME").map_or_else(|_| "~/.radium/auth/audit.log".to_string(), |home| format!("{}/.radium/auth/audit.log", home))
 }
 
 fn default_min_password_length() -> usize {
@@ -229,6 +225,7 @@ impl Default for SecretManagementConfig {
 
 /// Security configuration.
 #[derive(Debug, Clone, Deserialize)]
+#[derive(Default)]
 pub struct SecurityConfig {
     /// Privacy configuration.
     #[serde(default)]
@@ -238,14 +235,6 @@ pub struct SecurityConfig {
     pub secrets: SecretManagementConfig,
 }
 
-impl Default for SecurityConfig {
-    fn default() -> Self {
-        Self {
-            privacy: PrivacyConfig::default(),
-            secrets: SecretManagementConfig::default(),
-        }
-    }
-}
 
 /// Root configuration for Radium.
 #[derive(Debug, Clone, Default, Deserialize)]

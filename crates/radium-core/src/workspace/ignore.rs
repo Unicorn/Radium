@@ -76,7 +76,7 @@ impl IgnoreWalker {
     ///
     /// This includes both files and directories, useful for recursive operations.
     pub fn build_entries(self) -> impl Iterator<Item = ignore::DirEntry> {
-        self.builder.build().filter_map(|entry| entry.ok())
+        self.builder.build().filter_map(std::result::Result::ok)
     }
 
     /// Configure whether to follow symbolic links.

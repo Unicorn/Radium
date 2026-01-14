@@ -353,7 +353,7 @@ impl ErrorContext {
 
     /// Add multiple affected paths.
     pub fn with_paths(mut self, paths: impl IntoIterator<Item = impl Into<PathBuf>>) -> Self {
-        self.affected_paths.extend(paths.into_iter().map(|p| p.into()));
+        self.affected_paths.extend(paths.into_iter().map(std::convert::Into::into));
         self
     }
 

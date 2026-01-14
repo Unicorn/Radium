@@ -136,13 +136,13 @@ pub fn format_for_clipboard(
     if let Some(path) = file_path {
         // Use appropriate comment style based on language
         let comment = match language {
-            Some("rust") | Some("c") | Some("cpp") | Some("java") | Some("javascript") | Some("typescript") => {
+            Some("rust" | "c" | "cpp" | "java" | "javascript" | "typescript") => {
                 format!("// File: {}\n", path)
             }
-            Some("python") | Some("ruby") | Some("shell") | Some("yaml") | Some("perl") => {
+            Some("python" | "ruby" | "shell" | "yaml" | "perl") => {
                 format!("# File: {}\n", path)
             }
-            Some("html") | Some("xml") => {
+            Some("html" | "xml") => {
                 format!("<!-- File: {} -->\n", path)
             }
             _ => {

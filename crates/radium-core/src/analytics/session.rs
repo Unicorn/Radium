@@ -334,7 +334,7 @@ impl SessionAnalytics {
 
         // Try to discover workspace if not provided
         let workspace = workspace_root
-            .map(|p| p.to_path_buf())
+            .map(std::path::Path::to_path_buf)
             .or_else(|| crate::workspace::Workspace::discover().ok().map(|w| w.root().to_path_buf()));
 
         let workspace_path = workspace.ok_or_else(|| anyhow::anyhow!("Workspace not found"))?;

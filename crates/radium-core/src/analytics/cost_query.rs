@@ -39,8 +39,8 @@ impl<'a> CostQueryService<'a> {
         );
 
         // Build parameters based on filters
-        let start_ts = options.start_date.map(|d| d.timestamp() as i64);
-        let end_ts = options.end_date.map(|d| d.timestamp() as i64);
+        let start_ts = options.start_date.map(|d| d.timestamp());
+        let end_ts = options.end_date.map(|d| d.timestamp());
 
         // Add filters to query
         if start_ts.is_some() {
@@ -351,8 +351,7 @@ impl<'a> CostQueryService<'a> {
         let total_input_tokens = smart_tier.input_tokens + eco_tier.input_tokens;
         let total_output_tokens = smart_tier.output_tokens + eco_tier.output_tokens;
         
-        let all_smart_cost = (total_input_tokens as f64 / 1_000_000.0) * smart_input_price
-            + (total_output_tokens as f64 / 1_000_000.0) * smart_output_price;
+        let all_smart_cost = (total_input_tokens as f64 / 1_000_000.0).mul_add(smart_input_price, (total_output_tokens as f64 / 1_000_000.0) * smart_output_price);
         
         let actual_cost = smart_tier.cost + eco_tier.cost;
         let estimated_savings = all_smart_cost - actual_cost;

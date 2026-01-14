@@ -3,7 +3,6 @@
 //! This module provides persistent storage for routing preferences on a per-workspace basis,
 //! allowing Radium to learn from user feedback and improve routing decisions over time.
 
-use crate::routing::SkillRoutingResult;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

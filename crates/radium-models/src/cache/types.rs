@@ -113,6 +113,7 @@ impl std::fmt::Debug for CachedModel {
 
 /// Cache statistics for observability.
 #[derive(Debug, Clone, Serialize)]
+#[derive(Default)]
 pub struct CacheStats {
     /// Total number of cache hits.
     pub total_hits: u64,
@@ -124,16 +125,6 @@ pub struct CacheStats {
     pub cache_size: usize,
 }
 
-impl Default for CacheStats {
-    fn default() -> Self {
-        Self {
-            total_hits: 0,
-            total_misses: 0,
-            total_evictions: 0,
-            cache_size: 0,
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {

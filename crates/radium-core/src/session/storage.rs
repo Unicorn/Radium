@@ -264,9 +264,7 @@ impl SessionStorage {
                 let created = metadata
                     .created()
                     .or_else(|_| metadata.modified())
-                    .ok()
-                    .map(|t| DateTime::<Utc>::from(t))
-                    .unwrap_or_else(Utc::now);
+                    .ok().map_or_else(Utc::now, |t| DateTime::<Utc>::from(t));
 
                 if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
                     artifacts.push(Artifact {

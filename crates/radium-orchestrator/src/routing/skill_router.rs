@@ -146,12 +146,12 @@ impl SkillDefinition {
 
     /// Get the skill's category from metadata, if any.
     pub fn category(&self) -> Option<&str> {
-        self.metadata.as_ref().and_then(|m| m.get("category").map(|s| s.as_str()))
+        self.metadata.as_ref().and_then(|m| m.get("category").map(std::string::String::as_str))
     }
 
     /// Get the skill's author from metadata, if any.
     pub fn author(&self) -> Option<&str> {
-        self.metadata.as_ref().and_then(|m| m.get("author").map(|s| s.as_str()))
+        self.metadata.as_ref().and_then(|m| m.get("author").map(std::string::String::as_str))
     }
 }
 
@@ -204,7 +204,7 @@ impl SkillRouter {
         for entry in walkdir::WalkDir::new(dir)
             .follow_links(true)
             .into_iter()
-            .filter_map(|e| e.ok())
+            .filter_map(std::result::Result::ok)
         {
             if entry.file_name() == "SKILL.md" {
                 match SkillDefinition::from_file(entry.path()) {

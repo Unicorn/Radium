@@ -204,11 +204,11 @@ impl AlertManager {
             severity,
             timestamp: chrono::Utc::now().to_rfc3339(),
             tool_name: tool_name.to_string(),
-            arguments: args.iter().map(|s| s.to_string()).collect(),
+            arguments: args.iter().map(|s| (*s).to_string()).collect(),
             action: format!("{:?}", decision.action).to_lowercase(),
             matched_rule: decision.matched_rule.clone(),
             reason: decision.reason.clone(),
-            user: user.map(|s| s.to_string()),
+            user: user.map(std::string::ToString::to_string),
         };
 
         // Send to all configured webhooks
@@ -250,7 +250,7 @@ impl AlertManager {
         let response = request.send().await?;
         
         if !response.status().is_success() {
-            return Err(reqwest::Error::from(response.error_for_status().unwrap_err()));
+            return Err(response.error_for_status().unwrap_err());
         }
 
         Ok(())

@@ -9,8 +9,7 @@ pub mod code_analysis_tool;
 pub mod config;
 pub mod context;
 pub mod context_loader;
-// TODO: Fix type mismatch between radium_abstraction::Tool and orchestration::tool::Tool
-// pub mod continuation;
+pub mod continuation;
 pub mod engine;
 pub mod events;
 pub mod execution;
@@ -27,6 +26,7 @@ pub mod service;
 pub mod symbol_search_tool;
 pub mod terminal_tool;
 pub mod tool;
+pub mod tool_adapter;
 pub mod tool_builder;
 pub mod tool_registry;
 
@@ -37,8 +37,8 @@ use std::time::Duration;
 
 use self::context::OrchestrationContext;
 use self::tool::{Tool, ToolCall};
-// TODO: Fix type mismatch
-// pub use self::continuation::execute_with_continuation;
+pub use self::continuation::execute_with_continuation;
+pub use self::tool_adapter::{to_abstraction_tool, to_abstraction_tools, from_abstraction_tool, AbstractionToolAdapter};
 pub use self::execution::execute_tool_calls;
 use crate::error::Result;
 
@@ -289,8 +289,7 @@ pub fn validate_tool_mode(
             
             // Mode ANY requires model to call at least one tool
             let has_tool_calls = response.tool_calls.as_ref()
-                .map(|calls| !calls.is_empty())
-                .unwrap_or(false);
+                .is_some_and(|calls| !calls.is_empty());
             
             if !has_tool_calls {
                 return Err(crate::error::OrchestrationError::ModeViolation(
@@ -301,8 +300,7 @@ pub fn validate_tool_mode(
         radium_abstraction::ToolUseMode::None => {
             // Mode NONE requires model to not call any tools
             let has_tool_calls = response.tool_calls.as_ref()
-                .map(|calls| !calls.is_empty())
-                .unwrap_or(false);
+                .is_some_and(|calls| !calls.is_empty());
             
             if has_tool_calls {
                 return Err(crate::error::OrchestrationError::ModeViolation(

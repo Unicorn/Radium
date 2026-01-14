@@ -38,8 +38,7 @@ impl ProxyConfigManager {
         }
 
         let content = std::fs::read_to_string(&self.config_path).map_err(|e| {
-            McpError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            McpError::Io(std::io::Error::other(
                 format!(
                     "Failed to read proxy config file at {}: {}\n\nSuggestion: Ensure the file exists and has read permissions. You can create a new config file using 'rad mcp proxy init' or by manually creating {}",
                     self.config_path.display(),
@@ -61,11 +60,11 @@ impl ProxyConfigManager {
         // Parse [mcp.proxy] section
         if let Some(mcp_table) = toml.get("mcp").and_then(|m| m.as_table()) {
             if let Some(proxy_table) = mcp_table.get("proxy").and_then(|p| p.as_table()) {
-                if let Some(enable) = proxy_table.get("enable").and_then(|e| e.as_bool()) {
+                if let Some(enable) = proxy_table.get("enable").and_then(toml::Value::as_bool) {
                     config.enable = enable;
                 }
 
-                if let Some(port) = proxy_table.get("port").and_then(|p| p.as_integer()) {
+                if let Some(port) = proxy_table.get("port").and_then(toml::Value::as_integer) {
                     config.port = port as u16;
                 }
 
@@ -82,28 +81,28 @@ impl ProxyConfigManager {
                     };
                 }
 
-                if let Some(max_conn) = proxy_table.get("max_connections").and_then(|m| m.as_integer()) {
+                if let Some(max_conn) = proxy_table.get("max_connections").and_then(toml::Value::as_integer) {
                     config.max_connections = max_conn as u32;
                 }
 
                 // Parse [mcp.proxy.security] section
                 if let Some(security_table) = proxy_table.get("security").and_then(|s| s.as_table()) {
-                    if let Some(log_requests) = security_table.get("log_requests").and_then(|l| l.as_bool()) {
+                    if let Some(log_requests) = security_table.get("log_requests").and_then(toml::Value::as_bool) {
                         config.security.log_requests = log_requests;
                     }
 
-                    if let Some(log_responses) = security_table.get("log_responses").and_then(|l| l.as_bool()) {
+                    if let Some(log_responses) = security_table.get("log_responses").and_then(toml::Value::as_bool) {
                         config.security.log_responses = log_responses;
                     }
 
                     if let Some(redact_patterns) = security_table.get("redact_patterns").and_then(|r| r.as_array()) {
                         config.security.redact_patterns = redact_patterns
                             .iter()
-                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                            .filter_map(|v| v.as_str().map(std::string::ToString::to_string))
                             .collect();
                     }
 
-                    if let Some(rate_limit) = security_table.get("rate_limit_per_minute").and_then(|r| r.as_integer()) {
+                    if let Some(rate_limit) = security_table.get("rate_limit_per_minute").and_then(toml::Value::as_integer) {
                         config.security.rate_limit_per_minute = rate_limit as u32;
                     }
                 }
@@ -135,18 +134,18 @@ impl ProxyConfigManager {
         // Parse proxy-specific fields
         let priority = upstream_table
             .get("priority")
-            .and_then(|p| p.as_integer())
+            .and_then(toml::Value::as_integer)
             .unwrap_or(1) as u32;
 
         let health_check_interval = upstream_table
             .get("health_check_interval")
-            .and_then(|h| h.as_integer())
+            .and_then(toml::Value::as_integer)
             .unwrap_or(30) as u64;
 
         let tools = upstream_table.get("tools").and_then(|t| {
             t.as_array().map(|arr| {
                 arr.iter()
-                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .filter_map(|v| v.as_str().map(std::string::ToString::to_string))
                     .collect()
             })
         });
@@ -207,9 +206,7 @@ impl ProxyConfigManager {
             if upstream.priority == 0 {
                 return Err(McpError::config(
                     format!("Upstream '{}' has invalid priority: 0. Priority must be positive", upstream.server.name),
-                    format!(
-                        "Set a positive priority value. Lower numbers indicate higher priority. Example:\n  priority = 1  # Primary upstream\n  priority = 2  # Backup upstream",
-                    ),
+                    "Set a positive priority value. Lower numbers indicate higher priority. Example:\n  priority = 1  # Primary upstream\n  priority = 2  # Backup upstream".to_string(),
                 ));
             }
 
@@ -217,9 +214,7 @@ impl ProxyConfigManager {
             if upstream.health_check_interval == 0 {
                 return Err(McpError::config(
                     format!("Upstream '{}' has invalid health_check_interval: 0. Must be greater than 0", upstream.server.name),
-                    format!(
-                        "Set a positive health check interval in seconds. Example:\n  health_check_interval = 30  # Check every 30 seconds",
-                    ),
+                    "Set a positive health check interval in seconds. Example:\n  health_check_interval = 30  # Check every 30 seconds".to_string(),
                 ));
             }
 
@@ -282,7 +277,7 @@ impl ProxyConfigManager {
 
         // Serialize proxy settings
         proxy_table.insert("enable".to_string(), TomlValue::Boolean(config.enable));
-        proxy_table.insert("port".to_string(), TomlValue::Integer(config.port as i64));
+        proxy_table.insert("port".to_string(), TomlValue::Integer(i64::from(config.port)));
         proxy_table.insert(
             "transport".to_string(),
             TomlValue::String(match config.transport {
@@ -292,7 +287,7 @@ impl ProxyConfigManager {
         );
         proxy_table.insert(
             "max_connections".to_string(),
-            TomlValue::Integer(config.max_connections as i64),
+            TomlValue::Integer(i64::from(config.max_connections)),
         );
 
         // Serialize security settings
@@ -318,7 +313,7 @@ impl ProxyConfigManager {
         );
         security_table.insert(
             "rate_limit_per_minute".to_string(),
-            TomlValue::Integer(config.security.rate_limit_per_minute as i64),
+            TomlValue::Integer(i64::from(config.security.rate_limit_per_minute)),
         );
         proxy_table.insert("security".to_string(), TomlValue::Table(security_table));
 
@@ -367,7 +362,7 @@ impl ProxyConfigManager {
 
             upstream_table.insert(
                 "priority".to_string(),
-                TomlValue::Integer(upstream.priority as i64),
+                TomlValue::Integer(i64::from(upstream.priority)),
             );
             upstream_table.insert(
                 "health_check_interval".to_string(),
@@ -403,8 +398,7 @@ impl ProxyConfigManager {
         // Create parent directory if it doesn't exist
         if let Some(parent) = self.config_path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| {
-                McpError::Io(std::io::Error::new(
-                    std::io::ErrorKind::Other,
+                McpError::Io(std::io::Error::other(
                     format!(
                         "Failed to create config directory at {}: {}\n\nSuggestion: Ensure you have write permissions for the parent directory.",
                         parent.display(),
@@ -415,8 +409,7 @@ impl ProxyConfigManager {
         }
 
         std::fs::write(&self.config_path, content).map_err(|e| {
-            McpError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            McpError::Io(std::io::Error::other(
                 format!(
                     "Failed to write proxy config file at {}: {}\n\nSuggestion: Ensure you have write permissions for the config file location.",
                     self.config_path.display(),

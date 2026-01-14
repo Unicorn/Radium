@@ -112,7 +112,7 @@ impl ExtensionAnalyticsService {
 
         let content = fs::read_to_string(&config_path)?;
         let config: serde_json::Value = serde_json::from_str(&content)?;
-        Ok(config.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false))
+        Ok(config.get("enabled").and_then(serde_json::Value::as_bool).unwrap_or(false))
     }
 
     /// Saves analytics preference.

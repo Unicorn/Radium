@@ -49,8 +49,7 @@ impl CostMetrics {
         let total_input_tokens = self.smart_tier.input_tokens + self.eco_tier.input_tokens;
         let total_output_tokens = self.smart_tier.output_tokens + self.eco_tier.output_tokens;
 
-        let all_smart_cost = (total_input_tokens as f64 / 1_000_000.0) * smart_input_price
-            + (total_output_tokens as f64 / 1_000_000.0) * smart_output_price;
+        let all_smart_cost = (total_input_tokens as f64 / 1_000_000.0).mul_add(smart_input_price, (total_output_tokens as f64 / 1_000_000.0) * smart_output_price);
 
         // Compare to actual cost
         all_smart_cost - self.total_cost
@@ -129,8 +128,7 @@ impl CostTracker {
         let input_tokens = u64::from(usage.prompt_tokens);
         let output_tokens = u64::from(usage.completion_tokens);
         
-        let cost = (input_tokens as f64 / 1_000_000.0) * input_price
-            + (output_tokens as f64 / 1_000_000.0) * output_price;
+        let cost = (input_tokens as f64 / 1_000_000.0).mul_add(input_price, (output_tokens as f64 / 1_000_000.0) * output_price);
 
         // Update metrics (thread-safe)
         let mut metrics = self.metrics.write().map_err(|e| format!("Lock poisoned: {}", e))?;

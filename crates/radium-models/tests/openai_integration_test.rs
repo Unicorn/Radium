@@ -2,7 +2,6 @@
 
 use radium_abstraction::{ModelParameters, ResponseFormat};
 use radium_models::OpenAIModel;
-use serde_json;
 
 /// Test that ResponseFormat::Json converts to OpenAI's json_object format.
 ///

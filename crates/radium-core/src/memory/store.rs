@@ -178,9 +178,9 @@ impl MemoryStore {
     /// Returns error if entry doesn't exist
     pub fn get(&self, agent_id: &str) -> Result<&MemoryEntry> {
         let _start_time = Instant::now();
-        let result = self.cache.get(agent_id).ok_or_else(|| MemoryError::NotFound(agent_id.to_string()));
+        
         // Note: Metrics would be recorded here if we had a metrics collector
-        result
+        self.cache.get(agent_id).ok_or_else(|| MemoryError::NotFound(agent_id.to_string()))
     }
 
     /// Retrieves an agent's last output (mutable).

@@ -15,17 +15,16 @@ pub fn find_definition(
     match language.to_lowercase().as_str() {
         "rust" => {
             let mut analyzer = RustAnalyzer::new();
-            let symbols = analyzer.extract_symbols(source, file_path.clone())?;
+            let symbols = analyzer.extract_symbols(source, file_path)?;
             Ok(symbols.into_iter()
                 .find(|s| s.name == symbol_name))
         }
         "typescript" | "ts" => {
             let is_tsx = file_path.extension()
                 .and_then(|e| e.to_str())
-                .map(|e| e == "tsx")
-                .unwrap_or(false);
+                .is_some_and(|e| e == "tsx");
             let mut analyzer = TypeScriptAnalyzer::new();
-            let symbols = analyzer.extract_symbols(source, file_path.clone(), is_tsx)?;
+            let symbols = analyzer.extract_symbols(source, file_path, is_tsx)?;
             Ok(symbols.into_iter()
                 .find(|s| s.name == symbol_name))
         }

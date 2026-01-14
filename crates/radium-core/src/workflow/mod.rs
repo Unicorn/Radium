@@ -12,6 +12,7 @@ pub mod engine;
 pub mod execution_state;
 pub mod executor;
 pub mod failure;
+pub mod git_integration;
 pub mod graph_visualizer;
 pub mod parallel;
 pub mod parallel_executor;

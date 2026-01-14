@@ -146,9 +146,9 @@ impl OpenAIEngine {
     /// Converts ModelUsage to TokenUsage.
     fn convert_usage(usage: Option<ModelUsage>) -> Option<TokenUsage> {
         usage.map(|u| TokenUsage {
-            input_tokens: u.prompt_tokens as u64,
-            output_tokens: u.completion_tokens as u64,
-            total_tokens: u.total_tokens as u64,
+            input_tokens: u64::from(u.prompt_tokens),
+            output_tokens: u64::from(u.completion_tokens),
+            total_tokens: u64::from(u.total_tokens),
         })
     }
 

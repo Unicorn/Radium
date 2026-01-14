@@ -179,7 +179,7 @@ impl OrchestratorHooks {
         let context = crate::hooks::error_hooks::ErrorHookContext::interception(
             error_message.to_string(),
             error_type.to_string(),
-            error_source.map(|s| s.to_string()),
+            error_source.map(std::string::ToString::to_string),
         );
         let hook_context =
             context.to_hook_context(crate::hooks::error_hooks::ErrorHookType::Interception);
@@ -208,7 +208,7 @@ impl OrchestratorHooks {
         let context = crate::hooks::error_hooks::ErrorHookContext::transformation(
             error_message.to_string(),
             error_type.to_string(),
-            error_source.map(|s| s.to_string()),
+            error_source.map(std::string::ToString::to_string),
         );
         let hook_context =
             context.to_hook_context(crate::hooks::error_hooks::ErrorHookType::Transformation);
@@ -241,7 +241,7 @@ impl OrchestratorHooks {
         let context = crate::hooks::error_hooks::ErrorHookContext::recovery(
             error_message.to_string(),
             error_type.to_string(),
-            error_source.map(|s| s.to_string()),
+            error_source.map(std::string::ToString::to_string),
         );
         let hook_context =
             context.to_hook_context(crate::hooks::error_hooks::ErrorHookType::Recovery);
@@ -377,7 +377,7 @@ impl HookExecutor for HookRegistryAdapter {
         let error_context = crate::hooks::error_hooks::ErrorHookContext::interception(
             error_message.to_string(),
             error_type.to_string(),
-            error_source.map(|s| s.to_string()),
+            error_source.map(std::string::ToString::to_string),
         );
         let hook_context = error_context.to_hook_context(
             crate::hooks::error_hooks::ErrorHookType::Interception,
@@ -407,7 +407,7 @@ impl HookExecutor for HookRegistryAdapter {
         let error_context = crate::hooks::error_hooks::ErrorHookContext::transformation(
             error_message.to_string(),
             error_type.to_string(),
-            error_source.map(|s| s.to_string()),
+            error_source.map(std::string::ToString::to_string),
         );
         let hook_context = error_context.to_hook_context(
             crate::hooks::error_hooks::ErrorHookType::Transformation,
@@ -442,7 +442,7 @@ impl HookExecutor for HookRegistryAdapter {
         let error_context = crate::hooks::error_hooks::ErrorHookContext::recovery(
             error_message.to_string(),
             error_type.to_string(),
-            error_source.map(|s| s.to_string()),
+            error_source.map(std::string::ToString::to_string),
         );
         let hook_context = error_context.to_hook_context(
             crate::hooks::error_hooks::ErrorHookType::Recovery,

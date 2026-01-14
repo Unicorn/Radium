@@ -75,7 +75,7 @@ impl ErrorRecovery {
                 FileOperationError::PermissionDenied { .. } => summary.permission_denied += 1,
                 FileOperationError::AlreadyExists { .. } => summary.already_exists += 1,
                 FileOperationError::WorkspaceBoundaryViolation { .. } => {
-                    summary.boundary_violations += 1
+                    summary.boundary_violations += 1;
                 }
                 FileOperationError::PatchConflict { .. } => summary.patch_conflicts += 1,
                 FileOperationError::InvalidInput { .. } => summary.invalid_input += 1,

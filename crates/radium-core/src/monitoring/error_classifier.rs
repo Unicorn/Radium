@@ -156,9 +156,7 @@ impl ErrorClassifier {
         let context_score = self.score_context(exit_code);
 
         // Weighted combination
-        let base_score = (keyword_score * self.weights.keyword_weight)
-            + (pattern_score * self.weights.pattern_weight)
-            + (context_score * self.weights.context_weight);
+        let base_score = context_score.mul_add(self.weights.context_weight, keyword_score.mul_add(self.weights.keyword_weight, pattern_score * self.weights.pattern_weight));
 
         // Track frequency and escalate if needed
         let frequency_multiplier = self.track_frequency(log_line);
@@ -246,7 +244,7 @@ impl ErrorClassifier {
         let mut score: f64 = 0.0;
 
         // Stack trace patterns
-        if original.contains("at ") && (original.contains("(") && original.contains(")"))
+        if original.contains("at ") && (original.contains('(') && original.contains(')'))
             || original.contains("  File \"")
             || lower.contains("stack trace")
         {
@@ -281,10 +279,10 @@ impl ErrorClassifier {
         match exit_code {
             Some(code) if code != 0 => {
                 // Non-zero exit codes are serious
-                if code < 0 || code > 128 {
-                    0.9 // Likely killed by signal
-                } else {
+                if (0..=128).contains(&code) {
                     0.7 // Standard error exit
+                } else {
+                    0.9 // Likely killed by signal
                 }
             }
             _ => 0.0,
@@ -305,7 +303,7 @@ impl ErrorClassifier {
         let now = SystemTime::now();
         let (count, last_seen) = self
             .frequency_tracker
-            .entry(fingerprint.clone())
+            .entry(fingerprint)
             .or_insert((0, now));
 
         *count += 1;
@@ -314,7 +312,7 @@ impl ErrorClassifier {
         if let Ok(duration) = now.duration_since(*last_seen) {
             if duration.as_secs() < 300 {
                 // Within 5 minutes
-                let multiplier = 1.0 + ((*count as f64 - 1.0) * 0.2);
+                let multiplier = (f64::from(*count) - 1.0).mul_add(0.2, 1.0);
                 *last_seen = now;
                 return multiplier.min(2.0); // Cap at 2x
             }

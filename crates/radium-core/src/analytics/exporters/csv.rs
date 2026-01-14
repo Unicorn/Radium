@@ -35,7 +35,7 @@ impl Exporter for CsvExporter {
             .from_writer(Vec::new());
 
         // Write header
-        writer.write_record(&[
+        writer.write_record([
             "timestamp",
             "agent_id",
             "plan_id",
@@ -69,9 +69,9 @@ impl Exporter for CsvExporter {
             ExportError::GenerationFailed(format!("Failed to get CSV data: {}", e))
         })?;
 
-        Ok(String::from_utf8(data).map_err(|e| {
+        String::from_utf8(data).map_err(|e| {
             ExportError::GenerationFailed(format!("Invalid UTF-8 in CSV: {}", e))
-        })?)
+        })
     }
 
     fn export_summary(
@@ -175,9 +175,9 @@ impl Exporter for CsvExporter {
             }
         }
 
-        Ok(String::from_utf8(output).map_err(|e| {
+        String::from_utf8(output).map_err(|e| {
             ExportError::GenerationFailed(format!("Invalid UTF-8 in CSV: {}", e))
-        })?)
+        })
     }
 }
 

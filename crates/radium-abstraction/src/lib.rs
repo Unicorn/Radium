@@ -3,6 +3,7 @@
 //! This module defines the core traits and types for interacting with AI models.
 
 pub mod batch;
+pub mod budget;
 
 use async_trait::async_trait;
 use futures::stream::Stream;
@@ -15,8 +16,10 @@ use thiserror::Error;
 /// Behavior for handling safety-filtered content.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[derive(Default)]
 pub enum SafetyBlockBehavior {
     /// Return available content with metadata (default, backward compatible).
+    #[default]
     ReturnPartial,
     /// Throw ContentFiltered error when content is blocked.
     ThrowError,
@@ -24,11 +27,6 @@ pub enum SafetyBlockBehavior {
     LogWarning,
 }
 
-impl Default for SafetyBlockBehavior {
-    fn default() -> Self {
-        Self::ReturnPartial
-    }
-}
 
 /// Represents an error that can occur when interacting with an AI model.
 #[derive(Error, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -599,6 +597,7 @@ impl std::fmt::Display for ReasoningEffort {
 
 /// The response from a text generation or chat completion model.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct ModelResponse {
     /// The generated content.
     pub content: String,
@@ -647,17 +646,6 @@ pub struct ModelResponse {
     pub tool_calls: Option<Vec<ToolCall>>,
 }
 
-impl Default for ModelResponse {
-    fn default() -> Self {
-        Self {
-            content: String::new(),
-            model_id: None,
-            usage: None,
-            metadata: None,
-            tool_calls: None,
-        }
-    }
-}
 
 impl ModelResponse {
     /// Gets the finish reason from metadata, if available.
@@ -703,8 +691,7 @@ impl ModelResponse {
     /// Returns `true` if any safety rating indicates blocked content.
     pub fn was_content_filtered(&self) -> bool {
         self.get_safety_ratings()
-            .map(|ratings| ratings.iter().any(|r| r.blocked))
-            .unwrap_or(false)
+            .is_some_and(|ratings| ratings.iter().any(|r| r.blocked))
     }
 
     /// Gets provider-specific metadata as a typed struct.
@@ -1547,7 +1534,7 @@ mod tests {
         use base64::Engine;
         // Create a Base64 string that decodes to more than the limit
         // We'll use a large string that when decoded exceeds 20MB
-        let large_data = base64::engine::general_purpose::STANDARD.encode(&vec![0u8; DEFAULT_SIZE_LIMIT + 1]);
+        let large_data = base64::engine::general_purpose::STANDARD.encode(vec![0u8; DEFAULT_SIZE_LIMIT + 1]);
         let result = validate_base64_size(&large_data, DEFAULT_SIZE_LIMIT);
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), ModelError::MediaSizeLimitExceeded { .. }));

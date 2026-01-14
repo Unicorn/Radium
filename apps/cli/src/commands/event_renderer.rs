@@ -57,6 +57,13 @@ pub async fn render_event_stream(
                     OrchestrationEvent::ApprovalRequired { correlation_id, .. } => correlation_id,
                     OrchestrationEvent::Error { correlation_id, .. } => correlation_id,
                     OrchestrationEvent::Done { correlation_id, .. } => correlation_id,
+                    OrchestrationEvent::ThinkingSessionStarted { correlation_id, .. } => correlation_id,
+                    OrchestrationEvent::ThinkingStepAdded { correlation_id, .. } => correlation_id,
+                    OrchestrationEvent::ThinkingStepUpdated { correlation_id, .. } => correlation_id,
+                    OrchestrationEvent::ThinkingSessionEnded { correlation_id, .. } => correlation_id,
+                    OrchestrationEvent::RecommendationsSessionStarted { correlation_id, .. } => correlation_id,
+                    OrchestrationEvent::RecommendationAdded { correlation_id, .. } => correlation_id,
+                    OrchestrationEvent::RecommendationsExecutionRequested { correlation_id, .. } => correlation_id,
                 };
 
                 if event_correlation_id != correlation_id {
@@ -181,6 +188,31 @@ pub async fn render_event_stream(
                             }
                         }
                         break; // Exit event loop on Done
+                    }
+                    OrchestrationEvent::ThinkingSessionStarted { context, .. } => {
+                        println!("  {} Starting thinking session: {}", "💭".cyan(), context.dimmed());
+                    }
+                    OrchestrationEvent::ThinkingStepAdded { description, .. } => {
+                        println!("  {} {}", "💭".cyan(), description.dimmed());
+                    }
+                    OrchestrationEvent::ThinkingStepUpdated { status, details, .. } => {
+                        let status_str = format!("{:?}", status);
+                        let details_str = details.as_deref().unwrap_or("");
+                        println!("  {} Updated [{}]: {}", "💭".cyan(), status_str, details_str.dimmed());
+                    }
+                    OrchestrationEvent::ThinkingSessionEnded { .. } => {
+                        println!("  {} Thinking session complete", "💭".green());
+                    }
+                    OrchestrationEvent::RecommendationsSessionStarted { context, .. } => {
+                        println!("  {} Generating recommendations: {}", "💡".cyan(), context.dimmed());
+                    }
+                    OrchestrationEvent::RecommendationAdded { description, command, details, .. } => {
+                        let cmd_str = command.as_deref().unwrap_or("");
+                        let details_str = details.as_deref().unwrap_or("");
+                        println!("  {} {} {} {}", "💡".yellow(), description, cmd_str.cyan(), details_str.dimmed());
+                    }
+                    OrchestrationEvent::RecommendationsExecutionRequested { .. } => {
+                        println!("  {} Recommendations ready for execution", "💡".green());
                     }
                 }
             }

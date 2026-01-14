@@ -7,8 +7,10 @@ use std::collections::HashMap;
 /// Session state enumeration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
+#[derive(Default)]
 pub enum SessionState {
     /// Session is active and processing requests.
+    #[default]
     Active,
     /// Session is paused (not processing but can be resumed).
     Paused,
@@ -18,11 +20,6 @@ pub enum SessionState {
     Failed,
 }
 
-impl Default for SessionState {
-    fn default() -> Self {
-        Self::Active
-    }
-}
 
 impl ToString for SessionState {
     fn to_string(&self) -> String {

@@ -263,7 +263,7 @@ impl ErrorRouter {
 
     /// Gets the next pending fix proposal from the queue.
     pub async fn get_next_pending_proposal(&self) -> Option<FixProposal> {
-        let mut queue = self.approval_queue.lock().await;
+        let queue = self.approval_queue.lock().await;
 
         // Find first pending proposal
         if let Some(pos) = queue.iter().position(|p| p.status == ProposalStatus::Pending) {

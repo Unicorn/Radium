@@ -36,8 +36,7 @@ impl McpConfigManager {
         }
 
         let content = std::fs::read_to_string(&self.config_path).map_err(|e| {
-            McpError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            McpError::Io(std::io::Error::other(
                 format!(
                     "Failed to read MCP config file at {}: {}\n\nSuggestion: Ensure the file exists and has read permissions. You can create a new config file using 'rad mcp setup' or by manually creating {}",
                     self.config_path.display(),
@@ -100,21 +99,19 @@ impl McpConfigManager {
             _ => {
                 return Err(McpError::config(
                     format!("Invalid transport type: '{}'", transport_str),
-                    format!(
-                        "Valid transport types are: 'stdio', 'sse', or 'http'.\n  - 'stdio': For local command-line MCP servers\n  - 'sse': For Server-Sent Events (SSE) endpoints\n  - 'http': For HTTP-based MCP servers\n\nExample:\n  transport = \"stdio\""
-                    ),
+                    "Valid transport types are: 'stdio', 'sse', or 'http'.\n  - 'stdio': For local command-line MCP servers\n  - 'sse': For Server-Sent Events (SSE) endpoints\n  - 'http': For HTTP-based MCP servers\n\nExample:\n  transport = \"stdio\"".to_string(),
                 ));
             }
         };
 
-        let command = server_table.get("command").and_then(|c| c.as_str()).map(|s| s.to_string());
+        let command = server_table.get("command").and_then(|c| c.as_str()).map(std::string::ToString::to_string);
 
         let args = server_table
             .get("args")
             .and_then(|a| a.as_array())
-            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect());
+            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(std::string::ToString::to_string)).collect());
 
-        let url = server_table.get("url").and_then(|u| u.as_str()).map(|s| s.to_string());
+        let url = server_table.get("url").and_then(|u| u.as_str()).map(std::string::ToString::to_string);
 
         // Validate transport-specific requirements
         match transport {
@@ -244,8 +241,7 @@ impl McpConfigManager {
         // Create parent directory if it doesn't exist
         if let Some(parent) = self.config_path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| {
-                McpError::Io(std::io::Error::new(
-                    std::io::ErrorKind::Other,
+                McpError::Io(std::io::Error::other(
                     format!(
                         "Failed to create config directory at {}: {}\n\nSuggestion: Ensure you have write permissions for the parent directory. You may need to create the directory manually or run with appropriate permissions.",
                         parent.display(),
@@ -256,8 +252,7 @@ impl McpConfigManager {
         }
 
         std::fs::write(&self.config_path, content).map_err(|e| {
-            McpError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            McpError::Io(std::io::Error::other(
                 format!(
                     "Failed to write config file at {}: {}\n\nSuggestion: Ensure you have write permissions for the config file location. Check that the file is not locked by another process.",
                     self.config_path.display(),

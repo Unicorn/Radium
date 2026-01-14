@@ -394,7 +394,7 @@ impl Model for OpenAIModel {
         };
 
         // Extract usage information
-        let cache_usage = if let Some(ref details) = openai_response.usage.as_ref().and_then(|u| u.prompt_tokens_details.as_ref()) {
+        let cache_usage = if let Some(details) = openai_response.usage.as_ref().and_then(|u| u.prompt_tokens_details.as_ref()) {
             if let Some(cached) = details.cached_tokens {
                 if cached > 0 {
                     Some(radium_abstraction::CacheUsage {
@@ -477,7 +477,7 @@ impl Model for OpenAIModel {
         _tool_config: Option<&radium_abstraction::ToolConfig>,
     ) -> Result<ModelResponse, ModelError> {
         Err(ModelError::UnsupportedModelProvider(
-            format!("OpenAIModel does not support function calling yet"),
+            "OpenAIModel does not support function calling yet".to_string(),
         ))
     }
 
@@ -501,7 +501,7 @@ impl StreamingModel for OpenAIModel {
         );
 
         // Convert single prompt to chat format for OpenAI
-        let messages = vec![ChatMessage {
+        let messages = [ChatMessage {
             role: "user".to_string(),
             content: MessageContent::Text(prompt.to_string()),
         }];
@@ -677,8 +677,8 @@ impl Stream for OpenAISSEStream {
                                 self.buffer = self.buffer[end_idx + 2..].to_string();
 
                                 // Parse SSE event
-                                if event.starts_with("data: ") {
-                                    let data = &event[6..]; // Skip "data: " prefix
+                                if let Some(data) = event.strip_prefix("data: ") {
+                                    // Skip "data: " prefix
 
                                     // Check for [DONE] signal
                                     if data.trim() == "[DONE]" {
@@ -733,9 +733,7 @@ impl Stream for OpenAISSEStream {
                         let event = self.buffer[..end_idx].to_string();
                         self.buffer = self.buffer[end_idx + 2..].to_string();
 
-                        if event.starts_with("data: ") {
-                            let data = &event[6..];
-
+                        if let Some(data) = event.strip_prefix("data: ") {
                             if data.trim() == "[DONE]" {
                                 self.done = true;
                                 if !self.accumulated.is_empty() {
@@ -1009,8 +1007,7 @@ mod tests {
         assert_eq!(role, "system");
 
         // Test that system messages are included in messages array (not filtered)
-        let messages = vec![
-            ChatMessage {
+        let messages = [ChatMessage {
                 role: "system".to_string(),
                 content: MessageContent::Text("System instruction.".to_string()),
             },
@@ -1021,8 +1018,7 @@ mod tests {
             ChatMessage {
                 role: "assistant".to_string(),
                 content: MessageContent::Text("Assistant message.".to_string()),
-            },
-        ];
+            }];
 
         // Simulate message conversion (as done in generate_chat_completion)
         let model = OpenAIModel::with_api_key("gpt-4".to_string(), "test-key".to_string());
@@ -1049,8 +1045,7 @@ mod tests {
         use radium_abstraction::ChatMessage;
 
         // Test that multiple system messages are preserved (OpenAI supports this)
-        let messages = vec![
-            ChatMessage {
+        let messages = [ChatMessage {
                 role: "system".to_string(),
                 content: MessageContent::Text("First system message.".to_string()),
             },
@@ -1061,8 +1056,7 @@ mod tests {
             ChatMessage {
                 role: "user".to_string(),
                 content: MessageContent::Text("User message.".to_string()),
-            },
-        ];
+            }];
 
         // Simulate message conversion
         let model = OpenAIModel::with_api_key("gpt-4".to_string(), "test-key".to_string());

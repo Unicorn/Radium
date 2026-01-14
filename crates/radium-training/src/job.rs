@@ -8,6 +8,12 @@ use uuid::Uuid;
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TrainingJobId(pub String);
 
+impl Default for TrainingJobId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TrainingJobId {
     #[must_use]
     pub fn new() -> Self {

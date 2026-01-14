@@ -140,8 +140,24 @@ impl ReportGenerator {
             }
         }
 
-        // TODO: Extract git commits from workspace
-        let git_commits = vec![];
+        // Extract git commits from workspace
+        // Get commits from completed tasks
+        let mut all_commit_hashes = Vec::new();
+        for task_id in completed_tasks.iter() {
+            if let Some(result) = execution_state.get_result(task_id) {
+                all_commit_hashes.extend(result.commits.clone());
+            }
+        }
+
+        // Query git repository for commit details
+        let git_commits = if !all_commit_hashes.is_empty() {
+            crate::workflow::git_integration::get_commit_info(&self.workspace_path, &all_commit_hashes)
+        } else {
+            // Fallback: get recent commits from the workspace
+            // Calculate approximate start time based on total execution time
+            let execution_start = chrono::Utc::now() - chrono::Duration::seconds(execution_report.total_execution_time_secs as i64);
+            crate::workflow::git_integration::get_recent_commits(&self.workspace_path, execution_start)
+        };
 
         // TODO: Aggregate test results from task results
         let test_results = None;
@@ -208,7 +224,7 @@ impl ReportGenerator {
             if let Some(ref error) = summary.error_message {
                 md.push_str(&format!("- **Error**: {}\n", error));
             }
-            md.push_str("\n");
+            md.push('\n');
         }
 
         if !report.git_commits.is_empty() {
@@ -216,7 +232,7 @@ impl ReportGenerator {
             for commit in &report.git_commits {
                 md.push_str(&format!("- [{}] {}\n", &commit.hash[..8], commit.message));
             }
-            md.push_str("\n");
+            md.push('\n');
         }
 
         if let Some(ref test_results) = report.test_results {
@@ -228,7 +244,7 @@ impl ReportGenerator {
             if let Some(coverage) = test_results.coverage_percent {
                 md.push_str(&format!("- **Coverage**: {:.1}%\n", coverage));
             }
-            md.push_str("\n");
+            md.push('\n');
         }
 
         md

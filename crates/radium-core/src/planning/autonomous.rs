@@ -217,14 +217,13 @@ impl PlanValidator {
         for iteration in &plan.iterations {
             for task in &iteration.tasks {
                 if let Some(agent_id) = &task.agent_id {
-                    if agent_id != "auto" {
-                        if self.agent_registry.get(agent_id).is_err() {
+                    if agent_id != "auto"
+                        && self.agent_registry.get(agent_id).is_err() {
                             warnings.push(format!(
                                 "Task {}.T{} references unknown agent: {}",
                                 iteration.number, task.number, agent_id
                             ));
                         }
-                    }
                 }
             }
         }

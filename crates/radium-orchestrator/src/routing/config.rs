@@ -148,7 +148,7 @@ impl RoutingConfigLoader {
         
         // Validate threshold if set
         if let Some(threshold) = config.threshold {
-            if threshold < 0.0 || threshold > 100.0 {
+            if !(0.0..=100.0).contains(&threshold) {
                 return Err(ConfigError::Validation(format!(
                     "Invalid threshold: {}. Must be between 0.0 and 100.0",
                     threshold

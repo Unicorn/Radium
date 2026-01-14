@@ -393,9 +393,7 @@ impl ToolHandler for GitStatusHandler {
             .output()
             .await
             .ok()
-            .and_then(|o| String::from_utf8(o.stdout).ok())
-            .map(|s| s.trim().to_string())
-            .unwrap_or_else(|| "detached HEAD".to_string());
+            .and_then(|o| String::from_utf8(o.stdout).ok()).map_or_else(|| "detached HEAD".to_string(), |s| s.trim().to_string());
 
         // Parse porcelain v2 output
         let status_info = parse_git_status_porcelain_v2(&status_output, &branch_output, &format)?;
@@ -456,7 +454,7 @@ fn parse_git_status_porcelain_v2(
             continue;
         }
 
-        let index_status = status.chars().nth(0).unwrap_or(' ');
+        let index_status = status.chars().next().unwrap_or(' ');
         let worktree_status = status.chars().nth(1).unwrap_or(' ');
 
         // Handle renamed files (format: R <score> <old> -> <new>)
@@ -491,12 +489,12 @@ fn parse_git_status_porcelain_v2(
         // Categorize by index status (staged) and worktree status (modified)
         // Note: Porcelain v2 uses '.' for unmodified, not ' '
         match (index_status, worktree_status) {
-            ('A', '.') | ('A', ' ') => staged.push(("A", path)),
-            ('M', '.') | ('M', ' ') => staged.push(("M", path)),
-            ('D', '.') | ('D', ' ') => staged.push(("D", path)),
-            ('.', 'M') | (' ', 'M') => modified.push(("M", path)),
-            ('.', 'D') | (' ', 'D') => deleted.push(("D", path)),
-            ('.', 'A') | (' ', 'A') => modified.push(("A", path)),
+            ('A', '.' | ' ') => staged.push(("A", path)),
+            ('M', '.' | ' ') => staged.push(("M", path)),
+            ('D', '.' | ' ') => staged.push(("D", path)),
+            ('.' | ' ', 'M') => modified.push(("M", path)),
+            ('.' | ' ', 'D') => deleted.push(("D", path)),
+            ('.' | ' ', 'A') => modified.push(("A", path)),
             ('M', 'M') => {
                 // Modified in both index and worktree
                 staged.push(("M", path.clone()));

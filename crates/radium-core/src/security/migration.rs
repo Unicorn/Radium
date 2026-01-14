@@ -59,8 +59,7 @@ impl MigrationManager {
     pub fn create_backup(source: &Path) -> SecurityResult<PathBuf> {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .map_err(|e| SecurityError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            .map_err(|e| SecurityError::Io(std::io::Error::other(
                 format!("Failed to get timestamp: {}", e),
             )))?
             .as_secs();
@@ -131,14 +130,12 @@ impl MigrationManager {
 
         // Load existing credentials
         let store = CredentialStore::new()
-            .map_err(|e| SecurityError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            .map_err(|e| SecurityError::Io(std::io::Error::other(
                 format!("Failed to create CredentialStore: {}", e),
             )))?;
 
         let provider_types = store.list()
-            .map_err(|e| SecurityError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            .map_err(|e| SecurityError::Io(std::io::Error::other(
                 format!("Failed to list providers: {}", e),
             )))?;
 
@@ -148,9 +145,9 @@ impl MigrationManager {
             .join("secrets.vault");
 
         let mut manager = if vault_path.exists() {
-            SecretManager::from_existing(vault_path.clone(), master_password)?
+            SecretManager::from_existing(vault_path, master_password)?
         } else {
-            SecretManager::new(vault_path.clone(), master_password)?
+            SecretManager::new(vault_path, master_password)?
         };
 
         // Migrate each credential

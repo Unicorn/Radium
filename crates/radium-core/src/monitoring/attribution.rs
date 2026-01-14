@@ -40,7 +40,7 @@ impl AttributionMetadata {
             api_key_id,
             team_name: provider.team_name.clone(),
             project_name: provider.project_name.clone(),
-            cost_center: provider.cost_center.clone(),
+            cost_center: provider.cost_center,
         })
     }
 

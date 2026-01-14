@@ -27,7 +27,8 @@ pub mod clipboard;
 pub mod code_blocks;
 #[cfg(feature = "server")]
 pub mod client;
-// pub mod collaboration;  // TEMPORARILY DISABLED: depends on radium-orchestrator (circular dependency)
+#[cfg(feature = "workflow")]
+pub mod collaboration;
 pub mod commands;
 pub mod config;
 pub mod context;

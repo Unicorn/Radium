@@ -855,9 +855,8 @@ impl Stream for ClaudeSSEStream {
 
                                                                     if is_thinking {
                                                                         return Poll::Ready(Some(Ok(StreamItem::ThinkingToken(text))));
-                                                                    } else {
-                                                                        return Poll::Ready(Some(Ok(StreamItem::AnswerToken(text))));
                                                                     }
+                                                                    return Poll::Ready(Some(Ok(StreamItem::AnswerToken(text))));
                                                                 }
                                                             }
                                                         }

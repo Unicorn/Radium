@@ -334,8 +334,8 @@ impl DependencyGraph {
         let mut path = Vec::new();
 
         for node in graph.node_indices() {
-            if Self::dfs_cycle(graph, node, &mut visited, &mut rec_stack, &mut path, task_map) {
-                if !path.is_empty() {
+            if Self::dfs_cycle(graph, node, &mut visited, &mut rec_stack, &mut path, task_map)
+                && !path.is_empty() {
                     let cycle_str = path
                         .iter()
                         .rev()
@@ -344,7 +344,6 @@ impl DependencyGraph {
                         .join(" -> ");
                     return Ok(cycle_str);
                 }
-            }
         }
 
         Ok("unknown cycle".to_string())
@@ -495,7 +494,20 @@ impl DependencyGraph {
 
             // Update dependents
             for dependent in self.graph.neighbors_directed(node, Direction::Outgoing) {
-                if !visited.contains(&dependent) {
+                if visited.contains(&dependent) {
+                    // Update level if this path gives a higher level
+                    let current_level = levels
+                        .get(self.task_map.get(&dependent).unwrap())
+                        .copied()
+                        .unwrap_or(0);
+                    let new_level = level + 1;
+                    if new_level > current_level {
+                        levels.insert(
+                            self.task_map.get(&dependent).unwrap().clone(),
+                            new_level,
+                        );
+                    }
+                } else {
                     let current_level = levels
                         .get(self.task_map.get(&dependent).unwrap())
                         .copied()
@@ -509,19 +521,6 @@ impl DependencyGraph {
                     }
                     visited.insert(dependent);
                     queue.push((dependent, new_level));
-                } else {
-                    // Update level if this path gives a higher level
-                    let current_level = levels
-                        .get(self.task_map.get(&dependent).unwrap())
-                        .copied()
-                        .unwrap_or(0);
-                    let new_level = level + 1;
-                    if new_level > current_level {
-                        levels.insert(
-                            self.task_map.get(&dependent).unwrap().clone(),
-                            new_level,
-                        );
-                    }
                 }
             }
         }
@@ -573,8 +572,7 @@ impl DependencyGraph {
                     .all(|dep_node| {
                         self.task_map
                             .get(&dep_node)
-                            .map(|dep_id| completed_task_ids.contains(dep_id))
-                            .unwrap_or(false)
+                            .is_some_and(|dep_id| completed_task_ids.contains(dep_id))
                     });
 
                 if all_deps_completed && !completed_task_ids.contains(task_id) {
@@ -600,7 +598,7 @@ impl DependencyGraph {
                 .neighbors_directed(*node, Direction::Incoming)
                 .any(|dep_node| {
                     let dep_id = self.task_map.get(&dep_node);
-                    dep_id.map(|id| !completed_task_ids.contains(id)).unwrap_or(false)
+                    dep_id.is_some_and(|id| !completed_task_ids.contains(id))
                 })
         } else {
             true // Task not found, consider it blocked

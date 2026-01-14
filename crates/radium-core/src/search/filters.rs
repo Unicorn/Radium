@@ -24,8 +24,7 @@ impl FileTypeFilter {
                 let path_str = path.to_string_lossy();
                 Pattern::new(pattern)
                     .ok()
-                    .map(|p| p.matches(&path_str))
-                    .unwrap_or(false)
+                    .is_some_and(|p| p.matches(&path_str))
             }
             FileTypeFilter::Language(lang) => {
                 // Map language names to file extensions

@@ -45,7 +45,7 @@ impl BigramCheckpoint {
     }
 
     fn id_for_char(&self, ch: char) -> Option<usize> {
-        self.vocab.iter().position(|s| s.chars().next() == Some(ch))
+        self.vocab.iter().position(|s| s.starts_with(ch))
     }
 
     fn next_id_argmax(&self, current_id: usize) -> Result<usize> {

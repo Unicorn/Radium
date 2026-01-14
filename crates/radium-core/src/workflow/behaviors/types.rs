@@ -298,7 +298,7 @@ impl BehaviorFileWatcher {
         // Spawn task to forward file system events to tokio
         let watcher_tx = tx_watch.clone();
         tokio::spawn(async move {
-            while let Ok(()) = rx.recv() {
+            while rx.recv() == Ok(()) {
                 let _ = watcher_tx.send(());
             }
         });

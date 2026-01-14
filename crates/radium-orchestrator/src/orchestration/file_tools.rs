@@ -283,7 +283,7 @@ impl FileOperationHandler {
         }
 
         match fs::write(&resolved_path, contents).await {
-            Ok(_) => Ok(ToolResult::success(format!(
+            Ok(()) => Ok(ToolResult::success(format!(
                 "Successfully wrote {} bytes to {}",
                 resolved_path.metadata().map(|m| m.len()).unwrap_or(0),
                 resolved_path.display()
@@ -348,7 +348,7 @@ impl FileOperationHandler {
 
         // Write back to file
         match fs::write(&resolved_path, new_content).await {
-            Ok(_) => Ok(ToolResult::success(format!(
+            Ok(()) => Ok(ToolResult::success(format!(
                 "Successfully replaced {} occurrence(s) in {}",
                 replacements,
                 resolved_path.display()
@@ -514,17 +514,16 @@ impl FileOperationHandler {
                 ))
                 .with_metadata("dir_path", resolved_path.display().to_string())
                 .with_metadata("already_existed", "true"));
-            } else {
-                return Ok(ToolResult::error(format!(
-                    "Path exists but is not a directory: {}",
-                    resolved_path.display()
-                )));
             }
+            return Ok(ToolResult::error(format!(
+                "Path exists but is not a directory: {}",
+                resolved_path.display()
+            )));
         }
 
         // Create directory and all parent directories
         match fs::create_dir_all(&resolved_path).await {
-            Ok(_) => Ok(ToolResult::success(format!(
+            Ok(()) => Ok(ToolResult::success(format!(
                 "Successfully created directory: {}",
                 resolved_path.display()
             ))
@@ -567,7 +566,7 @@ impl FileOperationHandler {
 
         // Delete the file
         match fs::remove_file(&resolved_path).await {
-            Ok(_) => Ok(ToolResult::success(format!(
+            Ok(()) => Ok(ToolResult::success(format!(
                 "Successfully deleted file: {}",
                 resolved_path.display()
             ))
@@ -629,7 +628,7 @@ impl FileOperationHandler {
 
         // Perform the rename/move
         match fs::rename(&resolved_old, &resolved_new).await {
-            Ok(_) => {
+            Ok(()) => {
                 let is_file = resolved_new.is_file();
                 Ok(ToolResult::success(format!(
                     "Successfully renamed {} from {} to {}",
@@ -658,15 +657,13 @@ fn matches_pattern(path: &str, pattern: &str) -> bool {
         return true;
     }
 
-    if pattern.starts_with("*.") {
+    if let Some(ext) = pattern.strip_prefix("*.") {
         // *.ext pattern
-        let ext = &pattern[2..];
         return path.ends_with(ext);
     }
 
-    if pattern.ends_with("*") {
+    if let Some(prefix) = pattern.strip_suffix('*') {
         // prefix* pattern
-        let prefix = &pattern[..pattern.len() - 1];
         return path.starts_with(prefix);
     }
 

@@ -398,7 +398,7 @@ impl TelemetryRecord {
                 "openai" => {
                     // OpenAI pricing varies by model
                     match self.model.as_deref() {
-                        Some("gpt-4") | Some("gpt-4-turbo") => (30.0, 60.0),
+                        Some("gpt-4" | "gpt-4-turbo") => (30.0, 60.0),
                         Some("gpt-3.5-turbo") => (0.5, 1.5),
                         _ => (10.0, 30.0), // Default for OpenAI
                     }
@@ -406,16 +406,16 @@ impl TelemetryRecord {
                 "claude" => {
                     // Claude pricing varies by model
                     match self.model.as_deref() {
-                        Some("claude-3-opus") | Some("claude-3-opus-20240229") => (15.0, 75.0),
-                        Some("claude-3-sonnet") | Some("claude-3-sonnet-20240229") => (3.0, 15.0),
-                        Some("claude-3-haiku") | Some("claude-3-haiku-20240307") => (0.25, 1.25),
+                        Some("claude-3-opus" | "claude-3-opus-20240229") => (15.0, 75.0),
+                        Some("claude-3-sonnet" | "claude-3-sonnet-20240229") => (3.0, 15.0),
+                        Some("claude-3-haiku" | "claude-3-haiku-20240307") => (0.25, 1.25),
                         _ => (3.0, 15.0), // Default for Claude
                     }
                 }
                 "gemini" => {
                     // Gemini pricing
                     match self.model.as_deref() {
-                        Some("gemini-pro") | Some("gemini-2.0-flash-exp") => (0.5, 1.5),
+                        Some("gemini-pro" | "gemini-2.0-flash-exp") => (0.5, 1.5),
                         _ => (0.5, 1.5), // Default for Gemini
                     }
                 }
@@ -612,7 +612,7 @@ impl TelemetryTracking for MonitoringService {
                         if let Some(custom_fields) = modified_data.as_object() {
                             // Allow hooks to add custom fields (we'll store them as JSON in a metadata field if needed)
                             // For now, we just process the standard fields
-                            if let Some(new_cost) = custom_fields.get("estimated_cost").and_then(|v| v.as_f64()) {
+                            if let Some(new_cost) = custom_fields.get("estimated_cost").and_then(serde_json::Value::as_f64) {
                                 effective_record.estimated_cost = new_cost;
                             }
                         }

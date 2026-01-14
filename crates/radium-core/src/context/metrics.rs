@@ -137,7 +137,7 @@ impl AggregatedContextMetrics {
         
         // Calculate percentiles for total time
         let mut times: Vec<u64> = metrics.iter().map(|m| m.total_time_ms).collect();
-        times.sort();
+        times.sort_unstable();
         let p50 = Self::percentile(&times, 0.50);
         let p95 = Self::percentile(&times, 0.95);
         let p99 = Self::percentile(&times, 0.99);
@@ -156,20 +156,20 @@ impl AggregatedContextMetrics {
             .iter()
             .filter_map(|m| m.memory_read_latency_ms)
             .collect();
-        let average_memory_read_latency_ms = if !memory_reads.is_empty() {
-            Some(memory_reads.iter().sum::<u64>() as f64 / memory_reads.len() as f64)
-        } else {
+        let average_memory_read_latency_ms = if memory_reads.is_empty() {
             None
+        } else {
+            Some(memory_reads.iter().sum::<u64>() as f64 / memory_reads.len() as f64)
         };
         
         let memory_writes: Vec<u64> = metrics
             .iter()
             .filter_map(|m| m.memory_write_latency_ms)
             .collect();
-        let average_memory_write_latency_ms = if !memory_writes.is_empty() {
-            Some(memory_writes.iter().sum::<u64>() as f64 / memory_writes.len() as f64)
-        } else {
+        let average_memory_write_latency_ms = if memory_writes.is_empty() {
             None
+        } else {
+            Some(memory_writes.iter().sum::<u64>() as f64 / memory_writes.len() as f64)
         };
         
         // Calculate average validation duration
@@ -177,10 +177,10 @@ impl AggregatedContextMetrics {
             .iter()
             .filter_map(|m| m.validation_duration_ms)
             .collect();
-        let average_validation_duration_ms = if !validations.is_empty() {
-            Some(validations.iter().sum::<u64>() as f64 / validations.len() as f64)
-        } else {
+        let average_validation_duration_ms = if validations.is_empty() {
             None
+        } else {
+            Some(validations.iter().sum::<u64>() as f64 / validations.len() as f64)
         };
         
         Self {

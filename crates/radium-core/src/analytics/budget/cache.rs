@@ -158,8 +158,8 @@ impl DailySpendAggregator {
         let end_datetime = date_obj.and_hms_opt(23, 59, 59)
             .ok_or_else(|| crate::monitoring::MonitoringError::Other("Invalid date".to_string()))?;
         
-        let start_timestamp = start_datetime.and_utc().timestamp() as i64;
-        let end_timestamp = end_datetime.and_utc().timestamp() as i64;
+        let start_timestamp = start_datetime.and_utc().timestamp();
+        let end_timestamp = end_datetime.and_utc().timestamp();
 
         // Query telemetry for the day
         let mut stmt = conn.prepare(
@@ -181,7 +181,7 @@ impl DailySpendAggregator {
 
         let (total_cost, total_tokens, requirement_count) = row;
         let avg_cost_per_requirement = if requirement_count > 0 {
-            total_cost / requirement_count as f64
+            total_cost / f64::from(requirement_count)
         } else {
             0.0
         };
@@ -214,7 +214,7 @@ impl DailySpendAggregator {
                 summary.date,
                 summary.total_cost,
                 summary.total_tokens as i64,
-                summary.requirement_count as i64,
+                i64::from(summary.requirement_count),
                 summary.avg_cost_per_requirement,
                 created_at,
             ],
@@ -240,7 +240,7 @@ impl DailySpendAggregator {
 
         let missing_dates: Vec<String> = stmt
             .query_map([], |row| {
-                Ok(row.get::<_, String>(0)?)
+                row.get::<_, String>(0)
             })?
             .collect::<std::result::Result<Vec<_>, rusqlite::Error>>()?;
 

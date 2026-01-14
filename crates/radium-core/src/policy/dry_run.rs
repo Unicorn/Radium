@@ -11,7 +11,7 @@ use super::types::{DryRunPreview, PolicyResult};
 /// # Returns
 /// A `DryRunPreview` with details about what would happen.
 pub fn generate_preview(tool_name: &str, args: &[&str]) -> PolicyResult<DryRunPreview> {
-    let arguments: Vec<String> = args.iter().map(|s| s.to_string()).collect();
+    let arguments: Vec<String> = args.iter().map(|s| (*s).to_string()).collect();
     let affected_resources = analyze_affected_resources(tool_name, args)?;
     let details = generate_details(tool_name, args)?;
 

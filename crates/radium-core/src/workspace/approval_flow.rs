@@ -32,9 +32,9 @@ impl ApprovalFlow {
         operation: &str,
         path: &PathBuf,
     ) -> FileOperationResult<PolicyDecision> {
-        let tool_name = format!("{}", operation);
-        let args = vec![path.display().to_string()];
-        let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        let tool_name = operation.to_string();
+        let args = [path.display().to_string()];
+        let args_refs: Vec<&str> = args.iter().map(std::string::String::as_str).collect();
 
         self.policy_engine
             .evaluate_tool(&tool_name, &args_refs)

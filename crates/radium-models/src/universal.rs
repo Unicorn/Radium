@@ -362,7 +362,7 @@ impl Model for UniversalModel {
         _tool_config: Option<&radium_abstraction::ToolConfig>,
     ) -> Result<ModelResponse, ModelError> {
         Err(ModelError::UnsupportedModelProvider(
-            format!("UniversalModel does not support function calling"),
+            "UniversalModel does not support function calling".to_string(),
         ))
     }
 
@@ -568,8 +568,8 @@ impl Stream for SSEStream {
                                 self.buffer = self.buffer[end_idx + 2..].to_string();
                                 
                                 // Parse SSE event
-                                if event.starts_with("data: ") {
-                                    let data = &event[6..]; // Skip "data: " prefix
+                                if let Some(data) = event.strip_prefix("data: ") {
+                                    // Skip "data: " prefix
                                     
                                     // Check for [DONE] signal
                                     if data.trim() == "[DONE]" {
@@ -619,9 +619,7 @@ impl Stream for SSEStream {
                         let event = self.buffer[..end_idx].to_string();
                         self.buffer = self.buffer[end_idx + 2..].to_string();
                         
-                        if event.starts_with("data: ") {
-                            let data = &event[6..];
-                            
+                        if let Some(data) = event.strip_prefix("data: ") {
                             if data.trim() == "[DONE]" {
                                 self.done = true;
                                 if !self.accumulated.is_empty() {
