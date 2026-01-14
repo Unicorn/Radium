@@ -169,6 +169,46 @@ async fn stream_events() {
 }
 ```
 
+**Executing agent with session ID** (pseudo-code):
+```rust
+async fn execute_with_events(client: &mut RadiumClient, session_id: String) {
+    // Execute agent with session_id to route events to your stream
+    let request = ExecuteAgentRequest {
+        agent_id: Some("my-agent".to_string()),
+        input: "Hello, world!".to_string()),
+        session_id: Some(session_id.clone()),  // ← Key: use your session_id here
+        ..Default::default()
+    };
+
+    let response = client.execute_agent(request).await?;
+
+    // Events will be sent to the session stream matching this session_id
+    // Your session_events_stream listener will receive:
+    // 1. AssistantMessage: "Starting execution for agent: my-agent"
+    // 2. AssistantMessage: "Execution completed: <output>"
+    // 3. Done event
+}
+```
+
+### Session ID Mapping
+
+**How it works:**
+1. Client connects to `session_events_stream` and receives a unique `session_id`
+2. Client calls `execute_agent` with that `session_id` in the request
+3. Server uses `session_id` as `correlation_id` for events
+4. EventBridge routes events to the matching session stream
+5. Client receives real-time events for that execution
+
+**If session_id not provided:**
+- Server generates random `correlation_id` (format: `exec-{uuid}`)
+- Events may not route to any session (orphaned events)
+- Execution still works, but no real-time updates
+
+**Best practice:**
+- Always provide `session_id` when you want event streaming
+- Extract `session_id` from the initial stream connection
+- Reuse the same `session_id` for all `execute_agent` calls
+
 ## Implementation Status
 
 ### ✅ Completed
@@ -178,11 +218,12 @@ async fn stream_events() {
 3. **Event Conversion** - OrchestrationEvent → SessionEvent mapping
 4. **Feature Gating** - Proper `#[cfg(feature = "workflow")]` guards
 5. **Bidirectional Streaming** - Client can send approval responses
+6. **Session ID Mapping** - session_id from request used as correlation_id
+7. **Basic Event Emission** - Events emitted during agent execution (start/end/error)
 
 ### 🔄 In Progress
 
-1. **Event Emission** - Need to emit events from agent execution
-2. **End-to-End Testing** - Integration tests with real event flow
+1. **End-to-End Testing** - Integration tests with real event flow
 
 ### 📋 TODO
 

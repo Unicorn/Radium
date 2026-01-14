@@ -297,6 +297,9 @@ message ExecuteAgentRequest {
   // Selection criteria for dynamic agent selection.
   // Used when agent_id is not provided. If both are missing, returns INVALID_ARGUMENT.
   optional SelectionCriteria criteria = 5;
+  // Session ID for event streaming. If provided, events will be routed to this session.
+  // Used as correlation_id for event tracking. If not provided, a random correlation_id is generated.
+  optional string session_id = 6;
 }
 
 message ExecuteAgentResponse {

@@ -880,8 +880,14 @@ impl Radium for RadiumService {
             ));
         };
 
-        // Generate correlation ID for event tracking
-        let correlation_id = format!("exec-{}", Uuid::new_v4());
+        // Use session_id as correlation_id if provided, otherwise generate random ID
+        let correlation_id = inner.session_id.unwrap_or_else(|| {
+            let generated_id = format!("exec-{}", Uuid::new_v4());
+            info!(correlation_id = %generated_id, "Generated correlation_id (no session_id provided)");
+            generated_id
+        });
+
+        info!(correlation_id = %correlation_id, "Using correlation_id for event tracking");
 
         // Emit start event (workflow feature only)
         #[cfg(feature = "workflow")]
