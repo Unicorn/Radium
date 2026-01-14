@@ -880,6 +880,18 @@ impl Radium for RadiumService {
             ));
         };
 
+        // Generate correlation ID for event tracking
+        let correlation_id = format!("exec-{}", Uuid::new_v4());
+
+        // Emit start event (workflow feature only)
+        #[cfg(feature = "workflow")]
+        {
+            let _ = self.event_tx.send(OrchestrationEvent::AssistantMessage {
+                correlation_id: correlation_id.clone(),
+                content: format!("Starting execution for agent: {}", agent_id),
+            });
+        }
+
         // Execute with the selected/provided agent
         let result = if let (Some(model_type), Some(model_id)) = (inner.model_type, inner.model_id)
         {
@@ -903,10 +915,9 @@ impl Radium for RadiumService {
         };
 
         match result {
-            Ok(exec_result) => Ok(Response::new(ExecuteAgentResponse {
-                success: exec_result.success,
-                output: match exec_result.output {
-                    radium_orchestrator::AgentOutput::Text(text) => text,
+            Ok(exec_result) => {
+                let output_str = match &exec_result.output {
+                    radium_orchestrator::AgentOutput::Text(text) => text.clone(),
                     radium_orchestrator::AgentOutput::StructuredData(data) => {
                         serde_json::to_string(&data).unwrap_or_else(|_| "Invalid JSON".to_string())
                     }
@@ -930,17 +941,52 @@ impl Radium for RadiumService {
                         output
                     }
                     radium_orchestrator::AgentOutput::Terminate => "Terminated".to_string(),
-                },
-                error: exec_result.error,
-                // TODO: Extract metadata from ExecutionResult when it's available
-                // For now, metadata is None since ExecutionResult doesn't include it yet
-                metadata: None,
-            })),
-            Err(e) => Ok(Response::new(ExecuteAgentResponse {
-                success: false,
-                output: String::new(),
-                error: Some(e.to_string()),
-            })),
+                };
+
+                // Emit completion event (workflow feature only)
+                #[cfg(feature = "workflow")]
+                {
+                    if exec_result.success {
+                        let _ = self.event_tx.send(OrchestrationEvent::AssistantMessage {
+                            correlation_id: correlation_id.clone(),
+                            content: format!("Execution completed: {}", output_str),
+                        });
+                        let _ = self.event_tx.send(OrchestrationEvent::Done {
+                            correlation_id: correlation_id.clone(),
+                        });
+                    } else {
+                        let _ = self.event_tx.send(OrchestrationEvent::Error {
+                            correlation_id: correlation_id.clone(),
+                            message: exec_result.error.clone().unwrap_or_else(|| "Execution failed".to_string()),
+                        });
+                    }
+                }
+
+                Ok(Response::new(ExecuteAgentResponse {
+                    success: exec_result.success,
+                    output: output_str,
+                    error: exec_result.error,
+                    // TODO: Extract metadata from ExecutionResult when it's available
+                    // For now, metadata is None since ExecutionResult doesn't include it yet
+                    metadata: None,
+                }))
+            }
+            Err(e) => {
+                // Emit error event (workflow feature only)
+                #[cfg(feature = "workflow")]
+                {
+                    let _ = self.event_tx.send(OrchestrationEvent::Error {
+                        correlation_id: correlation_id.clone(),
+                        message: e.to_string(),
+                    });
+                }
+
+                Ok(Response::new(ExecuteAgentResponse {
+                    success: false,
+                    output: String::new(),
+                    error: Some(e.to_string()),
+                }))
+            }
         }
     }
 
