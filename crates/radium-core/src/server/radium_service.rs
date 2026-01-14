@@ -7,10 +7,18 @@ use radium_abstraction::{Model, ModelParameters};
 use radium_models::MockModel;
 use tonic::{Request, Response, Status};
 use tracing::{error, info, warn};
+use uuid::Uuid;
 
 use radium_orchestrator::{
     Agent, AgentContext, ChatAgent, EchoAgent, ModelClass, Orchestrator, SelectionCriteria,
     SelectionError, SimpleAgent,
+};
+
+#[cfg(feature = "workflow")]
+use {
+    crate::server::event_bridge::EventBridge,
+    radium_orchestrator::orchestration::events::OrchestrationEvent,
+    tokio::sync::broadcast,
 };
 
 use crate::models::{Task, Workflow};
@@ -93,6 +101,12 @@ pub struct RadiumService {
     braingrid_client: Arc<BraingridClient>,
     /// Session manager for daemon-backed sessions.
     session_manager: Arc<crate::session::SessionManager>,
+    /// Event bridge for routing orchestration events to session streams (workflow feature only).
+    #[cfg(feature = "workflow")]
+    event_bridge: Arc<EventBridge>,
+    /// Broadcast channel for orchestration events (workflow feature only).
+    #[cfg(feature = "workflow")]
+    event_tx: broadcast::Sender<OrchestrationEvent>,
 }
 
 impl RadiumService {
@@ -161,6 +175,16 @@ impl RadiumService {
                 }),
         );
 
+        // Initialize event bridge for workflow feature
+        #[cfg(feature = "workflow")]
+        let (event_bridge, event_tx) = {
+            let (tx, rx) = broadcast::channel(1000);
+            let bridge = Arc::new(EventBridge::new());
+            // Start forwarding events from orchestration to sessions
+            bridge.start_forwarding(rx);
+            (bridge, tx)
+        };
+
         Self {
             db: db_arc,
             orchestrator,
@@ -170,6 +194,10 @@ impl RadiumService {
             progress_tracker,
             braingrid_client,
             session_manager,
+            #[cfg(feature = "workflow")]
+            event_bridge,
+            #[cfg(feature = "workflow")]
+            event_tx,
         }
     }
 
@@ -2035,6 +2063,10 @@ impl Radium for RadiumService {
     ) -> Result<Response<Self::SessionEventsStreamStream>, Status> {
         info!("SessionEventsStream RPC called");
 
+        // Generate unique session ID for this stream
+        let session_id = format!("session-{}", Uuid::new_v4());
+        info!(session_id = %session_id, "Created new session stream");
+
         // Create server-to-client stream channel
         let (tx, rx) = mpsc::channel(100);
         let mut client_stream = request.into_inner();
@@ -2063,9 +2095,26 @@ impl Radium for RadiumService {
             }
         });
 
+        // Register session with EventBridge (workflow feature only)
+        #[cfg(feature = "workflow")]
+        {
+            let event_bridge = Arc::clone(&self.event_bridge);
+            let session_id_clone = session_id.clone();
+            let tx_clone = tx.clone();
+
+            // Register this session to receive orchestration events
+            event_bridge.register_session(session_id_clone.clone(), tx_clone).await;
+
+            // Spawn cleanup task to unregister when stream ends
+            tokio::spawn(async move {
+                // Wait for the receiver to be dropped (client disconnects)
+                tokio::time::sleep(tokio::time::Duration::from_secs(3600)).await;
+                event_bridge.unregister_session(&session_id_clone).await;
+                info!(session_id = %session_id_clone, "Unregistered session from event bridge");
+            });
+        }
+
         // Return server-to-client stream
-        // TODO: Integrate with agent execution to emit ToolCallEvent, ToolResultEvent, etc.
-        // For now, return an empty stream that can be extended
         Ok(Response::new(ReceiverStream::new(rx)))
     }
 }
