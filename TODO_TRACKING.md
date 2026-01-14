@@ -1,8 +1,27 @@
 # TODO Tracking Document
 
 Generated: 2026-01-12
+Last Updated: 2026-01-14
 
 This document tracks all TODO and FIXME comments in the codebase (75 total).
+
+## Recent Progress (2026-01-14)
+
+### Completed Items ✅
+- **Tool Type Mismatches** - Fixed with tool_adapter.rs in radium-orchestrator
+- **Budget Checking** - Re-enabled with trait-based approach (budget.rs in radium-abstraction)
+- **MCP Proxy Prompts** - Implemented prompts/list and prompts/get endpoints
+- **Git Integration** - Implemented git_integration.rs for workflow commit tracking
+- **Event Emission** - Implemented event_bridge.rs for real-time event streaming
+
+### GitHub Issues Created 📋
+- [#53](https://github.com/Unicorn/Radium/issues/53) - Parallel workflow execution
+- [#54](https://github.com/Unicorn/Radium/issues/54) - Test results aggregation
+- [#55](https://github.com/Unicorn/Radium/issues/55) - OrchestrationService integration
+- [#56](https://github.com/Unicorn/Radium/issues/56) - EventBridge connection to session streams
+- [#57](https://github.com/Unicorn/Radium/issues/57) - ToolCatalog rebuild method
+- [#58](https://github.com/Unicorn/Radium/issues/58) - Config file and environment variable loading
+- [#59](https://github.com/Unicorn/Radium/issues/59) - Metadata extraction in gRPC responses
 
 ## Summary by Category
 
