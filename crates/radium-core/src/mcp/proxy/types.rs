@@ -278,6 +278,22 @@ pub trait ToolCatalog: Send + Sync {
     ///
     /// The prompt if found, None otherwise.
     async fn get_prompt(&self, registered_name: &str) -> Option<McpPrompt>;
+
+    /// Rebuild the catalog by querying all upstream servers.
+    ///
+    /// Clears the existing catalog and re-discovers all tools and prompts
+    /// from connected upstream servers. Useful for refreshing the catalog
+    /// after upstream changes or initial proxy startup.
+    ///
+    /// # Arguments
+    ///
+    /// * `pool` - Upstream pool containing connected servers
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if tool/prompt discovery fails for all upstreams.
+    /// Individual upstream failures are logged as warnings.
+    async fn rebuild_catalog(&self, pool: &crate::mcp::proxy::upstream_pool::UpstreamPool) -> crate::mcp::Result<()>;
 }
 
 /// Conflict resolution strategy for tool name conflicts.
@@ -342,15 +358,20 @@ impl McpProxyServer {
         }
 
         let _router: Arc<dyn ToolRouter> = Arc::new(DefaultToolRouter::new(Arc::clone(&pool)));
-        let _catalog: Arc<dyn ToolCatalog> = Arc::new(DefaultToolCatalog::new(
+        let catalog: Arc<dyn ToolCatalog> = Arc::new(DefaultToolCatalog::new(
             config.conflict_strategy,
             priorities,
         ));
         let _security: Arc<dyn SecurityLayer> = Arc::new(DefaultSecurityLayer::new(config.security.clone())?);
         let health_checker = Arc::new(HealthChecker::new(Arc::clone(&pool)));
 
-        // TODO: Add rebuild_catalog method to ToolCatalog trait for initial rebuild
-        // For now, we skip initial rebuild - it will happen on first tools/list
+        // Perform initial catalog rebuild to discover all tools and prompts
+        if let Err(e) = catalog.rebuild_catalog(&pool).await {
+            tracing::warn!(
+                error = %e,
+                "Failed to rebuild catalog during proxy initialization"
+            );
+        }
 
         let (shutdown_tx, shutdown_rx) = broadcast::channel(1);
 
@@ -407,6 +428,14 @@ impl McpProxyServer {
             priorities,
         ));
         let security: Arc<dyn SecurityLayer> = Arc::new(DefaultSecurityLayer::new(self.config.security.clone())?);
+
+        // Rebuild catalog to discover all tools and prompts from upstreams
+        if let Err(e) = catalog.rebuild_catalog(&self.pool).await {
+            tracing::warn!(
+                error = %e,
+                "Failed to rebuild catalog during proxy server start"
+            );
+        }
 
         let mut server = ProxyServer::new(
             self.config.clone(),

@@ -227,49 +227,6 @@ impl DefaultToolCatalog {
             }
         }
     }
-
-    /// Rebuild the catalog by querying all upstreams.
-    ///
-    /// # Arguments
-    ///
-    /// * `pool` - Upstream pool to query for tools
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if tool discovery fails
-    pub async fn rebuild_catalog(&self, pool: &UpstreamPool) -> Result<()> {
-        // Clear existing catalog
-        {
-            let mut tools = self.tools.write().await;
-            let mut sources = self.tool_sources.write().await;
-            let mut original = self.original_names.write().await;
-            tools.clear();
-            sources.clear();
-            original.clear();
-        }
-
-        // Query all upstreams
-        let upstream_names = pool.list_upstreams().await;
-        for upstream_name in upstream_names {
-            if let Some(client) = pool.get_upstream(&upstream_name).await {
-                let client_guard = client.lock().await;
-                match client_guard.discover_tools().await {
-                    Ok(tools) => {
-                        self.add_tools(upstream_name, tools).await;
-                    }
-                    Err(e) => {
-                        tracing::warn!(
-                            upstream_name = %upstream_name,
-                            error = %e,
-                            "Failed to discover tools from upstream"
-                        );
-                    }
-                }
-            }
-        }
-
-        Ok(())
-    }
 }
 
 #[async_trait::async_trait]
@@ -302,6 +259,40 @@ impl ToolCatalogTrait for DefaultToolCatalog {
     async fn get_prompt(&self, registered_name: &str) -> Option<McpPrompt> {
         let prompts = self.prompts.read().await;
         prompts.get(registered_name).cloned()
+    }
+
+    async fn rebuild_catalog(&self, pool: &UpstreamPool) -> Result<()> {
+        // Clear existing catalog
+        {
+            let mut tools = self.tools.write().await;
+            let mut sources = self.tool_sources.write().await;
+            let mut original = self.original_names.write().await;
+            tools.clear();
+            sources.clear();
+            original.clear();
+        }
+
+        // Query all upstreams for tools
+        let upstream_names = pool.list_upstreams().await;
+        for upstream_name in upstream_names {
+            if let Some(client) = pool.get_upstream(&upstream_name).await {
+                let client_guard = client.lock().await;
+                match client_guard.discover_tools().await {
+                    Ok(tools) => {
+                        self.add_tools(upstream_name, tools).await;
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            upstream_name = %upstream_name,
+                            error = %e,
+                            "Failed to discover tools from upstream"
+                        );
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
