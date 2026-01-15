@@ -693,18 +693,22 @@ impl Radium for RadiumService {
         let task_id = request.into_inner().task_id;
         info!(task_id = %task_id, "Received cancel task request");
 
-        // Check if task exists
-        let mut db = self.lock_db()?;
-        let repo = SqliteTaskRepository::new(&mut *db);
-        let mut task = repo.get_by_id(&task_id).map_err(|e| storage_to_status(&e, "Task", &task_id))?;
+        // Check if task exists and get task info
+        let (mut task, was_running, started_at) = {
+            let mut db = self.lock_db()?;
+            let repo = SqliteTaskRepository::new(&mut *db);
+            let task = repo.get_by_id(&task_id).map_err(|e| storage_to_status(&e, "Task", &task_id))?;
 
-        // Capture partial result if task was running
-        let was_running = matches!(task.state, crate::models::TaskState::Running);
-        let started_at = task.created_at; // Use created_at as started_at if not available in result
-        
-        // Cancel task via orchestrator if available
-        if let Some(ref orchestrator) = self.orchestrator {
-            let cancelled = orchestrator.cancel_task(&task_id).await;
+            // Capture partial result if task was running
+            let was_running = matches!(task.state, crate::models::TaskState::Running);
+            let started_at = task.created_at; // Use created_at as started_at if not available in result
+
+            (task, was_running, started_at)
+        }; // db lock is dropped here
+
+        // Cancel task via orchestrator
+        {
+            let cancelled = self.orchestrator.cancel_task(&task_id).await;
             if cancelled || was_running {
                 // Create partial result for cancelled task
                 let cancelled_at = Utc::now();
@@ -729,7 +733,8 @@ impl Radium for RadiumService {
                 // Update task with partial result and Cancelled state
                 task.set_result(partial_result);
                 task.set_state(crate::models::TaskState::Cancelled);
-                
+
+                let mut db = self.lock_db()?;
                 let mut repo = SqliteTaskRepository::new(&mut *db);
                 if let Err(e) = repo.update(&task) {
                     warn!(task_id = %task_id, error = %e, "Failed to update task with partial result after cancellation");
@@ -745,34 +750,6 @@ impl Radium for RadiumService {
                     message: format!("Task {} not found in running tasks or already completed", task_id),
                 }))
             }
-        } else {
-            // No orchestrator available, create partial result and update task state
-            let cancelled_at = Utc::now();
-            let partial_output = if let Some(ref existing_result) = task.result {
-                existing_result.output.clone()
-            } else {
-                serde_json::json!({
-                    "message": "Task was cancelled",
-                    "partial": true
-                })
-            };
-            
-            let partial_result = TaskResult::partial(
-                partial_output,
-                started_at,
-                cancelled_at,
-                Some("user_requested".to_string()),
-            );
-            
-            task.set_result(partial_result);
-            task.set_state(crate::models::TaskState::Cancelled);
-            let mut repo = SqliteTaskRepository::new(&mut *db);
-            repo.update(&task).map_err(|e| storage_to_status(&e, "Task", &task_id))?;
-            
-            Ok(Response::new(CancelTaskResponse {
-                success: true,
-                message: format!("Task {} marked as cancelled, partial results saved", task_id),
-            }))
         }
     }
 
@@ -783,47 +760,51 @@ impl Radium for RadiumService {
         let task_id = request.into_inner().task_id;
         info!(task_id = %task_id, "Received resume task request");
 
-        // Check if task exists
-        let mut db = self.lock_db()?;
-        let repo = SqliteTaskRepository::new(&mut *db);
-        let task = repo.get_by_id(&task_id).map_err(|e| storage_to_status(&e, "Task", &task_id))?;
+        // Check if task exists, validate, and update state
+        let (agent_id, input) = {
+            let mut db = self.lock_db()?;
+            let repo = SqliteTaskRepository::new(&mut *db);
+            let task = repo.get_by_id(&task_id).map_err(|e| storage_to_status(&e, "Task", &task_id))?;
 
-        // Validate that task can be resumed
-        if !matches!(task.state, crate::models::TaskState::Cancelled) {
-            return Ok(Response::new(ResumeTaskResponse {
-                success: false,
-                message: format!("Task {} cannot be resumed: current state is {:?}, expected Cancelled", task_id, task.state),
-            }));
-        }
+            // Validate that task can be resumed
+            if !matches!(task.state, crate::models::TaskState::Cancelled) {
+                return Ok(Response::new(ResumeTaskResponse {
+                    success: false,
+                    message: format!("Task {} cannot be resumed: current state is {:?}, expected Cancelled", task_id, task.state),
+                }));
+            }
 
-        if !task.has_partial_result() {
-            return Ok(Response::new(ResumeTaskResponse {
-                success: false,
-                message: format!("Task {} cannot be resumed: no partial results available", task_id),
-            }));
-        }
+            if !task.has_partial_result() {
+                return Ok(Response::new(ResumeTaskResponse {
+                    success: false,
+                    message: format!("Task {} cannot be resumed: no partial results available", task_id),
+                }));
+            }
 
-        // Restore task state and re-enqueue for execution
-        let mut task = task;
-        task.set_state(crate::models::TaskState::Queued);
-        
-        // Clear the partial result flag (or keep it for reference - for now we'll keep it)
-        // The task will be re-executed from the beginning, but we have the partial results for reference
-        
-        let mut repo = SqliteTaskRepository::new(&mut *db);
-        repo.update(&task).map_err(|e| storage_to_status(&e, "Task", &task_id))?;
+            // Restore task state and re-enqueue for execution
+            let mut task = task;
+            task.set_state(crate::models::TaskState::Queued);
 
-        // Re-enqueue task via orchestrator if available
-        if let Some(ref orchestrator) = self.orchestrator {
+            // Clear the partial result flag (or keep it for reference - for now we'll keep it)
+            // The task will be re-executed from the beginning, but we have the partial results for reference
+
+            let mut repo = SqliteTaskRepository::new(&mut *db);
+            repo.update(&task).map_err(|e| storage_to_status(&e, "Task", &task_id))?;
+
+            (task.agent_id.clone(), task.input.clone())
+        }; // db lock is dropped here
+
+        // Re-enqueue task via orchestrator
+        {
             use radium_orchestrator::ExecutionTask;
             let execution_task = ExecutionTask::new(
-                task.agent_id.clone(),
-                serde_json::to_string(&task.input).unwrap_or_else(|_| "{}".to_string()),
+                agent_id,
+                serde_json::to_string(&input).unwrap_or_else(|_| "{}".to_string()),
                 1, // Default priority
             )
             .with_task_id(task_id.clone());
-            
-            if let Err(e) = orchestrator.enqueue_task(execution_task).await {
+
+            if let Err(e) = self.orchestrator.enqueue_task(execution_task).await {
                 warn!(task_id = %task_id, error = %e, "Failed to re-enqueue task for resume");
                 return Ok(Response::new(ResumeTaskResponse {
                     success: false,
@@ -1844,9 +1825,9 @@ impl Radium for RadiumService {
     ) -> Result<Response<Self::ExecuteBraingridRequirementStream>, Status> {
         let req = request.into_inner();
         let env_project_id = std::env::var("BRAINGRID_PROJECT_ID").ok();
-        let project_id = req.project_id.as_deref()
-            .or_else(|| env_project_id.as_deref())
-            .unwrap_or("PROJ-14");
+        let project_id = req.project_id.clone()
+            .or_else(|| env_project_id.clone())
+            .unwrap_or_else(|| "PROJ-14".to_string());
 
         info!(requirement_id = %req.requirement_id, "ExecuteBraingridRequirement RPC called");
 
@@ -1879,7 +1860,7 @@ impl Radium for RadiumService {
             ) {
                 Ok(exec) => exec,
                 Err(e) => {
-                    let _ = tx.send(ExecutionProgressEvent {
+                    let _ = tx.send(Ok(ExecutionProgressEvent {
                         event_type: "FAILED".to_string(),
                         requirement_id: Some(req_id.clone()),
                         task_id: None,
@@ -1890,7 +1871,7 @@ impl Radium for RadiumService {
                         error: Some(format!("Failed to create executor: {}", e)),
                         result: None,
                         token_chunk: None,
-                    }).await;
+                    })).await;
                     return;
                 }
             };
@@ -2003,7 +1984,7 @@ impl Radium for RadiumService {
                             }
                         }
                     };
-                    let _ = event_tx.send(event).await;
+                    let _ = event_tx.send(Ok(event)).await;
                 }
             });
 
@@ -2235,7 +2216,7 @@ impl Radium for RadiumService {
         info!(session_id = %session_id, "Created new session stream");
 
         // Create server-to-client stream channel
-        let (tx, rx) = mpsc::channel(100);
+        let (tx, rx) = mpsc::channel::<Result<SessionEvent, Status>>(100);
         let mut client_stream = request.into_inner();
 
         // Spawn task to handle client messages (approval responses, etc.)

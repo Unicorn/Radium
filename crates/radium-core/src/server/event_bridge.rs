@@ -7,7 +7,7 @@
 
 #![cfg(feature = "workflow")]
 
-use crate::radium::{
+use crate::proto::{
     ApprovalRequestEvent, MessageEvent, SessionEvent, ToolCallEvent, ToolResultEvent,
 };
 use radium_orchestrator::orchestration::events::OrchestrationEvent;
@@ -19,7 +19,7 @@ use tracing::{debug, warn};
 /// Event bridge that converts orchestration events to session events and routes them to sessions.
 pub struct EventBridge {
     /// Map of session ID to sender channels for that session
-    session_senders: Arc<RwLock<HashMap<String, mpsc::Sender<SessionEvent>>>>,
+    session_senders: Arc<RwLock<HashMap<String, mpsc::Sender<Result<SessionEvent, tonic::Status>>>>>,
 }
 
 impl EventBridge {
@@ -36,7 +36,7 @@ impl EventBridge {
     ///
     /// * `session_id` - Session identifier
     /// * `sender` - Channel sender for session events
-    pub async fn register_session(&self, session_id: String, sender: mpsc::Sender<SessionEvent>) {
+    pub async fn register_session(&self, session_id: String, sender: mpsc::Sender<Result<SessionEvent, tonic::Status>>) {
         let mut senders = self.session_senders.write().await;
         senders.insert(session_id.clone(), sender);
         debug!(session_id = %session_id, "Registered session for event streaming");
@@ -59,7 +59,7 @@ impl EventBridge {
     ///
     /// * `event_rx` - Receiver for orchestration events from the orchestrator
     pub fn start_forwarding(&self, mut event_rx: broadcast::Receiver<OrchestrationEvent>) {
-        let session_senders: Arc<RwLock<HashMap<String, mpsc::Sender<SessionEvent>>>> = Arc::clone(&self.session_senders);
+        let session_senders = Arc::clone(&self.session_senders);
 
         tokio::spawn(async move {
             loop {
@@ -73,7 +73,8 @@ impl EventBridge {
                             // Send to appropriate session
                             let senders = session_senders.read().await;
                             if let Some(sender) = senders.get(&session_id) {
-                                if let Err(e) = sender.send(session_event).await {
+                                let result: Result<SessionEvent, tonic::Status> = Ok(session_event);
+                                if let Err(e) = sender.send(result).await {
                                     warn!(
                                         session_id = %session_id,
                                         error = %e,
@@ -131,7 +132,7 @@ fn convert_to_session_event(event: &OrchestrationEvent) -> Option<SessionEvent> 
     match event {
         OrchestrationEvent::ToolCallRequested { correlation_id, call } => {
             Some(SessionEvent {
-                event: Some(crate::radium::session_event::Event::ToolCall(
+                event: Some(crate::proto::session_event::Event::ToolCall(
                     ToolCallEvent {
                         session_id: correlation_id.clone(),
                         tool_name: call.name.clone(),
@@ -147,7 +148,7 @@ fn convert_to_session_event(event: &OrchestrationEvent) -> Option<SessionEvent> 
             tool_name,
             result,
         } => Some(SessionEvent {
-            event: Some(crate::radium::session_event::Event::ToolResult(
+            event: Some(crate::proto::session_event::Event::ToolResult(
                 ToolResultEvent {
                     session_id: correlation_id.clone(),
                     tool_name: tool_name.clone(),
@@ -169,7 +170,7 @@ fn convert_to_session_event(event: &OrchestrationEvent) -> Option<SessionEvent> 
             tool_name,
             reason,
         } => Some(SessionEvent {
-            event: Some(crate::radium::session_event::Event::ApprovalRequest(
+            event: Some(crate::proto::session_event::Event::ApprovalRequest(
                 ApprovalRequestEvent {
                     session_id: correlation_id.clone(),
                     tool_name: tool_name.clone(),
@@ -184,7 +185,7 @@ fn convert_to_session_event(event: &OrchestrationEvent) -> Option<SessionEvent> 
             correlation_id,
             content,
         } => Some(SessionEvent {
-            event: Some(crate::radium::session_event::Event::Message(MessageEvent {
+            event: Some(crate::proto::session_event::Event::Message(MessageEvent {
                 session_id: correlation_id.clone(),
                 message: content.clone(),
                 role: "assistant".to_string(),
@@ -195,7 +196,7 @@ fn convert_to_session_event(event: &OrchestrationEvent) -> Option<SessionEvent> 
             correlation_id,
             message,
         } => Some(SessionEvent {
-            event: Some(crate::radium::session_event::Event::Message(MessageEvent {
+            event: Some(crate::proto::session_event::Event::Message(MessageEvent {
                 session_id: correlation_id.clone(),
                 message: format!("Error: {}", message),
                 role: "system".to_string(),
@@ -241,7 +242,7 @@ mod tests {
         assert!(session_event.is_some());
 
         if let Some(SessionEvent {
-            event: Some(crate::radium::session_event::Event::ToolCall(tool_call)),
+            event: Some(crate::proto::session_event::Event::ToolCall(tool_call)),
         }) = session_event
         {
             assert_eq!(tool_call.session_id, "session-123");
