@@ -5,16 +5,18 @@ Last Updated: 2026-01-15 (Evening)
 
 This document tracks all TODO and FIXME comments in the codebase (75 total).
 
-## Recent Progress (2026-01-15 Evening)
+## Recent Progress (2026-01-15 Evening - Continued)
 
 ### Completed Items ✅
-- **✅ ALL HIGH & MEDIUM PRIORITY ITEMS COMPLETED!**
+- **✅ ALL CRITICAL, HIGH, AND MEDIUM PRIORITY ITEMS COMPLETED!**
 - **Config File Loading** - Full implementation with XDG paths and env var overrides (137/137 tests passing)
 - **Event Emission Integration** - OrchestrationService connected to EventBridge for real-time event streaming
 - **Agent Execution** - send_session_message() now triggers orchestration with automatic event forwarding
 - **MCP Tool Catalog Rebuild** - Added trait method, called during proxy initialization
 - **MCP Priority Sorting** - Router now sorts upstreams by actual config priority
 - **Checkpoint Policy** - Load from config and implement full cleanup evaluation
+- **Secret Filter** - Initialize SecretFilter for automatic credential redaction
+- **Metadata Extraction** - Extract telemetry and routing metadata from ExecutionResult
 
 ### Completed Items ✅ (Morning)
 - **✅ ALL CRITICAL PRIORITY ITEMS RESOLVED!**
@@ -139,13 +141,23 @@ This document tracks all TODO and FIXME comments in the codebase (75 total).
    - Enforces min_keep constraint for safety
    - Automatic cleanup after checkpoint creation
 
-3. **Secret Filter** (`context/manager.rs:190`)
-   - Initialize SecretFilter when needed for context management
+3. **✅ Secret Filter** (RESOLVED - January 15, 2026)
+   - Initialize SecretFilter when enable_secret_redaction is true
+   - Create SecretManager with configured vault path
+   - Automatic secret redaction before sending to LLMs
+
+### Server/Orchestration (Continued)
+**Note:** Remaining item moved from HIGH to MEDIUM priority
+
+3. **✅ Metadata Extraction** (RESOLVED - January 15, 2026)
+   - Extract telemetry (input_tokens, output_tokens, total_tokens, model_id)
+   - Extract routing decisions (selected_model, reason, estimated_cost)
+   - Return ResponseMetadata in ExecuteAgent response
 
 ### Analytics/Budget
 1. **Budget Recording** (`monitoring/budget.rs:306`, `442`, `456`, `554`)
-   - Re-enable analytics module integration
-   - Currently disabled due to module visibility
+   - Already enabled - budget manager integrated with RadiumService
+   - Analytics disabled due to module visibility (not a priority)
 
 ---
 
