@@ -1007,7 +1007,7 @@ pub enum ClaudeContentBlock {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
-enum ClaudeImageSource {
+pub enum ClaudeImageSource {
     #[serde(rename = "base64")]
     Base64 {
         #[serde(rename = "media_type")]

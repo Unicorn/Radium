@@ -875,7 +875,7 @@ pub enum OpenAIContentBlock {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct OpenAIImageUrl {
+pub struct OpenAIImageUrl {
     url: String,
 }
 

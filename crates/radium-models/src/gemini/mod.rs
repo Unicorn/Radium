@@ -1784,27 +1784,27 @@ pub enum GeminiPart {
 
 /// Gemini function call from API response
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct GeminiFunctionCall {
+pub struct GeminiFunctionCall {
     name: String,
     args: serde_json::Value,
 }
 
 /// Gemini function response (for providing tool results back to model)
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct GeminiFunctionResponse {
+pub struct GeminiFunctionResponse {
     name: String,
     response: serde_json::Value,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct GeminiInlineData {
+pub struct GeminiInlineData {
     #[serde(rename = "mime_type")]
     mime_type: String,
     data: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct GeminiFileData {
+pub struct GeminiFileData {
     #[serde(rename = "mime_type")]
     mime_type: String,
     #[serde(rename = "file_uri")]
