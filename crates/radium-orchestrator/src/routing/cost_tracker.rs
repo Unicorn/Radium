@@ -60,8 +60,27 @@ impl CostMetrics {
 pub struct CostTracker {
     /// Internal metrics storage (thread-safe).
     metrics: Arc<RwLock<HashMap<RoutingTier, TierMetrics>>>,
+    /// Per-model metrics storage (thread-safe).
+    model_metrics: Arc<RwLock<HashMap<String, PerModelMetrics>>>,
     /// Pricing lookup function.
     pricing_fn: Box<dyn Fn(&str) -> (f64, f64) + Send + Sync>,
+}
+
+/// Internal per-model metrics tracking structure.
+#[derive(Debug, Clone, Default)]
+struct PerModelMetrics {
+    /// Total number of requests.
+    request_count: u64,
+    /// Total number of failures.
+    failure_count: u64,
+    /// Total input tokens.
+    input_tokens: u64,
+    /// Total output tokens.
+    output_tokens: u64,
+    /// Total cost in USD.
+    total_cost: f64,
+    /// Total latency in milliseconds.
+    total_latency_ms: u64,
 }
 
 impl CostTracker {
@@ -79,6 +98,7 @@ impl CostTracker {
     pub fn with_pricing(pricing_fn: Box<dyn Fn(&str) -> (f64, f64) + Send + Sync>) -> Self {
         Self {
             metrics: Arc::new(RwLock::new(HashMap::new())),
+            model_metrics: Arc::new(RwLock::new(HashMap::new())),
             pricing_fn,
         }
     }
@@ -130,14 +150,24 @@ impl CostTracker {
         
         let cost = (input_tokens as f64 / 1_000_000.0).mul_add(input_price, (output_tokens as f64 / 1_000_000.0) * output_price);
 
-        // Update metrics (thread-safe)
+        // Update tier metrics (thread-safe)
         let mut metrics = self.metrics.write().map_err(|e| format!("Lock poisoned: {}", e))?;
         let tier_metrics = metrics.entry(tier).or_insert_with(TierMetrics::default);
-        
+
         tier_metrics.request_count += 1;
         tier_metrics.input_tokens += input_tokens;
         tier_metrics.output_tokens += output_tokens;
         tier_metrics.estimated_cost += cost;
+
+        // Update per-model metrics (thread-safe)
+        let mut model_metrics = self.model_metrics.write().map_err(|e| format!("Lock poisoned: {}", e))?;
+        let per_model = model_metrics.entry(model_id.to_string()).or_insert_with(PerModelMetrics::default);
+
+        per_model.request_count += 1;
+        per_model.input_tokens += input_tokens;
+        per_model.output_tokens += output_tokens;
+        per_model.total_cost += cost;
+        // Note: latency tracking would be added here when available
 
         debug!(
             tier = ?tier,
@@ -195,14 +225,37 @@ impl CostTracker {
     ///
     /// # Returns
     /// ModelMetrics if available, None if model not found
-    ///
-    /// # Note
-    /// This is a placeholder implementation. Full per-model metrics tracking
-    /// would require storing per-model data, not just per-tier data.
-    pub fn get_model_metrics(&self, _model_id: &str) -> Option<ModelMetrics> {
-        // TODO: Implement full per-model tracking when needed
-        // For now, return None as this requires additional data structures
-        None
+    pub fn get_model_metrics(&self, model_id: &str) -> Option<ModelMetrics> {
+        let model_metrics = self.model_metrics.read().ok()?;
+        let per_model = model_metrics.get(model_id)?;
+
+        // Calculate derived metrics
+        let success_rate = if per_model.request_count > 0 {
+            1.0 - (per_model.failure_count as f64 / per_model.request_count as f64)
+        } else {
+            0.0
+        };
+
+        let avg_latency_ms = if per_model.request_count > 0 {
+            per_model.total_latency_ms / per_model.request_count
+        } else {
+            0
+        };
+
+        let avg_cost = if per_model.request_count > 0 {
+            per_model.total_cost / per_model.request_count as f64
+        } else {
+            0.0
+        };
+
+        Some(ModelMetrics {
+            model_id: model_id.to_string(),
+            success_rate,
+            avg_latency_ms,
+            avg_cost,
+            request_count: per_model.request_count,
+            failure_count: per_model.failure_count,
+        })
     }
 }
 
