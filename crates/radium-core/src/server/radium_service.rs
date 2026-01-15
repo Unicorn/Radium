@@ -106,9 +106,9 @@ pub struct RadiumService {
     /// Event bridge for routing orchestration events to session streams (workflow feature only).
     #[cfg(feature = "workflow")]
     event_bridge: Arc<EventBridge>,
-    /// Broadcast channel for orchestration events (workflow feature only).
+    /// Orchestration service for processing messages and executing agents (workflow feature only).
     #[cfg(feature = "workflow")]
-    event_tx: broadcast::Sender<OrchestrationEvent>,
+    orchestration_service: Arc<radium_orchestrator::orchestration::service::OrchestrationService>,
     /// Budget manager for cost tracking and enforcement.
     budget_manager: Arc<crate::monitoring::BudgetManager>,
 }
@@ -197,14 +197,42 @@ impl RadiumService {
             "Budget manager initialized"
         );
 
-        // Initialize event bridge for workflow feature
+        // Initialize orchestration service and event bridge for workflow feature
         #[cfg(feature = "workflow")]
-        let (event_bridge, event_tx) = {
-            let (tx, rx) = broadcast::channel(1000);
+        let (event_bridge, orchestration_service) = {
+            // Get current tokio runtime handle
+            let handle = tokio::runtime::Handle::try_current()
+                .expect("RadiumService::new() must be called from within a tokio runtime");
+
+            // Create default orchestration configuration
+            let orch_config = radium_orchestrator::orchestration::config::OrchestrationConfig::default();
+
+            // Initialize OrchestrationService with workspace (blocking on async init)
+            let orch_service = handle.block_on(async {
+                radium_orchestrator::orchestration::service::OrchestrationService::initialize(
+                    orch_config,
+                    None, // MCP tools can be added later
+                    Some(workspace_root.clone()),
+                    None, // sandbox_manager
+                    None, // context_loader
+                    None, // hook_executor
+                )
+                .await
+                .map_err(|e| {
+                    error!("Failed to initialize orchestration service: {}", e);
+                    e
+                })
+                .expect("Failed to create orchestration service")
+            });
+
+            // Subscribe to orchestration events
+            let event_rx = orch_service.subscribe_events();
+
+            // Create EventBridge and start forwarding orchestration events to sessions
             let bridge = Arc::new(EventBridge::new());
-            // Start forwarding events from orchestration to sessions
-            bridge.start_forwarding(rx);
-            (bridge, tx)
+            bridge.start_forwarding(event_rx);
+
+            (bridge, Arc::new(orch_service))
         };
 
         Self {
@@ -223,7 +251,7 @@ impl RadiumService {
             #[cfg(feature = "workflow")]
             event_bridge,
             #[cfg(feature = "workflow")]
-            event_tx,
+            orchestration_service,
             budget_manager,
         }
     }
@@ -2296,8 +2324,25 @@ impl Radium for RadiumService {
             .await
             .map_err(|e| Status::internal(format!("Failed to send message: {}", e)))?;
 
-        // TODO: Trigger agent execution via OrchestrationService
-        // This will be integrated in a future step when we add event streaming
+        // Trigger agent execution via OrchestrationService (workflow feature only)
+        #[cfg(feature = "workflow")]
+        {
+            let orch_service = Arc::clone(&self.orchestration_service);
+            let session_id = req.session_id.clone();
+            let user_message = req.message.clone();
+
+            // Spawn async task to process the message and emit events
+            tokio::spawn(async move {
+                match orch_service.process_request(&session_id, &user_message).await {
+                    Ok(_) => {
+                        info!(session_id = %session_id, "Orchestration request completed successfully");
+                    }
+                    Err(e) => {
+                        error!(session_id = %session_id, error = %e, "Orchestration request failed");
+                    }
+                }
+            });
+        }
 
         Ok(Response::new(SendSessionMessageResponse {
             success: true,
