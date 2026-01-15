@@ -20,6 +20,8 @@ pub struct PolicyEngine {
     rules: Vec<PolicyRule>,
     /// User-specific policies (whitelist/blacklist)
     user_policy: UserPolicy,
+    /// Path to the policy file for persistence
+    policy_path: Option<std::path::PathBuf>,
 }
 
 /// A safety rule for tool execution
@@ -78,6 +80,7 @@ impl PolicyEngine {
         Self {
             rules: Self::default_rules(),
             user_policy: UserPolicy::default(),
+            policy_path: UserPolicy::default_policy_path().ok(),
         }
     }
 
@@ -86,7 +89,19 @@ impl PolicyEngine {
         Self {
             rules: Self::default_rules(),
             user_policy,
+            policy_path: UserPolicy::default_policy_path().ok(),
         }
+    }
+
+    /// Create a policy engine and load user policy from file
+    pub fn with_persistence() -> Result<Self> {
+        let policy_path = UserPolicy::default_policy_path()?;
+        let user_policy = UserPolicy::load_from_file(&policy_path)?;
+        Ok(Self {
+            rules: Self::default_rules(),
+            user_policy,
+            policy_path: Some(policy_path),
+        })
     }
 
     /// Default safety rules
@@ -321,7 +336,7 @@ impl PolicyEngine {
     }
 
     /// Prompt user for confirmation and remember decision if requested
-    pub async fn prompt_user(&mut self, decision: &PolicyDecision) -> Result<bool> {
+    pub async fn prompt_user(&mut self, decision: &PolicyDecision, tool_call: &ToolCall) -> Result<bool> {
         if let PolicyDecision::AskUser { message } = decision {
             print!("\n{} ", message);
             io::stdout().flush()?;
@@ -333,11 +348,33 @@ impl PolicyEngine {
             match response.as_str() {
                 "y" | "yes" => Ok(true),
                 "always" => {
-                    // TODO: Remember this decision
+                    // Remember this decision as always allow
+                    let operation_key = self.get_operation_key(tool_call);
+                    self.user_policy.remembered_decisions.insert(operation_key, PolicyAction::Allow);
+
+                    // Save policy to disk
+                    if let Some(ref path) = self.policy_path {
+                        if let Err(e) = self.user_policy.save_to_file(path) {
+                            eprintln!("Warning: Failed to save policy: {}", e);
+                        } else {
+                            println!("✓ Policy saved: This operation will always be allowed");
+                        }
+                    }
                     Ok(true)
                 }
                 "never" => {
-                    // TODO: Remember this decision
+                    // Remember this decision as always deny
+                    let operation_key = self.get_operation_key(tool_call);
+                    self.user_policy.remembered_decisions.insert(operation_key, PolicyAction::Deny);
+
+                    // Save policy to disk
+                    if let Some(ref path) = self.policy_path {
+                        if let Err(e) = self.user_policy.save_to_file(path) {
+                            eprintln!("Warning: Failed to save policy: {}", e);
+                        } else {
+                            println!("✓ Policy saved: This operation will always be denied");
+                        }
+                    }
                     Ok(false)
                 }
                 _ => Ok(false), // Default to deny
@@ -390,6 +427,41 @@ impl UserPolicy {
                 tool_name == pattern
             }
         })
+    }
+
+    /// Get the default policy file path
+    pub fn default_policy_path() -> Result<std::path::PathBuf> {
+        let home = dirs::home_dir()
+            .ok_or_else(|| anyhow!("Could not determine home directory"))?;
+        Ok(home.join(".radium").join("policy.json"))
+    }
+
+    /// Load user policy from file
+    pub fn load_from_file(path: &std::path::Path) -> Result<Self> {
+        if !path.exists() {
+            return Ok(Self::new());
+        }
+
+        let contents = std::fs::read_to_string(path)
+            .map_err(|e| anyhow!("Failed to read policy file: {}", e))?;
+        let policy: UserPolicy = serde_json::from_str(&contents)
+            .map_err(|e| anyhow!("Failed to parse policy file: {}", e))?;
+        Ok(policy)
+    }
+
+    /// Save user policy to file
+    pub fn save_to_file(&self, path: &std::path::Path) -> Result<()> {
+        // Create parent directory if it doesn't exist
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| anyhow!("Failed to create policy directory: {}", e))?;
+        }
+
+        let contents = serde_json::to_string_pretty(self)
+            .map_err(|e| anyhow!("Failed to serialize policy: {}", e))?;
+        std::fs::write(path, contents)
+            .map_err(|e| anyhow!("Failed to write policy file: {}", e))?;
+        Ok(())
     }
 }
 
