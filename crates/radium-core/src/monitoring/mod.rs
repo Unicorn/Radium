@@ -26,6 +26,7 @@
 
 mod attribution;
 mod budget;
+mod budget_adapter;
 mod error;
 mod error_classifier;
 mod local_cost_tracker;

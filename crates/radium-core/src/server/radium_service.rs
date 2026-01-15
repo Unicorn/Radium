@@ -109,6 +109,8 @@ pub struct RadiumService {
     /// Broadcast channel for orchestration events (workflow feature only).
     #[cfg(feature = "workflow")]
     event_tx: broadcast::Sender<OrchestrationEvent>,
+    /// Budget manager for cost tracking and enforcement.
+    budget_manager: Arc<crate::monitoring::BudgetManager>,
 }
 
 impl RadiumService {
@@ -182,6 +184,19 @@ impl RadiumService {
                 }),
         );
 
+        // Initialize budget manager
+        // Read budget limit from environment variable or use default (unlimited)
+        let budget_limit = std::env::var("RADIUM_BUDGET_LIMIT")
+            .ok()
+            .and_then(|s| s.parse::<f64>().ok());
+        let budget_config = crate::monitoring::BudgetConfig::new(budget_limit)
+            .with_warning_thresholds(vec![80, 90]);
+        let budget_manager = Arc::new(crate::monitoring::BudgetManager::new(budget_config));
+        info!(
+            budget_limit = ?budget_limit,
+            "Budget manager initialized"
+        );
+
         // Initialize event bridge for workflow feature
         #[cfg(feature = "workflow")]
         let (event_bridge, event_tx) = {
@@ -209,6 +224,7 @@ impl RadiumService {
             event_bridge,
             #[cfg(feature = "workflow")]
             event_tx,
+            budget_manager,
         }
     }
 
@@ -216,6 +232,15 @@ impl RadiumService {
     #[cfg(feature = "workflow")]
     pub fn get_message_bus(&self) -> Arc<crate::collaboration::MessageBus> {
         Arc::clone(&self.message_bus)
+    }
+
+    /// Creates an AgentExecutor with budget manager attached.
+    ///
+    /// This helper ensures all AgentExecutor instances have budget tracking enabled.
+    fn create_executor_with_budget(&self) -> Arc<AgentExecutor> {
+        let mut executor = AgentExecutor::with_mock_model();
+        executor.set_budget_manager(Arc::clone(&self.budget_manager) as Arc<dyn radium_abstraction::budget::BudgetManagerTrait>);
+        Arc::new(executor)
     }
 
     /// Converts metadata from ExecutionResponse to gRPC ResponseMetadata.
@@ -1097,7 +1122,7 @@ impl Radium for RadiumService {
             );
 
             // Create workflow service
-            let executor = Arc::new(radium_orchestrator::AgentExecutor::with_mock_model());
+            let executor = self.create_executor_with_budget();
             let workflow_service =
                 crate::workflow::WorkflowService::new(&self.orchestrator, &executor, &self.db);
 
@@ -1163,7 +1188,7 @@ impl Radium for RadiumService {
             info!(execution_id = %execution_id, "GetWorkflowExecution RPC called");
 
             // Create workflow service
-            let executor = Arc::new(radium_orchestrator::AgentExecutor::with_mock_model());
+            let executor = self.create_executor_with_budget();
             let workflow_service =
                 crate::workflow::WorkflowService::new(&self.orchestrator, &executor, &self.db);
 
@@ -1208,7 +1233,7 @@ impl Radium for RadiumService {
             info!(workflow_id = %workflow_id, "StopWorkflowExecution RPC called");
 
             // Create workflow service
-            let executor = Arc::new(radium_orchestrator::AgentExecutor::with_mock_model());
+            let executor = self.create_executor_with_budget();
             let _workflow_service =
                 crate::workflow::WorkflowService::new(&self.orchestrator, &executor, &self.db);
 
@@ -1259,7 +1284,7 @@ impl Radium for RadiumService {
             info!("ListWorkflowExecutions RPC called");
 
             // Create workflow service
-            let executor = Arc::new(radium_orchestrator::AgentExecutor::with_mock_model());
+            let executor = self.create_executor_with_budget();
             let workflow_service =
                 crate::workflow::WorkflowService::new(&self.orchestrator, &executor, &self.db);
 
@@ -1888,7 +1913,7 @@ impl Radium for RadiumService {
             let req_id = req.requirement_id.clone();
             let db = Arc::clone(&self.db);
             let orchestrator = Arc::clone(&self.orchestrator);
-            let executor = Arc::new(AgentExecutor::with_mock_model());
+            let executor = self.create_executor_with_budget();
             let agent_registry = Arc::new(AgentRegistry::new());
 
             tokio::spawn(async move {
