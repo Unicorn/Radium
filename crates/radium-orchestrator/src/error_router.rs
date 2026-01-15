@@ -365,11 +365,50 @@ impl ErrorRouter {
             "Applying fix"
         );
 
-        // TODO: In full implementation:
-        // 1. Create checkpoint for rollback
-        // 2. Execute fix steps (file edits, command runs, etc.)
-        // 3. Restart process if needed
-        // 4. Update status to Applied
+        // TODO: Production Deployment Notes for apply_fix()
+        //
+        // For production deployment, this method requires the following enhancements:
+        //
+        // 1. CHECKPOINT CREATION (Prerequisite for safe fixes)
+        //    - Create filesystem checkpoint before applying any changes
+        //    - Use radium-core::checkpoint module for checkpoint management
+        //    - Store checkpoint ID in proposal metadata for rollback capability
+        //    - Ensure checkpoint includes all files that will be modified
+        //
+        // 2. FIX EXECUTION (Core implementation)
+        //    - Parse proposal.fix_details to extract fix steps
+        //    - Support multiple fix step types:
+        //      a) File edits: Apply diffs, replace sections, or full file writes
+        //      b) Command execution: Run shell commands with proper escaping
+        //      c) Configuration updates: Modify config files safely
+        //      d) Dependency changes: Update package.json, Cargo.toml, etc.
+        //    - Execute steps sequentially with proper error handling
+        //    - Log each step for audit trail
+        //    - Halt on first error and trigger rollback
+        //
+        // 3. PROCESS RESTART (If needed)
+        //    - Detect if fix requires process restart (e.g., config changes)
+        //    - Coordinate with process manager or systemd
+        //    - Wait for process to come back online
+        //    - Verify basic health after restart
+        //
+        // 4. STATUS UPDATE (Final step)
+        //    - Update proposal status to Applied
+        //    - Record application timestamp
+        //    - Store applied checkpoint ID for verification phase
+        //    - Emit event for monitoring systems
+        //
+        // Dependencies:
+        // - radium-core::checkpoint::CheckpointManager
+        // - Process manager integration (systemd, pm2, etc.)
+        // - File system operations with atomic writes
+        // - Command execution with timeout and sandboxing
+        //
+        // Security Considerations:
+        // - Validate all file paths are within workspace
+        // - Sanitize command inputs to prevent injection
+        // - Run with minimal required permissions
+        // - Audit log all changes for compliance
 
         // For now, just mark as applied
         proposal.status = ProposalStatus::Applied;
@@ -415,11 +454,89 @@ impl ErrorRouter {
             "Starting fix verification"
         );
 
-        // TODO: In full implementation:
-        // 1. Monitor process logs for error recurrence
-        // 2. Check process stability (no crashes)
-        // 3. Detect new errors introduced by fix
-        // 4. Return detailed verification result
+        // TODO: Production Deployment Notes for verify_fix()
+        //
+        // For production deployment, this method requires the following enhancements:
+        //
+        // 1. ERROR RECURRENCE MONITORING (Primary verification)
+        //    - Monitor process logs during verification_window period
+        //    - Use pattern matching to detect original error signature
+        //    - Track error frequency before and after fix
+        //    - Compare error rates: should drop to zero or near-zero
+        //    - Integration with log aggregation (e.g., ELK, Loki, CloudWatch)
+        //    - Real-time alerting if error reoccurs
+        //
+        // 2. PROCESS STABILITY CHECKS (Critical for production)
+        //    - Monitor process health metrics:
+        //      a) CPU usage (should not spike abnormally)
+        //      b) Memory usage (check for leaks)
+        //      c) Response times (no degradation)
+        //      d) Crash count (should be zero)
+        //    - Check process uptime remains continuous
+        //    - Verify no restart loops or flapping
+        //    - Monitor resource exhaustion indicators
+        //    - Integration with system metrics (Prometheus, Datadog, etc.)
+        //
+        // 3. NEW ERROR DETECTION (Regression testing)
+        //    - Scan logs for NEW error types not seen before fix
+        //    - Compare error patterns pre-fix vs post-fix
+        //    - Categorize new errors by severity:
+        //      a) Critical: Crashes, data corruption, security issues
+        //      b) High: Feature breakage, API errors
+        //      c) Medium: Performance degradation, warnings
+        //      d) Low: Non-critical warnings, deprecations
+        //    - Fail verification if critical or high severity errors appear
+        //    - Track error diversity (number of unique error types)
+        //    - Use ML-based anomaly detection for subtle regressions
+        //
+        // 4. VERIFICATION RESULT DETAILS (Comprehensive reporting)
+        //    - Return structured result with:
+        //      a) Verification status (Success/Failure/Inconclusive)
+        //      b) Original error recurrence count (should be 0)
+        //      c) New errors introduced (list with severity)
+        //      d) Process stability score (0-100)
+        //      e) Resource usage delta (CPU/memory changes)
+        //      f) Recommendation (Keep/Rollback/Extend verification)
+        //    - Include evidence: log excerpts, metrics charts
+        //    - Timestamp all observations
+        //    - Generate verification report for audit
+        //
+        // 5. ROLLBACK TRIGGERS (Automated safety)
+        //    - Automatically trigger rollback if:
+        //      a) Original error reoccurs (even once)
+        //      b) Process crashes during verification
+        //      c) Critical new errors appear
+        //      d) Response time degrades >50%
+        //      e) Memory usage increases >100MB
+        //    - Use checkpoint ID stored during apply_fix()
+        //    - Coordinate with checkpoint system for instant rollback
+        //    - Notify operators of automatic rollback
+        //
+        // Dependencies:
+        // - Log monitoring system (tail -f, log files, or log aggregator API)
+        // - Process metrics collector (procfs, systemd, or metrics API)
+        // - Anomaly detection system (optional but recommended)
+        // - radium-core::checkpoint::CheckpointManager for rollback
+        // - Alert notification system (email, Slack, PagerDuty)
+        //
+        // Configuration:
+        // - verification_window: Recommended 5-30 minutes for production
+        // - error_threshold: Max allowed error count (default: 0)
+        // - stability_threshold: Min uptime percentage (default: 99.9%)
+        // - rollback_on_new_errors: Auto-rollback policy (default: true for critical)
+        //
+        // Performance Considerations:
+        // - Log monitoring should be efficient (use tail -n, not full scan)
+        // - Cache baseline metrics to avoid repeated API calls
+        // - Run verification in background, don't block proposal queue
+        // - Consider shorter verification windows for low-traffic systems
+        //
+        // Production Best Practices:
+        // - Always verify fixes in staging environment first
+        // - Use gradual rollout (canary deployment) for high-risk fixes
+        // - Keep verification logs for compliance and debugging
+        // - Set up alerting for verification failures
+        // - Document rollback procedures for manual intervention
 
         // For now, assume success
         let result = FixVerificationResult {
