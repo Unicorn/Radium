@@ -49,7 +49,8 @@ pub mod process;
 pub mod prompts;
 pub mod analysis;
 pub mod sandbox;
-// pub mod server;  // TEMPORARILY DISABLED: depends on radium-orchestrator (circular dependency)
+#[cfg(feature = "server")]
+pub mod server;
 pub mod search;
 pub mod session;
 pub mod security;

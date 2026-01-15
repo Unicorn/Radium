@@ -59,7 +59,7 @@ impl EventBridge {
     ///
     /// * `event_rx` - Receiver for orchestration events from the orchestrator
     pub fn start_forwarding(&self, mut event_rx: broadcast::Receiver<OrchestrationEvent>) {
-        let session_senders = Arc::clone(&self.session_senders);
+        let session_senders: Arc<RwLock<HashMap<String, mpsc::Sender<SessionEvent>>>> = Arc::clone(&self.session_senders);
 
         tokio::spawn(async move {
             loop {

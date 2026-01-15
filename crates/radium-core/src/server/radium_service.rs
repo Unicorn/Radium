@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use radium_orchestrator::{
     Agent, AgentContext, ChatAgent, EchoAgent, ModelClass, Orchestrator, SelectionCriteria,
-    SelectionError, SimpleAgent,
+    SelectionError, SimpleAgent, AgentExecutor,
 };
 
 #[cfg(feature = "workflow")]
@@ -27,11 +27,9 @@ use crate::context::braingrid_client::{
     BraingridClient, BraingridError, BraingridRequirement, BraingridTask,
     RequirementStatus, TaskStatus, CacheStats,
 };
+#[cfg(feature = "workflow")]
 use crate::workflow::{RequirementExecutor, RequirementExecutionResult, RequirementProgress};
 use crate::agents::registry::AgentRegistry;
-use radium_abstraction::Model;
-use radium_models::MockModel;
-use radium_orchestrator::AgentExecutor;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use futures::StreamExt;
@@ -90,12 +88,16 @@ pub struct RadiumService {
     /// Agent orchestrator for managing agent execution.
     orchestrator: Arc<Orchestrator>,
     /// Message bus for agent-to-agent communication.
+    #[cfg(feature = "workflow")]
     message_bus: Arc<crate::collaboration::MessageBus>,
     /// Resource lock manager for workspace coordination.
+    #[cfg(feature = "workflow")]
     lock_manager: Arc<crate::collaboration::ResourceLockManager>,
     /// Delegation manager for supervisor-worker patterns.
+    #[cfg(feature = "workflow")]
     delegation_manager: Arc<crate::collaboration::DelegationManager>,
     /// Progress tracker for agent progress reporting.
+    #[cfg(feature = "workflow")]
     progress_tracker: Arc<crate::collaboration::ProgressTracker>,
     /// Braingrid client for requirement/task operations.
     braingrid_client: Arc<BraingridClient>,
@@ -115,41 +117,46 @@ impl RadiumService {
         let db_arc = Arc::new(Mutex::new(db));
         let orchestrator = Arc::new(Orchestrator::new());
 
-        // Initialize collaboration components
-        let message_bus = Arc::new(crate::collaboration::MessageBus::new(Arc::clone(&db_arc)));
-        let lock_manager = Arc::new(crate::collaboration::ResourceLockManager::new());
-        let progress_tracker = Arc::new(crate::collaboration::ProgressTracker::new(Arc::clone(&db_arc)));
-        
-        // Create worker executor wrapper for delegation manager
-        struct OrchestratorWorkerExecutor {
-            orchestrator: Arc<Orchestrator>,
-        }
-        impl crate::collaboration::delegation::WorkerExecutor for OrchestratorWorkerExecutor {
-            fn execute_worker(&self, worker_id: &str, task_input: &str) -> std::pin::Pin<Box<dyn std::future::Future<Output = std::result::Result<crate::collaboration::delegation::WorkerExecutionResult, String>> + Send>> {
-                let orchestrator = Arc::clone(&self.orchestrator);
-                let worker_id = worker_id.to_string();
-                let task_input = task_input.to_string();
-                Box::pin(async move {
-                    match orchestrator.execute_agent(Some(&worker_id), &task_input, None).await {
-                        Ok(result) => Ok(crate::collaboration::delegation::WorkerExecutionResult {
-                            success: result.success,
-                            output: Some(format!("{:?}", result.output)),
-                            error: result.error,
-                        }),
-                        Err(e) => Err(e.to_string()),
-                    }
-                })
+        // Initialize collaboration components (workflow feature only)
+        #[cfg(feature = "workflow")]
+        let (message_bus, lock_manager, delegation_manager, progress_tracker) = {
+            let message_bus = Arc::new(crate::collaboration::MessageBus::new(Arc::clone(&db_arc)));
+            let lock_manager = Arc::new(crate::collaboration::ResourceLockManager::new());
+            let progress_tracker = Arc::new(crate::collaboration::ProgressTracker::new(Arc::clone(&db_arc)));
+
+            // Create worker executor wrapper for delegation manager
+            struct OrchestratorWorkerExecutor {
+                orchestrator: Arc<Orchestrator>,
             }
-        }
-        let worker_executor: Arc<dyn crate::collaboration::delegation::WorkerExecutor> = Arc::new(OrchestratorWorkerExecutor {
-            orchestrator: Arc::clone(&orchestrator),
-        });
-        
-        let delegation_manager = Arc::new(crate::collaboration::DelegationManager::new(
-            Arc::clone(&db_arc),
-            Arc::clone(&message_bus),
-            worker_executor,
-        ));
+            impl crate::collaboration::delegation::WorkerExecutor for OrchestratorWorkerExecutor {
+                fn execute_worker(&self, worker_id: &str, task_input: &str) -> std::pin::Pin<Box<dyn std::future::Future<Output = std::result::Result<crate::collaboration::delegation::WorkerExecutionResult, String>> + Send>> {
+                    let orchestrator = Arc::clone(&self.orchestrator);
+                    let worker_id = worker_id.to_string();
+                    let task_input = task_input.to_string();
+                    Box::pin(async move {
+                        match orchestrator.execute_agent(Some(&worker_id), &task_input, None).await {
+                            Ok(result) => Ok(crate::collaboration::delegation::WorkerExecutionResult {
+                                success: result.success,
+                                output: Some(format!("{:?}", result.output)),
+                                error: result.error,
+                            }),
+                            Err(e) => Err(e.to_string()),
+                        }
+                    })
+                }
+            }
+            let worker_executor: Arc<dyn crate::collaboration::delegation::WorkerExecutor> = Arc::new(OrchestratorWorkerExecutor {
+                orchestrator: Arc::clone(&orchestrator),
+            });
+
+            let delegation_manager = Arc::new(crate::collaboration::DelegationManager::new(
+                Arc::clone(&db_arc),
+                Arc::clone(&message_bus),
+                worker_executor,
+            ));
+
+            (message_bus, lock_manager, delegation_manager, progress_tracker)
+        };
 
         // Initialize Braingrid client
         let project_id = std::env::var("BRAINGRID_PROJECT_ID")
@@ -188,9 +195,13 @@ impl RadiumService {
         Self {
             db: db_arc,
             orchestrator,
+            #[cfg(feature = "workflow")]
             message_bus,
+            #[cfg(feature = "workflow")]
             lock_manager,
+            #[cfg(feature = "workflow")]
             delegation_manager,
+            #[cfg(feature = "workflow")]
             progress_tracker,
             braingrid_client,
             session_manager,
@@ -202,6 +213,7 @@ impl RadiumService {
     }
 
     /// Gets a reference to the message bus.
+    #[cfg(feature = "workflow")]
     pub fn get_message_bus(&self) -> Arc<crate::collaboration::MessageBus> {
         Arc::clone(&self.message_bus)
     }
@@ -254,16 +266,19 @@ impl RadiumService {
     }
 
     /// Gets a reference to the lock manager.
+    #[cfg(feature = "workflow")]
     pub fn get_lock_manager(&self) -> Arc<crate::collaboration::ResourceLockManager> {
         Arc::clone(&self.lock_manager)
     }
 
     /// Gets a reference to the delegation manager.
+    #[cfg(feature = "workflow")]
     pub fn get_delegation_manager(&self) -> Arc<crate::collaboration::DelegationManager> {
         Arc::clone(&self.delegation_manager)
     }
 
     /// Gets a reference to the progress tracker.
+    #[cfg(feature = "workflow")]
     pub fn get_progress_tracker(&self) -> Arc<crate::collaboration::ProgressTracker> {
         Arc::clone(&self.progress_tracker)
     }
@@ -910,6 +925,7 @@ impl Radium for RadiumService {
                         success: false,
                         output: String::new(),
                         error: Some(format!("Invalid model type: {}", model_type)),
+                        metadata: None,
                     }));
                 }
             };
@@ -959,6 +975,7 @@ impl Radium for RadiumService {
                         });
                         let _ = self.event_tx.send(OrchestrationEvent::Done {
                             correlation_id: correlation_id.clone(),
+                            finish_reason: "stop".to_string(),
                         });
                     } else {
                         let _ = self.event_tx.send(OrchestrationEvent::Error {
@@ -991,6 +1008,7 @@ impl Radium for RadiumService {
                     success: false,
                     output: String::new(),
                     error: Some(e.to_string()),
+                    metadata: None,
                 }))
             }
         }
@@ -1320,41 +1338,53 @@ impl Radium for RadiumService {
         &self,
         request: Request<SendMessageRequest>,
     ) -> Result<Response<SendMessageResponse>, Status> {
-        let inner = request.into_inner();
-        info!(
-            sender_id = %inner.sender_id,
-            recipient_id = %inner.recipient_id,
-            message_type = %inner.message_type,
-            "SendMessage request"
-        );
+        #[cfg(feature = "workflow")]
+        {
+            let inner = request.into_inner();
+            info!(
+                sender_id = %inner.sender_id,
+                recipient_id = %inner.recipient_id,
+                message_type = %inner.message_type,
+                "SendMessage request"
+            );
 
-        let message_type = crate::collaboration::MessageType::from_str(&inner.message_type)
-            .map_err(|e| Status::invalid_argument(format!("Invalid message type: {}", e)))?;
+            let message_type = crate::collaboration::MessageType::from_str(&inner.message_type)
+                .map_err(|e| Status::invalid_argument(format!("Invalid message type: {}", e)))?;
 
-        let payload: serde_json::Value = serde_json::from_str(&inner.payload_json)
-            .map_err(|e| Status::invalid_argument(format!("Invalid payload JSON: {}", e)))?;
+            let payload: serde_json::Value = serde_json::from_str(&inner.payload_json)
+                .map_err(|e| Status::invalid_argument(format!("Invalid payload JSON: {}", e)))?;
 
-        let result = if inner.recipient_id.is_empty() {
-            self.message_bus
-                .broadcast_message(&inner.sender_id, message_type, payload)
-                .await
-        } else {
-            self.message_bus
-                .send_message(&inner.sender_id, &inner.recipient_id, message_type, payload)
-                .await
-        };
+            let result = if inner.recipient_id.is_empty() {
+                self.message_bus
+                    .broadcast_message(&inner.sender_id, message_type, payload)
+                    .await
+            } else {
+                self.message_bus
+                    .send_message(&inner.sender_id, &inner.recipient_id, message_type, payload)
+                    .await
+            };
 
-        match result {
-            Ok(message_id) => Ok(Response::new(SendMessageResponse {
-                success: true,
-                message_id,
-                error: None,
-            })),
-            Err(e) => Ok(Response::new(SendMessageResponse {
+            match result {
+                Ok(message_id) => Ok(Response::new(SendMessageResponse {
+                    success: true,
+                    message_id,
+                    error: None,
+                })),
+                Err(e) => Ok(Response::new(SendMessageResponse {
+                    success: false,
+                    message_id: String::new(),
+                    error: Some(e.to_string()),
+                })),
+            }
+        }
+        #[cfg(not(feature = "workflow"))]
+        {
+            let _ = request;
+            Ok(Response::new(SendMessageResponse {
                 success: false,
                 message_id: String::new(),
-                error: Some(e.to_string()),
-            })),
+                error: Some("Collaboration features require 'workflow' feature to be enabled".to_string()),
+            }))
         }
     }
 
@@ -1362,86 +1392,108 @@ impl Radium for RadiumService {
         &self,
         request: Request<GetMessagesRequest>,
     ) -> Result<Response<GetMessagesResponse>, Status> {
-        let inner = request.into_inner();
-        info!(
-            agent_id = %inner.agent_id,
-            undelivered_only = inner.undelivered_only,
-            "GetMessages request"
-        );
+        #[cfg(feature = "workflow")]
+        {
+            let inner = request.into_inner();
+            info!(
+                agent_id = %inner.agent_id,
+                undelivered_only = inner.undelivered_only,
+                "GetMessages request"
+            );
 
-        let messages = self
-            .message_bus
-            .get_messages(&inner.agent_id, inner.undelivered_only)
-            .await
-            .map_err(|e| Status::internal(format!("Failed to get messages: {}", e)))?;
+            let messages = self
+                .message_bus
+                .get_messages(&inner.agent_id, inner.undelivered_only)
+                .await
+                .map_err(|e| Status::internal(format!("Failed to get messages: {}", e)))?;
 
-        let proto_messages: Vec<AgentMessage> = messages
-            .into_iter()
-            .map(|msg| AgentMessage {
-                id: msg.id,
-                sender_id: msg.sender_id,
-                recipient_id: msg.recipient_id,
-                message_type: msg.message_type.as_str().to_string(),
-                payload_json: msg.payload_json,
-                timestamp: msg.timestamp,
-                delivered: msg.delivered,
-            })
-            .collect();
+            let proto_messages: Vec<AgentMessage> = messages
+                .into_iter()
+                .map(|msg| AgentMessage {
+                    id: msg.id,
+                    sender_id: msg.sender_id,
+                    recipient_id: msg.recipient_id,
+                    message_type: msg.message_type.as_str().to_string(),
+                    payload_json: msg.payload_json,
+                    timestamp: msg.timestamp,
+                    delivered: msg.delivered,
+                })
+                .collect();
 
-        Ok(Response::new(GetMessagesResponse {
-            messages: proto_messages,
-        }))
+            Ok(Response::new(GetMessagesResponse {
+                messages: proto_messages,
+            }))
+        }
+        #[cfg(not(feature = "workflow"))]
+        {
+            let _ = request;
+            Ok(Response::new(GetMessagesResponse {
+                messages: vec![],
+            }))
+        }
     }
 
     async fn request_resource_lock(
         &self,
         request: Request<RequestResourceLockRequest>,
     ) -> Result<Response<RequestResourceLockResponse>, Status> {
-        let inner = request.into_inner();
-        info!(
-            agent_id = %inner.agent_id,
-            resource_path = %inner.resource_path,
-            lock_type = %inner.lock_type,
-            "RequestResourceLock request"
-        );
+        #[cfg(feature = "workflow")]
+        {
+            let inner = request.into_inner();
+            info!(
+                agent_id = %inner.agent_id,
+                resource_path = %inner.resource_path,
+                lock_type = %inner.lock_type,
+                "RequestResourceLock request"
+            );
 
-        let lock_type = match inner.lock_type.as_str() {
-            "Read" => crate::collaboration::LockType::Read,
-            "Write" => crate::collaboration::LockType::Write,
-            _ => return Ok(Response::new(RequestResourceLockResponse {
+            let lock_type = match inner.lock_type.as_str() {
+                "Read" => crate::collaboration::LockType::Read,
+                "Write" => crate::collaboration::LockType::Write,
+                _ => return Ok(Response::new(RequestResourceLockResponse {
+                    success: false,
+                    lock_id: String::new(),
+                    error: Some("Invalid lock type. Must be 'Read' or 'Write'".to_string()),
+                })),
+            };
+
+            let result = match lock_type {
+                crate::collaboration::LockType::Read => {
+                    self.lock_manager
+                        .request_read_lock(&inner.agent_id, &inner.resource_path, inner.timeout_secs.map(|t| t as u64))
+                        .await
+                }
+                crate::collaboration::LockType::Write => {
+                    self.lock_manager
+                        .request_write_lock(&inner.agent_id, &inner.resource_path, inner.timeout_secs.map(|t| t as u64))
+                        .await
+                }
+            };
+
+            match result {
+                Ok(_handle) => {
+                    // Lock ID is the resource path for now
+                    Ok(Response::new(RequestResourceLockResponse {
+                        success: true,
+                        lock_id: inner.resource_path,
+                        error: None,
+                    }))
+                }
+                Err(e) => Ok(Response::new(RequestResourceLockResponse {
+                    success: false,
+                    lock_id: String::new(),
+                    error: Some(e.to_string()),
+                })),
+            }
+        }
+        #[cfg(not(feature = "workflow"))]
+        {
+            let _ = request;
+            Ok(Response::new(RequestResourceLockResponse {
                 success: false,
                 lock_id: String::new(),
-                error: Some("Invalid lock type. Must be 'Read' or 'Write'".to_string()),
-            })),
-        };
-
-        let result = match lock_type {
-            crate::collaboration::LockType::Read => {
-                self.lock_manager
-                    .request_read_lock(&inner.agent_id, &inner.resource_path, inner.timeout_secs.map(|t| t as u64))
-                    .await
-            }
-            crate::collaboration::LockType::Write => {
-                self.lock_manager
-                    .request_write_lock(&inner.agent_id, &inner.resource_path, inner.timeout_secs.map(|t| t as u64))
-                    .await
-            }
-        };
-
-        match result {
-            Ok(_handle) => {
-                // Lock ID is the resource path for now
-                Ok(Response::new(RequestResourceLockResponse {
-                    success: true,
-                    lock_id: inner.resource_path,
-                    error: None,
-                }))
-            }
-            Err(e) => Ok(Response::new(RequestResourceLockResponse {
-                success: false,
-                lock_id: String::new(),
-                error: Some(e.to_string()),
-            })),
+                error: Some("Collaboration features require 'workflow' feature to be enabled".to_string()),
+            }))
         }
     }
 
@@ -1449,53 +1501,76 @@ impl Radium for RadiumService {
         &self,
         request: Request<ReleaseResourceLockRequest>,
     ) -> Result<Response<ReleaseResourceLockResponse>, Status> {
-        let inner = request.into_inner();
-        info!(
-            lock_id = %inner.lock_id,
-            agent_id = %inner.agent_id,
-            "ReleaseResourceLock request"
-        );
+        #[cfg(feature = "workflow")]
+        {
+            let inner = request.into_inner();
+            info!(
+                lock_id = %inner.lock_id,
+                agent_id = %inner.agent_id,
+                "ReleaseResourceLock request"
+            );
 
-        // Note: In a full implementation, we'd track lock handles by ID
-        // For now, this is a placeholder
-        Ok(Response::new(ReleaseResourceLockResponse {
-            success: true,
-            error: None,
-        }))
+            // Note: In a full implementation, we'd track lock handles by ID
+            // For now, this is a placeholder
+            Ok(Response::new(ReleaseResourceLockResponse {
+                success: true,
+                error: None,
+            }))
+        }
+        #[cfg(not(feature = "workflow"))]
+        {
+            let _ = request;
+            Ok(Response::new(ReleaseResourceLockResponse {
+                success: false,
+                error: Some("Collaboration features require 'workflow' feature to be enabled".to_string()),
+            }))
+        }
     }
 
     async fn spawn_worker_agent(
         &self,
         request: Request<SpawnWorkerAgentRequest>,
     ) -> Result<Response<SpawnWorkerAgentResponse>, Status> {
-        let inner = request.into_inner();
-        info!(
-            supervisor_id = %inner.supervisor_id,
-            worker_agent_id = %inner.worker_agent_id,
-            "SpawnWorkerAgent request"
-        );
+        #[cfg(feature = "workflow")]
+        {
+            let inner = request.into_inner();
+            info!(
+                supervisor_id = %inner.supervisor_id,
+                worker_agent_id = %inner.worker_agent_id,
+                "SpawnWorkerAgent request"
+            );
 
-        let result = self
-            .delegation_manager
-            .spawn_worker(
-                &inner.supervisor_id,
-                &inner.worker_agent_id,
-                &inner.task_input,
-                inner.delegation_depth as usize,
-            )
-            .await;
+            let result = self
+                .delegation_manager
+                .spawn_worker(
+                    &inner.supervisor_id,
+                    &inner.worker_agent_id,
+                    &inner.task_input,
+                    inner.delegation_depth as usize,
+                )
+                .await;
 
-        match result {
-            Ok(worker_id) => Ok(Response::new(SpawnWorkerAgentResponse {
-                success: true,
-                worker_id,
-                error: None,
-            })),
-            Err(e) => Ok(Response::new(SpawnWorkerAgentResponse {
+            match result {
+                Ok(worker_id) => Ok(Response::new(SpawnWorkerAgentResponse {
+                    success: true,
+                    worker_id,
+                    error: None,
+                })),
+                Err(e) => Ok(Response::new(SpawnWorkerAgentResponse {
+                    success: false,
+                    worker_id: String::new(),
+                    error: Some(e.to_string()),
+                })),
+            }
+        }
+        #[cfg(not(feature = "workflow"))]
+        {
+            let _ = request;
+            Ok(Response::new(SpawnWorkerAgentResponse {
                 success: false,
                 worker_id: String::new(),
-                error: Some(e.to_string()),
-            })),
+                error: Some("Collaboration features require 'workflow' feature to be enabled".to_string()),
+            }))
         }
     }
 
@@ -1503,56 +1578,79 @@ impl Radium for RadiumService {
         &self,
         request: Request<GetWorkerStatusRequest>,
     ) -> Result<Response<GetWorkerStatusResponse>, Status> {
-        let inner = request.into_inner();
-        info!(worker_id = %inner.worker_id, "GetWorkerStatus request");
+        #[cfg(feature = "workflow")]
+        {
+            let inner = request.into_inner();
+            info!(worker_id = %inner.worker_id, "GetWorkerStatus request");
 
-        let status = self
-            .delegation_manager
-            .get_worker_status(&inner.worker_id)
-            .await
-            .map_err(|e| Status::internal(format!("Failed to get worker status: {}", e)))?;
+            let status = self
+                .delegation_manager
+                .get_worker_status(&inner.worker_id)
+                .await
+                .map_err(|e| Status::internal(format!("Failed to get worker status: {}", e)))?;
 
-        Ok(Response::new(GetWorkerStatusResponse {
-            success: true,
-            status: status.as_str().to_string(),
-            error: None,
-        }))
+            Ok(Response::new(GetWorkerStatusResponse {
+                success: true,
+                status: status.as_str().to_string(),
+                error: None,
+            }))
+        }
+        #[cfg(not(feature = "workflow"))]
+        {
+            let _ = request;
+            Ok(Response::new(GetWorkerStatusResponse {
+                success: false,
+                status: String::new(),
+                error: Some("Collaboration features require 'workflow' feature to be enabled".to_string()),
+            }))
+        }
     }
 
     async fn report_progress(
         &self,
         request: Request<ReportProgressRequest>,
     ) -> Result<Response<ReportProgressResponse>, Status> {
-        let inner = request.into_inner();
-        info!(
-            agent_id = %inner.agent_id,
-            percentage = inner.percentage,
-            status = %inner.status,
-            "ReportProgress request"
-        );
+        #[cfg(feature = "workflow")]
+        {
+            let inner = request.into_inner();
+            info!(
+                agent_id = %inner.agent_id,
+                percentage = inner.percentage,
+                status = %inner.status,
+                "ReportProgress request"
+            );
 
-        let status = crate::collaboration::ProgressStatus::from_str(&inner.status)
-            .map_err(|e| Status::invalid_argument(format!("Invalid status: {}", e)))?;
+            let status = crate::collaboration::ProgressStatus::from_str(&inner.status)
+                .map_err(|e| Status::invalid_argument(format!("Invalid status: {}", e)))?;
 
-        let result = self
-            .progress_tracker
-            .report_progress(
-                &inner.agent_id,
-                inner.percentage as u8,
-                status,
-                inner.message,
-            )
-            .await;
+            let result = self
+                .progress_tracker
+                .report_progress(
+                    &inner.agent_id,
+                    inner.percentage as u8,
+                    status,
+                    inner.message,
+                )
+                .await;
 
-        match result {
-            Ok(()) => Ok(Response::new(ReportProgressResponse {
-                success: true,
-                error: None,
-            })),
-            Err(e) => Ok(Response::new(ReportProgressResponse {
+            match result {
+                Ok(()) => Ok(Response::new(ReportProgressResponse {
+                    success: true,
+                    error: None,
+                })),
+                Err(e) => Ok(Response::new(ReportProgressResponse {
+                    success: false,
+                    error: Some(e.to_string()),
+                })),
+            }
+        }
+        #[cfg(not(feature = "workflow"))]
+        {
+            let _ = request;
+            Ok(Response::new(ReportProgressResponse {
                 success: false,
-                error: Some(e.to_string()),
-            })),
+                error: Some("Collaboration features require 'workflow' feature to be enabled".to_string()),
+            }))
         }
     }
 
@@ -1565,8 +1663,9 @@ impl Radium for RadiumService {
         request: Request<ReadBraingridRequirementRequest>,
     ) -> Result<Response<ReadBraingridRequirementResponse>, Status> {
         let req = request.into_inner();
+        let env_project_id = std::env::var("BRAINGRID_PROJECT_ID").ok();
         let project_id = req.project_id.as_deref()
-            .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok().as_deref())
+            .or_else(|| env_project_id.as_deref())
             .unwrap_or("PROJ-14");
 
         info!(requirement_id = %req.requirement_id, "ReadBraingridRequirement RPC called");
@@ -1600,8 +1699,9 @@ impl Radium for RadiumService {
         request: Request<ListBraingridTasksRequest>,
     ) -> Result<Response<ListBraingridTasksResponse>, Status> {
         let req = request.into_inner();
+        let env_project_id = std::env::var("BRAINGRID_PROJECT_ID").ok();
         let project_id = req.project_id.as_deref()
-            .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok().as_deref())
+            .or_else(|| env_project_id.as_deref())
             .unwrap_or("PROJ-14");
 
         info!(requirement_id = %req.requirement_id, "ListBraingridTasks RPC called");
@@ -1637,8 +1737,9 @@ impl Radium for RadiumService {
         request: Request<UpdateBraingridTaskStatusRequest>,
     ) -> Result<Response<UpdateBraingridTaskStatusResponse>, Status> {
         let req = request.into_inner();
+        let env_project_id = std::env::var("BRAINGRID_PROJECT_ID").ok();
         let project_id = req.project_id.as_deref()
-            .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok().as_deref())
+            .or_else(|| env_project_id.as_deref())
             .unwrap_or("PROJ-14");
 
         info!(
@@ -1672,8 +1773,9 @@ impl Radium for RadiumService {
         request: Request<UpdateBraingridRequirementStatusRequest>,
     ) -> Result<Response<UpdateBraingridRequirementStatusResponse>, Status> {
         let req = request.into_inner();
+        let env_project_id = std::env::var("BRAINGRID_PROJECT_ID").ok();
         let project_id = req.project_id.as_deref()
-            .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok().as_deref())
+            .or_else(|| env_project_id.as_deref())
             .unwrap_or("PROJ-14");
 
         info!(
@@ -1706,8 +1808,9 @@ impl Radium for RadiumService {
         request: Request<CreateBraingridTasksRequest>,
     ) -> Result<Response<CreateBraingridTasksResponse>, Status> {
         let req = request.into_inner();
+        let env_project_id = std::env::var("BRAINGRID_PROJECT_ID").ok();
         let project_id = req.project_id.as_deref()
-            .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok().as_deref())
+            .or_else(|| env_project_id.as_deref())
             .unwrap_or("PROJ-14");
 
         info!(requirement_id = %req.requirement_id, "CreateBraingridTasks RPC called");
@@ -1738,19 +1841,20 @@ impl Radium for RadiumService {
     async fn execute_braingrid_requirement(
         &self,
         request: Request<ExecuteBraingridRequirementRequest>,
-    ) -> Result<Response<tonic::codec::Streaming<ExecutionProgressEvent>>, Status> {
+    ) -> Result<Response<Self::ExecuteBraingridRequirementStream>, Status> {
         let req = request.into_inner();
+        let env_project_id = std::env::var("BRAINGRID_PROJECT_ID").ok();
         let project_id = req.project_id.as_deref()
-            .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok().as_deref())
+            .or_else(|| env_project_id.as_deref())
             .unwrap_or("PROJ-14");
 
         info!(requirement_id = %req.requirement_id, "ExecuteBraingridRequirement RPC called");
 
         // Create a channel for streaming progress events
-        let (tx, rx) = mpsc::channel(100);
-        
-        // Convert to Result stream for gRPC
-        let rx = ReceiverStream::new(rx).map(|event| Ok(event) as Result<ExecutionProgressEvent, Status>);
+        let (tx, rx) = mpsc::channel::<Result<ExecutionProgressEvent, Status>>(100);
+
+        // Convert to ReceiverStream for gRPC
+        let rx = ReceiverStream::new(rx);
 
         // Spawn execution in background
         let req_id = req.requirement_id.clone();
@@ -1785,6 +1889,7 @@ impl Radium for RadiumService {
                         sub_step: None,
                         error: Some(format!("Failed to create executor: {}", e)),
                         result: None,
+                        token_chunk: None,
                     }).await;
                     return;
                 }
@@ -1810,6 +1915,7 @@ impl Radium for RadiumService {
                                 sub_step: None,
                                 error: None,
                                 result: None,
+                                token_chunk: None,
                             }
                         }
                         RequirementProgress::TaskStarted { task_id, task_title, task_number, total_tasks, .. } => {
@@ -1823,6 +1929,7 @@ impl Radium for RadiumService {
                                 sub_step: None,
                                 error: None,
                                 result: None,
+                                token_chunk: None,
                             }
                         }
                         RequirementProgress::TaskSubStep { task_id, task_title, sub_step } => {
@@ -1836,6 +1943,7 @@ impl Radium for RadiumService {
                                 sub_step: Some(sub_step.as_str().to_string()),
                                 error: None,
                                 result: None,
+                                token_chunk: None,
                             }
                         }
                         RequirementProgress::TaskCompleted { task_id, task_title } => {
@@ -1849,6 +1957,7 @@ impl Radium for RadiumService {
                                 sub_step: None,
                                 error: None,
                                 result: None,
+                                token_chunk: None,
                             }
                         }
                         RequirementProgress::TaskFailed { task_id, task_title, error } => {
@@ -1862,6 +1971,7 @@ impl Radium for RadiumService {
                                 sub_step: None,
                                 error: Some(error),
                                 result: None,
+                                token_chunk: None,
                             }
                         }
                         RequirementProgress::Completed { result } => {
@@ -1875,6 +1985,7 @@ impl Radium for RadiumService {
                                 sub_step: None,
                                 error: None,
                                 result: Some(requirement_execution_result_to_proto(result)),
+                                token_chunk: None,
                             }
                         }
                         RequirementProgress::Failed { error } => {
@@ -1888,6 +1999,7 @@ impl Radium for RadiumService {
                                 sub_step: None,
                                 error: Some(error),
                                 result: None,
+                                token_chunk: None,
                             }
                         }
                     };
@@ -1900,7 +2012,7 @@ impl Radium for RadiumService {
         });
 
         // Return streaming response
-        Ok(Response::new(Box::pin(rx) as _))
+        Ok(Response::new(rx))
     }
 
     async fn clear_braingrid_cache(
@@ -1908,8 +2020,9 @@ impl Radium for RadiumService {
         request: Request<ClearBraingridCacheRequest>,
     ) -> Result<Response<ClearBraingridCacheResponse>, Status> {
         let req = request.into_inner();
+        let env_project_id = std::env::var("BRAINGRID_PROJECT_ID").ok();
         let project_id = req.project_id.as_deref()
-            .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok().as_deref())
+            .or_else(|| env_project_id.as_deref())
             .unwrap_or("PROJ-14");
 
         info!("ClearBraingridCache RPC called");
@@ -1932,8 +2045,9 @@ impl Radium for RadiumService {
         request: Request<GetBraingridCacheStatsRequest>,
     ) -> Result<Response<GetBraingridCacheStatsResponse>, Status> {
         let req = request.into_inner();
+        let env_project_id = std::env::var("BRAINGRID_PROJECT_ID").ok();
         let project_id = req.project_id.as_deref()
-            .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok().as_deref())
+            .or_else(|| env_project_id.as_deref())
             .unwrap_or("PROJ-14");
 
         info!("GetBraingridCacheStats RPC called");
@@ -2107,6 +2221,7 @@ impl Radium for RadiumService {
         }))
     }
 
+    type ExecuteBraingridRequirementStream = ReceiverStream<Result<ExecutionProgressEvent, Status>>;
     type SessionEventsStreamStream = ReceiverStream<Result<SessionEvent, Status>>;
 
     async fn session_events_stream(
@@ -2130,7 +2245,7 @@ impl Radium for RadiumService {
                 match event_result {
                     Ok(event) => {
                         // Handle client events (e.g., ApprovalResponseEvent)
-                        if let Some(approval_response) = event.approval_response {
+                        if let Some(crate::proto::session_event::Event::ApprovalResponse(approval_response)) = event.event {
                             // TODO: Unblock waiting tool execution
                             info!(
                                 session_id = %approval_response.session_id,
