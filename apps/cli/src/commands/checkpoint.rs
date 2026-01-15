@@ -83,10 +83,8 @@ pub async fn execute(cmd: CheckpointCommand) -> Result<()> {
         CheckpointCommand::Show { checkpoint_id } => {
             show_command(&checkpoint_manager, &checkpoint_id).await
         }
-        CheckpointCommand::Policy { show: _, age_days: _, max_size_gb: _, min_keep: _ } => {
-            // TODO: Implement policy_command
-            eprintln!("Checkpoint policy management not yet implemented");
-            Ok(())
+        CheckpointCommand::Policy { show, age_days, max_size_gb, min_keep } => {
+            policy_command(show, age_days, max_size_gb, min_keep).await
         }
     }
 }
@@ -433,6 +431,70 @@ async fn show_command(
 
     if diff.files_changed() == 0 {
         println!("No changes from previous checkpoint.");
+    }
+
+    Ok(())
+}
+
+async fn policy_command(
+    show: bool,
+    age_days: Option<u32>,
+    max_size_gb: Option<f64>,
+    min_keep: Option<usize>,
+) -> Result<()> {
+    use radium_core::config::Config;
+
+    // Load current configuration
+    let mut config = Config::load().context("Failed to load configuration")?;
+
+    // Check if we're only showing the policy
+    let is_show_only = show || (age_days.is_none() && max_size_gb.is_none() && min_keep.is_none());
+
+    if is_show_only {
+        // Display current policy
+        println!("Current Checkpoint Policy");
+        println!("{}", "=".repeat(40));
+        println!("Age-based cleanup: {} days", config.checkpoint.retention_days);
+        println!("Maximum checkpoints: {}", config.checkpoint.max_checkpoints);
+        println!("Maximum size: {} GB", config.checkpoint.max_size_gb);
+        println!("Auto-create: {}", if config.checkpoint.auto_create { "enabled" } else { "disabled" });
+        println!();
+        println!("Note: Policy is loaded from configuration file or defaults.");
+        println!("Use --age-days, --max-size-gb, or --min-keep to update values.");
+        return Ok(());
+    }
+
+    // Update policy values
+    let mut updated = false;
+
+    if let Some(days) = age_days {
+        config.checkpoint.retention_days = days;
+        println!("✓ Updated age-based cleanup to {} days", days);
+        updated = true;
+    }
+
+    if let Some(size) = max_size_gb {
+        config.checkpoint.max_size_gb = size as u64;
+        println!("✓ Updated maximum size to {} GB", size);
+        updated = true;
+    }
+
+    if let Some(keep) = min_keep {
+        config.checkpoint.max_checkpoints = keep;
+        println!("✓ Updated maximum checkpoints to {}", keep);
+        updated = true;
+    }
+
+    if updated {
+        println!();
+        println!("Policy values updated in memory.");
+        println!("Note: To persist these changes, update your radium.toml configuration file:");
+        println!();
+        println!("[checkpoint]");
+        println!("retention_days = {}", config.checkpoint.retention_days);
+        println!("max_checkpoints = {}", config.checkpoint.max_checkpoints);
+        println!("max_size_gb = {}", config.checkpoint.max_size_gb);
+        println!("auto_create = {}", config.checkpoint.auto_create);
     }
 
     Ok(())
