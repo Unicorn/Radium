@@ -49,6 +49,7 @@ pub use orchestration::{
     context::{Message, OrchestrationContext, UserPreferences},
     service::{OrchestrationService, SessionState},
     tool::{Tool, ToolArguments, ToolCall, ToolHandler, ToolParameters, ToolResult},
+    tool_adapter::{to_abstraction_tool, to_abstraction_tools, from_abstraction_tool, AbstractionToolAdapter},
 };
 pub use plugin::{InMemoryPlugin, Plugin, PluginLoader, PluginMetadata};
 pub use queue::{ExecutionQueue, ExecutionTask, Priority, QueueMetrics};
