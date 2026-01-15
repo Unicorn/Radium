@@ -43,18 +43,23 @@ impl DefaultToolRouter {
         
         if !upstreams.contains(&upstream_name) {
             upstreams.push(upstream_name.clone());
-            
-            // Sort by priority (get from pool config)
-            if let Some(_config) = self.pool.get_upstream_config(&upstream_name).await {
-                // Sort existing upstreams by their priorities
-                upstreams.sort_by_key(|_name| {
-                    // Get priority from pool - we'll need to track this
-                    // For now, just maintain insertion order
-                    // TODO: Sort by actual priority from config
-                    0
-                });
-            }
         }
+
+        // Sort all upstreams by priority (lower number = higher priority)
+        let pool_clone = Arc::clone(&self.pool);
+        upstreams.sort_by_cached_key(|name| {
+            // Use blocking on async to get priority during sort
+            // This is acceptable since sorting happens infrequently during registration
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    pool_clone
+                        .get_upstream_config(name)
+                        .await
+                        .map(|config| config.priority)
+                        .unwrap_or(u32::MAX) // Upstreams without config go to end
+                })
+            })
+        });
     }
 
     /// Update tool map by querying all upstreams for their tools.
