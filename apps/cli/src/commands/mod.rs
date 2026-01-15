@@ -29,6 +29,7 @@ pub mod mcp_proxy;
 pub mod monitor;
 pub mod plan;
 pub mod policy;
+pub mod policy_learn;
 pub mod constitution;
 pub mod requirement;
 pub mod run;
