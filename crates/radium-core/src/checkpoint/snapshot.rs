@@ -373,9 +373,11 @@ impl CheckpointManager {
         }
 
         // Apply expiration policy after checkpoint creation
-        let policy = CheckpointPolicy::default(); // TODO: Load from config
+        let policy = crate::config::Config::load()
+            .map(|config| config.checkpoint.to_policy())
+            .unwrap_or_else(|_| CheckpointPolicy::default());
         let _ = self.evaluate_cleanup_policy(&policy);
-        
+
         Ok(checkpoint)
     }
 
@@ -873,14 +875,63 @@ impl CheckpointManager {
     ///
     /// # Errors
     /// Returns error if cleanup operations fail
-    pub fn evaluate_cleanup_policy(&self, _policy: &CheckpointPolicy) -> Result<usize> {
-        // TODO: Implement cleanup policy evaluation
-        // This should:
-        // 1. List all checkpoints
+    pub fn evaluate_cleanup_policy(&self, policy: &CheckpointPolicy) -> Result<usize> {
+        // 1. List all checkpoints sorted by timestamp (newest first)
+        let mut checkpoints = self.list_checkpoints()?;
+        checkpoints.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+
+        let mut to_delete = Vec::new();
+        let current_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|e| CheckpointError::GitCommandFailed(format!("Time error: {}", e)))?
+            .as_secs();
+
         // 2. Filter by age if policy.age_days is set
-        // 3. Calculate total size and delete oldest if exceeding policy.max_size_gb
-        // 4. Ensure at least policy.min_keep checkpoints remain
-        Ok(0)
+        if let Some(age_days) = policy.age_days {
+            let max_age_secs = age_days as u64 * 24 * 60 * 60;
+            for checkpoint in &checkpoints {
+                if current_time.saturating_sub(checkpoint.timestamp) > max_age_secs {
+                    to_delete.push(checkpoint.id.clone());
+                }
+            }
+        }
+
+        // 3. Keep only policy.min_keep most recent checkpoints
+        // Ensure we don't delete checkpoints that should be kept
+        if checkpoints.len() > policy.min_keep {
+            for checkpoint in checkpoints.iter().skip(policy.min_keep) {
+                if !to_delete.contains(&checkpoint.id) {
+                    to_delete.push(checkpoint.id.clone());
+                }
+            }
+        }
+
+        // Remove duplicates and ensure we keep at least min_keep checkpoints
+        to_delete.sort();
+        to_delete.dedup();
+
+        // Don't delete if it would leave us with fewer than min_keep
+        let remaining = checkpoints.len().saturating_sub(to_delete.len());
+        if remaining < policy.min_keep {
+            let excess = policy.min_keep - remaining;
+            to_delete.truncate(to_delete.len().saturating_sub(excess));
+        }
+
+        // Delete identified checkpoints
+        let mut deleted_count = 0;
+        for checkpoint_id in to_delete {
+            if let Err(e) = self.delete_checkpoint(&checkpoint_id) {
+                tracing::warn!(
+                    checkpoint_id = %checkpoint_id,
+                    error = %e,
+                    "Failed to delete checkpoint during cleanup"
+                );
+            } else {
+                deleted_count += 1;
+            }
+        }
+
+        Ok(deleted_count)
     }
 }
 

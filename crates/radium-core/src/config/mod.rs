@@ -89,6 +89,17 @@ fn default_max_size_gb() -> u64 {
     5
 }
 
+impl CheckpointConfig {
+    /// Convert to CheckpointPolicy for snapshot manager.
+    pub fn to_policy(&self) -> crate::checkpoint::CheckpointPolicy {
+        crate::checkpoint::CheckpointPolicy {
+            age_days: Some(self.retention_days),
+            max_size_gb: Some(self.max_size_gb as f64),
+            min_keep: self.max_checkpoints,
+        }
+    }
+}
+
 impl Default for CheckpointConfig {
     fn default() -> Self {
         Self {
