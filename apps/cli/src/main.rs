@@ -746,13 +746,22 @@ async fn main() -> anyhow::Result<()> {
                 args.local,
             );
 
-            // For now, step command still runs locally
-            // TODO: Integrate daemon execution when session management is fully connected
-            if matches!(execution_mode, client::daemon_client::ExecutionMode::Daemon(_)) {
-                eprintln!("Warning: --daemon flag is not yet fully integrated with step command. Running locally.");
+            // Check if daemon mode is requested
+            match execution_mode {
+                client::daemon_client::ExecutionMode::Daemon(url) => {
+                    // Daemon mode: limitations apply
+                    if stream || !image.is_empty() || !audio.is_empty() || !video.is_empty() || !file.is_empty() {
+                        eprintln!("Warning: Daemon mode does not support streaming or multi-modal inputs.");
+                        eprintln!("These features will be ignored. Use --local for full functionality.");
+                        eprintln!();
+                    }
+                    step::execute_daemon(url, id, prompt, model, engine, reasoning).await?;
+                }
+                client::daemon_client::ExecutionMode::Local => {
+                    // Local mode: full feature support
+                    step::execute(id, prompt, model, engine, reasoning, model_tier, None, stream, show_metadata, json, safety_behavior, image, audio, video, file, auto_upload, response_format, response_schema).await?;
+                }
             }
-
-            step::execute(id, prompt, model, engine, reasoning, model_tier, None, stream, show_metadata, json, safety_behavior, image, audio, video, file, auto_upload, response_format, response_schema).await?;
         }
         Command::Chat { agent_id, session, resume, list, stream, show_metadata, json, safety_behavior } => {
             if list {

@@ -95,6 +95,85 @@ fn parse_response_format(
     }
 }
 
+/// Execute the step command via daemon.
+///
+/// Sends the agent execution request to a remote daemon server.
+pub async fn execute_daemon(
+    daemon_url: String,
+    id: String,
+    prompt: Vec<String>,
+    model: Option<String>,
+    _engine: Option<String>,
+    _reasoning: Option<String>,
+) -> anyhow::Result<()> {
+    use crate::client::daemon_client::DaemonClient;
+    use radium_core::proto::{ExecuteAgentRequest, SelectionCriteria};
+
+    println!("{}", "rad step (daemon mode)".bold().cyan());
+    println!("Connecting to daemon at: {}", daemon_url.dimmed());
+    println!();
+
+    // Create and connect daemon client
+    let mut client = DaemonClient::new(daemon_url);
+    let mut grpc_client = client.connect(Some(3)).await
+        .context("Failed to connect to daemon")?;
+
+    // Build combined prompt
+    let combined_prompt = if prompt.is_empty() {
+        bail!("Prompt is required");
+    } else {
+        prompt.join(" ")
+    };
+
+    // Create request
+    let request = ExecuteAgentRequest {
+        agent_id: Some(id.clone()),
+        input: combined_prompt,
+        model_type: None,  // Let agent config determine this
+        model_id: model,
+        criteria: None,    // Direct agent execution, no dynamic selection
+        session_id: None,  // Not using session management yet
+    };
+
+    println!("Executing agent: {}", id.bold());
+    println!();
+
+    // Execute via daemon
+    let response = grpc_client
+        .execute_agent(request)
+        .await
+        .context("Failed to execute agent via daemon")?
+        .into_inner();
+
+    // Display results
+    if response.success {
+        println!("{}", "Response:".bold().green());
+        println!("{}", response.output);
+
+        if let Some(metadata) = response.metadata {
+            println!();
+            println!("{}", "Metadata:".bold());
+            if let Some(finish_reason) = metadata.finish_reason {
+                println!("  Finish reason: {}", finish_reason);
+            }
+            if metadata.safety_blocked {
+                println!("  {}", "⚠ Content blocked by safety filters".yellow());
+            }
+            if let Some(model_version) = metadata.model_version {
+                println!("  Model version: {}", model_version);
+            }
+        }
+    } else {
+        eprintln!("{}", "Execution failed:".bold().red());
+        if let Some(error) = response.error {
+            eprintln!("{}", error);
+        }
+        bail!("Agent execution failed");
+    }
+
+    Ok(())
+}
+
 /// Execute the step command.
 ///
 /// Executes a single workflow step (agent from configuration).
