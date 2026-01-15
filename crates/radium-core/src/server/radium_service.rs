@@ -318,6 +318,57 @@ impl RadiumService {
         Some(response_metadata)
     }
 
+    /// Converts ExecutionResult telemetry and routing to gRPC ResponseMetadata.
+    fn execution_result_to_metadata(exec_result: &radium_orchestrator::executor::ExecutionResult) -> Option<ResponseMetadata> {
+        // Build metadata from telemetry and routing decision
+        let mut metadata_map = std::collections::HashMap::new();
+
+        // Add telemetry data if available
+        if let Some(ref telemetry) = exec_result.telemetry {
+            metadata_map.insert("input_tokens".to_string(), serde_json::json!(telemetry.input_tokens));
+            metadata_map.insert("output_tokens".to_string(), serde_json::json!(telemetry.output_tokens));
+            metadata_map.insert("total_tokens".to_string(), serde_json::json!(telemetry.total_tokens));
+            if let Some(ref model_id) = telemetry.model_id {
+                metadata_map.insert("model_id".to_string(), serde_json::json!(model_id));
+            }
+        }
+
+        // Add routing decision if available
+        if let Some(ref routing) = exec_result.routing_decision {
+            metadata_map.insert("selected_model".to_string(), serde_json::json!(routing.selected_model));
+            metadata_map.insert("reason".to_string(), serde_json::json!(routing.reason));
+            if let Some(estimated_cost) = routing.estimated_cost {
+                metadata_map.insert("estimated_cost".to_string(), serde_json::json!(estimated_cost));
+            }
+        }
+
+        // Return None if no metadata
+        if metadata_map.is_empty() {
+            return None;
+        }
+
+        // Build ResponseMetadata
+        let mut response_metadata = ResponseMetadata {
+            finish_reason: Some("stop".to_string()), // Default to stop
+            safety_blocked: false,
+            citation_count: None,
+            model_version: None,
+            raw_metadata_json: None,
+        };
+
+        // Set model_version from telemetry if available
+        if let Some(telemetry) = &exec_result.telemetry {
+            response_metadata.model_version = telemetry.model_id.clone();
+        }
+
+        // Store raw metadata as JSON
+        if let Ok(raw_json) = serde_json::to_string(&metadata_map) {
+            response_metadata.raw_metadata_json = Some(raw_json);
+        }
+
+        Some(response_metadata)
+    }
+
     /// Gets a reference to the lock manager.
     #[cfg(feature = "workflow")]
     pub fn get_lock_manager(&self) -> Arc<crate::collaboration::ResourceLockManager> {
@@ -1023,9 +1074,8 @@ impl Radium for RadiumService {
                     success: exec_result.success,
                     output: output_str,
                     error: exec_result.error,
-                    // TODO: Extract metadata from ExecutionResult when it's available
-                    // For now, metadata is None since ExecutionResult doesn't include it yet
-                    metadata: None,
+                    // Extract metadata from ExecutionResult telemetry and routing
+                    metadata: Self::execution_result_to_metadata(&exec_result),
                 }))
             }
             Err(e) => {
