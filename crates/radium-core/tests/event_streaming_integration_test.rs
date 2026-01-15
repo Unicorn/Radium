@@ -2,12 +2,7 @@
 
 //! Integration tests for Event Streaming Infrastructure.
 //!
-//! **STATUS: DISABLED - Waiting for server module circular dependency fix**
-//!
-//! This test is currently disabled because the server module is temporarily
-//! disabled in lib.rs due to circular dependency issues with radium-orchestrator.
-//! Once the circular dependency is resolved and the server module is re-enabled,
-//! this test can be activated by renaming to event_streaming_integration_test.rs
+//! **STATUS: ENABLED** - Circular dependency resolved!
 //!
 //! This test verifies the complete event flow from agent execution to client
 //! session streams, including:
@@ -22,7 +17,7 @@ mod common;
 use common::{create_test_client, start_test_server};
 use futures::StreamExt;
 use radium_core::proto::{
-    session_event::Event, ExecuteAgentRequest, RegisterAgentRequest, SessionEvent,
+    session_event::Event, ExecuteAgentRequest, RegisterAgentRequest,
 };
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
@@ -42,7 +37,7 @@ async fn test_event_streaming_end_to_end() {
     assert!(register_resp.into_inner().success, "Agent registration should succeed");
 
     // 2. Connect to session_events_stream
-    let (tx, rx) = mpsc::channel(100);
+    let (_tx, rx) = mpsc::channel(100);
     let outbound = ReceiverStream::new(rx);
 
     let mut stream = client
@@ -113,7 +108,7 @@ async fn test_event_streaming_with_session_id() {
     client.register_agent(register_req).await.expect("Register failed");
 
     // 2. Connect to session_events_stream
-    let (tx, rx) = mpsc::channel(100);
+    let (_tx, rx) = mpsc::channel(100);
     let outbound = ReceiverStream::new(rx);
 
     let mut stream = client
@@ -154,11 +149,7 @@ async fn test_event_streaming_with_session_id() {
                 Ok(event) => {
                     println!("Received event: {:?}", event);
                     received_events.push(event);
-
-                    // Stop if we receive a Done event
-                    if let Some(Event::Done(_)) = &received_events.last().unwrap().event {
-                        break;
-                    }
+                    // Continue collecting events (no Done event in SessionEvent)
                 }
                 Err(e) => {
                     eprintln!("Stream error: {:?}", e);
@@ -193,11 +184,10 @@ async fn test_event_streaming_with_session_id() {
     // Expected event sequence:
     // 1. MessageEvent: "Starting execution for agent: event-session-agent"
     // 2. MessageEvent: "Execution completed: Echo from event-session-agent: Test with session"
-    // 3. Done event
+    // Note: Done event is not converted to SessionEvent (stays in OrchestrationEvent only)
 
     let mut has_start = false;
     let mut has_complete = false;
-    let mut has_done = false;
 
     for event in &events {
         if let Some(ref e) = event.event {
@@ -211,10 +201,6 @@ async fn test_event_streaming_with_session_id() {
                         assert_eq!(msg.session_id, session_id, "Session ID should match");
                     }
                 }
-                Event::Done(done) => {
-                    has_done = true;
-                    assert_eq!(done.session_id, session_id, "Session ID should match");
-                }
                 Event::ToolCall(call) => {
                     println!("Tool call event: {:?}", call);
                     assert_eq!(call.session_id, session_id, "Session ID should match");
@@ -227,16 +213,24 @@ async fn test_event_streaming_with_session_id() {
                     println!("Approval request event: {:?}", req);
                     assert_eq!(req.session_id, session_id, "Session ID should match");
                 }
+                Event::ApprovalResponse(resp) => {
+                    println!("Approval response event: {:?}", resp);
+                    assert_eq!(resp.session_id, session_id, "Session ID should match");
+                }
+                Event::TokenChunk(chunk) => {
+                    println!("Token chunk event: {:?}", chunk);
+                    assert_eq!(chunk.session_id, session_id, "Session ID should match");
+                }
             }
         }
     }
 
     // Verify we got the expected events
-    println!("Event summary: start={}, complete={}, done={}", has_start, has_complete, has_done);
+    println!("Event summary: start={}, complete={}", has_start, has_complete);
 
     // Note: Depending on timing, we might not receive all events
     // This is acceptable for the initial implementation
-    if !has_start && !has_complete && !has_done {
+    if !has_start && !has_complete {
         println!("WARNING: None of the expected events received");
         println!("This indicates the event routing may not be working correctly");
     }
@@ -259,7 +253,7 @@ async fn test_multiple_concurrent_sessions() {
     client1.register_agent(register_req).await.expect("Register failed");
 
     // Connect both clients to separate session streams
-    let (tx1, rx1) = mpsc::channel(100);
+    let (_tx1, rx1) = mpsc::channel(100);
     let stream1_outbound = ReceiverStream::new(rx1);
     let mut stream1 = client1
         .session_events_stream(stream1_outbound)
@@ -267,7 +261,7 @@ async fn test_multiple_concurrent_sessions() {
         .expect("Failed to connect stream 1")
         .into_inner();
 
-    let (tx2, rx2) = mpsc::channel(100);
+    let (_tx2, rx2) = mpsc::channel(100);
     let stream2_outbound = ReceiverStream::new(rx2);
     let mut stream2 = client2
         .session_events_stream(stream2_outbound)
@@ -314,9 +308,7 @@ async fn test_multiple_concurrent_sessions() {
         ).await {
             if let Ok(event) = result {
                 events.push(event);
-                if let Some(Event::Done(_)) = &events.last().unwrap().event {
-                    break;
-                }
+                // Collect events for a duration (no Done event in SessionEvent)
             }
         }
         events
@@ -330,9 +322,7 @@ async fn test_multiple_concurrent_sessions() {
         ).await {
             if let Ok(event) = result {
                 events.push(event);
-                if let Some(Event::Done(_)) = &events.last().unwrap().event {
-                    break;
-                }
+                // Collect events for a duration (no Done event in SessionEvent)
             }
         }
         events
@@ -354,10 +344,11 @@ async fn test_multiple_concurrent_sessions() {
         if let Some(ref e) = event.event {
             let event_session_id = match e {
                 Event::Message(msg) => &msg.session_id,
-                Event::Done(done) => &done.session_id,
                 Event::ToolCall(call) => &call.session_id,
                 Event::ToolResult(result) => &result.session_id,
                 Event::ApprovalRequest(req) => &req.session_id,
+                Event::ApprovalResponse(resp) => &resp.session_id,
+                Event::TokenChunk(chunk) => &chunk.session_id,
             };
 
             if !event_session_id.is_empty() {
@@ -373,10 +364,11 @@ async fn test_multiple_concurrent_sessions() {
         if let Some(ref e) = event.event {
             let event_session_id = match e {
                 Event::Message(msg) => &msg.session_id,
-                Event::Done(done) => &done.session_id,
                 Event::ToolCall(call) => &call.session_id,
                 Event::ToolResult(result) => &result.session_id,
                 Event::ApprovalRequest(req) => &req.session_id,
+                Event::ApprovalResponse(resp) => &resp.session_id,
+                Event::TokenChunk(chunk) => &chunk.session_id,
             };
 
             if !event_session_id.is_empty() {
