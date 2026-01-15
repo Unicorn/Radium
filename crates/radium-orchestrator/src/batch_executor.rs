@@ -56,22 +56,21 @@ impl BatchExecutor {
         );
 
         // Emit batch started event
-        self.progress_reporter.emit(ProgressEvent::BatchStarted {
-            agent_id: agent_id.to_string(),
-            total_items: inputs.len(),
-        });
+        self.progress_reporter.emit_batch_started(
+            agent_id.to_string(),
+            inputs.len(),
+        );
 
         // Create progress callback that emits events
         let progress_reporter = Arc::clone(&self.progress_reporter);
         let agent_id_clone = agent_id.to_string();
         let progress_callback: Arc<dyn Fn(usize, usize, usize, usize, usize) + Send + Sync> =
-            Arc::new(move |index, completed, active, successful, failed| {
-                // Emit task completed event for each item
-                progress_reporter.emit(ProgressEvent::TaskCompleted {
-                    task_id: format!("batch-{}-{}", agent_id_clone, index),
-                    agent_id: agent_id_clone.clone(),
-                    telemetry: None, // Would include telemetry in real implementation
-                });
+            Arc::new(move |index, _completed, _active, _successful, _failed| {
+                // Emit task started event for each item (synchronous version)
+                let task_id = format!("batch-{}-{}", agent_id_clone, index);
+                progress_reporter.emit_task_started(task_id, agent_id_clone.clone());
+                // Note: We can't emit task completed here since the callback runs during processing
+                // Task completion would need to be tracked differently in a real implementation
             });
 
         // Execute batch
@@ -93,14 +92,14 @@ impl BatchExecutor {
         );
 
         // Emit batch completed event
-        self.progress_reporter.emit(ProgressEvent::BatchCompleted {
-            agent_id: agent_id.to_string(),
-            total_items: result.total_items(),
-            successful: result.successful.len(),
-            failed: result.failed.len(),
+        self.progress_reporter.emit_batch_completed(
+            agent_id.to_string(),
+            result.total_items(),
+            result.successful.len(),
+            result.failed.len(),
             total_tokens,
             total_cost,
-        });
+        ).await;
 
         result
     }

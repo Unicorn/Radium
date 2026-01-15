@@ -231,6 +231,57 @@ impl ProgressReporter {
         metrics.active_tasks = count;
     }
 
+    /// Emits a batch started event.
+    ///
+    /// # Arguments
+    /// * `agent_id` - Agent ID
+    /// * `total_items` - Total number of items in the batch
+    pub fn emit_batch_started(&self, agent_id: String, total_items: usize) {
+        let event = ProgressEvent::BatchStarted {
+            agent_id,
+            total_items,
+        };
+        let _ = self.broadcast_tx.send(event.clone());
+        debug!("Progress event: {:?}", event);
+    }
+
+    /// Emits a batch completed event.
+    ///
+    /// # Arguments
+    /// * `agent_id` - Agent ID
+    /// * `total_items` - Total number of items in the batch
+    /// * `successful` - Number of successful items
+    /// * `failed` - Number of failed items
+    /// * `total_tokens` - Total tokens used
+    /// * `total_cost` - Total cost incurred
+    pub async fn emit_batch_completed(
+        &self,
+        agent_id: String,
+        total_items: usize,
+        successful: usize,
+        failed: usize,
+        total_tokens: u64,
+        total_cost: f64,
+    ) {
+        // Update metrics
+        {
+            let mut metrics = self.metrics.lock().await;
+            metrics.total_tokens += total_tokens;
+            metrics.total_cost += total_cost;
+        }
+
+        let event = ProgressEvent::BatchCompleted {
+            agent_id,
+            total_items,
+            successful,
+            failed,
+            total_tokens,
+            total_cost,
+        };
+        let _ = self.broadcast_tx.send(event.clone());
+        debug!("Progress event: {:?}", event);
+    }
+
     /// Updates agent utilization.
     ///
     /// # Arguments
