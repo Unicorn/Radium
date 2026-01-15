@@ -990,7 +990,7 @@ pub struct CacheControl {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
-enum ClaudeContentBlock {
+pub enum ClaudeContentBlock {
     #[serde(rename = "text")]
     Text {
         text: String,
@@ -1105,6 +1105,7 @@ struct ClaudeErrorEvent {
 #[derive(Debug, Deserialize)]
 struct ClaudeError {
     #[serde(rename = "type")]
+    #[allow(dead_code)]
     error_type: String,
     message: String,
 }

@@ -1,7 +1,7 @@
 //! Batch executor for orchestrator integration.
 
 use radium_abstraction::batch::{BatchProcessor, BatchResult, RetryPolicy};
-use crate::progress::{ProgressEvent, ProgressReporter};
+use crate::progress::ProgressReporter;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::info;

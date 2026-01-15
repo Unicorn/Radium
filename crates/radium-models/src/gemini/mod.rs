@@ -1762,7 +1762,7 @@ pub struct GeminiContent {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-enum GeminiPart {
+pub enum GeminiPart {
     Text { text: String },
     InlineData {
         #[serde(rename = "inlineData")]

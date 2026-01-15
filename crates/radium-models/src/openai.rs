@@ -828,7 +828,7 @@ pub enum OpenAIResponseFormat {
 
 /// OpenAI JSON schema structure
 #[derive(Debug, Serialize, Clone)]
-struct OpenAIJsonSchema {
+pub struct OpenAIJsonSchema {
     name: String,
     schema: serde_json::Value,
     strict: bool,
@@ -867,7 +867,7 @@ pub struct OpenAIMessage {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
-enum OpenAIContentBlock {
+pub enum OpenAIContentBlock {
     #[serde(rename = "text")]
     Text { text: String },
     #[serde(rename = "image_url")]

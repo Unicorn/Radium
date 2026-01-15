@@ -138,6 +138,7 @@ where
                 }
 
                 // Process with retries
+                #[allow(unused_assignments)]
                 let mut last_error = None::<String>;
                 let mut retry_count = 0;
 
