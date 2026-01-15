@@ -1084,54 +1084,70 @@ impl Radium for RadiumService {
         &self,
         request: Request<ExecuteWorkflowRequest>,
     ) -> Result<Response<ExecuteWorkflowResponse>, Status> {
-        let req = request.into_inner();
-        let workflow_id = req.workflow_id;
-        let use_parallel = req.use_parallel;
+        #[cfg(feature = "workflow")]
+        {
+            let req = request.into_inner();
+            let workflow_id = req.workflow_id;
+            let use_parallel = req.use_parallel;
 
-        info!(
-            workflow_id = %workflow_id,
-            use_parallel = use_parallel,
-            "ExecuteWorkflow RPC called"
-        );
+            info!(
+                workflow_id = %workflow_id,
+                use_parallel = use_parallel,
+                "ExecuteWorkflow RPC called"
+            );
 
-        // Create workflow service
-        let executor = Arc::new(radium_orchestrator::AgentExecutor::with_mock_model());
-        let workflow_service =
-            crate::workflow::WorkflowService::new(&self.orchestrator, &executor, &self.db);
+            // Create workflow service
+            let executor = Arc::new(radium_orchestrator::AgentExecutor::with_mock_model());
+            let workflow_service =
+                crate::workflow::WorkflowService::new(&self.orchestrator, &executor, &self.db);
 
-        // Execute workflow
-        let result = workflow_service.execute_workflow(&workflow_id, use_parallel).await;
+            // Execute workflow
+            let result = workflow_service.execute_workflow(&workflow_id, use_parallel).await;
 
-        match result {
-            Ok(execution) => {
-                let final_state_json = serde_json::to_string(&execution.final_state)
-                    .map_err(|e| Status::internal(format!("Failed to serialize state: {}", e)))?;
+            match result {
+                Ok(execution) => {
+                    let final_state_json = serde_json::to_string(&execution.final_state)
+                        .map_err(|e| Status::internal(format!("Failed to serialize state: {}", e)))?;
 
-                Ok(Response::new(ExecuteWorkflowResponse {
-                    execution_id: execution.execution_id,
-                    workflow_id: execution.workflow_id,
-                    success: matches!(
-                        execution.final_state,
-                        crate::models::WorkflowState::Completed
-                    ),
-                    error: None,
-                    final_state: final_state_json,
-                }))
+                    Ok(Response::new(ExecuteWorkflowResponse {
+                        execution_id: execution.execution_id,
+                        workflow_id: execution.workflow_id,
+                        success: matches!(
+                            execution.final_state,
+                            crate::models::WorkflowState::Completed
+                        ),
+                        error: None,
+                        final_state: final_state_json,
+                    }))
+                }
+                Err(e) => {
+                    error!(
+                        workflow_id = %workflow_id,
+                        error = %e,
+                        "Workflow execution failed"
+                    );
+                    Ok(Response::new(ExecuteWorkflowResponse {
+                        execution_id: String::new(),
+                        workflow_id,
+                        success: false,
+                        error: Some(e.to_string()),
+                        final_state: String::new(),
+                    }))
+                }
             }
-            Err(e) => {
-                error!(
-                    workflow_id = %workflow_id,
-                    error = %e,
-                    "Workflow execution failed"
-                );
-                Ok(Response::new(ExecuteWorkflowResponse {
-                    execution_id: String::new(),
-                    workflow_id,
-                    success: false,
-                    error: Some(e.to_string()),
-                    final_state: String::new(),
-                }))
-            }
+        }
+        #[cfg(not(feature = "workflow"))]
+        {
+            let req = request.into_inner();
+            let workflow_id = req.workflow_id;
+
+            Ok(Response::new(ExecuteWorkflowResponse {
+                execution_id: String::new(),
+                workflow_id,
+                success: false,
+                error: Some("Workflow execution requires 'workflow' feature to be enabled".to_string()),
+                final_state: String::new(),
+            }))
         }
     }
 
@@ -1139,115 +1155,144 @@ impl Radium for RadiumService {
         &self,
         request: Request<GetWorkflowExecutionRequest>,
     ) -> Result<Response<GetWorkflowExecutionResponse>, Status> {
-        let req = request.into_inner();
-        let execution_id = req.execution_id;
+        #[cfg(feature = "workflow")]
+        {
+            let req = request.into_inner();
+            let execution_id = req.execution_id;
 
-        info!(execution_id = %execution_id, "GetWorkflowExecution RPC called");
+            info!(execution_id = %execution_id, "GetWorkflowExecution RPC called");
 
-        // Create workflow service
-        let executor = Arc::new(radium_orchestrator::AgentExecutor::with_mock_model());
-        let workflow_service =
-            crate::workflow::WorkflowService::new(&self.orchestrator, &executor, &self.db);
+            // Create workflow service
+            let executor = Arc::new(radium_orchestrator::AgentExecutor::with_mock_model());
+            let workflow_service =
+                crate::workflow::WorkflowService::new(&self.orchestrator, &executor, &self.db);
 
-        // Get execution
-        let execution = workflow_service.get_execution(&execution_id).await.ok_or_else(|| {
-            Status::not_found(format!("Workflow execution {} not found", execution_id))
-        })?;
+            // Get execution
+            let execution = workflow_service.get_execution(&execution_id).await.ok_or_else(|| {
+                Status::not_found(format!("Workflow execution {} not found", execution_id))
+            })?;
 
-        // Convert to proto
-        let context_json = serde_json::to_string(&execution.context)
-            .map_err(|e| Status::internal(format!("Failed to serialize context: {}", e)))?;
-        let final_state_json = serde_json::to_string(&execution.final_state)
-            .map_err(|e| Status::internal(format!("Failed to serialize state: {}", e)))?;
+            // Convert to proto
+            let context_json = serde_json::to_string(&execution.context)
+                .map_err(|e| Status::internal(format!("Failed to serialize context: {}", e)))?;
+            let final_state_json = serde_json::to_string(&execution.final_state)
+                .map_err(|e| Status::internal(format!("Failed to serialize state: {}", e)))?;
 
-        let proto_execution = WorkflowExecution {
-            execution_id: execution.execution_id,
-            workflow_id: execution.workflow_id,
-            context_json,
-            started_at: execution.started_at.to_rfc3339(),
-            completed_at: execution.completed_at.map(|dt| dt.to_rfc3339()),
-            final_state: final_state_json,
-        };
+            let proto_execution = WorkflowExecution {
+                execution_id: execution.execution_id,
+                workflow_id: execution.workflow_id,
+                context_json,
+                started_at: execution.started_at.to_rfc3339(),
+                completed_at: execution.completed_at.map(|dt| dt.to_rfc3339()),
+                final_state: final_state_json,
+            };
 
-        Ok(Response::new(GetWorkflowExecutionResponse { execution: Some(proto_execution) }))
+            Ok(Response::new(GetWorkflowExecutionResponse { execution: Some(proto_execution) }))
+        }
+        #[cfg(not(feature = "workflow"))]
+        {
+            let _ = request;
+            Err(Status::unimplemented("Workflow execution requires 'workflow' feature to be enabled"))
+        }
     }
 
     async fn stop_workflow_execution(
         &self,
         request: Request<StopWorkflowExecutionRequest>,
     ) -> Result<Response<StopWorkflowExecutionResponse>, Status> {
-        let req = request.into_inner();
-        let workflow_id = req.workflow_id;
+        #[cfg(feature = "workflow")]
+        {
+            let req = request.into_inner();
+            let workflow_id = req.workflow_id;
 
-        info!(workflow_id = %workflow_id, "StopWorkflowExecution RPC called");
+            info!(workflow_id = %workflow_id, "StopWorkflowExecution RPC called");
 
-        // Create workflow service
-        let executor = Arc::new(radium_orchestrator::AgentExecutor::with_mock_model());
-        let _workflow_service =
-            crate::workflow::WorkflowService::new(&self.orchestrator, &executor, &self.db);
+            // Create workflow service
+            let executor = Arc::new(radium_orchestrator::AgentExecutor::with_mock_model());
+            let _workflow_service =
+                crate::workflow::WorkflowService::new(&self.orchestrator, &executor, &self.db);
 
-        // Stop workflow - load workflow first, then update
-        let workflow_state = {
-            let mut db = self.lock_db()?;
-            let workflow_repo = SqliteWorkflowRepository::new(&mut *db);
-            let workflow = workflow_repo
-                .get_by_id(&workflow_id)
-                .map_err(|e| storage_to_status(&e, "Workflow", &workflow_id))?;
-            workflow.state
-        };
+            // Stop workflow - load workflow first, then update
+            let workflow_state = {
+                let mut db = self.lock_db()?;
+                let workflow_repo = SqliteWorkflowRepository::new(&mut *db);
+                let workflow = workflow_repo
+                    .get_by_id(&workflow_id)
+                    .map_err(|e| storage_to_status(&e, "Workflow", &workflow_id))?;
+                workflow.state
+            };
 
-        // Update state if running
-        if matches!(workflow_state, crate::models::WorkflowState::Running) {
-            let mut db = self.lock_db()?;
-            let mut workflow_repo = SqliteWorkflowRepository::new(&mut *db);
-            let mut workflow = workflow_repo
-                .get_by_id(&workflow_id)
-                .map_err(|e| storage_to_status(&e, "Workflow", &workflow_id))?;
-            workflow.set_state(crate::models::WorkflowState::Idle);
-            workflow_repo
-                .update(&workflow)
-                .map_err(|e| storage_to_status(&e, "Workflow", &workflow_id))?;
+            // Update state if running
+            if matches!(workflow_state, crate::models::WorkflowState::Running) {
+                let mut db = self.lock_db()?;
+                let mut workflow_repo = SqliteWorkflowRepository::new(&mut *db);
+                let mut workflow = workflow_repo
+                    .get_by_id(&workflow_id)
+                    .map_err(|e| storage_to_status(&e, "Workflow", &workflow_id))?;
+                workflow.set_state(crate::models::WorkflowState::Idle);
+                workflow_repo
+                    .update(&workflow)
+                    .map_err(|e| storage_to_status(&e, "Workflow", &workflow_id))?;
+            }
+
+            Ok(Response::new(StopWorkflowExecutionResponse { success: true, error: None }))
         }
-
-        Ok(Response::new(StopWorkflowExecutionResponse { success: true, error: None }))
+        #[cfg(not(feature = "workflow"))]
+        {
+            let _ = request;
+            Ok(Response::new(StopWorkflowExecutionResponse {
+                success: false,
+                error: Some("Workflow execution requires 'workflow' feature to be enabled".to_string())
+            }))
+        }
     }
 
     async fn list_workflow_executions(
         &self,
         request: Request<ListWorkflowExecutionsRequest>,
     ) -> Result<Response<ListWorkflowExecutionsResponse>, Status> {
-        let req = request.into_inner();
-        let workflow_id = req.workflow_id;
+        #[cfg(feature = "workflow")]
+        {
+            let req = request.into_inner();
+            let workflow_id = req.workflow_id;
 
-        info!("ListWorkflowExecutions RPC called");
+            info!("ListWorkflowExecutions RPC called");
 
-        // Create workflow service
-        let executor = Arc::new(radium_orchestrator::AgentExecutor::with_mock_model());
-        let workflow_service =
-            crate::workflow::WorkflowService::new(&self.orchestrator, &executor, &self.db);
+            // Create workflow service
+            let executor = Arc::new(radium_orchestrator::AgentExecutor::with_mock_model());
+            let workflow_service =
+                crate::workflow::WorkflowService::new(&self.orchestrator, &executor, &self.db);
 
-        // Get executions
-        let executions = workflow_service.get_execution_history(workflow_id.as_deref()).await;
+            // Get executions
+            let executions = workflow_service.get_execution_history(workflow_id.as_deref()).await;
 
-        // Convert to proto
-        let proto_executions: Vec<WorkflowExecution> = executions
-            .into_iter()
-            .map(|exec| {
-                let context_json = serde_json::to_string(&exec.context).unwrap_or_default();
-                let final_state_json = serde_json::to_string(&exec.final_state).unwrap_or_default();
+            // Convert to proto
+            let proto_executions: Vec<WorkflowExecution> = executions
+                .into_iter()
+                .map(|exec| {
+                    let context_json = serde_json::to_string(&exec.context).unwrap_or_default();
+                    let final_state_json = serde_json::to_string(&exec.final_state).unwrap_or_default();
 
-                WorkflowExecution {
-                    execution_id: exec.execution_id,
-                    workflow_id: exec.workflow_id,
-                    context_json,
-                    started_at: exec.started_at.to_rfc3339(),
-                    completed_at: exec.completed_at.map(|dt| dt.to_rfc3339()),
-                    final_state: final_state_json,
-                }
-            })
-            .collect();
+                    WorkflowExecution {
+                        execution_id: exec.execution_id,
+                        workflow_id: exec.workflow_id,
+                        context_json,
+                        started_at: exec.started_at.to_rfc3339(),
+                        completed_at: exec.completed_at.map(|dt| dt.to_rfc3339()),
+                        final_state: final_state_json,
+                    }
+                })
+                .collect();
 
-        Ok(Response::new(ListWorkflowExecutionsResponse { executions: proto_executions }))
+            Ok(Response::new(ListWorkflowExecutionsResponse { executions: proto_executions }))
+        }
+        #[cfg(not(feature = "workflow"))]
+        {
+            let _ = request;
+            Ok(Response::new(ListWorkflowExecutionsResponse {
+                executions: Vec::new()
+            }))
+        }
     }
 
     async fn validate_sources(
@@ -1823,177 +1868,210 @@ impl Radium for RadiumService {
         &self,
         request: Request<ExecuteBraingridRequirementRequest>,
     ) -> Result<Response<Self::ExecuteBraingridRequirementStream>, Status> {
-        let req = request.into_inner();
-        let env_project_id = std::env::var("BRAINGRID_PROJECT_ID").ok();
-        let project_id = req.project_id.clone()
-            .or_else(|| env_project_id.clone())
-            .unwrap_or_else(|| "PROJ-14".to_string());
+        #[cfg(feature = "workflow")]
+        {
+            let req = request.into_inner();
+            let env_project_id = std::env::var("BRAINGRID_PROJECT_ID").ok();
+            let project_id = req.project_id.clone()
+                .or_else(|| env_project_id.clone())
+                .unwrap_or_else(|| "PROJ-14".to_string());
 
-        info!(requirement_id = %req.requirement_id, "ExecuteBraingridRequirement RPC called");
+            info!(requirement_id = %req.requirement_id, "ExecuteBraingridRequirement RPC called");
 
-        // Create a channel for streaming progress events
-        let (tx, rx) = mpsc::channel::<Result<ExecutionProgressEvent, Status>>(100);
+            // Create a channel for streaming progress events
+            let (tx, rx) = mpsc::channel::<Result<ExecutionProgressEvent, Status>>(100);
 
-        // Convert to ReceiverStream for gRPC
-        let rx = ReceiverStream::new(rx);
+            // Convert to ReceiverStream for gRPC
+            let rx = ReceiverStream::new(rx);
 
-        // Spawn execution in background
-        let req_id = req.requirement_id.clone();
-        let db = Arc::clone(&self.db);
-        let orchestrator = Arc::clone(&self.orchestrator);
-        let executor = Arc::new(AgentExecutor::with_mock_model());
-        let agent_registry = Arc::new(AgentRegistry::new());
+            // Spawn execution in background
+            let req_id = req.requirement_id.clone();
+            let db = Arc::clone(&self.db);
+            let orchestrator = Arc::clone(&self.orchestrator);
+            let executor = Arc::new(AgentExecutor::with_mock_model());
+            let agent_registry = Arc::new(AgentRegistry::new());
 
-        tokio::spawn(async move {
-            // Initialize model - use mock model for now to avoid API key requirements
-            // In production, this would use ModelFactory::create with proper config
-            let model: Arc<dyn Model> = Arc::new(MockModel::new("braingrid-executor".to_string()));
-
-            // Create requirement executor
-            let requirement_executor = match RequirementExecutor::new(
-                project_id,
-                &orchestrator,
-                &executor,
-                &db,
-                agent_registry,
-                model,
-            ) {
-                Ok(exec) => exec,
-                Err(e) => {
-                    let _ = tx.send(Ok(ExecutionProgressEvent {
-                        event_type: "FAILED".to_string(),
-                        requirement_id: Some(req_id.clone()),
-                        task_id: None,
-                        task_title: None,
-                        task_number: None,
-                        total_tasks: None,
-                        sub_step: None,
-                        error: Some(format!("Failed to create executor: {}", e)),
-                        result: None,
-                        token_chunk: None,
-                    })).await;
-                    return;
-                }
-            };
-
-            // Create progress channel
-            let (progress_tx, mut progress_rx) = mpsc::channel(100);
-
-            // Spawn progress handler
-            let req_id_for_progress = req_id.clone();
-            let mut event_tx = tx.clone();
             tokio::spawn(async move {
-                while let Some(progress) = progress_rx.recv().await {
-                    let event = match progress {
-                        RequirementProgress::Started { req_id, total_tasks } => {
-                            ExecutionProgressEvent {
-                                event_type: "STARTED".to_string(),
-                                requirement_id: Some(req_id),
-                                task_id: None,
-                                task_title: None,
-                                task_number: None,
-                                total_tasks: Some(total_tasks as i32),
-                                sub_step: None,
-                                error: None,
-                                result: None,
-                                token_chunk: None,
+                // Initialize model - use mock model for now to avoid API key requirements
+                // In production, this would use ModelFactory::create with proper config
+                let model: Arc<dyn Model> = Arc::new(MockModel::new("braingrid-executor".to_string()));
+
+                // Create requirement executor
+                let requirement_executor = match RequirementExecutor::new(
+                    project_id,
+                    &orchestrator,
+                    &executor,
+                    &db,
+                    agent_registry,
+                    model,
+                ) {
+                    Ok(exec) => exec,
+                    Err(e) => {
+                        let _ = tx.send(Ok(ExecutionProgressEvent {
+                            event_type: "FAILED".to_string(),
+                            requirement_id: Some(req_id.clone()),
+                            task_id: None,
+                            task_title: None,
+                            task_number: None,
+                            total_tasks: None,
+                            sub_step: None,
+                            error: Some(format!("Failed to create executor: {}", e)),
+                            result: None,
+                            token_chunk: None,
+                        })).await;
+                        return;
+                    }
+                };
+
+                // Create progress channel
+                let (progress_tx, mut progress_rx) = mpsc::channel(100);
+
+                // Spawn progress handler
+                let req_id_for_progress = req_id.clone();
+                let mut event_tx = tx.clone();
+                tokio::spawn(async move {
+                    while let Some(progress) = progress_rx.recv().await {
+                        let event = match progress {
+                            RequirementProgress::Started { req_id, total_tasks } => {
+                                ExecutionProgressEvent {
+                                    event_type: "STARTED".to_string(),
+                                    requirement_id: Some(req_id),
+                                    task_id: None,
+                                    task_title: None,
+                                    task_number: None,
+                                    total_tasks: Some(total_tasks as i32),
+                                    sub_step: None,
+                                    error: None,
+                                    result: None,
+                                    token_chunk: None,
+                                }
                             }
-                        }
-                        RequirementProgress::TaskStarted { task_id, task_title, task_number, total_tasks, .. } => {
-                            ExecutionProgressEvent {
-                                event_type: "TASK_STARTED".to_string(),
-                                requirement_id: None,
-                                task_id: Some(task_id),
-                                task_title: Some(task_title),
-                                task_number: Some(task_number as i32),
-                                total_tasks: Some(total_tasks as i32),
-                                sub_step: None,
-                                error: None,
-                                result: None,
-                                token_chunk: None,
+                            RequirementProgress::TaskStarted { task_id, task_title, task_number, total_tasks, .. } => {
+                                ExecutionProgressEvent {
+                                    event_type: "TASK_STARTED".to_string(),
+                                    requirement_id: None,
+                                    task_id: Some(task_id),
+                                    task_title: Some(task_title),
+                                    task_number: Some(task_number as i32),
+                                    total_tasks: Some(total_tasks as i32),
+                                    sub_step: None,
+                                    error: None,
+                                    result: None,
+                                    token_chunk: None,
+                                }
                             }
-                        }
-                        RequirementProgress::TaskSubStep { task_id, task_title, sub_step } => {
-                            ExecutionProgressEvent {
-                                event_type: "TASK_SUBSTEP".to_string(),
-                                requirement_id: None,
-                                task_id: Some(task_id),
-                                task_title: Some(task_title),
-                                task_number: None,
-                                total_tasks: None,
-                                sub_step: Some(sub_step.as_str().to_string()),
-                                error: None,
-                                result: None,
-                                token_chunk: None,
+                            RequirementProgress::TaskSubStep { task_id, task_title, sub_step } => {
+                                ExecutionProgressEvent {
+                                    event_type: "TASK_SUBSTEP".to_string(),
+                                    requirement_id: None,
+                                    task_id: Some(task_id),
+                                    task_title: Some(task_title),
+                                    task_number: None,
+                                    total_tasks: None,
+                                    sub_step: Some(sub_step.as_str().to_string()),
+                                    error: None,
+                                    result: None,
+                                    token_chunk: None,
+                                }
                             }
-                        }
-                        RequirementProgress::TaskCompleted { task_id, task_title } => {
-                            ExecutionProgressEvent {
-                                event_type: "TASK_COMPLETED".to_string(),
-                                requirement_id: None,
-                                task_id: Some(task_id),
-                                task_title: Some(task_title),
-                                task_number: None,
-                                total_tasks: None,
-                                sub_step: None,
-                                error: None,
-                                result: None,
-                                token_chunk: None,
+                            RequirementProgress::TaskCompleted { task_id, task_title } => {
+                                ExecutionProgressEvent {
+                                    event_type: "TASK_COMPLETED".to_string(),
+                                    requirement_id: None,
+                                    task_id: Some(task_id),
+                                    task_title: Some(task_title),
+                                    task_number: None,
+                                    total_tasks: None,
+                                    sub_step: None,
+                                    error: None,
+                                    result: None,
+                                    token_chunk: None,
+                                }
                             }
-                        }
-                        RequirementProgress::TaskFailed { task_id, task_title, error } => {
-                            ExecutionProgressEvent {
-                                event_type: "TASK_FAILED".to_string(),
-                                requirement_id: None,
-                                task_id: Some(task_id),
-                                task_title: Some(task_title),
-                                task_number: None,
-                                total_tasks: None,
-                                sub_step: None,
-                                error: Some(error),
-                                result: None,
-                                token_chunk: None,
+                            RequirementProgress::TaskFailed { task_id, task_title, error } => {
+                                ExecutionProgressEvent {
+                                    event_type: "TASK_FAILED".to_string(),
+                                    requirement_id: None,
+                                    task_id: Some(task_id),
+                                    task_title: Some(task_title),
+                                    task_number: None,
+                                    total_tasks: None,
+                                    sub_step: None,
+                                    error: Some(error),
+                                    result: None,
+                                    token_chunk: None,
+                                }
                             }
-                        }
-                        RequirementProgress::Completed { result } => {
-                            ExecutionProgressEvent {
-                                event_type: "COMPLETED".to_string(),
-                                requirement_id: Some(result.requirement_id.clone()),
-                                task_id: None,
-                                task_title: None,
-                                task_number: None,
-                                total_tasks: None,
-                                sub_step: None,
-                                error: None,
-                                result: Some(requirement_execution_result_to_proto(result)),
-                                token_chunk: None,
+                            RequirementProgress::Completed { result } => {
+                                ExecutionProgressEvent {
+                                    event_type: "COMPLETED".to_string(),
+                                    requirement_id: Some(result.requirement_id.clone()),
+                                    task_id: None,
+                                    task_title: None,
+                                    task_number: None,
+                                    total_tasks: None,
+                                    sub_step: None,
+                                    error: None,
+                                    result: Some(requirement_execution_result_to_proto(result)),
+                                    token_chunk: None,
+                                }
                             }
-                        }
-                        RequirementProgress::Failed { error } => {
-                            ExecutionProgressEvent {
-                                event_type: "FAILED".to_string(),
-                                requirement_id: Some(req_id_for_progress.clone()),
-                                task_id: None,
-                                task_title: None,
-                                task_number: None,
-                                total_tasks: None,
-                                sub_step: None,
-                                error: Some(error),
-                                result: None,
-                                token_chunk: None,
+                            RequirementProgress::Failed { error } => {
+                                ExecutionProgressEvent {
+                                    event_type: "FAILED".to_string(),
+                                    requirement_id: Some(req_id_for_progress.clone()),
+                                    task_id: None,
+                                    task_title: None,
+                                    task_number: None,
+                                    total_tasks: None,
+                                    sub_step: None,
+                                    error: Some(error),
+                                    result: None,
+                                    token_chunk: None,
+                                }
                             }
-                        }
-                    };
-                    let _ = event_tx.send(Ok(event)).await;
-                }
+                        };
+                        let _ = event_tx.send(Ok(event)).await;
+                    }
+                });
+
+                // Execute requirement
+                let _ = requirement_executor.execute_requirement_with_progress(&req_id, progress_tx).await;
             });
 
-            // Execute requirement
-            let _ = requirement_executor.execute_requirement_with_progress(&req_id, progress_tx).await;
-        });
+            // Return streaming response
+            Ok(Response::new(rx))
+        }
+        #[cfg(not(feature = "workflow"))]
+        {
+            let req = request.into_inner();
 
-        // Return streaming response
-        Ok(Response::new(rx))
+            // Create a channel for streaming progress events
+            let (tx, rx) = mpsc::channel::<Result<ExecutionProgressEvent, Status>>(100);
+
+            // Convert to ReceiverStream for gRPC
+            let rx = ReceiverStream::new(rx);
+
+            // Send a single error event
+            let req_id = req.requirement_id.clone();
+            tokio::spawn(async move {
+                let _ = tx.send(Ok(ExecutionProgressEvent {
+                    event_type: "FAILED".to_string(),
+                    requirement_id: Some(req_id),
+                    task_id: None,
+                    task_title: None,
+                    task_number: None,
+                    total_tasks: None,
+                    sub_step: None,
+                    error: Some("Requirement execution requires 'workflow' feature to be enabled".to_string()),
+                    result: None,
+                    token_chunk: None,
+                })).await;
+            });
+
+            // Return streaming response
+            Ok(Response::new(rx))
+        }
     }
 
     async fn clear_braingrid_cache(
@@ -2293,6 +2371,7 @@ fn task_to_proto(task: BraingridTask) -> ProtoBraingridTask {
     }
 }
 
+#[cfg(feature = "workflow")]
 fn requirement_execution_result_to_proto(result: RequirementExecutionResult) -> ProtoRequirementExecutionResult {
     ProtoRequirementExecutionResult {
         requirement_id: result.requirement_id,

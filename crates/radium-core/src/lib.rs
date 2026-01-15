@@ -19,6 +19,7 @@
 
 pub mod agents;
 pub mod analytics;
+#[cfg(feature = "workflow")]
 pub mod autonomous;
 pub mod auth;
 pub mod batch;
