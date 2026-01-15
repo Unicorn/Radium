@@ -129,9 +129,15 @@ impl ReportGenerator {
                 let error_message = result.error_message.clone();
                 let duration_secs = result.duration_secs();
 
+                // Get actual task title from requirement
+                let task_title = requirement.tasks.iter()
+                    .find(|t| t.id == *task_id || t.short_id.as_ref() == Some(task_id))
+                    .map(|t| t.title.clone())
+                    .unwrap_or_else(|| format!("Task {}", task_id));
+
                 task_summaries.push(TaskSummary {
                     task_id: task_id.clone(),
-                    task_title: format!("Task {}", task_id), // TODO: Get actual title from requirement
+                    task_title,
                     agent_id,
                     duration_secs,
                     status: status.to_string(),
