@@ -8,10 +8,13 @@ This document tracks all TODO and FIXME comments in the codebase (75 total).
 ## Recent Progress (2026-01-15 Evening)
 
 ### Completed Items ✅
-- **✅ ALL HIGH PRIORITY ITEMS COMPLETED!**
+- **✅ ALL HIGH & MEDIUM PRIORITY ITEMS COMPLETED!**
 - **Config File Loading** - Full implementation with XDG paths and env var overrides (137/137 tests passing)
 - **Event Emission Integration** - OrchestrationService connected to EventBridge for real-time event streaming
 - **Agent Execution** - send_session_message() now triggers orchestration with automatic event forwarding
+- **MCP Tool Catalog Rebuild** - Added trait method, called during proxy initialization
+- **MCP Priority Sorting** - Router now sorts upstreams by actual config priority
+- **Checkpoint Policy** - Load from config and implement full cleanup evaluation
 
 ### Completed Items ✅ (Morning)
 - **✅ ALL CRITICAL PRIORITY ITEMS RESOLVED!**
@@ -113,11 +116,15 @@ This document tracks all TODO and FIXME comments in the codebase (75 total).
    - prompts/get endpoint implemented at line 393
    - Retrieves specific prompt by name from upstream servers
 
-3. **Tool Catalog Rebuild** (`mcp/proxy/types.rs:323`)
-   - Add rebuild_catalog method to ToolCatalog trait
+3. **✅ Tool Catalog Rebuild** (RESOLVED - January 15, 2026)
+   - Added rebuild_catalog() to ToolCatalog trait interface
+   - Called during proxy initialization and server start
+   - Discovers all tools from connected upstream servers
 
-4. **Priority Sorting** (`mcp/proxy/router.rs:53`)
-   - Sort by actual priority from config instead of hardcoded
+4. **✅ Priority Sorting** (RESOLVED - January 15, 2026)
+   - Fetches actual upstream priority from UpstreamConfig
+   - Sorts upstreams by priority (lower number = higher priority)
+   - Uses sort_by_cached_key for efficient async lookups
 
 ### Configuration System
 1. **✅ Config Loading** (RESOLVED - January 15, 2026)
@@ -126,9 +133,11 @@ This document tracks all TODO and FIXME comments in the codebase (75 total).
    - Environment variable overrides: RADIUM_* prefix
    - Precedence: env vars > config file > defaults
 
-2. **Checkpoint Policy** (`checkpoint/snapshot.rs:376`, `snapshot.rs:877`)
-   - Load CheckpointPolicy from config
-   - Implement cleanup policy evaluation
+2. **✅ Checkpoint Policy** (RESOLVED - January 15, 2026)
+   - Load CheckpointPolicy from config using CheckpointConfig.to_policy()
+   - Implemented full cleanup policy evaluation (age-based + count-based)
+   - Enforces min_keep constraint for safety
+   - Automatic cleanup after checkpoint creation
 
 3. **Secret Filter** (`context/manager.rs:190`)
    - Initialize SecretFilter when needed for context management
