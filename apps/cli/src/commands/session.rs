@@ -431,8 +431,7 @@ async fn delete_command(
         if file_path.exists() {
             fs::remove_file(&file_path)?;
         }
-        
-        deleted_count = 1;
+
         println!("Deleted session: {}", sid);
     } else if let Some(before_date_str) = before {
         // Batch deletion by date

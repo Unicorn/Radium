@@ -304,6 +304,7 @@ impl BehaviorFileWatcher {
         });
 
         let task_handle = tokio::spawn(async move {
+            #[allow(unused_assignments)]
             let mut last_event = None::<tokio::time::Instant>;
 
             loop {

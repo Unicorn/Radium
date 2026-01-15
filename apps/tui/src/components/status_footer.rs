@@ -2,7 +2,6 @@
 
 use crate::commands::DisplayContext;
 use crate::state::{PrivacyState, WorkflowStatus, StreamingState, StreamingContext};
-use crate::components::spinner::Spinner;
 use ratatui::{
     prelude::*,
     widgets::{Block, Borders, Paragraph},

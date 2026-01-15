@@ -5,9 +5,8 @@
 
 #[cfg(feature = "monitoring")]
 use crate::analytics::budget::{CostAnomaly, ForecastResult};
-use crate::monitoring::{MonitoringService, Result as MonitoringResult};
+use crate::monitoring::Result as MonitoringResult;
 use chrono::{DateTime, Utc};
-use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 
