@@ -151,7 +151,7 @@ reqwest = { workspace = true, features = ["json"] }
 base64 = "0.22"
 assert_cmd.workspace = true
 predicates.workspace = true
-bytes = "1.7"
+bytes = "1.11"
 http-body-util = "0.1"
 hyper-util = { version = "0.1", features = ["full"] }
 tempfile = "3.8"

@@ -29,7 +29,7 @@ async-trait.workspace = true
 reqwest = { workspace = true, features = ["json", "stream", "multipart"] }
 tokio = { version = "1", features = ["rt", "net", "macros"] }
 futures = "0.3"
-bytes = "1.5"
+bytes = "1.11"
 
 # Logging
 tracing.workspace = true
