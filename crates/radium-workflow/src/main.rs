@@ -8,8 +8,10 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 mod api;
 mod codegen;
 mod schema;
+mod supabase;
 mod validation;
 mod verification;
+mod yaml_format;
 
 #[tokio::main]
 async fn main() {

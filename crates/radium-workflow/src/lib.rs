@@ -17,8 +17,10 @@ pub mod monitoring;
 pub mod performance;
 pub mod schema;
 pub mod security;
+pub mod supabase;
 pub mod validation;
 pub mod verification;
+pub mod yaml_format;
 
 pub use errors::{ErrorCategory, ErrorCode, ErrorLocation, ErrorSeverity, WorkflowError, WorkflowErrors};
 pub use expressions::{Expression, ExpressionParser, ExpressionEvaluator, TypeScriptGenerator};
@@ -27,3 +29,5 @@ pub use monitoring::{HealthChecker, HealthReport, HealthStatus, MetricsRegistry,
 pub use performance::{CompilationCache, CompilationProfiler, CompilationProfile, ProfileBuilder, CompilationStage};
 pub use schema::WorkflowDefinition;
 pub use security::{AuditEvent, AuditEventType, AuditLog, AuditSeverity, InputSanitizer, RateLimitConfig, RateLimitResult, SlidingWindowLimiter, TokenBucketLimiter};
+pub use yaml_format::{transform, TransformError, YamlWorkflow};
+pub use supabase::{SupabaseClient, SupabaseConfig, SupabaseError};
