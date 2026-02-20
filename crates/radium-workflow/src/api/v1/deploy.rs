@@ -15,7 +15,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::api::auth::extract_bearer_token;
+use crate::api::auth::{self, AuthenticatedUser};
 use crate::api::state::AppState;
 use crate::codegen;
 use crate::supabase::SupabaseError;
@@ -158,6 +158,7 @@ impl IntoResponse for DeployError {
 #[derive(Debug, Deserialize)]
 struct WorkflowRow {
     id: String,
+    #[allow(dead_code)]
     name: String,
     status_id: String,
     definition: serde_json::Value,
@@ -199,8 +200,12 @@ struct CompiledCodeRow {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Require a Bearer token from the request headers.
-fn require_auth(headers: &HeaderMap) -> Result<String, DeployError> {
+/// Validate the Bearer token against the Supabase `api_keys` table and check
+/// the per-user rate limit.
+async fn require_auth(
+    headers: &HeaderMap,
+    state: &AppState,
+) -> Result<AuthenticatedUser, DeployError> {
     let mut request = axum::http::Request::builder()
         .uri("http://localhost/")
         .body(())
@@ -208,7 +213,33 @@ fn require_auth(headers: &HeaderMap) -> Result<String, DeployError> {
     *request.headers_mut() = headers.clone();
     let (parts, _) = request.into_parts();
 
-    extract_bearer_token(&parts).ok_or_else(DeployError::unauthorized)
+    let token =
+        auth::extract_bearer_token(&parts).ok_or_else(DeployError::unauthorized)?;
+
+    let user = auth::validate_api_key(
+        state.supabase.http_client(),
+        state.supabase.url(),
+        state.supabase.service_role_key(),
+        &token,
+    )
+    .await
+    .map_err(|_| DeployError::unauthorized())?;
+
+    // Check rate limit (keyed by user_id).
+    let result = state.rate_limiter.check(&user.user_id);
+    if !result.allowed {
+        return Err(DeployError {
+            status: StatusCode::TOO_MANY_REQUESTS,
+            code: "RATE_LIMITED".to_string(),
+            message: format!(
+                "Rate limit exceeded. Try again in {} seconds.",
+                result.reset_in_seconds()
+            ),
+            details: vec![],
+        });
+    }
+
+    Ok(user)
 }
 
 // ---------------------------------------------------------------------------
@@ -221,15 +252,17 @@ pub async fn deploy_workflow(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, DeployError> {
-    require_auth(&headers)?;
+    let user = require_auth(&headers, &state).await?;
 
-    // 1. Load workflow from Supabase.
+    // 1. Load workflow from Supabase (scoped to user).
+    let user_filter = format!("eq.{}", user.user_id);
     let workflow: WorkflowRow = state
         .supabase
         .select_one(
             "workflows",
             &[
                 ("id", &format!("eq.{id}")),
+                ("created_by", &user_filter),
                 ("select", "id,name,status_id,definition,deployed_at"),
             ],
         )
@@ -316,15 +349,17 @@ pub async fn undeploy_workflow(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<UndeployResponse>, DeployError> {
-    require_auth(&headers)?;
+    let user = require_auth(&headers, &state).await?;
 
-    // Verify the workflow exists.
+    // Verify the workflow exists and belongs to the user.
+    let user_filter = format!("eq.{}", user.user_id);
     let _workflow: WorkflowRow = state
         .supabase
         .select_one(
             "workflows",
             &[
                 ("id", &format!("eq.{id}")),
+                ("created_by", &user_filter),
                 ("select", "id,name,status_id,definition,deployed_at"),
             ],
         )
@@ -336,14 +371,18 @@ pub async fn undeploy_workflow(
             _ => DeployError::from_supabase(e),
         })?;
 
-    // Update workflow status back to draft.
+    // Update workflow status back to draft (scoped to user).
     let update_body = UndeployUpdateRow {
         status_id: DRAFT_STATUS_ID.to_string(),
     };
 
     let _updated: Vec<serde_json::Value> = state
         .supabase
-        .update("workflows", &[("id", &format!("eq.{id}"))], &update_body)
+        .update(
+            "workflows",
+            &[("id", &format!("eq.{id}")), ("created_by", &user_filter)],
+            &update_body,
+        )
         .await
         .map_err(DeployError::from_supabase)?;
 
@@ -360,15 +399,17 @@ pub async fn workflow_status(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<StatusResponse>, DeployError> {
-    require_auth(&headers)?;
+    let user = require_auth(&headers, &state).await?;
 
-    // Load the workflow.
+    // Load the workflow (scoped to user).
+    let user_filter = format!("eq.{}", user.user_id);
     let workflow: WorkflowRow = state
         .supabase
         .select_one(
             "workflows",
             &[
                 ("id", &format!("eq.{id}")),
+                ("created_by", &user_filter),
                 ("select", "id,name,status_id,definition,deployed_at"),
             ],
         )
@@ -548,27 +589,10 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    // Auth extraction
+    // Auth extraction (require_auth is now async + validates against Supabase,
+    // so token-presence tests are covered by auth::extract_bearer_token tests
+    // in auth.rs. The integration path is tested via ignored Supabase tests.)
     // -----------------------------------------------------------------------
-
-    #[test]
-    fn test_require_auth_present() {
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            "authorization",
-            "Bearer sk_live_test123".parse().unwrap(),
-        );
-        let result = require_auth(&headers);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "sk_live_test123");
-    }
-
-    #[test]
-    fn test_require_auth_missing() {
-        let headers = HeaderMap::new();
-        let result = require_auth(&headers);
-        assert!(result.is_err());
-    }
 
     // -----------------------------------------------------------------------
     // Router wiring test

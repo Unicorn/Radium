@@ -68,13 +68,18 @@ impl Config {
     }
 
     /// Save config to `~/.radium/config.toml`, creating the directory if needed.
+    ///
+    /// Sets restrictive permissions: 0700 on the directory, 0600 on the file
+    /// (owner-only read/write) to protect stored API keys.
     pub fn save(&self) -> Result<(), ConfigError> {
         let path = Self::path()?;
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
+            set_restrictive_dir_permissions(parent)?;
         }
         let content = toml::to_string_pretty(self)?;
-        fs::write(&path, content)?;
+        fs::write(&path, &content)?;
+        set_restrictive_file_permissions(&path)?;
         Ok(())
     }
 
@@ -82,9 +87,11 @@ impl Config {
     pub fn save_to(&self, path: &PathBuf) -> Result<(), ConfigError> {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
+            set_restrictive_dir_permissions(parent)?;
         }
         let content = toml::to_string_pretty(self)?;
-        fs::write(path, content)?;
+        fs::write(path, &content)?;
+        set_restrictive_file_permissions(path)?;
         Ok(())
     }
 
@@ -105,6 +112,35 @@ impl Config {
     pub fn set_profile(&mut self, name: String, profile: Profile) {
         self.profiles.insert(name, profile);
     }
+}
+
+/// Set directory permissions to 0700 (owner rwx only).
+#[cfg(unix)]
+fn set_restrictive_dir_permissions(path: &std::path::Path) -> Result<(), ConfigError> {
+    use std::os::unix::fs::PermissionsExt;
+    let perms = fs::Permissions::from_mode(0o700);
+    fs::set_permissions(path, perms)?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn set_restrictive_dir_permissions(_path: &std::path::Path) -> Result<(), ConfigError> {
+    // Non-Unix platforms don't support POSIX permissions.
+    Ok(())
+}
+
+/// Set file permissions to 0600 (owner rw only).
+#[cfg(unix)]
+fn set_restrictive_file_permissions(path: &std::path::Path) -> Result<(), ConfigError> {
+    use std::os::unix::fs::PermissionsExt;
+    let perms = fs::Permissions::from_mode(0o600);
+    fs::set_permissions(path, perms)?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn set_restrictive_file_permissions(_path: &std::path::Path) -> Result<(), ConfigError> {
+    Ok(())
 }
 
 #[cfg(test)]
@@ -170,6 +206,44 @@ mod tests {
         let path = dir.path().join("does_not_exist.toml");
         let result = Config::load_from(&path);
         assert!(result.is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn config_file_has_restrictive_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = TempDir::new().unwrap();
+        let path = temp_config_path(&dir);
+
+        let mut config = Config::default();
+        config.set_profile(
+            "default".to_string(),
+            Profile {
+                api_url: "https://radium.example.com".to_string(),
+                api_key: "rk_test_key".to_string(),
+            },
+        );
+        config.save_to(&path).unwrap();
+
+        let file_perms = std::fs::metadata(&path).unwrap().permissions().mode();
+        assert_eq!(
+            file_perms & 0o777,
+            0o600,
+            "Config file should be owner-rw only (0600), got {:o}",
+            file_perms & 0o777
+        );
+
+        let dir_perms = std::fs::metadata(path.parent().unwrap())
+            .unwrap()
+            .permissions()
+            .mode();
+        assert_eq!(
+            dir_perms & 0o777,
+            0o700,
+            "Config directory should be owner-rwx only (0700), got {:o}",
+            dir_perms & 0o777
+        );
     }
 
     #[test]

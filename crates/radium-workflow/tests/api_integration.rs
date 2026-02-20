@@ -98,6 +98,9 @@ fn build_app_state() -> AppState {
     };
     AppState {
         supabase: Arc::new(SupabaseClient::new(config)),
+        rate_limiter: Arc::new(radium_workflow::security::SlidingWindowLimiter::new(
+            radium_workflow::security::RateLimitConfig::unlimited(),
+        )),
     }
 }
 

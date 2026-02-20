@@ -15,12 +15,13 @@ pub mod state;
 pub mod v1;
 
 use axum::{
+    extract::DefaultBodyLimit,
     routing::{get, post},
     Router,
 };
 use std::time::Duration;
 use tower_http::{
-    cors::{Any, CorsLayer},
+    cors::CorsLayer,
     timeout::TimeoutLayer,
     trace::TraceLayer,
 };
@@ -29,6 +30,9 @@ use state::AppState;
 
 pub use handlers::{CompileRequest, CompileResponse, ValidateResponse};
 
+/// Maximum request body size (1 MiB).
+const MAX_BODY_SIZE: usize = 1_048_576;
+
 /// Create the API router.
 ///
 /// When `app_state` is `Some`, the v1 routes (which require a Supabase
@@ -36,10 +40,21 @@ pub use handlers::{CompileRequest, CompileResponse, ValidateResponse};
 /// Supabase env vars are not configured), only the core compilation and
 /// health endpoints are available.
 pub fn router(app_state: Option<AppState>) -> Router {
+    // Restrict CORS to the methods and headers actually used by clients.
     let cors = CorsLayer::new()
-        .allow_methods(Any)
-        .allow_origin(Any)
-        .allow_headers(Any);
+        .allow_methods([
+            axum::http::Method::GET,
+            axum::http::Method::POST,
+            axum::http::Method::PUT,
+            axum::http::Method::DELETE,
+            axum::http::Method::OPTIONS,
+        ])
+        .allow_headers([
+            axum::http::header::AUTHORIZATION,
+            axum::http::header::CONTENT_TYPE,
+            axum::http::header::ACCEPT,
+        ])
+        .allow_origin(tower_http::cors::Any);
 
     let timeout = TimeoutLayer::new(Duration::from_secs(30));
 
@@ -53,7 +68,8 @@ pub fn router(app_state: Option<AppState>) -> Router {
         app = app.nest("/v1", v1);
     }
 
-    app.layer(cors)
+    app.layer(DefaultBodyLimit::max(MAX_BODY_SIZE))
+        .layer(cors)
         .layer(timeout)
         .layer(TraceLayer::new_for_http())
 }

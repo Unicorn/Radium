@@ -12,7 +12,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::api::auth::extract_bearer_token;
+use crate::api::auth::{self, AuthenticatedUser};
 use crate::api::state::AppState;
 use crate::supabase::SupabaseError;
 use crate::validation;
@@ -199,6 +199,7 @@ struct InsertWorkflowRow {
     version: String,
     status_id: String,
     visibility_id: String,
+    created_by: String,
 }
 
 /// Body sent to Supabase for updating a workflow.
@@ -216,9 +217,16 @@ struct UpdateWorkflowRow {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Require a Bearer token from the request headers. Returns an error if missing.
-fn require_auth(headers: &HeaderMap) -> Result<String, WorkflowError> {
-    // Build minimal Parts to extract the token.
+/// Validate the Bearer token against the Supabase `api_keys` table and check
+/// the per-user rate limit.
+///
+/// Returns the authenticated user on success, or a `WorkflowError` when the
+/// token is missing, invalid, expired, revoked, or rate-limited.
+async fn require_auth(
+    headers: &HeaderMap,
+    state: &AppState,
+) -> Result<AuthenticatedUser, WorkflowError> {
+    // Build minimal Parts to extract the bearer token.
     let mut request = axum::http::Request::builder()
         .uri("http://localhost/")
         .body(())
@@ -226,7 +234,33 @@ fn require_auth(headers: &HeaderMap) -> Result<String, WorkflowError> {
     *request.headers_mut() = headers.clone();
     let (parts, _) = request.into_parts();
 
-    extract_bearer_token(&parts).ok_or_else(WorkflowError::unauthorized)
+    let token =
+        auth::extract_bearer_token(&parts).ok_or_else(WorkflowError::unauthorized)?;
+
+    let user = auth::validate_api_key(
+        state.supabase.http_client(),
+        state.supabase.url(),
+        state.supabase.service_role_key(),
+        &token,
+    )
+    .await
+    .map_err(|_| WorkflowError::unauthorized())?;
+
+    // Check rate limit (keyed by user_id).
+    let result = state.rate_limiter.check(&user.user_id);
+    if !result.allowed {
+        return Err(WorkflowError {
+            status: StatusCode::TOO_MANY_REQUESTS,
+            code: "RATE_LIMITED".to_string(),
+            message: format!(
+                "Rate limit exceeded. Try again in {} seconds.",
+                result.reset_in_seconds()
+            ),
+            details: vec![],
+        });
+    }
+
+    Ok(user)
 }
 
 /// Parse a request body as either YAML or JSON into a `YamlWorkflow`.
@@ -308,7 +342,7 @@ pub async fn create_workflow(
     headers: HeaderMap,
     body: axum::body::Bytes,
 ) -> Result<impl IntoResponse, WorkflowError> {
-    require_auth(&headers)?;
+    let user = require_auth(&headers, &state).await?;
 
     let yaml_workflow = parse_workflow_body(&headers, &body)?;
 
@@ -333,6 +367,7 @@ pub async fn create_workflow(
         version: "1.0.0".to_string(),
         status_id: DRAFT_STATUS_ID.to_string(),
         visibility_id: DEFAULT_VISIBILITY_ID.to_string(),
+        created_by: user.user_id,
     };
 
     let created: WorkflowResponse = state
@@ -349,8 +384,9 @@ pub async fn list_workflows(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Json<WorkflowListResponse>, WorkflowError> {
-    require_auth(&headers)?;
+    let user = require_auth(&headers, &state).await?;
 
+    let user_filter = format!("eq.{}", user.user_id);
     let workflows: Vec<WorkflowSummary> = state
         .supabase
         .select(
@@ -358,6 +394,7 @@ pub async fn list_workflows(
             &[
                 ("select", "id,name,description,status_id,version,created_at"),
                 ("order", "created_at.desc"),
+                ("created_by", &user_filter),
             ],
         )
         .await
@@ -373,14 +410,16 @@ pub async fn get_workflow(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<WorkflowResponse>, WorkflowError> {
-    require_auth(&headers)?;
+    let user = require_auth(&headers, &state).await?;
 
+    let user_filter = format!("eq.{}", user.user_id);
     let workflow: WorkflowResponse = state
         .supabase
         .select_one(
             "workflows",
             &[
                 ("id", &format!("eq.{id}")),
+                ("created_by", &user_filter),
                 (
                     "select",
                     "id,name,description,status_id,version,definition,created_at,updated_at",
@@ -405,7 +444,7 @@ pub async fn update_workflow(
     Path(id): Path<String>,
     body: axum::body::Bytes,
 ) -> Result<Json<WorkflowResponse>, WorkflowError> {
-    require_auth(&headers)?;
+    let user = require_auth(&headers, &state).await?;
 
     let yaml_workflow = parse_workflow_body(&headers, &body)?;
 
@@ -428,9 +467,14 @@ pub async fn update_workflow(
         version: "1.0.0".to_string(),
     };
 
+    let user_filter = format!("eq.{}", user.user_id);
     let updated: Vec<WorkflowResponse> = state
         .supabase
-        .update("workflows", &[("id", &format!("eq.{id}"))], &update_body)
+        .update(
+            "workflows",
+            &[("id", &format!("eq.{id}")), ("created_by", &user_filter)],
+            &update_body,
+        )
         .await
         .map_err(WorkflowError::from_supabase)?;
 
@@ -447,11 +491,15 @@ pub async fn delete_workflow(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<StatusCode, WorkflowError> {
-    require_auth(&headers)?;
+    let user = require_auth(&headers, &state).await?;
 
+    let user_filter = format!("eq.{}", user.user_id);
     state
         .supabase
-        .delete("workflows", &[("id", &format!("eq.{id}"))])
+        .delete(
+            "workflows",
+            &[("id", &format!("eq.{id}")), ("created_by", &user_filter)],
+        )
         .await
         .map_err(WorkflowError::from_supabase)?;
 
@@ -464,15 +512,17 @@ pub async fn validate_workflow(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<ValidateWorkflowResponse>, WorkflowError> {
-    require_auth(&headers)?;
+    let user = require_auth(&headers, &state).await?;
 
-    // Load the workflow from Supabase.
+    // Load the workflow from Supabase (scoped to user).
+    let user_filter = format!("eq.{}", user.user_id);
     let workflow: WorkflowResponse = state
         .supabase
         .select_one(
             "workflows",
             &[
                 ("id", &format!("eq.{id}")),
+                ("created_by", &user_filter),
                 (
                     "select",
                     "id,name,description,status_id,version,definition,created_at,updated_at",
@@ -828,27 +878,10 @@ connections:
     }
 
     // -----------------------------------------------------------------------
-    // Auth extraction
+    // Auth extraction (require_auth is now async + validates against Supabase,
+    // so token-presence tests are covered by auth::extract_bearer_token tests
+    // in auth.rs. The integration path is tested via ignored Supabase tests.)
     // -----------------------------------------------------------------------
-
-    #[test]
-    fn test_require_auth_present() {
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            "authorization",
-            "Bearer sk_live_test123".parse().unwrap(),
-        );
-        let result = require_auth(&headers);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "sk_live_test123");
-    }
-
-    #[test]
-    fn test_require_auth_missing() {
-        let headers = HeaderMap::new();
-        let result = require_auth(&headers);
-        assert!(result.is_err());
-    }
 
     // -----------------------------------------------------------------------
     // Integration tests that need Supabase (marked #[ignore])

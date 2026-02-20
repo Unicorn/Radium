@@ -9,12 +9,14 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 mod api;
 mod codegen;
 mod schema;
+mod security;
 mod supabase;
 mod validation;
 mod verification;
 mod yaml_format;
 
 use api::state::AppState;
+use security::{RateLimitConfig, SlidingWindowLimiter};
 use supabase::{SupabaseClient, SupabaseConfig};
 
 #[tokio::main]
@@ -37,6 +39,9 @@ async fn main() {
             let client = SupabaseClient::new(config);
             Some(AppState {
                 supabase: Arc::new(client),
+                rate_limiter: Arc::new(SlidingWindowLimiter::new(
+                    RateLimitConfig::for_api(),
+                )),
             })
         }
         Err(e) => {

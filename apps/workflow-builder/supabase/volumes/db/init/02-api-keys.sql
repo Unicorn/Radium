@@ -54,4 +54,5 @@ CREATE POLICY "Service role full access"
 -- Grant permissions (matches pattern from 00-initial-schema.sql)
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.api_keys TO authenticated;
 GRANT ALL ON public.api_keys TO service_role;
-GRANT SELECT ON public.api_keys TO anon;
+-- NOTE: anon role intentionally has NO access to api_keys.
+-- The Rust API server uses service_role for key validation.

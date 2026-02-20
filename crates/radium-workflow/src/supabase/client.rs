@@ -71,6 +71,21 @@ impl SupabaseClient {
         }
     }
 
+    /// Return the project URL (e.g. `https://<ref>.supabase.co`).
+    pub fn url(&self) -> &str {
+        &self.config.url
+    }
+
+    /// Return the service-role key.
+    pub fn service_role_key(&self) -> &str {
+        &self.config.service_role_key
+    }
+
+    /// Return a reference to the underlying HTTP client.
+    pub fn http_client(&self) -> &reqwest::Client {
+        &self.http
+    }
+
     /// Return the full PostgREST URL for a given table.
     pub fn table_url(&self, table: &str) -> String {
         let base = self.config.url.trim_end_matches('/');
