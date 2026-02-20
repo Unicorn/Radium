@@ -4,6 +4,7 @@
 //! sub-router that is nested into the top-level application router.
 
 pub mod components;
+pub mod deploy;
 pub mod workflows;
 
 use axum::{
@@ -33,5 +34,18 @@ pub fn router() -> Router<AppState> {
         .route(
             "/workflows/{id}/validate",
             post(workflows::validate_workflow),
+        )
+        // Deploy pipeline
+        .route(
+            "/workflows/{id}/deploy",
+            post(deploy::deploy_workflow),
+        )
+        .route(
+            "/workflows/{id}/undeploy",
+            post(deploy::undeploy_workflow),
+        )
+        .route(
+            "/workflows/{id}/status",
+            get(deploy::workflow_status),
         )
 }
