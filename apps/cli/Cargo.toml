@@ -42,12 +42,14 @@ tonic.workspace = true
 
 # Async runtime
 tokio.workspace = true
+futures = "0.3"
 
 # Internal crates
 radium-core = { workspace = true, features = ["monitoring", "workflow", "mcp-progress", "syntax"] }
 radium-models.workspace = true
 radium-abstraction.workspace = true
 radium-orchestrator.workspace = true
+radium-training.workspace = true
 radium-tui = { workspace = true }
 
 # Logging
@@ -60,8 +62,8 @@ chrono = { version = "0.4", features = ["serde"] }
 # CLI
 clap.workspace = true
 clap_complete = "4.5"
-inquire = "0.7"
-tabled = "0.15"
+inquire = "0.9"
+tabled = "0.20"
 colored = "2.1"
 rpassword = "7.3"
 comfy-table = "7.1"
@@ -84,11 +86,22 @@ dirs = "5.0"
 # Regex for source extraction
 regex = "1.10"
 
+# MIME type detection
+mime_guess = "2.0"
+
+# Base64 encoding
+base64 = "0.21"
+indicatif = "0.18.3"
+
 [dev-dependencies]
 tempfile = "3.8"
 assert_cmd = "2.0"
 predicates = "3.1"
 criterion = { version = "0.5", features = ["html_reports"] }
+
+[features]
+# Optional AWS training backend scaffold (no infrastructure is created yet).
+aws-backend = []
 
 [[bench]]
 name = "workspace_bench"

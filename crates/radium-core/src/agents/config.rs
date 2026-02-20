@@ -3,7 +3,10 @@
 //! Defines the TOML configuration format for agents.
 
 use crate::sandbox::SandboxConfig;
+use radium_abstraction::{ModelParameters, ResponseFormat, SafetyBlockBehavior};
+use radium_models::{GeminiSafetySetting, SafetyCategory, SafetyThreshold};
 use serde::{Deserialize, Serialize};
+use serde_json;
 use std::path::PathBuf;
 use thiserror::Error;
 
@@ -32,6 +35,20 @@ pub struct AgentTriggerBehavior {
     /// Default agent ID to trigger (can be overridden in behavior.json).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trigger_agent_id: Option<String>,
+}
+
+/// Routing configuration for agent model selection.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentRoutingConfig {
+    /// Routing strategy to use.
+    ///
+    /// Options: "complexity_based", "cost_optimized", "latency_optimized", "quality_optimized"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub strategy: Option<String>,
+    
+    /// Maximum cost per request in USD (optional constraint).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_cost_per_request: Option<f64>,
 }
 
 /// Agent configuration errors.
@@ -184,6 +201,23 @@ pub struct PersonaPerformanceToml {
     pub estimated_tokens: Option<u64>,
 }
 
+/// Model configuration for TOML.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModelConfigToml {
+    /// Top-k sampling parameter (1-100).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub top_k: Option<u32>,
+    /// Frequency penalty (-2.0 to 2.0).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub frequency_penalty: Option<f32>,
+    /// Presence penalty (-2.0 to 2.0).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub presence_penalty: Option<f32>,
+    /// Response format: "text", "json", or JSON schema string.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_format: Option<String>,
+}
+
 /// Agent configuration file (TOML format).
 ///
 /// This is the structure of an agent configuration file, typically stored at
@@ -211,6 +245,147 @@ pub struct PersonaPerformanceToml {
 /// profile = "thinking"
 /// estimated_tokens = 2000
 /// ```
+/// Gemini-specific safety configuration for TOML.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+#[derive(Default)]
+pub struct GeminiSafetyConfigToml {
+    /// Threshold for hate speech: "BLOCK_NONE", "BLOCK_LOW_AND_ABOVE", "BLOCK_MEDIUM_AND_ABOVE", or "BLOCK_ONLY_HIGH"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hate_speech: Option<String>,
+    /// Threshold for harassment: "BLOCK_NONE", "BLOCK_LOW_AND_ABOVE", "BLOCK_MEDIUM_AND_ABOVE", or "BLOCK_ONLY_HIGH"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub harassment: Option<String>,
+    /// Threshold for sexually explicit content: "BLOCK_NONE", "BLOCK_LOW_AND_ABOVE", "BLOCK_MEDIUM_AND_ABOVE", or "BLOCK_ONLY_HIGH"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sexually_explicit: Option<String>,
+    /// Threshold for dangerous content: "BLOCK_NONE", "BLOCK_LOW_AND_ABOVE", "BLOCK_MEDIUM_AND_ABOVE", or "BLOCK_ONLY_HIGH"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dangerous_content: Option<String>,
+    /// Threshold for civic integrity: "BLOCK_NONE", "BLOCK_LOW_AND_ABOVE", "BLOCK_MEDIUM_AND_ABOVE", or "BLOCK_ONLY_HIGH"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub civic_integrity: Option<String>,
+    /// Default threshold for categories not explicitly specified: "BLOCK_NONE", "BLOCK_LOW_AND_ABOVE", "BLOCK_MEDIUM_AND_ABOVE", or "BLOCK_ONLY_HIGH"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default: Option<String>,
+}
+
+
+impl GeminiSafetyConfigToml {
+    /// Parse a threshold string into a SafetyThreshold enum.
+    ///
+    /// # Arguments
+    /// * `s` - Threshold string (e.g., "BLOCK_MEDIUM_AND_ABOVE")
+    ///
+    /// # Errors
+    /// Returns `AgentConfigError::Invalid` if the threshold string is not recognized.
+    pub(crate) fn parse_threshold(s: &str) -> Result<SafetyThreshold> {
+        match s {
+            "BLOCK_NONE" => Ok(SafetyThreshold::BlockNone),
+            "BLOCK_LOW_AND_ABOVE" => Ok(SafetyThreshold::BlockLowAndAbove),
+            "BLOCK_MEDIUM_AND_ABOVE" => Ok(SafetyThreshold::BlockMediumAndAbove),
+            "BLOCK_ONLY_HIGH" => Ok(SafetyThreshold::BlockOnlyHigh),
+            _ => Err(AgentConfigError::Invalid(format!(
+                "Invalid safety threshold: '{}'. Must be one of: BLOCK_NONE, BLOCK_LOW_AND_ABOVE, BLOCK_MEDIUM_AND_ABOVE, BLOCK_ONLY_HIGH",
+                s
+            ))),
+        }
+    }
+
+    /// Convert this TOML configuration to a vector of GeminiSafetySetting.
+    ///
+    /// Applies default threshold to categories not explicitly configured.
+    /// Returns an empty vector if no categories are configured and no default is set.
+    ///
+    /// # Errors
+    /// Returns `AgentConfigError::Invalid` if any threshold string is invalid.
+    pub fn to_safety_settings(&self) -> Result<Vec<GeminiSafetySetting>> {
+        let mut settings = Vec::new();
+
+        // Helper to get threshold for a category
+        let get_threshold = |category_value: &Option<String>| -> Result<Option<SafetyThreshold>> {
+            match category_value {
+                Some(s) => Ok(Some(Self::parse_threshold(s)?)),
+                None => Ok(None),
+            }
+        };
+
+        // Get default threshold if available
+        let default_threshold = match &self.default {
+            Some(s) => Some(Self::parse_threshold(s)?),
+            None => None,
+        };
+
+        // Process each category
+        // Hate Speech
+        let threshold = get_threshold(&self.hate_speech)?
+            .or(default_threshold);
+        if let Some(threshold) = threshold {
+            settings.push(GeminiSafetySetting {
+                category: SafetyCategory::HateSpeech,
+                threshold,
+            });
+        }
+
+        // Harassment
+        let threshold = get_threshold(&self.harassment)?
+            .or(default_threshold);
+        if let Some(threshold) = threshold {
+            settings.push(GeminiSafetySetting {
+                category: SafetyCategory::Harassment,
+                threshold,
+            });
+        }
+
+        // Sexually Explicit
+        let threshold = get_threshold(&self.sexually_explicit)?
+            .or(default_threshold);
+        if let Some(threshold) = threshold {
+            settings.push(GeminiSafetySetting {
+                category: SafetyCategory::SexuallyExplicit,
+                threshold,
+            });
+        }
+
+        // Dangerous Content
+        let threshold = get_threshold(&self.dangerous_content)?
+            .or(default_threshold);
+        if let Some(threshold) = threshold {
+            settings.push(GeminiSafetySetting {
+                category: SafetyCategory::DangerousContent,
+                threshold,
+            });
+        }
+
+        // Civic Integrity
+        let threshold = get_threshold(&self.civic_integrity)?
+            .or(default_threshold);
+        if let Some(threshold) = threshold {
+            settings.push(GeminiSafetySetting {
+                category: SafetyCategory::CivicIntegrity,
+                threshold,
+            });
+        }
+
+        Ok(settings)
+    }
+}
+
+/// Safety configuration for TOML.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SafetyConfigToml {
+    /// Safety block behavior: "return-partial", "error", or "log".
+    #[serde(default = "default_safety_behavior")]
+    pub behavior: String,
+    /// Optional Gemini-specific safety settings.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gemini: Option<GeminiSafetyConfigToml>,
+}
+
+fn default_safety_behavior() -> String {
+    "return-partial".to_string()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentConfigFile {
     /// Agent configuration.
@@ -218,9 +393,37 @@ pub struct AgentConfigFile {
     /// Optional persona configuration.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub persona: Option<PersonaConfigToml>,
+    /// Optional model configuration.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub model: Option<ModelConfigToml>,
+    /// Optional safety configuration.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub safety: Option<SafetyConfigToml>,
 }
 
 impl AgentConfigFile {
+    /// Extract Gemini safety settings from this agent configuration.
+    ///
+    /// Returns `Ok(None)` if no Gemini safety settings are configured.
+    /// Returns `Ok(Some(settings))` if safety settings are successfully converted.
+    /// Returns `Err` if safety settings are configured but conversion fails.
+    pub fn gemini_safety_settings(&self) -> Result<Option<Vec<radium_models::GeminiSafetySetting>>> {
+        if let Some(ref safety) = self.safety {
+            if let Some(ref gemini) = safety.gemini {
+                let settings = gemini.to_safety_settings()?;
+                if settings.is_empty() {
+                    Ok(None)
+                } else {
+                    Ok(Some(settings))
+                }
+            } else {
+                Ok(None)
+            }
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Load agent configuration from a TOML file.
     ///
     /// # Errors
@@ -239,6 +442,21 @@ impl AgentConfigFile {
         // Convert persona TOML to PersonaConfig if present
         if let Some(ref persona_toml) = config.persona {
             config.agent.persona_config = Some(config.parse_persona_config(persona_toml)?);
+        }
+        
+        // Parse safety configuration if present
+        if let Some(ref safety_toml) = config.safety {
+            config.agent.safety_behavior = Some(match safety_toml.behavior.as_str() {
+                "return-partial" => SafetyBlockBehavior::ReturnPartial,
+                "error" => SafetyBlockBehavior::ThrowError,
+                "log" => SafetyBlockBehavior::LogWarning,
+                _ => {
+                    return Err(AgentConfigError::Invalid(format!(
+                        "Invalid safety.behavior '{}'. Must be 'return-partial', 'error', or 'log'",
+                        safety_toml.behavior
+                    )));
+                }
+            });
         }
         
         Ok(config)
@@ -263,8 +481,7 @@ impl AgentConfigFile {
                 }
             } else {
                 // Use agent's engine if available, otherwise default to gemini
-                let engine = self.agent.engine.as_ref()
-                    .map(|e| e.clone())
+                let engine = self.agent.engine.clone()
                     .unwrap_or_else(|| "gemini".to_string());
                 SimpleModelRecommendation {
                     engine,
@@ -420,6 +637,11 @@ impl AgentConfigFile {
             self.validate_trigger_behavior(trigger_behavior)?;
         }
 
+        // Validate model configuration if present
+        if let Some(model_config) = &self.model {
+            self.validate_model_config(model_config)?;
+        }
+
         Ok(())
     }
 
@@ -468,7 +690,8 @@ impl AgentConfigFile {
 
     /// Validate engine value.
     fn validate_engine(&self, engine: &str) -> Result<()> {
-        const SUPPORTED_ENGINES: &[&str] = &["gemini", "openai", "claude", "codex"];
+        // Include "mock" for local/testing agents and CI scenarios.
+        const SUPPORTED_ENGINES: &[&str] = &["gemini", "openai", "claude", "codex", "mock"];
 
         let engine_lower = engine.to_lowercase();
         if !SUPPORTED_ENGINES.contains(&engine_lower.as_str()) {
@@ -499,6 +722,91 @@ impl AgentConfigFile {
         }
 
         Ok(())
+    }
+
+    /// Validate model configuration.
+    fn validate_model_config(&self, model_config: &ModelConfigToml) -> Result<()> {
+        // Validate top_k range
+        if let Some(k) = model_config.top_k {
+            if !(1..=100).contains(&k) {
+                return Err(AgentConfigError::Invalid(format!(
+                    "top_k must be between 1 and 100, got {}",
+                    k
+                )));
+            }
+        }
+
+        // Validate frequency_penalty range
+        if let Some(p) = model_config.frequency_penalty {
+            if !(-2.0..=2.0).contains(&p) {
+                return Err(AgentConfigError::Invalid(format!(
+                    "frequency_penalty must be between -2.0 and 2.0, got {}",
+                    p
+                )));
+            }
+        }
+
+        // Validate presence_penalty range
+        if let Some(p) = model_config.presence_penalty {
+            if !(-2.0..=2.0).contains(&p) {
+                return Err(AgentConfigError::Invalid(format!(
+                    "presence_penalty must be between -2.0 and 2.0, got {}",
+                    p
+                )));
+            }
+        }
+
+        // Validate response_format if provided
+        if let Some(ref format_str) = model_config.response_format {
+            Self::parse_response_format(format_str)?;
+        }
+
+        Ok(())
+    }
+
+    /// Parse response format string into ResponseFormat enum.
+    fn parse_response_format(value: &str) -> Result<ResponseFormat> {
+        match value.to_lowercase().as_str() {
+            "text" => Ok(ResponseFormat::Text),
+            "json" => Ok(ResponseFormat::Json),
+            schema if schema.starts_with('{') => {
+                // Validate JSON schema
+                serde_json::from_str::<serde_json::Value>(schema).map_err(|e| {
+                    AgentConfigError::Invalid(format!(
+                        "Invalid JSON schema in response_format: {}",
+                        e
+                    ))
+                })?;
+                Ok(ResponseFormat::JsonSchema(schema.to_string()))
+            }
+            _ => Err(AgentConfigError::Invalid(format!(
+                "Invalid response_format '{}'. Must be 'text', 'json', or a JSON schema",
+                value
+            ))),
+        }
+    }
+
+    /// Convert ModelConfigToml to ModelParameters.
+    pub fn to_model_parameters(&self) -> Option<ModelParameters> {
+        self.model.as_ref().map(|model_config| {
+            let response_format = model_config.response_format.as_ref().and_then(|s| {
+                Self::parse_response_format(s).ok()
+            });
+
+            ModelParameters {
+                temperature: None,
+                top_p: None,
+                max_tokens: None,
+                top_k: model_config.top_k,
+                frequency_penalty: model_config.frequency_penalty,
+                presence_penalty: model_config.presence_penalty,
+                response_format,
+                stop_sequences: None,
+                enable_grounding: None,
+                grounding_threshold: None,
+                reasoning_effort: None,
+            }
+        })
     }
 
     /// Validate trigger behavior configuration.
@@ -618,6 +926,26 @@ pub struct AgentConfig {
     /// This is set when loading from a config file that includes persona settings.
     #[serde(skip)]
     pub persona_config: Option<crate::agents::persona::PersonaConfig>,
+    
+    /// Optional routing configuration for model selection.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub routing: Option<AgentRoutingConfig>,
+    
+    /// Safety block behavior configuration.
+    ///
+    /// Determines how to handle content that is filtered/blocked by safety systems.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub safety_behavior: Option<radium_abstraction::SafetyBlockBehavior>,
+    
+    /// Enable code execution for this agent.
+    ///
+    /// When `None`, uses model config or provider default (true for Gemini, false for others).
+    /// When `Some(true)`, enables code execution.
+    /// When `Some(false)`, disables code execution.
+    ///
+    /// Configuration precedence: Agent config > Model config > Provider default
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code_execution_enabled: Option<bool>,
 }
 
 impl AgentConfig {
@@ -631,6 +959,7 @@ impl AgentConfig {
             mirror_path: None,
             engine: None,
             model: None,
+            
             reasoning_effort: None,
             loop_behavior: None,
             trigger_behavior: None,
@@ -639,6 +968,9 @@ impl AgentConfig {
             capabilities: AgentCapabilities::default(),
             sandbox: None,
             persona_config: None,
+            routing: None,
+            safety_behavior: None,
+            code_execution_enabled: None,
         }
     }
 
@@ -785,6 +1117,8 @@ reasoning_effort = "medium"
         fs::write(&prompt_path, "# Test Agent").unwrap();
 
         let config = AgentConfigFile {
+            model: None,
+            safety: None,
             agent: AgentConfig::new("test-agent", "Test Agent", PathBuf::from("prompts/test.md"))
                 .with_description("A test agent")
                 .with_engine("gemini")
@@ -1038,6 +1372,8 @@ trigger_agent_id = "helper-agent"
             let config_path = temp_dir.path().join("test.toml");
 
             let config = AgentConfigFile {
+            model: None,
+            safety: None,
                 agent: AgentConfig::new(id, "Test", prompt_path.clone())
                     .with_file_path(config_path),
             persona: None,
@@ -1055,6 +1391,8 @@ trigger_agent_id = "helper-agent"
         ];
         for (id, reason) in invalid_ids {
             let config = AgentConfigFile {
+            model: None,
+            safety: None,
                 agent: AgentConfig::new(id, "Test", PathBuf::from("prompts/test.md")),
             persona: None,
             };
@@ -1079,12 +1417,14 @@ trigger_agent_id = "helper-agent"
             fs::write(&prompt_path, "# Test").unwrap();
             let config_path = temp_dir.path().join("test.toml");
 
-            let config = AgentConfigFile {
-                agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
-                    .with_engine(engine)
-                    .with_file_path(config_path),
+        let config = AgentConfigFile {
+            model: None,
+            safety: None,
+            agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
+                .with_engine(engine)
+                .with_file_path(config_path),
             persona: None,
-            };
+        };
             assert!(
                 config.validate().is_ok(),
                 "Engine '{}' should be valid",
@@ -1100,12 +1440,14 @@ trigger_agent_id = "helper-agent"
             fs::write(&prompt_path, "# Test").unwrap();
             let config_path = temp_dir.path().join("test.toml");
 
-            let config = AgentConfigFile {
-                agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
-                    .with_engine(engine)
-                    .with_file_path(config_path),
+        let config = AgentConfigFile {
+            model: None,
+            safety: None,
+            agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
+                .with_engine(engine)
+                .with_file_path(config_path),
             persona: None,
-            };
+        };
             assert!(
                 config.validate().is_err(),
                 "Engine '{}' should be invalid",
@@ -1125,6 +1467,8 @@ trigger_agent_id = "helper-agent"
         let config_path = temp_dir.path().join("test.toml");
 
         let config = AgentConfigFile {
+            model: None,
+            safety: None,
             agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                 .with_loop_behavior(AgentLoopBehavior {
                     steps: 2,
@@ -1138,6 +1482,8 @@ trigger_agent_id = "helper-agent"
 
         // Invalid: steps = 0
         let config = AgentConfigFile {
+            model: None,
+            safety: None,
             agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                 .with_loop_behavior(AgentLoopBehavior {
                     steps: 0,
@@ -1151,6 +1497,8 @@ trigger_agent_id = "helper-agent"
 
         // Invalid: max_iterations = 0
         let config = AgentConfigFile {
+            model: None,
+            safety: None,
             agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                 .with_loop_behavior(AgentLoopBehavior {
                     steps: 2,
@@ -1174,6 +1522,8 @@ trigger_agent_id = "helper-agent"
         let config_path = temp_dir.path().join("test.toml");
 
         let config = AgentConfigFile {
+            model: None,
+            safety: None,
             agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                 .with_trigger_behavior(AgentTriggerBehavior {
                     trigger_agent_id: Some("fallback-agent".to_string()),
@@ -1185,6 +1535,8 @@ trigger_agent_id = "helper-agent"
 
         // Invalid: empty trigger_agent_id
         let config = AgentConfigFile {
+            model: None,
+            safety: None,
             agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                 .with_trigger_behavior(AgentTriggerBehavior {
                     trigger_agent_id: Some("".to_string()),
@@ -1199,6 +1551,8 @@ trigger_agent_id = "helper-agent"
         for invalid_id in invalid_ids {
             let test_config_path = config_path.clone();
             let config = AgentConfigFile {
+            model: None,
+            safety: None,
                 agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                     .with_trigger_behavior(AgentTriggerBehavior {
                         trigger_agent_id: Some(invalid_id.to_string()),
@@ -1230,6 +1584,8 @@ trigger_agent_id = "helper-agent"
 
         // Valid: relative path from config directory
         let config = AgentConfigFile {
+            model: None,
+            safety: None,
             agent: AgentConfig::new("test-agent", "Test", PathBuf::from("../prompts/test.md"))
                 .with_file_path(config_dir.join("test-agent.toml")),
         persona: None,
@@ -1238,6 +1594,8 @@ trigger_agent_id = "helper-agent"
 
         // Valid: absolute path
         let config = AgentConfigFile {
+            model: None,
+            safety: None,
             agent: AgentConfig::new("test-agent", "Test", prompt_file.clone())
                 .with_file_path(config_dir.join("test-agent.toml")),
         persona: None,
@@ -1246,6 +1604,8 @@ trigger_agent_id = "helper-agent"
 
         // Invalid: non-existent file
         let config = AgentConfigFile {
+            model: None,
+            safety: None,
             agent: AgentConfig::new("test-agent", "Test", PathBuf::from("nonexistent.md"))
                 .with_file_path(config_dir.join("test-agent.toml")),
         persona: None,
@@ -1263,14 +1623,18 @@ trigger_agent_id = "helper-agent"
 
         // Test: Empty agent ID
         let config = AgentConfigFile {
+            model: None,
+            safety: None,
             agent: AgentConfig {
                 id: String::new(),
                 name: "Test Agent".to_string(),
+                safety_behavior: None,
                 prompt_path: PathBuf::from("test.md"),
                 description: String::new(),
                 mirror_path: None,
                 engine: None,
                 model: None,
+            
                 reasoning_effort: None,
                 loop_behavior: None,
                 trigger_behavior: None,
@@ -1279,6 +1643,8 @@ trigger_agent_id = "helper-agent"
                 capabilities: AgentCapabilities::default(),
                 sandbox: None,
                 persona_config: None,
+                routing: None,
+                code_execution_enabled: None,
             }
             .with_file_path(config_dir.join("empty-id.toml")),
             persona: None,
@@ -1287,6 +1653,8 @@ trigger_agent_id = "helper-agent"
 
         // Test: Empty agent name
         let config = AgentConfigFile {
+            model: None,
+            safety: None,
             agent: AgentConfig {
                 id: "test-agent".to_string(),
                 name: String::new(),
@@ -1295,6 +1663,7 @@ trigger_agent_id = "helper-agent"
                 mirror_path: None,
                 engine: None,
                 model: None,
+            
                 reasoning_effort: None,
                 loop_behavior: None,
                 trigger_behavior: None,
@@ -1303,6 +1672,9 @@ trigger_agent_id = "helper-agent"
                 capabilities: AgentCapabilities::default(),
                 sandbox: None,
                 persona_config: None,
+                routing: None,
+                safety_behavior: None,
+                code_execution_enabled: None,
             }
             .with_file_path(config_dir.join("empty-name.toml")),
             persona: None,
@@ -1311,6 +1683,8 @@ trigger_agent_id = "helper-agent"
 
         // Test: Empty prompt path
         let config = AgentConfigFile {
+            model: None,
+            safety: None,
             agent: AgentConfig {
                 id: "test-agent".to_string(),
                 name: "Test Agent".to_string(),
@@ -1319,6 +1693,7 @@ trigger_agent_id = "helper-agent"
                 mirror_path: None,
                 engine: None,
                 model: None,
+            
                 reasoning_effort: None,
                 loop_behavior: None,
                 trigger_behavior: None,
@@ -1327,6 +1702,9 @@ trigger_agent_id = "helper-agent"
                 capabilities: AgentCapabilities::default(),
                 sandbox: None,
                 persona_config: None,
+                routing: None,
+                safety_behavior: None,
+                code_execution_enabled: None,
             }
             .with_file_path(config_dir.join("empty-prompt.toml")),
             persona: None,
@@ -1405,6 +1783,8 @@ reasoning_effort = "invalid"
         }
         
         let config = AgentConfigFile {
+            model: None,
+            safety: None,
             agent: AgentConfig::new("test", "Test", PathBuf::from("test.md")),
             persona: None,
         };
@@ -1434,6 +1814,8 @@ reasoning_effort = "invalid"
     #[test]
     fn test_agent_config_save_to_nonexistent_directory() {
         let config = AgentConfigFile {
+            model: None,
+            safety: None,
             agent: AgentConfig::new("test", "Test", PathBuf::from("test.md")),
             persona: None,
         };
@@ -1510,6 +1892,8 @@ cost_tier = "invalid"
 
         // Valid capabilities
         let config = AgentConfigFile {
+            model: None,
+            safety: None,
             agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                 .with_file_path(config_path.clone()),
         persona: None,
@@ -1525,6 +1909,8 @@ cost_tier = "invalid"
             max_concurrent_tasks: 10,
         };
         let config = AgentConfigFile {
+            model: None,
+            safety: None,
             agent: agent.with_file_path(config_path),
         persona: None,
         };
@@ -1557,6 +1943,8 @@ cost_tier = "invalid"
 
         for invalid_id in invalid_ids {
             let config = AgentConfigFile {
+            model: None,
+            safety: None,
                 agent: AgentConfig::new(invalid_id, "Test", prompt_path.clone())
                     .with_file_path(config_path.clone()),
             persona: None,
@@ -1579,6 +1967,8 @@ cost_tier = "invalid"
         let config_path = temp_dir.path().join("test.toml");
 
         let config = AgentConfigFile {
+            model: None,
+            safety: None,
             agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
                 .with_loop_behavior(AgentLoopBehavior {
                     steps: 2,
@@ -1589,5 +1979,353 @@ cost_tier = "invalid"
             persona: None,
         };
         assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_parse_response_format() {
+        use super::AgentConfigFile;
+
+        // Test text format
+        let result = AgentConfigFile::parse_response_format("text").unwrap();
+        assert_eq!(result, ResponseFormat::Text);
+
+        // Test json format
+        let result = AgentConfigFile::parse_response_format("json").unwrap();
+        assert_eq!(result, ResponseFormat::Json);
+
+        // Test JSON schema format
+        let valid_schema = "{\"type\":\"object\"}";
+        let result = AgentConfigFile::parse_response_format(valid_schema).unwrap();
+        assert!(matches!(result, ResponseFormat::JsonSchema(_)));
+
+        // Test invalid format
+        assert!(AgentConfigFile::parse_response_format("xml").is_err());
+        assert!(AgentConfigFile::parse_response_format("invalid").is_err());
+
+        // Test invalid JSON schema
+        assert!(AgentConfigFile::parse_response_format("{invalid json}").is_err());
+    }
+
+    #[test]
+    fn test_model_config_validation() {
+        use std::fs;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let prompt_path = temp_dir.path().join("test.md");
+        fs::write(&prompt_path, "# Test").unwrap();
+        let config_path = temp_dir.path().join("test.toml");
+
+        // Valid top_k
+        let mut config = AgentConfigFile {
+            model: None,
+            safety: None,
+            agent: AgentConfig::new("test-agent", "Test", prompt_path.clone())
+                .with_file_path(config_path.clone()),
+            persona: None,
+        };
+        config.model = Some(ModelConfigToml {
+            top_k: Some(50),
+            frequency_penalty: None,
+            presence_penalty: None,
+            response_format: None,
+        });
+        assert!(config.validate().is_ok());
+
+        // Invalid top_k (out of range)
+        config.model = Some(ModelConfigToml {
+            top_k: Some(101),
+            frequency_penalty: None,
+            presence_penalty: None,
+            response_format: None,
+        });
+        assert!(config.validate().is_err());
+
+        // Invalid frequency_penalty (out of range)
+        config.model = Some(ModelConfigToml {
+            top_k: None,
+            frequency_penalty: Some(3.0),
+            presence_penalty: None,
+            response_format: None,
+        });
+        assert!(config.validate().is_err());
+
+        // Valid penalties
+        config.model = Some(ModelConfigToml {
+            top_k: Some(40),
+            frequency_penalty: Some(0.5),
+            presence_penalty: Some(0.3),
+            response_format: Some("json".to_string()),
+        });
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_to_model_parameters() {
+        use std::fs;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let prompt_path = temp_dir.path().join("test.md");
+        fs::write(&prompt_path, "# Test").unwrap();
+        let config_path = temp_dir.path().join("test.toml");
+
+        let mut config = AgentConfigFile {
+            model: None,
+            safety: None,
+            agent: AgentConfig::new("test-agent", "Test", prompt_path)
+                .with_file_path(config_path),
+            persona: None,
+        };
+
+        // Test without model config
+        assert!(config.to_model_parameters().is_none());
+
+        // Test with model config
+        config.model = Some(ModelConfigToml {
+            top_k: Some(40),
+            frequency_penalty: Some(0.5),
+            presence_penalty: Some(0.3),
+            response_format: Some("json".to_string()),
+        });
+
+        let params = config.to_model_parameters().unwrap();
+        assert_eq!(params.top_k, Some(40));
+        assert_eq!(params.frequency_penalty, Some(0.5));
+        assert_eq!(params.presence_penalty, Some(0.3));
+        assert_eq!(params.response_format, Some(ResponseFormat::Json));
+    }
+
+    #[test]
+    fn test_parse_threshold_valid() {
+        use radium_models::{SafetyThreshold};
+
+        // Test all valid threshold values
+        assert_eq!(
+            GeminiSafetyConfigToml::parse_threshold("BLOCK_NONE").unwrap(),
+            SafetyThreshold::BlockNone
+        );
+        assert_eq!(
+            GeminiSafetyConfigToml::parse_threshold("BLOCK_LOW_AND_ABOVE").unwrap(),
+            SafetyThreshold::BlockLowAndAbove
+        );
+        assert_eq!(
+            GeminiSafetyConfigToml::parse_threshold("BLOCK_MEDIUM_AND_ABOVE").unwrap(),
+            SafetyThreshold::BlockMediumAndAbove
+        );
+        assert_eq!(
+            GeminiSafetyConfigToml::parse_threshold("BLOCK_ONLY_HIGH").unwrap(),
+            SafetyThreshold::BlockOnlyHigh
+        );
+    }
+
+    #[test]
+    fn test_parse_threshold_invalid() {
+        // Test invalid threshold values
+        assert!(GeminiSafetyConfigToml::parse_threshold("INVALID").is_err());
+        assert!(GeminiSafetyConfigToml::parse_threshold("").is_err());
+        assert!(GeminiSafetyConfigToml::parse_threshold("block_none").is_err()); // case sensitive
+        assert!(GeminiSafetyConfigToml::parse_threshold("BLOCK_LOW").is_err()); // partial match
+    }
+
+    #[test]
+    fn test_to_safety_settings_empty() {
+        // Test empty configuration (all None)
+        let config = GeminiSafetyConfigToml::default();
+        let settings = config.to_safety_settings().unwrap();
+        assert!(settings.is_empty());
+    }
+
+    #[test]
+    fn test_to_safety_settings_with_default() {
+        use radium_models::{SafetyCategory, SafetyThreshold};
+
+        // Test default threshold applies to all categories
+        let config = GeminiSafetyConfigToml {
+            hate_speech: None,
+            harassment: None,
+            sexually_explicit: None,
+            dangerous_content: None,
+            civic_integrity: None,
+            default: Some("BLOCK_MEDIUM_AND_ABOVE".to_string()),
+        };
+
+        let settings = config.to_safety_settings().unwrap();
+        assert_eq!(settings.len(), 5); // All 5 categories should use default
+
+        // Verify all categories are present with default threshold
+        for setting in &settings {
+            assert_eq!(setting.threshold, SafetyThreshold::BlockMediumAndAbove);
+        }
+
+        // Verify all categories are included
+        let categories: Vec<SafetyCategory> = settings.iter().map(|s| s.category).collect();
+        assert!(categories.contains(&SafetyCategory::HateSpeech));
+        assert!(categories.contains(&SafetyCategory::Harassment));
+        assert!(categories.contains(&SafetyCategory::SexuallyExplicit));
+        assert!(categories.contains(&SafetyCategory::DangerousContent));
+        assert!(categories.contains(&SafetyCategory::CivicIntegrity));
+    }
+
+    #[test]
+    fn test_to_safety_settings_partial() {
+        use radium_models::{SafetyCategory, SafetyThreshold};
+
+        // Test partial configuration with default fallback
+        let config = GeminiSafetyConfigToml {
+            hate_speech: Some("INVALID_THRESHOLD".to_string()), // Invalid - should error
+            harassment: Some("BLOCK_LOW_AND_ABOVE".to_string()),
+            sexually_explicit: None,
+            dangerous_content: None,
+            civic_integrity: None,
+            default: Some("BLOCK_MEDIUM_AND_ABOVE".to_string()),
+        };
+
+        // First test should error due to invalid threshold
+        assert!(config.to_safety_settings().is_err());
+
+        // Fix the invalid threshold
+        let config = GeminiSafetyConfigToml {
+            hate_speech: Some("BLOCK_ONLY_HIGH".to_string()),
+            harassment: Some("BLOCK_LOW_AND_ABOVE".to_string()),
+            sexually_explicit: None,
+            dangerous_content: None,
+            civic_integrity: None,
+            default: Some("BLOCK_MEDIUM_AND_ABOVE".to_string()),
+        };
+
+        let settings = config.to_safety_settings().unwrap();
+        assert_eq!(settings.len(), 5); // All 5 categories
+
+        // Verify explicit values override default
+        let hate_speech_setting = settings
+            .iter()
+            .find(|s| s.category == SafetyCategory::HateSpeech)
+            .unwrap();
+        assert_eq!(hate_speech_setting.threshold, SafetyThreshold::BlockOnlyHigh);
+
+        let harassment_setting = settings
+            .iter()
+            .find(|s| s.category == SafetyCategory::Harassment)
+            .unwrap();
+        assert_eq!(harassment_setting.threshold, SafetyThreshold::BlockLowAndAbove);
+
+        // Verify default applies to unspecified categories
+        let sexually_explicit_setting = settings
+            .iter()
+            .find(|s| s.category == SafetyCategory::SexuallyExplicit)
+            .unwrap();
+        assert_eq!(sexually_explicit_setting.threshold, SafetyThreshold::BlockMediumAndAbove);
+    }
+
+    #[test]
+    fn test_to_safety_settings_all_categories() {
+        use radium_models::{SafetyCategory, SafetyThreshold};
+
+        // Test all categories explicitly configured
+        let config = GeminiSafetyConfigToml {
+            hate_speech: Some("BLOCK_MEDIUM_AND_ABOVE".to_string()),
+            harassment: Some("BLOCK_LOW_AND_ABOVE".to_string()),
+            sexually_explicit: Some("BLOCK_MEDIUM_AND_ABOVE".to_string()),
+            dangerous_content: Some("BLOCK_ONLY_HIGH".to_string()),
+            civic_integrity: Some("BLOCK_NONE".to_string()),
+            default: None,
+        };
+
+        let settings = config.to_safety_settings().unwrap();
+        assert_eq!(settings.len(), 5);
+
+        // Verify each category has correct threshold
+        for setting in &settings {
+            match setting.category {
+                SafetyCategory::HateSpeech => {
+                    assert_eq!(setting.threshold, SafetyThreshold::BlockMediumAndAbove);
+                }
+                SafetyCategory::Harassment => {
+                    assert_eq!(setting.threshold, SafetyThreshold::BlockLowAndAbove);
+                }
+                SafetyCategory::SexuallyExplicit => {
+                    assert_eq!(setting.threshold, SafetyThreshold::BlockMediumAndAbove);
+                }
+                SafetyCategory::DangerousContent => {
+                    assert_eq!(setting.threshold, SafetyThreshold::BlockOnlyHigh);
+                }
+                SafetyCategory::CivicIntegrity => {
+                    assert_eq!(setting.threshold, SafetyThreshold::BlockNone);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_to_safety_settings_selective() {
+        use radium_models::{SafetyCategory, SafetyThreshold};
+
+        // Test selective configuration (some categories, no default)
+        let config = GeminiSafetyConfigToml {
+            hate_speech: Some("BLOCK_MEDIUM_AND_ABOVE".to_string()),
+            harassment: Some("BLOCK_LOW_AND_ABOVE".to_string()),
+            sexually_explicit: None,
+            dangerous_content: None,
+            civic_integrity: None,
+            default: None,
+        };
+
+        let settings = config.to_safety_settings().unwrap();
+        assert_eq!(settings.len(), 2); // Only configured categories
+
+        let categories: Vec<SafetyCategory> = settings.iter().map(|s| s.category).collect();
+        assert!(categories.contains(&SafetyCategory::HateSpeech));
+        assert!(categories.contains(&SafetyCategory::Harassment));
+        assert!(!categories.contains(&SafetyCategory::SexuallyExplicit));
+    }
+
+    #[test]
+    fn test_toml_deserialization() {
+        // Test TOML deserialization of GeminiSafetyConfigToml
+        let toml_str = r#"
+hate_speech = "BLOCK_MEDIUM_AND_ABOVE"
+harassment = "BLOCK_LOW_AND_ABOVE"
+default = "BLOCK_MEDIUM_AND_ABOVE"
+"#;
+
+        let config: GeminiSafetyConfigToml = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.hate_speech, Some("BLOCK_MEDIUM_AND_ABOVE".to_string()));
+        assert_eq!(config.harassment, Some("BLOCK_LOW_AND_ABOVE".to_string()));
+        assert_eq!(config.default, Some("BLOCK_MEDIUM_AND_ABOVE".to_string()));
+        assert_eq!(config.sexually_explicit, None);
+        assert_eq!(config.dangerous_content, None);
+        assert_eq!(config.civic_integrity, None);
+    }
+
+    #[test]
+    fn test_toml_deserialization_partial() {
+        // Test TOML deserialization with missing fields (should use defaults)
+        let toml_str = r#"
+default = "BLOCK_NONE"
+"#;
+
+        let config: GeminiSafetyConfigToml = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.default, Some("BLOCK_NONE".to_string()));
+        assert_eq!(config.hate_speech, None);
+        assert_eq!(config.harassment, None);
+    }
+
+    #[test]
+    fn test_safety_config_toml_with_gemini() {
+        // Test SafetyConfigToml with gemini section
+        let toml_str = r#"
+behavior = "return-partial"
+
+[gemini]
+hate_speech = "BLOCK_MEDIUM_AND_ABOVE"
+default = "BLOCK_LOW_AND_ABOVE"
+"#;
+
+        let config: SafetyConfigToml = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.behavior, "return-partial");
+        assert!(config.gemini.is_some());
+
+        let gemini_config = config.gemini.unwrap();
+        assert_eq!(gemini_config.hate_speech, Some("BLOCK_MEDIUM_AND_ABOVE".to_string()));
+        assert_eq!(gemini_config.default, Some("BLOCK_LOW_AND_ABOVE".to_string()));
     }
 }

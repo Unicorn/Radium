@@ -66,12 +66,11 @@ impl ConflictDetector {
     }
 
     /// Checks for agent ID conflicts.
-    fn check_agent_conflicts(manifest: &ExtensionManifest, package_path: &Path) -> Result<()> {
+    fn check_agent_conflicts(_manifest: &ExtensionManifest, package_path: &Path) -> Result<()> {
         // Discover existing agents
         let discovery = AgentDiscovery::new();
         let existing_agents = discovery.discover_all()
-            .map_err(|e| ConflictError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            .map_err(|e| ConflictError::Io(std::io::Error::other(
                 format!("Failed to discover agents: {}", e),
             )))?;
 

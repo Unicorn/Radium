@@ -7,7 +7,7 @@ use ratatui::{
     prelude::*,
     widgets::{Block, Borders, Cell, Paragraph, Row, Table},
 };
-use crate::state::{TaskListState, TaskListItem};
+use crate::state::TaskListState;
 use crate::theme::get_theme;
 use crate::icons::Icons;
 use radium_core::models::task::TaskState;

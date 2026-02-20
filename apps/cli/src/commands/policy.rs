@@ -1,12 +1,10 @@
 //! Policy management commands.
 
-mod policy_learn;
-
 use clap::Subcommand;
 use radium_core::policy::{ApprovalMode, ConflictDetector, PolicyEngine, ResolutionStrategy, merge_template, TemplateDiscovery};
 use radium_core::workspace::Workspace;
 use std::path::PathBuf;
-use policy_learn::execute_learn_command;
+use crate::commands::policy_learn::execute_learn_command;
 
 /// Policy command options.
 #[derive(Subcommand, Debug)]

@@ -5,7 +5,6 @@ use regex::Regex;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use super::privacy_error::{PrivacyError, Result};
 
 /// A pattern for detecting sensitive data.
 #[derive(Clone)]

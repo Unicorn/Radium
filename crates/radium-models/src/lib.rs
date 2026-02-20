@@ -1,22 +1,40 @@
 //! Model implementations for Radium.
 //!
 //! This crate provides concrete implementations of the `Model` trait.
+//!
+//! # Supported Providers
+//!
+//! - **Mock**: Testing and development
+//! - **Claude**: Anthropic's Claude models (API key required)
+//! - **Gemini**: Google's Gemini models (API key required)
+//! - **OpenAI**: OpenAI's GPT models (API key required)
+//! - **Ollama**: Local models via Ollama (no API key, local execution)
 
+pub mod cache;
 pub mod claude;
+pub mod context_cache;
 pub mod factory;
 pub mod gemini;
+pub mod ollama;
 pub mod openai;
+pub mod universal;
 
 use async_trait::async_trait;
+use futures::stream::{self, Stream};
 use radium_abstraction::{
-    ChatMessage, Model, ModelError, ModelParameters, ModelResponse, ModelUsage,
+    ChatMessage, Model, ModelError, ModelParameters, ModelResponse, ModelUsage, StreamingModel,
 };
+use std::pin::Pin;
+use std::time::Duration;
 use tracing::debug;
 
+pub use cache::{CacheConfig, CacheKey, CacheStats, CachedModel, ModelCache};
 pub use claude::ClaudeModel;
 pub use factory::{ModelConfig, ModelFactory, ModelType};
-pub use gemini::GeminiModel;
+pub use gemini::{GeminiModel, GeminiSafetySetting, SafetyCategory, SafetyThreshold};
+pub use ollama::OllamaModel;
 pub use openai::OpenAIModel;
+pub use universal::UniversalModel;
 
 /// A mock implementation of the `Model` trait for testing and demonstration.
 #[derive(Debug, Default)]
@@ -58,7 +76,14 @@ impl Model for MockModel {
         Ok(ModelResponse {
             content: response_content,
             model_id: Some(self.id.clone()),
-            usage: Some(ModelUsage { prompt_tokens, completion_tokens, total_tokens }),
+            usage: Some(ModelUsage {
+                prompt_tokens,
+                completion_tokens,
+                total_tokens,
+                cache_usage: None,
+            }),
+            metadata: None,
+            tool_calls: None,
         })
     }
 
@@ -78,7 +103,20 @@ impl Model for MockModel {
 
         let mut conversation_summary = String::from("Conversation Summary:\n");
         for message in messages {
-            let _ = writeln!(conversation_summary, "  {}: {}", message.role, message.content);
+            let content_str = match &message.content {
+                radium_abstraction::MessageContent::Text(text) => text.clone(),
+                radium_abstraction::MessageContent::Blocks(blocks) => {
+                    // Extract text from blocks for summary
+                    blocks.iter()
+                        .filter_map(|b| match b {
+                            radium_abstraction::ContentBlock::Text { text } => Some(text.clone()),
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                }
+            };
+            let _ = writeln!(conversation_summary, "  {}: {}", message.role, content_str);
         }
 
         let response_content = format!(
@@ -86,19 +124,107 @@ impl Model for MockModel {
             self.id
         );
 
-        let prompt_tokens = messages.iter().map(|m| count_tokens(&m.content)).sum::<u32>();
+        let prompt_tokens = messages.iter().map(|m| {
+            match &m.content {
+                radium_abstraction::MessageContent::Text(text) => count_tokens(text),
+                radium_abstraction::MessageContent::Blocks(blocks) => {
+                    // Count tokens from text blocks only
+                    blocks.iter()
+                        .filter_map(|b| match b {
+                            radium_abstraction::ContentBlock::Text { text } => Some(count_tokens(text)),
+                            _ => None,
+                        })
+                        .sum()
+                }
+            }
+        }).sum::<u32>();
         let completion_tokens = count_tokens(&response_content);
         let total_tokens = prompt_tokens + completion_tokens;
 
         Ok(ModelResponse {
             content: response_content,
             model_id: Some(self.id.clone()),
-            usage: Some(ModelUsage { prompt_tokens, completion_tokens, total_tokens }),
+            usage: Some(ModelUsage {
+                prompt_tokens,
+                completion_tokens,
+                total_tokens,
+                cache_usage: None,
+            }),
+            metadata: None,
+            tool_calls: None,
         })
+    }
+
+    async fn generate_with_tools(
+        &self,
+        _messages: &[ChatMessage],
+        _tools: &[radium_abstraction::Tool],
+        _tool_config: Option<&radium_abstraction::ToolConfig>,
+    ) -> Result<ModelResponse, ModelError> {
+        Err(ModelError::UnsupportedModelProvider(
+            "MockModel does not support function calling".to_string(),
+        ))
     }
 
     fn model_id(&self) -> &str {
         &self.id
+    }
+}
+
+#[async_trait]
+impl StreamingModel for MockModel {
+    async fn generate_stream(
+        &self,
+        prompt: &str,
+        parameters: Option<ModelParameters>,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<radium_abstraction::StreamItem, ModelError>> + Send>>, ModelError> {
+        debug!(
+            model_id = %self.id,
+            prompt = %prompt,
+            parameters = ?parameters,
+            "MockModel generating streaming text"
+        );
+
+        // Generate mock response (reuse existing logic)
+        let response_content = format!(
+            "Mock response for: {prompt}\nModel ID: {}\nParameters: {parameters:?}",
+            self.id
+        );
+
+        // Split response into words for realistic streaming
+        let words: Vec<String> = response_content
+            .split_whitespace()
+            .map(std::string::ToString::to_string)
+            .collect();
+
+        // Create stream that yields accumulated content with delays
+        let stream = stream::unfold((0, String::new()), move |(mut index, mut accumulated)| {
+            let words = words.clone();
+            async move {
+                if index >= words.len() {
+                    return None;
+                }
+
+                // Add 50ms delay between tokens
+                tokio::time::sleep(Duration::from_millis(50)).await;
+
+                let word = words[index].clone();
+                index += 1;
+
+                // Add space after word (except for last word)
+                let token = if index < words.len() {
+                    format!("{} ", word)
+                } else {
+                    word
+                };
+
+                accumulated.push_str(&token);
+
+                Some((Ok(radium_abstraction::StreamItem::AnswerToken(accumulated.clone())), (index, accumulated)))
+            }
+        });
+
+        Ok(Box::pin(stream))
     }
 }
 
@@ -108,4 +234,61 @@ impl Model for MockModel {
 #[allow(clippy::cast_possible_truncation)]
 fn count_tokens(text: &str) -> u32 {
     text.split_whitespace().count() as u32
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures::StreamExt;
+    use radium_abstraction::StreamItem;
+
+    #[tokio::test]
+    async fn test_mock_model_streaming() {
+        let model = MockModel::new("test-model".to_string());
+        let mut stream = model
+            .generate_stream("test prompt", None)
+            .await
+            .expect("Should create stream");
+
+        let mut all_content = Vec::new();
+        while let Some(result) = stream.next().await {
+            let content = result.expect("Stream should not error");
+            all_content.push(content);
+        }
+
+        // Should have received at least one chunk
+        assert!(!all_content.is_empty());
+
+        // Collect all answer tokens
+        let answer_tokens: String = all_content.iter().filter_map(|item| {
+            match item {
+                StreamItem::AnswerToken(s) => Some(s.as_str()),
+                _ => None,
+            }
+        }).collect();
+
+        assert!(answer_tokens.contains("test prompt"));
+        assert!(answer_tokens.contains("test-model"));
+    }
+
+    #[tokio::test]
+    async fn test_mock_model_streaming_accumulation() {
+        let model = MockModel::new("test-model".to_string());
+        let mut stream = model
+            .generate_stream("hello", None)
+            .await
+            .expect("Should create stream");
+
+        let mut accumulated_content = String::new();
+        while let Some(result) = stream.next().await {
+            let item = result.expect("Stream should not error");
+            // Accumulate answer tokens
+            if let StreamItem::AnswerToken(s) = item {
+                accumulated_content.push_str(&s);
+            }
+        }
+
+        // Final content should not be empty
+        assert!(!accumulated_content.is_empty());
+    }
 }

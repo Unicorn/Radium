@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["NetworkPattern"],"struct":["DefaultNetworkInterceptor","NetworkInterceptorManager"],"trait":["NetworkInterceptor"]};

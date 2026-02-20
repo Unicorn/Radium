@@ -4,30 +4,172 @@
 // handling the full loop of: input -> model decision -> tool execution -> result -> repeat.
 
 use std::sync::Arc;
+use tokio::sync::broadcast;
 use tokio::time::{timeout, Duration};
 
 use super::{
     FinishReason, OrchestrationProvider, OrchestrationResult,
     context::{Message, OrchestrationContext},
+    events::OrchestrationEvent,
+    execution::execute_tool_calls,
     hooks::ToolHookExecutor,
     tool::{Tool, ToolArguments, ToolCall},
+    ToolExecutionConfig,
 };
 use crate::error::{OrchestrationError, Result};
 use tracing::warn;
 
 /// Configuration for orchestration engine
+///
+/// The engine uses parallel execution by default. When multiple tool calls are requested,
+/// they execute concurrently using `tokio::spawn`, significantly improving performance
+/// compared to sequential execution. The `tool_execution` configuration controls this behavior.
 #[derive(Debug, Clone)]
 pub struct EngineConfig {
     /// Maximum number of tool execution iterations
     pub max_iterations: usize,
     /// Maximum time (in seconds) for entire orchestration
     pub timeout_seconds: u64,
+    /// Configuration for executing multiple tool calls (concurrency, batching, timeouts)
+    ///
+    /// Defaults to `FunctionExecutionStrategy::Concurrent`, which executes all tool calls
+    /// in parallel. This provides significant performance improvements when multiple independent
+    /// tools need to be executed (e.g., multiple agent tools working on different subtasks).
+    pub tool_execution: ToolExecutionConfig,
 }
 
 impl Default for EngineConfig {
     fn default() -> Self {
-        Self { max_iterations: 5, timeout_seconds: 120 }
+        Self {
+            max_iterations: 8,  // Increased from 5 for complex multi-step tasks
+            timeout_seconds: 180,  // Increased from 120 for longer-running operations
+            tool_execution: ToolExecutionConfig::default(),
+        }
     }
+}
+
+/// Get helpful suggestion for tool failures
+fn get_failure_suggestion(tool_name: &str, error: &str) -> &'static str {
+    match (tool_name, error) {
+        ("read_file", e) if e.contains("No such file") || e.contains("not found") =>
+            "File not found. Use glob_file_search or search_code to locate it first.",
+        ("write_file", e) if e.contains("permission") || e.contains("Permission denied") =>
+            "Permission denied. Check file permissions or workspace access.",
+        ("run_terminal_cmd", e) if e.contains("timed out") || e.contains("timeout") =>
+            "Command timed out. Try increasing timeout_seconds parameter.",
+        ("run_terminal_cmd", e) if e.contains("not found") || e.contains("command not found") =>
+            "Command not found. Check if the command is installed and in PATH.",
+        ("search_code", e) if e.contains("Invalid regex") || e.contains("regex") =>
+            "Invalid regex pattern. Check pattern syntax and escape special characters.",
+        _ => "Review error message and try alternative approach.",
+    }
+}
+
+/// Recommendation for next steps
+struct Recommendation {
+    description: String,
+    command: Option<String>,
+    details: Option<String>,
+}
+
+/// Generate smart recommendations based on orchestration results
+fn generate_recommendations(context: &OrchestrationContext, input: &str) -> Vec<Recommendation> {
+    let mut recommendations = Vec::new();
+
+    // Analyze conversation history to see what tools were used
+    let mut tools_used: Vec<String> = Vec::new();
+    for msg in &context.conversation_history {
+        if msg.role == "assistant" && msg.content.contains("ACTION:") {
+            // Extract tool names from assistant messages
+            if msg.content.contains("project_scan") {
+                tools_used.push("project_scan".to_string());
+            }
+            if msg.content.contains("list_dir") {
+                tools_used.push("list_dir".to_string());
+            }
+            if msg.content.contains("read_file") {
+                tools_used.push("read_file".to_string());
+            }
+            if msg.content.contains("search_code") {
+                tools_used.push("search_code".to_string());
+            }
+            if msg.content.contains("run_terminal_cmd") {
+                tools_used.push("run_terminal_cmd".to_string());
+            }
+        }
+    }
+
+    // Generate context-aware recommendations
+    let input_lower = input.to_lowercase();
+
+    // Project exploration recommendations
+    if tools_used.contains(&"project_scan".to_string()) {
+        recommendations.push(Recommendation {
+            description: "Explore specific directories".to_string(),
+            command: None,
+            details: Some("Use list_dir or read_file to dive deeper into interesting areas".to_string()),
+        });
+    }
+
+    // Code analysis recommendations
+    if tools_used.contains(&"search_code".to_string()) || tools_used.contains(&"read_file".to_string()) {
+        if input_lower.contains("test") || input_lower.contains("coverage") {
+            recommendations.push(Recommendation {
+                description: "Run tests to verify coverage".to_string(),
+                command: Some("cargo test".to_string()),
+                details: Some("Check if tests pass and coverage is adequate".to_string()),
+            });
+        } else {
+            recommendations.push(Recommendation {
+                description: "Search for related code patterns".to_string(),
+                command: None,
+                details: Some("Use search_code to find similar implementations".to_string()),
+            });
+        }
+    }
+
+    // Build/compile recommendations
+    if input_lower.contains("build") || input_lower.contains("compile") {
+        recommendations.push(Recommendation {
+            description: "Run the build".to_string(),
+            command: Some("cargo build --release".to_string()),
+            details: Some("Verify the project compiles successfully".to_string()),
+        });
+    }
+
+    // Testing recommendations
+    if input_lower.contains("test") {
+        recommendations.push(Recommendation {
+            description: "Run tests".to_string(),
+            command: Some("cargo test".to_string()),
+            details: Some("Execute the test suite".to_string()),
+        });
+        recommendations.push(Recommendation {
+            description: "Check test coverage".to_string(),
+            command: Some("cargo tarpaulin".to_string()),
+            details: Some("Generate coverage report (requires cargo-tarpaulin)".to_string()),
+        });
+    }
+
+    // Documentation recommendations
+    if input_lower.contains("document") || input_lower.contains("docs") {
+        recommendations.push(Recommendation {
+            description: "Build documentation".to_string(),
+            command: Some("cargo doc --open".to_string()),
+            details: Some("Generate and view API documentation".to_string()),
+        });
+    }
+
+    // General "what's next" recommendations if none were generated
+    if recommendations.is_empty() {
+        recommendations.push(Recommendation {
+            description: "Ask a follow-up question".to_string(),
+            command: None,
+            details: Some("Need more information? Ask for clarification or details".to_string()),
+        });
+    }
+
+    recommendations
 }
 
 /// Orchestration engine coordinating providers and tool execution
@@ -40,6 +182,8 @@ pub struct OrchestrationEngine {
     config: EngineConfig,
     /// Optional hook executor for tool execution hooks
     hook_executor: Option<Arc<dyn ToolHookExecutor>>,
+    /// Optional event sender for streaming orchestration progress
+    event_tx: Option<broadcast::Sender<OrchestrationEvent>>,
 }
 
 impl OrchestrationEngine {
@@ -54,6 +198,7 @@ impl OrchestrationEngine {
             tools,
             config,
             hook_executor: None,
+            event_tx: None,
         }
     }
 
@@ -74,6 +219,18 @@ impl OrchestrationEngine {
             tools,
             config,
             hook_executor,
+            event_tx: None,
+        }
+    }
+
+    /// Set the event sender used to emit orchestration events.
+    pub fn set_event_sender(&mut self, event_tx: Option<broadcast::Sender<OrchestrationEvent>>) {
+        self.event_tx = event_tx;
+    }
+
+    fn emit(&self, event: OrchestrationEvent) {
+        if let Some(ref tx) = self.event_tx {
+            let _ = tx.send(event);
         }
     }
 
@@ -97,18 +254,27 @@ impl OrchestrationEngine {
         context: &mut OrchestrationContext,
     ) -> Result<OrchestrationResult> {
         let timeout_duration = Duration::from_secs(self.config.timeout_seconds);
+        let correlation_id = context.session_id.clone();
         
         // Wrap the entire execution in a timeout
-        match timeout(timeout_duration, self.execute_internal(input, context)).await {
-            Ok(result) => result,
-            Err(_) => {
-                // Timeout occurred
-                Ok(OrchestrationResult::new(
-                    format!("Orchestration timed out after {} seconds", self.config.timeout_seconds),
-                    vec![],
-                    FinishReason::Error,
-                ))
-            }
+        if let Ok(result) = timeout(timeout_duration, self.execute_internal(input, context)).await { result } else {
+            // Timeout occurred
+            self.emit(OrchestrationEvent::Error {
+                correlation_id: correlation_id.clone(),
+                message: format!(
+                    "Orchestration timed out after {} seconds",
+                    self.config.timeout_seconds
+                ),
+            });
+            self.emit(OrchestrationEvent::Done {
+                correlation_id,
+                finish_reason: FinishReason::Error.to_string(),
+            });
+            Ok(OrchestrationResult::new(
+                format!("Orchestration timed out after {} seconds", self.config.timeout_seconds),
+                vec![],
+                FinishReason::Error,
+            ))
         }
     }
 
@@ -120,6 +286,22 @@ impl OrchestrationEngine {
     ) -> Result<OrchestrationResult> {
         let mut iterations = 0;
         let mut current_input = input.to_string();
+        let correlation_id = context.session_id.clone();
+
+        self.emit(OrchestrationEvent::UserInput {
+            correlation_id: correlation_id.clone(),
+            content: current_input.clone(),
+        });
+
+        // Start thinking session for transparent reasoning
+        self.emit(OrchestrationEvent::ThinkingSessionStarted {
+            correlation_id: correlation_id.clone(),
+            context: format!("Processing request: {}", if input.len() > 60 {
+                format!("{}...", &input[..60])
+            } else {
+                input.to_string()
+            }),
+        });
 
         loop {
             // Check iteration limit
@@ -142,8 +324,21 @@ impl OrchestrationEngine {
                     }
                 );
                 warn!("Orchestration reached max iterations: {}", iterations);
+                self.emit(OrchestrationEvent::ThinkingSessionEnded {
+                    correlation_id: correlation_id.clone(),
+                });
+                self.emit(OrchestrationEvent::Done {
+                    correlation_id: correlation_id.clone(),
+                    finish_reason: FinishReason::MaxIterations.to_string(),
+                });
                 return Ok(OrchestrationResult::new(error_msg, vec![], FinishReason::MaxIterations));
             }
+
+            // Emit thinking step: Analyzing request
+            self.emit(OrchestrationEvent::ThinkingStepAdded {
+                correlation_id: correlation_id.clone(),
+                description: format!("Analyzing request (iteration {})", iterations + 1),
+            });
 
             // Get orchestration decision from provider
             let result = match self.provider.execute_with_tools(&current_input, &self.tools, context).await {
@@ -151,9 +346,42 @@ impl OrchestrationEngine {
                 Err(e) => {
                     // Provider error - check if it's a function calling error that should trigger fallback
                     // This will be handled by the service layer if fallback is enabled
+                    self.emit(OrchestrationEvent::ThinkingStepUpdated {
+                        correlation_id: correlation_id.clone(),
+                        status: super::events::ThinkingStatus::Failed,
+                        details: Some(format!("Provider error: {}", e)),
+                    });
+                    self.emit(OrchestrationEvent::ThinkingSessionEnded {
+                        correlation_id: correlation_id.clone(),
+                    });
+                    self.emit(OrchestrationEvent::Error {
+                        correlation_id: correlation_id.clone(),
+                        message: e.to_string(),
+                    });
                     return Err(e);
                 }
             };
+
+            // Update thinking step with provider decision
+            if result.tool_calls.is_empty() {
+                self.emit(OrchestrationEvent::ThinkingStepUpdated {
+                    correlation_id: correlation_id.clone(),
+                    status: super::events::ThinkingStatus::Completed,
+                    details: Some("Request analyzed - no tools needed, generating response".to_string()),
+                });
+            } else {
+                self.emit(OrchestrationEvent::ThinkingStepUpdated {
+                    correlation_id: correlation_id.clone(),
+                    status: super::events::ThinkingStatus::CompletedWithFindings,
+                    details: Some(format!("Found {} tool(s) to execute: {}",
+                        result.tool_calls.len(),
+                        result.tool_calls.iter()
+                            .map(|t| t.name.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )),
+                });
+            }
 
             // If no tool calls, we're done
             if result.tool_calls.is_empty() {
@@ -161,11 +389,83 @@ impl OrchestrationEngine {
                 if !result.response.is_empty() {
                     context.add_assistant_message(&result.response);
                 }
+                self.emit(OrchestrationEvent::AssistantMessage {
+                    correlation_id: correlation_id.clone(),
+                    content: result.response.clone(),
+                });
+
+                // Generate recommendations for next steps
+                let recommendations = generate_recommendations(context, input);
+                if !recommendations.is_empty() {
+                    self.emit(OrchestrationEvent::RecommendationsSessionStarted {
+                        correlation_id: correlation_id.clone(),
+                        context: "Based on this task, here are some suggested next steps".to_string(),
+                    });
+
+                    for rec in recommendations {
+                        self.emit(OrchestrationEvent::RecommendationAdded {
+                            correlation_id: correlation_id.clone(),
+                            description: rec.description,
+                            command: rec.command,
+                            details: rec.details,
+                        });
+                    }
+
+                    self.emit(OrchestrationEvent::RecommendationsExecutionRequested {
+                        correlation_id: correlation_id.clone(),
+                    });
+                }
+
+                // End thinking session
+                self.emit(OrchestrationEvent::ThinkingSessionEnded {
+                    correlation_id: correlation_id.clone(),
+                });
+
+                self.emit(OrchestrationEvent::Done {
+                    correlation_id: correlation_id.clone(),
+                    finish_reason: result.finish_reason.to_string(),
+                });
                 return Ok(result);
             }
 
             // Execute tool calls
-            let tool_results = self.execute_tools(&result.tool_calls).await?;
+            if !result.response.is_empty() {
+                self.emit(OrchestrationEvent::AssistantMessage {
+                    correlation_id: correlation_id.clone(),
+                    content: result.response.clone(),
+                });
+            }
+            for call in &result.tool_calls {
+                self.emit(OrchestrationEvent::ToolCallRequested {
+                    correlation_id: correlation_id.clone(),
+                    call: call.clone(),
+                });
+            }
+
+            // Add thinking step for tool execution
+            self.emit(OrchestrationEvent::ThinkingStepAdded {
+                correlation_id: correlation_id.clone(),
+                description: format!("Executing {} tool(s)", result.tool_calls.len()),
+            });
+
+            let tool_results = self.execute_tools(&correlation_id, &result.tool_calls).await?;
+
+            // Update thinking step with tool results
+            let successful_count = tool_results.iter().filter(|r| r.success).count();
+            let failed_count = tool_results.len() - successful_count;
+            if failed_count == 0 {
+                self.emit(OrchestrationEvent::ThinkingStepUpdated {
+                    correlation_id: correlation_id.clone(),
+                    status: super::events::ThinkingStatus::Completed,
+                    details: Some(format!("All {} tool(s) executed successfully", tool_results.len())),
+                });
+            } else {
+                self.emit(OrchestrationEvent::ThinkingStepUpdated {
+                    correlation_id: correlation_id.clone(),
+                    status: super::events::ThinkingStatus::CompletedWithFindings,
+                    details: Some(format!("{} succeeded, {} failed", successful_count, failed_count)),
+                });
+            }
 
             // Add assistant message with tool calls to conversation
             if !result.response.is_empty() {
@@ -175,8 +475,21 @@ impl OrchestrationEngine {
             // Add tool results to conversation
             for (i, tool_result) in tool_results.iter().enumerate() {
                 let tool_call = &result.tool_calls[i];
-                let result_message =
-                    format!("Tool '{}' returned: {}", tool_call.name, tool_result.output);
+                self.emit(OrchestrationEvent::ToolCallFinished {
+                    correlation_id: correlation_id.clone(),
+                    tool_name: tool_call.name.clone(),
+                    result: tool_result.clone(),
+                });
+                let result_message = if tool_result.success {
+                    format!("✓ Tool '{}' succeeded:\n{}", tool_call.name, tool_result.output)
+                } else {
+                    format!(
+                        "✗ Tool '{}' failed:\n{}\n💡 Suggestion: {}",
+                        tool_call.name,
+                        tool_result.output,
+                        get_failure_suggestion(&tool_call.name, &tool_result.output)
+                    )
+                };
                 context.add_message(Message {
                     role: "tool".to_string(),
                     content: result_message,
@@ -208,6 +521,10 @@ impl OrchestrationEngine {
                     failed_tools.join("\n")
                 );
                 warn!("Tool execution failed: {} tool(s) failed", failed_tools.len());
+                self.emit(OrchestrationEvent::Done {
+                    correlation_id: correlation_id.clone(),
+                    finish_reason: FinishReason::ToolError.to_string(),
+                });
                 return Ok(OrchestrationResult::new(error_msg, vec![], FinishReason::ToolError));
             }
 
@@ -220,10 +537,41 @@ impl OrchestrationEngine {
     }
 
     /// Execute all tool calls and collect results
+    ///
+    /// This method executes tool calls according to the configured execution strategy.
+    /// By default, tool calls execute concurrently in parallel using `tokio::spawn`,
+    /// which provides significant performance improvements when multiple independent tools
+    /// are called (e.g., multiple agent tools working on different subtasks).
+    ///
+    /// When hooks are not installed, this uses the optimized parallel execution path.
+    /// When hooks are installed, tools execute sequentially to ensure proper hook ordering.
     async fn execute_tools(
         &self,
+        correlation_id: &str,
         tool_calls: &[ToolCall],
     ) -> Result<Vec<crate::orchestration::tool::ToolResult>> {
+        // Fast path: when no hooks are installed, use the shared parallel execution engine.
+        // This executes all tool calls concurrently, providing significant performance
+        // improvements for multi-agent scenarios where multiple tools can run in parallel.
+        if self.hook_executor.is_none() {
+            // Emit "started" for each tool call upfront (execution may run concurrently).
+            for call in tool_calls {
+                self.emit(OrchestrationEvent::ToolCallStarted {
+                    correlation_id: correlation_id.to_string(),
+                    tool_name: call.name.clone(),
+                });
+            }
+
+            // Execute tools concurrently according to tool_execution configuration.
+            // Default strategy is Concurrent, which uses tokio::spawn for parallel execution.
+            let raw_results = execute_tool_calls(tool_calls, &self.tools, &self.config.tool_execution).await;
+            let mut results = Vec::with_capacity(raw_results.len());
+            for res in raw_results {
+                results.push(res?);
+            }
+            return Ok(results);
+        }
+
         let mut results = Vec::new();
 
         for tool_call in tool_calls {
@@ -259,6 +607,20 @@ impl OrchestrationEngine {
                         tracing::debug!("BeforeTool hooks modified arguments for tool: {}", tool_call.name);
                     }
                     Err(e) => {
+                        // Check if this is an approval request (from policy hook)
+                        if e.starts_with("APPROVAL_REQUIRED:") {
+                            let reason = e.strip_prefix("APPROVAL_REQUIRED:").unwrap_or(&e).trim().to_string();
+                            self.emit(OrchestrationEvent::ApprovalRequired {
+                                correlation_id: correlation_id.to_string(),
+                                tool_name: tool_call.name.clone(),
+                                reason,
+                            });
+                            // Return error to pause execution - user must approve via CLI/TUI
+                            return Err(OrchestrationError::Other(format!(
+                                "Tool execution requires approval: {}",
+                                tool_call.name
+                            )));
+                        }
                         // Hook requested to abort execution
                         tracing::warn!("BeforeTool hook aborted execution for tool {}: {}", tool_call.name, e);
                         return Err(OrchestrationError::Other(format!(
@@ -270,6 +632,10 @@ impl OrchestrationEngine {
             }
 
             // Execute tool
+            self.emit(OrchestrationEvent::ToolCallStarted {
+                correlation_id: correlation_id.to_string(),
+                tool_name: tool_call.name.clone(),
+            });
             let args = ToolArguments::new(effective_arguments.clone());
             let mut result = match tool.execute(&args).await {
                 Ok(r) => r,
@@ -303,7 +669,7 @@ impl OrchestrationEngine {
                 match hook_executor.after_tool_execution(&tool_call.name, &effective_arguments, &result_json).await {
                     Ok(modified_result) => {
                         // Update result if hooks modified it
-                        if let Some(success) = modified_result.get("success").and_then(|v| v.as_bool()) {
+                        if let Some(success) = modified_result.get("success").and_then(serde_json::Value::as_bool) {
                             result.success = success;
                         }
                         if let Some(output) = modified_result.get("output").and_then(|v| v.as_str()) {
@@ -413,12 +779,27 @@ mod tests {
             FinishReason::Stop,
         )]));
 
-        let engine = OrchestrationEngine::with_defaults(provider, vec![]);
+        let (tx, mut rx) = broadcast::channel(16);
+        let mut engine = OrchestrationEngine::with_defaults(provider, vec![]);
+        engine.set_event_sender(Some(tx));
         let mut context = OrchestrationContext::new("test-session");
 
         let result = engine.execute("Test input", &mut context).await.unwrap();
         assert_eq!(result.response, "Done");
         assert_eq!(result.finish_reason, FinishReason::Stop);
+
+        // Verify we emitted basic lifecycle events.
+        let mut seen_user_input = false;
+        let mut seen_done = false;
+        while let Ok(event) = rx.try_recv() {
+            match event {
+                OrchestrationEvent::UserInput { .. } => seen_user_input = true,
+                OrchestrationEvent::Done { .. } => seen_done = true,
+                _ => {}
+            }
+        }
+        assert!(seen_user_input);
+        assert!(seen_done);
     }
 
     #[tokio::test]
@@ -484,7 +865,11 @@ mod tests {
         let engine = OrchestrationEngine::new(
             provider,
             vec![tool],
-            EngineConfig { max_iterations: 3, timeout_seconds: 120 },
+            EngineConfig {
+                max_iterations: 3,
+                timeout_seconds: 120,
+                tool_execution: ToolExecutionConfig::default(),
+            },
         );
 
         let mut context = OrchestrationContext::new("test-session");

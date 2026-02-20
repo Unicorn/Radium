@@ -1,3 +1,5 @@
+#![cfg(feature = "server")]
+
 //! Integration tests for Source Validation gRPC endpoint.
 //!
 //! Tests the ValidateSources endpoint which validates accessibility of sources

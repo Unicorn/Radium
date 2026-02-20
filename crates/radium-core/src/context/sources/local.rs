@@ -51,7 +51,7 @@ impl Default for LocalFileReader {
 
 #[async_trait]
 impl SourceReader for LocalFileReader {
-    fn scheme(&self) -> &str {
+    fn scheme(&self) -> &'static str {
         "file"
     }
 

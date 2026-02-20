@@ -38,7 +38,7 @@ impl MarkdownExporter {
         let max_value = data
             .iter()
             .map(|(_, v)| *v)
-            .fold(0.0f64, |a, b| a.max(b));
+            .fold(0.0f64, f64::max);
 
         if max_value == 0.0 {
             return "No costs to display.".to_string();
@@ -132,9 +132,9 @@ impl Exporter for MarkdownExporter {
             )?;
         }
 
-        Ok(String::from_utf8(output).map_err(|e| {
+        String::from_utf8(output).map_err(|e| {
             ExportError::GenerationFailed(format!("Invalid UTF-8 in Markdown: {}", e))
-        })?)
+        })
     }
 
     fn export_summary(
@@ -277,9 +277,9 @@ impl Exporter for MarkdownExporter {
             writeln!(output)?;
         }
 
-        Ok(String::from_utf8(output).map_err(|e| {
+        String::from_utf8(output).map_err(|e| {
             ExportError::GenerationFailed(format!("Invalid UTF-8 in Markdown: {}", e))
-        })?)
+        })
     }
 }
 
@@ -295,6 +295,7 @@ mod tests {
             timestamp: Utc::now(),
             agent_id: "agent-1".to_string(),
             plan_id: Some("REQ-123".to_string()),
+            engine_id: Some("engine-1".to_string()),
             model: Some("claude-3.5-sonnet".to_string()),
             provider: Some("anthropic".to_string()),
             input_tokens: 1500,
@@ -377,6 +378,8 @@ mod tests {
                 map.insert("REQ-124".to_string(), 30.0);
                 map
             },
+            local_breakdown: Some(HashMap::new()),
+            tier_breakdown: None,
             top_plans: vec![
                 ("REQ-123".to_string(), 70.0),
                 ("REQ-124".to_string(), 30.0),

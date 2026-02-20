@@ -1,6 +1,6 @@
 //! Network-level policy interception for blocking operations at the network layer.
 
-use super::types::{PolicyError, PolicyResult};
+use super::types::PolicyResult;
 use std::net::IpAddr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -140,8 +140,7 @@ impl DefaultNetworkInterceptor {
         }
 
         // Handle wildcard patterns like "*.example.com"
-        if pattern.starts_with("*.") {
-            let suffix = &pattern[2..];
+        if let Some(suffix) = pattern.strip_prefix("*.") {
             return domain.ends_with(suffix) || domain == &suffix[..suffix.len().saturating_sub(1)];
         }
 

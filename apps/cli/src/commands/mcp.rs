@@ -205,7 +205,7 @@ pub async fn execute_mcp_command(command: McpCommand) -> anyhow::Result<()> {
                         // Show status for all servers
                         let mut has_tokens = false;
                         for server_config in servers {
-                            if let Some(token) = token_manager.get_token(&server_config.name) {
+                            if let Some(_token) = token_manager.get_token(&server_config.name) {
                                 has_tokens = true;
                                 let expired = token_manager.is_token_expired(&server_config.name);
                                 println!("{}: {}", server_config.name, if expired { "Expired" } else { "Valid" });
@@ -272,7 +272,7 @@ pub async fn execute_mcp_command(command: McpCommand) -> anyhow::Result<()> {
 
 /// Interactive setup wizard for configuring MCP servers.
 async fn setup_wizard(
-    workspace: &Workspace,
+    _workspace: &Workspace,
     config_manager: &mut McpConfigManager,
 ) -> anyhow::Result<()> {
     println!("{}", "MCP Server Setup Wizard".bold().cyan());

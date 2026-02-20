@@ -49,8 +49,7 @@ impl CostMetrics {
         let total_input_tokens = self.smart_tier.input_tokens + self.eco_tier.input_tokens;
         let total_output_tokens = self.smart_tier.output_tokens + self.eco_tier.output_tokens;
 
-        let all_smart_cost = (total_input_tokens as f64 / 1_000_000.0) * smart_input_price
-            + (total_output_tokens as f64 / 1_000_000.0) * smart_output_price;
+        let all_smart_cost = (total_input_tokens as f64 / 1_000_000.0).mul_add(smart_input_price, (total_output_tokens as f64 / 1_000_000.0) * smart_output_price);
 
         // Compare to actual cost
         all_smart_cost - self.total_cost
@@ -61,8 +60,27 @@ impl CostMetrics {
 pub struct CostTracker {
     /// Internal metrics storage (thread-safe).
     metrics: Arc<RwLock<HashMap<RoutingTier, TierMetrics>>>,
+    /// Per-model metrics storage (thread-safe).
+    model_metrics: Arc<RwLock<HashMap<String, PerModelMetrics>>>,
     /// Pricing lookup function.
     pricing_fn: Box<dyn Fn(&str) -> (f64, f64) + Send + Sync>,
+}
+
+/// Internal per-model metrics tracking structure.
+#[derive(Debug, Clone, Default)]
+struct PerModelMetrics {
+    /// Total number of requests.
+    request_count: u64,
+    /// Total number of failures.
+    failure_count: u64,
+    /// Total input tokens.
+    input_tokens: u64,
+    /// Total output tokens.
+    output_tokens: u64,
+    /// Total cost in USD.
+    total_cost: f64,
+    /// Total latency in milliseconds.
+    total_latency_ms: u64,
 }
 
 impl CostTracker {
@@ -80,6 +98,7 @@ impl CostTracker {
     pub fn with_pricing(pricing_fn: Box<dyn Fn(&str) -> (f64, f64) + Send + Sync>) -> Self {
         Self {
             metrics: Arc::new(RwLock::new(HashMap::new())),
+            model_metrics: Arc::new(RwLock::new(HashMap::new())),
             pricing_fn,
         }
     }
@@ -129,17 +148,26 @@ impl CostTracker {
         let input_tokens = u64::from(usage.prompt_tokens);
         let output_tokens = u64::from(usage.completion_tokens);
         
-        let cost = (input_tokens as f64 / 1_000_000.0) * input_price
-            + (output_tokens as f64 / 1_000_000.0) * output_price;
+        let cost = (input_tokens as f64 / 1_000_000.0).mul_add(input_price, (output_tokens as f64 / 1_000_000.0) * output_price);
 
-        // Update metrics (thread-safe)
+        // Update tier metrics (thread-safe)
         let mut metrics = self.metrics.write().map_err(|e| format!("Lock poisoned: {}", e))?;
         let tier_metrics = metrics.entry(tier).or_insert_with(TierMetrics::default);
-        
+
         tier_metrics.request_count += 1;
         tier_metrics.input_tokens += input_tokens;
         tier_metrics.output_tokens += output_tokens;
         tier_metrics.estimated_cost += cost;
+
+        // Update per-model metrics (thread-safe)
+        let mut model_metrics = self.model_metrics.write().map_err(|e| format!("Lock poisoned: {}", e))?;
+        let per_model = model_metrics.entry(model_id.to_string()).or_insert_with(PerModelMetrics::default);
+
+        per_model.request_count += 1;
+        per_model.input_tokens += input_tokens;
+        per_model.output_tokens += output_tokens;
+        per_model.total_cost += cost;
+        // Note: latency tracking would be added here when available
 
         debug!(
             tier = ?tier,
@@ -189,6 +217,77 @@ impl CostTracker {
         debug!("Reset cost tracking metrics");
         Ok(())
     }
+    
+    /// Gets metrics for a specific model.
+    ///
+    /// # Arguments
+    /// * `model_id` - Model identifier
+    ///
+    /// # Returns
+    /// ModelMetrics if available, None if model not found
+    pub fn get_model_metrics(&self, model_id: &str) -> Option<ModelMetrics> {
+        let model_metrics = self.model_metrics.read().ok()?;
+        let per_model = model_metrics.get(model_id)?;
+
+        // Calculate derived metrics
+        let success_rate = if per_model.request_count > 0 {
+            1.0 - (per_model.failure_count as f64 / per_model.request_count as f64)
+        } else {
+            0.0
+        };
+
+        let avg_latency_ms = if per_model.request_count > 0 {
+            per_model.total_latency_ms / per_model.request_count
+        } else {
+            0
+        };
+
+        let avg_cost = if per_model.request_count > 0 {
+            per_model.total_cost / per_model.request_count as f64
+        } else {
+            0.0
+        };
+
+        Some(ModelMetrics {
+            model_id: model_id.to_string(),
+            success_rate,
+            avg_latency_ms,
+            avg_cost,
+            request_count: per_model.request_count,
+            failure_count: per_model.failure_count,
+        })
+    }
+}
+
+/// Metrics for a specific model.
+#[derive(Debug, Clone)]
+pub struct ModelMetrics {
+    /// Model identifier.
+    pub model_id: String,
+    /// Success rate (0.0-1.0).
+    pub success_rate: f64,
+    /// Average latency in milliseconds.
+    pub avg_latency_ms: u64,
+    /// Average cost per request in USD.
+    pub avg_cost: f64,
+    /// Total number of requests.
+    pub request_count: u64,
+    /// Total number of failures.
+    pub failure_count: u64,
+}
+
+impl ModelMetrics {
+    /// Creates new model metrics.
+    pub fn new(model_id: String) -> Self {
+        Self {
+            model_id,
+            success_rate: 1.0,
+            avg_latency_ms: 0,
+            avg_cost: 0.0,
+            request_count: 0,
+            failure_count: 0,
+        }
+    }
 }
 
 impl Default for CostTracker {
@@ -212,6 +311,7 @@ mod tests {
             prompt_tokens: 1000,
             completion_tokens: 500,
             total_tokens: 1500,
+            cache_usage: None,
         };
 
         let result = tracker.track_usage(RoutingTier::Smart, &usage, "claude-sonnet-3.5");
@@ -231,6 +331,7 @@ mod tests {
             prompt_tokens: 2000,
             completion_tokens: 1000,
             total_tokens: 3000,
+            cache_usage: None,
         };
 
         let result = tracker.track_usage(RoutingTier::Eco, &usage, "claude-haiku-3.5");
@@ -252,6 +353,7 @@ mod tests {
             prompt_tokens: 1000,
             completion_tokens: 500,
             total_tokens: 1500,
+            cache_usage: None,
         };
         tracker.track_usage(RoutingTier::Smart, &smart_usage, "claude-sonnet").unwrap();
 
@@ -260,6 +362,7 @@ mod tests {
             prompt_tokens: 2000,
             completion_tokens: 1000,
             total_tokens: 3000,
+            cache_usage: None,
         };
         tracker.track_usage(RoutingTier::Eco, &eco_usage, "claude-haiku").unwrap();
 
@@ -285,6 +388,7 @@ mod tests {
                 prompt_tokens: 100,
                 completion_tokens: 50,
                 total_tokens: 150,
+                cache_usage: None,
             };
             tracker.track_usage(RoutingTier::Smart, &usage, "test-model").unwrap();
         }
@@ -298,11 +402,12 @@ mod tests {
     #[test]
     fn test_reset() {
         let tracker = create_test_tracker();
-        
+
         let usage = ModelUsage {
             prompt_tokens: 1000,
             completion_tokens: 500,
             total_tokens: 1500,
+            cache_usage: None,
         };
         tracker.track_usage(RoutingTier::Smart, &usage, "test-model").unwrap();
 

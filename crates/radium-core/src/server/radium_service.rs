@@ -7,10 +7,18 @@ use radium_abstraction::{Model, ModelParameters};
 use radium_models::MockModel;
 use tonic::{Request, Response, Status};
 use tracing::{error, info, warn};
+use uuid::Uuid;
 
 use radium_orchestrator::{
     Agent, AgentContext, ChatAgent, EchoAgent, ModelClass, Orchestrator, SelectionCriteria,
-    SelectionError, SimpleAgent,
+    SelectionError, SimpleAgent, AgentExecutor,
+};
+
+#[cfg(feature = "workflow")]
+use {
+    crate::server::event_bridge::EventBridge,
+    radium_orchestrator::orchestration::events::OrchestrationEvent,
+    tokio::sync::broadcast,
 };
 
 use crate::models::{Task, Workflow};
@@ -19,14 +27,13 @@ use crate::context::braingrid_client::{
     BraingridClient, BraingridError, BraingridRequirement, BraingridTask,
     RequirementStatus, TaskStatus, CacheStats,
 };
+#[cfg(feature = "workflow")]
 use crate::workflow::{RequirementExecutor, RequirementExecutionResult, RequirementProgress};
 use crate::agents::registry::AgentRegistry;
-use radium_abstraction::Model;
-use radium_models::MockModel;
-use radium_orchestrator::AgentExecutor;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use futures::StreamExt;
+use crate::session::SessionState as CoreSessionState;
 use crate::proto::{
     AgentMessage, CancelTaskRequest, CancelTaskResponse, CreateAgentRequest, CreateAgentResponse, CreateTaskRequest, CreateTaskResponse,
     ResumeTaskRequest, ResumeTaskResponse,
@@ -42,7 +49,7 @@ use crate::proto::{
     PingResponse, RegisterAgentRequest, RegisterAgentResponse, RegisteredAgent,
     ReleaseResourceLockRequest, ReleaseResourceLockResponse, ReportProgressRequest,
     ReportProgressResponse, RequestResourceLockRequest, RequestResourceLockResponse,
-    SendMessageRequest, SendMessageResponse, SpawnWorkerAgentRequest, SpawnWorkerAgentResponse,
+    ResponseMetadata, SendMessageRequest, SendMessageResponse, SpawnWorkerAgentRequest, SpawnWorkerAgentResponse,
     StartAgentRequest, StartAgentResponse, StopAgentRequest, StopAgentResponse,
     StopWorkflowExecutionRequest, StopWorkflowExecutionResponse, UpdateAgentRequest,
     UpdateAgentResponse, UpdateTaskRequest, UpdateTaskResponse, UpdateWorkflowRequest,
@@ -59,6 +66,15 @@ use crate::proto::{
     GetBraingridCacheStatsRequest, GetBraingridCacheStatsResponse,
     BraingridRequirement as ProtoBraingridRequirement, BraingridTask as ProtoBraingridTask,
     RequirementExecutionResult as ProtoRequirementExecutionResult,
+    // Session Management RPCs
+    CreateSessionRequest, CreateSessionResponse,
+    ListSessionsRequest, ListSessionsResponse,
+    AttachSessionRequest, AttachSessionResponse,
+    SendSessionMessageRequest, SendSessionMessageResponse,
+    SessionEvent, Session as ProtoSession,
+    SessionMessage as ProtoSessionMessage,
+    SessionToolCall as ProtoSessionToolCall,
+    SessionApproval as ProtoSessionApproval,
 };
 use crate::storage::{
     AgentRepository, Database, SqliteAgentRepository, SqliteTaskRepository,
@@ -72,15 +88,29 @@ pub struct RadiumService {
     /// Agent orchestrator for managing agent execution.
     orchestrator: Arc<Orchestrator>,
     /// Message bus for agent-to-agent communication.
+    #[cfg(feature = "workflow")]
     message_bus: Arc<crate::collaboration::MessageBus>,
     /// Resource lock manager for workspace coordination.
+    #[cfg(feature = "workflow")]
     lock_manager: Arc<crate::collaboration::ResourceLockManager>,
     /// Delegation manager for supervisor-worker patterns.
+    #[cfg(feature = "workflow")]
     delegation_manager: Arc<crate::collaboration::DelegationManager>,
     /// Progress tracker for agent progress reporting.
+    #[cfg(feature = "workflow")]
     progress_tracker: Arc<crate::collaboration::ProgressTracker>,
     /// Braingrid client for requirement/task operations.
     braingrid_client: Arc<BraingridClient>,
+    /// Session manager for daemon-backed sessions.
+    session_manager: Arc<crate::session::SessionManager>,
+    /// Event bridge for routing orchestration events to session streams (workflow feature only).
+    #[cfg(feature = "workflow")]
+    event_bridge: Arc<EventBridge>,
+    /// Orchestration service for processing messages and executing agents (workflow feature only).
+    #[cfg(feature = "workflow")]
+    orchestration_service: Arc<radium_orchestrator::orchestration::service::OrchestrationService>,
+    /// Budget manager for cost tracking and enforcement.
+    budget_manager: Arc<crate::monitoring::BudgetManager>,
 }
 
 impl RadiumService {
@@ -89,74 +119,270 @@ impl RadiumService {
         let db_arc = Arc::new(Mutex::new(db));
         let orchestrator = Arc::new(Orchestrator::new());
 
-        // Initialize collaboration components
-        let message_bus = Arc::new(crate::collaboration::MessageBus::new(Arc::clone(&db_arc)));
-        let lock_manager = Arc::new(crate::collaboration::ResourceLockManager::new());
-        let progress_tracker = Arc::new(crate::collaboration::ProgressTracker::new(Arc::clone(&db_arc)));
-        
-        // Create worker executor wrapper for delegation manager
-        struct OrchestratorWorkerExecutor {
-            orchestrator: Arc<Orchestrator>,
-        }
-        impl crate::collaboration::delegation::WorkerExecutor for OrchestratorWorkerExecutor {
-            fn execute_worker(&self, worker_id: &str, task_input: &str) -> std::pin::Pin<Box<dyn std::future::Future<Output = std::result::Result<crate::collaboration::delegation::WorkerExecutionResult, String>> + Send>> {
-                let orchestrator = Arc::clone(&self.orchestrator);
-                let worker_id = worker_id.to_string();
-                let task_input = task_input.to_string();
-                Box::pin(async move {
-                    match orchestrator.execute_agent(Some(&worker_id), &task_input, None).await {
-                        Ok(result) => Ok(crate::collaboration::delegation::WorkerExecutionResult {
-                            success: result.success,
-                            output: Some(format!("{:?}", result.output)),
-                            error: result.error,
-                        }),
-                        Err(e) => Err(e.to_string()),
-                    }
-                })
+        // Initialize collaboration components (workflow feature only)
+        #[cfg(feature = "workflow")]
+        let (message_bus, lock_manager, delegation_manager, progress_tracker) = {
+            let message_bus = Arc::new(crate::collaboration::MessageBus::new(Arc::clone(&db_arc)));
+            let lock_manager = Arc::new(crate::collaboration::ResourceLockManager::new());
+            let progress_tracker = Arc::new(crate::collaboration::ProgressTracker::new(Arc::clone(&db_arc)));
+
+            // Create worker executor wrapper for delegation manager
+            struct OrchestratorWorkerExecutor {
+                orchestrator: Arc<Orchestrator>,
             }
-        }
-        let worker_executor: Arc<dyn crate::collaboration::delegation::WorkerExecutor> = Arc::new(OrchestratorWorkerExecutor {
-            orchestrator: Arc::clone(&orchestrator),
-        });
-        
-        let delegation_manager = Arc::new(crate::collaboration::DelegationManager::new(
-            Arc::clone(&db_arc),
-            Arc::clone(&message_bus),
-            worker_executor,
-        ));
+            impl crate::collaboration::delegation::WorkerExecutor for OrchestratorWorkerExecutor {
+                fn execute_worker(&self, worker_id: &str, task_input: &str) -> std::pin::Pin<Box<dyn std::future::Future<Output = std::result::Result<crate::collaboration::delegation::WorkerExecutionResult, String>> + Send>> {
+                    let orchestrator = Arc::clone(&self.orchestrator);
+                    let worker_id = worker_id.to_string();
+                    let task_input = task_input.to_string();
+                    Box::pin(async move {
+                        match orchestrator.execute_agent(Some(&worker_id), &task_input, None).await {
+                            Ok(result) => Ok(crate::collaboration::delegation::WorkerExecutionResult {
+                                success: result.success,
+                                output: Some(format!("{:?}", result.output)),
+                                error: result.error,
+                            }),
+                            Err(e) => Err(e.to_string()),
+                        }
+                    })
+                }
+            }
+            let worker_executor: Arc<dyn crate::collaboration::delegation::WorkerExecutor> = Arc::new(OrchestratorWorkerExecutor {
+                orchestrator: Arc::clone(&orchestrator),
+            });
+
+            let delegation_manager = Arc::new(crate::collaboration::DelegationManager::new(
+                Arc::clone(&db_arc),
+                Arc::clone(&message_bus),
+                worker_executor,
+            ));
+
+            (message_bus, lock_manager, delegation_manager, progress_tracker)
+        };
 
         // Initialize Braingrid client
         let project_id = std::env::var("BRAINGRID_PROJECT_ID")
             .unwrap_or_else(|_| "PROJ-14".to_string());
         let braingrid_client = Arc::new(BraingridClient::new(project_id));
 
+        // Initialize session manager
+        let workspace_root = crate::workspace::Workspace::discover()
+            .map(|w| w.root().to_path_buf())
+            .unwrap_or_else(|_| {
+                std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
+            });
+        let session_manager = Arc::new(
+            crate::session::SessionManager::new(&workspace_root)
+                .map_err(|e| {
+                    error!("Failed to initialize session manager: {}", e);
+                    e
+                })
+                .unwrap_or_else(|_| {
+                    // Fallback: create session manager in current directory
+                    crate::session::SessionManager::new(&std::path::PathBuf::from("."))
+                        .expect("Failed to create fallback session manager")
+                }),
+        );
+
+        // Initialize budget manager
+        // Read budget limit from environment variable or use default (unlimited)
+        let budget_limit = std::env::var("RADIUM_BUDGET_LIMIT")
+            .ok()
+            .and_then(|s| s.parse::<f64>().ok());
+        let budget_config = crate::monitoring::BudgetConfig::new(budget_limit)
+            .with_warning_thresholds(vec![80, 90]);
+        let budget_manager = Arc::new(crate::monitoring::BudgetManager::new(budget_config));
+        info!(
+            budget_limit = ?budget_limit,
+            "Budget manager initialized"
+        );
+
+        // Initialize orchestration service and event bridge for workflow feature
+        #[cfg(feature = "workflow")]
+        let (event_bridge, orchestration_service) = {
+            // Get current tokio runtime handle
+            let handle = tokio::runtime::Handle::try_current()
+                .expect("RadiumService::new() must be called from within a tokio runtime");
+
+            // Create default orchestration configuration
+            let orch_config = radium_orchestrator::orchestration::config::OrchestrationConfig::default();
+
+            // Initialize OrchestrationService with workspace (blocking on async init)
+            let orch_service = handle.block_on(async {
+                radium_orchestrator::orchestration::service::OrchestrationService::initialize(
+                    orch_config,
+                    None, // MCP tools can be added later
+                    Some(workspace_root.clone()),
+                    None, // sandbox_manager
+                    None, // context_loader
+                    None, // hook_executor
+                )
+                .await
+                .map_err(|e| {
+                    error!("Failed to initialize orchestration service: {}", e);
+                    e
+                })
+                .expect("Failed to create orchestration service")
+            });
+
+            // Subscribe to orchestration events
+            let event_rx = orch_service.subscribe_events();
+
+            // Create EventBridge and start forwarding orchestration events to sessions
+            let bridge = Arc::new(EventBridge::new());
+            bridge.start_forwarding(event_rx);
+
+            (bridge, Arc::new(orch_service))
+        };
+
         Self {
             db: db_arc,
             orchestrator,
+            #[cfg(feature = "workflow")]
             message_bus,
+            #[cfg(feature = "workflow")]
             lock_manager,
+            #[cfg(feature = "workflow")]
             delegation_manager,
+            #[cfg(feature = "workflow")]
             progress_tracker,
             braingrid_client,
+            session_manager,
+            #[cfg(feature = "workflow")]
+            event_bridge,
+            #[cfg(feature = "workflow")]
+            orchestration_service,
+            budget_manager,
         }
     }
 
     /// Gets a reference to the message bus.
+    #[cfg(feature = "workflow")]
     pub fn get_message_bus(&self) -> Arc<crate::collaboration::MessageBus> {
         Arc::clone(&self.message_bus)
     }
 
+    /// Creates an AgentExecutor with budget manager attached.
+    ///
+    /// This helper ensures all AgentExecutor instances have budget tracking enabled.
+    fn create_executor_with_budget(&self) -> Arc<AgentExecutor> {
+        let mut executor = AgentExecutor::with_mock_model();
+        executor.set_budget_manager(Arc::clone(&self.budget_manager) as Arc<dyn radium_abstraction::budget::BudgetManagerTrait>);
+        Arc::new(executor)
+    }
+
+    /// Converts metadata from ExecutionResponse to gRPC ResponseMetadata.
+    fn convert_metadata(
+        metadata: Option<&std::collections::HashMap<String, serde_json::Value>>,
+    ) -> Option<ResponseMetadata> {
+        let metadata = metadata?;
+        let mut response_metadata = ResponseMetadata {
+            finish_reason: None,
+            safety_blocked: false,
+            citation_count: None,
+            model_version: None,
+            raw_metadata_json: None,
+        };
+
+        // Extract finish_reason
+        if let Some(finish_reason) = metadata.get("finish_reason").and_then(|v| v.as_str()) {
+            response_metadata.finish_reason = Some(finish_reason.to_string());
+        }
+
+        // Extract safety_blocked from safety_ratings
+        if let Some(safety_ratings_val) = metadata.get("safety_ratings") {
+            if let Ok(safety_ratings) = serde_json::from_value::<Vec<serde_json::Value>>(safety_ratings_val.clone()) {
+                response_metadata.safety_blocked = safety_ratings.iter().any(|r| {
+                    r.get("blocked").and_then(|v| v.as_bool()).unwrap_or(false)
+                });
+            }
+        }
+
+        // Extract citation_count
+        if let Some(citations_val) = metadata.get("citations") {
+            if let Ok(citations) = serde_json::from_value::<Vec<serde_json::Value>>(citations_val.clone()) {
+                response_metadata.citation_count = Some(citations.len() as i32);
+            }
+        }
+
+        // Extract model_version
+        if let Some(model_version) = metadata.get("model_version").and_then(|v| v.as_str()) {
+            response_metadata.model_version = Some(model_version.to_string());
+        }
+
+        // Store raw metadata as JSON for provider-specific fields
+        if let Ok(raw_json) = serde_json::to_string(metadata) {
+            response_metadata.raw_metadata_json = Some(raw_json);
+        }
+
+        Some(response_metadata)
+    }
+
+    /// Converts ExecutionResult telemetry and routing to gRPC ResponseMetadata.
+    fn execution_result_to_metadata(exec_result: &radium_orchestrator::executor::ExecutionResult) -> Option<ResponseMetadata> {
+        // Build metadata from telemetry and routing decision
+        let mut metadata_map = std::collections::HashMap::new();
+
+        // Add telemetry data if available
+        if let Some(ref telemetry) = exec_result.telemetry {
+            metadata_map.insert("input_tokens".to_string(), serde_json::json!(telemetry.input_tokens));
+            metadata_map.insert("output_tokens".to_string(), serde_json::json!(telemetry.output_tokens));
+            metadata_map.insert("total_tokens".to_string(), serde_json::json!(telemetry.total_tokens));
+            if let Some(ref model_id) = telemetry.model_id {
+                metadata_map.insert("model_id".to_string(), serde_json::json!(model_id));
+            }
+        }
+
+        // Add routing decision if available
+        if let Some(ref routing) = exec_result.routing_decision {
+            metadata_map.insert("selected_model".to_string(), serde_json::json!(routing.selected_model));
+            metadata_map.insert("reason".to_string(), serde_json::json!(routing.reason));
+            if let Some(estimated_cost) = routing.estimated_cost {
+                metadata_map.insert("estimated_cost".to_string(), serde_json::json!(estimated_cost));
+            }
+        }
+
+        // Return None if no metadata
+        if metadata_map.is_empty() {
+            return None;
+        }
+
+        // Build ResponseMetadata
+        let mut response_metadata = ResponseMetadata {
+            finish_reason: Some("stop".to_string()), // Default to stop
+            safety_blocked: false,
+            citation_count: None,
+            model_version: None,
+            raw_metadata_json: None,
+        };
+
+        // Set model_version from telemetry if available
+        if let Some(telemetry) = &exec_result.telemetry {
+            response_metadata.model_version = telemetry.model_id.clone();
+        }
+
+        // Store raw metadata as JSON
+        if let Ok(raw_json) = serde_json::to_string(&metadata_map) {
+            response_metadata.raw_metadata_json = Some(raw_json);
+        }
+
+        Some(response_metadata)
+    }
+
     /// Gets a reference to the lock manager.
+    #[cfg(feature = "workflow")]
     pub fn get_lock_manager(&self) -> Arc<crate::collaboration::ResourceLockManager> {
         Arc::clone(&self.lock_manager)
     }
 
     /// Gets a reference to the delegation manager.
+    #[cfg(feature = "workflow")]
     pub fn get_delegation_manager(&self) -> Arc<crate::collaboration::DelegationManager> {
         Arc::clone(&self.delegation_manager)
     }
 
     /// Gets a reference to the progress tracker.
+    #[cfg(feature = "workflow")]
     pub fn get_progress_tracker(&self) -> Arc<crate::collaboration::ProgressTracker> {
         Arc::clone(&self.progress_tracker)
     }
@@ -571,18 +797,22 @@ impl Radium for RadiumService {
         let task_id = request.into_inner().task_id;
         info!(task_id = %task_id, "Received cancel task request");
 
-        // Check if task exists
-        let mut db = self.lock_db()?;
-        let repo = SqliteTaskRepository::new(&mut *db);
-        let mut task = repo.get_by_id(&task_id).map_err(|e| storage_to_status(&e, "Task", &task_id))?;
+        // Check if task exists and get task info
+        let (mut task, was_running, started_at) = {
+            let mut db = self.lock_db()?;
+            let repo = SqliteTaskRepository::new(&mut *db);
+            let task = repo.get_by_id(&task_id).map_err(|e| storage_to_status(&e, "Task", &task_id))?;
 
-        // Capture partial result if task was running
-        let was_running = matches!(task.state, crate::models::TaskState::Running);
-        let started_at = task.created_at; // Use created_at as started_at if not available in result
-        
-        // Cancel task via orchestrator if available
-        if let Some(ref orchestrator) = self.orchestrator {
-            let cancelled = orchestrator.cancel_task(&task_id).await;
+            // Capture partial result if task was running
+            let was_running = matches!(task.state, crate::models::TaskState::Running);
+            let started_at = task.created_at; // Use created_at as started_at if not available in result
+
+            (task, was_running, started_at)
+        }; // db lock is dropped here
+
+        // Cancel task via orchestrator
+        {
+            let cancelled = self.orchestrator.cancel_task(&task_id).await;
             if cancelled || was_running {
                 // Create partial result for cancelled task
                 let cancelled_at = Utc::now();
@@ -607,7 +837,8 @@ impl Radium for RadiumService {
                 // Update task with partial result and Cancelled state
                 task.set_result(partial_result);
                 task.set_state(crate::models::TaskState::Cancelled);
-                
+
+                let mut db = self.lock_db()?;
                 let mut repo = SqliteTaskRepository::new(&mut *db);
                 if let Err(e) = repo.update(&task) {
                     warn!(task_id = %task_id, error = %e, "Failed to update task with partial result after cancellation");
@@ -623,34 +854,6 @@ impl Radium for RadiumService {
                     message: format!("Task {} not found in running tasks or already completed", task_id),
                 }))
             }
-        } else {
-            // No orchestrator available, create partial result and update task state
-            let cancelled_at = Utc::now();
-            let partial_output = if let Some(ref existing_result) = task.result {
-                existing_result.output.clone()
-            } else {
-                serde_json::json!({
-                    "message": "Task was cancelled",
-                    "partial": true
-                })
-            };
-            
-            let partial_result = TaskResult::partial(
-                partial_output,
-                started_at,
-                cancelled_at,
-                Some("user_requested".to_string()),
-            );
-            
-            task.set_result(partial_result);
-            task.set_state(crate::models::TaskState::Cancelled);
-            let mut repo = SqliteTaskRepository::new(&mut *db);
-            repo.update(&task).map_err(|e| storage_to_status(&e, "Task", &task_id))?;
-            
-            Ok(Response::new(CancelTaskResponse {
-                success: true,
-                message: format!("Task {} marked as cancelled, partial results saved", task_id),
-            }))
         }
     }
 
@@ -661,47 +864,51 @@ impl Radium for RadiumService {
         let task_id = request.into_inner().task_id;
         info!(task_id = %task_id, "Received resume task request");
 
-        // Check if task exists
-        let mut db = self.lock_db()?;
-        let repo = SqliteTaskRepository::new(&mut *db);
-        let task = repo.get_by_id(&task_id).map_err(|e| storage_to_status(&e, "Task", &task_id))?;
+        // Check if task exists, validate, and update state
+        let (agent_id, input) = {
+            let mut db = self.lock_db()?;
+            let repo = SqliteTaskRepository::new(&mut *db);
+            let task = repo.get_by_id(&task_id).map_err(|e| storage_to_status(&e, "Task", &task_id))?;
 
-        // Validate that task can be resumed
-        if !matches!(task.state, crate::models::TaskState::Cancelled) {
-            return Ok(Response::new(ResumeTaskResponse {
-                success: false,
-                message: format!("Task {} cannot be resumed: current state is {:?}, expected Cancelled", task_id, task.state),
-            }));
-        }
+            // Validate that task can be resumed
+            if !matches!(task.state, crate::models::TaskState::Cancelled) {
+                return Ok(Response::new(ResumeTaskResponse {
+                    success: false,
+                    message: format!("Task {} cannot be resumed: current state is {:?}, expected Cancelled", task_id, task.state),
+                }));
+            }
 
-        if !task.has_partial_result() {
-            return Ok(Response::new(ResumeTaskResponse {
-                success: false,
-                message: format!("Task {} cannot be resumed: no partial results available", task_id),
-            }));
-        }
+            if !task.has_partial_result() {
+                return Ok(Response::new(ResumeTaskResponse {
+                    success: false,
+                    message: format!("Task {} cannot be resumed: no partial results available", task_id),
+                }));
+            }
 
-        // Restore task state and re-enqueue for execution
-        let mut task = task;
-        task.set_state(crate::models::TaskState::Queued);
-        
-        // Clear the partial result flag (or keep it for reference - for now we'll keep it)
-        // The task will be re-executed from the beginning, but we have the partial results for reference
-        
-        let mut repo = SqliteTaskRepository::new(&mut *db);
-        repo.update(&task).map_err(|e| storage_to_status(&e, "Task", &task_id))?;
+            // Restore task state and re-enqueue for execution
+            let mut task = task;
+            task.set_state(crate::models::TaskState::Queued);
 
-        // Re-enqueue task via orchestrator if available
-        if let Some(ref orchestrator) = self.orchestrator {
+            // Clear the partial result flag (or keep it for reference - for now we'll keep it)
+            // The task will be re-executed from the beginning, but we have the partial results for reference
+
+            let mut repo = SqliteTaskRepository::new(&mut *db);
+            repo.update(&task).map_err(|e| storage_to_status(&e, "Task", &task_id))?;
+
+            (task.agent_id.clone(), task.input.clone())
+        }; // db lock is dropped here
+
+        // Re-enqueue task via orchestrator
+        {
             use radium_orchestrator::ExecutionTask;
             let execution_task = ExecutionTask::new(
-                task.agent_id.clone(),
-                serde_json::to_string(&task.input).unwrap_or_else(|_| "{}".to_string()),
+                agent_id,
+                serde_json::to_string(&input).unwrap_or_else(|_| "{}".to_string()),
                 1, // Default priority
             )
             .with_task_id(task_id.clone());
-            
-            if let Err(e) = orchestrator.enqueue_task(execution_task).await {
+
+            if let Err(e) = self.orchestrator.enqueue_task(execution_task).await {
                 warn!(task_id = %task_id, error = %e, "Failed to re-enqueue task for resume");
                 return Ok(Response::new(ResumeTaskResponse {
                     success: false,
@@ -773,6 +980,24 @@ impl Radium for RadiumService {
             ));
         };
 
+        // Use session_id as correlation_id if provided, otherwise generate random ID
+        let correlation_id = inner.session_id.unwrap_or_else(|| {
+            let generated_id = format!("exec-{}", Uuid::new_v4());
+            info!(correlation_id = %generated_id, "Generated correlation_id (no session_id provided)");
+            generated_id
+        });
+
+        info!(correlation_id = %correlation_id, "Using correlation_id for event tracking");
+
+        // Emit start event (workflow feature only)
+        #[cfg(feature = "workflow")]
+        {
+            let _ = self.event_tx.send(OrchestrationEvent::AssistantMessage {
+                correlation_id: correlation_id.clone(),
+                content: format!("Starting execution for agent: {}", agent_id),
+            });
+        }
+
         // Execute with the selected/provided agent
         let result = if let (Some(model_type), Some(model_id)) = (inner.model_type, inner.model_id)
         {
@@ -785,6 +1010,7 @@ impl Radium for RadiumService {
                         success: false,
                         output: String::new(),
                         error: Some(format!("Invalid model type: {}", model_type)),
+                        metadata: None,
                     }));
                 }
             };
@@ -796,25 +1022,79 @@ impl Radium for RadiumService {
         };
 
         match result {
-            Ok(exec_result) => Ok(Response::new(ExecuteAgentResponse {
-                success: exec_result.success,
-                output: match exec_result.output {
-                    radium_orchestrator::AgentOutput::Text(text) => text,
+            Ok(exec_result) => {
+                let output_str = match &exec_result.output {
+                    radium_orchestrator::AgentOutput::Text(text) => text.clone(),
                     radium_orchestrator::AgentOutput::StructuredData(data) => {
                         serde_json::to_string(&data).unwrap_or_else(|_| "Invalid JSON".to_string())
                     }
                     radium_orchestrator::AgentOutput::ToolCall { name, args } => {
                         format!("ToolCall: {} with args: {}", name, args)
                     }
+                    radium_orchestrator::AgentOutput::CodeExecution(result) => {
+                        let mut output = format!("Code execution:\nCode: {}\n", result.code);
+                        if let Some(ref stdout) = result.stdout {
+                            output.push_str(&format!("Stdout: {}\n", stdout));
+                        }
+                        if let Some(ref stderr) = result.stderr {
+                            output.push_str(&format!("Stderr: {}\n", stderr));
+                        }
+                        if let Some(ref return_value) = result.return_value {
+                            output.push_str(&format!("Return value: {}\n", return_value));
+                        }
+                        if let Some(ref error) = result.error {
+                            output.push_str(&format!("Error: {}\n", error));
+                        }
+                        output
+                    }
                     radium_orchestrator::AgentOutput::Terminate => "Terminated".to_string(),
-                },
-                error: exec_result.error,
-            })),
-            Err(e) => Ok(Response::new(ExecuteAgentResponse {
-                success: false,
-                output: String::new(),
-                error: Some(e.to_string()),
-            })),
+                };
+
+                // Emit completion event (workflow feature only)
+                #[cfg(feature = "workflow")]
+                {
+                    if exec_result.success {
+                        let _ = self.event_tx.send(OrchestrationEvent::AssistantMessage {
+                            correlation_id: correlation_id.clone(),
+                            content: format!("Execution completed: {}", output_str),
+                        });
+                        let _ = self.event_tx.send(OrchestrationEvent::Done {
+                            correlation_id: correlation_id.clone(),
+                            finish_reason: "stop".to_string(),
+                        });
+                    } else {
+                        let _ = self.event_tx.send(OrchestrationEvent::Error {
+                            correlation_id: correlation_id.clone(),
+                            message: exec_result.error.clone().unwrap_or_else(|| "Execution failed".to_string()),
+                        });
+                    }
+                }
+
+                Ok(Response::new(ExecuteAgentResponse {
+                    success: exec_result.success,
+                    output: output_str,
+                    error: exec_result.error,
+                    // Extract metadata from ExecutionResult telemetry and routing
+                    metadata: Self::execution_result_to_metadata(&exec_result),
+                }))
+            }
+            Err(e) => {
+                // Emit error event (workflow feature only)
+                #[cfg(feature = "workflow")]
+                {
+                    let _ = self.event_tx.send(OrchestrationEvent::Error {
+                        correlation_id: correlation_id.clone(),
+                        message: e.to_string(),
+                    });
+                }
+
+                Ok(Response::new(ExecuteAgentResponse {
+                    success: false,
+                    output: String::new(),
+                    error: Some(e.to_string()),
+                    metadata: None,
+                }))
+            }
         }
     }
 
@@ -907,54 +1187,70 @@ impl Radium for RadiumService {
         &self,
         request: Request<ExecuteWorkflowRequest>,
     ) -> Result<Response<ExecuteWorkflowResponse>, Status> {
-        let req = request.into_inner();
-        let workflow_id = req.workflow_id;
-        let use_parallel = req.use_parallel;
+        #[cfg(feature = "workflow")]
+        {
+            let req = request.into_inner();
+            let workflow_id = req.workflow_id;
+            let use_parallel = req.use_parallel;
 
-        info!(
-            workflow_id = %workflow_id,
-            use_parallel = use_parallel,
-            "ExecuteWorkflow RPC called"
-        );
+            info!(
+                workflow_id = %workflow_id,
+                use_parallel = use_parallel,
+                "ExecuteWorkflow RPC called"
+            );
 
-        // Create workflow service
-        let executor = Arc::new(radium_orchestrator::AgentExecutor::with_mock_model());
-        let workflow_service =
-            crate::workflow::WorkflowService::new(&self.orchestrator, &executor, &self.db);
+            // Create workflow service
+            let executor = self.create_executor_with_budget();
+            let workflow_service =
+                crate::workflow::WorkflowService::new(&self.orchestrator, &executor, &self.db);
 
-        // Execute workflow
-        let result = workflow_service.execute_workflow(&workflow_id, use_parallel).await;
+            // Execute workflow
+            let result = workflow_service.execute_workflow(&workflow_id, use_parallel).await;
 
-        match result {
-            Ok(execution) => {
-                let final_state_json = serde_json::to_string(&execution.final_state)
-                    .map_err(|e| Status::internal(format!("Failed to serialize state: {}", e)))?;
+            match result {
+                Ok(execution) => {
+                    let final_state_json = serde_json::to_string(&execution.final_state)
+                        .map_err(|e| Status::internal(format!("Failed to serialize state: {}", e)))?;
 
-                Ok(Response::new(ExecuteWorkflowResponse {
-                    execution_id: execution.execution_id,
-                    workflow_id: execution.workflow_id,
-                    success: matches!(
-                        execution.final_state,
-                        crate::models::WorkflowState::Completed
-                    ),
-                    error: None,
-                    final_state: final_state_json,
-                }))
+                    Ok(Response::new(ExecuteWorkflowResponse {
+                        execution_id: execution.execution_id,
+                        workflow_id: execution.workflow_id,
+                        success: matches!(
+                            execution.final_state,
+                            crate::models::WorkflowState::Completed
+                        ),
+                        error: None,
+                        final_state: final_state_json,
+                    }))
+                }
+                Err(e) => {
+                    error!(
+                        workflow_id = %workflow_id,
+                        error = %e,
+                        "Workflow execution failed"
+                    );
+                    Ok(Response::new(ExecuteWorkflowResponse {
+                        execution_id: String::new(),
+                        workflow_id,
+                        success: false,
+                        error: Some(e.to_string()),
+                        final_state: String::new(),
+                    }))
+                }
             }
-            Err(e) => {
-                error!(
-                    workflow_id = %workflow_id,
-                    error = %e,
-                    "Workflow execution failed"
-                );
-                Ok(Response::new(ExecuteWorkflowResponse {
-                    execution_id: String::new(),
-                    workflow_id,
-                    success: false,
-                    error: Some(e.to_string()),
-                    final_state: String::new(),
-                }))
-            }
+        }
+        #[cfg(not(feature = "workflow"))]
+        {
+            let req = request.into_inner();
+            let workflow_id = req.workflow_id;
+
+            Ok(Response::new(ExecuteWorkflowResponse {
+                execution_id: String::new(),
+                workflow_id,
+                success: false,
+                error: Some("Workflow execution requires 'workflow' feature to be enabled".to_string()),
+                final_state: String::new(),
+            }))
         }
     }
 
@@ -962,115 +1258,144 @@ impl Radium for RadiumService {
         &self,
         request: Request<GetWorkflowExecutionRequest>,
     ) -> Result<Response<GetWorkflowExecutionResponse>, Status> {
-        let req = request.into_inner();
-        let execution_id = req.execution_id;
+        #[cfg(feature = "workflow")]
+        {
+            let req = request.into_inner();
+            let execution_id = req.execution_id;
 
-        info!(execution_id = %execution_id, "GetWorkflowExecution RPC called");
+            info!(execution_id = %execution_id, "GetWorkflowExecution RPC called");
 
-        // Create workflow service
-        let executor = Arc::new(radium_orchestrator::AgentExecutor::with_mock_model());
-        let workflow_service =
-            crate::workflow::WorkflowService::new(&self.orchestrator, &executor, &self.db);
+            // Create workflow service
+            let executor = self.create_executor_with_budget();
+            let workflow_service =
+                crate::workflow::WorkflowService::new(&self.orchestrator, &executor, &self.db);
 
-        // Get execution
-        let execution = workflow_service.get_execution(&execution_id).await.ok_or_else(|| {
-            Status::not_found(format!("Workflow execution {} not found", execution_id))
-        })?;
+            // Get execution
+            let execution = workflow_service.get_execution(&execution_id).await.ok_or_else(|| {
+                Status::not_found(format!("Workflow execution {} not found", execution_id))
+            })?;
 
-        // Convert to proto
-        let context_json = serde_json::to_string(&execution.context)
-            .map_err(|e| Status::internal(format!("Failed to serialize context: {}", e)))?;
-        let final_state_json = serde_json::to_string(&execution.final_state)
-            .map_err(|e| Status::internal(format!("Failed to serialize state: {}", e)))?;
+            // Convert to proto
+            let context_json = serde_json::to_string(&execution.context)
+                .map_err(|e| Status::internal(format!("Failed to serialize context: {}", e)))?;
+            let final_state_json = serde_json::to_string(&execution.final_state)
+                .map_err(|e| Status::internal(format!("Failed to serialize state: {}", e)))?;
 
-        let proto_execution = WorkflowExecution {
-            execution_id: execution.execution_id,
-            workflow_id: execution.workflow_id,
-            context_json,
-            started_at: execution.started_at.to_rfc3339(),
-            completed_at: execution.completed_at.map(|dt| dt.to_rfc3339()),
-            final_state: final_state_json,
-        };
+            let proto_execution = WorkflowExecution {
+                execution_id: execution.execution_id,
+                workflow_id: execution.workflow_id,
+                context_json,
+                started_at: execution.started_at.to_rfc3339(),
+                completed_at: execution.completed_at.map(|dt| dt.to_rfc3339()),
+                final_state: final_state_json,
+            };
 
-        Ok(Response::new(GetWorkflowExecutionResponse { execution: Some(proto_execution) }))
+            Ok(Response::new(GetWorkflowExecutionResponse { execution: Some(proto_execution) }))
+        }
+        #[cfg(not(feature = "workflow"))]
+        {
+            let _ = request;
+            Err(Status::unimplemented("Workflow execution requires 'workflow' feature to be enabled"))
+        }
     }
 
     async fn stop_workflow_execution(
         &self,
         request: Request<StopWorkflowExecutionRequest>,
     ) -> Result<Response<StopWorkflowExecutionResponse>, Status> {
-        let req = request.into_inner();
-        let workflow_id = req.workflow_id;
+        #[cfg(feature = "workflow")]
+        {
+            let req = request.into_inner();
+            let workflow_id = req.workflow_id;
 
-        info!(workflow_id = %workflow_id, "StopWorkflowExecution RPC called");
+            info!(workflow_id = %workflow_id, "StopWorkflowExecution RPC called");
 
-        // Create workflow service
-        let executor = Arc::new(radium_orchestrator::AgentExecutor::with_mock_model());
-        let _workflow_service =
-            crate::workflow::WorkflowService::new(&self.orchestrator, &executor, &self.db);
+            // Create workflow service
+            let executor = self.create_executor_with_budget();
+            let _workflow_service =
+                crate::workflow::WorkflowService::new(&self.orchestrator, &executor, &self.db);
 
-        // Stop workflow - load workflow first, then update
-        let workflow_state = {
-            let mut db = self.lock_db()?;
-            let workflow_repo = SqliteWorkflowRepository::new(&mut *db);
-            let workflow = workflow_repo
-                .get_by_id(&workflow_id)
-                .map_err(|e| storage_to_status(&e, "Workflow", &workflow_id))?;
-            workflow.state
-        };
+            // Stop workflow - load workflow first, then update
+            let workflow_state = {
+                let mut db = self.lock_db()?;
+                let workflow_repo = SqliteWorkflowRepository::new(&mut *db);
+                let workflow = workflow_repo
+                    .get_by_id(&workflow_id)
+                    .map_err(|e| storage_to_status(&e, "Workflow", &workflow_id))?;
+                workflow.state
+            };
 
-        // Update state if running
-        if matches!(workflow_state, crate::models::WorkflowState::Running) {
-            let mut db = self.lock_db()?;
-            let mut workflow_repo = SqliteWorkflowRepository::new(&mut *db);
-            let mut workflow = workflow_repo
-                .get_by_id(&workflow_id)
-                .map_err(|e| storage_to_status(&e, "Workflow", &workflow_id))?;
-            workflow.set_state(crate::models::WorkflowState::Idle);
-            workflow_repo
-                .update(&workflow)
-                .map_err(|e| storage_to_status(&e, "Workflow", &workflow_id))?;
+            // Update state if running
+            if matches!(workflow_state, crate::models::WorkflowState::Running) {
+                let mut db = self.lock_db()?;
+                let mut workflow_repo = SqliteWorkflowRepository::new(&mut *db);
+                let mut workflow = workflow_repo
+                    .get_by_id(&workflow_id)
+                    .map_err(|e| storage_to_status(&e, "Workflow", &workflow_id))?;
+                workflow.set_state(crate::models::WorkflowState::Idle);
+                workflow_repo
+                    .update(&workflow)
+                    .map_err(|e| storage_to_status(&e, "Workflow", &workflow_id))?;
+            }
+
+            Ok(Response::new(StopWorkflowExecutionResponse { success: true, error: None }))
         }
-
-        Ok(Response::new(StopWorkflowExecutionResponse { success: true, error: None }))
+        #[cfg(not(feature = "workflow"))]
+        {
+            let _ = request;
+            Ok(Response::new(StopWorkflowExecutionResponse {
+                success: false,
+                error: Some("Workflow execution requires 'workflow' feature to be enabled".to_string())
+            }))
+        }
     }
 
     async fn list_workflow_executions(
         &self,
         request: Request<ListWorkflowExecutionsRequest>,
     ) -> Result<Response<ListWorkflowExecutionsResponse>, Status> {
-        let req = request.into_inner();
-        let workflow_id = req.workflow_id;
+        #[cfg(feature = "workflow")]
+        {
+            let req = request.into_inner();
+            let workflow_id = req.workflow_id;
 
-        info!("ListWorkflowExecutions RPC called");
+            info!("ListWorkflowExecutions RPC called");
 
-        // Create workflow service
-        let executor = Arc::new(radium_orchestrator::AgentExecutor::with_mock_model());
-        let workflow_service =
-            crate::workflow::WorkflowService::new(&self.orchestrator, &executor, &self.db);
+            // Create workflow service
+            let executor = self.create_executor_with_budget();
+            let workflow_service =
+                crate::workflow::WorkflowService::new(&self.orchestrator, &executor, &self.db);
 
-        // Get executions
-        let executions = workflow_service.get_execution_history(workflow_id.as_deref()).await;
+            // Get executions
+            let executions = workflow_service.get_execution_history(workflow_id.as_deref()).await;
 
-        // Convert to proto
-        let proto_executions: Vec<WorkflowExecution> = executions
-            .into_iter()
-            .map(|exec| {
-                let context_json = serde_json::to_string(&exec.context).unwrap_or_default();
-                let final_state_json = serde_json::to_string(&exec.final_state).unwrap_or_default();
+            // Convert to proto
+            let proto_executions: Vec<WorkflowExecution> = executions
+                .into_iter()
+                .map(|exec| {
+                    let context_json = serde_json::to_string(&exec.context).unwrap_or_default();
+                    let final_state_json = serde_json::to_string(&exec.final_state).unwrap_or_default();
 
-                WorkflowExecution {
-                    execution_id: exec.execution_id,
-                    workflow_id: exec.workflow_id,
-                    context_json,
-                    started_at: exec.started_at.to_rfc3339(),
-                    completed_at: exec.completed_at.map(|dt| dt.to_rfc3339()),
-                    final_state: final_state_json,
-                }
-            })
-            .collect();
+                    WorkflowExecution {
+                        execution_id: exec.execution_id,
+                        workflow_id: exec.workflow_id,
+                        context_json,
+                        started_at: exec.started_at.to_rfc3339(),
+                        completed_at: exec.completed_at.map(|dt| dt.to_rfc3339()),
+                        final_state: final_state_json,
+                    }
+                })
+                .collect();
 
-        Ok(Response::new(ListWorkflowExecutionsResponse { executions: proto_executions }))
+            Ok(Response::new(ListWorkflowExecutionsResponse { executions: proto_executions }))
+        }
+        #[cfg(not(feature = "workflow"))]
+        {
+            let _ = request;
+            Ok(Response::new(ListWorkflowExecutionsResponse {
+                executions: Vec::new()
+            }))
+        }
     }
 
     async fn validate_sources(
@@ -1142,41 +1467,53 @@ impl Radium for RadiumService {
         &self,
         request: Request<SendMessageRequest>,
     ) -> Result<Response<SendMessageResponse>, Status> {
-        let inner = request.into_inner();
-        info!(
-            sender_id = %inner.sender_id,
-            recipient_id = %inner.recipient_id,
-            message_type = %inner.message_type,
-            "SendMessage request"
-        );
+        #[cfg(feature = "workflow")]
+        {
+            let inner = request.into_inner();
+            info!(
+                sender_id = %inner.sender_id,
+                recipient_id = %inner.recipient_id,
+                message_type = %inner.message_type,
+                "SendMessage request"
+            );
 
-        let message_type = crate::collaboration::MessageType::from_str(&inner.message_type)
-            .map_err(|e| Status::invalid_argument(format!("Invalid message type: {}", e)))?;
+            let message_type = crate::collaboration::MessageType::from_str(&inner.message_type)
+                .map_err(|e| Status::invalid_argument(format!("Invalid message type: {}", e)))?;
 
-        let payload: serde_json::Value = serde_json::from_str(&inner.payload_json)
-            .map_err(|e| Status::invalid_argument(format!("Invalid payload JSON: {}", e)))?;
+            let payload: serde_json::Value = serde_json::from_str(&inner.payload_json)
+                .map_err(|e| Status::invalid_argument(format!("Invalid payload JSON: {}", e)))?;
 
-        let result = if inner.recipient_id.is_empty() {
-            self.message_bus
-                .broadcast_message(&inner.sender_id, message_type, payload)
-                .await
-        } else {
-            self.message_bus
-                .send_message(&inner.sender_id, &inner.recipient_id, message_type, payload)
-                .await
-        };
+            let result = if inner.recipient_id.is_empty() {
+                self.message_bus
+                    .broadcast_message(&inner.sender_id, message_type, payload)
+                    .await
+            } else {
+                self.message_bus
+                    .send_message(&inner.sender_id, &inner.recipient_id, message_type, payload)
+                    .await
+            };
 
-        match result {
-            Ok(message_id) => Ok(Response::new(SendMessageResponse {
-                success: true,
-                message_id,
-                error: None,
-            })),
-            Err(e) => Ok(Response::new(SendMessageResponse {
+            match result {
+                Ok(message_id) => Ok(Response::new(SendMessageResponse {
+                    success: true,
+                    message_id,
+                    error: None,
+                })),
+                Err(e) => Ok(Response::new(SendMessageResponse {
+                    success: false,
+                    message_id: String::new(),
+                    error: Some(e.to_string()),
+                })),
+            }
+        }
+        #[cfg(not(feature = "workflow"))]
+        {
+            let _ = request;
+            Ok(Response::new(SendMessageResponse {
                 success: false,
                 message_id: String::new(),
-                error: Some(e.to_string()),
-            })),
+                error: Some("Collaboration features require 'workflow' feature to be enabled".to_string()),
+            }))
         }
     }
 
@@ -1184,86 +1521,108 @@ impl Radium for RadiumService {
         &self,
         request: Request<GetMessagesRequest>,
     ) -> Result<Response<GetMessagesResponse>, Status> {
-        let inner = request.into_inner();
-        info!(
-            agent_id = %inner.agent_id,
-            undelivered_only = inner.undelivered_only,
-            "GetMessages request"
-        );
+        #[cfg(feature = "workflow")]
+        {
+            let inner = request.into_inner();
+            info!(
+                agent_id = %inner.agent_id,
+                undelivered_only = inner.undelivered_only,
+                "GetMessages request"
+            );
 
-        let messages = self
-            .message_bus
-            .get_messages(&inner.agent_id, inner.undelivered_only)
-            .await
-            .map_err(|e| Status::internal(format!("Failed to get messages: {}", e)))?;
+            let messages = self
+                .message_bus
+                .get_messages(&inner.agent_id, inner.undelivered_only)
+                .await
+                .map_err(|e| Status::internal(format!("Failed to get messages: {}", e)))?;
 
-        let proto_messages: Vec<AgentMessage> = messages
-            .into_iter()
-            .map(|msg| AgentMessage {
-                id: msg.id,
-                sender_id: msg.sender_id,
-                recipient_id: msg.recipient_id,
-                message_type: msg.message_type.as_str().to_string(),
-                payload_json: msg.payload_json,
-                timestamp: msg.timestamp,
-                delivered: msg.delivered,
-            })
-            .collect();
+            let proto_messages: Vec<AgentMessage> = messages
+                .into_iter()
+                .map(|msg| AgentMessage {
+                    id: msg.id,
+                    sender_id: msg.sender_id,
+                    recipient_id: msg.recipient_id,
+                    message_type: msg.message_type.as_str().to_string(),
+                    payload_json: msg.payload_json,
+                    timestamp: msg.timestamp,
+                    delivered: msg.delivered,
+                })
+                .collect();
 
-        Ok(Response::new(GetMessagesResponse {
-            messages: proto_messages,
-        }))
+            Ok(Response::new(GetMessagesResponse {
+                messages: proto_messages,
+            }))
+        }
+        #[cfg(not(feature = "workflow"))]
+        {
+            let _ = request;
+            Ok(Response::new(GetMessagesResponse {
+                messages: vec![],
+            }))
+        }
     }
 
     async fn request_resource_lock(
         &self,
         request: Request<RequestResourceLockRequest>,
     ) -> Result<Response<RequestResourceLockResponse>, Status> {
-        let inner = request.into_inner();
-        info!(
-            agent_id = %inner.agent_id,
-            resource_path = %inner.resource_path,
-            lock_type = %inner.lock_type,
-            "RequestResourceLock request"
-        );
+        #[cfg(feature = "workflow")]
+        {
+            let inner = request.into_inner();
+            info!(
+                agent_id = %inner.agent_id,
+                resource_path = %inner.resource_path,
+                lock_type = %inner.lock_type,
+                "RequestResourceLock request"
+            );
 
-        let lock_type = match inner.lock_type.as_str() {
-            "Read" => crate::collaboration::LockType::Read,
-            "Write" => crate::collaboration::LockType::Write,
-            _ => return Ok(Response::new(RequestResourceLockResponse {
+            let lock_type = match inner.lock_type.as_str() {
+                "Read" => crate::collaboration::LockType::Read,
+                "Write" => crate::collaboration::LockType::Write,
+                _ => return Ok(Response::new(RequestResourceLockResponse {
+                    success: false,
+                    lock_id: String::new(),
+                    error: Some("Invalid lock type. Must be 'Read' or 'Write'".to_string()),
+                })),
+            };
+
+            let result = match lock_type {
+                crate::collaboration::LockType::Read => {
+                    self.lock_manager
+                        .request_read_lock(&inner.agent_id, &inner.resource_path, inner.timeout_secs.map(|t| t as u64))
+                        .await
+                }
+                crate::collaboration::LockType::Write => {
+                    self.lock_manager
+                        .request_write_lock(&inner.agent_id, &inner.resource_path, inner.timeout_secs.map(|t| t as u64))
+                        .await
+                }
+            };
+
+            match result {
+                Ok(_handle) => {
+                    // Lock ID is the resource path for now
+                    Ok(Response::new(RequestResourceLockResponse {
+                        success: true,
+                        lock_id: inner.resource_path,
+                        error: None,
+                    }))
+                }
+                Err(e) => Ok(Response::new(RequestResourceLockResponse {
+                    success: false,
+                    lock_id: String::new(),
+                    error: Some(e.to_string()),
+                })),
+            }
+        }
+        #[cfg(not(feature = "workflow"))]
+        {
+            let _ = request;
+            Ok(Response::new(RequestResourceLockResponse {
                 success: false,
                 lock_id: String::new(),
-                error: Some("Invalid lock type. Must be 'Read' or 'Write'".to_string()),
-            })),
-        };
-
-        let result = match lock_type {
-            crate::collaboration::LockType::Read => {
-                self.lock_manager
-                    .request_read_lock(&inner.agent_id, &inner.resource_path, inner.timeout_secs.map(|t| t as u64))
-                    .await
-            }
-            crate::collaboration::LockType::Write => {
-                self.lock_manager
-                    .request_write_lock(&inner.agent_id, &inner.resource_path, inner.timeout_secs.map(|t| t as u64))
-                    .await
-            }
-        };
-
-        match result {
-            Ok(_handle) => {
-                // Lock ID is the resource path for now
-                Ok(Response::new(RequestResourceLockResponse {
-                    success: true,
-                    lock_id: inner.resource_path,
-                    error: None,
-                }))
-            }
-            Err(e) => Ok(Response::new(RequestResourceLockResponse {
-                success: false,
-                lock_id: String::new(),
-                error: Some(e.to_string()),
-            })),
+                error: Some("Collaboration features require 'workflow' feature to be enabled".to_string()),
+            }))
         }
     }
 
@@ -1271,53 +1630,76 @@ impl Radium for RadiumService {
         &self,
         request: Request<ReleaseResourceLockRequest>,
     ) -> Result<Response<ReleaseResourceLockResponse>, Status> {
-        let inner = request.into_inner();
-        info!(
-            lock_id = %inner.lock_id,
-            agent_id = %inner.agent_id,
-            "ReleaseResourceLock request"
-        );
+        #[cfg(feature = "workflow")]
+        {
+            let inner = request.into_inner();
+            info!(
+                lock_id = %inner.lock_id,
+                agent_id = %inner.agent_id,
+                "ReleaseResourceLock request"
+            );
 
-        // Note: In a full implementation, we'd track lock handles by ID
-        // For now, this is a placeholder
-        Ok(Response::new(ReleaseResourceLockResponse {
-            success: true,
-            error: None,
-        }))
+            // Note: In a full implementation, we'd track lock handles by ID
+            // For now, this is a placeholder
+            Ok(Response::new(ReleaseResourceLockResponse {
+                success: true,
+                error: None,
+            }))
+        }
+        #[cfg(not(feature = "workflow"))]
+        {
+            let _ = request;
+            Ok(Response::new(ReleaseResourceLockResponse {
+                success: false,
+                error: Some("Collaboration features require 'workflow' feature to be enabled".to_string()),
+            }))
+        }
     }
 
     async fn spawn_worker_agent(
         &self,
         request: Request<SpawnWorkerAgentRequest>,
     ) -> Result<Response<SpawnWorkerAgentResponse>, Status> {
-        let inner = request.into_inner();
-        info!(
-            supervisor_id = %inner.supervisor_id,
-            worker_agent_id = %inner.worker_agent_id,
-            "SpawnWorkerAgent request"
-        );
+        #[cfg(feature = "workflow")]
+        {
+            let inner = request.into_inner();
+            info!(
+                supervisor_id = %inner.supervisor_id,
+                worker_agent_id = %inner.worker_agent_id,
+                "SpawnWorkerAgent request"
+            );
 
-        let result = self
-            .delegation_manager
-            .spawn_worker(
-                &inner.supervisor_id,
-                &inner.worker_agent_id,
-                &inner.task_input,
-                inner.delegation_depth as usize,
-            )
-            .await;
+            let result = self
+                .delegation_manager
+                .spawn_worker(
+                    &inner.supervisor_id,
+                    &inner.worker_agent_id,
+                    &inner.task_input,
+                    inner.delegation_depth as usize,
+                )
+                .await;
 
-        match result {
-            Ok(worker_id) => Ok(Response::new(SpawnWorkerAgentResponse {
-                success: true,
-                worker_id,
-                error: None,
-            })),
-            Err(e) => Ok(Response::new(SpawnWorkerAgentResponse {
+            match result {
+                Ok(worker_id) => Ok(Response::new(SpawnWorkerAgentResponse {
+                    success: true,
+                    worker_id,
+                    error: None,
+                })),
+                Err(e) => Ok(Response::new(SpawnWorkerAgentResponse {
+                    success: false,
+                    worker_id: String::new(),
+                    error: Some(e.to_string()),
+                })),
+            }
+        }
+        #[cfg(not(feature = "workflow"))]
+        {
+            let _ = request;
+            Ok(Response::new(SpawnWorkerAgentResponse {
                 success: false,
                 worker_id: String::new(),
-                error: Some(e.to_string()),
-            })),
+                error: Some("Collaboration features require 'workflow' feature to be enabled".to_string()),
+            }))
         }
     }
 
@@ -1325,56 +1707,79 @@ impl Radium for RadiumService {
         &self,
         request: Request<GetWorkerStatusRequest>,
     ) -> Result<Response<GetWorkerStatusResponse>, Status> {
-        let inner = request.into_inner();
-        info!(worker_id = %inner.worker_id, "GetWorkerStatus request");
+        #[cfg(feature = "workflow")]
+        {
+            let inner = request.into_inner();
+            info!(worker_id = %inner.worker_id, "GetWorkerStatus request");
 
-        let status = self
-            .delegation_manager
-            .get_worker_status(&inner.worker_id)
-            .await
-            .map_err(|e| Status::internal(format!("Failed to get worker status: {}", e)))?;
+            let status = self
+                .delegation_manager
+                .get_worker_status(&inner.worker_id)
+                .await
+                .map_err(|e| Status::internal(format!("Failed to get worker status: {}", e)))?;
 
-        Ok(Response::new(GetWorkerStatusResponse {
-            success: true,
-            status: status.as_str().to_string(),
-            error: None,
-        }))
+            Ok(Response::new(GetWorkerStatusResponse {
+                success: true,
+                status: status.as_str().to_string(),
+                error: None,
+            }))
+        }
+        #[cfg(not(feature = "workflow"))]
+        {
+            let _ = request;
+            Ok(Response::new(GetWorkerStatusResponse {
+                success: false,
+                status: String::new(),
+                error: Some("Collaboration features require 'workflow' feature to be enabled".to_string()),
+            }))
+        }
     }
 
     async fn report_progress(
         &self,
         request: Request<ReportProgressRequest>,
     ) -> Result<Response<ReportProgressResponse>, Status> {
-        let inner = request.into_inner();
-        info!(
-            agent_id = %inner.agent_id,
-            percentage = inner.percentage,
-            status = %inner.status,
-            "ReportProgress request"
-        );
+        #[cfg(feature = "workflow")]
+        {
+            let inner = request.into_inner();
+            info!(
+                agent_id = %inner.agent_id,
+                percentage = inner.percentage,
+                status = %inner.status,
+                "ReportProgress request"
+            );
 
-        let status = crate::collaboration::ProgressStatus::from_str(&inner.status)
-            .map_err(|e| Status::invalid_argument(format!("Invalid status: {}", e)))?;
+            let status = crate::collaboration::ProgressStatus::from_str(&inner.status)
+                .map_err(|e| Status::invalid_argument(format!("Invalid status: {}", e)))?;
 
-        let result = self
-            .progress_tracker
-            .report_progress(
-                &inner.agent_id,
-                inner.percentage as u8,
-                status,
-                inner.message,
-            )
-            .await;
+            let result = self
+                .progress_tracker
+                .report_progress(
+                    &inner.agent_id,
+                    inner.percentage as u8,
+                    status,
+                    inner.message,
+                )
+                .await;
 
-        match result {
-            Ok(()) => Ok(Response::new(ReportProgressResponse {
-                success: true,
-                error: None,
-            })),
-            Err(e) => Ok(Response::new(ReportProgressResponse {
+            match result {
+                Ok(()) => Ok(Response::new(ReportProgressResponse {
+                    success: true,
+                    error: None,
+                })),
+                Err(e) => Ok(Response::new(ReportProgressResponse {
+                    success: false,
+                    error: Some(e.to_string()),
+                })),
+            }
+        }
+        #[cfg(not(feature = "workflow"))]
+        {
+            let _ = request;
+            Ok(Response::new(ReportProgressResponse {
                 success: false,
-                error: Some(e.to_string()),
-            })),
+                error: Some("Collaboration features require 'workflow' feature to be enabled".to_string()),
+            }))
         }
     }
 
@@ -1387,8 +1792,9 @@ impl Radium for RadiumService {
         request: Request<ReadBraingridRequirementRequest>,
     ) -> Result<Response<ReadBraingridRequirementResponse>, Status> {
         let req = request.into_inner();
+        let env_project_id = std::env::var("BRAINGRID_PROJECT_ID").ok();
         let project_id = req.project_id.as_deref()
-            .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok().as_deref())
+            .or_else(|| env_project_id.as_deref())
             .unwrap_or("PROJ-14");
 
         info!(requirement_id = %req.requirement_id, "ReadBraingridRequirement RPC called");
@@ -1422,8 +1828,9 @@ impl Radium for RadiumService {
         request: Request<ListBraingridTasksRequest>,
     ) -> Result<Response<ListBraingridTasksResponse>, Status> {
         let req = request.into_inner();
+        let env_project_id = std::env::var("BRAINGRID_PROJECT_ID").ok();
         let project_id = req.project_id.as_deref()
-            .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok().as_deref())
+            .or_else(|| env_project_id.as_deref())
             .unwrap_or("PROJ-14");
 
         info!(requirement_id = %req.requirement_id, "ListBraingridTasks RPC called");
@@ -1459,8 +1866,9 @@ impl Radium for RadiumService {
         request: Request<UpdateBraingridTaskStatusRequest>,
     ) -> Result<Response<UpdateBraingridTaskStatusResponse>, Status> {
         let req = request.into_inner();
+        let env_project_id = std::env::var("BRAINGRID_PROJECT_ID").ok();
         let project_id = req.project_id.as_deref()
-            .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok().as_deref())
+            .or_else(|| env_project_id.as_deref())
             .unwrap_or("PROJ-14");
 
         info!(
@@ -1494,8 +1902,9 @@ impl Radium for RadiumService {
         request: Request<UpdateBraingridRequirementStatusRequest>,
     ) -> Result<Response<UpdateBraingridRequirementStatusResponse>, Status> {
         let req = request.into_inner();
+        let env_project_id = std::env::var("BRAINGRID_PROJECT_ID").ok();
         let project_id = req.project_id.as_deref()
-            .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok().as_deref())
+            .or_else(|| env_project_id.as_deref())
             .unwrap_or("PROJ-14");
 
         info!(
@@ -1528,8 +1937,9 @@ impl Radium for RadiumService {
         request: Request<CreateBraingridTasksRequest>,
     ) -> Result<Response<CreateBraingridTasksResponse>, Status> {
         let req = request.into_inner();
+        let env_project_id = std::env::var("BRAINGRID_PROJECT_ID").ok();
         let project_id = req.project_id.as_deref()
-            .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok().as_deref())
+            .or_else(|| env_project_id.as_deref())
             .unwrap_or("PROJ-14");
 
         info!(requirement_id = %req.requirement_id, "CreateBraingridTasks RPC called");
@@ -1560,169 +1970,211 @@ impl Radium for RadiumService {
     async fn execute_braingrid_requirement(
         &self,
         request: Request<ExecuteBraingridRequirementRequest>,
-    ) -> Result<Response<tonic::codec::Streaming<ExecutionProgressEvent>>, Status> {
-        let req = request.into_inner();
-        let project_id = req.project_id.as_deref()
-            .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok().as_deref())
-            .unwrap_or("PROJ-14");
+    ) -> Result<Response<Self::ExecuteBraingridRequirementStream>, Status> {
+        #[cfg(feature = "workflow")]
+        {
+            let req = request.into_inner();
+            let env_project_id = std::env::var("BRAINGRID_PROJECT_ID").ok();
+            let project_id = req.project_id.clone()
+                .or_else(|| env_project_id.clone())
+                .unwrap_or_else(|| "PROJ-14".to_string());
 
-        info!(requirement_id = %req.requirement_id, "ExecuteBraingridRequirement RPC called");
+            info!(requirement_id = %req.requirement_id, "ExecuteBraingridRequirement RPC called");
 
-        // Create a channel for streaming progress events
-        let (tx, rx) = mpsc::channel(100);
-        
-        // Convert to Result stream for gRPC
-        let rx = ReceiverStream::new(rx).map(|event| Ok(event) as Result<ExecutionProgressEvent, Status>);
+            // Create a channel for streaming progress events
+            let (tx, rx) = mpsc::channel::<Result<ExecutionProgressEvent, Status>>(100);
 
-        // Spawn execution in background
-        let req_id = req.requirement_id.clone();
-        let db = Arc::clone(&self.db);
-        let orchestrator = Arc::clone(&self.orchestrator);
-        let executor = Arc::new(AgentExecutor::with_mock_model());
-        let agent_registry = Arc::new(AgentRegistry::new());
+            // Convert to ReceiverStream for gRPC
+            let rx = ReceiverStream::new(rx);
 
-        tokio::spawn(async move {
-            // Initialize model - use mock model for now to avoid API key requirements
-            // In production, this would use ModelFactory::create with proper config
-            let model: Arc<dyn Model> = Arc::new(MockModel::new("braingrid-executor".to_string()));
+            // Spawn execution in background
+            let req_id = req.requirement_id.clone();
+            let db = Arc::clone(&self.db);
+            let orchestrator = Arc::clone(&self.orchestrator);
+            let executor = self.create_executor_with_budget();
+            let agent_registry = Arc::new(AgentRegistry::new());
 
-            // Create requirement executor
-            let requirement_executor = match RequirementExecutor::new(
-                project_id,
-                &orchestrator,
-                &executor,
-                &db,
-                agent_registry,
-                model,
-            ) {
-                Ok(exec) => exec,
-                Err(e) => {
-                    let _ = tx.send(ExecutionProgressEvent {
-                        event_type: "FAILED".to_string(),
-                        requirement_id: Some(req_id.clone()),
-                        task_id: None,
-                        task_title: None,
-                        task_number: None,
-                        total_tasks: None,
-                        sub_step: None,
-                        error: Some(format!("Failed to create executor: {}", e)),
-                        result: None,
-                    }).await;
-                    return;
-                }
-            };
-
-            // Create progress channel
-            let (progress_tx, mut progress_rx) = mpsc::channel(100);
-
-            // Spawn progress handler
-            let req_id_for_progress = req_id.clone();
-            let mut event_tx = tx.clone();
             tokio::spawn(async move {
-                while let Some(progress) = progress_rx.recv().await {
-                    let event = match progress {
-                        RequirementProgress::Started { req_id, total_tasks } => {
-                            ExecutionProgressEvent {
-                                event_type: "STARTED".to_string(),
-                                requirement_id: Some(req_id),
-                                task_id: None,
-                                task_title: None,
-                                task_number: None,
-                                total_tasks: Some(total_tasks as i32),
-                                sub_step: None,
-                                error: None,
-                                result: None,
+                // Initialize model - use mock model for now to avoid API key requirements
+                // In production, this would use ModelFactory::create with proper config
+                let model: Arc<dyn Model> = Arc::new(MockModel::new("braingrid-executor".to_string()));
+
+                // Create requirement executor
+                let requirement_executor = match RequirementExecutor::new(
+                    project_id,
+                    &orchestrator,
+                    &executor,
+                    &db,
+                    agent_registry,
+                    model,
+                ) {
+                    Ok(exec) => exec,
+                    Err(e) => {
+                        let _ = tx.send(Ok(ExecutionProgressEvent {
+                            event_type: "FAILED".to_string(),
+                            requirement_id: Some(req_id.clone()),
+                            task_id: None,
+                            task_title: None,
+                            task_number: None,
+                            total_tasks: None,
+                            sub_step: None,
+                            error: Some(format!("Failed to create executor: {}", e)),
+                            result: None,
+                            token_chunk: None,
+                        })).await;
+                        return;
+                    }
+                };
+
+                // Create progress channel
+                let (progress_tx, mut progress_rx) = mpsc::channel(100);
+
+                // Spawn progress handler
+                let req_id_for_progress = req_id.clone();
+                let mut event_tx = tx.clone();
+                tokio::spawn(async move {
+                    while let Some(progress) = progress_rx.recv().await {
+                        let event = match progress {
+                            RequirementProgress::Started { req_id, total_tasks } => {
+                                ExecutionProgressEvent {
+                                    event_type: "STARTED".to_string(),
+                                    requirement_id: Some(req_id),
+                                    task_id: None,
+                                    task_title: None,
+                                    task_number: None,
+                                    total_tasks: Some(total_tasks as i32),
+                                    sub_step: None,
+                                    error: None,
+                                    result: None,
+                                    token_chunk: None,
+                                }
                             }
-                        }
-                        RequirementProgress::TaskStarted { task_id, task_title, task_number, total_tasks, .. } => {
-                            ExecutionProgressEvent {
-                                event_type: "TASK_STARTED".to_string(),
-                                requirement_id: None,
-                                task_id: Some(task_id),
-                                task_title: Some(task_title),
-                                task_number: Some(task_number as i32),
-                                total_tasks: Some(total_tasks as i32),
-                                sub_step: None,
-                                error: None,
-                                result: None,
+                            RequirementProgress::TaskStarted { task_id, task_title, task_number, total_tasks, .. } => {
+                                ExecutionProgressEvent {
+                                    event_type: "TASK_STARTED".to_string(),
+                                    requirement_id: None,
+                                    task_id: Some(task_id),
+                                    task_title: Some(task_title),
+                                    task_number: Some(task_number as i32),
+                                    total_tasks: Some(total_tasks as i32),
+                                    sub_step: None,
+                                    error: None,
+                                    result: None,
+                                    token_chunk: None,
+                                }
                             }
-                        }
-                        RequirementProgress::TaskSubStep { task_id, task_title, sub_step } => {
-                            ExecutionProgressEvent {
-                                event_type: "TASK_SUBSTEP".to_string(),
-                                requirement_id: None,
-                                task_id: Some(task_id),
-                                task_title: Some(task_title),
-                                task_number: None,
-                                total_tasks: None,
-                                sub_step: Some(sub_step.as_str().to_string()),
-                                error: None,
-                                result: None,
+                            RequirementProgress::TaskSubStep { task_id, task_title, sub_step } => {
+                                ExecutionProgressEvent {
+                                    event_type: "TASK_SUBSTEP".to_string(),
+                                    requirement_id: None,
+                                    task_id: Some(task_id),
+                                    task_title: Some(task_title),
+                                    task_number: None,
+                                    total_tasks: None,
+                                    sub_step: Some(sub_step.as_str().to_string()),
+                                    error: None,
+                                    result: None,
+                                    token_chunk: None,
+                                }
                             }
-                        }
-                        RequirementProgress::TaskCompleted { task_id, task_title } => {
-                            ExecutionProgressEvent {
-                                event_type: "TASK_COMPLETED".to_string(),
-                                requirement_id: None,
-                                task_id: Some(task_id),
-                                task_title: Some(task_title),
-                                task_number: None,
-                                total_tasks: None,
-                                sub_step: None,
-                                error: None,
-                                result: None,
+                            RequirementProgress::TaskCompleted { task_id, task_title } => {
+                                ExecutionProgressEvent {
+                                    event_type: "TASK_COMPLETED".to_string(),
+                                    requirement_id: None,
+                                    task_id: Some(task_id),
+                                    task_title: Some(task_title),
+                                    task_number: None,
+                                    total_tasks: None,
+                                    sub_step: None,
+                                    error: None,
+                                    result: None,
+                                    token_chunk: None,
+                                }
                             }
-                        }
-                        RequirementProgress::TaskFailed { task_id, task_title, error } => {
-                            ExecutionProgressEvent {
-                                event_type: "TASK_FAILED".to_string(),
-                                requirement_id: None,
-                                task_id: Some(task_id),
-                                task_title: Some(task_title),
-                                task_number: None,
-                                total_tasks: None,
-                                sub_step: None,
-                                error: Some(error),
-                                result: None,
+                            RequirementProgress::TaskFailed { task_id, task_title, error } => {
+                                ExecutionProgressEvent {
+                                    event_type: "TASK_FAILED".to_string(),
+                                    requirement_id: None,
+                                    task_id: Some(task_id),
+                                    task_title: Some(task_title),
+                                    task_number: None,
+                                    total_tasks: None,
+                                    sub_step: None,
+                                    error: Some(error),
+                                    result: None,
+                                    token_chunk: None,
+                                }
                             }
-                        }
-                        RequirementProgress::Completed { result } => {
-                            ExecutionProgressEvent {
-                                event_type: "COMPLETED".to_string(),
-                                requirement_id: Some(result.requirement_id.clone()),
-                                task_id: None,
-                                task_title: None,
-                                task_number: None,
-                                total_tasks: None,
-                                sub_step: None,
-                                error: None,
-                                result: Some(requirement_execution_result_to_proto(result)),
+                            RequirementProgress::Completed { result } => {
+                                ExecutionProgressEvent {
+                                    event_type: "COMPLETED".to_string(),
+                                    requirement_id: Some(result.requirement_id.clone()),
+                                    task_id: None,
+                                    task_title: None,
+                                    task_number: None,
+                                    total_tasks: None,
+                                    sub_step: None,
+                                    error: None,
+                                    result: Some(requirement_execution_result_to_proto(result)),
+                                    token_chunk: None,
+                                }
                             }
-                        }
-                        RequirementProgress::Failed { error } => {
-                            ExecutionProgressEvent {
-                                event_type: "FAILED".to_string(),
-                                requirement_id: Some(req_id_for_progress.clone()),
-                                task_id: None,
-                                task_title: None,
-                                task_number: None,
-                                total_tasks: None,
-                                sub_step: None,
-                                error: Some(error),
-                                result: None,
+                            RequirementProgress::Failed { error } => {
+                                ExecutionProgressEvent {
+                                    event_type: "FAILED".to_string(),
+                                    requirement_id: Some(req_id_for_progress.clone()),
+                                    task_id: None,
+                                    task_title: None,
+                                    task_number: None,
+                                    total_tasks: None,
+                                    sub_step: None,
+                                    error: Some(error),
+                                    result: None,
+                                    token_chunk: None,
+                                }
                             }
-                        }
-                    };
-                    let _ = event_tx.send(event).await;
-                }
+                        };
+                        let _ = event_tx.send(Ok(event)).await;
+                    }
+                });
+
+                // Execute requirement
+                let _ = requirement_executor.execute_requirement_with_progress(&req_id, progress_tx).await;
             });
 
-            // Execute requirement
-            let _ = requirement_executor.execute_requirement_with_progress(&req_id, progress_tx).await;
-        });
+            // Return streaming response
+            Ok(Response::new(rx))
+        }
+        #[cfg(not(feature = "workflow"))]
+        {
+            let req = request.into_inner();
 
-        // Return streaming response
-        Ok(Response::new(Box::pin(rx) as _))
+            // Create a channel for streaming progress events
+            let (tx, rx) = mpsc::channel::<Result<ExecutionProgressEvent, Status>>(100);
+
+            // Convert to ReceiverStream for gRPC
+            let rx = ReceiverStream::new(rx);
+
+            // Send a single error event
+            let req_id = req.requirement_id.clone();
+            tokio::spawn(async move {
+                let _ = tx.send(Ok(ExecutionProgressEvent {
+                    event_type: "FAILED".to_string(),
+                    requirement_id: Some(req_id),
+                    task_id: None,
+                    task_title: None,
+                    task_number: None,
+                    total_tasks: None,
+                    sub_step: None,
+                    error: Some("Requirement execution requires 'workflow' feature to be enabled".to_string()),
+                    result: None,
+                    token_chunk: None,
+                })).await;
+            });
+
+            // Return streaming response
+            Ok(Response::new(rx))
+        }
     }
 
     async fn clear_braingrid_cache(
@@ -1730,8 +2182,9 @@ impl Radium for RadiumService {
         request: Request<ClearBraingridCacheRequest>,
     ) -> Result<Response<ClearBraingridCacheResponse>, Status> {
         let req = request.into_inner();
+        let env_project_id = std::env::var("BRAINGRID_PROJECT_ID").ok();
         let project_id = req.project_id.as_deref()
-            .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok().as_deref())
+            .or_else(|| env_project_id.as_deref())
             .unwrap_or("PROJ-14");
 
         info!("ClearBraingridCache RPC called");
@@ -1754,8 +2207,9 @@ impl Radium for RadiumService {
         request: Request<GetBraingridCacheStatsRequest>,
     ) -> Result<Response<GetBraingridCacheStatsResponse>, Status> {
         let req = request.into_inner();
+        let env_project_id = std::env::var("BRAINGRID_PROJECT_ID").ok();
         let project_id = req.project_id.as_deref()
-            .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok().as_deref())
+            .or_else(|| env_project_id.as_deref())
             .unwrap_or("PROJ-14");
 
         info!("GetBraingridCacheStats RPC called");
@@ -1774,6 +2228,240 @@ impl Radium for RadiumService {
             hit_rate: stats.hit_rate(),
             error: None,
         }))
+    }
+
+    // Session Management RPCs
+
+    async fn create_session(
+        &self,
+        request: Request<CreateSessionRequest>,
+    ) -> Result<Response<CreateSessionResponse>, Status> {
+        let req = request.into_inner();
+        info!("CreateSession RPC called");
+
+        let session = self
+            .session_manager
+            .create_session(req.agent_id, req.workspace_root, req.session_name)
+            .await
+            .map_err(|e| Status::internal(format!("Failed to create session: {}", e)))?;
+
+        let proto_session = session_to_proto(&session);
+
+        Ok(Response::new(CreateSessionResponse {
+            session_id: session.id.clone(),
+            session: Some(proto_session),
+            error: None,
+        }))
+    }
+
+    async fn list_sessions(
+        &self,
+        request: Request<ListSessionsRequest>,
+    ) -> Result<Response<ListSessionsResponse>, Status> {
+        let req = request.into_inner();
+        info!("ListSessions RPC called");
+
+        let filter_state = req.filter_state.as_deref().and_then(|s| {
+            match s.to_uppercase().as_str() {
+                "ACTIVE" => Some(crate::session::SessionState::Active),
+                "PAUSED" => Some(crate::session::SessionState::Paused),
+                "COMPLETED" => Some(crate::session::SessionState::Completed),
+                "FAILED" => Some(crate::session::SessionState::Failed),
+                _ => None,
+            }
+        });
+
+        let (sessions, total, page, page_size) = self
+            .session_manager
+            .list_sessions(
+                req.page.map(|p| p as u32),
+                req.page_size.map(|p| p as u32),
+                filter_state,
+                req.filter_agent_id,
+            )
+            .await
+            .map_err(|e| Status::internal(format!("Failed to list sessions: {}", e)))?;
+
+        let proto_sessions: Vec<ProtoSession> = sessions.iter().map(session_to_proto).collect();
+
+        Ok(Response::new(ListSessionsResponse {
+            sessions: proto_sessions,
+            total: total as i32,
+            page: page as i32,
+            page_size: page_size as i32,
+            error: None,
+        }))
+    }
+
+    async fn attach_session(
+        &self,
+        request: Request<AttachSessionRequest>,
+    ) -> Result<Response<AttachSessionResponse>, Status> {
+        let req = request.into_inner();
+        info!(session_id = %req.session_id, "AttachSession RPC called");
+
+        let session = self
+            .session_manager
+            .attach_session(&req.session_id)
+            .await
+            .map_err(|e| Status::not_found(format!("Session not found: {}", e)))?;
+
+        let proto_messages: Vec<ProtoSessionMessage> = session
+            .messages
+            .iter()
+            .map(|m| ProtoSessionMessage {
+                id: m.id.clone(),
+                content: m.content.clone(),
+                role: m.role.clone(),
+                timestamp: m.timestamp.to_rfc3339(),
+            })
+            .collect();
+
+        let proto_tool_calls: Vec<ProtoSessionToolCall> = session
+            .tool_calls
+            .iter()
+            .map(|tc| ProtoSessionToolCall {
+                id: tc.id.clone(),
+                tool_name: tc.tool_name.clone(),
+                arguments_json: tc.arguments_json.clone(),
+                result_json: tc.result_json.clone(),
+                success: tc.success,
+                error: tc.error.clone(),
+                duration_ms: tc.duration_ms as i64,
+                timestamp: tc.timestamp.to_rfc3339(),
+            })
+            .collect();
+
+        let proto_approvals: Vec<ProtoSessionApproval> = session
+            .approvals
+            .iter()
+            .map(|a| ProtoSessionApproval {
+                id: a.id.clone(),
+                tool_name: a.tool_name.clone(),
+                arguments_json: a.arguments_json.clone(),
+                policy_rule: a.policy_rule.clone(),
+                approved: a.approved,
+                reason: a.reason.clone(),
+                timestamp: a.timestamp.to_rfc3339(),
+            })
+            .collect();
+
+        Ok(Response::new(AttachSessionResponse {
+            session: Some(session_to_proto(&session)),
+            messages: proto_messages,
+            tool_calls: proto_tool_calls,
+            approvals: proto_approvals,
+            error: None,
+        }))
+    }
+
+    async fn send_session_message(
+        &self,
+        request: Request<SendSessionMessageRequest>,
+    ) -> Result<Response<SendSessionMessageResponse>, Status> {
+        let req = request.into_inner();
+        info!(session_id = %req.session_id, "SendSessionMessage RPC called");
+
+        let message = crate::session::state::Message {
+            id: uuid::Uuid::new_v4().to_string(),
+            content: req.message.clone(),
+            role: req.role.unwrap_or_else(|| "user".to_string()),
+            timestamp: chrono::Utc::now(),
+        };
+
+        self.session_manager
+            .append_message(&req.session_id, message)
+            .await
+            .map_err(|e| Status::internal(format!("Failed to send message: {}", e)))?;
+
+        // Trigger agent execution via OrchestrationService (workflow feature only)
+        #[cfg(feature = "workflow")]
+        {
+            let orch_service = Arc::clone(&self.orchestration_service);
+            let session_id = req.session_id.clone();
+            let user_message = req.message.clone();
+
+            // Spawn async task to process the message and emit events
+            tokio::spawn(async move {
+                match orch_service.process_request(&session_id, &user_message).await {
+                    Ok(_) => {
+                        info!(session_id = %session_id, "Orchestration request completed successfully");
+                    }
+                    Err(e) => {
+                        error!(session_id = %session_id, error = %e, "Orchestration request failed");
+                    }
+                }
+            });
+        }
+
+        Ok(Response::new(SendSessionMessageResponse {
+            success: true,
+            error: None,
+        }))
+    }
+
+    type ExecuteBraingridRequirementStream = ReceiverStream<Result<ExecutionProgressEvent, Status>>;
+    type SessionEventsStreamStream = ReceiverStream<Result<SessionEvent, Status>>;
+
+    async fn session_events_stream(
+        &self,
+        request: Request<tonic::Streaming<SessionEvent>>,
+    ) -> Result<Response<Self::SessionEventsStreamStream>, Status> {
+        info!("SessionEventsStream RPC called");
+
+        // Generate unique session ID for this stream
+        let session_id = format!("session-{}", Uuid::new_v4());
+        info!(session_id = %session_id, "Created new session stream");
+
+        // Create server-to-client stream channel
+        let (tx, rx) = mpsc::channel::<Result<SessionEvent, Status>>(100);
+        let mut client_stream = request.into_inner();
+
+        // Spawn task to handle client messages (approval responses, etc.)
+        let session_manager_clone = Arc::clone(&self.session_manager);
+        tokio::spawn(async move {
+            while let Some(event_result) = client_stream.next().await {
+                match event_result {
+                    Ok(event) => {
+                        // Handle client events (e.g., ApprovalResponseEvent)
+                        if let Some(crate::proto::session_event::Event::ApprovalResponse(approval_response)) = event.event {
+                            // TODO: Unblock waiting tool execution
+                            info!(
+                                session_id = %approval_response.session_id,
+                                approved = approval_response.approved,
+                                "Received approval response"
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        warn!("Error receiving client event: {}", e);
+                        break;
+                    }
+                }
+            }
+        });
+
+        // Register session with EventBridge (workflow feature only)
+        #[cfg(feature = "workflow")]
+        {
+            let event_bridge = Arc::clone(&self.event_bridge);
+            let session_id_clone = session_id.clone();
+            let tx_clone = tx.clone();
+
+            // Register this session to receive orchestration events
+            event_bridge.register_session(session_id_clone.clone(), tx_clone).await;
+
+            // Spawn cleanup task to unregister when stream ends
+            tokio::spawn(async move {
+                // Wait for the receiver to be dropped (client disconnects)
+                tokio::time::sleep(tokio::time::Duration::from_secs(3600)).await;
+                event_bridge.unregister_session(&session_id_clone).await;
+                info!(session_id = %session_id_clone, "Unregistered session from event bridge");
+            });
+        }
+
+        // Return server-to-client stream
+        Ok(Response::new(ReceiverStream::new(rx)))
     }
 }
 
@@ -1803,6 +2491,7 @@ fn task_to_proto(task: BraingridTask) -> ProtoBraingridTask {
     }
 }
 
+#[cfg(feature = "workflow")]
 fn requirement_execution_result_to_proto(result: RequirementExecutionResult) -> ProtoRequirementExecutionResult {
     ProtoRequirementExecutionResult {
         requirement_id: result.requirement_id,
@@ -1839,6 +2528,17 @@ fn parse_requirement_status(status_str: &str) -> Result<RequirementStatus, Statu
             "Invalid requirement status: {}. Valid values: IDEA, PLANNED, IN_PROGRESS, REVIEW, COMPLETED, CANCELLED",
             status_str
         ))),
+    }
+}
+
+fn session_to_proto(session: &crate::session::Session) -> ProtoSession {
+    ProtoSession {
+        id: session.id.clone(),
+        created_at: session.created_at.to_rfc3339(),
+        last_active: session.last_active.to_rfc3339(),
+        state: session.state.to_string(),
+        agent_id: session.agent_id.clone(),
+        workspace_root: session.workspace_root.clone(),
     }
 }
 

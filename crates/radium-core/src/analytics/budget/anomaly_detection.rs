@@ -25,7 +25,7 @@ pub struct CostStatistics {
 }
 
 /// Detected cost anomaly.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct CostAnomaly {
     /// Requirement/agent ID with anomalous cost.
     pub requirement_id: String,
@@ -42,7 +42,7 @@ pub struct CostAnomaly {
 }
 
 /// Severity level of an anomaly.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub enum AnomalySeverity {
     /// Minor anomaly: 2-3 standard deviations from mean.
     Minor,
@@ -51,7 +51,7 @@ pub enum AnomalySeverity {
 }
 
 /// Category of anomaly.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub enum AnomalyCategory {
     /// Unusually high token usage.
     TokenSpike,
@@ -78,8 +78,8 @@ impl AnomalyDetector {
     /// Cost statistics including mean, std_dev, median, and 95th percentile
     pub fn calculate_statistics(&self, window_days: u32) -> MonitoringResult<CostStatistics> {
         let conn = self.telemetry_store.conn();
-        let now = Utc::now().timestamp() as i64;
-        let start_timestamp = now - (window_days as i64 * 86400);
+        let now = Utc::now().timestamp();
+        let start_timestamp = now - (i64::from(window_days) * 86400);
 
         // Get cost per requirement (agent_id)
         let mut stmt = conn.prepare(
@@ -91,7 +91,7 @@ impl AnomalyDetector {
 
         let costs: Vec<f64> = stmt
             .query_map(params![start_timestamp, now], |row| {
-                Ok(row.get::<_, f64>(1)?)
+                row.get::<_, f64>(1)
             })?
             .collect::<std::result::Result<Vec<_>, rusqlite::Error>>()?;
 
@@ -138,8 +138,8 @@ impl AnomalyDetector {
         }
 
         let conn = self.telemetry_store.conn();
-        let now = Utc::now().timestamp() as i64;
-        let start_timestamp = now - (window_days as i64 * 86400);
+        let now = Utc::now().timestamp();
+        let start_timestamp = now - (i64::from(window_days) * 86400);
 
         // Get cost per requirement
         let mut stmt = conn.prepare(
@@ -208,8 +208,8 @@ impl AnomalyDetector {
     fn categorize_anomaly(
         &self,
         requirement_id: &str,
-        cost: f64,
-        stats: &CostStatistics,
+        _cost: f64,
+        _stats: &CostStatistics,
     ) -> MonitoringResult<AnomalyCategory> {
         let conn = self.telemetry_store.conn();
 
@@ -279,8 +279,8 @@ impl AnomalyDetector {
     /// True if sufficient data exists, false otherwise
     pub fn is_sufficient_data(&self, window_days: u32) -> MonitoringResult<bool> {
         let conn = self.telemetry_store.conn();
-        let now = Utc::now().timestamp() as i64;
-        let start_timestamp = now - (window_days as i64 * 86400);
+        let now = Utc::now().timestamp();
+        let start_timestamp = now - (i64::from(window_days) * 86400);
 
         let mut stmt = conn.prepare(
             "SELECT COUNT(DISTINCT agent_id) FROM telemetry WHERE timestamp >= ?1 AND timestamp <= ?2"
@@ -341,7 +341,7 @@ fn calculate_percentile(values: &[f64], percentile: u8) -> f64 {
     let mut sorted = values.to_vec();
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
-    let index = ((sorted.len() - 1) as f64 * percentile as f64 / 100.0).ceil() as usize;
+    let index = ((sorted.len() - 1) as f64 * f64::from(percentile) / 100.0).ceil() as usize;
     sorted[index.min(sorted.len() - 1)]
 }
 

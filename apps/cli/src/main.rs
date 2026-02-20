@@ -3,21 +3,29 @@
 //! This CLI provides a `rad` command for interacting with Radium's agent
 //! orchestration system and workflow execution engine.
 
+mod client;
 mod commands;
+mod colors;
 mod config;
+mod conversation_context;
+mod policy_engine;
+mod session_manager;
 mod validation;
+
+use colors::RadiumBrandColors;
 
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, shells};
 use colored::Colorize;
+use std::path::PathBuf;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 use commands::{
-    agents, auth, budget, capability, checkpoint, clean, clipboard, code, context, cost, craft, doctor, engines, extension, hooks, init, learning, monitor, plan, playbook, policy, privacy, requirement, run,
+    agents, auth, batch, budget, capability, checkpoint, clean, clipboard, code, context, cost, craft, doctor, engines, extension, hooks, init, learning, models, monitor, plan, playbook, policy, privacy, requirement, run,
     sandbox, secret, session, stats, status, step, theme, validate,
     // All commands enabled!
-    templates, complete, autonomous, vibecheck, chat, mcp, custom, braingrid,
+    templates, complete, autonomous, vibecheck, chat, mcp, custom, braingrid, train,
 };
 use commands::requirement::RequirementCommand;
 
@@ -41,6 +49,14 @@ struct Args {
     /// Workspace directory (overrides RADIUM_WORKSPACE)
     #[arg(short = 'w', long, global = true)]
     workspace: Option<String>,
+
+    /// Connect to daemon at the specified URL (e.g., http://localhost:50051)
+    #[arg(long, global = true)]
+    daemon: Option<String>,
+
+    /// Force local in-process execution (overrides --daemon)
+    #[arg(long, global = true)]
+    local: bool,
 
     #[command(subcommand)]
     command: Option<Command>,
@@ -154,6 +170,16 @@ enum Command {
     #[command(subcommand)]
     Braingrid(BraingridCommand),
 
+    /// Tool inventory and introspection
+    ///
+    /// List available tools, schemas, and categories for debugging and UX.
+    #[command(subcommand)]
+    Tools(commands::ToolsCommand),
+
+    /// Training operations (local + cloud backends)
+    #[command(subcommand)]
+    Train(commands::TrainCommand),
+
     /// Run agent(s) with enhanced syntax
     ///
     /// Execute agents directly with support for parallel (&) and sequential (&&)
@@ -173,6 +199,27 @@ enum Command {
         /// Model tier override (smart, eco, auto)
         #[arg(long)]
         model_tier: Option<String>,
+
+        /// Show metadata in human-readable format
+        #[arg(long)]
+        show_metadata: bool,
+
+        /// Output complete response as JSON with nested metadata
+        #[arg(long)]
+        json: bool,
+
+        /// Override safety behavior (return-partial, error, log)
+        #[arg(long)]
+        safety_behavior: Option<String>,
+    },
+
+    /// Batch process multiple prompts with an agent
+    ///
+    /// Executes an agent with multiple prompts from an input file in parallel
+    /// with configurable concurrency limits.
+    Batch {
+        #[command(subcommand)]
+        action: batch::BatchAction,
     },
 
     /// Execute a single workflow step
@@ -201,6 +248,50 @@ enum Command {
         /// Model tier override (smart, eco, auto)
         #[arg(long)]
         model_tier: Option<String>,
+
+        /// Stream output in real-time
+        #[arg(long)]
+        stream: bool,
+
+        /// Show metadata in human-readable format
+        #[arg(long)]
+        show_metadata: bool,
+
+        /// Output complete response as JSON with nested metadata
+        #[arg(long)]
+        json: bool,
+
+        /// Override safety behavior (return-partial, error, log)
+        #[arg(long)]
+        safety_behavior: Option<String>,
+
+        /// Path to image file(s) to include in the prompt
+        #[arg(long, value_name = "PATH")]
+        image: Vec<PathBuf>,
+
+        /// Path to audio file(s) to include in the prompt
+        #[arg(long, value_name = "PATH")]
+        audio: Vec<PathBuf>,
+
+        /// Path to video file(s) to include in the prompt
+        #[arg(long, value_name = "PATH")]
+        video: Vec<PathBuf>,
+
+        /// Path to document/file(s) to include in the prompt
+        #[arg(long, value_name = "PATH")]
+        file: Vec<PathBuf>,
+
+        /// Force File API upload regardless of file size
+        #[arg(long)]
+        auto_upload: bool,
+
+        /// Response format for model output (text, json, json-schema)
+        #[arg(long, value_name = "FORMAT")]
+        response_format: Option<String>,
+
+        /// JSON schema file path or inline JSON string for structured output
+        #[arg(long, value_name = "SCHEMA")]
+        response_schema: Option<String>,
     },
 
     /// Interactive chat mode with an agent
@@ -219,9 +310,25 @@ enum Command {
         #[arg(long)]
         resume: bool,
 
+        /// Stream responses in real-time
+        #[arg(long)]
+        stream: bool,
+
         /// List available sessions
         #[arg(long)]
         list: bool,
+
+        /// Show metadata in human-readable format
+        #[arg(long)]
+        show_metadata: bool,
+
+        /// Output complete response as JSON with nested metadata
+        #[arg(long)]
+        json: bool,
+
+        /// Override safety behavior (return-partial, error, log)
+        #[arg(long)]
+        safety_behavior: Option<String>,
     },
 
     /// Clipboard mode for universal editor support
@@ -320,6 +427,10 @@ enum Command {
     /// List, inspect, and manage AI engine providers.
     #[command(subcommand)]
     Engines(commands::EnginesCommand),
+
+    /// Manage AI model configurations
+    #[command(subcommand)]
+    Models(commands::types::ModelsCommand),
 
     /// Monitor agent execution and telemetry
     ///
@@ -481,7 +592,7 @@ enum Command {
 }
 
 // Command types are now in commands::types module
-use commands::{AgentsCommand, AuthCommand, ExtensionCommand, TemplatesCommand, BraingridCommand, CacheCommand};
+use commands::{AgentsCommand, AuthCommand, ExtensionCommand, TemplatesCommand, BraingridCommand, CacheCommand, ToolsCommand};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -544,7 +655,7 @@ async fn main() -> anyhow::Result<()> {
     // Check for resumable executions on startup (before command execution)
     // Skip for init command and other commands that shouldn't be interrupted
     if let Some(ref cmd) = args.command {
-        if !matches!(cmd, Command::Init { .. } | Command::Braingrid(_)) {
+        if !matches!(cmd, Command::Init { .. } | Command::Braingrid(_) | Command::Tools(_)) {
             check_and_prompt_resume().await?;
         }
     }
@@ -576,6 +687,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Braingrid(cmd) => {
             match cmd {
+                BraingridCommand::Specify { text, file, project } => {
+                    braingrid::specify(text, file, project).await?;
+                }
                 BraingridCommand::Read { req_id, project } => {
                     braingrid::read(req_id, project).await?;
                 }
@@ -591,6 +705,12 @@ async fn main() -> anyhow::Result<()> {
                 BraingridCommand::Breakdown { req_id, project } => {
                     braingrid::breakdown(req_id, project).await?;
                 }
+                BraingridCommand::Action { req_id, action, project } => {
+                    braingrid::action(req_id, action, project).await?;
+                }
+                BraingridCommand::EnsureTasks { req_id, project } => {
+                    braingrid::ensure_tasks(req_id, project).await?;
+                }
                 BraingridCommand::Cache(cache_cmd) => {
                     match cache_cmd {
                         CacheCommand::Clear { project } => {
@@ -603,17 +723,51 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
         }
-        Command::Run { script, model, dir, model_tier } => {
-            run::execute(script, model, dir, model_tier).await?;
+        Command::Tools(cmd) => {
+            match cmd {
+                ToolsCommand::List { category, json } => {
+                    commands::tools::list(category, json).await?;
+                }
+            }
         }
-        Command::Step { id, prompt, model, engine, reasoning, model_tier } => {
-            step::execute(id, prompt, model, engine, reasoning, model_tier, None).await?;
+        Command::Train(cmd) => {
+            train::execute(cmd).await?;
         }
-        Command::Chat { agent_id, session, resume, list } => {
+        Command::Run { script, model, dir, model_tier, show_metadata, json, safety_behavior } => {
+            run::execute(script, model, dir, model_tier, show_metadata, json, safety_behavior).await?;
+        }
+        Command::Batch { action } => {
+            batch::execute(action).await?;
+        }
+        Command::Step { id, prompt, model, engine, reasoning, model_tier, stream, show_metadata, json, safety_behavior, image, audio, video, file, auto_upload, response_format, response_schema } => {
+            // Determine execution mode
+            let execution_mode = client::daemon_client::ExecutionMode::from_args(
+                args.daemon.clone(),
+                args.local,
+            );
+
+            // Check if daemon mode is requested
+            match execution_mode {
+                client::daemon_client::ExecutionMode::Daemon(url) => {
+                    // Daemon mode: limitations apply
+                    if stream || !image.is_empty() || !audio.is_empty() || !video.is_empty() || !file.is_empty() {
+                        eprintln!("Warning: Daemon mode does not support streaming or multi-modal inputs.");
+                        eprintln!("These features will be ignored. Use --local for full functionality.");
+                        eprintln!();
+                    }
+                    step::execute_daemon(url, id, prompt, model, engine, reasoning).await?;
+                }
+                client::daemon_client::ExecutionMode::Local => {
+                    // Local mode: full feature support
+                    step::execute(id, prompt, model, engine, reasoning, model_tier, None, stream, show_metadata, json, safety_behavior, image, audio, video, file, auto_upload, response_format, response_schema).await?;
+                }
+            }
+        }
+        Command::Chat { agent_id, session, resume, list, stream, show_metadata, json, safety_behavior } => {
             if list {
                 chat::list_sessions().await?;
             } else if let Some(id) = agent_id {
-                chat::execute(id, session, resume).await?;
+                chat::execute(id, session, resume, stream, show_metadata, json, safety_behavior).await?;
             } else {
                 anyhow::bail!("Agent ID is required when not using --list");
             }
@@ -654,6 +808,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Engines(cmd) => {
             engines::execute(cmd).await?;
+        }
+        Command::Models(cmd) => {
+            models::execute(cmd).await?;
         }
         Command::Monitor(cmd) => {
             monitor::execute(cmd).await?;
@@ -758,7 +915,8 @@ async fn check_and_prompt_resume() -> anyhow::Result<()> {
     }
     
     // Display resumable executions
-    println!("\n{} Found {} interrupted execution(s):", "ℹ".cyan(), resumable_info.len());
+    let colors = RadiumBrandColors::new();
+    println!("\n{} Found {} interrupted execution(s):", "ℹ".color(colors.info()), resumable_info.len());
     println!();
     for (idx, (req_id, state)) in resumable_info.iter().enumerate() {
         let completed = state.completed_tasks.len();
@@ -768,7 +926,7 @@ async fn check_and_prompt_resume() -> anyhow::Result<()> {
             idx + 1, req_id, state.requirement_title, completed, total, last_checkpoint);
     }
     println!();
-    println!("{} To resume, run: rad requirement resume <req-id>", "ℹ".cyan());
+    println!("{} To resume, run: rad requirement resume <req-id>", "ℹ".color(colors.info()));
     println!();
     
     Ok(())

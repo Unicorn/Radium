@@ -148,12 +148,13 @@ mod tests {
     use super::*;
     use crate::orchestration::tool::{Tool, ToolHandler, ToolParameters, ToolResult};
     use async_trait::async_trait;
+    use std::sync::Arc;
 
     struct TestHandler;
 
     #[async_trait]
     impl ToolHandler for TestHandler {
-        async fn execute(&self, _args: &crate::orchestration::tool::ToolArguments) -> Result<ToolResult> {
+        async fn execute(&self, _args: &crate::orchestration::tool::ToolArguments) -> Result<ToolResult, crate::OrchestrationError> {
             Ok(ToolResult::success("test"))
         }
     }

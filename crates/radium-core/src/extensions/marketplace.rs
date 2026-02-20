@@ -315,29 +315,26 @@ impl MarketplaceClient {
                         return Ok(response);
                     } else if response.status().is_server_error() && attempt < max_retries {
                         // Retry on server errors
-                        std::thread::sleep(Duration::from_millis(100 * (attempt + 1) as u64));
+                        std::thread::sleep(Duration::from_millis(100 * u64::from(attempt + 1)));
                         continue;
-                    } else {
-                        return Err(MarketplaceError::InvalidResponse(format!(
-                            "Request failed with status: {}",
-                            response.status()
-                        )));
                     }
+                    return Err(MarketplaceError::InvalidResponse(format!(
+                        "Request failed with status: {}",
+                        response.status()
+                    )));
                 }
                 Err(e) => {
                     last_error = Some(e);
                     if attempt < max_retries {
                         // Retry on network errors
-                        std::thread::sleep(Duration::from_millis(100 * (attempt + 1) as u64));
+                        std::thread::sleep(Duration::from_millis(100 * u64::from(attempt + 1)));
                         continue;
                     }
                 }
             }
         }
 
-        Err(last_error
-            .map(MarketplaceError::Http)
-            .unwrap_or_else(|| MarketplaceError::Timeout))
+        Err(last_error.map_or_else(|| MarketplaceError::Timeout, MarketplaceError::Http))
     }
 }
 

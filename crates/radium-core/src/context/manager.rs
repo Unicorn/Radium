@@ -104,6 +104,24 @@ impl ContextManager {
                 }
             });
 
+        // Initialize secret filter if enabled in config
+        let secret_filter = config
+            .and_then(|c| {
+                if c.security.secrets.enable_secret_redaction {
+                    // Create SecretManager with vault path and default password
+                    // Note: In production, password should come from secure source
+                    let vault_path = std::path::PathBuf::from(&c.security.secrets.secret_vault_path);
+                    let secret_manager = crate::security::SecretManager::new(
+                        vault_path,
+                        "radium-secrets" // Default password - should be configurable
+                    ).ok()?;
+
+                    Some(Arc::new(SecretFilter::new(Arc::new(secret_manager))))
+                } else {
+                    None
+                }
+            });
+
         Self {
             workspace_root,
             injector,
@@ -115,7 +133,7 @@ impl ContextManager {
             metrics: None,
             playbook_registry: None,
             privacy_filter,
-            secret_filter: None,
+            secret_filter,
         }
     }
 
@@ -176,6 +194,24 @@ impl ContextManager {
                 }
             });
 
+        // Initialize secret filter if enabled in config
+        let secret_filter = config
+            .and_then(|c| {
+                if c.security.secrets.enable_secret_redaction {
+                    // Create SecretManager with vault path and default password
+                    // Note: In production, password should come from secure source
+                    let vault_path = std::path::PathBuf::from(&c.security.secrets.secret_vault_path);
+                    let secret_manager = crate::security::SecretManager::new(
+                        vault_path,
+                        "radium-secrets" // Default password - should be configurable
+                    ).ok()?;
+
+                    Some(Arc::new(SecretFilter::new(Arc::new(secret_manager))))
+                } else {
+                    None
+                }
+            });
+
         Ok(Self {
             workspace_root,
             injector,
@@ -187,7 +223,7 @@ impl ContextManager {
             metrics: None,
             playbook_registry: None,
             privacy_filter,
-            secret_filter: None, // TODO: Initialize SecretFilter when needed
+            secret_filter,
         })
     }
 
@@ -579,7 +615,7 @@ impl ContextManager {
         let plan_context = analysis_plan.to_context_string();
 
         // Build regular context
-        let mut context = self.build_context(invocation, requirement_id)?;
+        let context = self.build_context(invocation, requirement_id)?;
 
         // Prepend analysis plan to context
         let mut final_context = plan_context;

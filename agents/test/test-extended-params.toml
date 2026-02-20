@@ -1,0 +1,12 @@
+[agent]
+id = "test-extended-params"
+name = "Test Agent with Extended Parameters"
+description = "Test agent for validating extended generation parameters"
+prompt_path = "prompts/agents/test/test-extended-params.md"
+
+[model]
+top_k = 40
+frequency_penalty = 0.5
+presence_penalty = 0.3
+response_format = "json"
+

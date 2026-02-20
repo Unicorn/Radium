@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["FileInjectionFormat"],"fn":["process_with_file_injection"],"struct":["CacheStats","FileInjectionOptions","PromptCache"]};

@@ -1,8 +1,7 @@
 //! Privacy command implementation.
 
 use colored::Colorize;
-use radium_core::config::Config;
-use radium_core::security::{PatternLibrary, PrivacyFilter, RedactionStyle};
+use radium_core::security::PatternLibrary;
 use radium_core::workspace::Workspace;
 use std::fs;
 use std::io::{self, Read};
@@ -46,8 +45,8 @@ async fn check_file(file_path: &PathBuf) -> anyhow::Result<()> {
         .map_err(|e| anyhow::anyhow!("Failed to read file {}: {}", file_path.display(), e))?;
 
     // Load config from workspace to get custom patterns
-    let workspace = Workspace::discover().ok();
-    let mut pattern_library = PatternLibrary::default();
+    let _workspace = Workspace::discover().ok();
+    let pattern_library = PatternLibrary::default();
 
     // TODO: Load custom patterns from config if workspace found
     // For now, just use default patterns
@@ -89,7 +88,7 @@ async fn check_file(file_path: &PathBuf) -> anyhow::Result<()> {
         println!();
     }
 
-    println!("Total: {} sensitive data pattern(s) found", total_findings.bright_red().bold());
+    println!("Total: {} sensitive data pattern(s) found", total_findings.to_string().bright_red().bold());
     std::process::exit(2);
 }
 

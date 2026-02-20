@@ -4,7 +4,7 @@
 //! configuration structures, connection state, and trait definitions for
 //! pluggable components.
 
-use crate::mcp::{McpError, McpServerConfig, McpTool, Result, TransportType};
+use crate::mcp::{McpError, McpPrompt, McpServerConfig, McpTool, Result, TransportType};
 use crate::mcp::proxy::{DefaultSecurityLayer, DefaultToolCatalog, DefaultToolRouter, HealthChecker, ProxyServer, UpstreamPool};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -249,13 +249,60 @@ pub trait ToolCatalog: Send + Sync {
     ///
     /// The original tool name if found, None otherwise.
     async fn get_original_name(&self, registered_name: &str) -> Option<String>;
+
+    /// Get all aggregated prompts from all upstream servers.
+    ///
+    /// # Returns
+    ///
+    /// A vector of all available prompts (with conflict resolution applied).
+    async fn get_all_prompts(&self) -> Vec<McpPrompt>;
+
+    /// Get the upstream server name that provides a specific prompt.
+    ///
+    /// # Arguments
+    ///
+    /// * `registered_name` - The registered prompt name (may be prefixed)
+    ///
+    /// # Returns
+    ///
+    /// The upstream server name if the prompt exists, None otherwise.
+    async fn get_prompt_source(&self, registered_name: &str) -> Option<String>;
+
+    /// Get a specific prompt by name.
+    ///
+    /// # Arguments
+    ///
+    /// * `registered_name` - The registered prompt name (may be prefixed)
+    ///
+    /// # Returns
+    ///
+    /// The prompt if found, None otherwise.
+    async fn get_prompt(&self, registered_name: &str) -> Option<McpPrompt>;
+
+    /// Rebuild the catalog by querying all upstream servers.
+    ///
+    /// Clears the existing catalog and re-discovers all tools and prompts
+    /// from connected upstream servers. Useful for refreshing the catalog
+    /// after upstream changes or initial proxy startup.
+    ///
+    /// # Arguments
+    ///
+    /// * `pool` - Upstream pool containing connected servers
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if tool/prompt discovery fails for all upstreams.
+    /// Individual upstream failures are logged as warnings.
+    async fn rebuild_catalog(&self, pool: &crate::mcp::proxy::upstream_pool::UpstreamPool) -> crate::mcp::Result<()>;
 }
 
 /// Conflict resolution strategy for tool name conflicts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum ConflictStrategy {
     /// Automatically prefix conflicting tools with upstream name.
+    #[default]
     AutoPrefix,
     /// Reject duplicate tool names, keeping the first one.
     Reject,
@@ -263,11 +310,6 @@ pub enum ConflictStrategy {
     PriorityOverride,
 }
 
-impl Default for ConflictStrategy {
-    fn default() -> Self {
-        ConflictStrategy::AutoPrefix
-    }
-}
 
 /// MCP Proxy Server main struct.
 ///
@@ -315,16 +357,21 @@ impl McpProxyServer {
             priorities.insert(upstream.server.name.clone(), upstream.priority);
         }
 
-        let router: Arc<dyn ToolRouter> = Arc::new(DefaultToolRouter::new(Arc::clone(&pool)));
+        let _router: Arc<dyn ToolRouter> = Arc::new(DefaultToolRouter::new(Arc::clone(&pool)));
         let catalog: Arc<dyn ToolCatalog> = Arc::new(DefaultToolCatalog::new(
             config.conflict_strategy,
             priorities,
         ));
-        let security: Arc<dyn SecurityLayer> = Arc::new(DefaultSecurityLayer::new(config.security.clone())?);
+        let _security: Arc<dyn SecurityLayer> = Arc::new(DefaultSecurityLayer::new(config.security.clone())?);
         let health_checker = Arc::new(HealthChecker::new(Arc::clone(&pool)));
 
-        // TODO: Add rebuild_catalog method to ToolCatalog trait for initial rebuild
-        // For now, we skip initial rebuild - it will happen on first tools/list
+        // Perform initial catalog rebuild to discover all tools and prompts
+        if let Err(e) = catalog.rebuild_catalog(&pool).await {
+            tracing::warn!(
+                error = %e,
+                "Failed to rebuild catalog during proxy initialization"
+            );
+        }
 
         let (shutdown_tx, shutdown_rx) = broadcast::channel(1);
 
@@ -381,6 +428,14 @@ impl McpProxyServer {
             priorities,
         ));
         let security: Arc<dyn SecurityLayer> = Arc::new(DefaultSecurityLayer::new(self.config.security.clone())?);
+
+        // Rebuild catalog to discover all tools and prompts from upstreams
+        if let Err(e) = catalog.rebuild_catalog(&self.pool).await {
+            tracing::warn!(
+                error = %e,
+                "Failed to rebuild catalog during proxy server start"
+            );
+        }
 
         let mut server = ProxyServer::new(
             self.config.clone(),

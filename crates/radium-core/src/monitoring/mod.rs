@@ -26,7 +26,10 @@
 
 mod attribution;
 mod budget;
+mod budget_adapter;
 mod error;
+mod error_classifier;
+mod local_cost_tracker;
 mod logs;
 #[cfg(feature = "monitoring")]
 pub mod permission_analytics;
@@ -40,6 +43,10 @@ pub use budget::{
     ProviderComparison, ProviderCostInfo, TeamCostBreakdown, get_provider_comparison,
 };
 pub use error::{MonitoringError, Result};
+pub use error_classifier::{
+    ClassificationResult, ErrorClassifier, ErrorSeverity, ErrorType, SeverityWeights,
+};
+pub use local_cost_tracker::{EngineCostRate, LocalModelCostTracker};
 pub use logs::LogManager;
 pub use schema::initialize_schema;
 pub use service::{AgentRecord, AgentStatus, AgentUsage, MonitoringService, UsageFilter};

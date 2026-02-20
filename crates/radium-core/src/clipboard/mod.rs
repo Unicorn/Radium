@@ -6,7 +6,6 @@
 pub mod parser;
 
 use anyhow::{Context, Result};
-use std::io::Write;
 
 /// Read text from system clipboard
 pub fn read_clipboard() -> Result<String> {

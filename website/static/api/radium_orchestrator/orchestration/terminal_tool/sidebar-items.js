@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["create_terminal_command_tool"],"trait":["SandboxManager","WorkspaceRootProvider"]};

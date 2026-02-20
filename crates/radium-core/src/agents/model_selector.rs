@@ -87,9 +87,8 @@ impl DefaultModelSelector {
                     persona
                         .models
                         .premium
-                        .as_ref()
-                        .cloned()
-                        .ok_or_else(|| SelectionError::NoModelAvailable)
+                        .clone()
+                        .ok_or(SelectionError::NoModelAvailable)
                 } else {
                     Ok(persona.models.primary.clone())
                 }
@@ -107,9 +106,8 @@ impl DefaultModelSelector {
                 persona
                     .models
                     .premium
-                    .as_ref()
-                    .cloned()
-                    .ok_or_else(|| SelectionError::NoModelAvailable)
+                    .clone()
+                    .ok_or(SelectionError::NoModelAvailable)
             }
         }
     }

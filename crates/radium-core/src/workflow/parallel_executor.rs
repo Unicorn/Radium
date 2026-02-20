@@ -5,7 +5,7 @@
 
 use crate::context::braingrid_client::{BraingridClient, BraingridTask, TaskStatus};
 use crate::planning::dag::DependencyGraph;
-use crate::workflow::agent_selector::AgentSelector;
+use crate::workflow::agent_selector::{AgentSelector, RoutingDecisionMetadata};
 use crate::workflow::execution_state::{ExecutionState, TaskExecutionStatus, TaskResult};
 use chrono::Utc;
 use radium_orchestrator::{AgentExecutor, AgentOutput};
@@ -13,6 +13,11 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 use tracing::{error, info, warn};
+
+/// Callback type for routing decisions (Phase 2 - REQ-246).
+/// Called after agent selection with routing metadata and execution result.
+pub type RoutingDecisionCallback =
+    Arc<dyn Fn(RoutingDecisionMetadata, bool) + Send + Sync>;
 
 /// Execution report summarizing task execution results.
 #[derive(Debug, Clone)]
@@ -84,6 +89,7 @@ impl ParallelExecutor {
         tasks: Vec<BraingridTask>,
         dep_graph: &DependencyGraph,
         requirement_id: &str,
+        routing_callback: Option<RoutingDecisionCallback>,
     ) -> Result<(ExecutionReport, Arc<ExecutionState>), String> {
         let start_time = std::time::Instant::now();
 
@@ -131,15 +137,15 @@ impl ParallelExecutor {
 
             // Filter to tasks that aren't already completed/failed and aren't blocked
             let mut batch_task_ids: Vec<String> = Vec::new();
-            for task_id in ready_task_ids.iter() {
+            for task_id in &ready_task_ids {
                 // Check if task is already completed or failed
-                if execution_state.is_completed(&task_id) || execution_state.is_failed(&task_id) {
+                if execution_state.is_completed(task_id) || execution_state.is_failed(task_id) {
                     continue;
                 }
 
                 // Check if task is blocked by failed dependencies
-                if self.is_blocked_by_failures(&task_id, &tasks, &execution_state) {
-                    execution_state.mark_blocked(&task_id);
+                if self.is_blocked_by_failures(task_id, &tasks, &execution_state) {
+                    execution_state.mark_blocked(task_id);
                     warn!(
                         requirement_id = %requirement_id,
                         task_id = %task_id,
@@ -148,7 +154,7 @@ impl ParallelExecutor {
                     continue;
                 }
 
-                batch_task_ids.push(task_id.to_string());
+                batch_task_ids.push(task_id.clone());
                 
                 // Limit batch size to max_concurrent
                 if batch_task_ids.len() >= self.max_concurrent {
@@ -178,6 +184,7 @@ impl ParallelExecutor {
                 let agent_executor_clone = Arc::clone(&self.agent_executor);
                 let agent_selector_clone = Arc::clone(&self.agent_selector);
                 let semaphore_clone = Arc::clone(&self.semaphore);
+                let routing_callback_clone = routing_callback.clone(); // Phase 2 - REQ-246
 
                 // Spawn task execution
                 let handle = tokio::spawn(async move {
@@ -201,9 +208,12 @@ impl ParallelExecutor {
 
                     let started_at = Utc::now();
 
-                    // Select agent
-                    let agent_id = match agent_selector_clone.select_agent(&task_clone).await {
-                        Ok(id) => id,
+                    // Select agent and capture routing metadata (Phase 2 - REQ-246)
+                    let (agent_id, routing_metadata) = match agent_selector_clone.select_agent(&task_clone).await {
+                        Ok(metadata) => {
+                            let agent_id = metadata.agent_id.clone();
+                            (agent_id, Some(metadata))
+                        }
                         Err(e) => {
                             error!(
                                 requirement_id = %requirement_id_clone,
@@ -211,39 +221,36 @@ impl ParallelExecutor {
                                 error = %e,
                                 "Failed to select agent, using code-agent as fallback"
                             );
-                            "code-agent".to_string()
+                            ("code-agent".to_string(), None)
                         }
                     };
 
                     // Get the actual agent object from the registry
-                    let agent = match agent_selector_clone.get_agent(&agent_id).await {
-                        Some(a) => a,
-                        None => {
-                            let error_msg = format!("Agent not found: {}", agent_id);
-                            error!(
-                                requirement_id = %requirement_id_clone,
-                                task_id = %task_id_clone,
-                                agent_id = %agent_id,
-                                "Agent not found in registry"
-                            );
-                            let task_result = TaskResult::failure(
-                                String::new(),
-                                started_at,
-                                Utc::now(),
-                                agent_id.clone(),
-                                error_msg.clone(),
-                            );
-                            execution_state_clone.mark_failed(&task_id_clone, task_result);
-                            let _ = braingrid_client_clone
-                                .update_task_status(
-                                    &task_clone.task_id(),
-                                    &requirement_id_clone,
-                                    TaskStatus::InProgress,
-                                    Some(&error_msg),
-                                )
-                                .await;
-                            return Err(error_msg);
-                        }
+                    let agent = if let Some(a) = agent_selector_clone.get_agent(&agent_id).await { a } else {
+                        let error_msg = format!("Agent not found: {}", agent_id);
+                        error!(
+                            requirement_id = %requirement_id_clone,
+                            task_id = %task_id_clone,
+                            agent_id = %agent_id,
+                            "Agent not found in registry"
+                        );
+                        let task_result = TaskResult::failure(
+                            String::new(),
+                            started_at,
+                            Utc::now(),
+                            agent_id.clone(),
+                            error_msg.clone(),
+                        );
+                        execution_state_clone.mark_failed(&task_id_clone, task_result);
+                        let _ = braingrid_client_clone
+                            .update_task_status(
+                                &task_clone.task_id(),
+                                &requirement_id_clone,
+                                TaskStatus::InProgress,
+                                Some(&error_msg),
+                            )
+                            .await;
+                        return Err(error_msg);
                     };
 
                     info!(
@@ -279,11 +286,27 @@ impl ParallelExecutor {
                                 AgentOutput::ToolCall { name, args } => {
                                     format!("Tool call: {} with args: {:?}", name, args)
                                 }
+                                AgentOutput::CodeExecution(result) => {
+                                    let mut output = format!("Code execution:\nCode: {}\n", result.code);
+                                    if let Some(ref stdout) = result.stdout {
+                                        output.push_str(&format!("Stdout: {}\n", stdout));
+                                    }
+                                    if let Some(ref stderr) = result.stderr {
+                                        output.push_str(&format!("Stderr: {}\n", stderr));
+                                    }
+                                    if let Some(ref return_value) = result.return_value {
+                                        output.push_str(&format!("Return value: {}\n", return_value));
+                                    }
+                                    if let Some(ref error) = result.error {
+                                        output.push_str(&format!("Error: {}\n", error));
+                                    }
+                                    output
+                                }
                                 AgentOutput::Terminate => "Terminated".to_string(),
                             };
 
-                            // TODO: Extract git commits from execution (requires git integration)
-                            let commits = vec![];
+                            // Extract git commits from execution output
+                            let commits = crate::workflow::git_integration::extract_commits_from_output(&output);
 
                             // TODO: Extract test results from execution (requires test integration)
                             let test_results = None;
@@ -320,6 +343,11 @@ impl ParallelExecutor {
                                 "Task completed successfully"
                             );
 
+                            // Trigger routing feedback callback (Phase 2 - REQ-246)
+                            if let (Some(callback), Some(metadata)) = (&routing_callback_clone, &routing_metadata) {
+                                callback(metadata.clone(), true); // true = execution succeeded
+                            }
+
                             Ok(task_id_clone)
                         }
                         Ok(result) => {
@@ -334,6 +362,9 @@ impl ParallelExecutor {
                                     serde_json::to_string(&data).unwrap_or_default()
                                 }
                                 AgentOutput::ToolCall { .. } => "Tool call failed".to_string(),
+                                AgentOutput::CodeExecution(result) => {
+                                    format!("Code execution failed: {}", result.error.as_ref().unwrap_or(&"Unknown error".to_string()))
+                                }
                                 AgentOutput::Terminate => "Terminated".to_string(),
                             };
 
@@ -363,6 +394,11 @@ impl ParallelExecutor {
                                 error = %error_msg,
                                 "Task execution failed"
                             );
+
+                            // Trigger routing feedback callback (Phase 2 - REQ-246)
+                            if let (Some(callback), Some(metadata)) = (&routing_callback_clone, &routing_metadata) {
+                                callback(metadata.clone(), false); // false = execution failed
+                            }
 
                             Err(error_msg)
                         }
@@ -395,6 +431,11 @@ impl ParallelExecutor {
                                 error = %error_msg,
                                 "Task execution error"
                             );
+
+                            // Trigger routing feedback callback (Phase 2 - REQ-246)
+                            if let (Some(callback), Some(metadata)) = (&routing_callback_clone, &routing_metadata) {
+                                callback(metadata.clone(), false); // false = execution failed
+                            }
 
                             Err(error_msg)
                         }

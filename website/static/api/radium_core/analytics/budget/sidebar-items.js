@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["anomaly_detection","cache","forecasting"]};

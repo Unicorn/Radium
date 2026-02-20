@@ -7,10 +7,9 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use regex::Regex;
-use walkdir::WalkDir;
 
 use super::error::{SecurityError, SecurityResult};
-use crate::workspace::Workspace;
+use crate::workspace::{IgnoreWalker, Workspace};
 
 /// Severity level for detected credentials.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -163,7 +162,7 @@ impl SecretScanner {
             "mp3", "mp4", "avi", "mov", "wav",
         ]
         .iter()
-        .map(|s| s.to_string())
+        .map(|s| (*s).to_string())
         .collect()
     }
 
@@ -175,7 +174,7 @@ impl SecretScanner {
             "vendor", ".bundle", ".gradle",
         ]
         .iter()
-        .map(|s| s.to_string())
+        .map(|s| (*s).to_string())
         .collect()
     }
 
@@ -290,20 +289,14 @@ impl SecretScanner {
         let mut all_matches = Vec::new();
         let mut total_files = 0;
 
-        // Walk directory tree
-        for entry in WalkDir::new(workspace_root)
-            .follow_links(false)
-            .into_iter()
-            .filter_map(|e| e.ok())
-        {
-            let path = entry.path();
+        // Walk directory tree with ignore support
+        let walker = IgnoreWalker::new(workspace_root).follow_links(false);
+        
+        for path in walker.build() {
+            total_files += 1;
 
-            if path.is_file() {
-                total_files += 1;
-
-                if let Ok(matches) = self.scan_file(path) {
-                    all_matches.extend(matches);
-                }
+            if let Ok(matches) = self.scan_file(&path) {
+                all_matches.extend(matches);
             }
         }
 
@@ -341,7 +334,7 @@ mod tests {
 
         std::fs::write(
             &file_path,
-            "let api_key = 'sk-test123456789012345678901234567890123456';",
+            "let api_key = 'sk-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';",
         ).unwrap();
 
         let matches = scanner.scan_file(&file_path).unwrap();
@@ -358,7 +351,7 @@ mod tests {
         // Create test files
         std::fs::write(
             temp_dir.path().join("file1.rs"),
-            "let key = 'sk-test123456789012345678901234567890123456';",
+            "let key = 'sk-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';",
         ).unwrap();
         std::fs::write(
             temp_dir.path().join("file2.py"),
@@ -379,7 +372,7 @@ mod tests {
         let file_path = temp_dir.path().join("test.bin");
 
         // Create a binary file (with null bytes)
-        std::fs::write(&file_path, b"sk-test123456789012345678901234567890123456\x00").unwrap();
+        std::fs::write(&file_path, b"sk-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\x00").unwrap();
 
         let matches = scanner.scan_file(&file_path).unwrap();
         assert!(matches.is_empty());
@@ -390,12 +383,12 @@ mod tests {
         let scanner = SecretScanner::new();
         let temp_dir = TempDir::new().unwrap();
 
-        // Create file in excluded directory
-        let git_dir = temp_dir.path().join(".git");
+        // Create file in an excluded directory (avoid `.git` which may be restricted in some sandboxes)
+        let git_dir = temp_dir.path().join("target");
         std::fs::create_dir_all(&git_dir).unwrap();
         std::fs::write(
             git_dir.join("config"),
-            "token = 'sk-test123456789012345678901234567890123456'",
+            "token = 'sk-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'",
         ).unwrap();
 
         let _matches = scanner.scan_file(&git_dir.join("config")).unwrap();

@@ -43,6 +43,21 @@ pub struct ExecutionResult {
     pub execution_time_secs: u64,
 }
 
+/// Routing decision information for feedback collection (Phase 2 - REQ-246).
+#[derive(Debug, Clone)]
+pub struct RoutingDecisionInfo {
+    /// Task description that was routed.
+    pub task_description: String,
+    /// Agent that was selected.
+    pub selected_agent: String,
+    /// Routing method used ("skill", "keyword", "ml", "adaptive").
+    pub routing_method: String,
+    /// Routing confidence score (0.0-1.0).
+    pub confidence: f32,
+    /// Whether execution succeeded.
+    pub execution_success: bool,
+}
+
 /// Progress messages sent from async tasks to the TUI.
 #[derive(Debug, Clone)]
 pub enum ProgressMessage {
@@ -77,6 +92,12 @@ pub enum ProgressMessage {
     RequirementComplete {
         requirement_id: String,
         result: ExecutionResult,
+    },
+    /// Routing decision made for task (Phase 2 - REQ-246).
+    /// Triggers feedback collection after task completion.
+    RoutingDecision {
+        task_id: String,
+        decision: RoutingDecisionInfo,
     },
 }
 

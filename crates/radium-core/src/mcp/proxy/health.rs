@@ -73,13 +73,13 @@ impl HealthChecker {
                                     pool.mark_unhealthy(&upstream_name_clone).await;
                                 }
                             }
-                            Some(crate::mcp::proxy::types::ConnectionState::Disconnected) |
-                            Some(crate::mcp::proxy::types::ConnectionState::Unhealthy) => {
+                            Some(crate::mcp::proxy::types::ConnectionState::Disconnected |
+crate::mcp::proxy::types::ConnectionState::Unhealthy) => {
                                 // Attempt reconnection with exponential backoff
                                 tokio::time::sleep(Duration::from_secs(backoff_seconds)).await;
 
                                 match pool.reconnect_upstream(&upstream_name_clone).await {
-                                    Ok(_) => {
+                                    Ok(()) => {
                                         tracing::info!(
                                             upstream_name = %upstream_name_clone,
                                             "Successfully reconnected to upstream"

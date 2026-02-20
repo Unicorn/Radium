@@ -5,7 +5,7 @@
 
 use crate::mcp::proxy::types::{ConflictStrategy, ToolCatalog as ToolCatalogTrait};
 use crate::mcp::proxy::upstream_pool::UpstreamPool;
-use crate::mcp::{McpTool, Result};
+use crate::mcp::{McpPrompt, McpTool, Result};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -18,6 +18,12 @@ pub struct DefaultToolCatalog {
     tool_sources: Arc<RwLock<HashMap<String, String>>>,
     /// Map of registered tool names to original tool names.
     original_names: Arc<RwLock<HashMap<String, String>>>,
+    /// Map of registered prompt names to prompt definitions.
+    prompts: Arc<RwLock<HashMap<String, McpPrompt>>>,
+    /// Map of registered prompt names to their source upstream.
+    prompt_sources: Arc<RwLock<HashMap<String, String>>>,
+    /// Map of registered prompt names to original prompt names.
+    prompt_original_names: Arc<RwLock<HashMap<String, String>>>,
     /// Conflict resolution strategy.
     conflict_strategy: ConflictStrategy,
     /// Map of upstream names to their priorities.
@@ -36,6 +42,9 @@ impl DefaultToolCatalog {
             tools: Arc::new(RwLock::new(HashMap::new())),
             tool_sources: Arc::new(RwLock::new(HashMap::new())),
             original_names: Arc::new(RwLock::new(HashMap::new())),
+            prompts: Arc::new(RwLock::new(HashMap::new())),
+            prompt_sources: Arc::new(RwLock::new(HashMap::new())),
+            prompt_original_names: Arc::new(RwLock::new(HashMap::new())),
             conflict_strategy: strategy,
             upstream_priorities: priorities,
         }
@@ -114,7 +123,7 @@ impl DefaultToolCatalog {
         original_name: &str,
         upstream_name: &str,
         tools_map: &HashMap<String, McpTool>,
-        sources_map: &HashMap<String, String>,
+        _sources_map: &HashMap<String, String>,
     ) -> String {
         match self.conflict_strategy {
             ConflictStrategy::AutoPrefix => {
@@ -130,16 +139,129 @@ impl DefaultToolCatalog {
         }
     }
 
-    /// Rebuild the catalog by querying all upstreams.
+    /// Add prompts from an upstream server.
     ///
     /// # Arguments
     ///
-    /// * `pool` - Upstream pool to query for tools
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if tool discovery fails
-    pub async fn rebuild_catalog(&self, pool: &UpstreamPool) -> Result<()> {
+    /// * `upstream_name` - Name of the upstream server
+    /// * `prompts` - List of prompts from this upstream
+    pub async fn add_prompts(&self, upstream_name: String, prompts: Vec<McpPrompt>) {
+        let mut prompts_map = self.prompts.write().await;
+        let mut sources_map = self.prompt_sources.write().await;
+        let mut original_map = self.prompt_original_names.write().await;
+
+        for prompt in prompts {
+            let original_name = prompt.name.clone();
+            let registered_name = self.resolve_prompt_name(
+                &original_name,
+                &upstream_name,
+                &prompts_map,
+                &sources_map,
+            );
+
+            // Check if we should register this prompt based on conflict strategy
+            let should_register = match self.conflict_strategy {
+                ConflictStrategy::AutoPrefix => true, // Always register, may be prefixed
+                ConflictStrategy::Reject => {
+                    // Only register if name doesn't exist
+                    !prompts_map.contains_key(&original_name)
+                }
+                ConflictStrategy::PriorityOverride => {
+                    // Register if name doesn't exist, or if our priority is higher
+                    if let Some(existing_source) = sources_map.get(&original_name) {
+                        let existing_priority = self
+                            .upstream_priorities
+                            .get(existing_source)
+                            .copied()
+                            .unwrap_or(u32::MAX);
+                        let new_priority = self
+                            .upstream_priorities
+                            .get(&upstream_name)
+                            .copied()
+                            .unwrap_or(u32::MAX);
+
+                        // Lower number = higher priority
+                        new_priority < existing_priority
+                    } else {
+                        true
+                    }
+                }
+            };
+
+            if should_register {
+                // Remove existing prompt if we're overriding
+                if prompts_map.contains_key(&registered_name) && registered_name != original_name {
+                    // This is a conflict, remove the old one if PriorityOverride
+                    if matches!(self.conflict_strategy, ConflictStrategy::PriorityOverride) {
+                        prompts_map.remove(&registered_name);
+                        sources_map.remove(&registered_name);
+                        original_map.remove(&registered_name);
+                    }
+                }
+
+                prompts_map.insert(registered_name.clone(), prompt);
+                sources_map.insert(registered_name.clone(), upstream_name.clone());
+                original_map.insert(registered_name.clone(), original_name);
+            }
+        }
+    }
+
+    /// Resolve prompt name based on conflict strategy.
+    fn resolve_prompt_name(
+        &self,
+        original_name: &str,
+        upstream_name: &str,
+        prompts_map: &HashMap<String, McpPrompt>,
+        _sources_map: &HashMap<String, String>,
+    ) -> String {
+        match self.conflict_strategy {
+            ConflictStrategy::AutoPrefix => {
+                if prompts_map.contains_key(original_name) {
+                    format!("{}:{}", upstream_name, original_name)
+                } else {
+                    original_name.to_string()
+                }
+            }
+            ConflictStrategy::Reject | ConflictStrategy::PriorityOverride => {
+                original_name.to_string()
+            }
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl ToolCatalogTrait for DefaultToolCatalog {
+    async fn get_all_tools(&self) -> Vec<McpTool> {
+        let tools = self.tools.read().await;
+        tools.values().cloned().collect()
+    }
+
+    async fn get_tool_source(&self, registered_name: &str) -> Option<String> {
+        let sources = self.tool_sources.read().await;
+        sources.get(registered_name).cloned()
+    }
+
+    async fn get_original_name(&self, registered_name: &str) -> Option<String> {
+        let original = self.original_names.read().await;
+        original.get(registered_name).cloned()
+    }
+
+    async fn get_all_prompts(&self) -> Vec<McpPrompt> {
+        let prompts = self.prompts.read().await;
+        prompts.values().cloned().collect()
+    }
+
+    async fn get_prompt_source(&self, registered_name: &str) -> Option<String> {
+        let sources = self.prompt_sources.read().await;
+        sources.get(registered_name).cloned()
+    }
+
+    async fn get_prompt(&self, registered_name: &str) -> Option<McpPrompt> {
+        let prompts = self.prompts.read().await;
+        prompts.get(registered_name).cloned()
+    }
+
+    async fn rebuild_catalog(&self, pool: &UpstreamPool) -> Result<()> {
         // Clear existing catalog
         {
             let mut tools = self.tools.write().await;
@@ -150,7 +272,7 @@ impl DefaultToolCatalog {
             original.clear();
         }
 
-        // Query all upstreams
+        // Query all upstreams for tools
         let upstream_names = pool.list_upstreams().await;
         for upstream_name in upstream_names {
             if let Some(client) = pool.get_upstream(&upstream_name).await {
@@ -171,24 +293,6 @@ impl DefaultToolCatalog {
         }
 
         Ok(())
-    }
-}
-
-#[async_trait::async_trait]
-impl ToolCatalogTrait for DefaultToolCatalog {
-    async fn get_all_tools(&self) -> Vec<McpTool> {
-        let tools = self.tools.read().await;
-        tools.values().cloned().collect()
-    }
-
-    async fn get_tool_source(&self, registered_name: &str) -> Option<String> {
-        let sources = self.tool_sources.read().await;
-        sources.get(registered_name).cloned()
-    }
-
-    async fn get_original_name(&self, registered_name: &str) -> Option<String> {
-        let original = self.original_names.read().await;
-        original.get(registered_name).cloned()
     }
 }
 

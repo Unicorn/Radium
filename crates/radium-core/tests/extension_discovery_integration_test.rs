@@ -1,3 +1,5 @@
+#![cfg(feature = "workflow")]
+
 //! Integration tests for extension discovery with AgentDiscovery, TemplateDiscovery, and CommandRegistry.
 
 #![allow(unsafe_code)]

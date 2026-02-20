@@ -2,8 +2,7 @@
 
 use radium_core::config::Config;
 use radium_core::context::ContextManager;
-use radium_core::monitoring::logs::LogManager;
-use radium_core::monitoring::service::MonitoringService;
+use radium_core::monitoring::{LogManager, MonitoringService};
 use radium_core::security::{PatternLibrary, PrivacyFilter, RedactionStyle};
 use radium_core::workspace::Workspace;
 use std::fs;
@@ -194,7 +193,7 @@ fn test_monitoring_service_privacy_integration() {
     let service = MonitoringService::new().unwrap();
     
     // Create agent record with sensitive data in log_file
-    let mut record = radium_core::monitoring::service::AgentRecord::new(
+    let mut record = radium_core::monitoring::AgentRecord::new(
         "agent-1".to_string(),
         "test".to_string(),
     );
@@ -218,7 +217,7 @@ fn test_monitoring_service_error_message_redaction() {
     let service = MonitoringService::new_with_config(Some(&config)).unwrap();
     
     // Register agent first
-    let record = radium_core::monitoring::service::AgentRecord::new(
+    let record = radium_core::monitoring::AgentRecord::new(
         "agent-1".to_string(),
         "test".to_string(),
     );

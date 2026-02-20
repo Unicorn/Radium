@@ -3,6 +3,7 @@
 pub mod agents;
 pub mod auth;
 pub mod autonomous;
+pub mod batch;
 pub mod secret;
 pub mod braingrid;
 pub mod budget;
@@ -22,11 +23,13 @@ pub mod engines;
 pub mod extension;
 pub mod hooks;
 pub mod init;
+pub mod models;
 pub mod mcp;
 pub mod mcp_proxy;
 pub mod monitor;
 pub mod plan;
 pub mod policy;
+pub mod policy_learn;
 pub mod constitution;
 pub mod requirement;
 pub mod run;
@@ -43,10 +46,15 @@ pub mod validate;
 pub mod vibecheck;
 pub mod privacy;
 pub mod theme;
+pub mod tool_execution;
+pub mod tools;
+pub mod train;
+pub mod event_renderer;
 
 // Re-export types for convenience
-pub use types::{AgentsCommand, AuthCommand, EnginesCommand, ExtensionCommand};
+pub use types::{AgentsCommand, AuthCommand, EnginesCommand, ExtensionCommand, ToolsCommand};
 pub use types::{CustomCommand, TemplatesCommand, BraingridCommand, CacheCommand, SecretCommand};
+pub use types::TrainCommand;
 pub use context::ContextCommand;
 pub use budget::BudgetCommand;
 pub use constitution::ConstitutionCommand;

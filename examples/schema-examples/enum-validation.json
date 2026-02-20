@@ -1,0 +1,33 @@
+{
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["pending", "active", "completed", "cancelled"],
+      "description": "Current status of the item"
+    },
+    "priority": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "urgent"],
+      "description": "Priority level"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["bug", "feature", "task", "epic"],
+      "description": "Type of work item"
+    },
+    "assignee": {
+      "type": "string",
+      "description": "Person assigned to this item"
+    },
+    "tags": {
+      "type": "array",
+      "description": "Array of tag strings",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": ["status", "priority"]
+}
+

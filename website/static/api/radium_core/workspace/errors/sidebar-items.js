@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["FileOperationError","RecoveryStrategy"],"struct":["ErrorContext"],"type":["FileOperationResult"]};

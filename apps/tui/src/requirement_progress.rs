@@ -220,6 +220,10 @@ impl ActiveRequirementProgress {
                     self.current_task_id = None;
                 }
             }
+            ProgressMessage::RoutingDecision { .. } => {
+                // Routing decision is handled in main loop for feedback collection (Phase 2 - REQ-246)
+                // No state updates needed here
+            }
         }
     }
 

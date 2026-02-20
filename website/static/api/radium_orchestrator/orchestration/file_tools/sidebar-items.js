@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["create_file_operation_tools"],"trait":["WorkspaceRootProvider"]};

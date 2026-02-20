@@ -17,7 +17,7 @@ pub struct BudgetForecaster {
 pub use crate::analytics::budget::cache::AnalyticsCache;
 
 /// Result of budget exhaustion forecast.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct ForecastResult {
     /// Projected date when budget will be exhausted.
     pub exhaustion_date: DateTime<Utc>,
@@ -74,11 +74,11 @@ impl BudgetForecaster {
         // Try to use daily summaries first (faster for 30+ days)
         if days >= 7 {
             let end_date = Utc::now().format("%Y-%m-%d").to_string();
-            let start_date = (Utc::now() - Duration::days(days as i64))
+            let start_date = (Utc::now() - Duration::days(i64::from(days)))
                 .format("%Y-%m-%d")
                 .to_string();
 
-            let mut stmt = conn.prepare(
+            let stmt = conn.prepare(
                 "SELECT SUM(total_cost) FROM daily_spend_summary 
                  WHERE date >= ?1 AND date <= ?2"
             );
@@ -88,14 +88,14 @@ impl BudgetForecaster {
                     params![start_date, end_date],
                     |row| row.get::<_, f64>(0)
                 ) {
-                    return Ok(total / days as f64);
+                    return Ok(total / f64::from(days));
                 }
             }
         }
 
         // Fallback to raw telemetry query
-        let now = Utc::now().timestamp() as i64;
-        let start_timestamp = now - (days as i64 * 86400);
+        let now = Utc::now().timestamp();
+        let start_timestamp = now - (i64::from(days) * 86400);
 
         let mut stmt = conn.prepare(
             "SELECT SUM(estimated_cost) FROM telemetry WHERE timestamp >= ?1 AND timestamp <= ?2"
@@ -108,7 +108,7 @@ impl BudgetForecaster {
 
         let total = total_spent.unwrap_or(0.0);
         let velocity = if days > 0 {
-            total / days as f64
+            total / f64::from(days)
         } else {
             0.0
         };
@@ -147,7 +147,7 @@ impl BudgetForecaster {
 
         // Calculate days until exhaustion
         let days_remaining = (remaining_budget / velocity).ceil() as u32;
-        let exhaustion_date = Utc::now() + Duration::days(days_remaining as i64);
+        let exhaustion_date = Utc::now() + Duration::days(i64::from(days_remaining));
 
         // Calculate confidence interval based on variance in daily spend
         let (confidence_min, confidence_max) = self.calculate_confidence_interval(velocity, days_remaining)?;
@@ -184,7 +184,7 @@ impl BudgetForecaster {
         days_remaining: u32,
     ) -> MonitoringResult<(DateTime<Utc>, DateTime<Utc>)> {
         let conn = self.telemetry_store.conn();
-        let now = Utc::now().timestamp() as i64;
+        let now = Utc::now().timestamp();
         let start_timestamp = now - (30 * 86400); // Last 30 days
 
         // Get daily spend amounts for variance calculation
@@ -198,13 +198,13 @@ impl BudgetForecaster {
 
         let daily_costs: Vec<f64> = stmt
             .query_map(params![start_timestamp, now], |row| {
-                Ok(row.get::<_, f64>(1)?)
+                row.get::<_, f64>(1)
             })?
             .collect::<Result<Vec<_>, _>>()?;
 
         if daily_costs.is_empty() {
             // No data - return same date for both bounds
-            let date = Utc::now() + Duration::days(days_remaining as i64);
+            let date = Utc::now() + Duration::days(i64::from(days_remaining));
             return Ok((date, date));
         }
 
@@ -221,22 +221,22 @@ impl BudgetForecaster {
         let mut stmt = conn.prepare(
             "SELECT SUM(estimated_cost) FROM telemetry"
         )?;
-        let total_spent: f64 = stmt.query_row([], |row| row.get::<_, Option<f64>>(0))?.unwrap_or(0.0);
+        let _total_spent: f64 = stmt.query_row([], |row| row.get::<_, Option<f64>>(0))?.unwrap_or(0.0);
         
         // For confidence interval, we need remaining budget
         // We'll estimate it from the mean velocity and days remaining
-        let estimated_remaining = mean_velocity * days_remaining as f64;
+        let estimated_remaining = mean_velocity * f64::from(days_remaining);
         
         let days_min = if velocity_max > 0.0 {
             (estimated_remaining / velocity_max).ceil() as i64
         } else {
-            days_remaining as i64
+            i64::from(days_remaining)
         };
         
         let days_max = if velocity_min > 0.0 {
             (estimated_remaining / velocity_min).ceil() as i64
         } else {
-            days_remaining as i64
+            i64::from(days_remaining)
         };
 
         let confidence_min = Utc::now() + Duration::days(days_min);

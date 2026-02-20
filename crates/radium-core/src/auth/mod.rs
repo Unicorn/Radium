@@ -28,8 +28,12 @@
 
 mod credentials;
 mod error;
+mod middleware;
 mod providers;
+mod token;
 
 pub use credentials::CredentialStore;
 pub use error::{AuthError, AuthResult};
+pub use middleware::{authenticate_request, AuthConfig};
 pub use providers::ProviderType;
+pub use token::{Token, TokenStore};

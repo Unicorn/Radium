@@ -3,7 +3,7 @@
 use radium_core::engines::{
     Engine, EngineRegistry, ExecutionRequest, HealthStatus,
 };
-use radium_core::engines::providers::MockEngine;
+use radium_core::engines::providers::{MockEngine, OllamaEngine};
 use std::sync::Arc;
 
 #[tokio::test]
@@ -140,5 +140,20 @@ async fn test_concurrent_engine_usage() {
         let result = handle.await.unwrap();
         assert!(result.is_ok());
     }
+}
+
+#[tokio::test]
+async fn test_ollama_engine_registration() {
+    let registry = EngineRegistry::new();
+    let engine = Arc::new(OllamaEngine::new());
+
+    // Register engine
+    registry.register(engine).unwrap();
+
+    // Retrieve engine
+    let retrieved = registry.get("ollama").unwrap();
+    assert_eq!(retrieved.metadata().id, "ollama");
+    assert_eq!(retrieved.metadata().name, "Ollama");
+    assert!(!retrieved.metadata().requires_auth);
 }
 

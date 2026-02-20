@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["McpMessage"],"struct":["ClientCapabilities","ClientInfo","InitializeParams","InitializeResult","JsonRpcError","JsonRpcNotification","JsonRpcRequest","JsonRpcResponse","ServerCapabilities","ServerInfo"]};

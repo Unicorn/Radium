@@ -3,8 +3,10 @@
 //! This module defines the core agent trait and orchestration structures.
 
 pub mod agents;
+pub mod batch_executor;
 pub mod dispatcher;
 pub mod error;
+pub mod error_router;
 pub mod executor;
 pub mod lifecycle;
 pub mod load_balancer;
@@ -29,7 +31,11 @@ use tracing::{debug, error, warn};
 // and pass them through execute_agent method.
 
 pub use agents::{ChatAgent, SimpleAgent};
+pub use batch_executor::BatchExecutor;
 pub use dispatcher::{TaskDispatcher, TaskDispatcherConfig};
+pub use error_router::{
+    ErrorContext, ErrorRouter, FixProposal, FixVerificationResult, ProposalStatus,
+};
 pub use executor::{
     AgentExecutor, ExecutionResult, ExecutionTelemetry, HookExecutor, HookResult, QueueProcessor, QueueProcessorConfig, SandboxManager,
 };
@@ -43,13 +49,14 @@ pub use orchestration::{
     context::{Message, OrchestrationContext, UserPreferences},
     service::{OrchestrationService, SessionState},
     tool::{Tool, ToolArguments, ToolCall, ToolHandler, ToolParameters, ToolResult},
+    tool_adapter::{to_abstraction_tool, to_abstraction_tools, from_abstraction_tool, AbstractionToolAdapter},
 };
 pub use plugin::{InMemoryPlugin, Plugin, PluginLoader, PluginMetadata};
 pub use queue::{ExecutionQueue, ExecutionTask, Priority, QueueMetrics};
 pub use registry::{AgentMetadata, AgentRegistry};
 pub use routing::{
     ComplexityEstimator, ComplexityScore, ComplexityWeights, DecisionType, ModelRouter,
-    RoutingDecision, RoutingTier, TaskType,
+    RoutingConfig, RoutingDecision, RoutingTier, SkillRouter, SkillRoutingConfig, TaskType,
 };
 pub use selector::{AgentSelector, ModelClass, SelectionCriteria, SelectionError};
 
@@ -79,9 +86,29 @@ pub enum AgentOutput {
         /// Arguments to pass to the tool.
         args: serde_json::Value,
     },
+    /// The agent executed code and produced results.
+    CodeExecution(CodeExecutionResult),
     /// The agent decided to terminate.
     Terminate,
     // Future additions: file output, command execution, etc.
+}
+
+/// Result of code execution in a provider sandbox.
+///
+/// This structure captures all outputs from code execution, including
+/// standard output, standard error, return values, and any errors that occurred.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CodeExecutionResult {
+    /// The code that was executed.
+    pub code: String,
+    /// Standard output from execution, if any.
+    pub stdout: Option<String>,
+    /// Standard error from execution, if any.
+    pub stderr: Option<String>,
+    /// Return value if execution succeeded, represented as JSON.
+    pub return_value: Option<serde_json::Value>,
+    /// Error message if execution failed.
+    pub error: Option<String>,
 }
 
 /// A trait that defines the interface for any autonomous agent.
@@ -869,5 +896,64 @@ mod tests {
         assert_eq!(metrics.pending, 0);
         assert_eq!(metrics.completed, 0);
         assert_eq!(metrics.running, 0);
+    }
+
+    #[test]
+    fn test_code_execution_result_serialization() {
+        let result = CodeExecutionResult {
+            code: "print('hello')".to_string(),
+            stdout: Some("hello\n".to_string()),
+            stderr: None,
+            return_value: Some(serde_json::json!(null)),
+            error: None,
+        };
+
+        // Test serialization
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains("hello"));
+
+        // Test deserialization
+        let deserialized: CodeExecutionResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.code, "print('hello')");
+        assert_eq!(deserialized.stdout, Some("hello\n".to_string()));
+        assert_eq!(deserialized.stderr, None);
+        assert_eq!(deserialized.error, None);
+    }
+
+    #[test]
+    fn test_code_execution_result_with_error() {
+        let result = CodeExecutionResult {
+            code: "invalid syntax".to_string(),
+            stdout: None,
+            stderr: Some("SyntaxError: invalid syntax".to_string()),
+            return_value: None,
+            error: Some("SyntaxError: invalid syntax".to_string()),
+        };
+
+        let json = serde_json::to_string(&result).unwrap();
+        let deserialized: CodeExecutionResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.error, Some("SyntaxError: invalid syntax".to_string()));
+    }
+
+    #[test]
+    fn test_agent_output_code_execution_variant() {
+        let result = CodeExecutionResult {
+            code: "print('test')".to_string(),
+            stdout: Some("test\n".to_string()),
+            stderr: None,
+            return_value: None,
+            error: None,
+        };
+
+        let output = AgentOutput::CodeExecution(result);
+        
+        // Test pattern matching
+        match output {
+            AgentOutput::CodeExecution(exec_result) => {
+                assert_eq!(exec_result.code, "print('test')");
+                assert_eq!(exec_result.stdout, Some("test\n".to_string()));
+            }
+            _ => panic!("Expected CodeExecution variant"),
+        }
     }
 }

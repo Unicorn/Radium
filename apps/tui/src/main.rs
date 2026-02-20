@@ -12,11 +12,12 @@ use crossterm::{
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::prelude::*;
+use tracing::error;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use radium_tui::app::App;
 use radium_tui::commands::DisplayContext;
-use radium_tui::components::{render_dialog, render_title_bar, render_toasts, render_toasts_with_areas, AppMode, StatusFooter};
+use radium_tui::components::{render_dialog, render_hints_bar_with_state, render_title_bar, render_toasts_with_areas, AppMode, StatusFooter};
 use radium_tui::views::{render_checkpoint_browser, render_orchestrator_view, render_prompt, render_setup_wizard, render_shortcuts, render_splash, render_start_page, render_workflow, GlobalLayout};
 
 #[tokio::main]
@@ -77,8 +78,11 @@ async fn main() -> Result<()> {
         let current_time = std::time::Instant::now();
         let delta_time = last_frame_time.elapsed();
         last_frame_time = current_time;
+
         // Update toast manager (remove expired toasts)
         app.toast_manager.update();
+        // Toast updates may have expired toasts, mark dirty to re-render
+        app.mark_dirty();
 
         // Poll for requirement progress updates (non-blocking) - old system
         if let Some(active_req) = &mut app.active_requirement {
@@ -86,6 +90,7 @@ async fn main() -> Result<()> {
                 Ok(progress) => {
                     // Update active requirement state
                     active_req.update(progress.clone());
+                    app.mark_dirty(); // State changed
 
                     // Use toast notifications for key events
                     match &progress {
@@ -151,16 +156,172 @@ async fn main() -> Result<()> {
         // Poll task list and orchestrator logs will be called from orchestrator view rendering
         // The polling methods check elapsed time internally to avoid excessive calls
 
+        // Poll for streaming tokens (non-blocking)
+        let mut streaming_needs_redraw = false;
+        if let Some(stream_ctx) = &mut app.streaming_context {
+            use radium_tui::state::StreamingState;
+
+            // Update state to Streaming if it was Connecting
+            if stream_ctx.state == StreamingState::Connecting {
+                stream_ctx.state = StreamingState::Streaming;
+                streaming_needs_redraw = true;
+            }
+
+            // Poll for tokens
+            loop {
+                match stream_ctx.token_receiver.try_recv() {
+                    Ok(stream_item) => {
+                        streaming_needs_redraw = true; // New token received
+
+                        // Extract string from StreamItem
+                        let token_str = match &stream_item {
+                            radium_abstraction::StreamItem::ThinkingToken(s) => s.clone(),
+                            radium_abstraction::StreamItem::AnswerToken(s) => s.clone(),
+                            radium_abstraction::StreamItem::Metadata(_) => continue, // Skip metadata
+                        };
+
+                        // Check if token is an error message
+                        if token_str.starts_with("\n[Stream error:") {
+                            // Extract error message
+                            if let Some(error_end) = token_str.find("]") {
+                                let error_msg = token_str[16..error_end].to_string();
+                                stream_ctx.state = StreamingState::Error(error_msg);
+                            } else {
+                                stream_ctx.state = StreamingState::Error("Unknown stream error".to_string());
+                            }
+                            // Still add the error token to output
+                            app.prompt_data.add_output(token_str);
+                        } else {
+                            // Record timestamp for rate calculation
+                            let now = std::time::Instant::now();
+                            if stream_ctx.token_timestamps.len() >= 10 {
+                                stream_ctx.token_timestamps.pop_front();
+                            }
+                            stream_ctx.token_timestamps.push_back(now);
+                            stream_ctx.token_count += 1;
+
+                            // Add token to buffer
+                            stream_ctx.add_token(stream_item);
+
+                            // Flush answer buffer if it reaches 5-10 tokens
+                            if stream_ctx.should_flush() {
+                                let flushed = stream_ctx.flush_buffer();
+                                if !flushed.is_empty() {
+                                    app.prompt_data.add_output(flushed.clone());
+
+                                    // Append to session history
+                                    if let Some(session_history) = &mut app.session_history {
+                                        session_history.append_streaming_token(&flushed);
+
+                                        // Auto-save every 10 tokens (if enabled in config)
+                                        if app.config.session.auto_save && session_history.should_auto_save() {
+                                            if let Some(ref ws) = app.workspace_status {
+                                                if let Some(ref root) = ws.root {
+                                                    if let Err(e) = session_history.save_to_disk(root) {
+                                                        error!("Failed to auto-save session history: {}", e);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Flush thinking buffer if it reaches 5 tokens
+                            if stream_ctx.should_flush_thinking() {
+                                let thinking_text = stream_ctx.flush_thinking_buffer();
+                                app.prompt_data.active_thinking = Some(
+                                    app.prompt_data.active_thinking
+                                        .as_ref()
+                                        .map(|t| format!("{}{}", t, thinking_text))
+                                        .unwrap_or(thinking_text)
+                                );
+                            }
+                        }
+                    }
+                    Err(tokio::sync::mpsc::error::TryRecvError::Empty) => {
+                        // No tokens available, continue
+                        break;
+                    }
+                    Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
+                        // Stream ended - flush remaining tokens
+                        let remaining = stream_ctx.flush_buffer();
+                        if !remaining.is_empty() {
+                            app.prompt_data.add_output(remaining);
+                        }
+
+                        // Flush remaining thinking tokens
+                        let remaining_thinking = stream_ctx.flush_thinking_buffer();
+                        if !remaining_thinking.is_empty() {
+                            app.prompt_data.active_thinking = Some(
+                                app.prompt_data.active_thinking
+                                    .as_ref()
+                                    .map(|t| format!("{}{}", t, remaining_thinking))
+                                    .unwrap_or(remaining_thinking)
+                            );
+                        }
+
+                        // Clear active thinking when stream completes
+                        app.prompt_data.active_thinking = None;
+
+                        // Update state based on current state
+                        match stream_ctx.state {
+                            StreamingState::Cancelled => {
+                                // Already cancelled, keep state
+                            }
+                            StreamingState::Error(_) => {
+                                // Already in error state, keep it
+                            }
+                            _ => {
+                                // Mark as completed if not already in error/cancelled state
+                                stream_ctx.state = StreamingState::Completed;
+                            }
+                        }
+
+                        // Get full response for history saving
+                        let _full_response = stream_ctx.get_full_response();
+
+                        // Save to session history when streaming completes
+                        if let Some(session_history) = &mut app.session_history {
+                            session_history.mark_streaming_complete();
+
+                            // Save to disk (final save, if auto-save enabled)
+                            if app.config.session.auto_save {
+                                if let Some(ref ws) = app.workspace_status {
+                                    if let Some(ref root) = ws.root {
+                                        if let Err(e) = session_history.save_to_disk(root) {
+                                            error!("Failed to save session history: {}", e);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Clear after a brief delay to show completion message
+                        app.streaming_context = None;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Mark dirty if streaming activity occurred
+        if streaming_needs_redraw {
+            app.mark_dirty();
+        }
+
         // Poll for requirement progress updates (non-blocking) - new ProgressMessage system
+        let mut progress_needs_redraw = false;
         if let Some(active_req_progress) = &mut app.active_requirement_progress {
             match active_req_progress.progress_rx.try_recv() {
                 Ok(message) => {
                     // Update active requirement progress state
                     active_req_progress.update(message.clone());
+                    progress_needs_redraw = true;
 
                     // Track execution history
                     let req_id = active_req_progress.req_id.clone();
-                    use radium_tui::state::ExecutionStatus;
+                    
 
                     // Use toast notifications for key events
                     match &message {
@@ -195,7 +356,7 @@ async fn main() -> Result<()> {
                                 record.update_tokens(*tokens_in, *tokens_out, 0); // cached tokens not available
                             }
                         }
-                        radium_tui::progress_channel::ProgressMessage::DurationUpdate { elapsed, .. } => {
+                        radium_tui::progress_channel::ProgressMessage::DurationUpdate {  .. } => {
                             // Update silently, duration is shown in status message
                             // Duration is calculated automatically when record is finalized
                         }
@@ -238,6 +399,16 @@ async fn main() -> Result<()> {
                             } else {
                                 app.execution_history.finalize_active_record(task_id);
                             }
+                        }
+                        radium_tui::progress_channel::ProgressMessage::RoutingDecision { task_id: _, decision } => {
+                            // Trigger feedback collection for this routing decision (Phase 2 - REQ-246)
+                            app.start_routing_feedback(
+                                decision.task_description.clone(),
+                                decision.selected_agent.clone(),
+                                decision.routing_method.clone(),
+                                decision.confidence,
+                                decision.execution_success,
+                            );
                         }
                         radium_tui::progress_channel::ProgressMessage::RequirementComplete { requirement_id, result } => {
                             if result.tasks_failed == 0 {
@@ -298,7 +469,183 @@ async fn main() -> Result<()> {
             }
         }
 
-        // Draw UI
+        // Poll active orchestration task
+        if let Some(ref mut task) = app.orchestration_task {
+            match task.result_rx.try_recv() {
+                Ok(radium_tui::app::OrchestrationProgress::Error(err)) => {
+                    let max_history = app.config.performance.max_conversation_history;
+                    app.prompt_data.conversation.pop(); // Remove thinking indicator
+                    app.prompt_data.add_conversation_message(format!("❌ Error: {}", err), max_history);
+                    app.orchestration_running = false;
+                    app.orchestration_task = None;
+                    app.mark_dirty(); // State changed
+                }
+                Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
+                    // Task finished, check result
+                    if task.handle.is_finished() {
+                        // Use block_in_place to safely await in sync context
+                        let result = tokio::task::block_in_place(|| {
+                            futures::executor::block_on(async {
+                                match &mut task.handle {
+                                    handle => handle.await
+                                }
+                            })
+                        });
+
+                        match result {
+                            Ok(Ok(orch_result)) => {
+                                let max_history = app.config.performance.max_conversation_history;
+                                app.prompt_data.conversation.pop(); // Remove thinking
+                                // Response is added via Done event in event loop (prevents duplicate)
+                                let elapsed_secs = orch_result.elapsed_time.as_secs_f64();
+                                app.prompt_data.add_conversation_message(
+                                    format!("⏱️  Completed in {:.1}s", elapsed_secs),
+                                    max_history
+                                );
+                            }
+                            Ok(Err(e)) => {
+                                let max_history = app.config.performance.max_conversation_history;
+                                app.prompt_data.conversation.pop();
+                                app.prompt_data.add_conversation_message(
+                                    format!("❌ Error: {}", e),
+                                    max_history
+                                );
+                            }
+                            Err(join_err) => {
+                                let max_history = app.config.performance.max_conversation_history;
+                                app.prompt_data.conversation.pop();
+                                app.prompt_data.add_conversation_message(
+                                    format!("❌ Task error: {}", join_err),
+                                    max_history
+                                );
+                            }
+                        }
+
+                        app.orchestration_running = false;
+                        app.orchestration_task = None;
+                    }
+                }
+                Ok(radium_tui::app::OrchestrationProgress::UserMessageDisplayed)
+                | Ok(radium_tui::app::OrchestrationProgress::ThinkingStarted) => {
+                    // These progress updates don't require action
+                }
+                Err(tokio::sync::mpsc::error::TryRecvError::Empty) => {
+                    // No updates available, continue
+                }
+            }
+        }
+
+        // Mark dirty if progress activity occurred
+        if progress_needs_redraw {
+            app.mark_dirty();
+        }
+
+        // Poll orchestration events for thinking/recommendations updates
+        if let Some(ref mut event_rx) = app.orchestration_event_rx {
+            let mut event_received = false;
+            loop {
+                match event_rx.try_recv() {
+                    Ok(event) => {
+                        event_received = true; // Mark that we received an event
+                        use radium_orchestrator::orchestration::events::OrchestrationEvent;
+                        match event {
+                            OrchestrationEvent::ThinkingSessionStarted { context, .. } => {
+                                app.thinking_panel.start_session(context);
+                            }
+                            OrchestrationEvent::ThinkingStepAdded { description, .. } => {
+                                app.thinking_panel.add_step(description);
+                            }
+                            OrchestrationEvent::ThinkingStepUpdated { status, details, .. } => {
+                                use radium_tui::views::ThinkingStepStatus;
+                                let tui_status = match status {
+                                    radium_orchestrator::orchestration::events::ThinkingStatus::InProgress => ThinkingStepStatus::InProgress,
+                                    radium_orchestrator::orchestration::events::ThinkingStatus::Completed => ThinkingStepStatus::Completed,
+                                    radium_orchestrator::orchestration::events::ThinkingStatus::CompletedWithFindings => ThinkingStepStatus::CompletedWithFindings,
+                                    radium_orchestrator::orchestration::events::ThinkingStatus::Failed => ThinkingStepStatus::Failed,
+                                };
+                                app.thinking_panel.update_last_step(tui_status, details);
+                            }
+                            OrchestrationEvent::ThinkingSessionEnded { .. } => {
+                                app.thinking_panel.end_session();
+                            }
+                            OrchestrationEvent::RecommendationsSessionStarted { context, .. } => {
+                                app.recommendations_panel.start_session(context);
+                            }
+                            OrchestrationEvent::RecommendationAdded { description, command, details, .. } => {
+                                app.recommendations_panel.add_recommendation(description, command, details);
+                            }
+                            OrchestrationEvent::RecommendationsExecutionRequested { .. } => {
+                                app.recommendations_panel.request_execution();
+                            }
+                            OrchestrationEvent::AssistantMessage { content, .. } => {
+                                // Buffer assistant response - only display when orchestration completes
+                                // This avoids showing intermediate "ACTION:" messages during tool calls
+                                if !content.trim().is_empty() {
+                                    app.pending_assistant_response = Some(content);
+                                }
+                            }
+                            OrchestrationEvent::Done { .. } => {
+                                // Orchestration completed - display final response
+                                if let Some(response) = app.pending_assistant_response.take() {
+                                    let max_history = app.config.performance.max_conversation_history;
+                                    app.prompt_data.add_conversation_message(
+                                        format!("Assistant: {}", response),
+                                        max_history
+                                    );
+                                }
+                                app.orchestration_running = false;
+                                app.orchestration_task = None;
+                            }
+                            _ => {
+                                // Ignore other events
+                            }
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::TryRecvError::Empty) => {
+                        // No more events available
+                        break;
+                    }
+                    Err(tokio::sync::broadcast::error::TryRecvError::Lagged(skipped)) => {
+                        // Events were skipped (buffer too full)
+                        tracing::warn!("Orchestration events lagged: {} events skipped", skipped);
+                        // Continue processing remaining events
+                    }
+                    Err(tokio::sync::broadcast::error::TryRecvError::Closed) => {
+                        // Event channel closed
+                        app.orchestration_event_rx = None;
+                        break;
+                    }
+                }
+            }
+            // Mark dirty if we received any orchestration events
+            if event_received {
+                app.mark_dirty();
+            }
+        }
+
+        // Check for active animations and mark effects dirty if needed
+        app.check_animations();
+
+        // Only render if something changed (smart rendering - Phase 5.1)
+        if !app.is_dirty() {
+            // Nothing to render, skip this frame
+            // Still poll events to keep UI responsive
+            if event::poll(Duration::from_millis(16))? {
+                if let Event::Key(key) = event::read()? {
+                    if key.kind == KeyEventKind::Press {
+                        app.handle_key(key.code, key.modifiers).await?;
+                        app.mark_dirty(); // User input always requires re-render
+                    }
+                }
+            }
+
+            if app.should_quit {
+                break;
+            }
+            continue; // Skip rendering, go to next iteration
+        }
+
+        // Draw UI (only when dirty)
         terminal.draw(|frame| {
             let area = frame.area();
 
@@ -312,7 +659,7 @@ async fn main() -> Result<()> {
             };
 
             // Create global layout structure
-            let [title_area, main_area, status_area] = GlobalLayout::create(padded_area);
+            let [title_area, main_area, status_area, hints_area] = GlobalLayout::create(padded_area);
 
             // Render title bar (always visible)
             let version = env!("CARGO_PKG_VERSION");
@@ -360,20 +707,47 @@ async fn main() -> Result<()> {
             // Note: Table animations are handled at render time, but we track state here
             // The actual animation will be applied when the table is rendered
 
+            // Split main_area if panels are visible
+            let (content_area, panel_area) = if app.thinking_panel.is_visible() || app.recommendations_panel.is_visible() {
+                // Reserve bottom 40% for panels
+                let split_y = main_area.y + (main_area.height * 60 / 100);
+                let content_height = split_y.saturating_sub(main_area.y);
+                let panel_height = main_area.height.saturating_sub(content_height);
+
+                (
+                    Rect {
+                        x: main_area.x,
+                        y: main_area.y,
+                        width: main_area.width,
+                        height: content_height,
+                    },
+                    Rect {
+                        x: main_area.x,
+                        y: split_y,
+                        width: main_area.width,
+                        height: panel_height,
+                    },
+                )
+            } else {
+                (main_area, Rect::default())
+            };
+
             // Render main content area (context-aware)
-            if app.show_checkpoint_browser {
+            if let Some(ref onboarding) = app.onboarding_view {
+                radium_tui::views::render_onboarding(frame, content_area, onboarding);
+            } else if app.show_checkpoint_browser {
                 if let Some(ref browser_state) = app.checkpoint_browser_state {
-                    render_checkpoint_browser(frame, main_area, browser_state);
+                    render_checkpoint_browser(frame, content_area, browser_state);
                 }
             } else if app.show_shortcuts {
-                render_shortcuts(frame, main_area);
+                render_shortcuts(frame, content_area);
             } else if let Some(wizard) = &app.setup_wizard {
-                render_setup_wizard(frame, main_area, wizard);
+                render_setup_wizard(frame, content_area, wizard);
             } else if let Some(ref workflow_state) = app.workflow_state {
                 // Workflow mode: split-panel layout
                 render_workflow(
                     frame,
-                    main_area,
+                    content_area,
                     workflow_state,
                     app.selected_agent_id.as_deref(),
                     app.spinner_frame,
@@ -386,13 +760,15 @@ async fn main() -> Result<()> {
                 let active_agents: Vec<(String, String, String)> = vec![]; // TODO: Get from orchestration service
                 render_orchestrator_view(
                     frame,
-                    main_area,
+                    content_area,
                     &app.prompt_data,
                     &active_agents,
                     app.task_list_state.as_ref(),
                     &mut app.orchestrator_panel,
                     (app.task_panel_visible, app.orchestrator_panel_visible),
                     app.panel_focus,
+                    app.process_panel_state.as_ref(),
+                    app.show_process_panel,
                 );
             } else {
                 // Check if we should show start page (Help context) or regular prompt
@@ -405,7 +781,7 @@ async fn main() -> Result<()> {
                                 let monitoring_path = workspace.radium_dir().join("monitoring.db");
                                 if let Ok(monitoring) = radium_core::monitoring::MonitoringService::open(monitoring_path) {
                                     let analytics = radium_core::analytics::CostAnalytics::new(&monitoring);
-                                    radium_tui::views::render_cost_dashboard(frame, main_area, state, &analytics);
+                                    radium_tui::views::render_cost_dashboard(frame, content_area, state, &analytics);
                                 } else {
                                     // Error: show message
                                     let error_text = "Error: Failed to open monitoring database";
@@ -415,7 +791,7 @@ async fn main() -> Result<()> {
                                         .block(ratatui::widgets::Block::default()
                                             .borders(ratatui::widgets::Borders::ALL)
                                             .title(" Error "));
-                                    frame.render_widget(widget, main_area);
+                                    frame.render_widget(widget, content_area);
                                 }
                             } else {
                                 // Error: show message
@@ -426,7 +802,7 @@ async fn main() -> Result<()> {
                                     .block(ratatui::widgets::Block::default()
                                         .borders(ratatui::widgets::Borders::ALL)
                                         .title(" Error "));
-                                frame.render_widget(widget, main_area);
+                                frame.render_widget(widget, content_area);
                             }
                         } else {
                             // No state: show loading or error
@@ -435,16 +811,16 @@ async fn main() -> Result<()> {
                                 .block(ratatui::widgets::Block::default()
                                     .borders(ratatui::widgets::Borders::ALL)
                                     .title(" Loading "));
-                            frame.render_widget(widget, main_area);
+                            frame.render_widget(widget, content_area);
                         }
                     }
                     DisplayContext::Help => {
                         // Start page mode: codemachine-style start page
-                        render_start_page(frame, main_area, &app.prompt_data);
+                        render_start_page(frame, content_area, &app.prompt_data);
                     }
                     _ => {
                         // Prompt mode: unified prompt interface (without input - that's in status bar)
-                        render_prompt(frame, main_area, &app.prompt_data, Some(&app.model_filter));
+                        render_prompt(frame, content_area, &app.prompt_data, Some(&app.model_filter));
                     }
                 }
             }
@@ -457,14 +833,37 @@ async fn main() -> Result<()> {
             } else {
                 AppMode::Prompt
             };
-            StatusFooter::render_with_input(
+            // Check if streaming is active - show streaming footer if so
+            if let Some(ref stream_ctx) = app.streaming_context {
+                StatusFooter::render_streaming_footer(
+                    frame,
+                    status_area,
+                    stream_ctx,
+                    app.spinner_frame,
+                    app.config.animations.enabled,
+                    app.config.animations.reduced_motion,
+                );
+            } else {
+                StatusFooter::render_with_input(
+                    frame,
+                    status_area,
+                    &app.prompt_data.input,
+                    mode,
+                    Some(&app.prompt_data.context),
+                    app.current_model_id.as_deref(),
+                    Some(&app.privacy_state),
+                );
+            }
+
+            // Render hints bar (gitui-style contextual shortcuts at bottom)
+            let has_last_task = app.last_executed_operation.is_some();
+            let has_streaming = app.streaming_context.is_some();
+            render_hints_bar_with_state(
                 frame,
-                status_area,
-                &app.prompt_data.input,
+                hints_area,
                 mode,
-                Some(&app.prompt_data.context),
-                app.current_model_id.as_deref(),
-                Some(&app.privacy_state),
+                has_last_task,
+                has_streaming,
             );
 
             // Render dialogs (on top of everything except shortcuts)
@@ -516,6 +915,47 @@ async fn main() -> Result<()> {
                 }
             }
 
+            // Render command confirmation modal (on top of everything except toasts)
+            if let Some(ref confirmation) = app.command_confirmation {
+                use radium_tui::components::render_command_confirmation;
+                render_command_confirmation(frame, area, confirmation);
+            }
+
+            // Render fix approval modal (on top of everything except toasts)
+            if let Some(ref modal) = app.active_fix_approval {
+                use radium_tui::components::render_fix_approval_modal;
+                render_fix_approval_modal(frame, area, modal);
+            }
+
+            // Render routing feedback view (Phase 2 - REQ-246)
+            if app.feedback_view.is_active() {
+                app.feedback_view.render(frame, area);
+            }
+
+            // Render thinking panel (transparent reasoning)
+            if app.thinking_panel.is_visible() {
+                // Position thinking panel in left half of panel_area
+                let thinking_area = Rect {
+                    x: panel_area.x,
+                    y: panel_area.y,
+                    width: panel_area.width / 2,
+                    height: panel_area.height,
+                };
+                app.thinking_panel.render(frame, thinking_area);
+            }
+
+            // Render recommendations panel (interactive next steps)
+            if app.recommendations_panel.is_visible() {
+                // Position recommendations panel in right half of panel_area
+                let rec_area = Rect {
+                    x: panel_area.x + (panel_area.width / 2),
+                    y: panel_area.y,
+                    width: panel_area.width / 2,
+                    height: panel_area.height,
+                };
+                app.recommendations_panel.render(frame, rec_area);
+            }
+
             // Render toasts (on top of everything)
             let toast_areas = render_toasts_with_areas(frame, area, &app.toast_manager);
 
@@ -542,16 +982,34 @@ async fn main() -> Result<()> {
             app.spinner_frame = app.spinner_frame.wrapping_add(1);
         })?;
 
+        // Clear dirty flags after rendering (Phase 5.1: Smart Rendering)
+        app.clear_dirty();
+
         // Update previous state for transition detection (after rendering)
         app.previous_context = Some(app.prompt_data.context.clone());
         app.previous_dialog_open = app.dialog_manager.is_open();
         app.previous_toast_count = app.toast_manager.toasts().len();
 
-        // Handle events with timeout
-        if event::poll(Duration::from_millis(100))? {
+        // Poll for command confirmation requests
+        if let Some(ref mut confirmation_rx) = app.confirmation_request_rx {
+            if let Ok(request) = confirmation_rx.try_recv() {
+                use radium_tui::components::CommandConfirmationModal;
+                app.command_confirmation = Some(CommandConfirmationModal::new(
+                    request.command,
+                    request.working_dir,
+                    request.analysis,
+                    request.response_tx,
+                ));
+                app.mark_dirty(); // New confirmation modal
+            }
+        }
+
+        // Handle events with timeout (~60 FPS for smooth thinking panel updates)
+        if event::poll(Duration::from_millis(16))? {
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
                     app.handle_key(key.code, key.modifiers).await?;
+                    app.mark_dirty(); // User input requires re-render
                 }
             }
         }

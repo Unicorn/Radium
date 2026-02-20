@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ModelHookType"],"struct":["ModelHookAdapter","ModelHookContext"],"trait":["ModelHook"]};

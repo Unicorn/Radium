@@ -93,6 +93,7 @@ impl McpIntegration {
         
         #[cfg(feature = "mcp-progress")]
         let progress_bar = if total_servers > 0 {
+            // Use Radium brand colors: .cyan matches primary (#00D9FF), .green matches success (#10B981)
             let pb = ProgressBar::new(total_servers as u64);
             pb.set_style(
                 ProgressStyle::default_bar()
@@ -106,7 +107,7 @@ impl McpIntegration {
             None
         };
 
-        for server_config in all_servers.iter() {
+        for server_config in &all_servers {
             #[cfg(feature = "mcp-progress")]
             if let Some(ref pb) = progress_bar {
                 pb.set_message(format!("Connecting to '{}'...", server_config.name));
@@ -198,23 +199,19 @@ impl McpIntegration {
             _ => return None,
         };
 
-        let command = json.get("command").and_then(|v| v.as_str()).map(|s| s.to_string());
+        let command = json.get("command").and_then(|v| v.as_str()).map(std::string::ToString::to_string);
         let args = json.get("args")
             .and_then(|v| v.as_array())
-            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect());
-        let url = json.get("url").and_then(|v| v.as_str()).map(|s| s.to_string());
+            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(std::string::ToString::to_string)).collect());
+        let url = json.get("url").and_then(|v| v.as_str()).map(std::string::ToString::to_string);
 
         // Validate transport-specific requirements
         match transport {
             TransportType::Stdio => {
-                if command.is_none() {
-                    return None;
-                }
+                command.as_ref()?;
             }
             TransportType::Sse | TransportType::Http => {
-                if url.is_none() {
-                    return None;
-                }
+                url.as_ref()?;
             }
         }
 

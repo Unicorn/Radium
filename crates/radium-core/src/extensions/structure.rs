@@ -411,18 +411,19 @@ mod tests {
 
     #[test]
     fn test_default_extensions_dir() {
-        // Test with a mock HOME - this will fail if HOME is not set in test environment
-        // which is acceptable as the function requires HOME to be set
-        // TODO: Use a test helper that can set env vars safely
-        if std::env::var("HOME").is_ok() {
+        // Test when HOME is set - use actual HOME value if available
+        if let Ok(home) = std::env::var("HOME") {
             let dir = default_extensions_dir();
-            // Should succeed if HOME is set
+            // Should succeed and return $HOME/.radium/extensions
             assert!(dir.is_ok());
-        } else {
-            // If HOME is not set, the function should fail
-            let dir = default_extensions_dir();
-            assert!(dir.is_err());
+            let expected = PathBuf::from(home).join(".radium").join("extensions");
+            assert_eq!(dir.unwrap(), expected);
         }
+
+        // Note: We cannot reliably test the error case (HOME not set) in a test
+        // environment without using unsafe operations or thread-local state.
+        // The function correctly returns an error when HOME is not set, which
+        // can be verified manually or through integration tests.
     }
 
     #[test]

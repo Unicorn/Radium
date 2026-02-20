@@ -15,7 +15,7 @@ pub enum CollaborationError {
     },
 
     /// Resource lock acquisition timed out.
-    #[error("lock timeout for resource {resource_path} after {timeout_secs}s (held by: {})", holder_agent_id.as_ref().map(|id| id.as_str()).unwrap_or("unknown"))]
+    #[error("lock timeout for resource {resource_path} after {timeout_secs}s (held by: {})", holder_agent_id.as_ref().map_or("unknown", std::string::String::as_str))]
     LockTimeout {
         /// Path to the resource that couldn't be locked.
         resource_path: String,

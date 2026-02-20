@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["detect_language","format_for_clipboard","parse_clipboard","parse_file_annotation"],"struct":["ParsedClipboard"]};

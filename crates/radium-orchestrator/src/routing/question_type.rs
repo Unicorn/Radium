@@ -44,11 +44,15 @@ impl QuestionType {
             &lower,
             &[
                 "tell me about",
-                "what is this",
+                "what is this project",
+                "what's this project",
                 "describe this project",
                 "overview",
                 "what does this",
                 "explain this project",
+                "scan",
+                "summarize",
+                "summary",
             ],
         ) {
             return QuestionType::ProjectOverview;
@@ -58,9 +62,10 @@ impl QuestionType {
         if Self::matches_patterns(
             &lower,
             &[
-                "what is this built on",
+                "built on",
                 "what technologies",
                 "what stack",
+                "tech stack",
                 "what language",
                 "what framework",
                 "dependencies",
@@ -71,26 +76,11 @@ impl QuestionType {
             return QuestionType::TechnologyStack;
         }
 
-        // Architecture patterns
-        if Self::matches_patterns(
-            &lower,
-            &[
-                "how does",
-                "how is",
-                "architecture",
-                "design",
-                "structure",
-                "how it works",
-                "how x works",
-            ],
-        ) {
-            return QuestionType::Architecture;
-        }
-
         // Implementation patterns
         if Self::matches_patterns(
             &lower,
             &[
+                "implemented",
                 "how is",
                 "how to implement",
                 "implementation",
@@ -99,6 +89,21 @@ impl QuestionType {
             ],
         ) {
             return QuestionType::Implementation;
+        }
+
+        // Architecture patterns
+        if Self::matches_patterns(
+            &lower,
+            &[
+                "how does",
+                "architecture",
+                "design",
+                "structure",
+                "how it works",
+                "how x works",
+            ],
+        ) {
+            return QuestionType::Architecture;
         }
 
         // Specific file patterns
@@ -373,7 +378,7 @@ impl AnalysisPlan {
         let recommended_files = question_type
             .recommended_files()
             .iter()
-            .map(|s| s.to_string())
+            .map(|s| (*s).to_string())
             .collect();
         let suggested_searches = question_type.suggested_searches(input);
         let synthesis_guidance = question_type.synthesis_guidance().to_string();

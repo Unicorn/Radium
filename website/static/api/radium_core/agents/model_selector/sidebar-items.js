@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["SelectionError"],"struct":["DefaultModelSelector","FallbackChainSelector","SelectionResult"],"trait":["ModelSelector"],"type":["Result"]};

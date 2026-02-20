@@ -255,7 +255,7 @@ impl ProfilingReport {
                     type_stat.hook_count
                 ));
             }
-            output.push_str("\n");
+            output.push('\n');
         }
 
         // Hook statistics

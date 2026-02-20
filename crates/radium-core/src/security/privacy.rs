@@ -6,7 +6,7 @@ use std::sync::{Arc, RwLock};
 
 use super::audit::AuditLogger;
 use super::patterns::PatternLibrary;
-use super::privacy_error::{PrivacyError, Result};
+use super::privacy_error::Result;
 use chrono::Utc;
 
 /// Style of redaction to apply.
@@ -172,6 +172,8 @@ impl PrivacyFilter {
                         success: true,
                         error_message: None,
                         session_id: None,
+                        user_id: None,
+                        policy_decision: None,
                         agent_id: agent_id.map(String::from),
                         pattern_type: Some(pattern_type.clone()),
                         redaction_count: Some(*count),
@@ -252,10 +254,10 @@ mod tests {
     fn test_hash_redaction() {
         let library = PatternLibrary::default();
         let filter = PrivacyFilter::new(RedactionStyle::Hash, library);
-        let text = "API key: sk_live_abc123";
+        let text = "API key: sk_live_abc12345678901234567890";
         let (redacted, stats) = filter.redact(text).unwrap();
         assert!(redacted.contains("[REDACTED:sha256:"));
-        assert!(!redacted.contains("sk_live_abc123"));
+        assert!(!redacted.contains("sk_live_abc12345678901234567890"));
         assert_eq!(stats.count, 1);
     }
 

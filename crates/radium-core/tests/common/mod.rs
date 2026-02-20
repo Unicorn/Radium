@@ -3,15 +3,21 @@
 //! This module provides common helper functions used across multiple test files
 //! to reduce code duplication and improve maintainability.
 
+#[cfg(feature = "server")]
 use radium_core::{config::Config, proto::radium_client::RadiumClient, server};
+
+#[cfg(feature = "server")]
 use std::net::TcpListener;
+#[cfg(feature = "server")]
 use std::time::Duration;
+#[cfg(feature = "server")]
 use tokio::time;
 
 /// Finds an available port by binding to port 0 and returning the allocated port.
 ///
 /// # Returns
 /// An available port number.
+#[cfg(feature = "server")]
 fn find_available_port() -> u16 {
     // Try to bind to port 0, which will allocate an available port
     // We drop the listener immediately - the port will be available when we bind again
@@ -30,6 +36,7 @@ fn find_available_port() -> u16 {
 ///
 /// # Panics
 /// Panics if the server fails to start or if the address parsing fails.
+#[cfg(feature = "server")]
 pub async fn start_test_server() -> u16 {
     let port = find_available_port();
     start_test_server_on_port(port).await;
@@ -43,6 +50,7 @@ pub async fn start_test_server() -> u16 {
 ///
 /// # Panics
 /// Panics if the server fails to start or if the address parsing fails.
+#[cfg(feature = "server")]
 pub async fn start_test_server_on_port(port: u16) {
     let mut config = Config::default();
     config.server.address = format!("127.0.0.1:{}", port).parse().unwrap();
@@ -65,6 +73,7 @@ pub async fn start_test_server_on_port(port: u16) {
 ///
 /// # Panics
 /// Panics if the client fails to connect to the server.
+#[cfg(feature = "server")]
 pub async fn create_test_client(port: u16) -> RadiumClient<tonic::transport::Channel> {
     let endpoint = tonic::transport::Endpoint::from_shared(format!("http://127.0.0.1:{}", port))
         .expect("Invalid endpoint URI");

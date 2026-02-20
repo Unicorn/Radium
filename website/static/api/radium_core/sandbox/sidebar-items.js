@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["NetworkMode","SandboxError","SandboxProfile","SandboxType"],"struct":["DockerSandbox","NoSandbox","SandboxConfig","SandboxFactory","SeatbeltSandbox"],"trait":["Sandbox"],"type":["Result"]};

@@ -5,17 +5,24 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::sync::{RwLock, broadcast};
 
 use super::{
     OrchestrationProvider, OrchestrationResult,
     agent_tools::AgentToolRegistry,
+    code_analysis_tool,
     config::{OrchestrationConfig, ProviderType},
     context::{Message, OrchestrationContext},
     context_loader::ContextFileLoaderTrait,
     engine::{EngineConfig, OrchestrationEngine},
+    events::OrchestrationEvent,
     file_tools::{self, WorkspaceRootProvider as FileWorkspaceRootProvider},
+    git_extended_tools,
     hooks::ToolHookExecutor,
+    definition_tool,
+    project_scan_tool,
+    search_tool,
+    symbol_search_tool,
     terminal_tool::{self, WorkspaceRootProvider as TerminalWorkspaceRootProvider, SandboxManager as TerminalSandboxManager},
     tool::Tool,
     providers::{
@@ -75,6 +82,8 @@ pub struct OrchestrationService {
     provider: Arc<dyn OrchestrationProvider>,
     /// Orchestration engine
     engine: Arc<OrchestrationEngine>,
+    /// Broadcast sender for orchestration events (tokens/tool calls/progress/approvals)
+    event_tx: broadcast::Sender<OrchestrationEvent>,
     /// Context file loader (optional)
     context_loader: Option<Arc<dyn ContextFileLoaderTrait>>,
     /// Workspace root for context loading
@@ -99,6 +108,9 @@ impl OrchestrationService {
         context_loader: Option<Arc<dyn ContextFileLoaderTrait>>,
         hook_executor: Option<Arc<dyn ToolHookExecutor>>,
     ) -> Result<Self> {
+        // Event stream channel (consumed by CLI/TUI/daemon clients)
+        let (event_tx, _) = broadcast::channel(1024);
+
         // Initialize tool registry
         let mut tool_registry = AgentToolRegistry::new();
         tool_registry.load_agents()?;
@@ -112,9 +124,44 @@ impl OrchestrationService {
             let workspace_provider: Arc<dyn FileWorkspaceRootProvider> = Arc::new(SimpleWorkspaceRootProvider {
                 root: root.clone(),
             });
-            let file_tools = file_tools::create_file_operation_tools(workspace_provider);
+            let file_tools = file_tools::create_file_operation_tools(workspace_provider.clone());
             tools.extend(file_tools);
             tracing::info!("Added {} file operation tools to orchestration", 6);
+
+            // Add project analysis tools (project_scan)
+            let project_tools = project_scan_tool::create_project_analysis_tools(workspace_provider.clone());
+            let project_tool_count = project_tools.len();
+            tools.extend(project_tools);
+            tracing::info!("Added {} project analysis tools to orchestration", project_tool_count);
+
+            // Add git extended tools (git_blame, git_show, find_references)
+            let git_tools = git_extended_tools::create_git_extended_tools(workspace_provider.clone());
+            let git_tool_count = git_tools.len();
+            tools.extend(git_tools);
+            tracing::info!("Added {} git extended tools to orchestration", git_tool_count);
+
+            // Add code analysis tool
+            let code_tool = code_analysis_tool::create_code_analysis_tool(workspace_provider.clone());
+            tools.push(code_tool);
+            tracing::info!("Added code analysis tool to orchestration");
+
+            // Add search tools
+            let search_tools = search_tool::create_search_tools(workspace_provider.clone());
+            let search_tool_count = search_tools.len();
+            tools.extend(search_tools);
+            tracing::info!("Added {} search tools to orchestration", search_tool_count);
+
+            // Add symbol search tools
+            let symbol_tools = symbol_search_tool::create_symbol_search_tools(workspace_provider.clone());
+            let symbol_tool_count = symbol_tools.len();
+            tools.extend(symbol_tools);
+            tracing::info!("Added {} symbol search tools to orchestration", symbol_tool_count);
+
+            // Add definition lookup tools
+            let definition_tools = definition_tool::create_definition_tools(workspace_provider.clone());
+            let definition_tool_count = definition_tools.len();
+            tools.extend(definition_tools);
+            tracing::info!("Added {} definition lookup tools to orchestration", definition_tool_count);
 
             // Add terminal command tool
             let terminal_workspace_provider: Arc<dyn TerminalWorkspaceRootProvider> = Arc::new(SimpleWorkspaceRootProvider {
@@ -146,13 +193,16 @@ impl OrchestrationService {
         let engine_config = EngineConfig {
             max_iterations: config.default_provider_config().max_tool_iterations,
             timeout_seconds: 120,
+            tool_execution: super::ToolExecutionConfig::default(),
         };
-        let engine = Arc::new(OrchestrationEngine::with_hook_executor(
+        let mut engine = OrchestrationEngine::with_hook_executor(
             Arc::clone(&provider),
             tools,
             engine_config,
             hook_executor,
-        ));
+        );
+        engine.set_event_sender(Some(event_tx.clone()));
+        let engine = Arc::new(engine);
 
         Ok(Self {
             config,
@@ -160,9 +210,37 @@ impl OrchestrationService {
             sessions: Arc::new(RwLock::new(HashMap::new())),
             provider,
             engine,
+            event_tx,
             context_loader,
             workspace_root,
         })
+    }
+
+    /// Subscribe to orchestration events.
+    ///
+    /// Clients (CLI/TUI/daemon) should consume this stream for tool call lifecycle,
+    /// approvals, progress, and completion.
+    pub fn subscribe_events(&self) -> broadcast::Receiver<OrchestrationEvent> {
+        self.event_tx.subscribe()
+    }
+
+    /// Ensure a session exists, optionally seeding it with initial conversation history.
+    ///
+    /// This is useful for clients (e.g. TUI) that want to inject a system prompt when a
+    /// chat session is first created, while still letting the service own subsequent
+    /// conversation history.
+    pub async fn ensure_session_initialized(
+        &self,
+        session_id: &str,
+        initial_history: Vec<Message>,
+    ) -> Result<()> {
+        let mut sessions = self.sessions.write().await;
+        sessions.entry(session_id.to_string()).or_insert_with(|| {
+            let mut session = SessionState::new(session_id);
+            session.conversation_history = initial_history;
+            session
+        });
+        Ok(())
     }
 
     /// Create provider based on configuration
@@ -293,7 +371,7 @@ impl OrchestrationService {
 
         // Load and inject context files if loader is available
         if let Some(ref loader) = self.context_loader {
-            if let Some(dir) = current_dir.or_else(|| self.workspace_root.as_deref()) {
+            if let Some(dir) = current_dir.or(self.workspace_root.as_deref()) {
                 match loader.load_hierarchical(dir) {
                     Ok(context_content) => {
                         if !context_content.is_empty() {
@@ -371,6 +449,7 @@ impl OrchestrationService {
         let engine_config = EngineConfig {
             max_iterations: self.config.prompt_based.max_tool_iterations,
             timeout_seconds: self.config.default_provider_config().max_tool_iterations as u64 * 24, // 2 minutes per iteration
+            tool_execution: super::ToolExecutionConfig::default(),
         };
         let fallback_engine = OrchestrationEngine::new(
             fallback_provider,
@@ -499,7 +578,7 @@ mod tests {
     async fn test_service_initialization_without_api_key() {
         // This should fail without API keys
         let config = OrchestrationConfig::default();
-        let result = OrchestrationService::initialize(config, None).await;
+        let result = OrchestrationService::initialize(config, None, None, None, None, None).await;
         // Will fail without API keys - that's expected
         assert!(result.is_err());
     }

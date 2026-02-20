@@ -52,6 +52,7 @@ impl Model for MockExecutorModel {
                 content: "Task completed successfully".to_string(),
                 model_id: Some("mock".to_string()),
                 usage: None,
+                ..Default::default()
             }),
             MockBehavior::FailThenSucceed { fail_count } => {
                 if current_count <= *fail_count {
@@ -61,6 +62,7 @@ impl Model for MockExecutorModel {
                         content: "Task completed after retry".to_string(),
                         model_id: Some("mock".to_string()),
                         usage: None,
+                        ..Default::default()
                     })
                 }
             }
@@ -75,6 +77,7 @@ impl Model for MockExecutorModel {
                         content: "Task completed".to_string(),
                         model_id: Some("mock".to_string()),
                         usage: None,
+                        ..Default::default()
                     })
                 }
             }

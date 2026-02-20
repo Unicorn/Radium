@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["InputFormat"],"fn":["detect_format"]};

@@ -83,7 +83,7 @@ impl HookLoader {
         &self,
         config: &HookConfig,
         registry: &Arc<HookRegistry>,
-        workspace_root: Option<P>,
+        _workspace_root: Option<P>,
     ) -> Result<usize> {
         let mut loaded_count = 0;
 

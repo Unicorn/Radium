@@ -7,6 +7,7 @@ use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashMap;
 
 use crate::error::{OrchestrationError, Result};
 use crate::orchestration::{
@@ -14,6 +15,71 @@ use crate::orchestration::{
     context::OrchestrationContext,
     tool::{Tool, ToolCall},
 };
+
+fn build_http_client() -> Client {
+    // In some sandboxed macOS environments, `Client::new()` can panic while probing
+    // system proxy configuration. Prefer an explicit builder with no_proxy.
+    Client::builder()
+        .no_proxy()
+        .build()
+        .unwrap_or_else(|_| Client::new())
+}
+
+/// Categorize tools by type for better discoverability
+fn categorize_tools(tools: &[Tool]) -> Vec<(&'static str, Vec<&Tool>)> {
+    let mut categories: HashMap<&'static str, Vec<&Tool>> = HashMap::new();
+    for tool in tools {
+        let category = match tool.name.as_str() {
+            "read_file" | "write_file" | "search_replace" | "list_dir" | "glob_file_search" | "read_lints" => "File Operations",
+            "project_scan" | "code_analysis" => "Code Analysis",
+            "grep" | "search_files" => "Search",
+            "git_log" | "git_diff" | "git_blame" | "git_show" | "find_references" => "Git",
+            "run_terminal_cmd" => "Command Execution",
+            _ => "Other",
+        };
+        categories.entry(category).or_default().push(tool);
+    }
+    categories.into_iter().collect()
+}
+
+/// Build orchestration system prompt to guide tool usage
+fn build_orchestration_system_prompt(tools: &[Tool]) -> String {
+    let mut prompt = String::from(
+        "You are an autonomous developer assistant with native tool calling capabilities.\n\n\
+        ## CRITICAL BEHAVIORAL RULES\n\n\
+        1. **USE TOOLS IMMEDIATELY** - Never ask users for information you can find yourself\n\
+        2. **CALL MULTIPLE TOOLS IN PARALLEL** when they don't depend on each other\n\
+        3. **READ BEFORE WRITING** - Always read files before suggesting modifications\n\
+        4. **BE PROACTIVE** - If a task requires multiple steps, call all necessary tools\n\
+        5. **PROVIDE EVIDENCE** - Reference specific files and line numbers (format: `file.rs:123-145`)\n\n\
+        ## Tool Calling Strategy\n\n\
+        - Exploring code: project_scan → search_files/grep → read_file\n\
+        - Making changes: read_file → write_file → run_command (to test)\n\
+        - Analyzing: multiple grep/search_files calls in parallel\n\
+        - Answering questions: Find files FIRST, then answer with references\n\n\
+        ## Available Tools\n\n"
+    );
+
+    // Categorize tools for better discoverability
+    let categories = categorize_tools(tools);
+    for (category, tools_in_cat) in categories {
+        prompt.push_str(&format!("### {}\n\n", category));
+        for tool in tools_in_cat {
+            prompt.push_str(&format!("**{}**: {}\n", tool.name, tool.description));
+        }
+        prompt.push('\n');
+    }
+
+    prompt.push_str(
+        "## Response Guidelines\n\n\
+        - Start with ACTION, not explanation\n\
+        - Provide file:line references\n\
+        - Chain tools logically\n\
+        - Never ask users for information tools can provide\n"
+    );
+
+    prompt
+}
 
 /// Claude tool definition
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -84,7 +150,7 @@ impl ClaudeOrchestrator {
         Self {
             model_id: model_id.into(),
             api_key: api_key.into(),
-            client: Client::new(),
+            client: build_http_client(),
             base_url: "https://api.anthropic.com/v1".to_string(),
             temperature: 0.7,
             max_tokens: 4096,
@@ -212,6 +278,15 @@ impl OrchestrationProvider for ClaudeOrchestrator {
             messages.push(ClaudeMessage {
                 role: msg.role.clone(),
                 content: vec![ClaudeContentBlock::Text { text: msg.content.clone() }],
+            });
+        }
+
+        // Add system prompt if tools are available and no system message exists yet
+        if !tools.is_empty() && (messages.is_empty() || messages[0].role != "system") {
+            let system_prompt = build_orchestration_system_prompt(tools);
+            messages.insert(0, ClaudeMessage {
+                role: "system".to_string(),
+                content: vec![ClaudeContentBlock::Text { text: system_prompt }],
             });
         }
 

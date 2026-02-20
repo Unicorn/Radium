@@ -2,7 +2,6 @@
 
 use radium_core::checkpoint::{Checkpoint, CheckpointDiff, CheckpointManager};
 use radium_core::workspace::Workspace;
-use std::path::PathBuf;
 
 /// State for the checkpoint browser view.
 #[derive(Debug, Clone)]

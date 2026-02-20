@@ -1,3 +1,5 @@
+#![cfg(feature = "workflow")]
+
 //! Integration tests for extension workflow templates.
 //!
 //! Tests that workflow templates from extensions are properly discovered and usable.

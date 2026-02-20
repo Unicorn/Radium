@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["SqliteAgentRepository","SqliteTaskRepository","SqliteWorkflowRepository"],"trait":["AgentRepository","Entity","GenericRepository","TaskRepository","WorkflowRepository"]};

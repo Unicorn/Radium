@@ -86,7 +86,7 @@ impl Agent for ChatAgent {
 
         // Add user message to history
         let mut history = self.history.write().await;
-        history.push(ChatMessage { role: "user".to_string(), content: input.to_string() });
+        history.push(ChatMessage { role: "user".to_string(), content: input.to_string().into() });
 
         // Convert history to slice for model
         let messages: Vec<ChatMessage> = history.clone();
@@ -102,7 +102,7 @@ impl Agent for ChatAgent {
         // Add assistant response to history and trim if necessary
         let mut history = self.history.write().await;
         history
-            .push(ChatMessage { role: "assistant".to_string(), content: response.content.clone() });
+            .push(ChatMessage { role: "assistant".to_string(), content: response.content.clone().into() });
 
         // Trim history if it exceeds max_history (keep most recent messages)
         if history.len() > self.max_history {

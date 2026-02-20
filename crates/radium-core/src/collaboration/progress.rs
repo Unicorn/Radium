@@ -121,7 +121,7 @@ impl ProgressRepository for DatabaseProgressRepository {
             rusqlite::params![
                 snapshot.agent_id,
                 snapshot.timestamp,
-                snapshot.percentage as i64,
+                i64::from(snapshot.percentage),
                 snapshot.status.as_str(),
                 snapshot.message
             ],
@@ -322,7 +322,7 @@ impl ProgressTracker {
             });
         }
 
-        let total_percentage: u64 = snapshots.iter().map(|s| s.percentage as u64).sum();
+        let total_percentage: u64 = snapshots.iter().map(|s| u64::from(s.percentage)).sum();
         let average_percentage = total_percentage as f64 / snapshots.len() as f64;
 
         let mut status_counts = HashMap::new();

@@ -1112,7 +1112,7 @@ async fn update_extension(name: Option<&str>, all: bool, dry_run: bool) -> anyho
 async fn update_single_extension(
     manager: &ExtensionManager,
     _marketplace: &mut MarketplaceClient,
-    name: &str,
+    _name: &str,
     download_url: &str,
 ) -> anyhow::Result<()> {
     use radium_core::extensions::InstallOptions;

@@ -1,3 +1,5 @@
+#![cfg(feature = "workflow")]
+
 //! Integration tests for metacognitive oversight system.
 //!
 //! Tests the complete flow from VibeCheck behavior detection through

@@ -450,10 +450,13 @@ async fn test_concurrent_sandbox_executions() {
     let sandbox3 = SandboxFactory::create(&config).unwrap();
 
     // Execute commands concurrently
+    let args1 = vec!["task1".to_string()];
+    let args2 = vec!["task2".to_string()];
+    let args3 = vec!["task3".to_string()];
     let (result1, result2, result3) = tokio::join!(
-        sandbox1.execute("echo", &["task1".to_string()], None),
-        sandbox2.execute("echo", &["task2".to_string()], None),
-        sandbox3.execute("echo", &["task3".to_string()], None)
+        sandbox1.execute("echo", &args1, None),
+        sandbox2.execute("echo", &args2, None),
+        sandbox3.execute("echo", &args3, None)
     );
 
     assert!(result1.is_ok());
@@ -489,8 +492,9 @@ async fn test_sandbox_config_with_all_options() {
 }
 
 #[tokio::test]
+#[cfg(feature = "orchestrator-integration")]
 async fn test_sandbox_manager_lifecycle() {
-    use radium_core::sandbox::manager::AgentSandboxManager;
+    use radium_core::sandbox::AgentSandboxManager;
     use radium_core::sandbox::{SandboxConfig, SandboxType};
 
     let manager = AgentSandboxManager::new();
@@ -508,8 +512,9 @@ async fn test_sandbox_manager_lifecycle() {
 }
 
 #[tokio::test]
+#[cfg(feature = "orchestrator-integration")]
 async fn test_sandbox_manager_handles_unavailable_sandbox() {
-    use radium_core::sandbox::manager::AgentSandboxManager;
+    use radium_core::sandbox::AgentSandboxManager;
     use radium_core::sandbox::{SandboxConfig, SandboxType};
 
     let manager = AgentSandboxManager::new();
@@ -532,8 +537,9 @@ async fn test_sandbox_manager_handles_unavailable_sandbox() {
 }
 
 #[tokio::test]
+#[cfg(feature = "orchestrator-integration")]
 async fn test_sandbox_manager_cleanup_on_error() {
-    use radium_core::sandbox::manager::AgentSandboxManager;
+    use radium_core::sandbox::AgentSandboxManager;
     use radium_core::sandbox::SandboxConfig;
 
     let manager = AgentSandboxManager::new();

@@ -11,18 +11,19 @@ use radium_core::{
     context::braingrid_client::BraingridClient,
     planning::dag::DependencyGraph,
     workflow::{
-        AgentSelector, ExecutionState, ParallelExecutor, ProgressReporter, ReportGenerator,
-        RequirementExecutor, RequirementExecutionError, StatePersistence,
+        AgentSelector, ParallelExecutor, ProgressReporter, ReportGenerator,
+        StatePersistence,
     },
-    agents::registry::AgentRegistry,
     storage::Database,
     Workspace,
 };
-use radium_orchestrator::{AgentExecutor, Orchestrator};
+use radium_orchestrator::{AgentExecutor, AgentRegistry, Orchestrator};
 use std::sync::Arc;
 use std::time::Instant;
 use std::process::Command;
 use serde::Deserialize;
+
+use crate::colors::RadiumBrandColors;
 
 /// Requirement command subcommands.
 #[derive(Subcommand, Debug)]
@@ -99,6 +100,7 @@ struct RequirementListResponse {
 
 /// Requirement summary in list view
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct RequirementSummary {
     short_id: String,
     name: String,
@@ -112,6 +114,7 @@ struct RequirementSummary {
 
 /// Task progress information
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct TaskProgress {
     total: usize,
     completed: usize,
@@ -120,6 +123,7 @@ struct TaskProgress {
 
 /// Pagination metadata
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct Pagination {
     page: usize,
     limit: usize,
@@ -151,7 +155,8 @@ async fn execute(
     resume: bool,
     skip_breakdown: bool,
 ) -> anyhow::Result<()> {
-    println!("{}", "rad requirement execute".bold().cyan());
+    let colors = RadiumBrandColors::new();
+    println!("{}", "rad requirement execute".bold().color(colors.primary()));
     println!();
 
     let start_time = Instant::now();
@@ -165,19 +170,19 @@ async fn execute(
     let project_id = project_id
         .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok())
         .unwrap_or_else(|| {
-            println!("{}", "Warning: No project ID specified, using default PROJ-14".yellow());
+            println!("{}", "Warning: No project ID specified, using default PROJ-14".color(colors.warning()));
             "PROJ-14".to_string()
         });
 
     println!("{}", "Configuration:".bold());
-    println!("  Requirement ID: {}", req_id.cyan());
-    println!("  Project ID: {}", project_id.cyan());
+    println!("  Requirement ID: {}", req_id.color(colors.primary()));
+    println!("  Project ID: {}", project_id.color(colors.primary()));
     println!("  Max Parallel: {}", max_parallel);
     if dry_run {
-        println!("  {} Dry-run mode (no execution)", "⚠".yellow());
+        println!("  {} Dry-run mode (no execution)", "⚠".color(colors.warning()));
     }
     if resume {
-        println!("  {} Resume mode", "↻".cyan());
+        println!("  {} Resume mode", "↻".color(colors.primary()));
     }
     println!();
 
@@ -185,35 +190,35 @@ async fn execute(
     println!("{}", "Initializing workspace...".dimmed());
     let workspace = Workspace::discover().context("Failed to discover workspace")?;
     workspace.ensure_structure().context("Failed to ensure workspace structure")?;
-    println!("  {} Workspace initialized", "✓".green());
+    println!("  {} Workspace initialized", "✓".color(colors.success()));
     println!();
 
     // Initialize database
     println!("{}", "Initializing database...".dimmed());
     let db_path = workspace.radium_dir().join("database.db");
-    let db = Arc::new(std::sync::Mutex::new(
+    let _db = Arc::new(std::sync::Mutex::new(
         Database::open(db_path.to_str().unwrap()).context("Failed to open database")?,
     ));
-    println!("  {} Database initialized", "✓".green());
+    println!("  {} Database initialized", "✓".color(colors.success()));
     println!();
 
     // Initialize orchestrator and executor
     println!("{}", "Initializing orchestrator...".dimmed());
-    let orchestrator = Arc::new(Orchestrator::new());
+    let _orchestrator = Arc::new(Orchestrator::new());
 
     // Use Gemini as model type
     let executor = Arc::new(AgentExecutor::new(
         radium_models::ModelType::Gemini,
         "gemini-2.0-flash-exp".to_string(),
     ));
-    println!("  {} Orchestrator initialized", "✓".green());
+    println!("  {} Orchestrator initialized", "✓".color(colors.success()));
     println!();
 
     // Initialize agent registry
     println!("{}", "Loading agent registry...".dimmed());
     let agent_registry = Arc::new(AgentRegistry::new());
     // TODO: Load agents from workspace
-    println!("  {} Agent registry loaded", "✓".green());
+    println!("  {} Agent registry loaded", "✓".color(colors.success()));
     println!();
 
     // Initialize model
@@ -223,10 +228,16 @@ async fn execute(
         model_type: ModelType::Gemini,
         model_id: "gemini-2.0-flash-exp".to_string(),
         api_key: std::env::var("GEMINI_API_KEY").ok(),
+        base_url: None,
+        enable_context_caching: None,
+        cache_ttl: None,
+        cache_breakpoints: None,
+        cache_identifier: None,
+        enable_code_execution: None,
     };
-    let model = ModelFactory::create(config)
+    let _model = ModelFactory::create(config)
         .context("Failed to create model")?;
-    println!("  {} Model initialized", "✓".green());
+    println!("  {} Model initialized", "✓".color(colors.success()));
     println!();
 
     // Initialize Braingrid client
@@ -238,7 +249,7 @@ async fn execute(
         .fetch_requirement_tree(&req_id)
         .await
         .context("Failed to fetch requirement")?;
-    println!("  {} Requirement loaded: {}", "✓".green(), requirement.name);
+    println!("  {} Requirement loaded: {}", "✓".color(colors.success()), requirement.name);
     println!();
 
     // Check if tasks exist, trigger breakdown if needed
@@ -251,7 +262,7 @@ async fn execute(
             .breakdown_requirement(&req_id)
             .await
             .context("Failed to trigger breakdown")?;
-        println!("  {} Generated {} tasks", "✓".green(), requirement.tasks.len());
+        println!("  {} Generated {} tasks", "✓".color(colors.success()), requirement.tasks.len());
         println!();
     }
 
@@ -264,12 +275,12 @@ async fn execute(
     dep_graph.detect_cycles()
         .map_err(|e| anyhow::anyhow!("Circular dependency detected: {}", e))?;
     
-    println!("  {} Dependency graph validated", "✓".green());
+    println!("  {} Dependency graph validated", "✓".color(colors.success()));
     println!();
 
     // Dry-run mode: show execution plan
     if dry_run {
-        println!("{}", "Execution Plan (Dry-Run)".bold().cyan());
+        println!("{}", "Execution Plan (Dry-Run)".bold().color(colors.primary()));
         println!("{}", "─".repeat(60).dimmed());
         println!();
         
@@ -293,7 +304,7 @@ async fn execute(
         }
         println!();
         
-        println!("  {} Dry-run complete. Use without --dry-run to execute.", "ℹ".cyan());
+        println!("  {} Dry-run complete. Use without --dry-run to execute.", "ℹ".color(colors.info()));
         return Ok(());
     }
 
@@ -321,7 +332,7 @@ async fn execute(
     );
 
     // Initialize progress reporter
-    let mut progress_reporter = ProgressReporter::new(requirement.clone(), requirement.tasks.len());
+    let progress_reporter = ProgressReporter::new(requirement.clone(), requirement.tasks.len());
 
     // Update requirement status to IN_PROGRESS
     braingrid_client
@@ -335,7 +346,7 @@ async fn execute(
     println!();
 
     let (execution_report, execution_state) = parallel_executor
-        .execute_tasks(requirement.tasks.clone(), &dep_graph, &req_id)
+        .execute_tasks(requirement.tasks.clone(), &dep_graph, &req_id, None) // No routing callback in CLI
         .await
         .map_err(|e| anyhow::anyhow!("Parallel execution failed: {}", e))?;
 
@@ -352,7 +363,7 @@ async fn execute(
         .save_report(&completion_report, &req_id)
         .context("Failed to save completion report")?;
     
-    println!("  {} Completion report saved to: {}", "✓".green(), report_path.display());
+    println!("  {} Completion report saved to: {}", "✓".color(colors.success()), report_path.display());
 
     // Update requirement status
     let final_status = if execution_report.success {
@@ -375,7 +386,7 @@ async fn execute(
     progress_reporter.finish(&execution_report);
     report_generator.display_summary(&completion_report);
 
-    let elapsed = start_time.elapsed();
+    let _elapsed = start_time.elapsed();
 
 
     Ok(())
@@ -388,19 +399,20 @@ async fn execute(
 /// # Arguments
 /// * `project_id` - Braingrid project ID (e.g., "PROJ-14")
 pub async fn list(project_id: Option<String>) -> anyhow::Result<()> {
-    println!("{}", "rad requirement list".bold().cyan());
+    let colors = RadiumBrandColors::new();
+    println!("{}", "rad requirement list".bold().color(colors.primary()));
     println!();
 
     // Get project ID from environment or parameter
     let project_id = project_id
         .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok())
         .unwrap_or_else(|| {
-            println!("{}", "Warning: No project ID specified, using default PROJ-14".yellow());
+            println!("{}", "Warning: No project ID specified, using default PROJ-14".color(colors.warning()));
             "PROJ-14".to_string()
         });
 
     println!("{}", "Configuration:".bold());
-    println!("  Project ID: {}", project_id.cyan());
+    println!("  Project ID: {}", project_id.color(colors.primary()));
     println!();
 
     // Call braingrid CLI
@@ -430,7 +442,7 @@ pub async fn list(project_id: Option<String>) -> anyhow::Result<()> {
     let response: RequirementListResponse = serde_json::from_str(json_str)
         .context("Failed to parse requirement list JSON")?;
 
-    println!("  {} Fetched {} requirements", "✓".green(), response.requirements.len());
+    println!("  {} Fetched {} requirements", "✓".color(colors.success()), response.requirements.len());
     println!();
 
     // Display requirements table
@@ -447,12 +459,12 @@ pub async fn list(project_id: Option<String>) -> anyhow::Result<()> {
 
     for req in &response.requirements {
         let status_colored = match req.status.as_str() {
-            "COMPLETED" => req.status.green(),
-            "IN_PROGRESS" => req.status.cyan(),
-            "REVIEW" => req.status.yellow(),
-            "PLANNED" => req.status.blue(),
+            "COMPLETED" => req.status.color(colors.success()),
+            "IN_PROGRESS" => req.status.color(colors.primary()),
+            "REVIEW" => req.status.color(colors.warning()),
+            "PLANNED" => req.status.color(colors.info()),
             "IDEA" => req.status.dimmed(),
-            "CANCELLED" => req.status.red(),
+            "CANCELLED" => req.status.color(colors.error()),
             _ => req.status.white(),
         };
 
@@ -461,9 +473,9 @@ pub async fn list(project_id: Option<String>) -> anyhow::Result<()> {
             req.task_progress.progress_percentage
         );
         let progress_colored = if req.task_progress.progress_percentage == 100 {
-            progress_bar.green()
+            progress_bar.color(colors.success())
         } else if req.task_progress.progress_percentage > 0 {
-            progress_bar.yellow()
+            progress_bar.color(colors.warning())
         } else {
             progress_bar.dimmed()
         };
@@ -483,7 +495,7 @@ pub async fn list(project_id: Option<String>) -> anyhow::Result<()> {
 
         println!(
             "{:<12} {:<50} {:<15} {:<10} {:<15}",
-            req.short_id.cyan(),
+            req.short_id.color(colors.primary()),
             name,
             status_colored,
             progress_colored,
@@ -520,7 +532,8 @@ async fn resume_command(
     project_id: Option<String>,
     from_checkpoint: Option<String>,
 ) -> anyhow::Result<()> {
-    println!("{}", format!("rad requirement resume {}", req_id).bold().cyan());
+    let colors = RadiumBrandColors::new();
+    println!("{}", format!("rad requirement resume {}", req_id).bold().color(colors.primary()));
     println!();
 
     // Validate requirement ID format
@@ -567,10 +580,11 @@ async fn resume_command(
     }
 
     // Get project ID
+    let colors = RadiumBrandColors::new();
     let project_id = project_id
         .or_else(|| std::env::var("BRAINGRID_PROJECT_ID").ok())
         .unwrap_or_else(|| {
-            println!("{}", "Warning: No project ID specified, using default PROJ-14".yellow());
+            println!("{}", "Warning: No project ID specified, using default PROJ-14".color(colors.warning()));
             "PROJ-14".to_string()
         });
 

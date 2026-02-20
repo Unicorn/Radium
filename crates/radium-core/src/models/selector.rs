@@ -6,7 +6,7 @@
 
 use crate::agents::metadata::{AgentMetadata, CostTier, ModelPriority, ModelRecommendation};
 use radium_abstraction::{Model, ModelError};
-use radium_models::{ModelConfig, ModelFactory, ModelType};
+use radium_models::{ModelCache, ModelConfig, ModelFactory, ModelType};
 use std::str::FromStr;
 use std::sync::Arc;
 use thiserror::Error;
@@ -122,6 +122,8 @@ pub struct ModelSelector {
     total_cost: f64,
     /// Total budget limit across all operations.
     total_budget_limit: Option<f64>,
+    /// Optional model cache for transparent caching.
+    cache: Option<Arc<ModelCache>>,
 }
 
 impl Default for ModelSelector {
@@ -139,6 +141,7 @@ impl ModelSelector {
             priority_override: None,
             total_cost: 0.0,
             total_budget_limit: None,
+            cache: None,
         }
     }
 
@@ -169,6 +172,16 @@ impl ModelSelector {
     #[must_use]
     pub fn with_priority_override(mut self, priority: ModelPriority) -> Self {
         self.priority_override = Some(priority);
+        self
+    }
+
+    /// Set the model cache for transparent caching.
+    ///
+    /// # Arguments
+    /// * `cache` - The model cache instance
+    #[must_use]
+    pub fn with_cache(mut self, cache: Arc<ModelCache>) -> Self {
+        self.cache = Some(cache);
         self
     }
 
@@ -312,7 +325,7 @@ impl ModelSelector {
         }
 
         // Try to create the model
-        let model = Self::create_model(recommendation)?;
+        let model = self.create_model(recommendation)?;
 
         // Calculate estimated cost
         let estimated_cost = Self::estimate_cost(recommendation, options);
@@ -333,6 +346,7 @@ impl ModelSelector {
 
     /// Create a model from a recommendation.
     fn create_model(
+        &self,
         recommendation: &ModelRecommendation,
     ) -> Result<Arc<dyn Model + Send + Sync>, ModelError> {
         // Parse model type from engine string
@@ -346,14 +360,24 @@ impl ModelSelector {
         // Create model config
         let config = ModelConfig::new(model_type, recommendation.model.clone());
 
-        // Create model instance
+        // Use cache if present and enabled, otherwise use factory directly
+        if let Some(ref cache) = self.cache {
+            if cache.config().enabled {
+                return cache.get_or_create(config);
+            }
+        }
+
+        // Fall back to direct factory creation
         ModelFactory::create(config)
     }
 
     /// Create a mock model as fallback.
+    ///
+    /// Mock models always bypass the cache to ensure fresh instances.
     fn create_mock_model(metadata: &AgentMetadata) -> Result<SelectionResult, SelectionError> {
         let config = ModelConfig::new(ModelType::Mock, format!("mock-{}", metadata.name));
 
+        // Always create new mock model (bypass cache)
         let model = ModelFactory::create(config)?;
 
         Ok(SelectionResult {
@@ -544,5 +568,41 @@ mod tests {
         assert_eq!(SelectedModel::Fallback.to_string(), "fallback");
         assert_eq!(SelectedModel::Premium.to_string(), "premium");
         assert_eq!(SelectedModel::Mock.to_string(), "mock");
+    }
+
+    #[test]
+    fn test_selector_with_cache() {
+        use radium_models::{CacheConfig, ModelCache};
+
+        let cache = Arc::new(ModelCache::new(CacheConfig::default()).unwrap());
+        let mut selector = ModelSelector::new().with_cache(Arc::clone(&cache));
+        let metadata = create_test_metadata();
+        let options = SelectionOptions::new(&metadata);
+
+        // First selection - cache miss
+        let result1 = selector.select_model(&options).unwrap();
+        let stats1 = cache.get_stats();
+        assert_eq!(stats1.total_misses, 1);
+        assert_eq!(stats1.total_hits, 0);
+
+        // Second selection - cache hit
+        let result2 = selector.select_model(&options).unwrap();
+        let stats2 = cache.get_stats();
+        assert_eq!(stats2.total_misses, 1);
+        assert_eq!(stats2.total_hits, 1);
+
+        // Should be the same model instance (cached)
+        assert!(Arc::ptr_eq(&result1.model, &result2.model));
+    }
+
+    #[test]
+    fn test_selector_without_cache() {
+        let mut selector = ModelSelector::new();
+        let metadata = create_test_metadata();
+        let options = SelectionOptions::new(&metadata);
+
+        // Should work without cache (falls back to ModelFactory)
+        let result = selector.select_model(&options).unwrap();
+        assert_eq!(result.selected, SelectedModel::Primary);
     }
 }

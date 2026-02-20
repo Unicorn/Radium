@@ -2,12 +2,11 @@
 
 use clap::Subcommand;
 use radium_core::agents::{
-    capability_manager::{CapabilityManager, ElevationRequest},
+    capability_manager::CapabilityManager,
     config::{AgentCapabilities, CostTier, ModelClass},
 };
 use radium_core::policy::constitution::ConstitutionManager;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 
 /// Capability command options.
 #[derive(Subcommand, Debug)]

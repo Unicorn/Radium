@@ -1,5 +1,7 @@
 //! Unit tests for session analytics and metrics tracking.
 
+#![cfg(feature = "monitoring")]
+
 use chrono::{DateTime, Utc};
 use radium_core::analytics::{ModelUsageStats, SessionAnalytics, SessionMetrics};
 use radium_core::monitoring::{AgentRecord, MonitoringService, TelemetryRecord, TelemetryTracking};

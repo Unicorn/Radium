@@ -9,6 +9,28 @@ use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// User feedback rating for routing decisions (Phase 2 - REQ-246).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum FeedbackRating {
+    /// Positive feedback (thumbs up / correct routing).
+    Positive,
+    /// Negative feedback (thumbs down / incorrect routing).
+    Negative,
+    /// Neutral / no strong opinion.
+    Neutral,
+}
+
+/// User feedback for a routing decision (Phase 2 - REQ-246).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserFeedback {
+    /// User's rating of the routing decision.
+    pub rating: FeedbackRating,
+    /// Timestamp when feedback was provided.
+    pub timestamp: u64,
+    /// Optional user comment explaining the feedback.
+    pub comment: Option<String>,
+}
+
 /// Telemetry record for token usage and costs.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TelemetryRecord {
@@ -95,6 +117,55 @@ pub struct TelemetryRecord {
     
     /// A/B test group assignment ("control" | "test") if A/B testing was used.
     pub ab_test_group: Option<String>,
+
+    /// Finish reason from model response (e.g., "stop", "length", "safety").
+    pub finish_reason: Option<String>,
+
+    /// Whether content was blocked by safety filters.
+    pub safety_blocked: bool,
+
+    /// Number of citations in the response.
+    pub citation_count: Option<u32>,
+
+    /// Number of code executions performed (for providers that support code execution).
+    pub code_executions: u64,
+
+    // ===== Skill-Based Routing Metrics (REQ-245) =====
+
+    /// Routing method used ("keyword" | "skill" | "ml" | "adaptive").
+    pub routing_method: Option<String>,
+
+    /// Routing confidence score (0.0-1.0) for skill/ML routing.
+    pub routing_confidence: Option<f32>,
+
+    /// Routing latency in nanoseconds.
+    pub routing_latency_ns: Option<u64>,
+
+    /// Selected skill/agent name from routing.
+    pub selected_skill: Option<String>,
+
+    /// Alternative skills considered (JSON array of {"skill": str, "confidence": f32}).
+    pub routing_alternatives: Option<String>,
+
+    // ===== Routing Outcome Tracking (Phase 2 - REQ-246) =====
+
+    /// User feedback on the routing decision.
+    pub user_feedback: Option<String>, // JSON-serialized UserFeedback
+
+    /// Number of times the user retried this task (implicit negative signal).
+    pub retry_count: u32,
+
+    /// Whether the user manually changed the agent (escalation).
+    pub escalated: bool,
+
+    /// Whether the execution succeeded.
+    pub execution_success: bool,
+
+    /// Execution duration in milliseconds.
+    pub execution_duration_ms: u64,
+
+    /// Error type if execution failed.
+    pub error_type: Option<String>,
 }
 
 impl TelemetryRecord {
@@ -131,6 +202,21 @@ impl TelemetryRecord {
             routing_decision: None,
             complexity_score: None,
             ab_test_group: None,
+            finish_reason: None,
+            safety_blocked: false,
+            citation_count: None,
+            code_executions: 0,
+            routing_method: None,
+            routing_confidence: None,
+            routing_latency_ns: None,
+            selected_skill: None,
+            routing_alternatives: None,
+            user_feedback: None,
+            retry_count: 0,
+            escalated: false,
+            execution_success: false,
+            execution_duration_ms: 0,
+            error_type: None,
         }
     }
 
@@ -242,6 +328,67 @@ impl TelemetryRecord {
         self
     }
 
+    /// Sets finish reason from model response.
+    #[must_use]
+    pub fn with_finish_reason(mut self, finish_reason: String) -> Self {
+        self.finish_reason = Some(finish_reason);
+        self
+    }
+
+    /// Sets whether content was blocked by safety filters.
+    #[must_use]
+    pub fn with_safety_blocked(mut self, blocked: bool) -> Self {
+        self.safety_blocked = blocked;
+        self
+    }
+
+    /// Sets the number of citations in the response.
+    #[must_use]
+    pub fn with_citation_count(mut self, count: u32) -> Self {
+        self.citation_count = Some(count);
+        self
+    }
+
+    /// Sets the number of code executions performed.
+    ///
+    /// # Arguments
+    /// * `count` - The number of code executions
+    pub fn with_code_executions(mut self, count: u64) -> Self {
+        self.code_executions = count;
+        self
+    }
+
+    /// Sets local model cost based on execution duration.
+    ///
+    /// This method calculates cost for local/self-hosted models using duration-based
+    /// pricing from the cost tracker. Use this for local engines (Ollama, LM Studio, etc.)
+    /// instead of token-based cost calculation.
+    ///
+    /// # Arguments
+    /// * `engine_id` - Engine identifier (e.g., "ollama", "lm-studio")
+    /// * `duration` - Execution duration
+    /// * `cost_tracker` - Local model cost tracker
+    ///
+    /// # Returns
+    /// Self with populated cost, duration, engine_id, and provider fields
+    pub fn with_local_cost(
+        mut self,
+        engine_id: &str,
+        duration: std::time::Duration,
+        cost_tracker: &crate::monitoring::LocalModelCostTracker,
+    ) -> Self {
+        // Calculate cost using the cost tracker
+        let cost = cost_tracker.calculate_cost(engine_id, duration);
+
+        // Populate telemetry fields
+        self.estimated_cost = cost;
+        self.behavior_duration_ms = Some(duration.as_millis() as u64);
+        self.engine_id = Some(engine_id.to_string());
+        self.provider = Some("local".to_string());
+
+        self
+    }
+
     /// Calculates estimated cost based on model pricing.
     /// Uses engine-specific pricing when engine_id is set, otherwise falls back to model-based pricing.
     pub fn calculate_cost(&mut self) -> &mut Self {
@@ -251,7 +398,7 @@ impl TelemetryRecord {
                 "openai" => {
                     // OpenAI pricing varies by model
                     match self.model.as_deref() {
-                        Some("gpt-4") | Some("gpt-4-turbo") => (30.0, 60.0),
+                        Some("gpt-4" | "gpt-4-turbo") => (30.0, 60.0),
                         Some("gpt-3.5-turbo") => (0.5, 1.5),
                         _ => (10.0, 30.0), // Default for OpenAI
                     }
@@ -259,16 +406,16 @@ impl TelemetryRecord {
                 "claude" => {
                     // Claude pricing varies by model
                     match self.model.as_deref() {
-                        Some("claude-3-opus") | Some("claude-3-opus-20240229") => (15.0, 75.0),
-                        Some("claude-3-sonnet") | Some("claude-3-sonnet-20240229") => (3.0, 15.0),
-                        Some("claude-3-haiku") | Some("claude-3-haiku-20240307") => (0.25, 1.25),
+                        Some("claude-3-opus" | "claude-3-opus-20240229") => (15.0, 75.0),
+                        Some("claude-3-sonnet" | "claude-3-sonnet-20240229") => (3.0, 15.0),
+                        Some("claude-3-haiku" | "claude-3-haiku-20240307") => (0.25, 1.25),
                         _ => (3.0, 15.0), // Default for Claude
                     }
                 }
                 "gemini" => {
                     // Gemini pricing
                     match self.model.as_deref() {
-                        Some("gemini-pro") | Some("gemini-2.0-flash-exp") => (0.5, 1.5),
+                        Some("gemini-pro" | "gemini-2.0-flash-exp") => (0.5, 1.5),
                         _ => (0.5, 1.5), // Default for Gemini
                     }
                 }
@@ -465,7 +612,7 @@ impl TelemetryTracking for MonitoringService {
                         if let Some(custom_fields) = modified_data.as_object() {
                             // Allow hooks to add custom fields (we'll store them as JSON in a metadata field if needed)
                             // For now, we just process the standard fields
-                            if let Some(new_cost) = custom_fields.get("estimated_cost").and_then(|v| v.as_f64()) {
+                            if let Some(new_cost) = custom_fields.get("estimated_cost").and_then(serde_json::Value::as_f64) {
                                 effective_record.estimated_cost = new_cost;
                             }
                         }
@@ -486,7 +633,10 @@ impl TelemetryTracking for MonitoringService {
                     estimated_cost, model, provider, tool_name, tool_args, tool_approved, tool_approval_type, engine_id,
                     behavior_type, behavior_invocation_count, behavior_duration_ms, behavior_outcome,
                     api_key_id, team_name, project_name, cost_center,
-                    model_tier, routing_decision, complexity_score, ab_test_group
+                    model_tier, routing_decision, complexity_score, ab_test_group,
+                    finish_reason, safety_blocked, citation_count, code_executions,
+                    routing_method, routing_confidence, routing_latency_ns, selected_skill, routing_alternatives,
+                    user_feedback, retry_count, escalated, execution_success, execution_duration_ms, error_type
              FROM telemetry WHERE agent_id = ?1 ORDER BY timestamp DESC",
         )?;
 
@@ -521,6 +671,21 @@ impl TelemetryTracking for MonitoringService {
                     routing_decision: row.get(25).ok(),
                     complexity_score: row.get(26).ok(),
                     ab_test_group: row.get(27).ok(),
+                    finish_reason: row.get(28).ok(),
+                    safety_blocked: row.get(29).unwrap_or(false),
+                    citation_count: row.get(30).ok(),
+                    code_executions: row.get(31).unwrap_or(0),
+                    routing_method: row.get(32).ok(),
+                    routing_confidence: row.get(33).ok(),
+                    routing_latency_ns: row.get(34).ok(),
+                    selected_skill: row.get(35).ok(),
+                    routing_alternatives: row.get(36).ok(),
+                    user_feedback: row.get(37).ok(),
+                    retry_count: row.get(38).unwrap_or(0),
+                    escalated: row.get(39).unwrap_or(false),
+                    execution_success: row.get(40).unwrap_or(false),
+                    execution_duration_ms: row.get(41).unwrap_or(0),
+                    error_type: row.get(42).ok(),
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -589,7 +754,10 @@ impl TelemetryTracking for MonitoringService {
                     estimated_cost, model, provider, tool_name, tool_args, tool_approved, tool_approval_type, engine_id,
                     behavior_type, behavior_invocation_count, behavior_duration_ms, behavior_outcome,
                     api_key_id, team_name, project_name, cost_center,
-                    model_tier, routing_decision, complexity_score
+                    model_tier, routing_decision, complexity_score, ab_test_group,
+                    finish_reason, safety_blocked, citation_count, code_executions,
+                    routing_method, routing_confidence, routing_latency_ns, selected_skill, routing_alternatives,
+                    user_feedback, retry_count, escalated, execution_success, execution_duration_ms, error_type
              FROM telemetry WHERE behavior_type IS NOT NULL ORDER BY timestamp DESC"
         } else {
             "SELECT agent_id, timestamp, input_tokens, output_tokens, cached_tokens,
@@ -597,7 +765,10 @@ impl TelemetryTracking for MonitoringService {
                     estimated_cost, model, provider, tool_name, tool_args, tool_approved, tool_approval_type, engine_id,
                     behavior_type, behavior_invocation_count, behavior_duration_ms, behavior_outcome,
                     api_key_id, team_name, project_name, cost_center,
-                    model_tier, routing_decision, complexity_score
+                    model_tier, routing_decision, complexity_score, ab_test_group,
+                    finish_reason, safety_blocked, citation_count, code_executions,
+                    routing_method, routing_confidence, routing_latency_ns, selected_skill, routing_alternatives,
+                    user_feedback, retry_count, escalated, execution_success, execution_duration_ms, error_type
              FROM telemetry WHERE behavior_type IS NOT NULL ORDER BY timestamp DESC"
         };
         
@@ -631,7 +802,22 @@ impl TelemetryTracking for MonitoringService {
                 model_tier: row.get(24).ok(),
                 routing_decision: row.get(25).ok(),
                 complexity_score: row.get(26).ok(),
-                ab_test_group: None,  // Not queried in this path
+                ab_test_group: row.get(27).ok(),
+                finish_reason: row.get(28).ok(),
+                safety_blocked: row.get(29).unwrap_or(false),
+                citation_count: row.get(30).ok(),
+                code_executions: row.get(31).unwrap_or(0),
+                routing_method: row.get(32).ok(),
+                routing_confidence: row.get(33).ok(),
+                routing_latency_ns: row.get(34).ok(),
+                selected_skill: row.get(35).ok(),
+                routing_alternatives: row.get(36).ok(),
+                user_feedback: row.get(37).ok(),
+                retry_count: row.get(38).unwrap_or(0),
+                escalated: row.get(39).unwrap_or(false),
+                execution_success: row.get(40).unwrap_or(false),
+                execution_duration_ms: row.get(41).unwrap_or(0),
+                error_type: row.get(42).ok(),
             })
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -646,7 +832,10 @@ impl TelemetryTracking for MonitoringService {
                     estimated_cost, model, provider, tool_name, tool_args, tool_approved, tool_approval_type, engine_id,
                     behavior_type, behavior_invocation_count, behavior_duration_ms, behavior_outcome,
                     api_key_id, team_name, project_name, cost_center,
-                    model_tier, routing_decision, complexity_score
+                    model_tier, routing_decision, complexity_score, ab_test_group,
+                    finish_reason, safety_blocked, citation_count, code_executions,
+                    routing_method, routing_confidence, routing_latency_ns, selected_skill, routing_alternatives,
+                    user_feedback, retry_count, escalated, execution_success, execution_duration_ms, error_type
              FROM telemetry WHERE behavior_type = ?1 ORDER BY timestamp DESC",
         )?;
         
@@ -679,7 +868,22 @@ impl TelemetryTracking for MonitoringService {
                 model_tier: row.get(24).ok(),
                 routing_decision: row.get(25).ok(),
                 complexity_score: row.get(26).ok(),
-                ab_test_group: None,  // Not queried in this path
+                ab_test_group: row.get(27).ok(),
+                finish_reason: row.get(28).ok(),
+                safety_blocked: row.get(29).unwrap_or(false),
+                citation_count: row.get(30).ok(),
+                code_executions: row.get(31).unwrap_or(0),
+                routing_method: row.get(32).ok(),
+                routing_confidence: row.get(33).ok(),
+                routing_latency_ns: row.get(34).ok(),
+                selected_skill: row.get(35).ok(),
+                routing_alternatives: row.get(36).ok(),
+                user_feedback: row.get(37).ok(),
+                retry_count: row.get(38).unwrap_or(0),
+                escalated: row.get(39).unwrap_or(false),
+                execution_success: row.get(40).unwrap_or(false),
+                execution_duration_ms: row.get(41).unwrap_or(0),
+                error_type: row.get(42).ok(),
             })
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -1013,6 +1217,81 @@ mod tests {
         assert_eq!(record.model_tier, Some("smart".to_string()));
         assert_eq!(record.routing_decision, Some("auto".to_string()));
         assert_eq!(record.complexity_score, Some(75.5));
+    }
+
+    #[test]
+    fn test_with_local_cost() {
+        use tempfile::TempDir;
+        use crate::monitoring::LocalModelCostTracker;
+
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("engine-costs.toml");
+
+        let toml_content = r#"
+[engines.ollama]
+cost_per_second = 0.0001
+min_billable_duration = 0.1
+"#;
+        std::fs::write(&config_path, toml_content).unwrap();
+
+        let tracker = LocalModelCostTracker::new(&config_path).unwrap();
+        let record = TelemetryRecord::new("agent-1".to_string())
+            .with_local_cost("ollama", std::time::Duration::from_secs(2), &tracker);
+
+        assert!((record.estimated_cost - 0.0002).abs() < 0.000001);
+        assert_eq!(record.behavior_duration_ms, Some(2000));
+        assert_eq!(record.engine_id, Some("ollama".to_string()));
+        assert_eq!(record.provider, Some("local".to_string()));
+    }
+
+    #[test]
+    fn test_with_local_cost_missing_engine() {
+        use tempfile::TempDir;
+        use crate::monitoring::LocalModelCostTracker;
+
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("engine-costs.toml");
+
+        let toml_content = r#"
+[engines.ollama]
+cost_per_second = 0.0001
+min_billable_duration = 0.1
+"#;
+        std::fs::write(&config_path, toml_content).unwrap();
+
+        let tracker = LocalModelCostTracker::new(&config_path).unwrap();
+        let record = TelemetryRecord::new("agent-1".to_string())
+            .with_local_cost("unknown-engine", std::time::Duration::from_secs(5), &tracker);
+
+        assert_eq!(record.estimated_cost, 0.0);
+        assert_eq!(record.behavior_duration_ms, Some(5000));
+        assert_eq!(record.engine_id, Some("unknown-engine".to_string()));
+        assert_eq!(record.provider, Some("local".to_string()));
+    }
+
+    #[test]
+    fn test_with_local_cost_minimum_billable() {
+        use tempfile::TempDir;
+        use crate::monitoring::LocalModelCostTracker;
+
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("engine-costs.toml");
+
+        let toml_content = r#"
+[engines.ollama]
+cost_per_second = 0.0001
+min_billable_duration = 0.1
+"#;
+        std::fs::write(&config_path, toml_content).unwrap();
+
+        let tracker = LocalModelCostTracker::new(&config_path).unwrap();
+        let record = TelemetryRecord::new("agent-1".to_string())
+            .with_local_cost("ollama", std::time::Duration::from_millis(50), &tracker);
+
+        // Should use 0.1s minimum, so cost = 0.1 * 0.0001 = 0.00001
+        assert!((record.estimated_cost - 0.00001).abs() < 0.000001);
+        assert_eq!(record.behavior_duration_ms, Some(50)); // Actual duration, not minimum
+        assert_eq!(record.engine_id, Some("ollama".to_string()));
     }
 
     #[tokio::test]

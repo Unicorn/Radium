@@ -1,12 +1,16 @@
 //! Model router for Smart/Eco tier selection.
 
 use super::ab_testing::{ABTestGroup, ABTestSampler};
+use super::circuit_breaker::CircuitBreaker;
 use super::complexity::ComplexityEstimator;
+use super::config::{ConfigError, RoutingConfigLoader};
 use super::cost_tracker::CostTracker;
-use super::types::{ComplexityScore, ComplexityWeights, RoutingTier};
+use super::types::{ComplexityScore, ComplexityWeights, FailureRecord, FallbackChain, ModelMetadata, RoutingError, RoutingStrategy, RoutingTier};
 use radium_models::{ModelConfig, ModelType};
-use std::sync::Arc;
-use tracing::{debug, warn};
+use std::collections::HashMap;
+use std::path::Path;
+use std::sync::{Arc, RwLock};
+use tracing::{debug, info, warn};
 
 /// Parses model specification string into engine and model parts.
 fn parse_model_spec(spec: &str) -> Result<(String, String), String> {
@@ -47,9 +51,151 @@ pub struct ModelRouter {
     cost_tracker: Arc<CostTracker>,
     /// Optional A/B test sampler for routing validation.
     ab_test_sampler: Option<Arc<ABTestSampler>>,
+    /// Optional fallback chain for multi-model retry logic.
+    fallback_chain: Option<FallbackChain>,
+    /// Track which models have been tried in the current fallback sequence (thread-safe).
+    tried_models: Arc<RwLock<Vec<String>>>,
+    /// Optional circuit breaker for failure detection.
+    circuit_breaker: Option<Arc<CircuitBreaker>>,
+    /// Model metadata registry for strategy-based routing.
+    model_registry: Arc<RwLock<HashMap<String, ModelMetadata>>>,
+    /// Default routing strategy.
+    default_strategy: RoutingStrategy,
 }
 
 impl ModelRouter {
+    /// Creates default model registry with hardcoded metadata for common models.
+    fn default_model_registry() -> HashMap<String, ModelMetadata> {
+        let mut registry = HashMap::new();
+        
+        // Claude models
+        registry.insert("claude-sonnet-4.5".to_string(), ModelMetadata::new(
+            "claude-sonnet-4.5".to_string(),
+            "claude".to_string(),
+            3.0,   // $3 per 1M input
+            15.0,  // $15 per 1M output
+            2000,  // 2000ms avg latency
+            5,     // Tier 5 (highest)
+        ));
+        registry.insert("claude-sonnet-3.5".to_string(), ModelMetadata::new(
+            "claude-sonnet-3.5".to_string(),
+            "claude".to_string(),
+            3.0,
+            15.0,
+            2000,
+            5,
+        ));
+        registry.insert("claude-haiku-4.5".to_string(), ModelMetadata::new(
+            "claude-haiku-4.5".to_string(),
+            "claude".to_string(),
+            0.25,  // $0.25 per 1M input
+            1.25,  // $1.25 per 1M output
+            500,   // 500ms avg latency
+            3,     // Tier 3
+        ));
+        registry.insert("claude-haiku-3.5".to_string(), ModelMetadata::new(
+            "claude-haiku-3.5".to_string(),
+            "claude".to_string(),
+            0.25,
+            1.25,
+            500,
+            3,
+        ));
+        
+        // OpenAI models
+        registry.insert("gpt-4".to_string(), ModelMetadata::new(
+            "gpt-4".to_string(),
+            "openai".to_string(),
+            30.0,  // $30 per 1M input
+            60.0,  // $60 per 1M output
+            3000,  // 3000ms avg latency
+            5,     // Tier 5
+        ));
+        registry.insert("gpt-4-turbo".to_string(), ModelMetadata::new(
+            "gpt-4-turbo".to_string(),
+            "openai".to_string(),
+            10.0,
+            30.0,
+            2500,
+            5,
+        ));
+        registry.insert("gpt-3.5-turbo".to_string(), ModelMetadata::new(
+            "gpt-3.5-turbo".to_string(),
+            "openai".to_string(),
+            1.5,   // $1.5 per 1M input
+            2.0,   // $2 per 1M output
+            800,   // 800ms avg latency
+            3,     // Tier 3
+        ));
+
+        // OpenAI o1/o3 reasoning models
+        registry.insert("o1".to_string(), ModelMetadata::with_reasoning(
+            "o1".to_string(),
+            "openai".to_string(),
+            15.0,  // $15 per 1M input (cached: $7.50)
+            60.0,  // $60 per 1M output
+            60.0,  // $60 per 1M reasoning tokens
+            15000, // 15000ms avg latency (slower due to reasoning)
+            5,     // Tier 5 (highest quality)
+        ));
+        registry.insert("o1-mini".to_string(), ModelMetadata::with_reasoning(
+            "o1-mini".to_string(),
+            "openai".to_string(),
+            3.0,   // $3 per 1M input (cached: $1.50)
+            12.0,  // $12 per 1M output
+            12.0,  // $12 per 1M reasoning tokens
+            8000,  // 8000ms avg latency
+            5,     // Tier 5 (smart reasoning)
+        ));
+        registry.insert("o1-preview".to_string(), ModelMetadata::with_reasoning(
+            "o1-preview".to_string(),
+            "openai".to_string(),
+            15.0,  // $15 per 1M input
+            60.0,  // $60 per 1M output
+            60.0,  // $60 per 1M reasoning tokens
+            15000, // 15000ms avg latency
+            5,     // Tier 5
+        ));
+        registry.insert("o3".to_string(), ModelMetadata::with_reasoning(
+            "o3".to_string(),
+            "openai".to_string(),
+            20.0,  // $20 per 1M input (estimated, subject to change)
+            80.0,  // $80 per 1M output (estimated)
+            80.0,  // $80 per 1M reasoning tokens (estimated)
+            18000, // 18000ms avg latency (estimated)
+            5,     // Tier 5 (highest quality)
+        ));
+        registry.insert("o3-mini".to_string(), ModelMetadata::with_reasoning(
+            "o3-mini".to_string(),
+            "openai".to_string(),
+            5.0,   // $5 per 1M input (estimated)
+            15.0,  // $15 per 1M output (estimated)
+            15.0,  // $15 per 1M reasoning tokens (estimated)
+            10000, // 10000ms avg latency (estimated)
+            5,     // Tier 5
+        ));
+        
+        // Gemini models
+        registry.insert("gemini-pro".to_string(), ModelMetadata::new(
+            "gemini-pro".to_string(),
+            "gemini".to_string(),
+            0.5,   // $0.5 per 1M input
+            1.5,   // $1.5 per 1M output
+            1200,  // 1200ms avg latency
+            4,     // Tier 4
+        ));
+        registry.insert("gemini-flash".to_string(), ModelMetadata::new(
+            "gemini-flash".to_string(),
+            "gemini".to_string(),
+            0.2,   // $0.2 per 1M input
+            0.8,   // $0.8 per 1M output
+            400,   // 400ms avg latency
+            3,     // Tier 3
+        ));
+        
+        registry
+    }
+    
     /// Creates a new model router.
     ///
     /// # Arguments
@@ -69,6 +215,11 @@ impl ModelRouter {
             auto_route: true,
             cost_tracker: Arc::new(CostTracker::new()),
             ab_test_sampler: None,
+            fallback_chain: None,
+            tried_models: Arc::new(RwLock::new(Vec::new())),
+            circuit_breaker: None,
+            model_registry: Arc::new(RwLock::new(Self::default_model_registry())),
+            default_strategy: RoutingStrategy::ComplexityBased,
         }
     }
 
@@ -88,6 +239,11 @@ impl ModelRouter {
             auto_route: true,
             cost_tracker: Arc::new(CostTracker::new()),
             ab_test_sampler: None,
+            fallback_chain: None,
+            tried_models: Arc::new(RwLock::new(Vec::new())),
+            circuit_breaker: None,
+            model_registry: Arc::new(RwLock::new(Self::default_model_registry())),
+            default_strategy: RoutingStrategy::ComplexityBased,
         }
     }
     
@@ -98,6 +254,221 @@ impl ModelRouter {
     pub fn with_ab_testing(mut self, sampler: ABTestSampler) -> Self {
         self.ab_test_sampler = Some(Arc::new(sampler));
         self
+    }
+    
+    /// Sets the fallback chain for multi-model retry logic.
+    ///
+    /// # Arguments
+    /// * `chain` - Fallback chain with ordered list of models
+    pub fn with_fallback_chain(mut self, chain: FallbackChain) -> Self {
+        self.fallback_chain = Some(chain);
+        self
+    }
+    
+    /// Sets the circuit breaker for failure detection.
+    ///
+    /// # Arguments
+    /// * `breaker` - Circuit breaker instance
+    pub fn with_circuit_breaker(mut self, breaker: CircuitBreaker) -> Self {
+        self.circuit_breaker = Some(Arc::new(breaker));
+        self
+    }
+    
+    /// Gets the next model in the fallback chain after a failure.
+    ///
+    /// # Arguments
+    /// * `failed_model_id` - The model ID that failed
+    /// * `error` - Error message describing the failure
+    ///
+    /// # Returns
+    /// - `Ok(Some(ModelConfig))` if there's a next model to try
+    /// - `Ok(None)` if no fallback chain is configured
+    /// - `Err(RoutingError::AllModelsFailed)` if all models in chain have been tried
+    pub fn get_next_fallback_model(
+        &self,
+        failed_model_id: &str,
+        error: &str,
+    ) -> Result<Option<ModelConfig>, RoutingError> {
+        // Record the failure
+        {
+            let mut tried = self.tried_models.write().unwrap();
+            tried.push(failed_model_id.to_string());
+        }
+        
+        // If no fallback chain, return None (no fallback available)
+        let chain = match &self.fallback_chain {
+            Some(chain) => chain,
+            None => return Ok(None),
+        };
+        
+        // Find the next model in the chain that hasn't been tried and isn't circuit-broken
+        let tried = self.tried_models.read().unwrap();
+        for model_config in &chain.models {
+            // Skip if already tried
+            if tried.contains(&model_config.model_id) {
+                continue;
+            }
+            
+            // Skip if circuit breaker says to skip this model
+            if let Some(ref breaker) = self.circuit_breaker {
+                if breaker.should_skip(&model_config.model_id) {
+                    debug!(
+                        model_id = model_config.model_id,
+                        "Skipping model due to open circuit breaker"
+                    );
+                    continue;
+                }
+            }
+            
+            // Found a valid model
+            drop(tried);
+            let mut tried = self.tried_models.write().unwrap();
+            tried.push(model_config.model_id.clone());
+            return Ok(Some(model_config.clone()));
+        }
+        drop(tried);
+        
+        // All models have been tried - return error with failure records
+        let tried = self.tried_models.read().unwrap();
+        let failures: Vec<FailureRecord> = tried
+            .iter()
+            .map(|model_id| FailureRecord::new(
+                model_id.clone(),
+                if model_id == failed_model_id {
+                    error.to_string()
+                } else {
+                    "Model skipped in fallback chain".to_string()
+                }
+            ))
+            .collect();
+        drop(tried);
+        
+        // Reset tried models for next attempt
+        {
+            let mut tried = self.tried_models.write().unwrap();
+            tried.clear();
+        }
+        
+        Err(RoutingError::AllModelsFailed(failures))
+    }
+    
+    /// Resets the fallback chain state (clears tried models).
+    ///
+    /// Call this when starting a new routing sequence.
+    pub fn reset_fallback_state(&self) {
+        let mut tried = self.tried_models.write().unwrap();
+        tried.clear();
+    }
+    
+    /// Records a model success for circuit breaker tracking.
+    ///
+    /// # Arguments
+    /// * `model_id` - Model identifier
+    pub fn record_model_success(&self, model_id: &str) {
+        if let Some(ref breaker) = self.circuit_breaker {
+            breaker.record_success(model_id);
+        }
+    }
+    
+    /// Records a model failure for circuit breaker tracking.
+    ///
+    /// # Arguments
+    /// * `model_id` - Model identifier
+    pub fn record_model_failure(&self, model_id: &str) {
+        if let Some(ref breaker) = self.circuit_breaker {
+            breaker.record_failure(model_id);
+        }
+    }
+    
+    /// Selects tier based on cost optimization strategy.
+    fn select_by_cost_optimized(&self, complexity_score: f64) -> RoutingTier {
+        let registry = self.model_registry.read().unwrap();
+        
+        // Get metadata for smart and eco models
+        let smart_metadata = registry.get(&self.smart_model.model_id);
+        let eco_metadata = registry.get(&self.eco_model.model_id);
+        
+        // If complexity requires smart tier, use smart
+        if complexity_score >= self.threshold {
+            return RoutingTier::Smart;
+        }
+        
+        // Otherwise, compare costs
+        if let (Some(smart), Some(eco)) = (smart_metadata, eco_metadata) {
+            // Compare total cost (input + output, using average ratio)
+            // Use input cost as proxy (most models have similar input/output ratios)
+            if smart.cost_per_1m_input < eco.cost_per_1m_input {
+                RoutingTier::Smart
+            } else {
+                RoutingTier::Eco
+            }
+        } else {
+            // Fallback to complexity-based if metadata not available
+            if complexity_score >= self.threshold {
+                RoutingTier::Smart
+            } else {
+                RoutingTier::Eco
+            }
+        }
+    }
+    
+    /// Selects tier based on latency optimization strategy.
+    fn select_by_latency_optimized(&self, complexity_score: f64) -> RoutingTier {
+        let registry = self.model_registry.read().unwrap();
+        
+        // Get metadata for smart and eco models
+        let smart_metadata = registry.get(&self.smart_model.model_id);
+        let eco_metadata = registry.get(&self.eco_model.model_id);
+        
+        // If complexity requires smart tier, use smart
+        if complexity_score >= self.threshold {
+            return RoutingTier::Smart;
+        }
+        
+        // Otherwise, compare latencies
+        if let (Some(smart), Some(eco)) = (smart_metadata, eco_metadata) {
+            if smart.avg_latency_ms < eco.avg_latency_ms {
+                RoutingTier::Smart
+            } else {
+                RoutingTier::Eco
+            }
+        } else {
+            // Fallback to complexity-based if metadata not available
+            if complexity_score >= self.threshold {
+                RoutingTier::Smart
+            } else {
+                RoutingTier::Eco
+            }
+        }
+    }
+    
+    /// Selects tier based on quality optimization strategy.
+    fn select_by_quality_optimized(&self, complexity_score: f64) -> RoutingTier {
+        let registry = self.model_registry.read().unwrap();
+        
+        // Get metadata for smart and eco models
+        let smart_metadata = registry.get(&self.smart_model.model_id);
+        let eco_metadata = registry.get(&self.eco_model.model_id);
+        
+        // Always prefer higher quality, but respect complexity threshold
+        if let (Some(smart), Some(eco)) = (smart_metadata, eco_metadata) {
+            // If complexity is high, use smart (higher quality)
+            if complexity_score >= self.threshold {
+                RoutingTier::Smart
+            } else if smart.quality_tier > eco.quality_tier {
+                // Even for low complexity, prefer higher quality if available
+                RoutingTier::Smart
+            } else {
+                RoutingTier::Eco
+            }
+        } else {
+            // Fallback to complexity-based if metadata not available
+            if complexity_score >= self.threshold {
+                RoutingTier::Smart
+            } else {
+                RoutingTier::Eco
+            }
+        }
     }
     
     /// Creates a new model router from model specification strings.
@@ -141,11 +512,18 @@ impl ModelRouter {
         );
         
         router.auto_route = auto_route;
+        router.fallback_chain = None;
+        router.tried_models = Arc::new(RwLock::new(Vec::new()));
+        router.circuit_breaker = None;
+        router.model_registry = Arc::new(RwLock::new(Self::default_model_registry()));
+        router.default_strategy = RoutingStrategy::ComplexityBased;
         
         Ok(router)
     }
 
     /// Selects the appropriate model based on complexity or override.
+    ///
+    /// Uses the default strategy (ComplexityBased).
     ///
     /// # Arguments
     /// * `input` - The input prompt/text
@@ -159,6 +537,26 @@ impl ModelRouter {
         input: &str,
         agent_id: Option<&str>,
         tier_override: Option<RoutingTier>,
+    ) -> (ModelConfig, RoutingDecision) {
+        self.select_model_with_strategy(input, agent_id, tier_override, self.default_strategy)
+    }
+    
+    /// Selects the appropriate model using a specific routing strategy.
+    ///
+    /// # Arguments
+    /// * `input` - The input prompt/text
+    /// * `agent_id` - Optional agent ID for context
+    /// * `tier_override` - Optional manual tier override
+    /// * `strategy` - Routing strategy to use
+    ///
+    /// # Returns
+    /// Selected ModelConfig and routing decision metadata.
+    pub fn select_model_with_strategy(
+        &self,
+        input: &str,
+        agent_id: Option<&str>,
+        tier_override: Option<RoutingTier>,
+        strategy: RoutingStrategy,
     ) -> (ModelConfig, RoutingDecision) {
         // Handle manual override
         if let Some(override_tier) = tier_override {
@@ -209,29 +607,43 @@ impl ModelRouter {
         }
 
         // Estimate complexity
-        let complexity = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let complexity = if let Ok(score) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             self.estimator.estimate(input, agent_id)
-        })) {
-            Ok(score) => score,
-            Err(_) => {
-                warn!("Complexity estimation failed, defaulting to Smart tier");
-                return (
-                    self.smart_model.clone(),
-                    RoutingDecision {
-                        tier: RoutingTier::Smart,
-                        decision_type: DecisionType::Fallback,
-                        complexity_score: None,
-                        ab_test_group: None,
-                    },
-                );
-            }
+        })) { score } else {
+            warn!("Complexity estimation failed, defaulting to Smart tier");
+            return (
+                self.smart_model.clone(),
+                RoutingDecision {
+                    tier: RoutingTier::Smart,
+                    decision_type: DecisionType::Fallback,
+                    complexity_score: None,
+                    ab_test_group: None,
+                },
+            );
         };
 
-        // Route based on complexity threshold
-        let mut tier = if complexity.score >= self.threshold {
-            RoutingTier::Smart
-        } else {
-            RoutingTier::Eco
+        // Route based on strategy
+        let mut tier = match strategy {
+            RoutingStrategy::ComplexityBased => {
+                // Use complexity threshold (existing behavior)
+                if complexity.score >= self.threshold {
+                    RoutingTier::Smart
+                } else {
+                    RoutingTier::Eco
+                }
+            }
+            RoutingStrategy::CostOptimized => {
+                // Select cheapest model that meets complexity threshold
+                self.select_by_cost_optimized(complexity.score)
+            }
+            RoutingStrategy::LatencyOptimized => {
+                // Select fastest model that meets complexity threshold
+                self.select_by_latency_optimized(complexity.score)
+            }
+            RoutingStrategy::QualityOptimized => {
+                // Select highest tier model that meets complexity threshold
+                self.select_by_quality_optimized(complexity.score)
+            }
         };
 
         // Handle A/B testing: invert routing for Test group
@@ -255,8 +667,21 @@ impl ModelRouter {
             complexity_score = complexity.score,
             threshold = self.threshold,
             selected_tier = ?tier,
+            strategy = ?strategy,
             ab_test_group = ?ab_test_group,
-            "Auto-routing based on complexity"
+            "Routing decision made"
+        );
+        
+        // Log routing decision for metrics
+        info!(
+            tier = ?tier,
+            strategy = ?strategy,
+            complexity_score = complexity.score,
+            decision_type = ?DecisionType::Auto,
+            "Routing decision: {} tier selected with {} strategy (complexity: {:.2})",
+            tier,
+            strategy.to_string(),
+            complexity.score
         );
 
         let model = match tier {
@@ -342,6 +767,69 @@ impl ModelRouter {
         if let Err(e) = self.cost_tracker.reset() {
             warn!(error = %e, "Failed to reset cost tracking");
         }
+    }
+    
+    /// Creates a new model router from a configuration file.
+    ///
+    /// # Arguments
+    /// * `config_path` - Path to the routing configuration TOML file
+    /// * `smart_model` - Smart tier model configuration (required)
+    /// * `eco_model` - Eco tier model configuration (required)
+    ///
+    /// # Errors
+    /// Returns error if configuration cannot be loaded or is invalid.
+    pub fn from_config(
+        config_path: &Path,
+        smart_model: ModelConfig,
+        eco_model: ModelConfig,
+    ) -> Result<Self, ConfigError> {
+        let config = RoutingConfigLoader::load(config_path)?;
+        
+        let threshold = config.threshold.unwrap_or(60.0);
+        let default_strategy = RoutingStrategy::from_str(&config.default_strategy)
+            .unwrap_or(RoutingStrategy::ComplexityBased);
+        
+        let mut router = Self::new(smart_model, eco_model, Some(threshold));
+        router.default_strategy = default_strategy;
+        
+        // Build fallback chains
+        let chains = RoutingConfigLoader::build_fallback_chains(&config)?;
+        if let Some((_, chain)) = chains.first() {
+            router.fallback_chain = Some(chain.clone());
+        }
+        
+        Ok(router)
+    }
+    
+    /// Reloads configuration from a file.
+    ///
+    /// # Arguments
+    /// * `config_path` - Path to the routing configuration TOML file
+    ///
+    /// # Errors
+    /// Returns error if configuration cannot be loaded or is invalid.
+    pub fn reload_config(&mut self, config_path: &Path) -> Result<(), ConfigError> {
+        let config = RoutingConfigLoader::load(config_path)?;
+        
+        // Update threshold
+        if let Some(threshold) = config.threshold {
+            self.set_threshold(threshold);
+        }
+        
+        // Update default strategy
+        if let Some(strategy) = RoutingStrategy::from_str(&config.default_strategy) {
+            self.default_strategy = strategy;
+        }
+        
+        // Update fallback chains
+        let chains = RoutingConfigLoader::build_fallback_chains(&config)?;
+        if let Some((_, chain)) = chains.first() {
+            self.fallback_chain = Some(chain.clone());
+        } else {
+            self.fallback_chain = None;
+        }
+        
+        Ok(())
     }
 }
 

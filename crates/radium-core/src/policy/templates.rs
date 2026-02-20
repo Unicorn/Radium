@@ -110,10 +110,8 @@ impl TemplateDiscovery {
                 let description = if let Ok(content) = fs::read_to_string(&path) {
                     // Look for description in comments at top of file
                     content.lines()
-                        .find(|line| line.trim_start().starts_with("#") && 
-                              (line.contains("Policy") || line.contains("Configuration")))
-                        .map(|line| line.trim_start_matches("#").trim().to_string())
-                        .unwrap_or_else(|| format!("{} policy template", name))
+                        .find(|line| line.trim_start().starts_with('#') && 
+                              (line.contains("Policy") || line.contains("Configuration"))).map_or_else(|| format!("{} policy template", name), |line| line.trim_start_matches('#').trim().to_string())
                 } else {
                     format!("{} policy template", name)
                 };

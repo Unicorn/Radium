@@ -1,9 +1,12 @@
 //! Configuration module for Radium Core.
 
 pub mod cli_config;
+pub mod engine_costs;
+pub mod model_cache;
 pub mod routing;
 
 use std::net::SocketAddr;
+use std::path::PathBuf;
 
 use serde::Deserialize;
 
@@ -84,6 +87,17 @@ fn default_max_checkpoints() -> usize {
 
 fn default_max_size_gb() -> u64 {
     5
+}
+
+impl CheckpointConfig {
+    /// Convert to CheckpointPolicy for snapshot manager.
+    pub fn to_policy(&self) -> crate::checkpoint::CheckpointPolicy {
+        crate::checkpoint::CheckpointPolicy {
+            age_days: Some(self.retention_days),
+            max_size_gb: Some(self.max_size_gb as f64),
+            min_keep: self.max_checkpoints,
+        }
+    }
 }
 
 impl Default for CheckpointConfig {
@@ -195,16 +209,12 @@ pub struct SecretManagementConfig {
 
 fn default_vault_path() -> String {
     #[allow(clippy::disallowed_methods)]
-    std::env::var("HOME")
-        .map(|home| format!("{}/.radium/auth/secrets.vault", home))
-        .unwrap_or_else(|_| "~/.radium/auth/secrets.vault".to_string())
+    std::env::var("HOME").map_or_else(|_| "~/.radium/auth/secrets.vault".to_string(), |home| format!("{}/.radium/auth/secrets.vault", home))
 }
 
 fn default_audit_log_path() -> String {
     #[allow(clippy::disallowed_methods)]
-    std::env::var("HOME")
-        .map(|home| format!("{}/.radium/auth/audit.log", home))
-        .unwrap_or_else(|_| "~/.radium/auth/audit.log".to_string())
+    std::env::var("HOME").map_or_else(|_| "~/.radium/auth/audit.log".to_string(), |home| format!("{}/.radium/auth/audit.log", home))
 }
 
 fn default_min_password_length() -> usize {
@@ -227,6 +237,7 @@ impl Default for SecretManagementConfig {
 
 /// Security configuration.
 #[derive(Debug, Clone, Deserialize)]
+#[derive(Default)]
 pub struct SecurityConfig {
     /// Privacy configuration.
     #[serde(default)]
@@ -236,14 +247,6 @@ pub struct SecurityConfig {
     pub secrets: SecretManagementConfig,
 }
 
-impl Default for SecurityConfig {
-    fn default() -> Self {
-        Self {
-            privacy: PrivacyConfig::default(),
-            secrets: SecretManagementConfig::default(),
-        }
-    }
-}
 
 /// Root configuration for Radium.
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -271,13 +274,147 @@ impl Config {
 
     /// Load configuration from environment variables and config files.
     ///
+    /// Configuration is loaded in the following precedence (highest to lowest):
+    /// 1. Environment variables (RADIUM_*)
+    /// 2. Config file (searched in standard locations)
+    /// 3. Defaults
+    ///
+    /// # Config File Locations (in order of priority):
+    /// - `./radium.toml` (current directory)
+    /// - `$XDG_CONFIG_HOME/radium/config.toml` or `~/.config/radium/config.toml`
+    /// - `/etc/radium/config.toml` (system-wide, Unix only)
+    ///
+    /// # Environment Variables:
+    /// - `RADIUM_SERVER_ADDRESS` - Server bind address (e.g., "127.0.0.1:50051")
+    /// - `RADIUM_SERVER_WEB_ADDRESS` - gRPC-Web bind address
+    /// - `RADIUM_ENABLE_GRPC_WEB` - Enable gRPC-Web support (true/false)
+    /// - `RADIUM_BUDGET_LIMIT` - Budget limit in USD
+    /// - `RADIUM_CHECKPOINT_AUTO_CREATE` - Auto-create checkpoints (true/false)
+    /// - `RADIUM_CHECKPOINT_RETENTION_DAYS` - Checkpoint retention period
+    ///
     /// # Errors
     ///
-    /// Returns an error if configuration loading fails.
+    /// Returns an error if configuration file parsing fails.
     pub fn load() -> crate::error::Result<Self> {
-        // For now, just return defaults
-        // TODO: Implement config file and env var loading
-        Ok(Self::default())
+        // Start with defaults
+        let mut config = Self::default();
+
+        // Try to load from config file
+        if let Some(file_config) = Self::load_from_file()? {
+            config = file_config;
+        }
+
+        // Override with environment variables
+        Self::apply_env_vars(&mut config)?;
+
+        Ok(config)
+    }
+
+    /// Try to load configuration from standard file locations.
+    fn load_from_file() -> crate::error::Result<Option<Self>> {
+        let config_paths = Self::get_config_paths();
+
+        for path in config_paths {
+            if path.exists() {
+                tracing::info!("Loading configuration from: {}", path.display());
+                let content = std::fs::read_to_string(&path)
+                    .map_err(|e| crate::error::RadiumError::Config(format!(
+                        "Failed to read config file {}: {}", path.display(), e
+                    )))?;
+
+                let config: Self = toml::from_str(&content)
+                    .map_err(|e| crate::error::RadiumError::Config(format!(
+                        "Failed to parse config file {}: {}", path.display(), e
+                    )))?;
+
+                return Ok(Some(config));
+            }
+        }
+
+        // No config file found, return None to use defaults
+        Ok(None)
+    }
+
+    /// Get standard config file search paths in priority order.
+    fn get_config_paths() -> Vec<PathBuf> {
+        let mut paths = Vec::new();
+
+        // 1. Current directory
+        paths.push(PathBuf::from("./radium.toml"));
+
+        // 2. XDG_CONFIG_HOME or ~/.config
+        if let Ok(xdg_config) = std::env::var("XDG_CONFIG_HOME") {
+            paths.push(PathBuf::from(xdg_config).join("radium").join("config.toml"));
+        } else if let Ok(home) = std::env::var("HOME") {
+            paths.push(PathBuf::from(home).join(".config").join("radium").join("config.toml"));
+        }
+
+        // 3. System-wide config (Unix only)
+        #[cfg(unix)]
+        paths.push(PathBuf::from("/etc/radium/config.toml"));
+
+        paths
+    }
+
+    /// Apply environment variable overrides to configuration.
+    fn apply_env_vars(config: &mut Self) -> crate::error::Result<()> {
+        // Server address
+        if let Ok(addr) = std::env::var("RADIUM_SERVER_ADDRESS") {
+            config.server.address = addr.parse()
+                .map_err(|e| crate::error::RadiumError::Config(format!(
+                    "Invalid RADIUM_SERVER_ADDRESS: {}", e
+                )))?;
+        }
+
+        // Server web address
+        if let Ok(addr) = std::env::var("RADIUM_SERVER_WEB_ADDRESS") {
+            config.server.web_address = Some(addr.parse()
+                .map_err(|e| crate::error::RadiumError::Config(format!(
+                    "Invalid RADIUM_SERVER_WEB_ADDRESS: {}", e
+                )))?);
+        }
+
+        // Enable gRPC-Web
+        if let Ok(enable) = std::env::var("RADIUM_ENABLE_GRPC_WEB") {
+            config.server.enable_grpc_web = enable.parse()
+                .map_err(|e| crate::error::RadiumError::Config(format!(
+                    "Invalid RADIUM_ENABLE_GRPC_WEB (expected true/false): {}", e
+                )))?;
+        }
+
+        // Checkpoint auto-create
+        if let Ok(auto) = std::env::var("RADIUM_CHECKPOINT_AUTO_CREATE") {
+            config.checkpoint.auto_create = auto.parse()
+                .map_err(|e| crate::error::RadiumError::Config(format!(
+                    "Invalid RADIUM_CHECKPOINT_AUTO_CREATE (expected true/false): {}", e
+                )))?;
+        }
+
+        // Checkpoint retention days
+        if let Ok(days) = std::env::var("RADIUM_CHECKPOINT_RETENTION_DAYS") {
+            config.checkpoint.retention_days = days.parse()
+                .map_err(|e| crate::error::RadiumError::Config(format!(
+                    "Invalid RADIUM_CHECKPOINT_RETENTION_DAYS (expected u32): {}", e
+                )))?;
+        }
+
+        // Checkpoint max checkpoints
+        if let Ok(max) = std::env::var("RADIUM_CHECKPOINT_MAX_CHECKPOINTS") {
+            config.checkpoint.max_checkpoints = max.parse()
+                .map_err(|e| crate::error::RadiumError::Config(format!(
+                    "Invalid RADIUM_CHECKPOINT_MAX_CHECKPOINTS (expected usize): {}", e
+                )))?;
+        }
+
+        // Checkpoint max size
+        if let Ok(size) = std::env::var("RADIUM_CHECKPOINT_MAX_SIZE_GB") {
+            config.checkpoint.max_size_gb = size.parse()
+                .map_err(|e| crate::error::RadiumError::Config(format!(
+                    "Invalid RADIUM_CHECKPOINT_MAX_SIZE_GB (expected u64): {}", e
+                )))?;
+        }
+
+        Ok(())
     }
 }
 

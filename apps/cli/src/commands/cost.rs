@@ -2,26 +2,18 @@
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
-use clap::{Parser, Subcommand};
+use clap::Subcommand;
 use colored::Colorize;
 use radium_core::{
-    analytics::{CostQueryService, ExportOptions, ExportFormat, ExportError},
+    analytics::{CostQueryService, ExportOptions, ExportFormat},
     monitoring::MonitoringService,
     Workspace,
 };
 use std::path::PathBuf;
 
 /// Cost reporting command.
-#[derive(Parser, Debug)]
-#[command(name = "cost", about = "Cost reporting and analytics")]
-pub struct CostCommand {
-    #[command(subcommand)]
-    pub subcommand: CostSubcommand,
-}
-
-/// Cost subcommands.
 #[derive(Subcommand, Debug)]
-pub enum CostSubcommand {
+pub enum CostCommand {
     /// Generate cost report with tier breakdown
     Report {
         /// Plan/requirement ID to filter by (e.g., REQ-123)
@@ -52,8 +44,8 @@ pub enum CostSubcommand {
 
 /// Execute cost command.
 pub async fn execute(cmd: CostCommand) -> Result<()> {
-    match cmd.subcommand {
-        CostSubcommand::Report {
+    match cmd {
+        CostCommand::Report {
             plan,
             workflow,
             start,
@@ -69,7 +61,7 @@ pub async fn execute(cmd: CostCommand) -> Result<()> {
 /// Execute cost report command.
 async fn execute_report(
     plan: Option<String>,
-    workflow: Option<String>,
+    _workflow: Option<String>,
     start: Option<String>,
     end: Option<String>,
     format: String,

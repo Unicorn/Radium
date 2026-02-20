@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["HookType"],"struct":["HookRegistry"],"trait":["Hook"]};

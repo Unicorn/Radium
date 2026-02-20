@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["AgentConfigError","CostTier","ModelClass","ReasoningEffort"],"struct":["AgentCapabilities","AgentConfig","AgentConfigFile","AgentLoopBehavior","AgentRoutingConfig","AgentTriggerBehavior","GeminiSafetyConfigToml","ModelConfigToml","PersonaConfigToml","PersonaModelsToml","PersonaPerformanceToml","SafetyConfigToml"],"type":["Result"]};

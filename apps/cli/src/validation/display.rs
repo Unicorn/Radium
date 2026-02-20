@@ -91,11 +91,13 @@ mod tests {
                 source: "file:///path/to/file.md".to_string(),
                 accessible: true,
                 error_message: String::new(),
+                size_bytes: 1024,
             },
             SourceValidationResult {
                 source: "https://example.com/doc".to_string(),
                 accessible: true,
                 error_message: String::new(),
+                size_bytes: 2048,
             },
         ];
 
@@ -116,6 +118,7 @@ mod tests {
                 source: "file:///nonexistent.md".to_string(),
                 accessible: false,
                 error_message: "File not found".to_string(),
+                size_bytes: 0,
             },
         ];
 

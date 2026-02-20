@@ -19,14 +19,17 @@
 
 pub mod agents;
 pub mod analytics;
+#[cfg(feature = "workflow")]
 pub mod autonomous;
 pub mod auth;
+pub mod batch;
 pub mod checkpoint;
 pub mod clipboard;
 pub mod code_blocks;
 #[cfg(feature = "server")]
 pub mod client;
-// pub mod collaboration;  // TEMPORARILY DISABLED: depends on radium-orchestrator (circular dependency)
+#[cfg(feature = "workflow")]
+pub mod collaboration;
 pub mod commands;
 pub mod config;
 pub mod context;
@@ -43,9 +46,14 @@ pub mod oversight;
 pub mod planning;
 pub mod playbooks;
 pub mod policy;
+pub mod process;
 pub mod prompts;
+pub mod analysis;
 pub mod sandbox;
-// pub mod server;  // TEMPORARILY DISABLED: depends on radium-orchestrator (circular dependency)
+#[cfg(feature = "server")]
+pub mod server;
+pub mod search;
+pub mod session;
 pub mod security;
 #[cfg(feature = "syntax")]
 pub mod syntax;
@@ -53,6 +61,7 @@ pub mod storage;
 pub mod terminal;
 #[cfg(feature = "workflow")]
 pub mod workflow;
+pub mod training;
 pub mod workspace;
 
 /// Generated protobuf code for the Radium gRPC API.
@@ -106,6 +115,10 @@ pub use models::agent::{Agent, AgentConfig, AgentError, AgentState};
 pub use models::plan::{Iteration, Plan, PlanError, PlanManifest, PlanStatus, PlanTask};
 pub use models::task::{Task, TaskError, TaskQueue, TaskResult, TaskState};
 pub use models::workflow::{Workflow, WorkflowError, WorkflowState, WorkflowStep};
+pub use monitoring::{
+    ClassificationResult, ErrorClassifier, ErrorSeverity, ErrorType, LogManager,
+    MonitoringError, SeverityWeights,
+};
 // pub use monitoring::{  // DISABLED: monitoring module
 //     AgentRecord, AgentStatus, LogManager, MonitoringError, MonitoringService,
 //     Result as MonitoringResult, TelemetryParser, TelemetryRecord, TelemetryTracking,
@@ -125,6 +138,7 @@ pub use policy::{
     ApprovalMode, ConstitutionManager, PolicyAction, PolicyDecision, PolicyEngine, PolicyError,
     PolicyPriority, PolicyResult, PolicyRule,
 };
+pub use process::{LogWatcher, ProcessHandle, ProcessRegistry, ProcessStatus};
 pub use prompts::{PromptContext, PromptError, PromptTemplate};
 pub use proto::radium_client;
 pub use proto::{PingRequest, PingResponse};

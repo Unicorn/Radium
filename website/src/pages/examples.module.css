@@ -1,0 +1,125 @@
+.examplesPage {
+  min-height: calc(100vh - var(--ifm-navbar-height));
+}
+
+.hero {
+  padding: 4rem 0 3rem;
+  text-align: center;
+  background: linear-gradient(
+    180deg,
+    var(--ifm-color-primary-lightest) 0%,
+    transparent 100%
+  );
+}
+
+.heroTitle {
+  font-size: var(--marketing-heading-xl);
+  font-weight: 700;
+  margin-bottom: 1rem;
+  background: var(--marketing-gradient-hero);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.heroSubtitle {
+  font-size: var(--marketing-body-lg);
+  color: var(--ifm-color-emphasis-700);
+  max-width: 800px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+.content {
+  padding: 3rem 0;
+}
+
+.resultsHeader {
+  margin-bottom: 2rem;
+}
+
+.resultsCount {
+  font-size: 0.9375rem;
+  color: var(--ifm-color-emphasis-700);
+  margin: 0;
+}
+
+.examplesGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 2rem;
+  margin-bottom: 3rem;
+}
+
+.noResults {
+  text-align: center;
+  padding: 4rem 2rem;
+}
+
+.noResults p {
+  font-size: var(--marketing-body-lg);
+  color: var(--ifm-color-emphasis-700);
+  margin-bottom: 1.5rem;
+}
+
+.ctaSection {
+  padding: 4rem 0;
+  background: var(--ifm-background-surface-color);
+}
+
+/* Dark mode support */
+[data-theme='dark'] .hero {
+  background: linear-gradient(
+    180deg,
+    var(--ifm-color-primary-darkest) 0%,
+    transparent 100%
+  );
+}
+
+[data-theme='dark'] .heroSubtitle,
+[data-theme='dark'] .resultsCount,
+[data-theme='dark'] .noResults p {
+  color: var(--ifm-color-emphasis-600);
+}
+
+/* Responsive */
+@media (max-width: 996px) {
+  .hero {
+    padding: 3rem 0 2rem;
+  }
+
+  .heroTitle {
+    font-size: var(--marketing-heading-lg);
+  }
+
+  .heroSubtitle {
+    font-size: var(--marketing-body-md);
+  }
+
+  .content {
+    padding: 2rem 0;
+  }
+
+  .ctaSection {
+    padding: 3rem 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .hero {
+    padding: 2rem 0 1.5rem;
+  }
+
+  .heroTitle {
+    font-size: var(--marketing-heading-md);
+  }
+
+  .examplesGrid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .noResults {
+    padding: 3rem 1.5rem;
+  }
+}

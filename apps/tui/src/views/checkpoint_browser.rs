@@ -3,7 +3,7 @@
 use crate::state::CheckpointBrowserState;
 use ratatui::{
     prelude::*,
-    widgets::{Block, Borders, List, ListItem, Paragraph, Gauge},
+    widgets::{Block, Borders, List, ListItem, Paragraph},
 };
 
 /// Renders the checkpoint browser view.
@@ -62,7 +62,7 @@ fn render_checkpoint_timeline(
 
     // Checkpoint list
     if state.checkpoints.is_empty() {
-        let empty = Paragraph::new("No checkpoints available")
+        let empty = Paragraph::new("No checkpoints available.\n\nCheckpoints are created automatically during workflow execution.\nStart a workflow to see checkpoints here.")
             .style(Style::default().fg(theme.text_muted))
             .alignment(Alignment::Center)
             .block(

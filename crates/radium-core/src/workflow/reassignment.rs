@@ -108,7 +108,7 @@ impl AgentPerformanceTracker {
     /// Gets the failure rate for an agent.
     pub fn get_failure_rate(&self, agent_id: &str) -> f32 {
         let stats = self.agent_stats.lock().unwrap();
-        stats.get(agent_id).map(|s| s.failure_rate()).unwrap_or(0.0)
+        stats.get(agent_id).map_or(0.0, AgentStats::failure_rate)
     }
 
     /// Checks if an agent should be reassigned based on failure rate threshold.
@@ -164,7 +164,7 @@ impl AgentSelector {
         };
 
         let target_category = task_category
-            .or_else(|| current_agent.category.as_deref())
+            .or(current_agent.category.as_deref())
             .unwrap_or("");
 
         // Find agents with matching category
@@ -174,7 +174,7 @@ impl AgentSelector {
                     let matches = if target_category.is_empty() {
                         true // If no category, consider all agents
                     } else {
-                        agent.category.as_deref().map(|c| c == target_category).unwrap_or(false)
+                        agent.category.as_deref().is_some_and(|c| c == target_category)
                     };
 
                     if matches {
@@ -291,7 +291,7 @@ impl AgentReassignment {
 
         // Check reassignment count
         let history = self.reassignment_history.lock().unwrap();
-        let count = history.get(task_id).map(|r| r.len()).unwrap_or(0) as u32;
+        let count = history.get(task_id).map_or(0, std::vec::Vec::len) as u32;
         count < self.max_reassignments
     }
 
@@ -317,7 +317,7 @@ impl AgentReassignment {
     ) -> Result<String, ReassignmentError> {
         // Check reassignment limit
         let history = self.reassignment_history.lock().unwrap();
-        let count = history.get(task_id).map(|r| r.len()).unwrap_or(0) as u32;
+        let count = history.get(task_id).map_or(0, std::vec::Vec::len) as u32;
         drop(history);
 
         if count >= self.max_reassignments {
@@ -336,7 +336,7 @@ impl AgentReassignment {
 
         // Record reassignment
         let mut history = self.reassignment_history.lock().unwrap();
-        let records = history.entry(task_id.to_string()).or_insert_with(Vec::new);
+        let records = history.entry(task_id.to_string()).or_default();
         records.push(ReassignmentRecord {
             timestamp: chrono::Utc::now(),
             from_agent: current_agent.to_string(),

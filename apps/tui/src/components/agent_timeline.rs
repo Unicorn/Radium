@@ -183,6 +183,7 @@ impl AgentTimeline {
     }
 
     /// Returns the color for an agent status.
+    #[allow(dead_code)]
     fn status_color(status: AgentStatus, theme: &crate::theme::RadiumTheme) -> Color {
         match status {
             AgentStatus::Idle => theme.text_muted,

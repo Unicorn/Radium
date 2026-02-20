@@ -55,6 +55,22 @@ impl ToolHandler for TerminalCommandHandler {
         let working_dir = args.get_string("working_dir");
         let timeout_secs = args.get_i64("timeout_seconds").unwrap_or(self.default_timeout as i64) as u64;
         let shell = args.get_bool("use_shell").unwrap_or(true);
+        
+        // Extract environment variables from arguments
+        let env_vars: std::collections::HashMap<String, String> = if let Some(env_obj) = args.get_object("env") {
+            env_obj
+                .iter()
+                .filter_map(|(k, v)| {
+                    match v {
+                        serde_json::Value::String(s) => Some((k.clone(), s.clone())),
+                        serde_json::Value::Number(n) => Some((k.clone(), n.to_string())),
+                        _ => None,
+                    }
+                })
+                .collect()
+        } else {
+            std::collections::HashMap::new()
+        };
 
         let workspace_root = self.workspace_root.workspace_root().ok_or_else(|| {
             OrchestrationError::Other("Workspace root not available".to_string())
@@ -73,20 +89,20 @@ impl ToolHandler for TerminalCommandHandler {
         };
 
         // Check if sandbox should be used
-        // For now, we'll use a simple approach - if sandbox is available,
-        // we could initialize it, but for terminal commands, we'll just use
-        // the workspace root. Full sandbox integration would require more
-        // complex setup.
-        let _sandbox_path: Option<PathBuf> = if self.sandbox_manager.is_some() {
-            None // TODO: Implement proper sandbox path resolution
-        } else {
-            None
-        };
-
+        // If sandbox manager is available and we have an agent context,
+        // we could use the sandbox path. For now, we'll use the workspace root
+        // as the working directory. Full sandbox integration would require
+        // passing agent_id through the tool execution context.
         let actual_cwd = cwd;
+        
+        // Note: Sandbox integration would require:
+        // 1. Agent ID context passed to tool execution
+        // 2. Sandbox initialization before command execution
+        // 3. Sandbox cleanup after execution
+        // This is deferred to when agent context is available in tool execution
 
         // Execute command
-        self.execute_command(&command, &actual_cwd, shell, timeout_secs).await
+        self.execute_command(&command, &actual_cwd, shell, timeout_secs, &env_vars).await
     }
 }
 
@@ -98,6 +114,7 @@ impl TerminalCommandHandler {
         cwd: &PathBuf,
         use_shell: bool,
         timeout_secs: u64,
+        env_vars: &std::collections::HashMap<String, String>,
     ) -> Result<ToolResult> {
         let timeout_duration = Duration::from_secs(timeout_secs);
 
@@ -116,6 +133,10 @@ impl TerminalCommandHandler {
             cmd.arg(shell_arg);
             cmd.arg(command);
             cmd.current_dir(cwd);
+            // Set environment variables
+            for (key, value) in env_vars {
+                cmd.env(key, value);
+            }
 
             match timeout(timeout_duration, cmd.output()).await {
                 Ok(Ok(output)) => {
@@ -139,6 +160,7 @@ impl TerminalCommandHandler {
                     Ok(ToolResult {
                         success,
                         output: output_text,
+                        is_error: false,
                         metadata: std::collections::HashMap::from([
                             ("exit_code".to_string(), exit_code.to_string()),
                             ("command".to_string(), command.to_string()),
@@ -168,6 +190,10 @@ impl TerminalCommandHandler {
                 cmd.args(&parts[1..]);
             }
             cmd.current_dir(cwd);
+            // Set environment variables
+            for (key, value) in env_vars {
+                cmd.env(key, value);
+            }
 
             match timeout(timeout_duration, cmd.output()).await {
                 Ok(Ok(output)) => {
@@ -191,6 +217,7 @@ impl TerminalCommandHandler {
                     Ok(ToolResult {
                         success,
                         output: output_text,
+                        is_error: false,
                         metadata: std::collections::HashMap::from([
                             ("exit_code".to_string(), exit_code.to_string()),
                             ("command".to_string(), command.to_string()),
@@ -229,7 +256,8 @@ pub fn create_terminal_command_tool(
         .add_property("command", "string", "Command to execute", true)
         .add_property("working_dir", "string", "Working directory for command (relative to workspace root, optional)", false)
         .add_property("timeout_seconds", "number", "Timeout in seconds (default: 30)", false)
-        .add_property("use_shell", "boolean", "Execute via shell (default: true)", false);
+        .add_property("use_shell", "boolean", "Execute via shell (default: true)", false)
+        .add_property("env", "object", "Environment variables as key-value pairs (optional)", false);
 
     let handler = Arc::new(TerminalCommandHandler {
         workspace_root,
@@ -240,7 +268,7 @@ pub fn create_terminal_command_tool(
     Tool::new(
         "run_terminal_cmd",
         "run_terminal_cmd",
-        "Execute a terminal command safely with optional sandbox support",
+        "Execute terminal commands safely. Safe commands auto-execute. Dangerous commands require approval. Supports timeout (default: 30s), working_dir, env vars, and shell/direct execution.",
         parameters,
         handler,
     )

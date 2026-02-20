@@ -1,0 +1,52 @@
+.features {
+  display: flex;
+  align-items: center;
+  padding: 4rem 0;
+  width: 100%;
+}
+
+.features :global(.col) {
+  padding: 1.5rem;
+  position: relative;
+  isolation: isolate;
+}
+
+.features :global(.col)::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--glass-bg-dark);
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--marketing-border-radius-lg);
+  box-shadow: var(--glass-shadow);
+  transition: all var(--marketing-transition-normal);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.features :global(.col):hover::after {
+  transform: translateY(-4px);
+  box-shadow: var(--glass-shadow-strong), var(--glow-green);
+  border-color: var(--voiceflow-green-primary);
+  background: var(--glass-bg-medium);
+}
+
+.features :global(.col) > div {
+  position: relative;
+  z-index: 1;
+}
+
+.featureSvg {
+  height: 200px;
+  width: 200px;
+  filter: drop-shadow(0 4px 8px rgba(74, 245, 176, 0.2));
+  transition: filter var(--marketing-transition-normal);
+}
+
+.features :global(.col) > div:hover .featureSvg {
+  filter: drop-shadow(0 8px 16px var(--glow-green));
+}

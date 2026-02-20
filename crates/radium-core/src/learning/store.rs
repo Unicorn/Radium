@@ -37,6 +37,15 @@ pub struct LearningEntry {
     pub solution: Option<String>,
     /// Timestamp when this entry was created.
     pub timestamp: DateTime<Utc>,
+    /// Finish reason from model response (e.g., "stop", "length", "safety").
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub finish_reason: Option<String>,
+    /// Whether content was blocked by safety filters.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub safety_blocked: Option<bool>,
+    /// Number of citations in the response.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub citation_count: Option<u32>,
 }
 
 impl LearningEntry {
@@ -53,7 +62,31 @@ impl LearningEntry {
             description: Self::enforce_one_sentence(description),
             solution: solution.map(Self::enforce_one_sentence),
             timestamp: Utc::now(),
+            finish_reason: None,
+            safety_blocked: None,
+            citation_count: None,
         }
+    }
+
+    /// Sets finish reason from model response.
+    #[must_use]
+    pub fn with_finish_reason(mut self, finish_reason: String) -> Self {
+        self.finish_reason = Some(finish_reason);
+        self
+    }
+
+    /// Sets whether content was blocked by safety filters.
+    #[must_use]
+    pub fn with_safety_blocked(mut self, blocked: bool) -> Self {
+        self.safety_blocked = Some(blocked);
+        self
+    }
+
+    /// Sets the number of citations in the response.
+    #[must_use]
+    pub fn with_citation_count(mut self, count: u32) -> Self {
+        self.citation_count = Some(count);
+        self
     }
 
     /// Ensures text is a single sentence.

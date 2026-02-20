@@ -83,6 +83,60 @@ impl OpenAIEngine {
                     message.unwrap_or_else(|| "Unknown".to_string())
                 ))
             }
+            radium_abstraction::ModelError::ContentFiltered { provider, reason, .. } => {
+                EngineError::ExecutionError(format!(
+                    "Content filtered by {}: {}",
+                    provider, reason
+                ))
+            }
+            radium_abstraction::ModelError::UnsupportedContentType { content_type, model } => {
+                EngineError::InvalidConfig(format!(
+                    "Content type '{}' not supported by model '{}'",
+                    content_type, model
+                ))
+            }
+            radium_abstraction::ModelError::UnsupportedMimeType { mime_type, supported_types } => {
+                EngineError::InvalidConfig(format!(
+                    "MIME type '{}' not supported. Supported types: {}",
+                    mime_type, supported_types.join(", ")
+                ))
+            }
+            radium_abstraction::ModelError::InvalidMediaSource { media_source, reason } => {
+                EngineError::InvalidConfig(format!(
+                    "Invalid media source '{}': {}",
+                    media_source, reason
+                ))
+            }
+            radium_abstraction::ModelError::MediaSizeLimitExceeded { size, limit, media_type } => {
+                EngineError::ExecutionError(format!(
+                    "{} media size {} bytes exceeds limit of {} bytes",
+                    media_type, size, limit
+                ))
+            }
+            radium_abstraction::ModelError::InvalidMediaFormat { format, expected } => {
+                EngineError::InvalidConfig(format!(
+                    "Invalid media format '{}'. Expected: {}",
+                    format, expected
+                ))
+            }
+            radium_abstraction::ModelError::ContentTooLarge { actual_size, max_size, content_type } => {
+                EngineError::ExecutionError(format!(
+                    "Content too large: {} bytes exceeds {} bytes for {}",
+                    actual_size, max_size, content_type
+                ))
+            }
+            radium_abstraction::ModelError::InvalidContentFormat { content_type, reason } => {
+                EngineError::InvalidConfig(format!(
+                    "Invalid {} format: {}",
+                    content_type, reason
+                ))
+            }
+            radium_abstraction::ModelError::InvalidFileUri { uri, reason } => {
+                EngineError::InvalidConfig(format!(
+                    "Invalid file URI '{}': {}",
+                    uri, reason
+                ))
+            }
             radium_abstraction::ModelError::Other(msg) => {
                 EngineError::ExecutionError(format!("Other error: {}", msg))
             }
@@ -92,9 +146,9 @@ impl OpenAIEngine {
     /// Converts ModelUsage to TokenUsage.
     fn convert_usage(usage: Option<ModelUsage>) -> Option<TokenUsage> {
         usage.map(|u| TokenUsage {
-            input_tokens: u.prompt_tokens as u64,
-            output_tokens: u.completion_tokens as u64,
-            total_tokens: u.total_tokens as u64,
+            input_tokens: u64::from(u.prompt_tokens),
+            output_tokens: u64::from(u.completion_tokens),
+            total_tokens: u64::from(u.total_tokens),
         })
     }
 
@@ -105,7 +159,14 @@ impl OpenAIEngine {
                 temperature: request.temperature,
                 top_p: None,
                 max_tokens: request.max_tokens.map(|t| t as u32),
+                top_k: None,
+                frequency_penalty: None,
+                presence_penalty: None,
+                response_format: None,
                 stop_sequences: None,
+                enable_grounding: None,
+                grounding_threshold: None,
+                reasoning_effort: None,
             })
         } else {
             None
@@ -164,6 +225,8 @@ impl Engine for OpenAIEngine {
             usage: Self::convert_usage(response.usage),
             model: response.model_id.unwrap_or_else(|| request.model.clone()),
             raw: None, // radium-models doesn't provide raw response
+            execution_duration: None, // Cloud models use token-based costing
+            metadata: response.metadata,
         })
     }
 

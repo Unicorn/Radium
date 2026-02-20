@@ -8,14 +8,13 @@ use radium_core::analytics::{
     SessionReport, SessionStorage,
 };
 use radium_core::monitoring::{
-    MonitoringService, ProviderCostBreakdown, TeamCostBreakdown, BudgetManager,
-    ModelTier, ProviderComparison, get_provider_comparison,
+    MonitoringService, BudgetManager,
+    ModelTier, get_provider_comparison,
 };
 use radium_core::workspace::Workspace;
 use chrono::{DateTime, Utc};
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 /// Statistics subcommands
 #[derive(Subcommand, Debug)]
@@ -99,7 +98,7 @@ pub enum StatsCommand {
         json: bool,
     },
     /// Compare provider costs by tier
-    Compare {
+    CompareProviders {
         /// Output as JSON
         #[arg(long)]
         json: bool,
@@ -139,7 +138,7 @@ pub async fn execute(cmd: StatsCommand) -> Result<()> {
         } => {
             export_command(
                 &analytics,
-                &monitoring,
+                analytics.monitoring(),
                 output.as_deref(),
                 session_id.as_deref(),
                 format.as_deref(),
@@ -154,13 +153,13 @@ pub async fn execute(cmd: StatsCommand) -> Result<()> {
             compare_command(&analytics, &session_a, &session_b, json).await
         }
         StatsCommand::Providers { json } => {
-            providers_command(&monitoring, json).await
+            providers_command(analytics.monitoring(), json).await
         }
         StatsCommand::Teams { json } => {
-            teams_command(&monitoring, json).await
+            teams_command(analytics.monitoring(), json).await
         }
-        StatsCommand::Compare { json } => {
-            compare_providers_command(&monitoring, json).await
+        StatsCommand::CompareProviders { json } => {
+            compare_providers_command(analytics.monitoring(), json).await
         }
     }
 }

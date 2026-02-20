@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["format_integration_result_for_cli","format_patch_result_for_cli","format_patch_result_for_tui"]};

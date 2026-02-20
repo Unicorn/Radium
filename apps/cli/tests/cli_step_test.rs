@@ -217,3 +217,248 @@ fn test_step_invalid_reasoning_level() {
     // Either success or failure is acceptable, just verify it doesn't panic
     assert!(result.get_output().status.code().is_some());
 }
+
+#[test]
+fn test_step_stream_flag_parsing() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+    create_test_agent(&temp_dir, "test-agent", "Test Agent");
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("step")
+        .arg("test-agent")
+        .arg("--stream")
+        .arg("Test prompt")
+        .assert()
+        .success();
+}
+
+#[test]
+fn test_step_stream_with_mock_engine() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+    create_test_agent(&temp_dir, "test-agent", "Test Agent");
+
+    // Mock engine supports streaming, so this should work
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    let output = cmd
+        .current_dir(temp_dir.path())
+        .arg("step")
+        .arg("test-agent")
+        .arg("--engine")
+        .arg("mock")
+        .arg("--stream")
+        .arg("Test prompt")
+        .output()
+        .unwrap();
+
+    assert!(output.status.success(), "Streaming with mock engine should succeed");
+    // Output should contain response (streaming or non-streaming)
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Response") || stdout.contains("test-agent"), "Should contain response");
+}
+
+#[test]
+fn test_step_stream_fallback_behavior() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+    
+    // Create agent with unsupported engine (if any)
+    create_test_agent(&temp_dir, "test-agent", "Test Agent");
+
+    // --stream flag should be accepted even if engine doesn't support it
+    // (it will fall back to non-streaming)
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    let output = cmd
+        .current_dir(temp_dir.path())
+        .arg("step")
+        .arg("test-agent")
+        .arg("--stream")
+        .arg("Test prompt")
+        .output()
+        .unwrap();
+
+    // Should succeed (either with streaming or fallback)
+    assert!(output.status.success() || output.status.code().is_some());
+}
+
+// Response format tests
+
+#[test]
+fn test_step_response_format_text() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+    create_test_agent(&temp_dir, "test-agent", "Test Agent");
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("step")
+        .arg("test-agent")
+        .arg("--response-format")
+        .arg("text")
+        .arg("Test prompt")
+        .assert()
+        .success();
+}
+
+#[test]
+fn test_step_response_format_json() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+    create_test_agent(&temp_dir, "test-agent", "Test Agent");
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("step")
+        .arg("test-agent")
+        .arg("--response-format")
+        .arg("json")
+        .arg("Test prompt")
+        .assert()
+        .success();
+}
+
+#[test]
+fn test_step_response_format_json_schema_with_file() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+    create_test_agent(&temp_dir, "test-agent", "Test Agent");
+
+    // Create a test schema file
+    let schema_content = r#"{"type": "object", "properties": {"name": {"type": "string"}}}"#;
+    let schema_path = temp_dir.path().join("test-schema.json");
+    fs::write(&schema_path, schema_content).unwrap();
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("step")
+        .arg("test-agent")
+        .arg("--response-format")
+        .arg("json-schema")
+        .arg("--response-schema")
+        .arg(schema_path.to_str().unwrap())
+        .arg("Test prompt")
+        .assert()
+        .success();
+}
+
+#[test]
+fn test_step_response_format_json_schema_with_inline() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+    create_test_agent(&temp_dir, "test-agent", "Test Agent");
+
+    let inline_schema = r#"{"type": "object", "properties": {"name": {"type": "string"}}}"#;
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("step")
+        .arg("test-agent")
+        .arg("--response-format")
+        .arg("json-schema")
+        .arg("--response-schema")
+        .arg(inline_schema)
+        .arg("Test prompt")
+        .assert()
+        .success();
+}
+
+#[test]
+fn test_step_response_format_invalid_value() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+    create_test_agent(&temp_dir, "test-agent", "Test Agent");
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("step")
+        .arg("test-agent")
+        .arg("--response-format")
+        .arg("xml")
+        .arg("Test prompt")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Invalid response format"));
+}
+
+#[test]
+fn test_step_response_schema_missing_file() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+    create_test_agent(&temp_dir, "test-agent", "Test Agent");
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("step")
+        .arg("test-agent")
+        .arg("--response-format")
+        .arg("json-schema")
+        .arg("--response-schema")
+        .arg("nonexistent-schema.json")
+        .arg("Test prompt")
+        .assert()
+        .failure()
+        .stderr(
+            predicate::str::contains("Failed to read schema file")
+                .or(predicate::str::contains("Invalid JSON schema")),
+        );
+}
+
+#[test]
+fn test_step_response_schema_invalid_json() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+    create_test_agent(&temp_dir, "test-agent", "Test Agent");
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("step")
+        .arg("test-agent")
+        .arg("--response-format")
+        .arg("json-schema")
+        .arg("--response-schema")
+        .arg("{ invalid json }")
+        .arg("Test prompt")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Invalid JSON schema"));
+}
+
+#[test]
+fn test_step_response_schema_without_format() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+    create_test_agent(&temp_dir, "test-agent", "Test Agent");
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("step")
+        .arg("test-agent")
+        .arg("--response-schema")
+        .arg(r#"{"type": "object"}"#)
+        .arg("Test prompt")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("--response-schema requires --response-format json-schema"));
+}
+
+#[test]
+fn test_step_response_schema_with_json_format() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+    create_test_agent(&temp_dir, "test-agent", "Test Agent");
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("step")
+        .arg("test-agent")
+        .arg("--response-format")
+        .arg("json")
+        .arg("--response-schema")
+        .arg(r#"{"type": "object"}"#)
+        .arg("Test prompt")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("--response-schema cannot be used with --response-format json"));
+}

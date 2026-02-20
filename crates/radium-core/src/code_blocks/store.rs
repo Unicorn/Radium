@@ -140,8 +140,7 @@ impl CodeBlockStore {
             .into_iter()
             .filter(|block| {
                 agent_id
-                    .map(|id| block.agent_id == id)
-                    .unwrap_or(true)
+                    .is_none_or(|id| block.agent_id == id)
             })
             .map(|stored| CodeBlock {
                 index: stored.index,
@@ -170,7 +169,7 @@ impl CodeBlockStore {
         blocks
             .into_iter()
             .find(|block| block.index == index)
-            .ok_or_else(|| CodeBlockError::NotFound(index))
+            .ok_or(CodeBlockError::NotFound(index))
     }
 
     /// Retrieves multiple code blocks using a selector.
@@ -197,7 +196,7 @@ impl CodeBlockStore {
                     let block = all_blocks
                         .iter()
                         .find(|b| b.index == index)
-                        .ok_or_else(|| CodeBlockError::NotFound(index))?;
+                        .ok_or(CodeBlockError::NotFound(index))?;
                     result.push(block.clone());
                 }
                 Ok(result)
@@ -214,7 +213,7 @@ impl CodeBlockStore {
                     let block = all_blocks
                         .iter()
                         .find(|b| b.index == index)
-                        .ok_or_else(|| CodeBlockError::NotFound(index))?;
+                        .ok_or(CodeBlockError::NotFound(index))?;
                     result.push(block.clone());
                 }
                 Ok(result)

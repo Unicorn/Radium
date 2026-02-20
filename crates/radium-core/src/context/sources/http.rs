@@ -52,7 +52,7 @@ impl Default for HttpReader {
 
 #[async_trait]
 impl SourceReader for HttpReader {
-    fn scheme(&self) -> &str {
+    fn scheme(&self) -> &'static str {
         "http"
     }
 
@@ -98,13 +98,13 @@ impl SourceReader for HttpReader {
             .headers()
             .get("last-modified")
             .and_then(|h| h.to_str().ok())
-            .map(|s| s.to_string());
+            .map(std::string::ToString::to_string);
 
         let content_type = response
             .headers()
             .get("content-type")
             .and_then(|h| h.to_str().ok())
-            .map(|s| s.to_string());
+            .map(std::string::ToString::to_string);
 
         Ok(SourceMetadata::with_details(true, size_bytes, last_modified, content_type))
     }

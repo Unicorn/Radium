@@ -7,6 +7,7 @@ use serde_json::json;
 use std::io::{self, Write};
 
 use super::AuthCommand;
+use crate::colors::RadiumBrandColors;
 
 /// Executes the auth command.
 pub async fn execute(command: AuthCommand) -> Result<()> {
@@ -35,12 +36,13 @@ pub async fn execute(command: AuthCommand) -> Result<()> {
 }
 
 async fn login_provider(provider_name: &str) -> Result<()> {
+    let colors = RadiumBrandColors::new();
     let provider_type = ProviderType::parse(provider_name).ok_or_else(|| {
         anyhow!("Unknown provider: {}. Supported providers: gemini, openai, claude", provider_name)
     })?;
 
     println!();
-    println!("{}", format!("Login to {}", provider_name).bold().cyan());
+    println!("{}", format!("Login to {}", provider_name).bold().color(colors.primary()));
     println!();
 
     // Prompt for API key
@@ -60,16 +62,17 @@ async fn login_provider(provider_name: &str) -> Result<()> {
     store.store(provider_type, api_key)?;
 
     println!();
-    println!("{}", format!("✓ Successfully authenticated with {}", provider_name).green());
-    println!("  Credentials stored in: {}", "~/.radium/auth/credentials.json".yellow());
+    println!("{}", format!("✓ Successfully authenticated with {}", provider_name).color(colors.success()));
+    println!("  Credentials stored in: {}", "~/.radium/auth/credentials.json".color(colors.warning()));
     println!();
 
     Ok(())
 }
 
 async fn login_all_providers() -> Result<()> {
+    let colors = RadiumBrandColors::new();
     println!();
-    println!("{}", "Login to all providers".bold().cyan());
+    println!("{}", "Login to all providers".bold().color(colors.primary()));
     println!();
 
     for provider_type in ProviderType::all() {
@@ -78,7 +81,7 @@ async fn login_all_providers() -> Result<()> {
             Err(e) => {
                 eprintln!(
                     "{}",
-                    format!("✗ Failed to login to {}: {}", provider_type.as_str(), e).red()
+                    format!("✗ Failed to login to {}: {}", provider_type.as_str(), e).color(colors.error())
                 );
             }
         }
@@ -89,8 +92,9 @@ async fn login_all_providers() -> Result<()> {
 }
 
 async fn login_interactive() -> Result<()> {
+    let colors = RadiumBrandColors::new();
     println!();
-    println!("{}", "Authentication".bold().cyan());
+    println!("{}", "Authentication".bold().color(colors.primary()));
     println!();
     println!("Select a provider:");
 
@@ -122,28 +126,30 @@ async fn logout_provider(provider_name: &str) -> Result<()> {
     let store = CredentialStore::new()?;
     store.remove(provider_type)?;
 
+    let colors = RadiumBrandColors::new();
     println!();
-    println!("{}", format!("✓ Logged out from {}", provider_name).green());
+    println!("{}", format!("✓ Logged out from {}", provider_name).color(colors.success()));
     println!();
 
     Ok(())
 }
 
 async fn logout_all_providers() -> Result<()> {
+    let colors = RadiumBrandColors::new();
     let store = CredentialStore::new()?;
 
     println!();
-    println!("{}", "Logout from all providers".bold().cyan());
+    println!("{}", "Logout from all providers".bold().color(colors.primary()));
     println!();
 
     for provider_type in ProviderType::all() {
         match store.remove(provider_type) {
             Ok(()) => {
-                println!("{}", format!("✓ Logged out from {}", provider_type.as_str()).green())
+                println!("{}", format!("✓ Logged out from {}", provider_type.as_str()).color(colors.success()))
             }
             Err(e) => eprintln!(
                 "{}",
-                format!("✗ Error logging out from {}: {}", provider_type.as_str(), e).red()
+                format!("✗ Error logging out from {}: {}", provider_type.as_str(), e).color(colors.error())
             ),
         }
     }
@@ -153,8 +159,9 @@ async fn logout_all_providers() -> Result<()> {
 }
 
 async fn logout_interactive() -> Result<()> {
+    let colors = RadiumBrandColors::new();
     println!();
-    println!("{}", "Logout".bold().cyan());
+    println!("{}", "Logout".bold().color(colors.primary()));
     println!();
 
     let store = CredentialStore::new()?;
@@ -221,8 +228,9 @@ async fn show_status(json_output: bool) -> Result<()> {
         }
         println!("{}", serde_json::to_string_pretty(&status)?);
     } else {
+        let colors = RadiumBrandColors::new();
         println!();
-        println!("{}", "Authentication Status".bold().cyan());
+        println!("{}", "Authentication Status".bold().color(colors.primary()));
         println!();
 
         for provider in ProviderType::all() {
@@ -233,9 +241,9 @@ async fn show_status(json_output: bool) -> Result<()> {
                 } else {
                     "(from environment)"
                 };
-                format!("{} {}", "✓ Configured".green(), source.dimmed())
+                format!("{} {}", "✓ Configured".color(colors.success()), source.dimmed())
             } else {
-                format!("{}", "✗ Not configured".yellow())
+                format!("{}", "✗ Not configured".color(colors.warning()))
             };
 
             println!("  • {}: {}", provider.as_str(), status_text);
@@ -250,7 +258,7 @@ async fn show_status(json_output: bool) -> Result<()> {
             }
         }
         println!();
-        println!("Credentials stored in: {}", "~/.radium/auth/credentials.json".yellow());
+        println!("Credentials stored in: {}", "~/.radium/auth/credentials.json".color(colors.warning()));
         println!();
     }
 

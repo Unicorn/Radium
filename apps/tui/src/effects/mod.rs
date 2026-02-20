@@ -14,6 +14,7 @@ pub struct AppEffectManager {
     /// Underlying effect manager
     manager: EffectManager<()>,
     /// Maximum concurrent effects to prevent performance issues
+    #[allow(dead_code)]
     max_effects: usize,
     /// Whether animations are enabled
     enabled: bool,
@@ -89,6 +90,11 @@ impl AppEffectManager {
     /// Returns whether there are active effects
     pub fn is_running(&self) -> bool {
         self.manager.is_running()
+    }
+
+    /// Returns whether there are active effects (alias for is_running)
+    pub fn has_active_effects(&self) -> bool {
+        self.is_running()
     }
 }
 

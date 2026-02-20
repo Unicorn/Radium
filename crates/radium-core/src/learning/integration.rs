@@ -276,6 +276,8 @@ mod tests {
                 content: "Mock text response".to_string(),
                 model_id: Some("mock".to_string()),
                 usage: None,
+                metadata: None,
+                tool_calls: None,
             })
         }
 
@@ -292,6 +294,8 @@ mod tests {
                 .to_string(),
                 model_id: Some("mock".to_string()),
                 usage: None,
+                metadata: None,
+                tool_calls: None,
             })
         }
 

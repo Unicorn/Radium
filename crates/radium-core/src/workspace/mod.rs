@@ -18,14 +18,41 @@
 //! # }
 //! ```
 
+pub mod ignore;
+pub mod approval_flow;
+pub mod boundary;
+pub mod diff_display;
+pub mod error_recovery;
+pub mod errors;
+pub mod file_ops;
+pub mod patch;
 pub mod plan_discovery;
 pub mod requirement_id;
 pub mod structure;
+pub mod tool_integration;
+pub mod transaction;
 
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
+pub use ignore::IgnoreWalker;
+pub use approval_flow::ApprovalFlow;
+pub use boundary::{BoundaryError, BoundaryValidator};
+pub use diff_display::{
+    format_integration_result_for_cli, format_patch_result_for_cli, format_patch_result_for_tui,
+};
+pub use error_recovery::{ErrorRecovery, ErrorSummary};
+pub use errors::{
+    ErrorContext, FileOperationError, FileOperationResult, RecoveryStrategy,
+};
+pub use file_ops::FileOperations;
+pub use patch::{
+    ChangedFile, FilePatch, Hunk, PatchContent, PatchInput, PatchOptions, PatchResult,
+    PatchSummary,
+};
 pub use plan_discovery::{DiscoveredPlan, PlanDiscovery, PlanDiscoveryOptions, SortBy, SortOrder};
+pub use tool_integration::{FileOperationRequest, IntegrationResult, ToolIntegration};
+pub use transaction::{FileOperation as TransactionFileOperation, FileTransaction};
 pub use requirement_id::{RequirementId, RequirementIdError};
 pub use structure::{
     DIR_INTERNALS, DIR_PLAN, DIR_RADIUM, STAGE_BACKLOG, STAGE_DEVELOPMENT, STAGE_DOCS,

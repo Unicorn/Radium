@@ -1,11 +1,9 @@
 //! Policy learning command implementations.
 
 use crate::commands::policy::LearnCommand;
-use radium_core::monitoring::permission_analytics::PermissionEvent;
-use radium_core::policy::suggestions::{PolicySuggestion, PolicySuggestionService};
+use radium_core::policy::suggestions::PolicySuggestionService;
 use radium_core::storage::AnalyticsRepository;
 use radium_core::workspace::Workspace;
-use std::path::PathBuf;
 
 /// Execute learn command.
 pub async fn execute_learn_command(command: LearnCommand) -> anyhow::Result<()> {

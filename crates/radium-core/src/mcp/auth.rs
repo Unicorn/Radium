@@ -52,8 +52,7 @@ impl OAuthTokenManager {
     pub fn load_tokens(&mut self) -> Result<()> {
         if !self.storage_dir.exists() {
             std::fs::create_dir_all(&self.storage_dir).map_err(|e| {
-                McpError::Io(std::io::Error::new(
-                    std::io::ErrorKind::Other,
+                McpError::Io(std::io::Error::other(
                     format!("Failed to create token storage directory: {}", e),
                 ))
             })?;
@@ -61,14 +60,12 @@ impl OAuthTokenManager {
         }
 
         for entry in std::fs::read_dir(&self.storage_dir).map_err(|e| {
-            McpError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            McpError::Io(std::io::Error::other(
                 format!("Failed to read token storage directory: {}", e),
             ))
         })? {
             let entry = entry.map_err(|e| {
-                McpError::Io(std::io::Error::new(
-                    std::io::ErrorKind::Other,
+                McpError::Io(std::io::Error::other(
                     format!("Failed to read directory entry: {}", e),
                 ))
             })?;
@@ -101,8 +98,7 @@ impl OAuthTokenManager {
 
         if !self.storage_dir.exists() {
             std::fs::create_dir_all(&self.storage_dir).map_err(|e| {
-                McpError::Io(std::io::Error::new(
-                    std::io::ErrorKind::Other,
+                McpError::Io(std::io::Error::other(
                     format!("Failed to create token storage directory: {}", e),
                 ))
             })?;
@@ -112,8 +108,7 @@ impl OAuthTokenManager {
         let content = serde_json::to_string_pretty(&token).map_err(|e| McpError::Json(e))?;
 
         std::fs::write(&token_file, content).map_err(|e| {
-            McpError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            McpError::Io(std::io::Error::other(
                 format!("Failed to write token file: {}", e),
             ))
         })?;
@@ -124,16 +119,14 @@ impl OAuthTokenManager {
             use std::os::unix::fs::PermissionsExt;
             let mut perms = std::fs::metadata(&token_file)
                 .map_err(|e| {
-                    McpError::Io(std::io::Error::new(
-                        std::io::ErrorKind::Other,
+                    McpError::Io(std::io::Error::other(
                         format!("Failed to get file metadata: {}", e),
                     ))
                 })?
                 .permissions();
             perms.set_mode(0o600); // rw------- (owner read/write only)
             std::fs::set_permissions(&token_file, perms).map_err(|e| {
-                McpError::Io(std::io::Error::new(
-                    std::io::ErrorKind::Other,
+                McpError::Io(std::io::Error::other(
                     format!("Failed to set file permissions: {}", e),
                 ))
             })?;
@@ -252,9 +245,7 @@ impl OAuthTokenManager {
             let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
             return Err(McpError::authentication(
                 format!("Token refresh failed with status {}: {}", status, error_text),
-                format!(
-                    "The OAuth server rejected the token refresh request. Common causes:\n  - Refresh token expired or invalid\n  - Client credentials incorrect\n  - Server error\n\nTry:\n  - Re-authenticate with the server\n  - Check OAuth configuration (client_id, client_secret)\n  - Verify refresh token is still valid",
-                ),
+                "The OAuth server rejected the token refresh request. Common causes:\n  - Refresh token expired or invalid\n  - Client credentials incorrect\n  - Server error\n\nTry:\n  - Re-authenticate with the server\n  - Check OAuth configuration (client_id, client_secret)\n  - Verify refresh token is still valid".to_string(),
             ));
         }
 
@@ -288,13 +279,13 @@ impl OAuthTokenManager {
         let new_refresh_token = token_response
             .get("refresh_token")
             .and_then(|v| v.as_str())
-            .map(|s| s.to_string())
-            .or_else(|| token.refresh_token);
+            .map(std::string::ToString::to_string)
+            .or(token.refresh_token);
 
         // Calculate expiration time from expires_in (seconds)
         let expires_at = token_response
             .get("expires_in")
-            .and_then(|v| v.as_u64())
+            .and_then(serde_json::Value::as_u64)
             .map(|expires_in| {
                 std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
@@ -302,13 +293,13 @@ impl OAuthTokenManager {
                     .as_secs()
                     + expires_in
             })
-            .or_else(|| token.expires_at);
+            .or(token.expires_at);
 
         let scope = token_response
             .get("scope")
             .and_then(|v| v.as_str())
-            .map(|s| s.to_string())
-            .or_else(|| token.scope);
+            .map(std::string::ToString::to_string)
+            .or(token.scope);
 
         // Create new token
         let new_token = OAuthToken {

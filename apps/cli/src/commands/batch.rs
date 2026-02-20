@@ -1,0 +1,262 @@
+//! Batch command implementation.
+//!
+//! Executes agents with multiple prompts from input files in parallel.
+
+use anyhow::{Context, bail};
+use clap::Subcommand;
+use colored::Colorize;
+use radium_core::{
+    batch::{
+        parse_input_file, BatchInput, BatchProcessor, BatchProgressTracker, RetryPolicy,
+        render_progress, render_summary,
+    },
+    context::ContextFileLoader,
+    AgentDiscovery, PromptContext, PromptTemplate, Workspace,
+};
+use radium_models::ModelFactory;
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::signal;
+
+/// Batch command actions.
+#[derive(Subcommand, Debug)]
+pub enum BatchAction {
+    /// Run batch execution with an agent
+    Run {
+        /// Agent ID to execute
+        agent_id: String,
+
+        /// Input file with prompts (line-delimited or JSON array)
+        #[arg(long)]
+        input_file: PathBuf,
+
+        /// Maximum concurrent executions (default: 5, max: 20)
+        #[arg(long, default_value = "5")]
+        concurrency: usize,
+
+        /// Stop on first error (default: continue)
+        #[arg(long)]
+        fail_fast: bool,
+
+        /// Output directory for individual results
+        #[arg(long)]
+        output_dir: Option<PathBuf>,
+    },
+}
+
+/// Execute batch command.
+pub async fn execute(action: BatchAction) -> anyhow::Result<()> {
+    match action {
+        BatchAction::Run {
+            agent_id,
+            input_file,
+            concurrency,
+            fail_fast,
+            output_dir,
+        } => execute_run(agent_id, input_file, concurrency, fail_fast, output_dir).await,
+    }
+}
+
+/// Execute batch run command.
+async fn execute_run(
+    agent_id: String,
+    input_file: PathBuf,
+    concurrency: usize,
+    fail_fast: bool,
+    output_dir: Option<PathBuf>,
+) -> anyhow::Result<()> {
+    println!("{}", "rad batch run".bold().cyan());
+    println!();
+
+    // Validate concurrency
+    if concurrency == 0 || concurrency > 20 {
+        bail!("Concurrency must be between 1 and 20");
+    }
+
+    // Discover workspace
+    let workspace = Workspace::discover().ok();
+    let workspace_root = workspace
+        .as_ref()
+        .map(|w| w.root().to_path_buf())
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+
+    // Load context files if available
+    let loader = ContextFileLoader::new(&workspace_root);
+    let current_dir = std::env::current_dir().unwrap_or_else(|_| workspace_root.clone());
+    let context_files = loader.load_hierarchical(&current_dir).unwrap_or_default();
+
+    // Discover agents
+    println!("  {}", "Discovering agents...".dimmed());
+    let discovery = AgentDiscovery::new();
+    let agents = discovery.discover_all().context("Failed to discover agents")?;
+
+    if agents.is_empty() {
+        bail!("No agents found. Place agent configs in ./agents/ or ~/.radium/agents/");
+    }
+
+    // Find the requested agent
+    let agent = agents
+        .get(&agent_id)
+        .ok_or_else(|| anyhow::anyhow!("Agent not found: {}", agent_id))?;
+
+    println!("  {} Agent: {}", "✓".green(), agent_id.cyan());
+    println!("  {} Input file: {}", "✓".green(), input_file.display());
+
+    // Parse input file
+    println!();
+    println!("  {}", "Parsing input file...".dimmed());
+    let inputs = parse_input_file(&input_file)
+        .with_context(|| format!("Failed to parse input file: {}", input_file.display()))?;
+
+    println!("  {} Loaded {} prompts", "✓".green(), inputs.len());
+
+    // Create output directory if specified
+    if let Some(ref dir) = output_dir {
+        std::fs::create_dir_all(dir)
+            .with_context(|| format!("Failed to create output directory: {}", dir.display()))?;
+        println!("  {} Output directory: {}", "✓".green(), dir.display());
+    }
+
+    // Load agent prompt template
+    let prompt_content = std::fs::read_to_string(&agent.prompt_path)
+        .with_context(|| format!("Failed to read prompt file: {}", agent.prompt_path.display()))?;
+    let template = PromptTemplate::from_string(prompt_content);
+
+    // Create batch processor
+    let timeout = Duration::from_secs(300); // 5 minutes default
+    let retry_policy = RetryPolicy::default();
+    let processor = BatchProcessor::new(concurrency, timeout, retry_policy);
+
+    // Create progress tracker
+    let mut progress_tracker = BatchProgressTracker::new(inputs.len());
+    let agent_id_for_progress = agent_id.clone();
+    let progress_callback: Arc<dyn Fn(usize, usize, usize, usize, usize) + Send + Sync> =
+        Arc::new({
+            let tracker = Arc::new(std::sync::Mutex::new(progress_tracker.clone()));
+            move |index, completed, active, successful, failed| {
+                if let Ok(mut t) = tracker.lock() {
+                    t.update(index, completed, active, successful, failed);
+                    let _ = render_progress(&*t, &agent_id_for_progress);
+                }
+            }
+        });
+
+    // Setup Ctrl+C handler
+    let cancelled = Arc::new(tokio::sync::Mutex::new(false));
+
+    // Spawn cancellation handler
+    let cancelled_clone = Arc::clone(&cancelled);
+    tokio::spawn(async move {
+        if signal::ctrl_c().await.is_ok() {
+            *cancelled_clone.lock().await = true;
+            println!("\n{} Cancellation requested, waiting for active requests...", "⚠".yellow());
+        }
+    });
+
+    println!();
+    println!("{}", "Starting batch execution...".bold());
+    println!();
+
+    // Define processor function
+    let agent_id_clone = agent_id.clone();
+    let template_clone = template.clone();
+    let context_files_clone = context_files.clone();
+    let cancelled_check = Arc::clone(&cancelled);
+
+    let processor_fn = move |input: BatchInput| {
+        let _agent_id = agent_id_clone.clone();
+        let template = template_clone.clone();
+        let context_files = context_files_clone.clone();
+        let cancelled = cancelled_check.clone();
+
+        async move {
+            // Check if cancelled
+            if *cancelled.lock().await {
+                return Err("Cancelled".to_string());
+            }
+
+            // Render prompt
+            let mut context = PromptContext::new();
+            context.set("user_input", input.prompt.clone());
+            if let Some(ctx) = input.context.clone() {
+                context.set("context", ctx.to_string());
+            }
+            if !context_files.is_empty() {
+                context.set("context_files", context_files.clone());
+            }
+
+            let rendered = template.render(&context)
+                .map_err(|e| format!("Template rendering failed: {}", e))?;
+
+            // Create model and execute
+            let engine = "mock"; // Default for now
+            let model = ModelFactory::create_from_str(engine, "mock-model".to_string())
+                .map_err(|e| format!("Failed to create model: {}", e))?;
+
+            let response = model
+                .generate_text(&rendered, None)
+                .await
+                .map_err(|e| format!("Model generation failed: {}", e))?;
+
+            let result_text = response.content;
+
+            // Return result as JSON string (index will be added by batch processor)
+            Ok(serde_json::json!({
+                "prompt": input.prompt,
+                "response": result_text,
+                "context": input.context,
+            }).to_string())
+        }
+    };
+
+    // Process batch
+    let result = processor
+        .process_batch(inputs, processor_fn, Some(progress_callback))
+        .await;
+
+    // Wait for active requests to complete (with timeout)
+    if *cancelled.lock().await {
+        tokio::time::sleep(Duration::from_secs(30)).await;
+    }
+
+    // Save results to output directory if specified
+    if let Some(ref dir) = output_dir {
+        for (index, result_json) in &result.successful {
+            let filename = format!("result-{:03}.json", index + 1);
+            let filepath = dir.join(filename);
+            // Parse and add index to JSON
+            let mut json: serde_json::Value = serde_json::from_str(result_json)
+                .unwrap_or_else(|_| serde_json::json!({}));
+            json["index"] = serde_json::Value::Number((*index).into());
+            std::fs::write(&filepath, serde_json::to_string_pretty(&json)?)
+                .with_context(|| format!("Failed to write result file: {}", filepath.display()))?;
+        }
+    }
+
+    println!();
+
+    // Update final progress
+    progress_tracker.completed = result.total_items();
+    progress_tracker.successful = result.successful.len();
+    progress_tracker.failed = result.failed.len();
+
+    // Render summary
+    render_summary(&progress_tracker, &result.failed, output_dir.as_deref())?;
+
+    // Handle failures
+    if !result.failed.is_empty() {
+        if fail_fast {
+            bail!("Batch execution failed with {} errors (fail-fast mode)", result.failed.len());
+        } else {
+            eprintln!(
+                "\n{} {} requests failed",
+                "⚠".yellow(),
+                result.failed.len()
+            );
+        }
+    }
+
+    Ok(())
+}
+

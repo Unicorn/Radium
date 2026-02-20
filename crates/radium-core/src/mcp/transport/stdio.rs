@@ -119,9 +119,7 @@ impl McpTransport for StdioTransport {
             .await
             .map_err(|e| McpError::transport(
                 format!("Failed to write to stdin: {}", e),
-                format!(
-                    "Failed to write message to the MCP server process. Common causes:\n  - Process terminated unexpectedly\n  - Pipe closed\n  - System resource issue\n\nTry reconnecting to the server. Check server logs for errors.",
-                ),
+                "Failed to write message to the MCP server process. Common causes:\n  - Process terminated unexpectedly\n  - Pipe closed\n  - System resource issue\n\nTry reconnecting to the server. Check server logs for errors.".to_string(),
             ))?;
         stdin
             .write_all(b"\n")
@@ -164,9 +162,7 @@ impl McpTransport for StdioTransport {
             .await
             .map_err(|e| McpError::transport(
                 format!("Failed to read from stdout: {}", e),
-                format!(
-                    "Failed to read response from the MCP server process. Common causes:\n  - Process terminated unexpectedly\n  - Pipe closed\n  - Server not responding\n\nTry reconnecting to the server. Check server logs for errors.",
-                ),
+                "Failed to read response from the MCP server process. Common causes:\n  - Process terminated unexpectedly\n  - Pipe closed\n  - Server not responding\n\nTry reconnecting to the server. Check server logs for errors.".to_string(),
             ))?;
 
         if line.is_empty() {

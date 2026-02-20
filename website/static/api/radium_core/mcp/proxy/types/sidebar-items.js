@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ConflictStrategy","ConnectionState","ProxyTransport"],"struct":["McpProxyServer","ProxyConfig","SecurityConfig","UpstreamConfig"],"trait":["SecurityLayer","ToolCatalog","ToolRouter"]};

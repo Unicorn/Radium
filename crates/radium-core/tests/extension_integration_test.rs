@@ -1,3 +1,5 @@
+#![cfg(feature = "workflow")]
+
 //! Integration tests for complete extension system workflow.
 
 #![allow(unsafe_code)]

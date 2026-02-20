@@ -92,7 +92,7 @@ fn test_complete_braingrid_req_detection() {
     let result = cmd
         .current_dir(temp_dir.path())
         .arg("complete")
-        .arg("REQ-2025-001")
+        .arg("REQ-230")
         .assert();
 
     // Should detect Braingrid REQ format
@@ -100,7 +100,7 @@ fn test_complete_braingrid_req_detection() {
     let output = String::from_utf8_lossy(&result.get_output().stderr);
     // Should either detect the source or fail with authentication error
     assert!(
-        output.contains("Braingrid REQ") || 
+        output.contains("Braingrid") || 
         output.contains("Missing") || 
         output.contains("credentials") ||
         output.contains("Source detection failed")
@@ -188,8 +188,8 @@ fn test_complete_braingrid_pattern_variations() {
     let temp_dir = TempDir::new().unwrap();
     init_workspace(&temp_dir);
 
-    // Test various Braingrid REQ patterns
-    let patterns = vec!["REQ-2024-001", "REQ-2025-1234"];
+    // Test various Braingrid REQ patterns (current format is REQ-<number>)
+    let patterns = vec!["REQ-1", "REQ-230", "REQ-9999"];
 
     for pattern in patterns {
         let mut cmd = Command::cargo_bin("radium-cli").unwrap();
@@ -199,10 +199,10 @@ fn test_complete_braingrid_pattern_variations() {
             .arg(pattern)
             .assert();
 
-        // Should detect as Braingrid REQ (may fail on fetch)
+        // Should detect as Braingrid requirement (may fail on fetch)
         let output = String::from_utf8_lossy(&result.get_output().stderr);
         assert!(
-            output.contains("Braingrid REQ") || 
+            output.contains("Braingrid") || 
             output.contains("Missing") || 
             output.contains("credentials") ||
             output.contains("Source detection failed")

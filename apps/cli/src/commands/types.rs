@@ -814,6 +814,23 @@ pub enum EngineConfigCommand {
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum BraingridCommand {
+    /// Create a new requirement from a description (Braingrid `specify`)
+    ///
+    /// This is the recommended starting point for new work so progress can be tracked remotely.
+    Specify {
+        /// Requirement description/specification text (if omitted, you must provide --file)
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        text: Vec<String>,
+
+        /// Read requirement description/specification from a local file
+        #[arg(short, long)]
+        file: Option<std::path::PathBuf>,
+
+        /// Braingrid project ID (defaults to BRAINGRID_PROJECT_ID env var or PROJ-14)
+        #[arg(short, long)]
+        project: Option<String>,
+    },
+
     /// Read a requirement with all tasks
     Read {
         /// Requirement ID (e.g., "REQ-173")
@@ -873,9 +890,99 @@ pub enum BraingridCommand {
         project: Option<String>,
     },
 
+    /// Update requirement with an action (Braingrid `requirement update --action ...`)
+    ///
+    /// Useful for “refresh requirement with latest commits and break into tasks”.
+    Action {
+        /// Requirement ID (e.g., "REQ-173")
+        req_id: String,
+
+        /// Action text passed to Braingrid CLI (e.g. \"Update requirement with latest commits and break requirement into tasks\")
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        action: Vec<String>,
+
+        /// Braingrid project ID (defaults to BRAINGRID_PROJECT_ID env var or PROJ-14)
+        #[arg(short, long)]
+        project: Option<String>,
+    },
+
+    /// Ensure tasks exist for a requirement (only triggers breakdown if empty)
+    EnsureTasks {
+        /// Requirement ID (e.g., "REQ-173")
+        req_id: String,
+
+        /// Braingrid project ID (defaults to BRAINGRID_PROJECT_ID env var or PROJ-14)
+        #[arg(short, long)]
+        project: Option<String>,
+    },
+
     /// Cache operations
     #[command(subcommand)]
     Cache(CacheCommand),
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum ToolsCommand {
+    /// List available tools and their schemas
+    List {
+        /// Tool category filter: all, file, terminal, agent, mcp
+        #[arg(long)]
+        category: Option<String>,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum TrainCommand {
+    /// List trained models discovered in the current workspace
+    List {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Train a local Burn bigram checkpoint from text files
+    Bigram {
+        /// One or more directories containing `.txt` (and other supported) files
+        #[arg(long, required = true)]
+        text_dir: Vec<std::path::PathBuf>,
+
+        /// Output manifest as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// AWS training backend utilities (optional scaffold)
+    #[command(subcommand)]
+    Aws(AwsTrainCommand),
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum AwsTrainCommand {
+    /// Create a local AWS training config scaffold in `.radium/aws/training/config.json`
+    Bootstrap {
+        /// AWS region (default: us-east-1)
+        #[arg(long)]
+        region: Option<String>,
+
+        /// S3 bucket name for training artifacts (default: randomized)
+        #[arg(long)]
+        bucket: Option<String>,
+
+        /// Override config path (default: `.radium/aws/training/config.json`)
+        #[arg(long)]
+        config_path: Option<std::path::PathBuf>,
+    },
+
+    /// Validate prerequisites and print the planned deployment (scaffold)
+    Deploy {
+        /// Config path (default: `.radium/aws/training/config.json`)
+        #[arg(long)]
+        config_path: Option<std::path::PathBuf>,
+    },
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -928,5 +1035,84 @@ pub enum CacheCommand {
         /// Braingrid project ID (defaults to BRAINGRID_PROJECT_ID env var or PROJ-14)
         #[arg(short, long)]
         project: Option<String>,
+    },
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum ModelsCommand {
+    /// List all configured models with their status
+    List {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Test a specific model (validate configuration, credentials, API, and perform test generation)
+    Test {
+        /// Model ID to test
+        model_id: String,
+    },
+
+    /// Warm models in the cache (pre-load before execution)
+    Warm {
+        /// Provider name (e.g., gemini, openai)
+        #[arg(long)]
+        provider: Option<String>,
+
+        /// Model name/ID (e.g., gemini-2.0-flash-exp)
+        #[arg(long)]
+        model: Option<String>,
+
+        /// Warm all models used by agents in workspace
+        #[arg(long)]
+        agents: bool,
+
+        /// Warm models from configuration file
+        #[arg(long)]
+        config: Option<std::path::PathBuf>,
+    },
+
+    /// Clear models from the cache
+    ClearCache {
+        /// Provider name (e.g., gemini, openai) - if specified, only clear models from this provider
+        #[arg(long)]
+        provider: Option<String>,
+
+        /// Model name/ID (e.g., gemini-2.0-flash-exp) - if specified with provider, clear specific model
+        #[arg(long)]
+        model: Option<String>,
+    },
+
+    /// Display cache status and statistics
+    CacheStatus {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// File management operations for Gemini File API
+    #[command(subcommand)]
+    File(FileCommand),
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum FileCommand {
+    /// Upload a file to Gemini File API
+    Upload {
+        /// Path to the file to upload
+        path: std::path::PathBuf,
+        /// MIME type (auto-detected from extension if not provided)
+        #[arg(long)]
+        mime_type: Option<String>,
+        /// Display name for the file
+        #[arg(long)]
+        display_name: Option<String>,
+    },
+    /// List all uploaded files
+    List,
+    /// Delete a file by ID
+    Delete {
+        /// File ID (format: files/{file-id})
+        file_id: String,
     },
 }

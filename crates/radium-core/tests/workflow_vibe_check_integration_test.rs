@@ -1,3 +1,5 @@
+#![cfg(feature = "workflow")]
+
 //! Integration tests for VibeCheck workflow behavior.
 //!
 //! Tests the integration of VibeCheck behavior with the workflow execution engine,
@@ -36,10 +38,11 @@ impl Model for MockOversightModel {
     ) -> Result<ModelResponse, ModelError> {
         Ok(ModelResponse {
             content: "Mock text response".to_string(),
-            model_id: Some("mock".to_string()),
-            usage: None,
-        })
-    }
+                                model_id: Some("mock".to_string()),
+                                usage: None,
+                                metadata: None,
+                                tool_calls: None,
+                            })    }
 
     async fn generate_chat_completion(
         &self,
@@ -63,10 +66,11 @@ impl Model for MockOversightModel {
                 "{}\n\nTraits: Complex Solution Bias, Feature Creep\nUncertainties: Performance requirements unclear, scalability concerns",
                 advice
             ),
-            model_id: Some("mock".to_string()),
-            usage: None,
-        })
-    }
+                                model_id: Some("mock".to_string()),
+                                usage: None,
+                                metadata: None,
+                                tool_calls: None,
+                            })    }
 
     fn model_id(&self) -> &str {
         "mock"
@@ -309,10 +313,11 @@ async fn test_risk_score_calculation() {
         ) -> Result<ModelResponse, ModelError> {
             Ok(ModelResponse {
                 content: "Mock text".to_string(),
-                model_id: Some("mock".to_string()),
-                usage: None,
-            })
-        }
+                                    model_id: Some("mock".to_string()),
+                                    usage: None,
+                                    metadata: None,
+                                    tool_calls: None,
+                                })        }
 
         async fn generate_chat_completion(
             &self,
@@ -322,10 +327,11 @@ async fn test_risk_score_calculation() {
             // Return advice with high-risk keywords that are detected by estimate_risk_score
             Ok(ModelResponse {
                 content: "This approach is wrong and incorrect. There are serious problems and issues that need to be addressed. The solution is over-engineered and complex, with many concerns about misalignment.".to_string(),
-                model_id: Some("mock".to_string()),
-                usage: None,
-            })
-        }
+                                    model_id: Some("mock".to_string()),
+                                    usage: None,
+                                    metadata: None,
+                                    tool_calls: None,
+                                })        }
 
         fn model_id(&self) -> &str {
             "mock"
@@ -386,10 +392,11 @@ async fn test_trait_extraction_from_oversight() {
         ) -> Result<ModelResponse, ModelError> {
             Ok(ModelResponse {
                 content: "Mock text".to_string(),
-                model_id: Some("mock".to_string()),
-                usage: None,
-            })
-        }
+                                    model_id: Some("mock".to_string()),
+                                    usage: None,
+                                    metadata: None,
+                                    tool_calls: None,
+                                })        }
 
         async fn generate_chat_completion(
             &self,
@@ -399,10 +406,11 @@ async fn test_trait_extraction_from_oversight() {
             // Return response with explicit traits
             Ok(ModelResponse {
                 content: "The solution shows signs of Complex Solution Bias and Feature Creep. Consider simplifying.\n\nTraits: Complex Solution Bias, Feature Creep, Premature Implementation\nUncertainties: Performance unclear, scalability unknown".to_string(),
-                model_id: Some("mock".to_string()),
-                usage: None,
-            })
-        }
+                                    model_id: Some("mock".to_string()),
+                                    usage: None,
+                                    metadata: None,
+                                    tool_calls: None,
+                                })        }
 
         fn model_id(&self) -> &str {
             "mock"

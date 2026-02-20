@@ -223,7 +223,7 @@ impl ExtensionManager {
         // Check if already installed
         if self.discovery.get(&manifest.name)?.is_some() {
             if !options.overwrite {
-                return Err(ExtensionInstallerError::AlreadyInstalled(manifest.name.clone()));
+                return Err(ExtensionInstallerError::AlreadyInstalled(manifest.name));
             }
             // Uninstall existing first
             self.uninstall(&manifest.name)?;
@@ -273,8 +273,7 @@ impl ExtensionManager {
 
         // Download the archive to a temporary file
         let response = reqwest::blocking::get(url)
-            .map_err(|e| ExtensionInstallerError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            .map_err(|e| ExtensionInstallerError::Io(std::io::Error::other(
                 format!("Failed to download extension: {}", e),
             )))?;
 
@@ -290,8 +289,7 @@ impl ExtensionManager {
             .map_err(|e| ExtensionInstallerError::Io(e))?;
         
         let bytes = response.bytes()
-            .map_err(|e| ExtensionInstallerError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            .map_err(|e| ExtensionInstallerError::Io(std::io::Error::other(
                 format!("Failed to read response: {}", e),
             )))?;
 
@@ -344,8 +342,7 @@ impl ExtensionManager {
         archive.set_preserve_permissions(false);
         
         archive.unpack(temp_dir.path())
-            .map_err(|e| ExtensionInstallerError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            .map_err(|e| ExtensionInstallerError::Io(std::io::Error::other(
                 format!("Failed to extract archive: {}", e),
             )))?;
 
@@ -456,7 +453,7 @@ impl ExtensionManager {
             let backup_path = self.create_backup(name, &existing.install_path)?;
             
             // Attempt update
-            match self.perform_update(name, package_path, options.clone()) {
+            match self.perform_update(name, package_path, options) {
                 Ok(extension) => {
                     // Update successful, remove backup
                     if backup_path.exists() {

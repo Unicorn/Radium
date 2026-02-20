@@ -17,13 +17,19 @@ radium-abstraction.workspace = true
 # Serialization
 serde.workspace = true
 serde_json.workspace = true
+toml = "0.8"
+
+# Base64 encoding/decoding
+base64.workspace = true
 
 # Async traits
 async-trait.workspace = true
 
 # HTTP client - using reqwest (simpler than raw hyper)
-reqwest = { version = "0.12", features = ["json"] }
-tokio = { version = "1", features = ["rt", "net"] }
+reqwest = { workspace = true, features = ["json", "stream", "multipart"] }
+tokio = { version = "1", features = ["rt", "net", "macros"] }
+futures = "0.3"
+bytes = "1.5"
 
 # Logging
 tracing.workspace = true
@@ -32,5 +38,14 @@ tracing.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
 
+# Hashing
+sha2 = "0.10"
+
+# Date/time handling
+chrono = { version = "0.4", features = ["serde"] }
+
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+mockito = "1.0"
+tokio-test = "0.4"
+tempfile = "3.8"

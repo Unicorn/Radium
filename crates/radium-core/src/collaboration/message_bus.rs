@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex as StdMutex};
 use tokio::sync::mpsc;
-use tracing::{debug, error, warn};
+use tracing::{debug, warn};
 use uuid::Uuid;
 
 /// Types of messages that can be sent between agents.
@@ -119,7 +119,7 @@ impl MessageRepository for DatabaseMessageRepository {
                 message.message_type.as_str(),
                 message.payload_json,
                 message.timestamp,
-                if message.delivered { 1 } else { 0 }
+                i32::from(message.delivered)
             ],
         )
         .map_err(|e| CollaborationError::DatabaseError(StorageError::Connection(e)))?;
@@ -283,7 +283,7 @@ impl MessageBus {
         // Try to deliver via channel
         let channels = self.channels.lock().unwrap();
         if let Some(sender) = channels.get(recipient_id) {
-            if sender.send(message.clone()).is_err() {
+            if sender.send(message).is_err() {
                 warn!(recipient_id = %recipient_id, "Failed to send message via channel (agent may have disconnected)");
             } else {
                 // Mark as delivered

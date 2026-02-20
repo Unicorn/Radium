@@ -4,8 +4,11 @@ members = [
   'crates/radium-core',
   'crates/radium-abstraction',
   'crates/radium-models',
+  'crates/radium-training',
   'crates/radium-orchestrator',
   'crates/radium-workflow',
+  'crates/radium-cli',
+  'crates/radium-ml',
   'apps/cli',
   'apps/tui',
 ]
@@ -17,7 +20,7 @@ exclude = [
 version = '0.1.0'
 edition = '2024'
 license = 'MIT'
-repository = 'https://github.com/Unicorn/RAD-Radium'
+repository = 'https://github.com/Unicorn/Radium'
 authors = ['Unicorn <hello@unicorn.love>']
 rust-version = '1.91.1'
 
@@ -68,14 +71,21 @@ tracing-subscriber = { version = '0.3', features = ['env-filter', 'json'] }
 thiserror = '1.0'
 anyhow = '1.0'
 async-trait = '0.1'
+base64 = '0.22'
 clap = { version = '4.5', features = ['derive'] }
 assert_cmd = "2.0"
 predicates = "3.1"
+reqwest = '0.12'
+
+# Security: Force minimum versions to fix vulnerabilities
+ring = "0.17.14"  # Fix RUSTSEC-2025-0009 (requires >=0.17.12)
+
 radium-abstraction = { path = 'crates/radium-abstraction' }
 radium-models = { path = 'crates/radium-models' }
 radium-core = { path = 'crates/radium-core' }
 radium-orchestrator = { path = 'crates/radium-orchestrator' }
 radium-workflow = { path = 'crates/radium-workflow' }
+radium-training = { path = 'crates/radium-training' }
 radium-tui = { path = 'apps/tui' }
 
 [profile.release]

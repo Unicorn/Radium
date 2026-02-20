@@ -169,6 +169,8 @@ pub struct MonitoringService {
     hook_registry: Option<Arc<HookRegistry>>,
     /// Optional privacy filter for redacting sensitive data.
     privacy_filter: Option<Arc<PrivacyFilter>>,
+    /// Optional local model cost tracker for duration-based cost calculation.
+    cost_tracker: Option<Arc<super::LocalModelCostTracker>>,
 }
 
 impl MonitoringService {
@@ -211,7 +213,12 @@ impl MonitoringService {
                 }
             });
 
-        Ok(Self { conn, hook_registry: None, privacy_filter })
+        Ok(Self {
+            conn,
+            hook_registry: None,
+            privacy_filter,
+            cost_tracker: None,
+        })
     }
 
     /// Creates a new monitoring service with hook registry.
@@ -224,7 +231,12 @@ impl MonitoringService {
     pub fn with_hooks(hook_registry: Arc<HookRegistry>) -> Result<Self> {
         let conn = Connection::open_in_memory()?;
         initialize_schema(&conn)?;
-        Ok(Self { conn, hook_registry: Some(hook_registry), privacy_filter: None })
+        Ok(Self {
+            conn,
+            hook_registry: Some(hook_registry),
+            privacy_filter: None,
+            cost_tracker: None,
+        })
     }
 
     /// Opens a monitoring service with a database file.
@@ -262,7 +274,12 @@ impl MonitoringService {
                 }
             });
 
-        Ok(Self { conn, hook_registry: None, privacy_filter })
+        Ok(Self {
+            conn,
+            hook_registry: None,
+            privacy_filter,
+            cost_tracker: None,
+        })
     }
 
     /// Opens a monitoring service with a database file and hook registry.
@@ -276,7 +293,12 @@ impl MonitoringService {
     pub fn open_with_hooks(path: impl AsRef<Path>, hook_registry: Arc<HookRegistry>) -> Result<Self> {
         let conn = Connection::open(path)?;
         initialize_schema(&conn)?;
-        Ok(Self { conn, hook_registry: Some(hook_registry), privacy_filter: None })
+        Ok(Self {
+            conn,
+            hook_registry: Some(hook_registry),
+            privacy_filter: None,
+            cost_tracker: None,
+        })
     }
 
     /// Sets the hook registry for this monitoring service.
@@ -289,6 +311,19 @@ impl MonitoringService {
         self.hook_registry.as_ref().map(Arc::clone)
     }
 
+    /// Sets the local model cost tracker for this monitoring service.
+    ///
+    /// # Arguments
+    /// * `cost_tracker` - Local model cost tracker for duration-based cost calculation
+    pub fn set_cost_tracker(&mut self, cost_tracker: Arc<super::LocalModelCostTracker>) {
+        self.cost_tracker = Some(cost_tracker);
+    }
+
+    /// Gets a reference to the cost tracker if it exists.
+    pub fn get_cost_tracker(&self) -> Option<&Arc<super::LocalModelCostTracker>> {
+        self.cost_tracker.as_ref()
+    }
+
     /// Records telemetry synchronously (internal method, hooks should be executed before calling this).
     pub fn record_telemetry_sync(&self, record: &crate::monitoring::telemetry::TelemetryRecord) -> Result<()> {
         
@@ -298,8 +333,9 @@ impl MonitoringService {
                                     estimated_cost, model, provider, tool_name, tool_args, tool_approved, tool_approval_type, engine_id,
                                     behavior_type, behavior_invocation_count, behavior_duration_ms, behavior_outcome,
                                     api_key_id, team_name, project_name, cost_center,
-                                    model_tier, routing_decision, complexity_score, ab_test_group)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28)",
+                                    model_tier, routing_decision, complexity_score, ab_test_group,
+                                    finish_reason, safety_blocked, citation_count)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31)",
             rusqlite::params![
                 record.agent_id,
                 record.timestamp,
@@ -329,6 +365,9 @@ impl MonitoringService {
                 record.routing_decision,
                 record.complexity_score,
                 record.ab_test_group,
+                record.finish_reason,
+                record.safety_blocked,
+                record.citation_count,
             ],
         )?;
 
@@ -508,7 +547,7 @@ impl MonitoringService {
     /// Returns error if update fails
     pub async fn complete_agent_with_hooks(&self, agent_id: &str, exit_code: i32) -> Result<()> {
         // Get agent record for telemetry
-        let agent_record = self.get_agent(agent_id).ok();
+        let _agent_record = self.get_agent(agent_id).ok();
         let end_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
 
         // Execute telemetry hooks for agent completion

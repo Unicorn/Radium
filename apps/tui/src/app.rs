@@ -1,9 +1,10 @@
 //! New unified prompt-based application.
 
-use anyhow::Result;
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use anyhow::{Context, Result};
+use crossterm::event::{KeyCode, KeyModifiers};
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
+use std::collections::HashSet;
 use radium_core::auth::{CredentialStore, ProviderType};
 use radium_core::mcp::{McpIntegration, SlashCommandRegistry};
 use radium_core::agents::registry::AgentRegistry;
@@ -20,18 +21,18 @@ use async_trait::async_trait;
 use serde_json::Value;
 use std::sync::Arc;
 use std::time::Instant;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, broadcast};
 use tokio::task::JoinHandle;
 
 use crate::commands::{Command, DisplayContext};
-use crate::components::{DialogManager, ExecutionDetailView, ExecutionHistoryView, OrchestratorThinkingPanel, SummaryView, ToastManager};
+use crate::components::{CommandConfirmationModal, ConfirmationRequest, DialogManager, ExecutionDetailView, ExecutionHistoryView, OrchestratorThinkingPanel, SummaryView, ToastManager};
 use crate::config::TuiConfig;
 use crate::effects::AppEffectManager;
 use crate::requirement_progress::{ActiveRequirement, ActiveRequirementProgress};
 use crate::requirement_executor::RequirementExecutor as TuiRequirementExecutor;
 use crate::progress_channel::ExecutionResult;
 use crate::setup::SetupWizard;
-use crate::state::{CheckpointBrowserState, CheckpointInterruptState, CommandSuggestion, CommandSuggestionState, ExecutionHistory, ExecutionRecord, InterruptAction, PrivacyState, SuggestionSource, TaskListState, TriggerMode, WorkflowUIState};
+use crate::state::{CheckpointBrowserState, CheckpointInterruptState, CommandSuggestion, ExecutionHistory, ExecutionRecord, InterruptAction, PrivacyState, SuggestionSource, TaskListState, TriggerMode, WorkflowUIState};
 use crate::theme::RadiumTheme;
 use crate::views::PromptData;
 use crate::workspace::WorkspaceStatus;
@@ -198,8 +199,78 @@ pub struct App {
     pub privacy_state: PrivacyState,
     /// Last executed operation for CTRL+R retry functionality
     pub last_executed_operation: Option<LastOperation>,
+    /// Last chat message sent (for retry)
+    pub last_chat_message: Option<String>,
+    /// Streaming context for real-time token display
+    pub streaming_context: Option<crate::state::StreamingContext>,
     /// Cancellation state for visual feedback
     pub cancellation_state: Option<CancellationState>,
+    /// Command confirmation modal (for dangerous command execution)
+    pub command_confirmation: Option<CommandConfirmationModal>,
+    /// Command allowlist (commands approved for auto-execution)
+    pub command_allowlist: HashSet<String>,
+    /// Receiver for command confirmation requests from chat executor
+    pub confirmation_request_rx: Option<tokio::sync::mpsc::Receiver<ConfirmationRequest>>,
+    /// Sender for command confirmation requests (cloned for each chat execution)
+    pub confirmation_request_tx: Option<tokio::sync::mpsc::Sender<ConfirmationRequest>>,
+    /// Background orchestration task for non-blocking chat
+    pub orchestration_task: Option<OrchestrationTask>,
+    /// Whether thinking tokens should be displayed
+    pub thinking_visible: bool,
+    /// Process registry for spawning and tracking processes
+    pub process_registry: Option<Arc<radium_core::ProcessRegistry>>,
+    /// Error router for delegating errors to agents
+    pub error_router: Option<Arc<radium_orchestrator::ErrorRouter>>,
+    /// Process panel state
+    pub process_panel_state: Option<crate::state::ProcessPanelState>,
+    /// Whether process panel is visible
+    pub show_process_panel: bool,
+    /// Active fix approval modal
+    pub active_fix_approval: Option<crate::components::FixApprovalModal>,
+    /// Feedback collection view for routing decisions (Phase 2 - REQ-246)
+    pub feedback_view: crate::views::FeedbackView,
+    /// Thinking process panel for transparent agent reasoning
+    pub thinking_panel: crate::views::ThinkingPanel,
+    /// Recommendations panel for interactive next steps
+    pub recommendations_panel: crate::views::RecommendationsPanel,
+    /// Orchestration event receiver for thinking/recommendations updates
+    pub orchestration_event_rx: Option<tokio::sync::broadcast::Receiver<radium_orchestrator::orchestration::events::OrchestrationEvent>>,
+    /// Buffered final assistant response (displayed only when orchestration completes)
+    pub pending_assistant_response: Option<String>,
+    /// Session history for persistence across app restarts
+    pub session_history: Option<crate::state::SessionHistory>,
+    /// Onboarding wizard for first-run experience
+    pub onboarding_view: Option<crate::views::OnboardingView>,
+    /// Dirty flags for smart rendering (Phase 5.1)
+    pub dirty_flags: crate::dirty_flags::DirtyFlags,
+}
+
+/// Background orchestration task state
+pub struct OrchestrationTask {
+    /// Task handle for cancellation/cleanup
+    pub handle: tokio::task::JoinHandle<Result<OrchestrationResult>>,
+    /// Progress updates from background task
+    pub result_rx: tokio::sync::mpsc::Receiver<OrchestrationProgress>,
+    /// Session ID for this orchestration
+    pub session_id: String,
+}
+
+/// Progress updates during orchestration
+pub enum OrchestrationProgress {
+    /// User message has been displayed (UI can refresh)
+    UserMessageDisplayed,
+    /// Thinking indicator started
+    ThinkingStarted,
+    /// Error occurred
+    Error(String),
+}
+
+/// Final result from orchestration
+pub struct OrchestrationResult {
+    /// The complete response text
+    pub response: String,
+    /// Time taken for orchestration
+    pub elapsed_time: std::time::Duration,
 }
 
 /// Model filter for capability-based filtering
@@ -242,6 +313,9 @@ impl ModelFilter {
 
 impl App {
     pub fn new() -> Self {
+        // Create command confirmation channel
+        let (confirmation_tx, confirmation_rx) = tokio::sync::mpsc::channel::<ConfirmationRequest>(10);
+
         // Check if any auth is configured using CredentialStore
         let setup_complete = if let Ok(store) = CredentialStore::new() {
             store.is_configured(ProviderType::Gemini) || store.is_configured(ProviderType::OpenAI)
@@ -374,12 +448,38 @@ impl App {
             model_filter: ModelFilter::default(),
             privacy_state: PrivacyState::default(),
             last_executed_operation: None,
+            last_chat_message: None,
             cancellation_state: None,
+            streaming_context: None,
+            command_confirmation: None,
+            command_allowlist: HashSet::new(),
+            confirmation_request_rx: Some(confirmation_rx),
+            confirmation_request_tx: Some(confirmation_tx),
+            orchestration_task: None,
+            thinking_visible: true,
+            process_registry: None,
+            error_router: None,
+            process_panel_state: None,
+            show_process_panel: false,
+            active_fix_approval: None,
+            feedback_view: crate::views::FeedbackView::new(),
+            thinking_panel: crate::views::ThinkingPanel::new(),
+            recommendations_panel: crate::views::RecommendationsPanel::new(),
+            orchestration_event_rx: None,
+            pending_assistant_response: None,
+            session_history: None,
+            onboarding_view: None,
+            dirty_flags: crate::dirty_flags::DirtyFlags::force_render(), // Initial render
         };
+
+        // Show onboarding wizard if not completed
+        if !app.config.onboarding_completed {
+            app.onboarding_view = Some(crate::views::OnboardingView::new());
+        }
 
         // Check for resumable executions on startup
         let workspace_root = workspace_status_clone.as_ref().and_then(|ws| ws.root.clone());
-        if let Some(root) = workspace_root {
+        if let Some(root) = workspace_root.clone() {
             use radium_core::workflow::StatePersistence;
             let state_persistence = StatePersistence::new(root);
             if let Ok(resumable) = state_persistence.list_resumable() {
@@ -392,6 +492,16 @@ impl App {
                     };
                     app.toast_manager.info(msg);
                 }
+            }
+        }
+
+        // Initialize process monitoring system
+        if let Some(root) = workspace_root {
+            let log_dir = root.join(".radium").join("process-logs");
+            if let Ok(registry) = radium_core::ProcessRegistry::new(log_dir) {
+                app.process_registry = Some(Arc::new(registry));
+                app.error_router = Some(Arc::new(radium_orchestrator::ErrorRouter::new()));
+                app.process_panel_state = Some(crate::state::ProcessPanelState::new());
             }
         }
 
@@ -430,7 +540,7 @@ impl App {
     async fn ensure_orchestration_service(&mut self) -> Result<()> {
         if self.orchestration_service.is_none() && self.orchestration_enabled {
             // Load config from workspace, fall back to defaults
-            let mut config = if let Ok(workspace) = radium_core::Workspace::discover() {
+            let config = if let Ok(workspace) = radium_core::Workspace::discover() {
                 let workspace_config_path = workspace.structure().orchestration_config_file();
                 OrchestrationConfig::load_from_workspace_path(workspace_config_path)
             } else {
@@ -535,6 +645,33 @@ impl App {
             let _ = HookLoader::load_from_workspace(root, &registry).await;
             let _ = HookLoader::load_from_extensions(&registry).await;
             
+            // Register policy hook for file operation approvals
+            use radium_core::policy::{PolicyEngine, ApprovalMode};
+            use radium_core::hooks::policy_hook::PolicyHookRegistrar;
+            
+            // Try to load policy from workspace, fallback to default Ask mode
+            let policy_engine = if let Ok(workspace) = radium_core::Workspace::discover() {
+                let policy_file = workspace.radium_dir().join("policy.toml");
+                if policy_file.exists() {
+                    PolicyEngine::from_file(&policy_file)
+                        .unwrap_or_else(|e| {
+                            tracing::error!("Failed to load policy from file: {}, using default Ask mode", e);
+                            PolicyEngine::new(ApprovalMode::Ask).expect("PolicyEngine::new should never fail with Ask mode")
+                        })
+                } else {
+                    PolicyEngine::new(ApprovalMode::Ask).expect("PolicyEngine::new should never fail with Ask mode")
+                }
+            } else {
+                PolicyEngine::new(ApprovalMode::Ask).expect("PolicyEngine::new should never fail with Ask mode")
+            };
+            
+            // Register policy hook (best effort - don't fail if registration fails)
+            let policy_engine_arc = std::sync::Arc::new(policy_engine);
+            let _ = PolicyHookRegistrar::register_policy_hook(
+                &registry,
+                policy_engine_arc,
+            ).await;
+            
             // Only create executor if we successfully loaded hooks or if we want to support hooks
             // For now, always create executor (it will work even if no hooks are loaded)
             Some(Arc::new(TuiToolHookExecutor {
@@ -546,6 +683,9 @@ impl App {
         
         match OrchestrationService::initialize(config, mcp_tools, workspace_root, sandbox_manager, context_loader, hook_executor).await {
                 Ok(service) => {
+                    // Subscribe to orchestration events for thinking/recommendations updates
+                    let event_rx = service.subscribe_events();
+                    self.orchestration_event_rx = Some(event_rx);
                     self.orchestration_service = Some(Arc::new(service));
                     tracing::info!("Orchestration service initialized successfully");
                 }
@@ -583,63 +723,313 @@ impl App {
     }
 
     fn start_default_chat(&mut self) {
-        // Show welcome screen instead of trying to start chat
-        // This avoids the "agent not found" error
-        self.prompt_data.context = DisplayContext::Help;
-        self.prompt_data.clear_output();
+        // Start directly in chat mode with chat-assistant agent
+        let agent_id = "chat-assistant";
+        let session_id = format!("session_{}", chrono::Utc::now().format("%Y%m%d_%H%M%S"));
 
-        self.prompt_data.add_output("Welcome to Radium! 🚀".to_string());
-        self.prompt_data.add_output("".to_string());
-        self.prompt_data.add_output("Radium is your AI-powered development assistant.".to_string());
-        self.prompt_data.add_output("".to_string());
+        self.current_agent = Some(agent_id.to_string());
+        self.current_session = Some(session_id.clone());
+
+        self.prompt_data.context = DisplayContext::Chat {
+            agent_id: agent_id.to_string(),
+            session_id: session_id.clone(),
+        };
+
+        self.prompt_data.conversation.clear();
+        let max_history = self.config.performance.max_conversation_history;
+
+        // Add welcome message to conversation
+        self.prompt_data.add_conversation_message(
+            "Welcome to Radium! 🚀".to_string(),
+            max_history,
+        );
+        self.prompt_data.add_conversation_message("".to_string(), max_history);
+        self.prompt_data.add_conversation_message(
+            "I'm your AI development assistant with access to powerful tools:".to_string(),
+            max_history,
+        );
+        self.prompt_data.add_conversation_message(
+            "  🔍 File search and code navigation".to_string(),
+            max_history,
+        );
+        self.prompt_data.add_conversation_message(
+            "  📖 Reading and analyzing files".to_string(),
+            max_history,
+        );
+        self.prompt_data.add_conversation_message(
+            "  🌳 Git history and diffs".to_string(),
+            max_history,
+        );
+        self.prompt_data.add_conversation_message("".to_string(), max_history);
+        self.prompt_data.add_conversation_message(
+            "💡 Just ask me anything about your codebase!".to_string(),
+            max_history,
+        );
+        self.prompt_data.add_conversation_message("".to_string(), max_history);
 
         // Check if we have any agents available
-        let has_agents = crate::chat_executor::get_available_agents()
+        let has_agents = crate::agent_discovery::get_available_agents()
             .map(|agents| !agents.is_empty())
             .unwrap_or(false);
 
         if has_agents {
-            self.prompt_data.add_output("🤖 Quick Start:".to_string());
-            self.prompt_data.add_output("  /agents - See available AI agents".to_string());
-            self.prompt_data
-                .add_output("  /chat <agent> - Start chatting with an agent".to_string());
-        } else {
-            self.prompt_data.add_output("⚠️  No agents configured yet.".to_string());
-            self.prompt_data.add_output("".to_string());
-            self.prompt_data
-                .add_output("To get started, create an agent configuration:".to_string());
-            self.prompt_data.add_output("  1. Create ~/.radium/agents/ directory".to_string());
-            self.prompt_data
-                .add_output("  2. Add an agent JSON file (see example below)".to_string());
-            self.prompt_data.add_output("".to_string());
-            self.prompt_data
-                .add_output("Example agent config (~/.radium/agents/assistant.json):".to_string());
-            self.prompt_data.add_output("  {".to_string());
-            self.prompt_data.add_output("    \"id\": \"assistant\",".to_string());
-            self.prompt_data.add_output("    \"name\": \"Assistant\",".to_string());
-            self.prompt_data
-                .add_output("    \"description\": \"General purpose AI assistant\",".to_string());
-            self.prompt_data.add_output(
-                "    \"system_prompt\": \"You are a helpful AI assistant.\",".to_string(),
+            self.prompt_data.add_conversation_message(
+                "📝 Available commands:".to_string(),
+                max_history,
             );
-            self.prompt_data.add_output("    \"model\": \"gemini-1.5-flash\"".to_string());
-            self.prompt_data.add_output("  }".to_string());
+            self.prompt_data.add_conversation_message(
+                "  /agents - See all available agents".to_string(),
+                max_history,
+            );
+            self.prompt_data.add_conversation_message(
+                "  /chat <agent> - Switch to a different agent".to_string(),
+                max_history,
+            );
+        } else {
+            self.prompt_data.add_conversation_message(
+                "⚠️  No agents configured yet.".to_string(),
+                max_history,
+            );
+            self.prompt_data.add_conversation_message(
+                "To get started, create an agent configuration.".to_string(),
+                max_history,
+            );
         }
 
-        self.prompt_data.add_output("".to_string());
-        self.prompt_data.add_output("📚 Available Commands:".to_string());
-        self.prompt_data.add_output("  /help - Show all commands".to_string());
-        self.prompt_data.add_output("  /auth - Manage authentication".to_string());
-        self.prompt_data.add_output("  /dashboard - View system status".to_string());
-        self.prompt_data.add_output("".to_string());
-        self.prompt_data.add_output("Type a command to get started!".to_string());
+        self.prompt_data.add_conversation_message("".to_string(), max_history);
+        self.prompt_data.add_conversation_message(
+            "  /help - Show all commands".to_string(),
+            max_history,
+        );
+        self.prompt_data.add_conversation_message(
+            "  /shortcuts - Keyboard shortcuts".to_string(),
+            max_history,
+        );
     }
 
+    /// Start routing feedback collection (Phase 2 - REQ-246).
+    ///
+    /// This method initiates the interactive feedback flow for a routing decision,
+    /// showing the user a modal to rate the agent selection.
+    ///
+    /// # Arguments
+    /// * `task_description` - The task that was routed
+    /// * `selected_agent` - The agent that was chosen
+    /// * `routing_method` - The routing method used ("skill", "keyword", "ml", etc.)
+    /// * `confidence` - Routing confidence score (0.0-1.0)
+    /// * `execution_success` - Whether the agent execution succeeded
+    pub fn start_routing_feedback(
+        &mut self,
+        task_description: String,
+        selected_agent: String,
+        routing_method: String,
+        confidence: f32,
+        execution_success: bool,
+    ) {
+        let decision = crate::views::RoutingDecision {
+            task_description,
+            selected_agent,
+            routing_method,
+            confidence,
+            alternatives: vec![], // TODO: Add alternatives from routing context
+            execution_success,
+        };
+
+        self.feedback_view.start_feedback(decision);
+        tracing::debug!("Started routing feedback collection");
+    }
 
     pub async fn handle_key(&mut self, key: KeyCode, modifiers: KeyModifiers) -> Result<()> {
+        // If onboarding is active, handle onboarding input first
+        if self.onboarding_view.is_some() {
+            return self.handle_onboarding_key(key).await;
+        }
+
         // If checkpoint interrupt is active, handle interrupt input first
         if self.is_interrupt_active() {
             return self.handle_checkpoint_interrupt_key(key).await;
+        }
+
+        // If routing feedback view is active, handle feedback input first (Phase 2 - REQ-246)
+        if self.feedback_view.is_active() {
+            let key_event = crossterm::event::KeyEvent::new(key, modifiers);
+            let handled = self.feedback_view.handle_key(key_event);
+
+            // Check if feedback was completed
+            if self.feedback_view.is_completed() {
+                // Extract feedback record and save it
+                if let Some(feedback_record) = self.feedback_view.get_feedback() {
+                    tracing::info!(
+                        agent = %feedback_record.selected_agent,
+                        rating = ?feedback_record.user_feedback,
+                        "User feedback collected for routing decision"
+                    );
+
+                    // Save feedback to RoutingPreferences
+                    if let Some(ref ws) = self.workspace_status {
+                        if let Some(ref root) = ws.root {
+                            match radium_orchestrator::routing::RoutingPreferences::load(root) {
+                                Ok(mut prefs) => {
+                                    prefs.record_feedback(feedback_record);
+                                    if let Err(e) = prefs.save() {
+                                        tracing::error!("Failed to save routing preferences: {}", e);
+                                        self.toast_manager.error(format!("Failed to save feedback: {}", e));
+                                    } else {
+                                        tracing::debug!("Routing feedback saved successfully");
+                                        self.toast_manager.success("Thank you for your feedback!".to_string());
+                                    }
+                                }
+                                Err(e) => {
+                                    tracing::error!("Failed to load routing preferences: {}", e);
+                                    self.toast_manager.error(format!("Failed to save feedback: {}", e));
+                                }
+                            }
+                        }
+                    }
+                }
+                // Reset feedback view to idle state
+                self.feedback_view.reset();
+            }
+
+            if handled {
+                return Ok(());
+            }
+        }
+
+        // If command confirmation modal is open, handle it first
+        if self.command_confirmation.is_some() {
+            match key {
+                KeyCode::Up => {
+                    if let Some(ref mut confirmation) = self.command_confirmation {
+                        confirmation.move_up();
+                    }
+                    return Ok(());
+                }
+                KeyCode::Down => {
+                    if let Some(ref mut confirmation) = self.command_confirmation {
+                        confirmation.move_down();
+                    }
+                    return Ok(());
+                }
+                KeyCode::Enter => {
+                    if let Some(mut confirmation) = self.command_confirmation.take() {
+                        use crate::components::ConfirmationOutcome;
+                        let outcome = confirmation.selected_outcome();
+
+                        // If "Always Allow" was selected, add to allowlist
+                        if matches!(outcome, ConfirmationOutcome::ApprovedAlways) {
+                            self.command_allowlist.insert(confirmation.analysis.root_command.clone());
+                            // TODO: Save allowlist to disk (Phase 7)
+                        }
+
+                        // Send response back to executor
+                        if let Some(response_tx) = confirmation.response_tx.take() {
+                            let _ = response_tx.send(outcome);
+                        }
+                    }
+                    return Ok(());
+                }
+                KeyCode::Esc => {
+                    if let Some(mut confirmation) = self.command_confirmation.take() {
+                        use crate::components::ConfirmationOutcome;
+                        // Send cancelled response
+                        if let Some(response_tx) = confirmation.response_tx.take() {
+                            let _ = response_tx.send(ConfirmationOutcome::Cancelled);
+                        }
+                    }
+                    return Ok(());
+                }
+                _ => {
+                    // Ignore other keys when modal is open
+                    return Ok(());
+                }
+            }
+        }
+
+        // If fix approval modal is open, handle it first
+        if self.active_fix_approval.is_some() {
+            match key {
+                KeyCode::Up => {
+                    if let Some(ref mut modal) = self.active_fix_approval {
+                        modal.move_up();
+                    }
+                    return Ok(());
+                }
+                KeyCode::Down => {
+                    if let Some(ref mut modal) = self.active_fix_approval {
+                        modal.move_down();
+                    }
+                    return Ok(());
+                }
+                KeyCode::Char('d') => {
+                    if let Some(ref mut modal) = self.active_fix_approval {
+                        modal.toggle_details();
+                    }
+                    return Ok(());
+                }
+                KeyCode::Enter => {
+                    if let Some(mut modal) = self.active_fix_approval.take() {
+                        use crate::components::ApprovalAction;
+                        let action = modal.selected_action();
+
+                        match action {
+                            ApprovalAction::Approved => {
+                                // Send approval through response channel
+                                if let Some(response_tx) = modal.response_tx.take() {
+                                    let _ = response_tx.send(ApprovalAction::Approved);
+                                }
+
+                                // Apply the fix via error_router
+                                let proposal_id = modal.proposal.id.clone();
+                                if let Some(ref error_router) = self.error_router {
+                                    match error_router.apply_approved_fix(&proposal_id).await {
+                                        Ok(()) => {
+                                            self.toast_manager.success("Fix applied successfully!".to_string());
+                                            tracing::info!(proposal_id = %proposal_id, "Fix applied via user approval");
+                                        }
+                                        Err(e) => {
+                                            tracing::error!("Failed to apply fix {}: {}", proposal_id, e);
+                                            self.toast_manager.error(format!("Failed to apply fix: {}", e));
+                                        }
+                                    }
+                                } else {
+                                    self.toast_manager.warning("Error router not available - fix approval noted but not applied".to_string());
+                                }
+                            }
+                            ApprovalAction::Rejected => {
+                                if let Some(response_tx) = modal.response_tx.take() {
+                                    let _ = response_tx.send(ApprovalAction::Rejected);
+                                }
+                                self.toast_manager.info("Fix rejected".to_string());
+                            }
+                            ApprovalAction::ViewDetails => {
+                                // Toggle details view and keep modal open
+                                modal.toggle_details();
+                                self.active_fix_approval = Some(modal);
+                            }
+                            ApprovalAction::Cancelled => {
+                                if let Some(response_tx) = modal.response_tx.take() {
+                                    let _ = response_tx.send(ApprovalAction::Cancelled);
+                                }
+                            }
+                        }
+                    }
+                    return Ok(());
+                }
+                KeyCode::Esc => {
+                    if let Some(mut modal) = self.active_fix_approval.take() {
+                        use crate::components::ApprovalAction;
+                        if let Some(response_tx) = modal.response_tx.take() {
+                            let _ = response_tx.send(ApprovalAction::Cancelled);
+                        }
+                    }
+                    return Ok(());
+                }
+                _ => {
+                    // Ignore other keys when modal is open
+                    return Ok(());
+                }
+            }
         }
 
         // If dialog is open, handle dialog input first
@@ -808,12 +1198,76 @@ impl App {
                     return Ok(());
                 }
 
+                // Handle Ctrl+Shift+P to toggle process panel
+                if modifiers.contains(KeyModifiers::CONTROL | KeyModifiers::SHIFT) && key == KeyCode::Char('P') {
+                    self.show_process_panel = !self.show_process_panel;
+                    let status = if self.show_process_panel { "shown" } else { "hidden" };
+                    self.toast_manager.info(format!("Process panel {}", status));
+                    return Ok(());
+                }
+
+                // Handle Ctrl+N to spawn new process (when process panel is visible)
+                if modifiers.contains(KeyModifiers::CONTROL) && key == KeyCode::Char('n') {
+                    if self.show_process_panel && self.process_registry.is_some() {
+                        // TODO: Show process spawn dialog
+                        self.toast_manager.info("Process spawn dialog not yet implemented".to_string());
+                    }
+                    return Ok(());
+                }
+
+                // Handle Ctrl+A to show pending fix approvals
+                if modifiers.contains(KeyModifiers::CONTROL) && key == KeyCode::Char('a') {
+                    if let Some(ref mut panel_state) = self.process_panel_state {
+                        if panel_state.has_pending_approvals() {
+                            if let Some(proposal) = panel_state.get_next_approval() {
+                                let (response_tx, _response_rx) = tokio::sync::oneshot::channel();
+                                let modal = crate::components::FixApprovalModal::new(proposal, response_tx);
+                                self.active_fix_approval = Some(modal);
+                                self.toast_manager.info("Fix approval modal opened".to_string());
+                            }
+                        } else {
+                            self.toast_manager.info("No pending fix approvals".to_string());
+                        }
+                    }
+                    return Ok(());
+                }
+
                 // Handle Ctrl+$ to open cost dashboard
                 if key == KeyCode::Char('$') && modifiers.contains(KeyModifiers::CONTROL) {
                     self.show_costs_dashboard().await?;
                     return Ok(());
                 }
-                
+
+                // Handle Ctrl+O to toggle thinking panel
+                if key == KeyCode::Char('o') && modifiers.contains(KeyModifiers::CONTROL) {
+                    if self.thinking_panel.is_visible() {
+                        self.thinking_panel.toggle_expanded();
+                        let state = if self.thinking_panel.is_expanded() { "expanded" } else { "collapsed" };
+                        self.toast_manager.info(format!("Thinking panel {}", state));
+                    }
+                    return Ok(());
+                }
+
+                // Handle recommendations panel interaction
+                if self.recommendations_panel.is_awaiting_confirmation() {
+                    match key {
+                        KeyCode::Char('y') | KeyCode::Char('Y') => {
+                            if self.recommendations_panel.confirm_execution() {
+                                self.toast_manager.info("Executing recommendations...".to_string());
+                                // Execute recommendations in sequence
+                                self.execute_recommendations();
+                            }
+                            return Ok(());
+                        }
+                        KeyCode::Char('n') | KeyCode::Char('N') => {
+                            self.recommendations_panel.decline_execution();
+                            self.toast_manager.info("Recommendations skipped".to_string());
+                            return Ok(());
+                        }
+                        _ => {}
+                    }
+                }
+
                 // Handle execution view shortcuts when no view is active
                 // Only process hotkeys when input is empty (user is not actively typing)
                 let input_is_empty = self.prompt_data.input_text().trim().is_empty();
@@ -959,11 +1413,26 @@ impl App {
                                 self.toast_manager.error(format!("Failed to retry requirement: {}", e));
                             }
                         }
-                        LastOperation::Task(task_id) => {
-                            self.toast_manager.info("Retrying last task...".to_string());
-                            // TODO: Implement task retry when task execution is available
-                            self.toast_manager.info("Task retry not yet implemented".to_string());
+                        LastOperation::Task(_task_id) => {
+                            // Task retry via last_executed_operation not implemented
+                            // Fall back to chat message retry if available
+                            if let Some(ref last_msg) = self.last_chat_message {
+                                self.toast_manager.info("Retrying last message...".to_string());
+                                let msg = last_msg.clone();
+                                if let Err(e) = self.send_chat_message(msg).await {
+                                    self.toast_manager.error(format!("Failed to retry message: {}", e));
+                                }
+                            } else {
+                                self.toast_manager.info("No message to retry".to_string());
+                            }
                         }
+                    }
+                } else if let Some(ref last_msg) = self.last_chat_message {
+                    // No last_executed_operation, but we have a chat message to retry
+                    self.toast_manager.info("Retrying last message...".to_string());
+                    let msg = last_msg.clone();
+                    if let Err(e) = self.send_chat_message(msg).await {
+                        self.toast_manager.error(format!("Failed to retry message: {}", e));
                     }
                 } else {
                     self.toast_manager.info("No operation to retry".to_string());
@@ -971,6 +1440,28 @@ impl App {
             }
             // Quit or cancel orchestration
             KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => {
+                // Check if streaming is active - cancel stream first
+                if let Some(ref mut stream_ctx) = self.streaming_context {
+                    use crate::state::StreamingState;
+                    
+                    // Send cancellation signal
+                    if let Some(cancel_tx) = stream_ctx.cancellation_tx.take() {
+                        let _ = cancel_tx.send(());
+                    }
+                    stream_ctx.is_cancelled = true;
+                    stream_ctx.state = StreamingState::Cancelled;
+                    
+                    // Flush any remaining tokens
+                    let remaining = stream_ctx.flush_buffer();
+                    if !remaining.is_empty() {
+                        self.prompt_data.add_output(remaining);
+                    }
+                    
+                    // Clear streaming context after a brief delay to show cancellation message
+                    // (We'll clear it in the next render cycle)
+                    return Ok(());
+                }
+                
                 if self.orchestration_running {
                     // Set cancellation state for visual feedback
                     self.cancellation_state = Some(CancellationState::Requested);
@@ -1025,12 +1516,25 @@ impl App {
             KeyCode::Tab if self.orchestration_running && !self.prompt_data.command_state.is_active => {
                 self.cycle_panel_focus();
             }
-            KeyCode::Char('t') if modifiers.contains(KeyModifiers::CONTROL) && self.orchestration_running => {
-                self.task_panel_visible = !self.task_panel_visible;
-                // If hiding focused panel, move focus to next visible panel
-                if !self.task_panel_visible && self.panel_focus == crate::views::orchestrator_view::PanelFocus::TaskList {
-                    self.cycle_panel_focus();
+            KeyCode::Char('t') if modifiers.contains(KeyModifiers::CONTROL) => {
+                if self.orchestration_running {
+                    // Existing behavior: toggle task panel during orchestration
+                    self.task_panel_visible = !self.task_panel_visible;
+                    // If hiding focused panel, move focus to next visible panel
+                    if !self.task_panel_visible && self.panel_focus == crate::views::orchestrator_view::PanelFocus::TaskList {
+                        self.cycle_panel_focus();
+                    }
+                } else if matches!(self.prompt_data.context, DisplayContext::Chat { .. }) {
+                    // NEW: Toggle thinking visibility in chat mode
+                    self.thinking_visible = !self.thinking_visible;
+                    let message = if self.thinking_visible {
+                        "💭 Thinking: Visible"
+                    } else {
+                        "💭 Thinking: Hidden"
+                    };
+                    self.toast_manager.info(message.to_string());
                 }
+                return Ok(());
             }
             KeyCode::Char('o') if modifiers.contains(KeyModifiers::CONTROL) && self.orchestration_running => {
                 self.orchestrator_panel_visible = !self.orchestrator_panel_visible;
@@ -1207,12 +1711,25 @@ impl App {
             KeyCode::Tab if self.orchestration_running && !self.prompt_data.command_state.is_active => {
                 self.cycle_panel_focus();
             }
-            KeyCode::Char('t') if modifiers.contains(KeyModifiers::CONTROL) && self.orchestration_running => {
-                self.task_panel_visible = !self.task_panel_visible;
-                // If hiding focused panel, move focus to next visible panel
-                if !self.task_panel_visible && self.panel_focus == crate::views::orchestrator_view::PanelFocus::TaskList {
-                    self.cycle_panel_focus();
+            KeyCode::Char('t') if modifiers.contains(KeyModifiers::CONTROL) => {
+                if self.orchestration_running {
+                    // Existing behavior: toggle task panel during orchestration
+                    self.task_panel_visible = !self.task_panel_visible;
+                    // If hiding focused panel, move focus to next visible panel
+                    if !self.task_panel_visible && self.panel_focus == crate::views::orchestrator_view::PanelFocus::TaskList {
+                        self.cycle_panel_focus();
+                    }
+                } else if matches!(self.prompt_data.context, DisplayContext::Chat { .. }) {
+                    // NEW: Toggle thinking visibility in chat mode
+                    self.thinking_visible = !self.thinking_visible;
+                    let message = if self.thinking_visible {
+                        "💭 Thinking: Visible"
+                    } else {
+                        "💭 Thinking: Hidden"
+                    };
+                    self.toast_manager.info(message.to_string());
                 }
+                return Ok(());
             }
             KeyCode::Char('o') if modifiers.contains(KeyModifiers::CONTROL) && self.orchestration_running => {
                 self.orchestrator_panel_visible = !self.orchestrator_panel_visible;
@@ -1346,20 +1863,29 @@ impl App {
                 PanelFocus::Chat => {
                     if self.task_panel_visible {
                         PanelFocus::TaskList
-                    } else if self.orchestrator_panel_visible {
-                        PanelFocus::Orchestrator
+                    } else if self.orchestrator_panel_visible || self.show_process_panel {
+                        if self.show_process_panel {
+                            PanelFocus::Process
+                        } else {
+                            PanelFocus::Orchestrator
+                        }
                     } else {
                         PanelFocus::Chat // Stay on chat if no other panels visible
                     }
                 }
                 PanelFocus::TaskList => {
-                    if self.orchestrator_panel_visible {
-                        PanelFocus::Orchestrator
+                    if self.orchestrator_panel_visible || self.show_process_panel {
+                        if self.show_process_panel {
+                            PanelFocus::Process
+                        } else {
+                            PanelFocus::Orchestrator
+                        }
                     } else {
                         PanelFocus::Chat
                     }
                 }
                 PanelFocus::Orchestrator => PanelFocus::Chat,
+                PanelFocus::Process => PanelFocus::Chat,
             };
             
             // If we're on a visible panel, we're done
@@ -1367,6 +1893,7 @@ impl App {
                 PanelFocus::Chat => break,
                 PanelFocus::TaskList if self.task_panel_visible => break,
                 PanelFocus::Orchestrator if self.orchestrator_panel_visible => break,
+                PanelFocus::Process if self.show_process_panel => break,
                 _ => continue, // Keep cycling if panel is hidden
             }
         }
@@ -1389,6 +1916,11 @@ impl App {
                     self.orchestrator_panel.scroll_down(amount);
                 }
             }
+            PanelFocus::Process => {
+                // Process panel scrolling would be handled here
+                // For now, the panel doesn't maintain scroll state between renders
+                // This would need to be added to ProcessPanel if needed
+            }
             PanelFocus::Chat => {
                 // Chat scrolling is handled by prompt_data.scrollback_offset
                 if up {
@@ -1406,13 +1938,16 @@ impl App {
     /// Scrolls the focused panel to the top.
     fn handle_panel_scroll_to_top(&mut self) {
         use crate::views::orchestrator_view::PanelFocus;
-        
+
         match self.panel_focus {
             PanelFocus::TaskList => {
                 // Task list panel scrolling would be handled here
             }
             PanelFocus::Orchestrator => {
                 self.orchestrator_panel.scroll_to_top();
+            }
+            PanelFocus::Process => {
+                // Process panel scrolling would be handled here
             }
             PanelFocus::Chat => {
                 self.prompt_data.scrollback_offset = 0;
@@ -1429,8 +1964,11 @@ impl App {
                 // Task list panel scrolling would be handled here
             }
             PanelFocus::Orchestrator => {
-                let max_items = self.orchestrator_panel.len();
+                let _max_items = self.orchestrator_panel.len();
                 self.orchestrator_panel.scroll_to_bottom();
+            }
+            PanelFocus::Process => {
+                // Process panel scrolling would be handled here
             }
             PanelFocus::Chat => {
                 self.prompt_data.scrollback_offset = self.prompt_data.conversation.len().saturating_sub(1);
@@ -1765,7 +2303,7 @@ impl App {
         self.prompt_data.context = DisplayContext::AgentList;
 
         // Get available agents
-        let agents = crate::chat_executor::get_available_agents()?;
+        let agents = crate::agent_discovery::get_available_agents()?;
         self.prompt_data.agents = agents;
 
         Ok(())
@@ -1836,7 +2374,7 @@ impl App {
     }
 
     async fn show_budget_analytics(&mut self) -> Result<()> {
-        let mut view = self.budget_analytics_view.take()
+        let view = self.budget_analytics_view.take()
             .unwrap_or_else(|| crate::views::BudgetAnalyticsView::new());
 
         self.budget_analytics_view = Some(view);
@@ -1921,6 +2459,9 @@ impl App {
             }
         };
 
+        // Store message for retry
+        self.last_chat_message = Some(message.clone());
+
         // Add user message to conversation with limit
         let max_history = self.config.performance.max_conversation_history;
         self.prompt_data.add_conversation_message(format!("You: {}", message), max_history);
@@ -1931,36 +2472,328 @@ impl App {
             let _ = session_manager.update_session(&session_id, &agent_id, &message, self.current_model_id.clone());
         }
 
-        // Execute agent
-        match crate::chat_executor::execute_chat_message(&agent_id, &message, &session_id).await {
-            Ok(result) => {
-                if result.success {
-                    let response = result.response.clone();
-                    let max_history = self.config.performance.max_conversation_history;
-                    self.prompt_data.add_conversation_message(format!("Agent: {}", response), max_history);
+        // Execute via the unified orchestration runtime (shared tool registry + shared tool loop)
+        // This removes the TUI-owned tool loop and converges onto the same runtime used by headless orchestration.
+        //
+        // Note: token streaming for chat is not yet wired; we still render a thinking placeholder until the
+        // orchestration call completes, then we replay tool lifecycle from the event stream buffer.
+        if let Err(e) = self.ensure_orchestration_service().await {
+            let max_history = self.config.performance.max_conversation_history;
+            self.prompt_data.add_conversation_message(format!("❌ {}", e), max_history);
+            return Ok(());
+        }
 
-                    // Save agent response to session
-                    let workspace_root_clone =
-                        self.workspace_status.as_ref().and_then(|s| s.root.clone());
-                    if let Ok(session_manager) =
-                        crate::session_manager::SessionManager::new(workspace_root_clone)
-                    {
-                        let _ = session_manager.update_session(&session_id, &agent_id, &response, self.current_model_id.clone());
+        let Some(ref service) = self.orchestration_service else {
+            let max_history = self.config.performance.max_conversation_history;
+            self.prompt_data.add_conversation_message(
+                "❌ Orchestration service not available. Check configuration and API keys.".to_string(),
+                max_history,
+            );
+            return Ok(());
+        };
+
+        // Seed the orchestration session with the agent's prompt as a system message (once).
+        // Agent prompt paths are relative to the workspace root.
+        let agent_prompt = {
+            let discovery = radium_core::AgentDiscovery::new();
+            let agents = discovery.discover_all()?;
+            let agent = agents
+                .get(&agent_id)
+                .ok_or_else(|| anyhow::anyhow!("Agent '{}' not found", agent_id))?;
+
+            let workspace_root = self
+                .workspace_status
+                .as_ref()
+                .and_then(|ws| ws.root.clone())
+                .or_else(|| radium_core::Workspace::discover().ok().map(|w| w.root().to_path_buf()))
+                .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")));
+
+            let prompt_path = if agent.prompt_path.is_absolute() {
+                agent.prompt_path.clone()
+            } else {
+                workspace_root.join(&agent.prompt_path)
+            };
+
+            std::fs::read_to_string(&prompt_path).with_context(|| {
+                format!("Failed to read agent prompt: {}", prompt_path.display())
+            })?
+        };
+
+        service
+            .ensure_session_initialized(
+                &session_id,
+                vec![radium_orchestrator::orchestration::context::Message::system(agent_prompt)],
+            )
+            .await?;
+
+        let mut event_rx = service.subscribe_events();
+
+        // Show thinking indicator while the orchestration runs
+        let max_history = self.config.performance.max_conversation_history;
+        self.prompt_data
+            .add_conversation_message("🤔 Thinking...".to_string(), max_history);
+
+        // Spawn background task to collect events during execution
+        // Events are collected in a Vec and processed after execution completes
+        let session_id_clone = session_id.clone();
+        let (event_tx, mut event_rx_collected) = tokio::sync::mpsc::unbounded_channel();
+        let event_collector_handle = tokio::spawn(async move {
+            use tokio::time::{timeout, Duration};
+            loop {
+                match timeout(Duration::from_millis(100), event_rx.recv()).await {
+                    Ok(Ok(event)) => {
+                        let event_correlation_id = match &event {
+                            radium_orchestrator::orchestration::events::OrchestrationEvent::UserInput { correlation_id, .. } => correlation_id,
+                            radium_orchestrator::orchestration::events::OrchestrationEvent::AssistantMessage { correlation_id, .. } => correlation_id,
+                            radium_orchestrator::orchestration::events::OrchestrationEvent::ToolCallRequested { correlation_id, .. } => correlation_id,
+                            radium_orchestrator::orchestration::events::OrchestrationEvent::ToolCallStarted { correlation_id, .. } => correlation_id,
+                            radium_orchestrator::orchestration::events::OrchestrationEvent::ToolCallFinished { correlation_id, .. } => correlation_id,
+                            radium_orchestrator::orchestration::events::OrchestrationEvent::ApprovalRequired { correlation_id, .. } => correlation_id,
+                            radium_orchestrator::orchestration::events::OrchestrationEvent::Error { correlation_id, .. } => correlation_id,
+                            radium_orchestrator::orchestration::events::OrchestrationEvent::Done { correlation_id, .. } => correlation_id,
+                            radium_orchestrator::orchestration::events::OrchestrationEvent::ThinkingSessionStarted { correlation_id, .. } => correlation_id,
+                            radium_orchestrator::orchestration::events::OrchestrationEvent::ThinkingStepAdded { correlation_id, .. } => correlation_id,
+                            radium_orchestrator::orchestration::events::OrchestrationEvent::ThinkingStepUpdated { correlation_id, .. } => correlation_id,
+                            radium_orchestrator::orchestration::events::OrchestrationEvent::ThinkingSessionEnded { correlation_id, .. } => correlation_id,
+                            radium_orchestrator::orchestration::events::OrchestrationEvent::RecommendationsSessionStarted { correlation_id, .. } => correlation_id,
+                            radium_orchestrator::orchestration::events::OrchestrationEvent::RecommendationAdded { correlation_id, .. } => correlation_id,
+                            radium_orchestrator::orchestration::events::OrchestrationEvent::RecommendationsExecutionRequested { correlation_id, .. } => correlation_id,
+                        };
+
+                        if event_correlation_id == &session_id_clone {
+                            let _ = event_tx.send(event);
+                        }
                     }
-                } else {
-                    let error_msg = result.error.unwrap_or_else(|| "Unknown error".to_string());
-                    let max_history = self.config.performance.max_conversation_history;
-                    self.prompt_data.add_conversation_message(format!("Error: {}", error_msg), max_history);
+                    Ok(Err(broadcast::error::RecvError::Closed)) => break,
+                    Ok(Err(broadcast::error::RecvError::Lagged(_))) => continue,
+                    Err(_) => continue, // Timeout, continue waiting
+                }
+            }
+        });
+
+        // Execute orchestration (uses shared runtime and tool loop)
+        let current_dir = self
+            .workspace_status
+            .as_ref()
+            .and_then(|ws| ws.root.as_ref())
+            .map(|p| p.as_path());
+
+        let start_time = std::time::Instant::now();
+        let result = service.handle_input(&session_id, &message, current_dir).await;
+
+        // Stop event collector
+        event_collector_handle.abort();
+
+        // Remove thinking indicator
+        let _ = self.prompt_data.conversation.pop();
+
+        // Track active tools for concurrent execution display
+        use std::collections::HashSet;
+        let mut active_tools: HashSet<String> = HashSet::new();
+
+        // Process collected events in order (real-time collection, immediate processing)
+        while let Ok(event) = event_rx_collected.try_recv() {
+            match event {
+                radium_orchestrator::orchestration::events::OrchestrationEvent::ToolCallStarted {
+                    tool_name,
+                    ..
+                } => {
+                    active_tools.insert(tool_name.clone());
+                    
+                    // Show concurrent execution status
+                    if active_tools.len() > 1 {
+                        let active_list: Vec<String> = active_tools.iter().cloned().collect();
+                        self.prompt_data.add_conversation_message(
+                            format!("📋 Running {} tools in parallel: {}", active_tools.len(), active_list.join(", ")),
+                            max_history,
+                        );
+                    } else {
+                        self.prompt_data.add_conversation_message(
+                            format!("📋 Running tool: {}", tool_name),
+                            max_history,
+                        );
+                    }
+                }
+                radium_orchestrator::orchestration::events::OrchestrationEvent::ToolCallFinished {
+                    tool_name,
+                    result,
+                    ..
+                } => {
+                    active_tools.remove(&tool_name);
+                    
+                    if result.success {
+                        let remaining_count = active_tools.len();
+                        if remaining_count > 0 {
+                            let remaining: Vec<String> = active_tools.iter().cloned().collect();
+                            self.prompt_data.add_conversation_message(
+                                format!("✓ Tool finished: {} ({} still running: {})", tool_name, remaining_count, remaining.join(", ")),
+                                max_history,
+                            );
+                        } else {
+                            self.prompt_data.add_conversation_message(
+                                format!("✓ Tool finished: {}", tool_name),
+                                max_history,
+                            );
+                        }
+                    } else {
+                        self.prompt_data.add_conversation_message(
+                            format!("❌ Tool failed: {}: {}", tool_name, result.output),
+                            max_history,
+                        );
+                    }
+                }
+                radium_orchestrator::orchestration::events::OrchestrationEvent::ApprovalRequired {
+                    tool_name,
+                    reason,
+                    correlation_id,
+                } => {
+                    // Show approval message in conversation
+                    self.prompt_data.add_conversation_message(
+                        format!("⚠️ Approval required for {}: {}", tool_name, reason),
+                        max_history,
+                    );
+                    
+                    // Activate approval interrupt modal (similar to checkpoint interrupts)
+                    // Note: Full approval flow (pause, wait, resume) requires orchestrator
+                    // to support pausing execution, which is a future enhancement.
+                    // For now, we show the approval request but execution will abort.
+                    // TODO: Implement full approval flow with execution pause/resume
+                    if let Err(e) = self.activate_policy_interrupt(
+                        &correlation_id,
+                        0, // step_number - not applicable for orchestration
+                        tool_name.clone(),
+                        "N/A".to_string(), // Arguments not available in ApprovalRequired event
+                        reason.clone(),
+                    ) {
+                        tracing::warn!("Failed to activate policy interrupt: {}", e);
+                    }
+                }
+                radium_orchestrator::orchestration::events::OrchestrationEvent::Error { message, .. } => {
+                    self.prompt_data.add_conversation_message(
+                        format!("❌ Error: {}", message),
+                        max_history,
+                    );
+                }
+                radium_orchestrator::orchestration::events::OrchestrationEvent::AssistantMessage { content, .. } => {
+                    if !content.trim().is_empty() {
+                        // Assistant messages are already handled by the result, but we can show intermediate ones
+                        // Skip to avoid duplication
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        // Add final assistant response
+        match result {
+            Ok(r) => {
+                let elapsed = start_time.elapsed();
+                let max_history = self.config.performance.max_conversation_history;
+                if elapsed.as_secs() >= 30 {
+                    self.prompt_data.add_conversation_message(
+                        format!("⏱️ Completed in {:.1}s", elapsed.as_secs_f64()),
+                        max_history,
+                    );
+                }
+
+                let response = r.response.clone();
+                self.prompt_data
+                    .add_conversation_message(format!("Agent: {}", response), max_history);
+
+                // Save agent response to session
+                let workspace_root_clone = self.workspace_status.as_ref().and_then(|s| s.root.clone());
+                if let Ok(session_manager) = crate::session_manager::SessionManager::new(workspace_root_clone) {
+                    let _ = session_manager.update_session(&session_id, &agent_id, &response, self.current_model_id.clone());
                 }
             }
             Err(e) => {
+                let max_history = self.config.performance.max_conversation_history;
                 self.prompt_data
-                    .conversation
-                    .push(format!("Error: Failed to execute message: {}", e));
+                    .add_conversation_message(format!("Error: {}", e), max_history);
             }
         }
 
         Ok(())
+    }
+
+    /// Execute recommendations sequentially
+    fn execute_recommendations(&mut self) {
+        use std::process::Command;
+
+        loop {
+            // Get next recommendation to execute and clone needed data
+            let (index, description, command) = match self.recommendations_panel.get_next_to_execute() {
+                Some((idx, rec)) => (idx, rec.description.clone(), rec.command.clone()),
+                None => break, // No more recommendations
+            };
+
+            // Mark as executing
+            self.recommendations_panel.mark_executing(index);
+
+            // If recommendation has a command, execute it
+            if let Some(ref cmd) = command {
+                self.toast_manager.info(format!("Running: {}", cmd));
+
+                // Execute command using shell
+                let result = if cfg!(target_os = "windows") {
+                    Command::new("cmd")
+                        .args(["/C", cmd.as_str()])
+                        .output()
+                } else {
+                    Command::new("sh")
+                        .arg("-c")
+                        .arg(cmd.as_str())
+                        .output()
+                };
+
+                match result {
+                    Ok(output) => {
+                        let stdout = String::from_utf8_lossy(&output.stdout);
+                        let stderr = String::from_utf8_lossy(&output.stderr);
+
+                        if output.status.success() {
+                            let result_msg = if !stdout.is_empty() {
+                                stdout.trim().to_string()
+                            } else {
+                                "Command completed successfully".to_string()
+                            };
+                            self.recommendations_panel.mark_completed(index, result_msg.clone());
+                            self.toast_manager.success(format!("✓ {}", description));
+
+                            // Add to chat history
+                            let max_history = self.config.performance.max_conversation_history;
+                            self.prompt_data.add_conversation_message(
+                                format!("Executed: {} → {}", cmd, result_msg),
+                                max_history
+                            );
+                        } else {
+                            let error_msg = if !stderr.is_empty() {
+                                stderr.trim().to_string()
+                            } else {
+                                format!("Command failed with exit code {:?}", output.status.code())
+                            };
+                            self.recommendations_panel.mark_failed(index, error_msg.clone());
+                            self.toast_manager.error(format!("✗ {}: {}", description, error_msg));
+                            break; // Stop on failure
+                        }
+                    }
+                    Err(e) => {
+                        let error_msg = format!("Failed to execute: {}", e);
+                        self.recommendations_panel.mark_failed(index, error_msg.clone());
+                        self.toast_manager.error(format!("✗ {}: {}", description, error_msg));
+                        break; // Stop on failure
+                    }
+                }
+            } else {
+                // No command to execute - just mark as completed
+                self.recommendations_panel.mark_completed(index, "Action noted".to_string());
+            }
+        }
+
+        // All recommendations processed
+        if !self.recommendations_panel.is_executing() {
+            self.toast_manager.success("All recommendations completed".to_string());
+        }
     }
 
     fn update_command_suggestions(&mut self) {
@@ -2128,7 +2961,7 @@ impl App {
                 match main_cmd {
                     "chat" if parts.len() <= 2 => {
                         // Suggest agent IDs for /chat command with fuzzy matching
-                        match crate::chat_executor::get_available_agents() {
+                        match crate::agent_discovery::get_available_agents() {
                             Ok(agents) => {
                             let query = if parts.len() > 1 { parts[1] } else { "" };
                             
@@ -2244,7 +3077,7 @@ impl App {
                         if parts.len() == 3 && parts[0] == "orchestrator" && parts[1] == "start" {
                             // Suggest agent IDs for /orchestrator start command
                             let query = parts[2];
-                            if let Ok(agents) = crate::chat_executor::get_available_agents() {
+                            if let Ok(agents) = crate::agent_discovery::get_available_agents() {
                                 let matcher = SkimMatcherV2::default();
                                 let mut scored_agents: Vec<(i64, (String, String))> = Vec::new();
                                 
@@ -2270,12 +3103,7 @@ impl App {
                                         })
                                 );
                             }
-                        } else {
-                            // No dynamic completion for this command
                         }
-                    }
-                    _ => {
-                        // No dynamic completion for this command
                     }
                 }
             }
@@ -2365,9 +3193,6 @@ impl App {
         // Show thinking indicator
         self.prompt_data.add_conversation_message("🤔 Analyzing...".to_string(), max_history);
 
-        // Record start time for elapsed time calculation
-        let start_time = std::time::Instant::now();
-
         // Ensure service is initialized
         // If initialization fails, we'll show error but keep orchestration enabled
         // so user can fix config and retry
@@ -2391,13 +3216,76 @@ impl App {
             return Err(anyhow::anyhow!(error_msg));
         }
 
-        // Execute orchestration
+        // Get current working directory for context file loading
+        let current_dir = self.workspace_status.as_ref()
+            .and_then(|ws| ws.root.as_ref())
+            .map(|p| p.to_path_buf());
+
+        // Spawn background task (NO AWAIT!) for non-blocking orchestration
         if let Some(ref service) = self.orchestration_service {
-            // Get current working directory for context file loading
+            self.orchestration_task = Some(Self::spawn_orchestration_task(
+                service.clone(),
+                session_id,
+                input,
+                current_dir,
+            ));
+        } else {
+            // Remove thinking indicator
+            self.prompt_data.conversation.pop();
+            let error_msg = "Orchestration service not available";
+            self.prompt_data.add_conversation_message(
+                format!("❌ {}", error_msg),
+                max_history
+            );
+            return Err(anyhow::anyhow!(error_msg));
+        }
+
+        // Return immediately - UI can now render!
+        // The event loop will poll for results via try_recv()
+        Ok(())
+    }
+
+    // OLD CODE BELOW - REPLACED WITH NON-BLOCKING VERSION ABOVE
+    // Keeping for reference during transition
+    #[allow(dead_code)]
+    async fn handle_orchestrated_input_old(&mut self, input: String) -> Result<()> {
+        let session_id = self.current_session.clone().unwrap_or_else(|| {
+            let id = format!("session_{}", chrono::Utc::now().format("%Y%m%d_%H%M%S"));
+            self.current_session = Some(id.clone());
+            id
+        });
+
+        self.prompt_data.context = DisplayContext::Chat {
+            agent_id: "orchestrator".to_string(),
+            session_id: session_id.clone(),
+        };
+
+        self.orchestration_running = true;
+        let max_history = self.config.performance.max_conversation_history;
+        self.prompt_data.add_conversation_message(format!("You: {}", input), max_history);
+        self.prompt_data.add_conversation_message("🤔 Analyzing...".to_string(), max_history);
+        let start_time = std::time::Instant::now();
+
+        if let Err(e) = self.ensure_orchestration_service().await {
+            self.prompt_data.conversation.pop();
+            return Err(e);
+        }
+
+        if self.orchestration_service.is_none() {
+            self.prompt_data.conversation.pop();
+            let error_msg = "Orchestration service not available. Check configuration and API keys.";
+            self.prompt_data.add_conversation_message(
+                format!("❌ {}", error_msg),
+                max_history
+            );
+            return Err(anyhow::anyhow!(error_msg));
+        }
+
+        if let Some(ref service) = self.orchestration_service {
             let current_dir = self.workspace_status.as_ref()
                 .and_then(|ws| ws.root.as_ref())
                 .map(|p| p.as_path());
-            
+
             match service.handle_input(&session_id, &input, current_dir).await {
                 Ok(result) => {
                     // Remove thinking indicator
@@ -2481,10 +3369,8 @@ impl App {
                     }
 
                     let max_history = self.config.performance.max_conversation_history;
-                    // Add response
-                    if !result.response.is_empty() {
-                        self.prompt_data.add_conversation_message(format!("Assistant: {}", result.response), max_history);
-                    }
+                    // Response is now added via Done event in main.rs event loop
+                    // (removed duplicate to prevent showing response twice)
 
                     // Show completion status
                     if result.is_success() {
@@ -2550,6 +3436,57 @@ impl App {
         self.orchestration_running = false;
 
         Ok(())
+    }
+
+    /// Spawns orchestration in a background task for non-blocking UI.
+    ///
+    /// This allows the UI to remain responsive while orchestration runs.
+    /// Progress updates are sent via the returned channel and can be
+    /// polled with try_recv() in the event loop.
+    ///
+    /// # Returns
+    /// OrchestrationTask containing:
+    /// - handle: JoinHandle for cleanup/cancellation
+    /// - result_rx: Channel for progress updates
+    /// - session_id: Session identifier
+    fn spawn_orchestration_task(
+        service: Arc<OrchestrationService>,
+        session_id: String,
+        input: String,
+        current_dir: Option<std::path::PathBuf>,
+    ) -> OrchestrationTask {
+        let (progress_tx, progress_rx) = tokio::sync::mpsc::channel(10);
+
+        // Clone session_id for the task handle before moving into closure
+        let session_id_for_task = session_id.clone();
+
+        let handle = tokio::spawn(async move {
+            // Signal that UI can refresh now
+            let _ = progress_tx.send(OrchestrationProgress::UserMessageDisplayed).await;
+
+            // Start thinking
+            let _ = progress_tx.send(OrchestrationProgress::ThinkingStarted).await;
+
+            let start_time = std::time::Instant::now();
+
+            // Execute orchestration
+            match service.handle_input(&session_id, &input, current_dir.as_deref()).await {
+                Ok(result) => Ok(OrchestrationResult {
+                    response: result.response,
+                    elapsed_time: start_time.elapsed(),
+                }),
+                Err(e) => {
+                    let _ = progress_tx.send(OrchestrationProgress::Error(e.to_string())).await;
+                    Err(anyhow::anyhow!("Orchestration error: {}", e))
+                }
+            }
+        });
+
+        OrchestrationTask {
+            handle,
+            result_rx: progress_rx,
+            session_id: session_id_for_task,
+        }
     }
 
     /// Handle /orchestrator command
@@ -2805,8 +3742,11 @@ impl App {
 
         match OrchestrationService::initialize(config.clone(), mcp_tools, workspace_root, sandbox_manager, context_loader, hook_executor).await {
             Ok(service) => {
+                // Subscribe to orchestration events for thinking/recommendations updates
+                let event_rx = service.subscribe_events();
+                self.orchestration_event_rx = Some(event_rx);
                 self.orchestration_service = Some(Arc::new(service));
-                
+
                 // Save config to workspace (or default path)
                 let save_result = if let Ok(workspace) = radium_core::Workspace::discover() {
                     let workspace_config_path = workspace.structure().orchestration_config_file();
@@ -2820,10 +3760,13 @@ impl App {
                         e
                     ));
                 }
-                
+
+                let provider_name = self.orchestration_service.as_ref()
+                    .map(|svc| svc.provider_name())
+                    .unwrap_or("unknown");
                 self.prompt_data.add_output(format!(
                     "✅ Switched to {} successfully",
-                    self.orchestration_service.as_ref().unwrap().provider_name()
+                    provider_name
                 ));
 
                 // Show new configuration
@@ -2963,8 +3906,11 @@ impl App {
 
         match OrchestrationService::initialize(config.clone(), mcp_tools, workspace_root, sandbox_manager, context_loader, hook_executor).await {
             Ok(service) => {
+                // Subscribe to orchestration events for thinking/recommendations updates
+                let event_rx = service.subscribe_events();
+                self.orchestration_event_rx = Some(event_rx);
                 self.orchestration_service = Some(Arc::new(service));
-                
+
                 // Save orchestration config to workspace (or default path)
                 let save_result = if let Ok(workspace) = radium_core::Workspace::discover() {
                     let workspace_config_path = workspace.structure().orchestration_config_file();
@@ -3026,7 +3972,7 @@ impl App {
     /// Load session model preference and switch to it if different
     async fn load_session_model(&mut self, session_id: &str) -> Result<()> {
         let workspace_root = self.workspace_status.as_ref().and_then(|s| s.root.clone());
-        let session_manager = crate::session_manager::SessionManager::new(workspace_root.clone())?;
+        let _session_manager = crate::session_manager::SessionManager::new(workspace_root.clone())?;
 
         // Load session from file
         let sessions_dir = if let Some(root) = workspace_root {
@@ -3053,6 +3999,7 @@ impl App {
     }
 
     /// Get display name for current model (truncated if too long)
+    #[allow(dead_code)]
     fn get_model_display_name(&self) -> String {
         self.current_model_id
             .as_ref()
@@ -3211,7 +4158,14 @@ impl App {
         // Initialize database
         self.prompt_data.add_output("💾 Initializing database...".to_string());
         let db_path = workspace.radium_dir().join("database.db");
-        let db = match Database::open(db_path.to_str().unwrap()) {
+        let db_path_str = match db_path.to_str() {
+            Some(path) => path,
+            None => {
+                self.prompt_data.add_output("   ❌ Database path contains invalid UTF-8 characters".to_string());
+                return Ok(());
+            }
+        };
+        let db = match Database::open(db_path_str) {
             Ok(database) => {
                 self.prompt_data.add_output("   ✓ Database initialized".to_string());
                 Arc::new(std::sync::Mutex::new(database))
@@ -3242,6 +4196,12 @@ impl App {
             model_type: ModelType::Gemini,
             model_id: "gemini-2.0-flash-exp".to_string(),
             api_key: std::env::var("GEMINI_API_KEY").ok(),
+            base_url: None,
+            enable_context_caching: None,
+            cache_ttl: None,
+            cache_breakpoints: None,
+            cache_identifier: None,
+            enable_code_execution: None,
         };
         let model = match ModelFactory::create(config) {
             Ok(m) => {
@@ -3551,6 +4511,81 @@ impl App {
             .unwrap_or(false)
     }
 
+    /// Handles keyboard input for onboarding wizard.
+    async fn handle_onboarding_key(&mut self, key: KeyCode) -> Result<()> {
+        let onboarding = match &mut self.onboarding_view {
+            Some(view) => view,
+            None => return Ok(()),
+        };
+
+        use crate::views::OnboardingStep;
+
+        match key {
+            KeyCode::Esc => {
+                // Skip onboarding
+                self.onboarding_view = None;
+                self.config.onboarding_completed = true;
+                if let Err(e) = self.config.save() {
+                    self.toast_manager.error(format!("Failed to save config: {}", e));
+                } else {
+                    self.toast_manager.info("Onboarding skipped".to_string());
+                }
+            }
+            KeyCode::Enter | KeyCode::Right => {
+                // Handle step-specific actions or navigate
+                match onboarding.current_step {
+                    OnboardingStep::FirstChat => {
+                        // Complete onboarding
+                        self.onboarding_view = None;
+                        self.config.onboarding_completed = true;
+                        if let Err(e) = self.config.save() {
+                            self.toast_manager.error(format!("Failed to save config: {}", e));
+                        } else {
+                            self.toast_manager.success("Welcome to Radium! Type a message to get started.".to_string());
+                        }
+                    }
+                    OnboardingStep::ApiKey => {
+                        // Launch auth wizard for selected provider (Phase 2.2)
+                        self.start_auth_wizard();
+                        self.toast_manager.info("Opening API key configuration...".to_string());
+
+                        // Mark as configured (will be verified when wizard completes)
+                        if let Some(ref mut onboarding) = self.onboarding_view {
+                            onboarding.api_key_configured = true;
+                        }
+                    }
+                    _ => {
+                        // Move to next step
+                        onboarding.next_step();
+                    }
+                }
+            }
+            KeyCode::Left | KeyCode::Backspace => {
+                // Previous step
+                onboarding.previous_step();
+            }
+            KeyCode::Up => {
+                // Navigate selection up (in provider/agent lists)
+                match onboarding.current_step {
+                    OnboardingStep::ApiKey => onboarding.previous_provider(),
+                    OnboardingStep::Agents => onboarding.previous_agent(),
+                    _ => {}
+                }
+            }
+            KeyCode::Down => {
+                // Navigate selection down (in provider/agent lists)
+                match onboarding.current_step {
+                    OnboardingStep::ApiKey => onboarding.next_provider(),
+                    OnboardingStep::Agents => onboarding.next_agent(),
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
+
+        Ok(())
+    }
+
     /// Handles keyboard input for checkpoint interrupt modal.
     async fn handle_checkpoint_interrupt_key(&mut self, key: KeyCode) -> Result<()> {
         let interrupt_state = match &mut self.checkpoint_interrupt_state {
@@ -3592,7 +4627,7 @@ impl App {
                         InterruptAction::Rollback { checkpoint_id } => {
                             // Show confirmation dialog
                             use crate::components::DialogChoice;
-                            let cp_id = checkpoint_id.clone();
+                            let _cp_id = checkpoint_id.clone();
                             let choices = vec![
                                 DialogChoice::new("Yes".to_string(), "yes".to_string()),
                                 DialogChoice::new("No".to_string(), "no".to_string()),
@@ -3611,7 +4646,7 @@ impl App {
                                 DialogChoice::new("Yes".to_string(), "yes".to_string()),
                                 DialogChoice::new("No".to_string(), "no".to_string()),
                             ];
-                            let workflow_id = interrupt_state.workflow_id.clone();
+                            let _workflow_id = interrupt_state.workflow_id.clone();
                             self.dialog_manager.show_select_menu(
                                 "Cancel workflow execution? This cannot be undone.".to_string(),
                                 choices,
@@ -3709,7 +4744,6 @@ impl App {
     pub fn check_for_checkpoint_behavior(&mut self, workflow_id: &str, step_number: usize, agent_id: Option<&str>) -> Result<bool> {
         use radium_core::workspace::{Workspace, WorkspaceStructure};
         use radium_core::workflow::behaviors::checkpoint::CheckpointEvaluator;
-        use std::path::Path;
 
         // Only check if not already in interrupt state
         if self.is_interrupt_active() {
@@ -3904,6 +4938,49 @@ impl App {
 
         Ok(())
     }
+
+    // Dirty flag helpers (Phase 5.1: Smart Rendering)
+
+    /// Mark content as dirty (state changed, user input, new message)
+    pub fn mark_dirty(&mut self) {
+        self.dirty_flags.mark_content_dirty();
+    }
+
+    /// Mark layout as dirty (window resized)
+    pub fn mark_layout_dirty(&mut self) {
+        self.dirty_flags.mark_layout_dirty();
+    }
+
+    /// Mark effects as dirty (animations running)
+    pub fn mark_effects_dirty(&mut self) {
+        self.dirty_flags.mark_effects_dirty();
+    }
+
+    /// Check if UI needs re-rendering
+    pub fn is_dirty(&self) -> bool {
+        self.dirty_flags.is_dirty()
+    }
+
+    /// Clear dirty flags after rendering
+    pub fn clear_dirty(&mut self) {
+        self.dirty_flags.clear();
+    }
+
+    /// Check if animations are active and mark effects dirty
+    pub fn check_animations(&mut self) {
+        // Mark effects dirty if:
+        // - Streaming is active (spinner animation)
+        // - Toast manager has active toasts
+        // - Effect manager has active effects
+        // - Orchestration is running (thinking indicator)
+        if self.streaming_context.is_some()
+            || !self.toast_manager.toasts().is_empty()
+            || self.effect_manager.has_active_effects()
+            || self.orchestration_running
+        {
+            self.mark_effects_dirty();
+        }
+    }
 }
 
 /// Simple fuzzy match helper (basic implementation).
@@ -3923,6 +5000,10 @@ fn fuzzy_match(text: &str, query: &str) -> bool {
     }
     true
 }
+
+#[cfg(test)]
+#[path = "app_tests.rs"]
+mod app_tests;
 
 impl Default for App {
     fn default() -> Self {

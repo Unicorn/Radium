@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["SafetyCategory","SafetyThreshold"],"mod":["file_api"],"struct":["GeminiContent","GeminiModel","GeminiSafetySetting"]};

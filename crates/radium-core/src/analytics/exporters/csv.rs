@@ -35,7 +35,7 @@ impl Exporter for CsvExporter {
             .from_writer(Vec::new());
 
         // Write header
-        writer.write_record(&[
+        writer.write_record([
             "timestamp",
             "agent_id",
             "plan_id",
@@ -69,9 +69,9 @@ impl Exporter for CsvExporter {
             ExportError::GenerationFailed(format!("Failed to get CSV data: {}", e))
         })?;
 
-        Ok(String::from_utf8(data).map_err(|e| {
+        String::from_utf8(data).map_err(|e| {
             ExportError::GenerationFailed(format!("Invalid UTF-8 in CSV: {}", e))
-        })?)
+        })
     }
 
     fn export_summary(
@@ -175,9 +175,9 @@ impl Exporter for CsvExporter {
             }
         }
 
-        Ok(String::from_utf8(output).map_err(|e| {
+        String::from_utf8(output).map_err(|e| {
             ExportError::GenerationFailed(format!("Invalid UTF-8 in CSV: {}", e))
-        })?)
+        })
     }
 }
 
@@ -192,6 +192,7 @@ mod tests {
             timestamp: Utc::now(),
             agent_id: "agent-1".to_string(),
             plan_id: Some("REQ-123".to_string()),
+            engine_id: Some("engine-1".to_string()),
             model: Some("claude-3.5-sonnet".to_string()),
             provider: Some("anthropic".to_string()),
             input_tokens: 1500,
@@ -294,6 +295,8 @@ mod tests {
                 map.insert("REQ-124".to_string(), 30.0);
                 map
             },
+            local_breakdown: Some(std::collections::HashMap::new()),
+            tier_breakdown: None,
             top_plans: vec![
                 ("REQ-123".to_string(), 70.0),
                 ("REQ-124".to_string(), 30.0),

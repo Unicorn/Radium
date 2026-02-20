@@ -32,15 +32,15 @@ impl<'a> CostQueryService<'a> {
         // Use a simpler approach: build query string and use params! macro with conditional values
         let mut query = String::from(
             "SELECT t.agent_id, t.timestamp, t.input_tokens, t.output_tokens, t.cached_tokens,
-                    t.total_tokens, t.estimated_cost, t.model, t.provider, a.plan_id, t.model_tier
+                    t.total_tokens, t.estimated_cost, t.model, t.provider, a.plan_id, t.model_tier, t.engine_id
              FROM telemetry t
              LEFT JOIN agents a ON t.agent_id = a.id
              WHERE 1=1",
         );
 
         // Build parameters based on filters
-        let start_ts = options.start_date.map(|d| d.timestamp() as i64);
-        let end_ts = options.end_date.map(|d| d.timestamp() as i64);
+        let start_ts = options.start_date.map(|d| d.timestamp());
+        let end_ts = options.end_date.map(|d| d.timestamp());
 
         // Add filters to query
         if start_ts.is_some() {
@@ -184,6 +184,7 @@ impl<'a> CostQueryService<'a> {
             total_tokens: row.get(5)?,
             estimated_cost: row.get(6)?,
             model_tier: row.get(10).ok(),
+            engine_id: row.get(11).ok(),
         })
     }
 
@@ -206,6 +207,7 @@ impl<'a> CostQueryService<'a> {
                 breakdown_by_plan: HashMap::new(),
                 top_plans: Vec::new(),
                 tier_breakdown: None,
+                local_breakdown: None,
             };
         }
 
@@ -222,11 +224,27 @@ impl<'a> CostQueryService<'a> {
         let mut breakdown_by_provider: HashMap<String, f64> = HashMap::new();
         let mut breakdown_by_model: HashMap<String, f64> = HashMap::new();
         let mut breakdown_by_plan: HashMap<String, f64> = HashMap::new();
+        let mut local_breakdown: HashMap<String, f64> = HashMap::new();
+        let mut _local_total_cost = 0.0;
 
         for record in records {
-            // Provider breakdown
-            if let Some(provider) = &record.provider {
-                *breakdown_by_provider.entry(provider.clone()).or_insert(0.0) += record.estimated_cost;
+            // Check if this is a local model
+            let is_local = record.provider.as_deref() == Some("local")
+                || (record.provider.is_none() && record.engine_id.is_some());
+
+            if is_local {
+                // Aggregate local costs by engine_id
+                if let Some(engine_id) = &record.engine_id {
+                    *local_breakdown.entry(engine_id.clone()).or_insert(0.0) += record.estimated_cost;
+                    _local_total_cost += record.estimated_cost; // Tracked for potential future use
+                }
+                // Add to provider breakdown as "local" aggregate
+                *breakdown_by_provider.entry("local".to_string()).or_insert(0.0) += record.estimated_cost;
+            } else {
+                // Provider breakdown for cloud models
+                if let Some(provider) = &record.provider {
+                    *breakdown_by_provider.entry(provider.clone()).or_insert(0.0) += record.estimated_cost;
+                }
             }
 
             // Model breakdown
@@ -251,6 +269,13 @@ impl<'a> CostQueryService<'a> {
         // Calculate tier breakdown if tier data is available
         let tier_breakdown = self.calculate_tier_breakdown(records);
 
+        // Only include local_breakdown if there are local models
+        let local_breakdown = if local_breakdown.is_empty() {
+            None
+        } else {
+            Some(local_breakdown)
+        };
+
         CostSummary {
             period: (start, end),
             total_cost,
@@ -260,6 +285,7 @@ impl<'a> CostQueryService<'a> {
             breakdown_by_plan,
             top_plans,
             tier_breakdown,
+            local_breakdown,
         }
     }
 
@@ -325,8 +351,7 @@ impl<'a> CostQueryService<'a> {
         let total_input_tokens = smart_tier.input_tokens + eco_tier.input_tokens;
         let total_output_tokens = smart_tier.output_tokens + eco_tier.output_tokens;
         
-        let all_smart_cost = (total_input_tokens as f64 / 1_000_000.0) * smart_input_price
-            + (total_output_tokens as f64 / 1_000_000.0) * smart_output_price;
+        let all_smart_cost = (total_input_tokens as f64 / 1_000_000.0).mul_add(smart_input_price, (total_output_tokens as f64 / 1_000_000.0) * smart_output_price);
         
         let actual_cost = smart_tier.cost + eco_tier.cost;
         let estimated_savings = all_smart_cost - actual_cost;
@@ -369,7 +394,7 @@ mod tests {
         let telemetry = TelemetryRecord::new("agent-1".to_string())
             .with_tokens(1000, 500)
             .with_model("claude-3.5-sonnet".to_string(), "anthropic".to_string());
-        monitoring.record_telemetry(&telemetry).await.unwrap();
+        monitoring.record_telemetry_sync(&telemetry).unwrap();
 
         let options = ExportOptions {
             format: ExportFormat::Csv,
@@ -406,8 +431,8 @@ mod tests {
         let telemetry2 = TelemetryRecord::new("agent-2".to_string())
             .with_tokens(2000, 1000)
             .with_model("gpt-4o".to_string(), "openai".to_string());
-        monitoring.record_telemetry(&telemetry1).await.unwrap();
-        monitoring.record_telemetry(&telemetry2).await.unwrap();
+        monitoring.record_telemetry_sync(&telemetry1).unwrap();
+        monitoring.record_telemetry_sync(&telemetry2).unwrap();
 
         let options = ExportOptions {
             format: ExportFormat::Csv,
@@ -449,6 +474,7 @@ mod tests {
                 total_tokens: 1500,
                 estimated_cost: 10.0,
                 model_tier: None,
+                engine_id: None,
             },
             CostRecord {
                 timestamp: Utc::now(),
@@ -462,6 +488,7 @@ mod tests {
                 total_tokens: 3000,
                 estimated_cost: 20.0,
                 model_tier: None,
+                engine_id: None,
             },
         ];
 
@@ -490,6 +517,7 @@ mod tests {
                 total_tokens: 1500,
                 estimated_cost: 0.021, // Smart tier cost
                 model_tier: Some("smart".to_string()),
+                engine_id: None,
             },
             CostRecord {
                 timestamp: Utc::now(),
@@ -503,6 +531,7 @@ mod tests {
                 total_tokens: 3000,
                 estimated_cost: 0.003, // Eco tier cost
                 model_tier: Some("eco".to_string()),
+                engine_id: None,
             },
         ];
 
@@ -542,6 +571,7 @@ mod tests {
                 total_tokens: 1500,
                 estimated_cost: 10.0,
                 model_tier: None, // No tier data
+                engine_id: None,
             },
         ];
 
@@ -549,6 +579,148 @@ mod tests {
         
         // Should not have tier breakdown when no tier data
         assert!(summary.tier_breakdown.is_none());
+    }
+
+    #[test]
+    fn test_local_cost_breakdown() {
+        let (monitoring, _temp) = futures::executor::block_on(setup_test_service());
+        let service = CostQueryService::new(&monitoring);
+        let records = vec![
+            CostRecord {
+                timestamp: Utc::now(),
+                agent_id: "agent-1".to_string(),
+                plan_id: Some("REQ-123".to_string()),
+                model: Some("llama2:7b".to_string()),
+                provider: Some("local".to_string()),
+                input_tokens: 0,
+                output_tokens: 0,
+                cached_tokens: 0,
+                total_tokens: 0,
+                estimated_cost: 12.30,
+                model_tier: None,
+                engine_id: Some("ollama".to_string()),
+            },
+            CostRecord {
+                timestamp: Utc::now(),
+                agent_id: "agent-2".to_string(),
+                plan_id: Some("REQ-123".to_string()),
+                model: Some("llama2:13b".to_string()),
+                provider: Some("local".to_string()),
+                input_tokens: 0,
+                output_tokens: 0,
+                cached_tokens: 0,
+                total_tokens: 0,
+                estimated_cost: 8.20,
+                model_tier: None,
+                engine_id: Some("lm-studio".to_string()),
+            },
+        ];
+
+        let summary = service.generate_summary(&records);
+        
+        // Should have local breakdown
+        assert!(summary.local_breakdown.is_some());
+        let local_breakdown = summary.local_breakdown.unwrap();
+        assert_eq!(local_breakdown.get("ollama"), Some(&12.30));
+        assert_eq!(local_breakdown.get("lm-studio"), Some(&8.20));
+        
+        // Provider breakdown should include "local" aggregate
+        assert_eq!(summary.breakdown_by_provider.get("local"), Some(&20.50));
+        
+        // Total cost should include local costs
+        assert!((summary.total_cost - 20.50).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_mixed_cloud_and_local_costs() {
+        let (monitoring, _temp) = futures::executor::block_on(setup_test_service());
+        let service = CostQueryService::new(&monitoring);
+        let records = vec![
+            CostRecord {
+                timestamp: Utc::now(),
+                agent_id: "agent-1".to_string(),
+                plan_id: Some("REQ-123".to_string()),
+                model: Some("gpt-4".to_string()),
+                provider: Some("openai".to_string()),
+                input_tokens: 1000,
+                output_tokens: 500,
+                cached_tokens: 0,
+                total_tokens: 1500,
+                estimated_cost: 75.0,
+                model_tier: None,
+                engine_id: None,
+            },
+            CostRecord {
+                timestamp: Utc::now(),
+                agent_id: "agent-2".to_string(),
+                plan_id: Some("REQ-123".to_string()),
+                model: Some("claude-3-sonnet".to_string()),
+                provider: Some("anthropic".to_string()),
+                input_tokens: 2000,
+                output_tokens: 1000,
+                cached_tokens: 0,
+                total_tokens: 3000,
+                estimated_cost: 30.0,
+                model_tier: None,
+                engine_id: None,
+            },
+            CostRecord {
+                timestamp: Utc::now(),
+                agent_id: "agent-3".to_string(),
+                plan_id: Some("REQ-123".to_string()),
+                model: Some("llama2:7b".to_string()),
+                provider: Some("local".to_string()),
+                input_tokens: 0,
+                output_tokens: 0,
+                cached_tokens: 0,
+                total_tokens: 0,
+                estimated_cost: 20.50,
+                model_tier: None,
+                engine_id: Some("ollama".to_string()),
+            },
+        ];
+
+        let summary = service.generate_summary(&records);
+        
+        // Total should include all costs
+        assert!((summary.total_cost - 125.50).abs() < 0.01);
+        
+        // Provider breakdown should include all providers
+        assert_eq!(summary.breakdown_by_provider.get("openai"), Some(&75.0));
+        assert_eq!(summary.breakdown_by_provider.get("anthropic"), Some(&30.0));
+        assert_eq!(summary.breakdown_by_provider.get("local"), Some(&20.50));
+        
+        // Local breakdown should be present
+        assert!(summary.local_breakdown.is_some());
+        let local_breakdown = summary.local_breakdown.unwrap();
+        assert_eq!(local_breakdown.get("ollama"), Some(&20.50));
+    }
+
+    #[test]
+    fn test_no_local_breakdown_when_no_local_models() {
+        let (monitoring, _temp) = futures::executor::block_on(setup_test_service());
+        let service = CostQueryService::new(&monitoring);
+        let records = vec![
+            CostRecord {
+                timestamp: Utc::now(),
+                agent_id: "agent-1".to_string(),
+                plan_id: Some("REQ-123".to_string()),
+                model: Some("gpt-4".to_string()),
+                provider: Some("openai".to_string()),
+                input_tokens: 1000,
+                output_tokens: 500,
+                cached_tokens: 0,
+                total_tokens: 1500,
+                estimated_cost: 75.0,
+                model_tier: None,
+                engine_id: None,
+            },
+        ];
+
+        let summary = service.generate_summary(&records);
+        
+        // Should not have local breakdown when no local models
+        assert!(summary.local_breakdown.is_none());
     }
 }
 

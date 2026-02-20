@@ -1046,7 +1046,14 @@ mod tests {
             temperature: Some(0.7),
             top_p: Some(0.9),
             max_tokens: Some(2000),
+            top_k: None,
+            frequency_penalty: None,
+            presence_penalty: None,
+            response_format: None,
             stop_sequences: None,
+            enable_grounding: None,
+            grounding_threshold: None,
+            reasoning_effort: None,
         });
         config.max_iterations = Some(10);
         config.timeout_seconds = Some(300);
@@ -1263,6 +1270,9 @@ mod tests {
             started_at: started,
             completed_at: Some(completed),
             duration_ms: Some(5000),
+            cancellation_reason: None,
+            cancelled_at: None,
+            is_partial: false,
         });
         task.set_state(TaskState::Completed);
         repo.update(&task).unwrap();

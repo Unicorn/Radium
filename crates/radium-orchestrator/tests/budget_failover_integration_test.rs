@@ -7,7 +7,9 @@
 //! - Total exhaustion with checkpoint creation
 //! - Pre-execution budget checks
 
-use radium_abstraction::{ChatMessage, Model, ModelError, ModelParameters, ModelResponse};
+use radium_abstraction::{
+    ChatMessage, MessageContent, Model, ModelError, ModelParameters, ModelResponse, Tool, ToolConfig,
+};
 use radium_core::monitoring::{BudgetConfig, BudgetError, BudgetManager};
 use std::sync::Arc;
 
@@ -64,6 +66,8 @@ impl Model for MockFailoverModel {
             content: self.success_response.clone().unwrap_or_default(),
             model_id: Some(self.model_id.clone()),
             usage: None,
+            metadata: None,
+            tool_calls: None,
         })
     }
 
@@ -72,8 +76,24 @@ impl Model for MockFailoverModel {
         messages: &[ChatMessage],
         parameters: Option<ModelParameters>,
     ) -> Result<ModelResponse, ModelError> {
-        let content = messages.first().map(|m| m.content.as_str()).unwrap_or("");
+        let content = messages
+            .first()
+            .and_then(|m| match &m.content {
+                MessageContent::Text(s) => Some(s.as_str()),
+                _ => None,
+            })
+            .unwrap_or("");
         self.generate_text(content, parameters).await
+    }
+
+    async fn generate_with_tools(
+        &self,
+        messages: &[ChatMessage],
+        _tools: &[Tool],
+        _tool_config: Option<&ToolConfig>,
+    ) -> Result<ModelResponse, ModelError> {
+        // These tests don't validate tool calling behavior; use chat completion behavior.
+        self.generate_chat_completion(messages, None).await
     }
 
     fn model_id(&self) -> &str {
@@ -180,10 +200,10 @@ async fn test_multi_provider_failover_budget_tracking() {
 /// Test: Budget warning at threshold
 #[tokio::test]
 async fn test_budget_warning_at_threshold() {
-    // Setup: Budget $10.00, warning at 80%, $8.50 spent
+    // Setup: Budget $10.00, warning at 80%, $8.00 spent (=80%)
     let config = BudgetConfig::new(Some(10.0)).with_warning_thresholds(vec![80]);
     let budget_manager = BudgetManager::new(config);
-    budget_manager.record_cost(8.5);
+    budget_manager.record_cost(8.0);
     
     // Action: check_budget_available($0.10)
     let result = budget_manager.check_budget_available(0.10);
@@ -191,9 +211,9 @@ async fn test_budget_warning_at_threshold() {
     // Expect: Returns Err(BudgetError::BudgetWarning) with remaining budget info
     assert!(result.is_err());
     if let Err(BudgetError::BudgetWarning { spent, limit, percentage }) = result {
-        assert!((spent - 8.5).abs() < 0.01);
+        assert!((spent - 8.0).abs() < 0.01);
         assert!((limit - 10.0).abs() < 0.01);
-        assert!(percentage >= 80.0 && percentage < 90.0);
+        assert!(percentage >= 80.0 && percentage < 81.0);
     } else {
         panic!("Expected BudgetWarning error");
     }

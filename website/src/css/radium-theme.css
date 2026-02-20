@@ -1,0 +1,152 @@
+/**
+ * Radium Theme Documentation
+ * 
+ * This file documents all available colors in the Radium website theme.
+ * The theme combines Radium green aesthetic (primary) with
+ * official Radium brand colors (available palette).
+ * 
+ * Source References:
+ * - Radium brand colors: apps/tui/src/theme.rs (RadiumTheme::radium())
+ * - Radium CLI colors: apps/cli/src/colors.rs (RadiumBrandColors)
+ * - Documentation: website/docs/developer-guide/development/colors.md
+ */
+
+/* ============================================
+   Color Usage Guidelines
+   ============================================ */
+
+/**
+ * Radium Green (Primary Theme)
+ * Based on #4af5b0 palette
+ * 
+ * Use for:
+ * - Main CTA buttons
+ * - Primary navigation highlights
+ * - Key feature highlights
+ * - Main accent text
+ * - Primary glow effects
+ * 
+ * Available variables:
+ * - --voiceflow-green-primary: #4af5b0
+ * - --voiceflow-green-dark: #3dd19a
+ * - --voiceflow-green-darker: #2fad84
+ * - --voiceflow-green-darkest: #21896e
+ * - --voiceflow-green-light: #6ff7c4
+ * - --voiceflow-green-lighter: #94f9d8
+ * - --voiceflow-green-lightest: #b9fbec
+ * - --voiceflow-green-glow: rgba(74, 245, 176, 0.2)
+ * - --voiceflow-green-glow-strong: rgba(74, 245, 176, 0.4)
+ */
+
+/**
+ * Radium Colors (Secondary/Variety)
+ * 
+ * Use for:
+ * - Secondary buttons (purple)
+ * - Tertiary actions (cyan)
+ * - Status indicators (success, warning, error, info)
+ * - Code syntax highlighting
+ * - Secondary card accents
+ * - Variety in feature grids
+ * 
+ * Available variables:
+ * - --radium-primary: #00D9FF (Cyan)
+ * - --radium-secondary: #A78BFA (Purple)
+ * - --radium-purple-accent: #6250d0
+ * - --radium-success: #10B981 (Green)
+ * - --radium-warning: #F59E0B (Yellow)
+ * - --radium-error: #EF4444 (Red)
+ * - --radium-info: #06B6D4 (Blue)
+ */
+
+/* ============================================
+   Example Color Combinations
+   ============================================ */
+
+/**
+ * Primary Action:
+ * - Background: var(--voiceflow-green-primary)
+ * - Text: White or dark background
+ * - Glow: var(--glow-green)
+ * 
+ * Secondary Action:
+ * - Background: var(--radium-secondary)
+ * - Text: White
+ * - Glow: var(--glow-purple)
+ * 
+ * Tertiary Action:
+ * - Background: var(--radium-primary)
+ * - Text: White or dark background
+ * - Glow: var(--glow-cyan)
+ * 
+ * Success Message:
+ * - Border: var(--radium-success)
+ * - Text: var(--radium-success)
+ * 
+ * Warning Message:
+ * - Border: var(--radium-warning)
+ * - Text: var(--radium-warning)
+ * 
+ * Error Message:
+ * - Border: var(--radium-error)
+ * - Text: var(--radium-error)
+ * 
+ * Info Message:
+ * - Border: var(--radium-info)
+ * - Text: var(--radium-info)
+ */
+
+/* ============================================
+   Background Colors
+   ============================================ */
+
+/**
+ * VoiceFlow Backgrounds:
+ * - --voiceflow-bg-gradient-start: #0a1f1a (Dark teal)
+ * - --voiceflow-bg-gradient-mid: #1a1a1a (Dark grey)
+ * - --voiceflow-bg-gradient-end: #0a0a0a (Near black)
+ * 
+ * Radium Backgrounds:
+ * - --radium-bg-primary: #181D27
+ * - --radium-bg-panel: #141414
+ * - --radium-bg-element: #1e1e1e
+ * 
+ * Usage:
+ * - Main page background: VoiceFlow gradient
+ * - Cards/panels: Radium bg_panel or bg_element
+ * - Code blocks: Radium bg_element
+ */
+
+/* ============================================
+   Text Colors
+   ============================================ */
+
+/**
+ * Radium Text Colors:
+ * - --radium-text: #eeeeee (Primary text)
+ * - --radium-text-muted: #808080 (Secondary text)
+ * - --radium-text-dim: #606060 (Dimmed text)
+ * 
+ * Usage:
+ * - Body text: var(--radium-text)
+ * - Secondary text: var(--radium-text-muted)
+ * - Disabled/placeholder: var(--radium-text-dim)
+ */
+
+/* ============================================
+   Border Colors
+   ============================================ */
+
+/**
+ * Radium Border Colors:
+ * - --radium-border: #484848 (Standard border)
+ * - --radium-border-active: #606060 (Active/focused border)
+ * - --radium-border-subtle: #3c3c3c (Subtle border)
+ * 
+ * Usage:
+ * - Default borders: var(--radium-border)
+ * - Focused/active elements: var(--radium-border-active)
+ * - Subtle dividers: var(--radium-border-subtle)
+ * - Accent borders: var(--voiceflow-green-primary) or var(--radium-primary)
+ */
+

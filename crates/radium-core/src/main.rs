@@ -21,7 +21,7 @@ async fn main() {
     // Note: unwrap_or_else is acceptable here as it provides a sensible default
 
     // Load configuration
-    let config = match Config::load() {
+    let _config = match Config::load() {
         Ok(config) => config,
         Err(e) => {
             error!(error = %e, "Failed to load configuration");
@@ -31,6 +31,7 @@ async fn main() {
 
     // Start server
     // DISABLED: server module is disabled
+    // The config would be passed to server::run(&_config) when enabled
     error!("Server module is disabled. Cannot start server.");
     std::process::exit(1);
     // if let Err(e) = server::run(&config).await {

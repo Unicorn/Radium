@@ -278,8 +278,8 @@ fn test_agent_status_display() {
     assert_eq!(AgentStatus::Completed.as_str(), "Completed");
     assert_eq!(AgentStatus::Failed.as_str(), "Failed");
     
-    assert_eq!(AgentStatus::Running.icon(), "▶");
-    assert_eq!(AgentStatus::Completed.icon(), "✓");
+    assert_eq!(AgentStatus::Running.icon(), "⠋");
+    assert_eq!(AgentStatus::Completed.icon(), "●");
     assert_eq!(AgentStatus::Failed.icon(), "✗");
     
     assert!(AgentStatus::Running.is_active());

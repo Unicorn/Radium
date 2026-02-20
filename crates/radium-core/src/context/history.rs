@@ -28,6 +28,9 @@ pub struct Interaction {
     pub output: String,
     /// Timestamp when this interaction occurred.
     pub timestamp: DateTime<Utc>,
+    /// Optional metadata from the model response (e.g., finish_reason, safety_ratings, citations).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<HashMap<String, serde_json::Value>>,
 }
 
 /// Errors that can occur during history operations.
@@ -92,8 +95,20 @@ impl HistoryManager {
         plan: String,
         output: String,
     ) -> Result<()> {
+        self.add_interaction_with_metadata(session_id, goal, plan, output, None)
+    }
+
+    /// Adds an interaction to a session's history with optional model metadata.
+    pub fn add_interaction_with_metadata(
+        &mut self,
+        session_id: Option<&str>,
+        goal: String,
+        plan: String,
+        output: String,
+        metadata: Option<HashMap<String, serde_json::Value>>,
+    ) -> Result<()> {
         let session_id = session_id.unwrap_or("default").to_string();
-        let interaction = Interaction { goal, plan, output, timestamp: Utc::now() };
+        let interaction = Interaction { goal, plan, output, timestamp: Utc::now(), metadata };
 
         let session_history = self.histories.entry(session_id).or_default();
         session_history.push(interaction);

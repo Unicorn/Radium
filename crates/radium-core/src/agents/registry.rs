@@ -11,35 +11,29 @@ use strsim::levenshtein;
 
 /// Search mode for text matching.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Default)]
 pub enum SearchMode {
     /// Exact match (case-insensitive).
     Exact,
     /// Contains match (substring, case-insensitive).
+    #[default]
     Contains,
     /// Fuzzy match using Levenshtein distance.
     Fuzzy,
 }
 
-impl Default for SearchMode {
-    fn default() -> Self {
-        SearchMode::Contains
-    }
-}
 
 /// Logic mode for combining filter criteria.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Default)]
 pub enum LogicMode {
     /// All criteria must match (AND).
+    #[default]
     And,
     /// Any criteria can match (OR).
     Or,
 }
 
-impl Default for LogicMode {
-    fn default() -> Self {
-        LogicMode::And
-    }
-}
 
 /// Filter criteria for agent filtering.
 #[derive(Debug, Clone)]
@@ -371,8 +365,7 @@ impl AgentRegistry {
         self.filter(|agent| {
             agent.category
                 .as_ref()
-                .map(|c| c.to_lowercase().contains(&category_lower))
-                .unwrap_or(false)
+                .is_some_and(|c| c.to_lowercase().contains(&category_lower))
         })
     }
 
@@ -388,7 +381,7 @@ impl AgentRegistry {
     /// Returns error if agent not found or lock is poisoned
     pub fn find_similar(&self, agent_id: &str) -> Result<Vec<AgentConfig>> {
         let agent = self.get(agent_id)?;
-        let category = agent.category.clone();
+        let category = agent.category;
 
         if let Some(cat) = category {
             self.find_by_category(&cat).map(|mut agents| {
@@ -434,7 +427,7 @@ impl AgentRegistry {
     pub fn filter_by_category(&self, category: &str) -> Result<Vec<AgentConfig>> {
         let category_lower = category.to_lowercase();
         self.filter(|agent| {
-            agent.category.as_ref().map_or(false, |c| {
+            agent.category.as_ref().is_some_and(|c| {
                 c.to_lowercase().contains(&category_lower)
             })
         })
@@ -448,7 +441,7 @@ impl AgentRegistry {
     pub fn filter_by_engine(&self, engine: &str) -> Result<Vec<AgentConfig>> {
         let engine_lower = engine.to_lowercase();
         self.filter(|agent| {
-            agent.engine.as_ref().map_or(false, |e| e.to_lowercase() == engine_lower)
+            agent.engine.as_ref().is_some_and(|e| e.to_lowercase() == engine_lower)
         })
     }
 
@@ -460,7 +453,7 @@ impl AgentRegistry {
     pub fn filter_by_model(&self, model: &str) -> Result<Vec<AgentConfig>> {
         let model_lower = model.to_lowercase();
         self.filter(|agent| {
-            agent.model.as_ref().map_or(false, |m| {
+            agent.model.as_ref().is_some_and(|m| {
                 m.to_lowercase().contains(&model_lower)
             })
         })
@@ -632,6 +625,9 @@ mod tests {
             capabilities: crate::agents::config::AgentCapabilities::default(),
             sandbox: None,
             persona_config: None,
+            routing: None,
+            safety_behavior: None,
+            code_execution_enabled: None,
         }
     }
 

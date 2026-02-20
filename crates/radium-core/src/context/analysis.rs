@@ -1,7 +1,5 @@
 //! Question type detection and analysis planning for intelligent context building.
 
-use std::path::PathBuf;
-
 /// Types of questions that can be asked, each requiring different analysis strategies.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum QuestionType {
@@ -375,7 +373,7 @@ impl AnalysisPlan {
         let recommended_files = question_type
             .recommended_files()
             .iter()
-            .map(|s| s.to_string())
+            .map(|s| (*s).to_string())
             .collect();
         let suggested_searches = question_type.suggested_searches(input);
         let synthesis_guidance = question_type.synthesis_guidance().to_string();
@@ -402,7 +400,7 @@ impl AnalysisPlan {
             for file in &self.recommended_files {
                 context.push_str(&format!("- `{}`\n", file));
             }
-            context.push_str("\n");
+            context.push('\n');
         }
 
         if !self.suggested_searches.is_empty() {
@@ -410,7 +408,7 @@ impl AnalysisPlan {
             for search in &self.suggested_searches {
                 context.push_str(&format!("- `codebase_search(\"{}\")`\n", search));
             }
-            context.push_str("\n");
+            context.push('\n');
         }
 
         context.push_str("## Synthesis Guidance\n\n");

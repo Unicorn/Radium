@@ -9,6 +9,8 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 
+use crate::colors::RadiumBrandColors;
+
 /// Execute the init command.
 
 pub async fn execute(
@@ -18,7 +20,8 @@ pub async fn execute(
     sandbox: Option<String>,
     sandbox_network: Option<String>,
 ) -> Result<()> {
-    println!("{}", "rad init".bold().cyan());
+    let colors = RadiumBrandColors::new();
+    println!("{}", "rad init".bold().color(colors.primary()));
 
     println!();
 
@@ -50,7 +53,7 @@ pub async fn execute(
         let _default_path = ".radium";
 
         if is_git_repo {
-            println!("{} Git repository detected.", "•".cyan());
+            println!("{} Git repository detected.", "•".color(colors.primary()));
         }
 
         // We interpret the "path" as where the WORKSPACE ROOT is.
@@ -77,11 +80,11 @@ pub async fn execute(
         if target_path.is_absolute() { target_path } else { current_dir.join(target_path) };
 
     println!();
-    println!("Initializing workspace at: {}", target_path.display().to_string().cyan());
+    println!("Initializing workspace at: {}", target_path.display().to_string().color(colors.primary()));
 
     // Check if already initialized
     if target_path.join(".radium").exists() {
-        println!("{} Workspace already initialized.", "!".yellow());
+        println!("{} Workspace already initialized.", "!".color(colors.warning()));
         return Ok(());
     }
 
@@ -112,7 +115,7 @@ pub async fn execute(
                 println!("  ✓ Created GEMINI.md context file");
             }
             Err(e) => {
-                println!("  {} Failed to create GEMINI.md: {}", "!".yellow(), e);
+                println!("  {} Failed to create GEMINI.md: {}", "!".color(colors.warning()), e);
             }
         }
     }
@@ -129,7 +132,7 @@ pub async fn execute(
             "podman" => SandboxType::Podman,
             "seatbelt" => SandboxType::Seatbelt,
             _ => {
-                println!("  {} Invalid sandbox type: {}, using 'none'", "!".yellow(), sandbox_type_str);
+                    println!("  {} Invalid sandbox type: {}, using 'none'", "!".color(colors.warning()), sandbox_type_str);
                 SandboxType::None
             }
         };
@@ -141,7 +144,7 @@ pub async fn execute(
                 "closed" => NetworkMode::Closed,
                 "proxied" => NetworkMode::Proxied,
                 _ => {
-                    println!("  {} Invalid network mode: {}, using 'open'", "!".yellow(), net);
+                    println!("  {} Invalid network mode: {}, using 'open'", "!".color(colors.warning()), net);
                     NetworkMode::Open
                 }
             }
@@ -157,10 +160,10 @@ pub async fn execute(
             }
             Err(e) => {
                 if matches!(e, radium_core::sandbox::SandboxError::NotAvailable(_)) {
-                    println!("  {} Warning: Sandbox type '{}' is not available on this system", "!".yellow(), sandbox_type_str);
+                    println!("  {} Warning: Sandbox type '{}' is not available on this system", "!".color(colors.warning()), sandbox_type_str);
                     println!("  {} Configuration will be saved, but sandbox will not be used until available.", " ".dimmed());
                 } else {
-                    println!("  {} Failed to validate sandbox: {}", "!".yellow(), e);
+                    println!("  {} Failed to validate sandbox: {}", "!".color(colors.warning()), e);
                 }
             }
         }
@@ -195,20 +198,20 @@ pub async fn execute(
     }
 
     println!();
-    println!("{}", "Workspace initialized successfully!".green().bold());
+    println!("{}", "Workspace initialized successfully!".color(colors.success()).bold());
     println!();
     
     if with_context {
         println!("{}", "Next steps:".bold());
-        println!("  1. Customize {} with your project guidelines", "GEMINI.md".cyan());
-        println!("  2. Create a plan: {}", "rad plan <spec-file>".cyan());
-        println!("  3. Execute a plan: {}", "rad craft <plan-id>".cyan());
+        println!("  1. Customize {} with your project guidelines", "GEMINI.md".color(colors.primary()));
+        println!("  2. Create a plan: {}", "rad plan <spec-file>".color(colors.primary()));
+        println!("  3. Execute a plan: {}", "rad craft <plan-id>".color(colors.primary()));
     } else {
         println!("{}", "Next steps:".bold());
-        println!("  1. Create a plan: {}", "rad plan <spec-file>".cyan());
-        println!("  2. Execute a plan: {}", "rad craft <plan-id>".cyan());
+        println!("  1. Create a plan: {}", "rad plan <spec-file>".color(colors.primary()));
+        println!("  2. Execute a plan: {}", "rad craft <plan-id>".color(colors.primary()));
         println!();
-        println!("  {} Tip: Add a {} file for persistent agent instructions", "•".dimmed(), "GEMINI.md".cyan());
+        println!("  {} Tip: Add a {} file for persistent agent instructions", "•".dimmed(), "GEMINI.md".color(colors.primary()));
     }
     println!();
 

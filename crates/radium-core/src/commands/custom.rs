@@ -149,7 +149,7 @@ impl CustomCommand {
                 Ok(modified_args) => {
                     effective_args = modified_args;
                     // Extract args from modified arguments if present
-                    if let Some(new_args_array) = effective_args.get("args").and_then(|v| v.as_array()) {
+                    if let Some(_new_args_array) = effective_args.get("args").and_then(|v| v.as_array()) {
                         // Update args if hook modified them
                         // Note: We can't easily modify the args slice, so we'll use the original args
                         // but hooks can modify the tool_args_json which affects the template rendering
@@ -309,7 +309,7 @@ impl CustomCommand {
                 }
 
                 let command = parts[0];
-                let cmd_args: Vec<String> = parts[1..].iter().map(|s| s.to_string()).collect();
+                let cmd_args: Vec<String> = parts[1..].iter().map(|s| (*s).to_string()).collect();
 
                 rt.block_on(async {
                     sandbox.execute(command, &cmd_args, None).await

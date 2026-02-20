@@ -21,13 +21,16 @@ pub struct PolicyRule {
     /// Human-readable name for this rule.
     pub name: String,
     /// Glob pattern for matching tool names.
-    /// Examples: "read_*", "bash:*", "mcp:*", "server:tool", "*:dangerous", "server1:*"
+    /// Examples: "read_*", "bash:*", "mcp:*", "server:tool", "*:dangerous", "server1:*", "code_execution"
     /// 
     /// For MCP tools, patterns can match:
     /// - `mcp_*` - All MCP tools (orchestration format: mcp_server_tool)
     /// - `mcp_server1_*` - All tools from server1
     /// - `*:tool` - Tool named "tool" from any server (if using server:tool format)
     /// - `server1:*` - All tools from server1 (if using server:tool format)
+    /// 
+    /// For code execution (provider-specific tools like Gemini's code_execution):
+    /// - `code_execution` - Matches code execution tool requests
     pub tool_pattern: String,
     /// Optional glob pattern for matching tool arguments.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -257,7 +260,7 @@ impl PolicyEngine {
     pub async fn evaluate_tool(&self, tool_name: &str, args: &[&str]) -> PolicyResult<PolicyDecision> {
         // Execute BeforeTool hooks to allow modification
         let mut effective_tool_name = tool_name.to_string();
-        let mut effective_args: Vec<String> = args.iter().map(|s| s.to_string()).collect();
+        let mut effective_args: Vec<String> = args.iter().map(|s| (*s).to_string()).collect();
 
         if let Some(registry) = &self.hook_registry {
             let hook_context = HookContext::new(
@@ -285,7 +288,7 @@ impl PolicyEngine {
                         if let Some(new_args) = modified_data.get("args").and_then(|v| v.as_array()) {
                             effective_args = new_args
                                 .iter()
-                                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                                .filter_map(|v| v.as_str().map(std::string::ToString::to_string))
                                 .collect::<Vec<_>>();
                         }
                     }
@@ -294,7 +297,7 @@ impl PolicyEngine {
         }
 
         // Convert effective_args back to &[&str] for policy evaluation
-        let args_refs: Vec<&str> = effective_args.iter().map(|s| s.as_str()).collect();
+        let args_refs: Vec<&str> = effective_args.iter().map(std::string::String::as_str).collect();
 
         // Check rules in priority order
         for rule in &self.rules {
@@ -314,14 +317,14 @@ impl PolicyEngine {
                 // Send alert for violations (non-allow actions)
                 if let Some(ref alert_manager) = self.alert_manager {
                     if decision.action != PolicyAction::Allow {
-                        let args_str: Vec<&str> = args_refs.iter().copied().collect();
+                        let args_str: Vec<&str> = args_refs.clone();
                         alert_manager.send_alert(&decision, &effective_tool_name, &args_str, None).await;
                     }
                 }
 
                 // Record analytics event
                 if let Some(ref analytics) = self.analytics {
-                    let args_str: Vec<&str> = args_refs.iter().copied().collect();
+                    let args_str: Vec<&str> = args_refs.clone();
                     analytics.record_event(&decision, &effective_tool_name, &args_str, None);
                 }
 
@@ -361,14 +364,14 @@ impl PolicyEngine {
         // Send alert for violations (non-allow actions)
         if let Some(ref alert_manager) = self.alert_manager {
             if decision.action != PolicyAction::Allow {
-                let args_str: Vec<&str> = args_refs.iter().copied().collect();
+                let args_str: Vec<&str> = args_refs.clone();
                 alert_manager.send_alert(&decision, &effective_tool_name, &args_str, None).await;
             }
         }
 
         // Record analytics event
         if let Some(ref analytics) = self.analytics {
-            let args_str: Vec<&str> = args_refs.iter().copied().collect();
+            let args_str: Vec<&str> = args_refs.clone();
             analytics.record_event(&decision, &effective_tool_name, &args_str, None);
         }
 
@@ -823,7 +826,7 @@ reason = "Terraform apply requires dry-run preview"
 
     #[tokio::test]
     async fn test_policy_engine_with_alert_manager() {
-        use super::alerts::{AlertConfig, AlertManager, WebhookConfig};
+        use crate::policy::alerts::{AlertConfig, AlertManager, WebhookConfig};
         
         let alert_config = AlertConfig {
             enabled: false, // Disable for testing

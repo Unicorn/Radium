@@ -24,6 +24,7 @@ fn test_session_creation() {
         updated_at: chrono::Utc::now(),
         message_count: 0,
         last_message: None,
+        model_id: None,
     };
     
     manager.save_session(&session).unwrap();
@@ -58,6 +59,7 @@ fn test_session_loading() {
         updated_at: chrono::Utc::now(),
         message_count: 5,
         last_message: Some("Test message".to_string()),
+        model_id: None,
     };
     
     manager.save_session(&session).unwrap();
@@ -86,7 +88,7 @@ fn test_session_update() {
     let manager = SessionManager::new(Some(temp_dir.path().to_path_buf())).unwrap();
     
     // Update a non-existent session (creates it)
-    manager.update_session("new-session", "agent-1", "Hello").unwrap();
+    manager.update_session("new-session", "agent-1", "Hello", None).unwrap();
     
     // Load and verify
     let sessions = manager.load_sessions().unwrap();
@@ -104,7 +106,7 @@ fn test_session_update() {
     assert!(found);
     
     // Update again
-    manager.update_session("new-session", "agent-1", "World").unwrap();
+    manager.update_session("new-session", "agent-1", "World", None).unwrap();
     
     // Verify message count increased
     let sessions = manager.load_sessions().unwrap();
@@ -131,6 +133,7 @@ fn test_session_deletion() {
         updated_at: chrono::Utc::now(),
         message_count: 0,
         last_message: None,
+        model_id: None,
     };
     
     manager.save_session(&session).unwrap();
@@ -171,6 +174,7 @@ fn test_session_grouping_by_date() {
         updated_at: today,
         message_count: 0,
         last_message: None,
+        model_id: None,
     };
     
     let session2 = ChatSession {
@@ -180,6 +184,7 @@ fn test_session_grouping_by_date() {
         updated_at: yesterday,
         message_count: 0,
         last_message: None,
+        model_id: None,
     };
     
     manager.save_session(&session1).unwrap();

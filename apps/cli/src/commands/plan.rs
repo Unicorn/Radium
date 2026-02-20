@@ -12,6 +12,8 @@ use radium_models::ModelFactory;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::colors::RadiumBrandColors;
+
 /// Execute the plan command.
 ///
 /// Generates a structured plan from a specification file.
@@ -20,7 +22,8 @@ pub async fn execute(
     id: Option<String>,
     name: Option<String>,
 ) -> anyhow::Result<()> {
-    println!("{}", "rad plan".bold().cyan());
+    let colors = RadiumBrandColors::new();
+    println!("{}", "rad plan".bold().color(colors.primary()));
     println!();
 
     // Get or discover workspace
@@ -44,7 +47,7 @@ pub async fn execute(
         (input_str, "Direct input".to_string())
     };
 
-    println!("  Source: {}", source_desc.green());
+    println!("  Source: {}", source_desc.color(colors.success()));
     println!("  Size: {} bytes", spec_content.len().to_string().dimmed());
     println!();
 
@@ -68,7 +71,7 @@ pub async fn execute(
             .context("Failed to generate requirement ID")?
     };
 
-    println!("  Requirement ID: {}", requirement_id.to_string().green());
+    println!("  Requirement ID: {}", requirement_id.to_string().color(colors.success()));
 
     // Determine folder name
     let folder_name = if let Some(custom_name) = name {
@@ -80,7 +83,7 @@ pub async fn execute(
         format!("{}-வைக் {}", requirement_id, slugify(&project_name))
     };
 
-    println!("  Folder name: {}", folder_name.green());
+    println!("  Folder name: {}", folder_name.color(colors.success()));
     println!();
 
     // Create plan directory in backlog stage
@@ -179,10 +182,10 @@ pub async fn execute(
     println!("  ✓ Generated markdown documentation files");
 
     println!();
-    println!("{}", "Plan generated successfully!".green().bold());
+    println!("{}", "Plan generated successfully!".color(colors.success()).bold());
     println!();
-    println!("  Location: {}", plan_dir.display().to_string().cyan());
-    println!("  Next step: {}", format!("rad craft {}", requirement_id).cyan());
+    println!("  Location: {}", plan_dir.display().to_string().color(colors.primary()));
+    println!("  Next step: {}", format!("rad craft {}", requirement_id).color(colors.primary()));
     println!();
 
     Ok(())

@@ -89,7 +89,7 @@ impl SlashCommandRegistry {
     /// Register a prompt as a slash command.
     pub fn register_prompt(&mut self, prompt: McpPrompt) {
         let command_name = format!("/{}", prompt.name.replace(' ', "_").to_lowercase());
-        self.commands.insert(command_name.clone(), prompt);
+        self.commands.insert(command_name, prompt);
     }
 
     /// Register a prompt with its server name.

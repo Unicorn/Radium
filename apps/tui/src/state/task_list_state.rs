@@ -5,7 +5,6 @@
 
 use radium_core::models::task::TaskState;
 use std::collections::HashMap;
-use crate::theme::RadiumTheme;
 use crate::theme::get_theme;
 
 /// Represents a single task item in the task list.

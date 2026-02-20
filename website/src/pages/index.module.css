@@ -1,0 +1,60 @@
+/**
+ * CSS files with the .module.css suffix will be treated as CSS modules
+ * and scoped locally.
+ */
+
+.heroBanner {
+  padding: 4rem 0;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+@media screen and (max-width: 996px) {
+  .heroBanner {
+    padding: 2rem;
+  }
+}
+
+.buttons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Problem/Solution Section */
+.problemSolution {
+  padding: 5rem 2rem;
+  background: transparent;
+}
+
+.problemSolutionContent {
+  max-width: 900px;
+  margin: 0 auto;
+  background: var(--glass-bg-dark);
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--marketing-border-radius-lg);
+  padding: 3rem 2rem;
+  box-shadow: var(--glass-shadow);
+}
+
+/* CTA Section */
+.ctaSection {
+  padding: 5rem 2rem;
+  background: transparent;
+}
+
+.ctaSection :global(.marketing-cta) {
+  background: var(--glass-bg-dark);
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow-strong);
+}
+
+@media screen and (max-width: 996px) {
+  .problemSolution,
+  .ctaSection {
+    padding: 3rem 1.5rem;
+  }
+}

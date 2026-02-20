@@ -102,7 +102,7 @@ impl Default for JiraReader {
 
 #[async_trait]
 impl SourceReader for JiraReader {
-    fn scheme(&self) -> &str {
+    fn scheme(&self) -> &'static str {
         "jira"
     }
 
@@ -162,7 +162,7 @@ impl SourceReader for JiraReader {
             .get("fields")
             .and_then(|f| f.get("updated"))
             .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
+            .map(std::string::ToString::to_string);
 
         Ok(SourceMetadata::with_details(
             true,

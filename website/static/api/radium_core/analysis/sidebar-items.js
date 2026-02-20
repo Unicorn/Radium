@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["definitions","rust_analyzer","symbols","tree_sitter","typescript_analyzer"]};

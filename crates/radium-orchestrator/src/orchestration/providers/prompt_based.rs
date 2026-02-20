@@ -112,15 +112,15 @@ impl OrchestrationProvider for PromptBasedOrchestrator {
         let system_prompt = Self::build_system_prompt(tools);
 
         // Build message history
-        let mut messages = vec![ChatMessage { role: "system".to_string(), content: system_prompt }];
+        let mut messages = vec![ChatMessage { role: "system".to_string(), content: system_prompt.into() }];
 
         // Add conversation history
         for msg in &context.conversation_history {
-            messages.push(ChatMessage { role: msg.role.clone(), content: msg.content.clone() });
+            messages.push(ChatMessage { role: msg.role.clone(), content: msg.content.clone().into() });
         }
 
         // Add current user input
-        messages.push(ChatMessage { role: "user".to_string(), content: input.to_string() });
+        messages.push(ChatMessage { role: "user".to_string(), content: input.to_string().into() });
 
         // Create parameters
         let parameters = ModelParameters {

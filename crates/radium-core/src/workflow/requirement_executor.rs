@@ -117,6 +117,7 @@ impl RequirementExecutor {
             db,
             agent_registry,
             config,
+            None, // routing_config: disabled by default for backward compatibility
         )
         .map_err(|e| RequirementExecutionError::Configuration(e.to_string()))?;
 
@@ -205,8 +206,7 @@ impl RequirementExecutor {
                 // Check if all dependencies are completed
                 task.dependencies.iter().all(|dep_number| {
                     task_status_map.get(dep_number)
-                        .map(|status| *status == crate::context::braingrid_client::TaskStatus::Completed)
-                        .unwrap_or(false) // If dependency not found, consider it not completed
+                        .is_some_and(|status| *status == crate::context::braingrid_client::TaskStatus::Completed) // If dependency not found, consider it not completed
                 })
             })
             .collect();
@@ -471,8 +471,7 @@ impl RequirementExecutor {
                 }
                 task.dependencies.iter().all(|dep_number| {
                     task_status_map.get(dep_number)
-                        .map(|status| *status == TaskStatus::Completed)
-                        .unwrap_or(false)
+                        .is_some_and(|status| *status == TaskStatus::Completed)
                 })
             })
             .collect();

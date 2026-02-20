@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["AuthError","ProviderType"],"fn":["authenticate_request"],"struct":["AuthConfig","CredentialStore","Token","TokenStore"],"type":["AuthResult"]};

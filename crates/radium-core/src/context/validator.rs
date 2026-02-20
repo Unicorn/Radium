@@ -56,32 +56,29 @@ impl SourceValidator {
         // Collect all results
         let mut results = Vec::new();
         for handle in handles {
-            match handle.await {
-                Ok(result) => {
-                    if result.accessible {
-                        debug!(
-                            source = %result.source,
-                            size_bytes = result.size_bytes,
-                            "Source validation successful"
-                        );
-                    } else {
-                        warn!(
-                            source = %result.source,
-                            error = %result.error_message,
-                            "Source validation failed"
-                        );
-                    }
-                    results.push(result);
+            if let Ok(result) = handle.await {
+                if result.accessible {
+                    debug!(
+                        source = %result.source,
+                        size_bytes = result.size_bytes,
+                        "Source validation successful"
+                    );
+                } else {
+                    warn!(
+                        source = %result.source,
+                        error = %result.error_message,
+                        "Source validation failed"
+                    );
                 }
-                Err(_) => {
-                    warn!("Validation task panicked");
-                    results.push(SourceValidationResult {
-                        source: "unknown".to_string(),
-                        accessible: false,
-                        error_message: "Task panicked".to_string(),
-                        size_bytes: 0,
-                    });
-                }
+                results.push(result);
+            } else {
+                warn!("Validation task panicked");
+                results.push(SourceValidationResult {
+                    source: "unknown".to_string(),
+                    accessible: false,
+                    error_message: "Task panicked".to_string(),
+                    size_bytes: 0,
+                });
             }
         }
 
@@ -108,20 +105,17 @@ impl SourceValidator {
         debug!(source = %source, "Validating source");
 
         // Get the appropriate reader for this source
-        let reader = match registry.get_reader(source) {
-            Some(r) => r,
-            None => {
-                warn!(
-                    source = %source,
-                    "No reader registered for source scheme"
-                );
-                return SourceValidationResult {
-                    source: source.to_string(),
-                    accessible: false,
-                    error_message: format!("No reader registered for scheme in: {}", source),
-                    size_bytes: 0,
-                };
-            }
+        let reader = if let Some(r) = registry.get_reader(source) { r } else {
+            warn!(
+                source = %source,
+                "No reader registered for source scheme"
+            );
+            return SourceValidationResult {
+                source: source.to_string(),
+                accessible: false,
+                error_message: format!("No reader registered for scheme in: {}", source),
+                size_bytes: 0,
+            };
         };
 
         let scheme = reader.scheme();

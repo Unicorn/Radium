@@ -11,6 +11,8 @@ mod command_suggestions;
 mod cost_state;
 mod execution_history;
 mod privacy_state;
+mod process_panel_state;
+mod session_state;
 mod telemetry_state;
 mod task_list_state;
 mod workflow_state;
@@ -23,9 +25,196 @@ pub use command_suggestions::{CommandSuggestion, CommandSuggestionState, Suggest
 pub use cost_state::{CostDashboardState, DateRangeFilter, DisplayRow, GroupingMode, SortColumn, ViewMode};
 pub use execution_history::{AggregateStats, ExecutionHistory, ExecutionRecord, ExecutionStatus};
 pub use privacy_state::PrivacyState;
+pub use process_panel_state::ProcessPanelState;
+pub use session_state::{HistoricalMessage, SessionHistory};
 pub use telemetry_state::{TelemetryState, TokenMetrics};
 pub use task_list_state::{TaskListState, TaskListItem};
 pub use workflow_state::{WorkflowStatus, WorkflowUIState};
+
+/// Streaming state for TUI streaming responses
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StreamingState {
+    /// No streaming active
+    Idle,
+    /// Connecting to model
+    Connecting,
+    /// Actively streaming tokens
+    Streaming,
+    /// Streaming completed successfully
+    Completed,
+    /// Streaming was cancelled by user
+    Cancelled,
+    /// Streaming encountered an error
+    Error(String),
+}
+
+/// Context for managing streaming responses
+#[derive(Debug)]
+pub struct StreamingContext {
+    /// Current streaming state
+    pub state: StreamingState,
+    /// Buffer for accumulating tokens before display (5-10 tokens)
+    pub token_buffer: Vec<String>,
+    /// Full accumulated response (for history saving)
+    pub accumulated_response: String,
+    /// Receiver for tokens from the streaming task
+    pub token_receiver: tokio::sync::mpsc::Receiver<radium_abstraction::StreamItem>,
+    /// Sender for cancellation signal
+    pub cancellation_tx: Option<tokio::sync::oneshot::Sender<()>>,
+    /// Whether cancellation has been requested
+    pub is_cancelled: bool,
+    /// Total token count
+    pub token_count: usize,
+    /// Start time of streaming
+    pub start_time: std::time::Instant,
+    /// Timestamps of last 10 tokens for rate calculation
+    pub token_timestamps: std::collections::VecDeque<std::time::Instant>,
+    /// Buffer for accumulating thinking tokens before display
+    pub thinking_buffer: Vec<String>,
+    /// Full accumulated thinking content
+    pub accumulated_thinking: String,
+    /// Total thinking token count
+    pub thinking_token_count: usize,
+    /// Last time the buffer was flushed (Phase 5.3: Time-based buffering)
+    pub last_flush_time: std::time::Instant,
+    /// Buffer flush interval in milliseconds (Phase 5.3: Configurable, default 50ms)
+    pub flush_interval_ms: u64,
+}
+
+impl StreamingContext {
+    /// Creates a new streaming context
+    pub fn new(
+        token_receiver: tokio::sync::mpsc::Receiver<radium_abstraction::StreamItem>,
+        cancellation_tx: Option<tokio::sync::oneshot::Sender<()>>,
+    ) -> Self {
+        let now = std::time::Instant::now();
+        Self {
+            state: StreamingState::Connecting,
+            token_buffer: Vec::new(),
+            accumulated_response: String::new(),
+            token_receiver,
+            cancellation_tx,
+            is_cancelled: false,
+            token_count: 0,
+            start_time: now,
+            token_timestamps: std::collections::VecDeque::with_capacity(10),
+            thinking_buffer: Vec::new(),
+            accumulated_thinking: String::new(),
+            thinking_token_count: 0,
+            last_flush_time: now,
+            flush_interval_ms: 50, // Default 50ms = 20 FPS (Phase 5.3)
+        }
+    }
+
+    /// Calculates tokens per second based on recent token timestamps
+    pub fn calculate_tokens_per_second(&self) -> f64 {
+        if self.token_timestamps.len() < 2 {
+            return 0.0;
+        }
+        
+        let first = self.token_timestamps.front().unwrap();
+        let last = self.token_timestamps.back().unwrap();
+        let duration = last.duration_since(*first);
+        
+        if duration.as_secs_f64() > 0.0 {
+            (self.token_timestamps.len() as f64) / duration.as_secs_f64()
+        } else {
+            0.0
+        }
+    }
+
+    /// Flushes the token buffer, returning accumulated tokens
+    pub fn flush_buffer(&mut self) -> String {
+        let result = self.token_buffer.join("");
+        self.accumulated_response.push_str(&result);
+        self.token_buffer.clear();
+        self.last_flush_time = std::time::Instant::now(); // Reset flush timer (Phase 5.3)
+        result
+    }
+
+    /// Adds a token to the buffer
+    pub fn add_token(&mut self, token: radium_abstraction::StreamItem) {
+        match token {
+            radium_abstraction::StreamItem::ThinkingToken(s) => {
+                self.thinking_buffer.push(s);
+                self.thinking_token_count += 1;
+                self.token_timestamps.push_back(std::time::Instant::now());
+                if self.token_timestamps.len() > 10 {
+                    self.token_timestamps.pop_front();
+                }
+            }
+            radium_abstraction::StreamItem::AnswerToken(s) => {
+                self.token_buffer.push(s);
+                self.token_count += 1;
+                self.token_timestamps.push_back(std::time::Instant::now());
+                if self.token_timestamps.len() > 10 {
+                    self.token_timestamps.pop_front();
+                }
+            }
+            radium_abstraction::StreamItem::Metadata(_) => {} // Ignore metadata
+        }
+    }
+
+    /// Checks if buffer should be flushed (time-based: Phase 5.3)
+    ///
+    /// Flushes when flush_interval_ms has elapsed OR buffer has 10+ tokens (fallback).
+    /// Default 50ms interval = 20 FPS rendering during streaming.
+    pub fn should_flush(&self) -> bool {
+        // Time-based flush (primary): Check if interval elapsed
+        let elapsed_ms = self.last_flush_time.elapsed().as_millis() as u64;
+        let time_to_flush = elapsed_ms >= self.flush_interval_ms;
+
+        // Fallback: Also flush if buffer gets too large (10+ tokens)
+        let buffer_full = self.token_buffer.len() >= 10;
+
+        // Flush if either condition is met AND we have at least 1 token
+        !self.token_buffer.is_empty() && (time_to_flush || buffer_full)
+    }
+
+    /// Gets the full accumulated response
+    pub fn get_full_response(&self) -> String {
+        // Combine accumulated response with current buffer
+        if self.token_buffer.is_empty() {
+            self.accumulated_response.clone()
+        } else {
+            format!("{}{}", self.accumulated_response, self.token_buffer.join(""))
+        }
+    }
+
+    /// Flushes thinking buffer to accumulated_thinking and returns the flushed content
+    pub fn flush_thinking_buffer(&mut self) -> String {
+        let result = self.thinking_buffer.join("");
+        self.accumulated_thinking.push_str(&result);
+        self.thinking_buffer.clear();
+
+        // Cap at 50KB to prevent memory issues
+        const MAX_THINKING_SIZE: usize = 50_000;
+        if self.accumulated_thinking.len() > MAX_THINKING_SIZE {
+            let truncate_at = self.accumulated_thinking.len() - MAX_THINKING_SIZE;
+            self.accumulated_thinking = format!(
+                "[...{} bytes truncated...]\n{}",
+                truncate_at,
+                &self.accumulated_thinking[truncate_at..]
+            );
+        }
+
+        result
+    }
+
+    /// Checks if thinking buffer should be flushed (5 tokens)
+    pub fn should_flush_thinking(&self) -> bool {
+        self.thinking_buffer.len() >= 5
+    }
+
+    /// Gets the full accumulated thinking content
+    pub fn get_full_thinking(&self) -> String {
+        if self.thinking_buffer.is_empty() {
+            self.accumulated_thinking.clone()
+        } else {
+            format!("{}{}", self.accumulated_thinking, self.thinking_buffer.join(""))
+        }
+    }
+}
 
 /// Output buffer for agent execution
 #[derive(Debug, Clone)]

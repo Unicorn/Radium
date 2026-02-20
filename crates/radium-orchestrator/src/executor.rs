@@ -7,8 +7,9 @@ use crate::ExecutionTask;
 use crate::{
     Agent, AgentContext, AgentLifecycle, AgentOutput, AgentRegistry, AgentState, ExecutionQueue,
 };
-use radium_abstraction::ModelError;
+use radium_abstraction::{budget::{BudgetCheckResult, BudgetManagerTrait}, ModelError};
 use radium_models::{ModelConfig, ModelFactory, ModelType};
+use crate::routing::RoutingStrategy;
 use serde_json::Value;
 use std::collections::HashSet;
 use std::fmt;
@@ -103,34 +104,8 @@ struct FailoverContext {
     budget_status: Option<String>,
 }
 
-/// Trait for budget management to avoid circular dependency with radium-core.
-pub trait BudgetManagerTrait: Send + Sync {
-    /// Check if estimated cost is within budget.
-    fn check_budget_available(&self, estimated_cost: f64) -> Result<(), BudgetCheckResult>;
-    
-    /// Record an actual cost after execution.
-    fn record_cost(&self, actual_cost: f64);
-    
-    /// Get budget status as a formatted string.
-    fn get_budget_status_string(&self) -> Option<String>;
-}
-
-/// Result of budget check.
-#[derive(Debug, Clone)]
-pub enum BudgetCheckResult {
-    /// Budget limit exceeded.
-    BudgetExceeded {
-        spent: f64,
-        limit: f64,
-        requested: f64,
-    },
-    /// Budget warning threshold reached.
-    BudgetWarning {
-        spent: f64,
-        limit: f64,
-        percentage: f64,
-    },
-}
+// BudgetManagerTrait and BudgetCheckResult have been moved to radium-abstraction::budget
+// to avoid circular dependencies and enable reuse across crates.
 
 /// Trait for sandbox operations to avoid circular dependency with radium-core.
 #[async_trait::async_trait]
@@ -569,13 +544,40 @@ impl AgentExecutor {
             budget_status: None,
         };
 
-        // Budget checking disabled - requires radium_core dependency
-        // TODO: Re-enable budget checking when radium_core is available as dependency
-        if self.budget_manager.is_some() {
-            debug!(
-                agent_id = %agent_id,
-                "Budget manager present but checking disabled (radium_core not available)"
-            );
+        // Check budget before execution
+        if let Some(ref budget_manager) = self.budget_manager {
+            // Estimate cost based on input size (rough estimate: ~$0.01 per 1000 tokens)
+            let estimated_tokens = effective_input.len() as f64 / 4.0;
+            let estimated_cost = (estimated_tokens / 1000.0) * 0.01;
+
+            match budget_manager.check_budget_available(estimated_cost) {
+                Ok(()) => {
+                    debug!(
+                        agent_id = %agent_id,
+                        estimated_cost = %estimated_cost,
+                        "Budget check passed"
+                    );
+                }
+                Err(err) => {
+                    warn!(
+                        agent_id = %agent_id,
+                        estimated_cost = %estimated_cost,
+                        error = %err,
+                        "Budget check warning/exceeded"
+                    );
+                    // For exceeded budget, return error immediately
+                    if matches!(err, BudgetCheckResult::BudgetExceeded { .. }) {
+                        return ExecutionResult {
+                            output: AgentOutput::Text(String::new()),
+                            success: false,
+                            error: Some(format!("Budget exceeded: {}", err)),
+                            telemetry: None,
+                            routing_decision: None,
+                        };
+                    }
+                    // For warnings, continue but log
+                }
+            }
         }
 
         // Retry loop with provider failover
@@ -606,16 +608,21 @@ impl AgentExecutor {
                         } else {
                             input_tokens * 0.3 / 0.7 // Default estimate
                         };
-                        // Budget cost recording disabled - requires radium_core dependency
-                        // TODO: Re-enable when radium_core is available
+                        // Rough cost estimate: $0.01 per 1000 tokens (average across providers)
+                        let actual_cost = ((input_tokens + output_tokens) / 1000.0) * 0.01;
+
+                        budget_manager.record_cost(actual_cost);
                         debug!(
                             agent_id = %agent_id,
-                            "Budget manager present but cost recording disabled"
+                            input_tokens = %input_tokens,
+                            output_tokens = %output_tokens,
+                            actual_cost = %actual_cost,
+                            "Cost recorded to budget manager"
                         );
                     }
                     
                     ExecutionResult {
-                        output: output,
+                        output,
                         success: true,
                         error: None,
                         telemetry: None, // Will be populated when agents capture ModelResponse
@@ -712,6 +719,8 @@ impl AgentExecutor {
                                     ModelType::Claude => "claude",
                                     ModelType::Gemini => "gemini",
                                     ModelType::OpenAI => "openai",
+                                    ModelType::Universal => "universal",
+                                    ModelType::Ollama => "ollama",
                                 },
                                 next_model_id,
                             ) {
@@ -912,6 +921,7 @@ impl AgentExecutor {
         // Use model router if available, otherwise use default model
         let (model, routing_decision) = if let Some(ref router) = self.model_router {
             // Route model based on complexity or override
+            // Use default strategy (complexity-based) for backward compatibility
             let (model_config, decision) = router.select_model(
                 input,
                 Some(agent.id()),
@@ -921,7 +931,7 @@ impl AgentExecutor {
             // Create model from routed config
             let model = ModelFactory::create(ModelConfig::new(
                 model_config.model_type.clone(),
-                model_config.model_id.clone(),
+                model_config.model_id,
             ))?;
             
             (model, Some(decision))
@@ -933,6 +943,8 @@ impl AgentExecutor {
                     ModelType::Claude => "claude",
                     ModelType::Gemini => "gemini",
                     ModelType::OpenAI => "openai",
+                    ModelType::Universal => "universal",
+                    ModelType::Ollama => "ollama",
                 },
                 self.default_model_id.clone(),
             )?;
@@ -951,13 +963,96 @@ impl AgentExecutor {
                         prompt_tokens: telemetry.input_tokens as u32,
                         completion_tokens: telemetry.output_tokens as u32,
                         total_tokens: telemetry.total_tokens as u32,
+                        cache_usage: None,
                     };
                     
                     // Track usage (non-blocking)
                     router.track_usage(
                         routing_decision.tier,
                         &usage,
-                        &model.model_id(),
+                        model.model_id(),
+                    );
+                }
+                
+                // Store routing decision in result for telemetry recording
+                result.routing_decision = Some(routing_decision.clone());
+            }
+        }
+
+        Ok(result)
+    }
+    
+    /// Executes an agent with a specific routing strategy.
+    ///
+    /// # Arguments
+    /// * `agent` - The agent to execute
+    /// * `input` - The input for the agent
+    /// * `hook_executor` - Optional hook executor for execution interception
+    /// * `routing_strategy` - Optional routing strategy (uses router default if not provided)
+    ///
+    /// # Errors
+    /// Returns `ModelError` if model creation fails.
+    pub async fn execute_agent_with_routing_strategy(
+        &self,
+        agent: Arc<dyn Agent + Send + Sync>,
+        input: &str,
+        hook_executor: Option<&Arc<dyn HookExecutor>>,
+        routing_strategy: Option<RoutingStrategy>,
+    ) -> Result<ExecutionResult, ModelError> {
+        // Use model router if available, otherwise use default model
+        let (model, routing_decision) = if let Some(ref router) = self.model_router {
+            // Route model based on complexity or override with specified strategy
+            let strategy = routing_strategy.unwrap_or(crate::routing::RoutingStrategy::ComplexityBased);
+            let (model_config, decision) = router.select_model_with_strategy(
+                input,
+                Some(agent.id()),
+                self.tier_override,
+                strategy,
+            );
+            
+            // Create model from routed config
+            let model = ModelFactory::create(ModelConfig::new(
+                model_config.model_type.clone(),
+                model_config.model_id,
+            ))?;
+            
+            (model, Some(decision))
+        } else {
+            // Fallback to default model
+            let model = ModelFactory::create_from_str(
+                match &self.default_model_type {
+                    ModelType::Mock => "mock",
+                    ModelType::Claude => "claude",
+                    ModelType::Gemini => "gemini",
+                    ModelType::OpenAI => "openai",
+                    ModelType::Universal => "universal",
+                    ModelType::Ollama => "ollama",
+                },
+                self.default_model_id.clone(),
+            )?;
+            (model, None)
+        };
+
+        // Execute agent
+        let mut result = self.execute_agent(agent.clone(), input, model.clone(), hook_executor).await;
+
+        // Track usage if router is available and execution succeeded
+        if let Some(ref router) = self.model_router {
+            if let Some(ref routing_decision) = routing_decision {
+                if let Some(ref telemetry) = result.telemetry {
+                    // Extract model usage from telemetry
+                    let usage = radium_abstraction::ModelUsage {
+                        prompt_tokens: telemetry.input_tokens as u32,
+                        completion_tokens: telemetry.output_tokens as u32,
+                        total_tokens: telemetry.total_tokens as u32,
+                        cache_usage: None,
+                    };
+                    
+                    // Track usage (non-blocking)
+                    router.track_usage(
+                        routing_decision.tier,
+                        &usage,
+                        model.model_id(),
                     );
                 }
                 
@@ -997,6 +1092,8 @@ impl AgentExecutor {
                 ModelType::Claude => "claude",
                 ModelType::Gemini => "gemini",
                 ModelType::OpenAI => "openai",
+                ModelType::Universal => "universal",
+                ModelType::Ollama => "ollama",
             },
             model_id,
         )?;
@@ -1156,6 +1253,7 @@ impl QueueProcessor {
                             let task_id_clone = task_id.clone();
                             let agent_id_clone = agent_id.clone();
                             let cancellation_token_clone = cancellation_token.clone();
+                            let task_timeout = config.task_timeout;
 
                             tokio::spawn(async move {
                                 let _permit = permit; // Hold permit for task duration
@@ -1205,12 +1303,15 @@ impl QueueProcessor {
                                 // Execute with cancellation token support
                                 let execution_future = executor_clone.execute_agent_with_default_model(agent, &input, None as Option<&Arc<dyn HookExecutor>>);
                                 
-                                let execution_result = tokio::select! {
-                                    result = execution_future => {
-                                        // Normal execution completed
-                                        Ok(result)
+                                let execution_result: std::result::Result<ExecutionResult, String> = tokio::select! {
+                                    result = tokio::time::timeout(task_timeout, execution_future) => {
+                                        match result {
+                                            Ok(Ok(result)) => Ok(result),
+                                            Ok(Err(e)) => Err(format!("Model execution failed: {}", e)),
+                                            Err(_) => Err(format!("Task timed out after {:?}", task_timeout)),
+                                        }
                                     }
-                                    _ = cancellation_token_clone.cancelled() => {
+                                    () = cancellation_token_clone.cancelled() => {
                                         // Task was cancelled
                                         info!(
                                             task_id = %task_id_clone,
@@ -1224,7 +1325,7 @@ impl QueueProcessor {
                                 };
 
                                 match execution_result {
-                                    Ok(Ok(result)) => {
+                                    Ok(result) => {
                                         if result.success {
                                             info!(
                                                 task_id = %task_id_clone,
@@ -1241,15 +1342,6 @@ impl QueueProcessor {
                                             );
                                             let _ = lifecycle_clone.mark_error(&agent_id_clone).await;
                                         }
-                                    }
-                                    Ok(Err(e)) => {
-                                        error!(
-                                            task_id = %task_id_clone,
-                                            agent_id = %agent_id_clone,
-                                            error = %e,
-                                            "Task execution error"
-                                        );
-                                        let _ = lifecycle_clone.mark_error(&agent_id_clone).await;
                                     }
                                     Err(msg) if msg == "Task cancelled" => {
                                         // Already handled above, just clean up
@@ -1623,10 +1715,14 @@ mod tests {
         queue.enqueue_task(task).await.unwrap();
 
         // Wait for timeout
-        time::sleep(Duration::from_millis(300)).await;
+        let mut state = lifecycle.get_state("slow-agent").await;
+        let start = std::time::Instant::now();
+        while state != AgentState::Error && start.elapsed() < std::time::Duration::from_secs(2) {
+            time::sleep(Duration::from_millis(50)).await;
+            state = lifecycle.get_state("slow-agent").await;
+        }
 
         // Check that agent is in error state (timeout)
-        let state = lifecycle.get_state("slow-agent").await;
         assert_eq!(state, AgentState::Error);
 
         // Check that task was marked as completed

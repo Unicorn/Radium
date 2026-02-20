@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["WorkspaceError"],"mod":["approval_flow","boundary","diff_display","error_recovery","errors","file_ops","ignore","patch","plan_discovery","requirement_id","structure","tool_integration","transaction"],"struct":["Workspace","WorkspaceConfig"],"type":["Result"]};

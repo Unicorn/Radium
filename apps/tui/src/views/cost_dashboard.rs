@@ -2,11 +2,11 @@
 
 use ratatui::{
     prelude::*,
-    widgets::{Block, Borders, Cell, Gauge, Paragraph, Row, Table, BarChart, Bar},
+    widgets::{Block, Borders, Cell, Paragraph, Row, Table, BarChart},
 };
 use crossterm::event::KeyCode;
 
-use crate::state::{CostDashboardState, DisplayRow};
+use crate::state::CostDashboardState;
 use radium_core::analytics::CostAnalytics;
 
 /// Renders the cost dashboard view.
@@ -14,7 +14,7 @@ pub fn render_cost_dashboard(
     frame: &mut Frame,
     area: Rect,
     state: &mut CostDashboardState,
-    analytics: &CostAnalytics,
+    _analytics: &CostAnalytics,
 ) {
     let theme = crate::theme::get_theme();
 
@@ -226,7 +226,7 @@ fn render_cost_table(
                 .border_style(Style::default().fg(theme.border))
                 .title(" Cost Breakdown "),
         )
-        .highlight_style(
+        .row_highlight_style(
             Style::default()
                 .fg(theme.bg_primary)
                 .bg(theme.primary)
@@ -313,7 +313,7 @@ fn render_provider_breakdown_chart(
     summary: &radium_core::analytics::CostHistorySummary,
     theme: &crate::theme::RadiumTheme,
 ) {
-    let total_cost: f64 = summary
+    let _total_cost: f64 = summary
         .breakdown_by_provider
         .iter()
         .map(|b| b.total_cost)

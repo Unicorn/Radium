@@ -1,3 +1,5 @@
+#![cfg(feature = "server")]
+
 use http::{Request, Response};
 use radium_core::server::logging::RequestLoggerLayer;
 use std::convert::Infallible;

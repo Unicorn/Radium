@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["COMPONENT_COMMANDS","COMPONENT_HOOKS","COMPONENT_MCP","COMPONENT_PROMPTS","MANIFEST_FILE"],"enum":["ExtensionStructureError"],"fn":["default_extensions_dir","validate_package_structure","workspace_extensions_dir"],"struct":["Extension"],"type":["Result"]};

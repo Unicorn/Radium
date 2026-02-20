@@ -295,7 +295,7 @@ impl Task {
     /// # Returns
     /// `true` if the task has a partial result, `false` otherwise.
     pub fn has_partial_result(&self) -> bool {
-        self.result.as_ref().map_or(false, |r| r.is_partial_result())
+        self.result.as_ref().is_some_and(TaskResult::is_partial_result)
     }
 }
 

@@ -54,6 +54,7 @@ pub fn render_logo(frame: &mut Frame, area: Rect) {
 }
 
 /// ASCII art for "RADIUM" in compact single-line style (for title bar)
+#[allow(dead_code)]
 const RADIUM_COMPACT: &[&str] = &[
     "██████╗  █████╗ ██████╗ ██╗██╗   ██╗███╗   ███╗",
     "██╔══██╗██╔══██╗██╔══██╗██║██║   ██║████╗ ████║",

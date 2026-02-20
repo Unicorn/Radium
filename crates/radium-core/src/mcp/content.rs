@@ -115,7 +115,7 @@ impl ContentHandler {
                         if let Some(url) = d.get("url").and_then(|u| u.as_str()) {
                             Some(url.to_string())
                         } else {
-                            d.get("data").and_then(|d| d.as_str()).map(|s| s.to_string())
+                            d.get("data").and_then(|d| d.as_str()).map(std::string::ToString::to_string)
                         }
                     })
                     .ok_or_else(|| {
@@ -135,7 +135,7 @@ impl ContentHandler {
                         if let Some(url) = d.get("url").and_then(|u| u.as_str()) {
                             Some(url.to_string())
                         } else {
-                            d.get("data").and_then(|d| d.as_str()).map(|s| s.to_string())
+                            d.get("data").and_then(|d| d.as_str()).map(std::string::ToString::to_string)
                         }
                     })
                     .ok_or_else(|| {

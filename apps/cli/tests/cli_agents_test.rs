@@ -19,13 +19,22 @@ fn create_test_agent(temp_dir: &TempDir, agent_id: &str, name: &str) {
     let agents_dir = temp_dir.path().join("agents");
     fs::create_dir_all(&agents_dir).unwrap();
 
+    // Create a minimal prompt file so discovery/validation succeeds.
+    let prompts_dir = temp_dir.path().join("prompts");
+    fs::create_dir_all(&prompts_dir).unwrap();
+    fs::write(
+        prompts_dir.join(format!("{}.md", agent_id)),
+        format!("# {}\n\nTest prompt.\n", name),
+    )
+    .unwrap();
+
     let config_content = format!(
         r#"[agent]
 id = "{}"
 name = "{}"
 description = "A test agent for integration testing"
 prompt_path = "prompts/{}.md"
-engine = "mock"
+engine = "gemini"
 model = "test-model"
 reasoning_effort = "medium"
 category = "test"

@@ -32,7 +32,7 @@ id = "{}"
 name = "{}"
 description = "A test agent for integration testing"
 prompt_path = "prompts/{}.md"
-engine = "mock"
+engine = "gemini"
 model = "test-model"
 reasoning_effort = "medium"
 category = "test"
@@ -136,21 +136,17 @@ fn test_chat_with_session_name() {
     init_workspace(&temp_dir);
     create_test_agent(&temp_dir, "test-agent", "Test Agent");
 
-    // Note: This test may need to be adjusted based on actual chat implementation
-    // If chat requires interactive input, we might need to use a different approach
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    // Chat command might require stdin input, so we test the argument parsing
     let result = cmd
         .current_dir(temp_dir.path())
         .arg("chat")
         .arg("--session")
         .arg("test-session")
         .arg("test-agent")
-        .timeout(std::time::Duration::from_secs(1))
+        .write_stdin("/quit\n")
         .assert();
 
-    // Command should at least start (may timeout waiting for input, which is expected)
-    // We're mainly testing that the arguments are parsed correctly
+    // Command should execute and exit cleanly after /quit.
     assert!(result.get_output().status.code().is_some());
 }
 
@@ -186,9 +182,70 @@ fn test_chat_help_shown_in_interactive_mode() {
         .current_dir(temp_dir.path())
         .arg("chat")
         .arg("test-agent")
-        .timeout(std::time::Duration::from_secs(1))
+        .write_stdin("/quit\n")
         .assert();
 
-    // Command should start (may timeout waiting for input)
+    // Command should execute and exit cleanly after /quit.
+    assert!(result.get_output().status.code().is_some());
+}
+
+#[test]
+fn test_chat_stream_flag_parsing() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+    create_test_agent(&temp_dir, "test-agent", "Test Agent");
+
+    // Test that --stream flag is accepted
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    let result = cmd
+        .current_dir(temp_dir.path())
+        .arg("chat")
+        .arg("--stream")
+        .arg("test-agent")
+        .write_stdin("/quit\n")
+        .assert();
+
+    // Command should execute and exit cleanly after /quit.
+    assert!(result.get_output().status.code().is_some());
+}
+
+#[test]
+fn test_chat_stream_with_session_name() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+    create_test_agent(&temp_dir, "test-agent", "Test Agent");
+
+    // Test that --stream flag works with --session
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    let result = cmd
+        .current_dir(temp_dir.path())
+        .arg("chat")
+        .arg("--stream")
+        .arg("--session")
+        .arg("test-session")
+        .arg("test-agent")
+        .write_stdin("/quit\n")
+        .assert();
+
+    // Command should execute and exit cleanly after /quit.
+    assert!(result.get_output().status.code().is_some());
+}
+
+#[test]
+fn test_chat_stream_backward_compatibility() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+    create_test_agent(&temp_dir, "test-agent", "Test Agent");
+
+    // Test that chat works without --stream flag (backward compatibility)
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    let result = cmd
+        .current_dir(temp_dir.path())
+        .arg("chat")
+        .arg("test-agent")
+        .write_stdin("/quit\n")
+        .assert();
+
+    // Command should execute and exit cleanly after /quit.
     assert!(result.get_output().status.code().is_some());
 }

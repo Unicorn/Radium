@@ -21,9 +21,9 @@ workspace = true
 
 [dependencies]
 # TUI
-ratatui = "0.29"
+ratatui = "0.30"
 crossterm = "0.28"
-tachyonfx = { version = "0.21", features = ["crossterm", "dsl"] }
+tachyonfx = { version = "0.22", features = ["crossterm", "dsl"] }
 
 # gRPC
 tonic.workspace = true
@@ -31,9 +31,10 @@ tonic.workspace = true
 # Async runtime
 tokio.workspace = true
 async-trait.workspace = true
+futures = "0.3"
 
 # HTTP client for credential validation
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { workspace = true, features = ["json"] }
 
 # Internal crates
 radium-core = { workspace = true, features = ["monitoring", "workflow", "mcp-progress", "orchestrator-integration", "syntax", "tui-theme"] }
@@ -75,6 +76,9 @@ syntect = "5.3"
 
 # Regex for command pattern matching
 regex = "1.10"
+
+# File globbing for tool calling
+glob = "0.3"
 
 [dev-dependencies]
 tempfile = "3.8"

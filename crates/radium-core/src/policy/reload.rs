@@ -1,12 +1,12 @@
 //! Hot-reload mechanism for policy rules.
 
 use super::rules::PolicyEngine;
-use super::types::{ApprovalMode, PolicyError, PolicyResult};
+use super::types::{PolicyError, PolicyResult};
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 /// Policy reloader that watches for file changes and hot-reloads rules.
 pub struct PolicyReloader {

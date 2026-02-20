@@ -1,8 +1,7 @@
 //! Braingrid integration for playbook storage and synchronization.
 
-use crate::context::braingrid_client::{BraingridClient, BraingridError};
+use crate::context::braingrid_client::BraingridClient;
 use crate::playbooks::error::{PlaybookError, Result};
-use crate::playbooks::parser::PlaybookParser;
 use crate::playbooks::types::Playbook;
 use std::collections::HashMap;
 
@@ -70,7 +69,7 @@ impl BraingridPlaybookStorage {
     /// # Note
     ///
     /// This is a placeholder implementation.
-    pub async fn search_playbooks(&self, tags: &[String]) -> Result<Vec<Playbook>> {
+    pub async fn search_playbooks(&self, _tags: &[String]) -> Result<Vec<Playbook>> {
         // TODO: Implement when Braingrid adds playbook support
         Ok(Vec::new())
     }
@@ -84,7 +83,7 @@ impl BraingridPlaybookStorage {
     /// # Note
     ///
     /// This is a placeholder implementation.
-    pub async fn save_playbook(&self, playbook: &Playbook) -> Result<()> {
+    pub async fn save_playbook(&self, _playbook: &Playbook) -> Result<()> {
         // TODO: Implement when Braingrid adds playbook support
         Err(PlaybookError::InvalidConfig(
             "Braingrid playbook write support not yet implemented".to_string(),

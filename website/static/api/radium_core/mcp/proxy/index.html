@@ -1,0 +1,71 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="MCP Proxy Server for Centralized Tool Orchestration"><title>radium_core::mcp::proxy - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-e56847b5.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="radium_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.91.1 (ed61e7d7e 2025-11-07)" data-channel="1.91.1" data-search-js="search-e256b49e.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../../../static.files/storage-e2aeef58.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../../static.files/main-6dc2a7f3.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module proxy</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../../radium_core/index.html">radium_<wbr>core</a><span class="version">0.1.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module proxy</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#architecture-overview" title="Architecture Overview">Architecture Overview</a><ul><li><a href="#component-responsibilities" title="Component Responsibilities">Component Responsibilities</a></li><li><a href="#data-flow-for-tool-execution" title="Data Flow for Tool Execution">Data Flow for Tool Execution</a></li><li><a href="#connection-lifecycle" title="Connection Lifecycle">Connection Lifecycle</a></li><li><a href="#error-handling-strategy" title="Error Handling Strategy">Error Handling Strategy</a></li><li><a href="#thread-safety" title="Thread Safety">Thread Safety</a></li></ul></li><li><a href="#example-usage" title="Example Usage">Example Usage</a></li></ul><h3><a href="#reexports">Module Items</a></h3><ul class="block"><li><a href="#reexports" title="Re-exports">Re-exports</a></li><li><a href="#modules" title="Modules">Modules</a></li></ul></section><div id="rustdoc-modnav"><h2><a href="../index.html">In radium_<wbr>core::<wbr>mcp</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../../index.html">radium_core</a>::<wbr><a href="../index.html">mcp</a></div><h1>Module <span>proxy</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../../src/radium_core/mcp/proxy/mod.rs.html#1-105">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>MCP Proxy Server for Centralized Tool Orchestration</p>
+<p>This module implements an MCP proxy server that provides a single endpoint
+for agents to access multiple upstream MCP servers. The proxy handles:</p>
+<ul>
+<li><strong>Request Routing</strong>: Routes tool calls to appropriate upstream servers</li>
+<li><strong>Load Balancing</strong>: Distributes load across multiple upstreams</li>
+<li><strong>Failover</strong>: Automatically fails over to backup servers on errors</li>
+<li><strong>Health Checking</strong>: Monitors upstream server health and reconnects automatically</li>
+<li><strong>Security</strong>: Centralized logging, rate limiting, and data redaction</li>
+<li><strong>Tool Catalog Aggregation</strong>: Merges tools from all upstreams with conflict resolution</li>
+</ul>
+<h2 id="architecture-overview"><a class="doc-anchor" href="#architecture-overview">§</a>Architecture Overview</h2>
+<p>The proxy server acts as both an MCP server (to agents) and an MCP client
+(to upstream servers):</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code>Agent -&gt; [Proxy Server] -&gt; Upstream MCP Servers
+        (MCP Server)      (MCP Clients)</code></pre></div><h3 id="component-responsibilities"><a class="doc-anchor" href="#component-responsibilities">§</a>Component Responsibilities</h3>
+<ul>
+<li><strong>McpProxyServer</strong>: Main server struct managing lifecycle and connections</li>
+<li><strong>UpstreamPool</strong>: Manages connections to multiple upstream MCP servers</li>
+<li><strong>ToolRouter</strong>: Routes tool calls to appropriate upstreams with load balancing</li>
+<li><strong>ToolCatalog</strong>: Aggregates tools from all upstreams, handles conflicts</li>
+<li><strong>SecurityLayer</strong>: Enforces security policies (rate limiting, logging, redaction)</li>
+<li><strong>HealthChecker</strong>: Monitors upstream health and handles reconnection</li>
+</ul>
+<h3 id="data-flow-for-tool-execution"><a class="doc-anchor" href="#data-flow-for-tool-execution">§</a>Data Flow for Tool Execution</h3>
+<ol>
+<li>Agent connects to proxy and sends <code>tools/call</code> request</li>
+<li>Proxy’s SecurityLayer validates request (rate limiting, logging)</li>
+<li>ToolRouter determines which upstream should handle the tool</li>
+<li>Proxy forwards request to selected upstream via McpClient</li>
+<li>Upstream executes tool and returns result</li>
+<li>Proxy’s SecurityLayer processes response (logging, redaction)</li>
+<li>Proxy returns result to agent</li>
+</ol>
+<h3 id="connection-lifecycle"><a class="doc-anchor" href="#connection-lifecycle">§</a>Connection Lifecycle</h3>
+<ul>
+<li><strong>Agent Connections</strong>: Accept connections via SSE/HTTP transport, handle MCP protocol</li>
+<li><strong>Upstream Connections</strong>: Maintain persistent connections using McpClient</li>
+<li><strong>Health Monitoring</strong>: Periodically check upstream health, reconnect on failure</li>
+<li><strong>Graceful Shutdown</strong>: Close all connections cleanly on stop</li>
+</ul>
+<h3 id="error-handling-strategy"><a class="doc-anchor" href="#error-handling-strategy">§</a>Error Handling Strategy</h3>
+<ul>
+<li><strong>Upstream Failures</strong>: Automatically fail over to backup upstreams</li>
+<li><strong>Rate Limit Exceeded</strong>: Return clear error to agent without forwarding</li>
+<li><strong>Invalid Requests</strong>: Validate and return protocol errors</li>
+<li><strong>Connection Errors</strong>: Log and mark upstream as unhealthy, retry with backoff</li>
+</ul>
+<h3 id="thread-safety"><a class="doc-anchor" href="#thread-safety">§</a>Thread Safety</h3>
+<p>All shared state uses <code>Arc&lt;Mutex&lt;&gt;&gt;</code> or <code>Arc&lt;RwLock&lt;&gt;&gt;</code> for thread-safe access:</p>
+<ul>
+<li>UpstreamPool: RwLock for concurrent reads, Mutex for writes</li>
+<li>ToolCatalog: RwLock for concurrent tool queries</li>
+<li>SecurityLayer: Internal synchronization for rate limiting</li>
+</ul>
+<h2 id="example-usage"><a class="doc-anchor" href="#example-usage">§</a>Example Usage</h2>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>radium_core::mcp::proxy::{ProxyConfig, McpProxyServer};
+
+<span class="kw">let </span>config = ProxyConfig {
+    enable: <span class="bool-val">true</span>,
+    port: <span class="number">3000</span>,
+    transport: ProxyTransport::Sse,
+    max_connections: <span class="number">100</span>,
+    security: SecurityConfig::default(),
+    upstreams: <span class="macro">vec!</span>[],
+};
+
+<span class="kw">let </span><span class="kw-2">mut </span>proxy = McpProxyServer::new(config).<span class="kw">await</span><span class="question-mark">?</span>;
+proxy.start().<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="comment">// Proxy is now accepting connections</span></code></pre></div></div></details><h2 id="reexports" class="section-header">Re-exports<a href="#reexports" class="anchor">§</a></h2><dl class="item-table reexports"><dt id="reexport.DefaultToolCatalog"><code>pub use catalog::<a class="struct" href="catalog/struct.DefaultToolCatalog.html" title="struct radium_core::mcp::proxy::catalog::DefaultToolCatalog">DefaultToolCatalog</a>;</code></dt><dt id="reexport.ProxyConfigManager"><code>pub use config::<a class="struct" href="config/struct.ProxyConfigManager.html" title="struct radium_core::mcp::proxy::config::ProxyConfigManager">ProxyConfigManager</a>;</code></dt><dt id="reexport.HealthChecker"><code>pub use health::<a class="struct" href="health/struct.HealthChecker.html" title="struct radium_core::mcp::proxy::health::HealthChecker">HealthChecker</a>;</code></dt><dt id="reexport.DefaultToolRouter"><code>pub use router::<a class="struct" href="router/struct.DefaultToolRouter.html" title="struct radium_core::mcp::proxy::router::DefaultToolRouter">DefaultToolRouter</a>;</code></dt><dt id="reexport.DefaultSecurityLayer"><code>pub use security::<a class="struct" href="security/struct.DefaultSecurityLayer.html" title="struct radium_core::mcp::proxy::security::DefaultSecurityLayer">DefaultSecurityLayer</a>;</code></dt><dt id="reexport.ProxyServer"><code>pub use server::<a class="struct" href="server/struct.ProxyServer.html" title="struct radium_core::mcp::proxy::server::ProxyServer">ProxyServer</a>;</code></dt><dt id="reexport.ConflictStrategy"><code>pub use types::<a class="enum" href="types/enum.ConflictStrategy.html" title="enum radium_core::mcp::proxy::types::ConflictStrategy">ConflictStrategy</a>;</code></dt><dt id="reexport.ConnectionState"><code>pub use types::<a class="enum" href="types/enum.ConnectionState.html" title="enum radium_core::mcp::proxy::types::ConnectionState">ConnectionState</a>;</code></dt><dt id="reexport.McpProxyServer"><code>pub use types::<a class="struct" href="types/struct.McpProxyServer.html" title="struct radium_core::mcp::proxy::types::McpProxyServer">McpProxyServer</a>;</code></dt><dt id="reexport.ProxyConfig"><code>pub use types::<a class="struct" href="types/struct.ProxyConfig.html" title="struct radium_core::mcp::proxy::types::ProxyConfig">ProxyConfig</a>;</code></dt><dt id="reexport.ProxyTransport"><code>pub use types::<a class="enum" href="types/enum.ProxyTransport.html" title="enum radium_core::mcp::proxy::types::ProxyTransport">ProxyTransport</a>;</code></dt><dt id="reexport.SecurityConfig"><code>pub use types::<a class="struct" href="types/struct.SecurityConfig.html" title="struct radium_core::mcp::proxy::types::SecurityConfig">SecurityConfig</a>;</code></dt><dt id="reexport.ToolCatalog"><code>pub use types::<a class="trait" href="types/trait.ToolCatalog.html" title="trait radium_core::mcp::proxy::types::ToolCatalog">ToolCatalog</a>;</code></dt><dt id="reexport.ToolRouter"><code>pub use types::<a class="trait" href="types/trait.ToolRouter.html" title="trait radium_core::mcp::proxy::types::ToolRouter">ToolRouter</a>;</code></dt><dt id="reexport.UpstreamConfig"><code>pub use types::<a class="struct" href="types/struct.UpstreamConfig.html" title="struct radium_core::mcp::proxy::types::UpstreamConfig">UpstreamConfig</a>;</code></dt><dt id="reexport.UpstreamPool"><code>pub use upstream_pool::<a class="struct" href="upstream_pool/struct.UpstreamPool.html" title="struct radium_core::mcp::proxy::upstream_pool::UpstreamPool">UpstreamPool</a>;</code></dt></dl><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="catalog/index.html" title="mod radium_core::mcp::proxy::catalog">catalog</a></dt><dd>Tool catalog aggregation with conflict resolution.</dd><dt><a class="mod" href="config/index.html" title="mod radium_core::mcp::proxy::config">config</a></dt><dd>MCP proxy server configuration management.</dd><dt><a class="mod" href="health/index.html" title="mod radium_core::mcp::proxy::health">health</a></dt><dd>Health checking and automatic reconnection for upstream servers.</dd><dt><a class="mod" href="router/index.html" title="mod radium_core::mcp::proxy::router">router</a></dt><dd>Tool routing with load balancing and failover.</dd><dt><a class="mod" href="security/index.html" title="mod radium_core::mcp::proxy::security">security</a></dt><dd>Security layer for request validation, logging, and rate limiting.</dd><dt><a class="mod" href="server/index.html" title="mod radium_core::mcp::proxy::server">server</a></dt><dd>MCP protocol server for agent connections.</dd><dt><a class="mod" href="types/index.html" title="mod radium_core::mcp::proxy::types">types</a></dt><dd>Core data structures for the MCP proxy server.</dd><dt><a class="mod" href="upstream_pool/index.html" title="mod radium_core::mcp::proxy::upstream_pool">upstream_<wbr>pool</a></dt><dd>Upstream connection pool for managing connections to MCP servers.</dd></dl></section></div></main></body></html>

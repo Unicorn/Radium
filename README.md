@@ -19,6 +19,7 @@ Radium is a high-performance, Rust-based platform for creating, managing, and de
 - **📖 ACE Skillbook**: Learn and apply successful strategies from past work
 - **🎭 Persona System**: Intelligent model selection, cost optimization, and automatic fallback chains
 - **🔒 Policy Engine**: Fine-grained tool execution control with rule-based policies and approval modes
+- **🧠 Thinking Mode**: Deep reasoning support for complex problems with transparent thinking process display
 
 ## Quick Start
 
@@ -31,8 +32,8 @@ Radium is a high-performance, Rust-based platform for creating, managing, and de
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/radium.git
-cd radium
+git clone https://github.com/Unicorn/Radium.git
+cd RAD
 
 # Build the project
 cargo build --release
@@ -64,6 +65,9 @@ radium plan --input "Build a web app"
 
 # Execute the plan
 radium craft <plan-id>
+
+# Use structured output with JSON schema
+rad step agent-id "Extract user data" --response-format json-schema --response-schema user-schema.json
 ```
 
 ### Using the Desktop App
@@ -92,7 +96,7 @@ Radium includes automatic server lifecycle management:
 - **CLI/TUI**: Server starts on-demand when commands require it
 - **Standalone**: Still available as a separate binary for advanced use cases
 
-See [Embedded Server Documentation](docs/features/embedded-server-lifecycle.md) for details.
+See [Embedded Server Documentation](website/docs/features/embedded-server-lifecycle.md) for details.
 
 ## Agent Configuration
 
@@ -135,6 +139,20 @@ Define the agent's role and responsibilities here.
 Provide step-by-step instructions for the agent.
 ```
 
+### Self-Hosted Models
+
+Radium supports self-hosted AI models (Ollama, vLLM, LocalAI) for cost savings, data privacy, and air-gapped environments. See the [Self-Hosted Models Documentation](docs/self-hosted-models/README.md) for setup guides, configuration examples, and troubleshooting.
+
+**Quick Start:**
+```bash
+# Install Ollama
+curl -fsSL https://ollama.com/install.sh | sh
+ollama pull llama3.2
+
+# Configure agent to use local model
+export UNIVERSAL_BASE_URL="http://localhost:11434/v1"
+```
+
 ### CLI Commands
 
 ```bash
@@ -156,9 +174,10 @@ rad agents create my-agent "My Agent" --category core
 
 ### Documentation
 
-- [User Guide: Agent Configuration](docs/user-guide/agent-configuration.md) - Complete guide for configuring agents
-- [User Guide: Persona System](docs/user-guide/persona-system.md) - Intelligent model selection and cost optimization
-- [Developer Guide: Agent System Architecture](docs/developer-guide/agent-system-architecture.md) - Technical architecture details
+- [User Guide: Agent Configuration](website/docs/user-guide/agent-configuration.md) - Complete guide for configuring agents
+- [Self-Hosted Models](website/docs/self-hosted/README.md) - Setup and configuration for Ollama, vLLM, and LocalAI
+- [User Guide: Persona System](website/docs/user-guide/persona-system.md) - Intelligent model selection and cost optimization
+- [Developer Guide: Agent System Architecture](website/docs/developer-guide/agent-system-architecture.md) - Technical architecture details
 - [Examples](examples/agents/) - Example agent configurations
 
 ## MCP Proxy Server
@@ -189,7 +208,7 @@ rad mcp proxy stop
 - **Security**: Centralized rate limiting, logging, and sensitive data redaction
 - **Tool Aggregation**: Unified tool catalog with conflict resolution
 
-See [MCP Proxy Documentation](docs/mcp-proxy.md) for detailed setup and configuration.
+See [MCP Proxy Documentation](website/docs/mcp/mcp-proxy.md) for detailed setup and configuration.
 
 ## Extension System
 
@@ -213,9 +232,9 @@ rad extension create my-extension --author "Your Name" --description "My extensi
 
 ### Documentation
 
-- [Extension System Guide](docs/extensions/README.md) - Complete user guide
-- [Creating Extensions](docs/extensions/creating-extensions.md) - Guide for extension authors
-- [Extension Architecture](docs/extensions/architecture.md) - Technical architecture details
+- [Extension System Guide](website/docs/extensions/README.md) - Complete user guide
+- [Creating Extensions](website/docs/extensions/creating-extensions.md) - Guide for extension authors
+- [Extension Architecture](website/docs/extensions/architecture.md) - Technical architecture details
 - [Examples](examples/extensions/) - Example extension packages
 
 ## Context Files
@@ -252,7 +271,7 @@ rad context validate
 
 ### Documentation
 
-- [Context Files Feature Guide](docs/features/context-files.md) - Complete guide for context files
+- [Context Files Feature Guide](website/docs/features/context-files.md) - Complete guide for context files
 - [Examples](examples/context-files/) - Example context files and templates
 
 ## Orchestration
@@ -300,9 +319,9 @@ Control orchestration via TUI commands:
 
 ### Documentation
 
-- [Orchestration User Guide](docs/user-guide/orchestration.md) - Complete user guide
-- [Orchestration Workflows](docs/examples/orchestration-workflows.md) - Example workflows
-- [Orchestration Testing Guide](docs/user-guide/orchestration-testing.md) - Manual testing procedures
+- [Orchestration User Guide](website/docs/user-guide/orchestration.md) - Complete user guide
+- [Orchestration Workflows](website/docs/examples/orchestration-workflows.md) - Example workflows
+- [Orchestration Testing Guide](website/docs/user-guide/orchestration-testing.md) - Manual testing procedures
 
 ## Policy Engine
 
@@ -361,8 +380,8 @@ arg_pattern = "rm -rf *"
 
 ### Documentation
 
-- [Policy Engine Guide](docs/features/policy-engine.md) - Complete feature documentation
-- [Policy Best Practices](docs/security/policy-best-practices.md) - Security guidelines
+- [Policy Engine Guide](website/docs/features/policy-engine.md) - Complete feature documentation
+- [Policy Best Practices](website/docs/features/security/policy-best-practices.md) - Security guidelines
 - [Example Configurations](examples/policy-examples.toml) - Example policy files
 
 ## Workflow Behaviors
@@ -396,8 +415,8 @@ Workflow behaviors are controlled via a `behavior.json` file placed at `.radium/
 
 ### Documentation
 
-- [Workflow Behaviors Guide](docs/features/workflow-behaviors.md) - Complete feature documentation
-- [Constitution System Guide](docs/features/constitution-system.md) - Session-based rules
+- [Workflow Behaviors Guide](website/docs/features/workflow-behaviors.md) - Complete feature documentation
+- [Constitution System Guide](website/docs/features/constitution-system.md) - Session-based rules
 - [Behavior Examples](examples/behaviors/) - Example behavior.json files
 - [Policy Templates](examples/policies/) - Example policy configurations
 
@@ -455,8 +474,8 @@ default = "gemini"
 
 ### Documentation
 
-- [Engine Abstraction Architecture](docs/architecture/engine-abstraction.md) - Technical architecture details
-- [Adding New Engine Providers](docs/guides/adding-new-engine-provider.md) - Developer guide for adding providers
+- [Engine Abstraction Architecture](website/docs/developer-guide/architecture/engine-abstraction.md) - Technical architecture details
+- [Adding New Engine Providers](website/docs/user-guide/guides/adding-new-engine-provider.md) - Developer guide for adding providers
 
 ## Session Analytics
 
@@ -491,8 +510,8 @@ rad stats export --output analytics.json
 
 ### Documentation
 
-- [Session Analytics Guide](docs/features/session-analytics.md) - Complete feature documentation
-- [Optimizing Costs](docs/guides/optimizing-costs.md) - Strategies for reducing session costs
+- [Session Analytics Guide](website/docs/features/session-analytics.md) - Complete feature documentation
+- [Optimizing Costs](website/docs/user-guide/guides/optimizing-costs.md) - Strategies for reducing session costs
 
 ## Metacognitive Oversight (Vibe Check)
 
@@ -539,10 +558,10 @@ rad learning tag-skill --skill-id "skill-00001" --tag "helpful"
 
 ### Documentation
 
-- [Vibe Check User Guide](docs/user-guide/vibe-check.md) - Complete usage guide
-- [Learning System Guide](docs/user-guide/learning-system.md) - Learning system documentation
-- [Constitution Rules Guide](docs/user-guide/constitution-rules.md) - Session rules documentation
-- [Vibe Check Workflow Example](docs/examples/vibe-check-workflow.md) - Complete workflow example
+- [Vibe Check User Guide](website/docs/user-guide/vibe-check.md) - Complete usage guide
+- [Learning System Guide](website/docs/user-guide/learning-system.md) - Learning system documentation
+- [Constitution Rules Guide](website/docs/user-guide/constitution-rules.md) - Session rules documentation
+- [Vibe Check Workflow Example](website/docs/examples/vibe-check-workflow.md) - Complete workflow example
 
 ## Documentation
 
@@ -550,6 +569,7 @@ rad learning tag-skill --skill-id "skill-00001" --tag "helpful"
 - [Architecture](docs/architecture/)
 - [Agent Enhancement Guide](docs/AGENT_ENHANCEMENT_GUIDE.md)
 - [Agent Creation Guide](docs/guides/agent-creation-guide.md)
+- [Roadmap](website/docs/roadmap/index.md) - Open-source roadmap and vision
 
 ## Development
 
@@ -585,7 +605,7 @@ cargo llvm-cov --workspace --lcov --output-path lcov.info
 open target/llvm-cov/html/index.html
 ```
 
-See [Testing Documentation](docs/TESTING.md) for comprehensive testing guidelines (coming soon).
+See [Testing Documentation](website/docs/developer-guide/testing/testing-guide.md) for comprehensive testing guidelines.
 
 ## Contributing
 
@@ -600,6 +620,7 @@ MIT License - see LICENSE file for details
 
 ## Links
 
-- [Documentation](docs/)
-- [Architecture Overview](docs/architecture/architecture-backend.md)
-- [Project Roadmap](docs/project/02-now-next-later.md)
+- [Documentation](website/docs/)
+- [Architecture Overview](website/docs/developer-guide/architecture/architecture-overview.md)
+- [Roadmap](website/docs/roadmap/index.md) - Open-source roadmap, vision, and implementation plan
+# Test modification

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ContextError","HistoryError","InjectionDirective","TemplateType"],"fn":["generate_template"],"mod":["analysis","braingrid_client","metrics","sources"],"struct":["ContextFileLoader","ContextInjector","ContextManager","HistoryManager","Interaction","SourceValidationResult","SourceValidator"],"type":["HistoryResult","Result"]};

@@ -103,11 +103,7 @@ impl McpClient {
                 // Get OAuth token for SSE transport
                 let auth_header = if let Some(ref token_mgr) = token_manager {
                     let mgr = token_mgr.lock().await;
-                    if let Some(token) = mgr.get_token(&server_config.name) {
-                        Some(format!("Bearer {}", token.access_token))
-                    } else {
-                        None
-                    }
+                    mgr.get_token(&server_config.name).map(|token| format!("Bearer {}", token.access_token))
                 } else {
                     None
                 };
@@ -128,11 +124,7 @@ impl McpClient {
                 // Get OAuth token for HTTP transport
                 let auth_header = if let Some(ref token_mgr) = token_manager {
                     let mgr = token_mgr.lock().await;
-                    if let Some(token) = mgr.get_token(&server_config.name) {
-                        Some(format!("Bearer {}", token.access_token))
-                    } else {
-                        None
-                    }
+                    mgr.get_token(&server_config.name).map(|token| format!("Bearer {}", token.access_token))
                 } else {
                     None
                 };
@@ -150,9 +142,7 @@ impl McpClient {
         let server_info = McpServerInfo {
             name: init_result
                 .server_info
-                .as_ref()
-                .map(|info| info.name.clone())
-                .unwrap_or_else(|| server_config.name.clone()),
+                .as_ref().map_or_else(|| server_config.name.clone(), |info| info.name.clone()),
             version: init_result.server_info.as_ref().and_then(|info| info.version.clone()),
             capabilities: Some(crate::mcp::McpCapabilities {
                 tools: None,   // Will be populated when tools are discovered
@@ -201,9 +191,7 @@ impl McpClient {
         if let Some(error) = response.error {
             return Err(McpError::protocol(
                 format!("Initialize failed: {} (code: {})", error.message, error.code),
-                format!(
-                    "The MCP server failed to initialize. Common causes:\n  - Server version incompatibility\n  - Missing required capabilities\n  - Server configuration error\n\nCheck the server logs for more details. Ensure your server supports MCP protocol version 2024-11-05."
-                ),
+                "The MCP server failed to initialize. Common causes:\n  - Server version incompatibility\n  - Missing required capabilities\n  - Server configuration error\n\nCheck the server logs for more details. Ensure your server supports MCP protocol version 2024-11-05.".to_string(),
             ));
         }
 

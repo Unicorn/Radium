@@ -30,7 +30,7 @@ pub async fn execute(
     json: bool,
     yolo: bool,
     engine: Option<String>,
-    model_tier: Option<String>,
+    _model_tier: Option<String>,
 ) -> anyhow::Result<()> {
     println!("{}", "rad craft".bold().cyan());
     println!();
@@ -327,7 +327,7 @@ async fn execute_plan(
         executor.print_progress(manifest, execution_iteration, elapsed, None);
 
         // Check if we should continue based on run mode
-        let should_continue = match run_mode {
+        let _should_continue = match run_mode {
             RunMode::Bounded(max) => {
                 if execution_iteration > max {
                     println!("  {} Reached maximum iterations ({}). Stopping execution.", "→".yellow(), max);

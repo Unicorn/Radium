@@ -77,6 +77,8 @@ pub struct CostRecord {
     pub estimated_cost: f64,
     /// Model tier used ("smart" | "eco") if routing was used.
     pub model_tier: Option<String>,
+    /// Engine ID (e.g., "ollama", "openai", "claude") for local model cost breakdown.
+    pub engine_id: Option<String>,
 }
 
 /// Aggregated cost summary with breakdowns.
@@ -98,6 +100,9 @@ pub struct CostSummary {
     pub top_plans: Vec<(String, f64)>,
     /// Tier breakdown with Smart/Eco metrics and savings.
     pub tier_breakdown: Option<TierBreakdown>,
+    /// Local model cost breakdown by engine (e.g., {"ollama": 12.30, "lm-studio": 8.20}).
+    /// Only populated when local models are used.
+    pub local_breakdown: Option<HashMap<String, f64>>,
 }
 
 /// Breakdown of costs by model tier (Smart vs Eco).

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["SessionState"],"struct":["Approval","Artifact","Message","Session","ToolCall"]};

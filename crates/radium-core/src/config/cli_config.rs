@@ -10,6 +10,7 @@ use thiserror::Error;
 
 /// CLI configuration structure.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct CliConfig {
     /// Default engine to use
     #[serde(default)]
@@ -61,18 +62,6 @@ impl Default for OutputConfig {
     }
 }
 
-impl Default for CliConfig {
-    fn default() -> Self {
-        Self {
-            engine: None,
-            model: None,
-            workspace: None,
-            aliases: std::collections::HashMap::new(),
-            output: OutputConfig::default(),
-            log_level: None,
-        }
-    }
-}
 
 /// Errors that can occur during configuration loading.
 #[derive(Debug, Error)]
@@ -129,9 +118,7 @@ impl CliConfig {
 
     /// Get default global configuration file path.
     pub fn default_global_path() -> PathBuf {
-        std::env::var("HOME")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| PathBuf::from("."))
+        std::env::var("HOME").map_or_else(|_| PathBuf::from("."), PathBuf::from)
             .join(".radium")
             .join("config.toml")
     }

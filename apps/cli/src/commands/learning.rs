@@ -7,10 +7,11 @@ use anyhow::{Context, Result};
 use clap::Subcommand;
 use colored::Colorize;
 use radium_core::learning::{
-    LearningStore, LearningType, STANDARD_SECTIONS,
+    LearningStore, LearningType, MetricsAggregator, STANDARD_SECTIONS,
 };
 use radium_core::workspace::Workspace;
 use serde_json::json;
+use std::path::Path;
 
 /// Learning subcommands
 #[derive(Subcommand, Debug)]
@@ -77,6 +78,21 @@ pub enum LearningCommand {
         #[arg(long)]
         json: bool,
     },
+
+    /// View routing quality metrics (Phase 2 - REQ-246)
+    Metrics {
+        /// Export to JSON file
+        #[arg(long)]
+        export: Option<String>,
+
+        /// Show detailed per-agent metrics
+        #[arg(long)]
+        detailed: bool,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 /// Execute learning command
@@ -102,6 +118,9 @@ pub async fn execute(cmd: LearningCommand) -> Result<()> {
         }
         LearningCommand::ShowSkillbook { section, json } => {
             show_skillbook_command(&learning_store, section, json).await
+        }
+        LearningCommand::Metrics { export, detailed, json } => {
+            metrics_command(&workspace, export, detailed, json).await
         }
     }
 }
@@ -283,3 +302,123 @@ async fn show_skillbook_command(
     Ok(())
 }
 
+
+async fn metrics_command(
+    workspace: &Workspace,
+    export: Option<String>,
+    detailed: bool,
+    json_output: bool,
+) -> Result<()> {
+    // Load metrics from workspace
+    let metrics = MetricsAggregator::aggregate_from_workspace(workspace.root())
+        .map_err(anyhow::Error::msg)?;
+
+    // Export to JSON file if requested
+    if let Some(export_path) = export {
+        let path = Path::new(&export_path);
+        MetricsAggregator::export_to_json(&metrics, path)
+            .map_err(anyhow::Error::msg)?;
+        println!("{}", format!("Metrics exported to {}", export_path).green().bold());
+        return Ok(());
+    }
+
+    // JSON output to stdout
+    if json_output {
+        let json_metrics = serde_json::to_string_pretty(&metrics)?;
+        println!("{}", json_metrics);
+        return Ok(());
+    }
+
+    // Human-readable output
+    println!("{}", "═══════════════════════════════════════".cyan().bold());
+    println!("{}", "      Routing Quality Metrics".cyan().bold());
+    println!("{}", "═══════════════════════════════════════".cyan().bold());
+    println!();
+
+    if metrics.total_routings == 0 {
+        println!("{}", "No routing decisions recorded yet.".dimmed());
+        println!();
+        println!("Start executing tasks with routing enabled to collect metrics.");
+        return Ok(());
+    }
+
+    // Overall metrics
+    println!("{}", "Overall Performance".bold());
+    println!("  Total Routings:    {}", metrics.total_routings.to_string().cyan());
+    println!("  Accuracy:          {}", format!("{:.1}%", metrics.accuracy * 100.0).green());
+    println!("  Error Rate:        {}", format!("{:.1}%", metrics.error_rate * 100.0).red());
+    println!("  Retry Rate:        {}", format!("{:.1}%", metrics.retry_rate * 100.0).yellow());
+    println!("  Escalation Rate:   {}", format!("{:.1}%", metrics.escalation_rate * 100.0).yellow());
+    println!();
+
+    // Confidence statistics
+    println!("{}", "Confidence Statistics".bold());
+    println!("  Mean:      {}", format!("{:.3}", metrics.confidence_stats.mean).cyan());
+    println!("  Min:       {}", format!("{:.3}", metrics.confidence_stats.min).dimmed());
+    println!("  Max:       {}", format!("{:.3}", metrics.confidence_stats.max).dimmed());
+    println!("  Std Dev:   {}", format!("{:.3}", metrics.confidence_stats.std_dev).dimmed());
+    println!();
+
+    // Accuracy drift warning
+    if MetricsAggregator::detect_accuracy_drift(&metrics, 0.8) {
+        println!("{}", "⚠️  WARNING: Routing accuracy below 80% threshold!".yellow().bold());
+        println!("   {} Consider reviewing agent configuration or skill definitions.", "→".yellow());
+        println!();
+    }
+
+    // Top agents by selection count
+    println!("{}", "Top Agents (by selection count)".bold());
+    let mut agents: Vec<_> = metrics.agent_performance.iter().collect();
+    agents.sort_by(|a, b| b.1.total_selections.cmp(&a.1.total_selections));
+
+    let top_count = if detailed { agents.len() } else { 5.min(agents.len()) };
+
+    for (agent_id, agent_metrics) in agents.iter().take(top_count) {
+        println!("  {}", agent_id.cyan().bold());
+        println!("    Selections:        {}", agent_metrics.total_selections);
+        println!("    Success Rate:      {}", format!("{:.1}%", agent_metrics.success_rate * 100.0).green());
+        println!("    Avg Confidence:    {}", format!("{:.3}", agent_metrics.avg_confidence).dimmed());
+
+        // Feedback breakdown
+        let total_feedback = agent_metrics.positive_feedback + agent_metrics.negative_feedback + agent_metrics.neutral_feedback;
+        if total_feedback > 0 {
+            println!("    Feedback:          {} positive, {} negative, {} neutral",
+                agent_metrics.positive_feedback.to_string().green(),
+                agent_metrics.negative_feedback.to_string().red(),
+                agent_metrics.neutral_feedback.to_string().yellow()
+            );
+        }
+        println!();
+    }
+
+    if !detailed && agents.len() > 5 {
+        println!("  {} Use --detailed to see all {} agents",
+            "...".dimmed(),
+            agents.len()
+        );
+        println!();
+    }
+
+    // Footer with recommendations
+    println!("{}", "═══════════════════════════════════════".cyan().dimmed());
+    println!();
+    println!("{}", "Recommendations:".bold());
+
+    if metrics.accuracy < 0.9 {
+        println!("  • {} Review agent skill definitions for better matching", "→".cyan());
+    }
+    if metrics.error_rate > 0.1 {
+        println!("  • {} Investigate failed executions and add fallback strategies", "→".cyan());
+    }
+    if metrics.retry_rate > 0.05 {
+        println!("  • {} High retry rate suggests routing issues - check task descriptions", "→".cyan());
+    }
+
+    println!();
+    println!("{}", "Export options:".dimmed());
+    println!("  rad learning metrics --export metrics.json  {}", "# Export to JSON".dimmed());
+    println!("  rad learning metrics --json                 {}", "# JSON to stdout".dimmed());
+    println!("  rad learning metrics --detailed             {}", "# Show all agents".dimmed());
+
+    Ok(())
+}

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["Tool","ToolArguments","ToolCall","ToolParameter","ToolParameters","ToolPropertySchema","ToolResult"],"trait":["ToolHandler"]};

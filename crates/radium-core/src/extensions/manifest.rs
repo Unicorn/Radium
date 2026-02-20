@@ -45,6 +45,7 @@ pub type Result<T> = std::result::Result<T, ExtensionManifestError>;
 
 /// Extension component definitions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct ExtensionComponents {
     /// Prompt file paths (glob patterns).
     #[serde(default)]
@@ -63,16 +64,6 @@ pub struct ExtensionComponents {
     pub hooks: Vec<String>,
 }
 
-impl Default for ExtensionComponents {
-    fn default() -> Self {
-        Self {
-            prompts: Vec::new(),
-            mcp_servers: Vec::new(),
-            commands: Vec::new(),
-            hooks: Vec::new(),
-        }
-    }
-}
 
 /// Extension manifest structure.
 #[derive(Debug, Clone, Serialize, Deserialize)]

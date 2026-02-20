@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["budget","code_changes","comparison","cost_history","cost_query","export","exporters","report","session","storage"]};

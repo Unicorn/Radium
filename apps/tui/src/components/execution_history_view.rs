@@ -249,11 +249,30 @@ impl ExecutionHistoryView {
         )
         .height(1);
 
-        // Create data rows
+        // Calculate viewport height and visible range (Phase 5.2: Viewport Culling)
+        let viewport_height = area.height.saturating_sub(4) as usize; // Subtract borders, header, help
+        let total_records = self.records.len();
+        let selected_idx = self.state.selected().unwrap_or(0);
+
+        // Calculate scroll offset to keep selection visible
+        let scroll_offset = if selected_idx < viewport_height / 2 {
+            0
+        } else if selected_idx > total_records.saturating_sub(viewport_height / 2) {
+            total_records.saturating_sub(viewport_height)
+        } else {
+            selected_idx.saturating_sub(viewport_height / 2)
+        };
+
+        let start_idx = scroll_offset;
+        let end_idx = (start_idx + viewport_height).min(total_records);
+
+        // Create data rows ONLY for visible items (viewport culling)
         let rows: Vec<Row> = self
             .records
             .iter()
             .enumerate()
+            .skip(start_idx)
+            .take(end_idx - start_idx)
             .map(|(i, record)| {
                 let is_selected = self.state.selected() == Some(i);
                 let base_style = if is_selected {

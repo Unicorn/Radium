@@ -71,6 +71,7 @@ pub async fn execute(goal: String) -> Result<()> {
         &db,
         agent_registry,
         config,
+        None, // routing_config: disabled by default
     )
     .context("Failed to create autonomous orchestrator")?;
 

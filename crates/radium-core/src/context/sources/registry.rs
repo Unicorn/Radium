@@ -40,7 +40,7 @@ impl SourceRegistry {
     /// for the URI's scheme.
     pub fn get_reader(&self, uri: &str) -> Option<&dyn SourceReader> {
         let scheme = Self::extract_scheme(uri);
-        self.readers.get(&scheme).map(|r| r.as_ref())
+        self.readers.get(&scheme).map(std::convert::AsRef::as_ref)
     }
 
     /// Extracts the scheme from a URI.

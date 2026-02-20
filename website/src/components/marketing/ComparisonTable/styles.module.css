@@ -1,0 +1,243 @@
+.comparisonContainer {
+  padding: 3rem 0;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.title {
+  text-align: center;
+  font-size: var(--marketing-heading-lg);
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.subtitle {
+  text-align: center;
+  font-size: var(--marketing-body-lg);
+  color: var(--radium-text-muted);
+  margin-bottom: 2rem;
+}
+
+.tableWrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: 2rem;
+}
+
+.comparisonTable {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--radium-bg-panel);
+  border: 1px solid var(--radium-border);
+  border-radius: var(--marketing-border-radius);
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+}
+
+.comparisonTable thead {
+  background: var(--radium-bg-element);
+}
+
+.comparisonTable th {
+  padding: 1rem;
+  text-align: center;
+  font-weight: 600;
+  border-bottom: 2px solid var(--radium-border);
+  color: var(--radium-text);
+}
+
+.headerFeature {
+  text-align: left !important;
+  width: 35%;
+}
+
+.headerProduct {
+  width: 16.25%;
+}
+
+.headerRadium {
+  background: rgba(74, 245, 176, 0.15);
+  border-color: var(--voiceflow-green-primary);
+  box-shadow: 0 0 12px var(--glow-green);
+}
+
+.productName {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.comparisonTable tbody tr {
+  border-bottom: 1px solid var(--radium-border);
+}
+
+.comparisonTable tbody tr:last-child {
+  border-bottom: none;
+}
+
+.comparisonTable tbody tr:hover {
+  background: var(--radium-bg-element);
+}
+
+.cellFeature {
+  padding: 1.25rem 1rem;
+  text-align: left;
+}
+
+.featureName {
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+  color: var(--radium-text);
+}
+
+.featureDescription {
+  font-size: 0.8125rem;
+  color: var(--radium-text-muted);
+  line-height: 1.4;
+}
+
+.cellSupport {
+  padding: 1.25rem 1rem;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.cellRadium {
+  background: rgba(74, 245, 176, 0.1);
+  font-weight: 600;
+  color: var(--voiceflow-green-primary);
+}
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.iconFull {
+  background: var(--radium-success);
+  color: white;
+}
+
+.iconPartial {
+  background: var(--radium-warning);
+  color: white;
+}
+
+.iconNone {
+  background: var(--radium-border);
+  color: var(--radium-text-muted);
+}
+
+.legend {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--radium-text-muted);
+}
+
+/* Dark mode support - using Radium colors */
+[data-theme='dark'] .comparisonTable {
+  background: var(--radium-bg-panel);
+  border-color: var(--radium-border);
+}
+
+[data-theme='dark'] .comparisonTable thead {
+  background: var(--radium-bg-element);
+}
+
+[data-theme='dark'] .comparisonTable th {
+  border-color: var(--radium-border);
+  color: var(--radium-text);
+}
+
+[data-theme='dark'] .headerRadium {
+  background: rgba(74, 245, 176, 0.15);
+  border-color: var(--voiceflow-green-primary);
+  box-shadow: 0 0 12px var(--glow-green);
+}
+
+[data-theme='dark'] .comparisonTable tbody tr {
+  border-color: var(--radium-border);
+}
+
+[data-theme='dark'] .comparisonTable tbody tr:hover {
+  background: var(--radium-bg-element);
+}
+
+[data-theme='dark'] .cellRadium {
+  background: rgba(74, 245, 176, 0.1);
+  color: var(--voiceflow-green-primary);
+}
+
+[data-theme='dark'] .subtitle,
+[data-theme='dark'] .featureDescription {
+  color: var(--radium-text-muted);
+}
+
+[data-theme='dark'] .iconFull {
+  background: var(--radium-success);
+  color: white;
+}
+
+[data-theme='dark'] .iconPartial {
+  background: var(--radium-warning);
+  color: white;
+}
+
+[data-theme='dark'] .iconNone {
+  background: var(--radium-border);
+  color: var(--radium-text-muted);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .comparisonContainer {
+    padding: 2rem 0;
+  }
+
+  .title {
+    font-size: var(--marketing-heading-md);
+  }
+
+  .comparisonTable th,
+  .comparisonTable td {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.875rem;
+  }
+
+  .productName {
+    font-size: 0.875rem;
+  }
+
+  .featureDescription {
+    display: none;
+  }
+
+  .legend {
+    gap: 1rem;
+  }
+
+  .legendItem {
+    font-size: 0.75rem;
+  }
+
+  .icon {
+    width: 1.5rem;
+    height: 1.5rem;
+    font-size: 1rem;
+  }
+}

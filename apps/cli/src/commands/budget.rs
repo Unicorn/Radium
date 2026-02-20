@@ -165,7 +165,7 @@ async fn show_budget_status(json_output: bool) -> anyhow::Result<()> {
         if let Ok(Some((manager, _))) = get_budget_manager_with_analytics() {
             if let Ok(analytics) = manager.get_analytics() {
                 if let Some(ref forecast) = analytics.forecast {
-                    let days_color = if forecast.days_remaining <= 3 {
+                    let _days_color = if forecast.days_remaining <= 3 {
                         "red"
                     } else if forecast.days_remaining <= 7 {
                         "yellow"
@@ -212,7 +212,6 @@ async fn reset_budget() -> anyhow::Result<()> {
 
 /// Get or create BudgetManager with analytics if available.
 fn get_budget_manager_with_analytics() -> anyhow::Result<Option<(radium_core::monitoring::BudgetManager, radium_core::monitoring::BudgetConfig)>> {
-    use radium_core::analytics::budget::{AnomalyDetector, AnalyticsCache, BudgetForecaster};
     use radium_core::monitoring::{BudgetConfig, BudgetManager, MonitoringService};
     use std::sync::Arc;
 
@@ -223,7 +222,7 @@ fn get_budget_manager_with_analytics() -> anyhow::Result<Option<(radium_core::mo
             format!("{}/.radium/monitoring.db", home)
         });
 
-    let monitoring = match MonitoringService::open(&db_path) {
+    let _monitoring = match MonitoringService::open(&db_path) {
         Ok(service) => Arc::new(service),
         Err(_) => return Ok(None), // No database, analytics unavailable
     };
@@ -238,19 +237,8 @@ fn get_budget_manager_with_analytics() -> anyhow::Result<Option<(radium_core::mo
         return Ok(None); // No budget set
     };
 
-    // Create analytics components
-    let cache = Arc::new(AnalyticsCache::new());
-    let forecaster = Arc::new(BudgetForecaster::with_cache(monitoring.clone(), cache.clone()));
-    let anomaly_detector = Arc::new(AnomalyDetector::new(monitoring.clone()));
-
-    // Create BudgetManager with analytics
-    let manager = BudgetManager::with_analytics(
-        budget_config.clone(),
-        monitoring,
-        forecaster,
-        anomaly_detector,
-        None,
-    );
+    // Create BudgetManager with simple constructor (analytics features not yet integrated)
+    let manager = BudgetManager::new(budget_config.clone());
 
     Ok(Some((manager, budget_config)))
 }
@@ -308,8 +296,8 @@ async fn show_forecast(json_output: bool) -> anyhow::Result<()> {
 }
 
 /// Show comprehensive budget analytics.
-async fn show_analyze(json_output: bool, days: u32) -> anyhow::Result<()> {
-    let Some((manager, config)) = get_budget_manager_with_analytics()? else {
+async fn show_analyze(json_output: bool, _days: u32) -> anyhow::Result<()> {
+    let Some((manager, _config)) = get_budget_manager_with_analytics()? else {
         println!("{}", "Budget analytics unavailable. Set a budget and ensure monitoring database exists.".yellow());
         return Ok(());
     };

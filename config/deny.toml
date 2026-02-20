@@ -16,7 +16,15 @@ all-features = true
 [advisories]
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
-ignore = []
+# Note: RUSTSEC-2025-0009 (ring 0.17.9) is a transitive dependency through rustls-webpki 0.103.8
+# This requires an upstream update to rustls-webpki. The vulnerability is in ring 0.17.9,
+# which needs to be upgraded to >=0.17.12. However, rustls-webpki 0.103.8 still depends on
+# ring 0.17.9. We're monitoring for a rustls-webpki release that uses ring >=0.17.12.
+# Tracking: https://github.com/rustls/webpki/issues
+# Temporary exception until upstream is fixed:
+ignore = [
+  { id = "RUSTSEC-2025-0009", reason = "Waiting for rustls-webpki to update ring dependency" },
+]
 
 # =============================================================================
 # Licenses - ensure all dependencies use acceptable licenses
@@ -35,7 +43,10 @@ allow = [
   "Unicode-DFS-2016",
   "CC0-1.0",
   "MPL-2.0",
+  "BSL-1.0",  # Boost Software License 1.0
+  "Unlicense",  # The Unlicense
 ]
+# Allow OR combinations of allowed licenses
 confidence-threshold = 0.8
 exceptions = []
 

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["SelectedModel","SelectionError"],"struct":["ModelSelector","SelectionOptions","SelectionResult"]};

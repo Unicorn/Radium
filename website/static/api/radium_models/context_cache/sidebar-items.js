@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["claude","config","gemini","openai","registry","trait","types"]};

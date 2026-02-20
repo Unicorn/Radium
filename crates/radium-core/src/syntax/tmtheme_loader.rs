@@ -47,7 +47,7 @@ fn convert_theme(theme: &syntect::highlighting::Theme) -> Result<RadiumTheme> {
     let mut primary = Color::Rgb(0, 217, 255); // Default cyan
     let mut secondary = Color::Rgb(167, 139, 250); // Default purple
     let mut success = Color::Rgb(16, 185, 129); // Default green
-    let mut warning = Color::Rgb(245, 158, 11); // Default yellow
+    let warning = Color::Rgb(245, 158, 11); // Default yellow
     let mut error = Color::Rgb(239, 68, 68); // Default red
     let mut info = Color::Rgb(6, 182, 212); // Default blue
 
@@ -85,36 +85,36 @@ fn convert_theme(theme: &syntect::highlighting::Theme) -> Result<RadiumTheme> {
         info,
         text: Color::Rgb(foreground.r, foreground.g, foreground.b),
         text_muted: Color::Rgb(
-            (foreground.r as u16 * 2 / 3) as u8,
-            (foreground.g as u16 * 2 / 3) as u8,
-            (foreground.b as u16 * 2 / 3) as u8,
+            (u16::from(foreground.r) * 2 / 3) as u8,
+            (u16::from(foreground.g) * 2 / 3) as u8,
+            (u16::from(foreground.b) * 2 / 3) as u8,
         ),
         text_dim: Color::Rgb(
-            (foreground.r as u16 / 2) as u8,
-            (foreground.g as u16 / 2) as u8,
-            (foreground.b as u16 / 2) as u8,
+            (u16::from(foreground.r) / 2) as u8,
+            (u16::from(foreground.g) / 2) as u8,
+            (u16::from(foreground.b) / 2) as u8,
         ),
         bg_primary: Color::Rgb(background.r, background.g, background.b),
         bg_panel: Color::Rgb(
-            (background.r as u16 + 10).min(255) as u8,
-            (background.g as u16 + 10).min(255) as u8,
-            (background.b as u16 + 10).min(255) as u8,
+            (u16::from(background.r) + 10).min(255) as u8,
+            (u16::from(background.g) + 10).min(255) as u8,
+            (u16::from(background.b) + 10).min(255) as u8,
         ),
         bg_element: Color::Rgb(
-            (background.r as u16 + 20).min(255) as u8,
-            (background.g as u16 + 20).min(255) as u8,
-            (background.b as u16 + 20).min(255) as u8,
+            (u16::from(background.r) + 20).min(255) as u8,
+            (u16::from(background.g) + 20).min(255) as u8,
+            (u16::from(background.b) + 20).min(255) as u8,
         ),
         border: Color::Rgb(
-            ((background.r as u16 + foreground.r as u16) / 2) as u8,
-            ((background.g as u16 + foreground.g as u16) / 2) as u8,
-            ((background.b as u16 + foreground.b as u16) / 2) as u8,
+            ((u16::from(background.r) + u16::from(foreground.r)) / 2) as u8,
+            ((u16::from(background.g) + u16::from(foreground.g)) / 2) as u8,
+            ((u16::from(background.b) + u16::from(foreground.b)) / 2) as u8,
         ),
         border_active: primary,
         border_subtle: Color::Rgb(
-            ((background.r as u16 * 3 + foreground.r as u16) / 4) as u8,
-            ((background.g as u16 * 3 + foreground.g as u16) / 4) as u8,
-            ((background.b as u16 * 3 + foreground.b as u16) / 4) as u8,
+            ((u16::from(background.r) * 3 + u16::from(foreground.r)) / 4) as u8,
+            ((u16::from(background.g) * 3 + u16::from(foreground.g)) / 4) as u8,
+            ((u16::from(background.b) * 3 + u16::from(foreground.b)) / 4) as u8,
         ),
     })
 }

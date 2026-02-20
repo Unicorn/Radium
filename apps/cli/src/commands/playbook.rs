@@ -3,10 +3,9 @@
 use clap::Subcommand;
 use colored::Colorize;
 use radium_core::playbooks::{
-    discovery::PlaybookDiscovery, parser::PlaybookParser, registry::PlaybookRegistry,
+    discovery::PlaybookDiscovery, parser::PlaybookParser,
     storage::PlaybookStorage, types::PlaybookPriority,
 };
-use radium_core::workspace::Workspace;
 use std::path::PathBuf;
 
 /// Playbook command options.
@@ -275,7 +274,7 @@ async fn apply_playbook(file: PathBuf) -> anyhow::Result<()> {
         "✓".green()
     );
     println!("URI: {}", playbook.uri.bright_blue());
-    println!("Location: {}", target_path.display().bright_blue());
+    println!("Location: {}", target_path.display().to_string().bright_blue());
 
     Ok(())
 }
@@ -286,7 +285,7 @@ async fn delete_playbook(uri: String) -> anyhow::Result<()> {
         .map_err(|e| anyhow::anyhow!("Failed to initialize playbook discovery: {}", e))?;
 
     // Find the playbook
-    let playbook = discovery
+    let _playbook = discovery
         .find_by_uri(&uri)?
         .ok_or_else(|| anyhow::anyhow!("Playbook not found: {}", uri))?;
 
@@ -296,7 +295,7 @@ async fn delete_playbook(uri: String) -> anyhow::Result<()> {
 
     // Find the file by scanning
     let all_playbooks = discovery.discover_all()?;
-    let playbook_file = all_playbooks
+    let _playbook_file = all_playbooks
         .get(&uri)
         .ok_or_else(|| anyhow::anyhow!("Playbook file not found: {}", uri))?;
 
@@ -472,7 +471,7 @@ async fn sync_playbooks(project_id: Option<String>, upload: bool) -> anyhow::Res
     // Upload missing remote playbooks (if requested)
     if upload && !missing_remote.is_empty() {
         println!("Uploading {} playbook(s) to Braingrid...", missing_remote.len());
-        use crate::playbooks::braingrid_storage::BraingridPlaybookStorage;
+        use radium_core::playbooks::braingrid_storage::BraingridPlaybookStorage;
         let storage = BraingridPlaybookStorage::new(&project_id);
 
         for playbook in missing_remote {

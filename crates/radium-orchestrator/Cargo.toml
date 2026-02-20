@@ -14,6 +14,7 @@ workspace = true
 # Internal crates
 radium-abstraction.workspace = true
 radium-models.workspace = true
+radium-ml = { path = "../radium-ml" }
 
 # Async runtime
 tokio.workspace = true
@@ -23,6 +24,7 @@ tokio-util = "0.7"
 serde.workspace = true
 serde_json.workspace = true
 toml = "0.8"
+serde_yaml = "0.9"
 
 # Error handling
 anyhow.workspace = true
@@ -47,15 +49,37 @@ base64 = "0.22"
 futures = "0.3"
 
 # HTTP client
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { workspace = true, features = ["json"] }
 
 # Random number generation for A/B testing
 rand = "0.8"
 
+# Regular expressions for code analysis
+regex = "1.10"
+# Search dependencies
+ignore = "0.4"
+grep-searcher = "0.1"
+grep-regex = "0.1"
+glob = "0.3"
+walkdir = "2.4"
+# Tree-sitter for AST analysis
+tree-sitter = "0.26"
+tree-sitter-rust = "0.24"
+tree-sitter-typescript = "0.23"
+
 [dev-dependencies]
 tempfile = "3.8"
 criterion = { version = "0.5", features = ["html_reports", "async_tokio"] }
+radium-core = { workspace = true, features = ["monitoring"] }
 
 [[bench]]
 name = "orchestration_benchmark"
+harness = false
+
+[[bench]]
+name = "skill_routing_benchmark"
+harness = false
+
+[[bench]]
+name = "routing_evaluation"
 harness = false

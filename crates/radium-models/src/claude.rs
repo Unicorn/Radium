@@ -1,14 +1,42 @@
 //! Claude (Anthropic) model implementation.
 //!
 //! This module provides an implementation of the `Model` trait for Anthropic's Claude API.
+//!
+//! ## System Message Handling (Reference Implementation)
+//!
+//! Claude uses a **dedicated system field** approach for system messages, which serves as the
+//! reference pattern for providers that support dedicated system instruction fields (like Gemini).
+//!
+//! **Key characteristics:**
+//! - System messages are extracted from the ChatMessage array before processing
+//! - System messages are filtered out of the main messages array
+//! - System messages are sent via a dedicated `system` field in the API request
+//! - Multiple system messages are concatenated with "\n\n" separator
+//!
+//! **When to use this pattern:**
+//! - APIs that support a dedicated system instruction field (e.g., Claude, Gemini)
+//! - When system context should be separated from conversation history
+//! - When you want to preserve semantic distinction between system instructions and user messages
+//!
+//! **Comparison with other providers:**
+//! - **OpenAI**: Uses inline approach - system messages included in messages array with `role: "system"`
+//! - **Gemini**: Uses dedicated `systemInstruction` field (follows this Claude pattern)
+//! - **Claude**: Uses dedicated `system` field (this implementation)
+//!
+//! See `extract_system_prompt()` and `generate_chat_completion()` for the implementation pattern.
 
 use async_trait::async_trait;
+use futures::stream::Stream;
 use radium_abstraction::{
-    ChatMessage, Model, ModelError, ModelParameters, ModelResponse, ModelUsage,
+    ChatMessage, ContentBlock, ImageSource, MessageContent, Model, ModelError, ModelParameters,
+    ModelResponse, ModelUsage, StreamingModel, StreamItem,
 };
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::env;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use tracing::{debug, error};
 
 /// Claude model implementation.
@@ -22,6 +50,8 @@ pub struct ClaudeModel {
     base_url: String,
     /// HTTP client for making requests.
     client: Client,
+    /// Optional cache configuration for context caching.
+    cache_config: Option<crate::context_cache::CacheConfig>,
 }
 
 impl ClaudeModel {
@@ -45,6 +75,7 @@ impl ClaudeModel {
             api_key,
             base_url: "https://api.anthropic.com/v1".to_string(),
             client: Client::new(),
+            cache_config: None,
         })
     }
 
@@ -60,23 +91,138 @@ impl ClaudeModel {
             api_key,
             base_url: "https://api.anthropic.com/v1".to_string(),
             client: Client::new(),
+            cache_config: None,
         }
     }
 
-    /// Converts our ChatMessage to Claude API message format.
-    fn to_claude_message(msg: &ChatMessage) -> ClaudeMessage {
-        ClaudeMessage {
-            role: if msg.role == "assistant" { "assistant" } else { "user" }.to_string(),
-            content: msg.content.clone(),
-        }
+    /// Sets the cache configuration for this model.
+    ///
+    /// # Arguments
+    /// * `cache_config` - The cache configuration
+    #[must_use]
+    pub fn with_cache_config(mut self, cache_config: crate::context_cache::CacheConfig) -> Self {
+        self.cache_config = Some(cache_config);
+        self
     }
 
     /// Extracts system messages from the chat history.
+    ///
+    /// This function implements the **dedicated system field pattern** used by Claude and Gemini.
+    /// System messages are extracted and concatenated (if multiple exist) before being sent via
+    /// the dedicated `system` field in the API request.
+    ///
+    /// **Pattern details:**
+    /// - Filters messages with `role == "system"`
+    /// - Returns the first system message found (Claude API typically uses single system prompt)
+    /// - Returns `None` if no system messages are present
+    /// - Extracts text from MessageContent::Text or first text block from MessageContent::Blocks
+    ///
+    /// **Note:** For multiple system messages, this implementation takes the first one.
+    /// If concatenation of multiple system messages is needed, see Gemini's `extract_system_messages()`
+    /// implementation which concatenates with "\n\n" separator.
+    ///
+    /// # Arguments
+    /// * `messages` - Array of ChatMessage objects to extract system messages from
+    ///
+    /// # Returns
+    /// `Some(String)` containing the system message content, or `None` if no system messages found
+    ///
+    /// **Reference:** This pattern is used as a reference for Gemini's `extract_system_messages()`
+    /// implementation in `crates/radium-models/src/gemini.rs`.
     fn extract_system_prompt(messages: &[ChatMessage]) -> Option<String> {
         messages
             .iter()
             .find(|msg| msg.role == "system")
-            .map(|msg| msg.content.clone())
+            .and_then(|msg| match &msg.content {
+                MessageContent::Text(text) => Some(text.clone()),
+                MessageContent::Blocks(blocks) => {
+                    // Extract first text block if available
+                    blocks
+                        .iter()
+                        .find_map(|block| match block {
+                            ContentBlock::Text { text } => Some(text.clone()),
+                            _ => None,
+                        })
+                }
+            })
+    }
+
+    /// Converts a ContentBlock to Claude's content block format.
+    fn content_block_to_claude(
+        block: &ContentBlock,
+        cache_control: Option<CacheControl>,
+    ) -> Result<ClaudeContentBlock, ModelError> {
+        match block {
+            ContentBlock::Text { text } => Ok(ClaudeContentBlock::Text {
+                text: text.clone(),
+                cache_control,
+            }),
+            ContentBlock::Image { source, media_type } => {
+                let claude_source = match source {
+                    ImageSource::Base64 { data } => ClaudeImageSource::Base64 {
+                        media_type: media_type.clone(),
+                        data: data.clone(),
+                    },
+                    ImageSource::Url { url } => ClaudeImageSource::Url {
+                        url: url.clone(),
+                    },
+                    ImageSource::File { path } => {
+                        // Read file and encode to Base64
+                        let bytes = std::fs::read(path).map_err(|e| {
+                            ModelError::InvalidMediaSource {
+                                media_source: path.display().to_string(),
+                                reason: format!("Failed to read file: {}", e),
+                            }
+                        })?;
+                        use base64::Engine;
+                        let engine = base64::engine::general_purpose::STANDARD;
+                        ClaudeImageSource::Base64 {
+                            media_type: media_type.clone(),
+                            data: engine.encode(&bytes),
+                        }
+                    }
+                };
+                Ok(ClaudeContentBlock::Image {
+                    source: claude_source,
+                    cache_control,
+                })
+            }
+            ContentBlock::Audio { .. } => Err(ModelError::UnsupportedContentType {
+                content_type: "audio".to_string(),
+                model: "claude".to_string(),
+            }),
+            ContentBlock::Video { .. } => Err(ModelError::UnsupportedContentType {
+                content_type: "video".to_string(),
+                model: "claude".to_string(),
+            }),
+            ContentBlock::Document { .. } => Err(ModelError::UnsupportedContentType {
+                content_type: "document".to_string(),
+                model: "claude".to_string(),
+            }),
+        }
+    }
+
+    /// Converts our ChatMessage to Claude API message format.
+    pub fn to_claude_message(msg: &ChatMessage) -> Result<ClaudeMessage, ModelError> {
+        let role = if msg.role == "assistant" {
+            "assistant"
+        } else {
+            "user"
+        }
+        .to_string();
+
+        let content = match &msg.content {
+            MessageContent::Text(text) => ClaudeMessageContent::String(text.clone()),
+            MessageContent::Blocks(blocks) => {
+                let claude_blocks: Result<Vec<ClaudeContentBlock>, ModelError> = blocks
+                    .iter()
+                    .map(|b| Self::content_block_to_claude(b, None))
+                    .collect();
+                ClaudeMessageContent::Blocks(claude_blocks?)
+            }
+        };
+
+        Ok(ClaudeMessage { role, content })
     }
 }
 
@@ -95,7 +241,10 @@ impl Model for ClaudeModel {
         );
 
         // Convert single prompt to chat format for Claude
-        let messages = vec![ChatMessage { role: "user".to_string(), content: prompt.to_string() }];
+        let messages = vec![ChatMessage {
+            role: "user".to_string(),
+            content: MessageContent::Text(prompt.to_string()),
+        }];
 
         self.generate_chat_completion(&messages, parameters).await
     }
@@ -115,15 +264,20 @@ impl Model for ClaudeModel {
         // Build Claude API request
         let url = format!("{}/messages", self.base_url);
 
-        // Extract system prompt if present
+        // Extract system prompt if present (dedicated system field pattern)
+        // This follows the reference pattern for providers with dedicated system instruction fields.
+        // System messages are extracted and sent via the `system` field, not included in messages.
         let system = Self::extract_system_prompt(messages);
 
         // Convert non-system messages to Claude format
-        let claude_messages: Vec<ClaudeMessage> = messages
+        // System messages are filtered out here - they're handled via the dedicated `system` field above.
+        // This pattern is replicated in Gemini's implementation (see gemini.rs).
+        let claude_messages: Result<Vec<ClaudeMessage>, ModelError> = messages
             .iter()
             .filter(|msg| msg.role != "system")
             .map(Self::to_claude_message)
             .collect();
+        let claude_messages = claude_messages?;
 
         // Build request body
         let mut request_body = ClaudeRequest {
@@ -134,6 +288,9 @@ impl Model for ClaudeModel {
             temperature: None,
             top_p: None,
             stop_sequences: None,
+            thinking: None,
+            tools: None,
+            tool_choice: None,
         };
 
         // Apply parameters if provided
@@ -144,6 +301,18 @@ impl Model for ClaudeModel {
                 request_body.max_tokens = max_tokens;
             }
             request_body.stop_sequences = params.stop_sequences;
+            
+            // Map reasoning effort to thinking config for Claude models
+            if let Some(effort) = params.reasoning_effort {
+                let thinking_budget = match effort {
+                    radium_abstraction::ReasoningEffort::Low => 0.3,   // Minimal extended thinking
+                    radium_abstraction::ReasoningEffort::Medium => 0.6, // Standard extended thinking
+                    radium_abstraction::ReasoningEffort::High => 1.0,   // Maximum extended thinking
+                };
+                request_body.thinking = Some(ClaudeThinkingConfig {
+                    thinking_budget: Some(thinking_budget),
+                });
+            }
         }
 
         // Make API request using reqwest
@@ -238,21 +407,209 @@ impl Model for ClaudeModel {
         let content = claude_response
             .content
             .iter()
-            .find(|c| c.content_type == "text")
-            .map(|c| c.text.clone())
+            .find_map(|c| match c {
+                ClaudeContent::Text { text, .. } => Some(text.clone()),
+                _ => None,
+            })
             .ok_or_else(|| {
                 error!("No text content in Claude API response");
                 ModelError::ModelResponseError("No text content in API response".to_string())
             })?;
 
         // Extract usage information
+        let cache_usage = if claude_response.usage.cache_creation_input_tokens.is_some()
+            || claude_response.usage.cache_read_input_tokens.is_some()
+        {
+            Some(radium_abstraction::CacheUsage {
+                cache_creation_tokens: claude_response
+                    .usage
+                    .cache_creation_input_tokens
+                    .unwrap_or(0),
+                cache_read_tokens: claude_response
+                    .usage
+                    .cache_read_input_tokens
+                    .unwrap_or(0),
+                regular_tokens: claude_response.usage.input_tokens
+                    - claude_response.usage.cache_creation_input_tokens.unwrap_or(0)
+                    - claude_response.usage.cache_read_input_tokens.unwrap_or(0),
+            })
+        } else {
+            None
+        };
+
         let usage = Some(ModelUsage {
             prompt_tokens: claude_response.usage.input_tokens,
             completion_tokens: claude_response.usage.output_tokens,
             total_tokens: claude_response.usage.input_tokens + claude_response.usage.output_tokens,
+            cache_usage,
         });
 
-        Ok(ModelResponse { content, model_id: Some(self.model_id.clone()), usage })
+        // Extract thinking process if present
+        let metadata = if let Some(thinking) = claude_response.thinking {
+            let mut metadata_map = HashMap::new();
+            metadata_map.insert("thinking_process".to_string(), thinking);
+            Some(metadata_map)
+        } else {
+            None
+        };
+
+        Ok(ModelResponse {
+            content,
+            model_id: Some(self.model_id.clone()),
+            usage,
+            metadata,
+            tool_calls: None,
+        })
+    }
+
+    async fn generate_with_tools(
+        &self,
+        messages: &[ChatMessage],
+        tools: &[radium_abstraction::Tool],
+        tool_config: Option<&radium_abstraction::ToolConfig>,
+    ) -> Result<ModelResponse, ModelError> {
+        debug!(
+            model_id = %self.model_id,
+            num_messages = messages.len(),
+            num_tools = tools.len(),
+            "ClaudeModel generating with tools"
+        );
+
+        let url = format!("{}/messages", self.base_url);
+
+        // Extract system prompt
+        let system = Self::extract_system_prompt(messages);
+
+        // Convert non-system messages to Claude format
+        let claude_messages: Result<Vec<ClaudeMessage>, ModelError> = messages
+            .iter()
+            .filter(|msg| msg.role != "system")
+            .map(Self::to_claude_message)
+            .collect();
+        let claude_messages = claude_messages?;
+
+        // Convert tools to Claude format
+        let claude_tools: Vec<ClaudeTool> = tools
+            .iter()
+            .map(|tool| ClaudeTool {
+                name: tool.name.clone(),
+                description: tool.description.clone(),
+                input_schema: tool.parameters.clone(),
+            })
+            .collect();
+
+        // Convert tool config to tool_choice
+        let tool_choice = tool_config.and_then(|config| {
+            use radium_abstraction::ToolUseMode;
+            match config.mode {
+                ToolUseMode::Auto => Some(ClaudeToolChoice::Auto),
+                ToolUseMode::Any => Some(ClaudeToolChoice::Any),
+                ToolUseMode::None => None,
+            }
+        });
+
+        // Build request body with tools
+        let request_body = ClaudeRequest {
+            model: self.model_id.clone(),
+            messages: claude_messages,
+            max_tokens: 4096,
+            system,
+            temperature: None,
+            top_p: None,
+            stop_sequences: None,
+            thinking: None,
+            tools: Some(claude_tools),
+            tool_choice,
+        };
+
+        debug!("Sending request to Claude API with {} tools", tools.len());
+
+        // Make API request
+        let response = self
+            .client
+            .post(&url)
+            .header("x-api-key", &self.api_key)
+            .header("anthropic-version", "2023-06-01")
+            .header("content-type", "application/json")
+            .json(&request_body)
+            .send()
+            .await
+            .map_err(|e| {
+                error!(error = %e, "Failed to send request to Claude API");
+                ModelError::ModelResponseError(format!("Network error: {}", e))
+            })?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            error!(
+                status = %status,
+                error = %error_text,
+                "Claude API request failed"
+            );
+            return Err(ModelError::ModelResponseError(format!(
+                "API error ({}): {}",
+                status, error_text
+            )));
+        }
+
+        // Parse response
+        let claude_response: ClaudeResponse = response.json().await.map_err(|e| {
+            error!(error = %e, "Failed to parse Claude API response");
+            ModelError::SerializationError(format!("Failed to parse response: {}", e))
+        })?;
+
+        // Extract text content and tool calls from response
+        let mut text_parts = Vec::new();
+        let mut tool_calls = Vec::new();
+
+        for content in &claude_response.content {
+            match content {
+                ClaudeContent::Text { text, .. } => {
+                    text_parts.push(text.clone());
+                }
+                ClaudeContent::ToolUse { id, name, input, .. } => {
+                    tool_calls.push(radium_abstraction::ToolCall {
+                        id: id.clone(),
+                        name: name.clone(),
+                        arguments: input.clone(),
+                    });
+                }
+            }
+        }
+
+        // Combine text parts or use empty string if only tool calls
+        let content = if text_parts.is_empty() {
+            String::new()
+        } else {
+            text_parts.join("\n\n")
+        };
+
+        // Extract usage information
+        let usage = Some(ModelUsage {
+            prompt_tokens: claude_response.usage.input_tokens,
+            completion_tokens: claude_response.usage.output_tokens,
+            total_tokens: claude_response.usage.input_tokens + claude_response.usage.output_tokens,
+            cache_usage: None,
+        });
+
+        debug!(
+            content_len = content.len(),
+            num_tool_calls = tool_calls.len(),
+            "Claude API response processed"
+        );
+
+        Ok(ModelResponse {
+            content,
+            model_id: Some(self.model_id.clone()),
+            usage,
+            metadata: Some(HashMap::new()),
+            tool_calls: if tool_calls.is_empty() {
+                None
+            } else {
+                Some(tool_calls)
+            },
+        })
     }
 
     fn model_id(&self) -> &str {
@@ -260,7 +617,313 @@ impl Model for ClaudeModel {
     }
 }
 
+#[async_trait]
+impl StreamingModel for ClaudeModel {
+    async fn generate_stream(
+        &self,
+        prompt: &str,
+        parameters: Option<ModelParameters>,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamItem, ModelError>> + Send>>, ModelError> {
+        debug!(
+            model_id = %self.model_id,
+            prompt_len = prompt.len(),
+            parameters = ?parameters,
+            "ClaudeModel generating streaming text"
+        );
+
+        // Convert single prompt to chat format for Claude
+        let messages = vec![ChatMessage {
+            role: "user".to_string(),
+            content: MessageContent::Text(prompt.to_string()),
+        }];
+
+        // Build Claude API request with streaming enabled
+        let url = format!("{}/messages", self.base_url);
+
+        // Extract system prompt if present
+        let system = Self::extract_system_prompt(&messages);
+
+        // Convert non-system messages to Claude format
+        let claude_messages: Result<Vec<ClaudeMessage>, ModelError> = messages
+            .iter()
+            .filter(|msg| msg.role != "system")
+            .map(Self::to_claude_message)
+            .collect();
+        let claude_messages = claude_messages?;
+
+        // Build request body with streaming enabled
+        let mut request_body = ClaudeStreamingRequest {
+            model: self.model_id.clone(),
+            messages: claude_messages,
+            max_tokens: 4096,
+            system,
+            temperature: None,
+            top_p: None,
+            stop_sequences: None,
+            thinking: None,
+            stream: true,
+        };
+
+        // Apply parameters if provided
+        if let Some(params) = parameters {
+            request_body.temperature = params.temperature;
+            request_body.top_p = params.top_p;
+            if let Some(max_tokens) = params.max_tokens {
+                request_body.max_tokens = max_tokens;
+            }
+            request_body.stop_sequences = params.stop_sequences;
+
+            // Map reasoning effort to thinking config for Claude models
+            if let Some(effort) = params.reasoning_effort {
+                let thinking_budget = match effort {
+                    radium_abstraction::ReasoningEffort::Low => 0.3,
+                    radium_abstraction::ReasoningEffort::Medium => 0.6,
+                    radium_abstraction::ReasoningEffort::High => 1.0,
+                };
+                request_body.thinking = Some(ClaudeThinkingConfig {
+                    thinking_budget: Some(thinking_budget),
+                });
+            }
+        }
+
+        // Make streaming API request
+        let response = self
+            .client
+            .post(&url)
+            .header("x-api-key", &self.api_key)
+            .header("anthropic-version", "2023-06-01")
+            .header("content-type", "application/json")
+            .json(&request_body)
+            .send()
+            .await
+            .map_err(|e| {
+                error!(error = %e, "Failed to send streaming request to Claude API");
+                ModelError::RequestError(format!("Network error: {}", e))
+            })?;
+
+        // Check status before streaming
+        let status = response.status();
+        if !status.is_success() {
+            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            error!(
+                status = %status,
+                error = %error_text,
+                "Claude API returned error status for streaming request"
+            );
+
+            // Map quota/rate limit errors to QuotaExceeded
+            if status == 402 || status == 429 {
+                let is_quota_error = if let Ok(error_json) = serde_json::from_str::<serde_json::Value>(&error_text) {
+                    if let Some(error_obj) = error_json.get("error") {
+                        if let Some(error_type) = error_obj.get("type").and_then(|t| t.as_str()) {
+                            matches!(
+                                error_type,
+                                "rate_limit_error" | "overloaded_error" | "insufficient_quota"
+                            )
+                        } else {
+                            false
+                        }
+                    } else if let Some(error_type) = error_json.get("type").and_then(|t| t.as_str()) {
+                        matches!(
+                            error_type,
+                            "rate_limit_error" | "overloaded_error" | "insufficient_quota"
+                        )
+                    } else {
+                        error_text.to_lowercase().contains("quota")
+                            || error_text.to_lowercase().contains("rate limit")
+                            || error_text.to_lowercase().contains("insufficient")
+                    }
+                } else {
+                    error_text.to_lowercase().contains("quota")
+                        || error_text.to_lowercase().contains("rate limit")
+                        || error_text.to_lowercase().contains("insufficient")
+                };
+
+                if is_quota_error || status == 402 {
+                    return Err(ModelError::QuotaExceeded {
+                        provider: "anthropic".to_string(),
+                        message: Some(error_text),
+                    });
+                }
+            }
+
+            if status == 429 {
+                return Err(ModelError::QuotaExceeded {
+                    provider: "anthropic".to_string(),
+                    message: Some(error_text),
+                });
+            }
+
+            // Map authentication errors (401, 403) to UnsupportedModelProvider
+            if status == 401 || status == 403 {
+                return Err(ModelError::UnsupportedModelProvider(format!(
+                    "Authentication failed ({}): {}",
+                    status, error_text
+                )));
+            }
+
+            // Map server errors (500-599) to ModelResponseError
+            if (500..=599).contains(&status.as_u16()) {
+                return Err(ModelError::ModelResponseError(format!(
+                    "Server error ({}): {}",
+                    status, error_text
+                )));
+            }
+
+            return Err(ModelError::ModelResponseError(format!(
+                "API error ({}): {}",
+                status, error_text
+            )));
+        }
+
+        // Create SSE stream parser
+        Ok(Box::pin(ClaudeSSEStream::new(response)))
+    }
+}
+
+// SSE stream parser for Claude format
+struct ClaudeSSEStream {
+    stream: Pin<Box<dyn Stream<Item = Result<bytes::Bytes, reqwest::Error>> + Send>>,
+    buffer: String,
+    done: bool,
+}
+
+impl ClaudeSSEStream {
+    fn new(response: reqwest::Response) -> Self {
+        Self {
+            stream: Box::pin(response.bytes_stream()),
+            buffer: String::new(),
+            done: false,
+        }
+    }
+}
+
+impl Stream for ClaudeSSEStream {
+    type Item = Result<StreamItem, ModelError>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if self.done {
+            return Poll::Ready(None);
+        }
+
+        loop {
+            // Poll the underlying byte stream
+            match self.stream.as_mut().poll_next(cx) {
+                Poll::Ready(Some(Ok(bytes))) => {
+                    // Convert bytes to string and append to buffer
+                    match String::from_utf8(bytes.to_vec()) {
+                        Ok(chunk) => {
+                            self.buffer.push_str(&chunk);
+
+                            // Process complete SSE events (separated by \n\n)
+                            while let Some(end_idx) = self.buffer.find("\n\n") {
+                                let event = self.buffer[..end_idx].to_string();
+                                self.buffer = self.buffer[end_idx + 2..].to_string();
+
+                                // Parse SSE event
+                                if event.starts_with("event: ") {
+                                    let lines: Vec<&str> = event.lines().collect();
+                                    if lines.len() >= 2 {
+                                        let event_type = lines[0].strip_prefix("event: ").unwrap_or("");
+
+                                        // Extract data line (may be prefixed with "data: ")
+                                        let data_line = lines[1];
+                                        let data = if data_line.starts_with("data: ") {
+                                            &data_line[6..]
+                                        } else {
+                                            data_line
+                                        };
+
+                                        match event_type {
+                                            "message_stop" => {
+                                                self.done = true;
+                                                return Poll::Ready(None);
+                                            }
+                                            "content_block_start" | "content_block_delta" => {
+                                                // Parse JSON chunk
+                                                if let Ok(streaming_event) = serde_json::from_str::<ClaudeStreamingEvent>(data) {
+                                                    // Handle thinking vs answer tokens
+                                                    if event_type == "content_block_delta" {
+                                                        if let Some(delta) = streaming_event.delta {
+                                                            if delta.event_type == "text_delta" {
+                                                                if let Some(text) = delta.text {
+                                                                    // Check if this is thinking content
+                                                                    let is_thinking = streaming_event.index == Some(0)
+                                                                        && streaming_event.content_block.as_ref()
+                                                                            .and_then(|cb| cb.thinking.as_ref())
+                                                                            .is_some();
+
+                                                                    if is_thinking {
+                                                                        return Poll::Ready(Some(Ok(StreamItem::ThinkingToken(text))));
+                                                                    }
+                                                                    return Poll::Ready(Some(Ok(StreamItem::AnswerToken(text))));
+                                                                }
+                                                            }
+                                                        }
+                                                    } else if event_type == "content_block_start" {
+                                                        // Check if this is a thinking block
+                                                        if let Some(content_block) = streaming_event.content_block {
+                                                            if content_block.thinking.is_some() {
+                                                                // This is the start of thinking - no token yet
+                                                                continue;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            "error" => {
+                                                if let Ok(error_event) = serde_json::from_str::<ClaudeErrorEvent>(data) {
+                                                    return Poll::Ready(Some(Err(ModelError::ModelResponseError(
+                                                        format!("Stream error: {}", error_event.error.message)
+                                                    ))));
+                                                }
+                                            }
+                                            _ => {
+                                                // Skip other event types (ping, message_start, etc.)
+                                                continue;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Continue polling for more data
+                            continue;
+                        }
+                        Err(e) => {
+                            return Poll::Ready(Some(Err(ModelError::SerializationError(format!(
+                                "Failed to decode SSE chunk: {}",
+                                e
+                            )))));
+                        }
+                    }
+                }
+                Poll::Ready(Some(Err(e))) => {
+                    return Poll::Ready(Some(Err(ModelError::RequestError(format!(
+                        "Stream error: {}",
+                        e
+                    )))));
+                }
+                Poll::Ready(None) => {
+                    // Stream ended
+                    self.done = true;
+                    return Poll::Ready(None);
+                }
+                Poll::Pending => return Poll::Pending,
+            }
+        }
+    }
+}
+
 // Claude API request/response structures
+
+#[derive(Debug, Serialize)]
+struct ClaudeThinkingConfig {
+    /// Thinking budget for extended thinking (0.0 to 1.0).
+    /// Higher values allow more thinking tokens.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thinking_budget: Option<f32>,
+}
 
 #[derive(Debug, Serialize)]
 struct ClaudeRequest {
@@ -275,31 +938,176 @@ struct ClaudeRequest {
     top_p: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     stop_sequences: Option<Vec<String>>,
+    /// Thinking configuration for extended thinking models.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thinking: Option<ClaudeThinkingConfig>,
+    /// Tools available for the model to use.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tools: Option<Vec<ClaudeTool>>,
+    /// Tool choice strategy.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tool_choice: Option<ClaudeToolChoice>,
+}
+
+#[derive(Debug, Serialize)]
+struct ClaudeStreamingRequest {
+    model: String,
+    messages: Vec<ClaudeMessage>,
+    max_tokens: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    system: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    temperature: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    top_p: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stop_sequences: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thinking: Option<ClaudeThinkingConfig>,
+    stream: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ClaudeMessage {
-    role: String,
-    content: String,
+#[serde(untagged)]
+pub enum ClaudeMessageContent {
+    String(String),
+    Blocks(Vec<ClaudeContentBlock>),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ClaudeMessage {
+    pub role: String,
+    pub content: ClaudeMessageContent,
+}
+
+/// Cache control configuration for Claude prompt caching.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CacheControl {
+    /// Cache type - "ephemeral" for prompt caching.
+    #[serde(rename = "type")]
+    cache_type: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum ClaudeContentBlock {
+    #[serde(rename = "text")]
+    Text {
+        text: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cache_control: Option<CacheControl>,
+    },
+    #[serde(rename = "image")]
+    Image {
+        source: ClaudeImageSource,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cache_control: Option<CacheControl>,
+    },
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum ClaudeImageSource {
+    #[serde(rename = "base64")]
+    Base64 {
+        #[serde(rename = "media_type")]
+        media_type: String,
+        data: String,
+    },
+    #[serde(rename = "url")]
+    Url { url: String },
 }
 
 #[derive(Debug, Deserialize)]
 struct ClaudeResponse {
     content: Vec<ClaudeContent>,
     usage: ClaudeUsage,
+    /// Thinking process for extended thinking models (may be present in response)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thinking: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]
-struct ClaudeContent {
-    #[serde(rename = "type")]
-    content_type: String,
-    text: String,
+#[serde(untagged)]
+enum ClaudeContent {
+    Text {
+        #[serde(rename = "type")]
+        content_type: String,
+        text: String,
+    },
+    ToolUse {
+        #[serde(rename = "type")]
+        content_type: String,
+        id: String,
+        name: String,
+        input: serde_json::Value,
+    },
 }
 
 #[derive(Debug, Deserialize)]
 struct ClaudeUsage {
     input_tokens: u32,
     output_tokens: u32,
+    #[serde(default)]
+    cache_creation_input_tokens: Option<u32>,
+    #[serde(default)]
+    cache_read_input_tokens: Option<u32>,
+}
+
+// Tool-related structures
+#[derive(Debug, Serialize)]
+struct ClaudeTool {
+    name: String,
+    description: String,
+    input_schema: serde_json::Value,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum ClaudeToolChoice {
+    Auto,
+    Any,
+    Tool {
+        name: String,
+    },
+}
+
+// Streaming response structures
+#[derive(Debug, Deserialize)]
+struct ClaudeStreamingEvent {
+    #[serde(rename = "type")]
+    event_type: String,
+    index: Option<usize>,
+    delta: Option<ClaudeStreamingDelta>,
+    content_block: Option<ClaudeStreamingContentBlock>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ClaudeStreamingDelta {
+    #[serde(rename = "type")]
+    event_type: String,
+    text: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ClaudeStreamingContentBlock {
+    #[serde(rename = "type")]
+    block_type: String,
+    text: Option<String>,
+    thinking: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ClaudeErrorEvent {
+    error: ClaudeError,
+}
+
+#[derive(Debug, Deserialize)]
+struct ClaudeError {
+    #[serde(rename = "type")]
+    #[allow(dead_code)]
+    error_type: String,
+    message: String,
 }
 
 #[cfg(test)]
@@ -315,8 +1123,14 @@ mod tests {
     #[test]
     fn test_system_prompt_extraction() {
         let messages = vec![
-            ChatMessage { role: "system".to_string(), content: "You are helpful".to_string() },
-            ChatMessage { role: "user".to_string(), content: "Hello".to_string() },
+            ChatMessage {
+                role: "system".to_string(),
+                content: MessageContent::Text("You are helpful".to_string()),
+            },
+            ChatMessage {
+                role: "user".to_string(),
+                content: MessageContent::Text("Hello".to_string()),
+            },
         ];
         let system = ClaudeModel::extract_system_prompt(&messages);
         assert_eq!(system, Some("You are helpful".to_string()));

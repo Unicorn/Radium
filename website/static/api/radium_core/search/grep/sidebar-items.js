@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["search_code"],"struct":["SearchOptions","SearchResult"]};

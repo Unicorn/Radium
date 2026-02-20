@@ -217,14 +217,13 @@ impl PlanValidator {
         for iteration in &plan.iterations {
             for task in &iteration.tasks {
                 if let Some(agent_id) = &task.agent_id {
-                    if agent_id != "auto" {
-                        if self.agent_registry.get(agent_id).is_err() {
+                    if agent_id != "auto"
+                        && self.agent_registry.get(agent_id).is_err() {
                             warnings.push(format!(
                                 "Task {}.T{} references unknown agent: {}",
                                 iteration.number, task.number, agent_id
                             ));
                         }
-                    }
                 }
             }
         }
@@ -360,7 +359,7 @@ impl WorkflowGenerator {
         // Create steps in dependency order
         for task_id in sorted_tasks {
             // Find the task in the plan
-            if let Some((iteration, task)) = self.find_task_in_plan(plan, &task_id) {
+            if let Some((_iteration, task)) = self.find_task_in_plan(plan, &task_id) {
                 let agent_id = task.agent_id.as_deref().unwrap_or("auto");
 
                 let step_config = WorkflowStepConfig {

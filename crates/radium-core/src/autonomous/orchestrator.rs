@@ -195,6 +195,8 @@ pub struct AutonomousOrchestrator {
     monitor: Arc<Mutex<ExecutionMonitor>>,
     /// Task dispatcher for autonomous execution.
     dispatcher: Option<Arc<Mutex<TaskDispatcher>>>,
+    /// Skill router for intelligent agent selection (REQ-245).
+    skill_router: Option<Arc<radium_orchestrator::SkillRouter>>,
 }
 
 impl AutonomousOrchestrator {
@@ -206,6 +208,7 @@ impl AutonomousOrchestrator {
     /// * `db` - The database
     /// * `agent_registry` - The agent registry
     /// * `config` - Autonomous configuration
+    /// * `routing_config` - Optional routing configuration for skill-based routing (REQ-245)
     ///
     /// # Returns
     /// A new orchestrator instance
@@ -215,6 +218,7 @@ impl AutonomousOrchestrator {
         db: &Arc<std::sync::Mutex<crate::storage::Database>>,
         agent_registry: Arc<AgentRegistry>,
         config: AutonomousConfig,
+        routing_config: Option<radium_orchestrator::RoutingConfig>,
     ) -> Result<Self> {
         // Initialize workflow service
         let workflow_service = WorkflowService::new(orchestrator, executor, db);
@@ -244,7 +248,34 @@ impl AutonomousOrchestrator {
             None
         };
 
+        // Initialize skill router if enabled (REQ-245)
+        let skill_router = if let Some(ref routing_cfg) = routing_config {
+            if routing_cfg.skill_routing.enabled {
+                match Self::init_skill_router(&routing_cfg.skill_routing) {
+                    Ok(router) => {
+                        tracing::info!(
+                            "Skill-based routing enabled with {} skill paths",
+                            routing_cfg.skill_routing.skill_paths.len()
+                        );
+                        Some(Arc::new(router))
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            "Failed to initialize skill router: {}, falling back to keyword routing",
+                            e
+                        );
+                        None
+                    }
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
         // Initialize agent reassignment if enabled
+        // Note: Uses reassignment::AgentSelector, not agent_selector::AgentSelector
         let reassignment = if config.enable_reassignment {
             let selector = AgentSelector::new(agent_registry.clone());
             Some(AgentReassignment::new(selector, Some(2)))
@@ -269,7 +300,7 @@ impl AutonomousOrchestrator {
         };
 
         // Initialize planner
-        let planner = AutonomousPlanner::new(agent_registry.clone());
+        let planner = AutonomousPlanner::new(agent_registry);
 
         // Initialize monitor
         let monitor = Arc::new(Mutex::new(ExecutionMonitor::new(
@@ -301,7 +332,73 @@ impl AutonomousOrchestrator {
             config,
             monitor,
             dispatcher,
+            skill_router,
         })
+    }
+
+    /// Initializes the skill router from configuration.
+    ///
+    /// # Arguments
+    /// * `config` - Skill routing configuration
+    ///
+    /// # Returns
+    /// Initialized skill router or error
+    ///
+    /// # Errors
+    /// Returns error if skill loading fails
+    fn init_skill_router(
+        config: &radium_orchestrator::SkillRoutingConfig,
+    ) -> anyhow::Result<radium_orchestrator::SkillRouter> {
+        use radium_orchestrator::SkillRouter;
+        use std::path::Path;
+
+        tracing::debug!(
+            "Initializing skill router with paths: {:?}",
+            config.skill_paths
+        );
+
+        // Create skill router
+        let router = SkillRouter::new();
+
+        // Load skills from configured paths (must use blocking context for async calls)
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                let mut total_loaded = 0;
+
+                for path_str in &config.skill_paths {
+                    let path = Path::new(path_str);
+
+                    if !path.exists() {
+                        tracing::warn!("Skill path does not exist: {}", path_str);
+                        continue;
+                    }
+
+                    if path.is_dir() {
+                        // Load all SKILL.md files from directory recursively
+                        match router.load_skills_from_directory(path).await {
+                            Ok(count) => {
+                                tracing::info!("Loaded {} skills from {}", count, path_str);
+                                total_loaded += count;
+                            }
+                            Err(e) => {
+                                tracing::warn!("Failed to load skills from {}: {}", path_str, e);
+                            }
+                        }
+                    } else {
+                        tracing::warn!("Skipping non-directory path: {}", path_str);
+                    }
+                }
+
+                if total_loaded == 0 {
+                    anyhow::bail!("No skills loaded from configured paths");
+                }
+
+                tracing::info!("Loaded {} total skills for routing", total_loaded);
+                Ok::<(), anyhow::Error>(())
+            })
+        })?;
+
+        Ok(router)
     }
 
     /// Executes autonomously from a high-level goal.
@@ -424,7 +521,7 @@ impl AutonomousOrchestrator {
             // Set up progress reporting bridge
             let progress_reporter = dispatcher_guard.progress_reporter();
             let monitor_clone = Arc::clone(&self.monitor);
-            let workflow_id_clone = workflow_id.clone();
+            let _workflow_id_clone = workflow_id.clone();
             let mut progress_rx = progress_reporter.subscribe();
 
             // Spawn task to bridge progress events to ExecutionMonitor
@@ -445,7 +542,7 @@ impl AutonomousOrchestrator {
         }
 
         // Step 5.5: Setup time-based checkpointing if configured
-        let (checkpoint_cancel_tx, mut checkpoint_cancel_rx) = tokio::sync::oneshot::channel::<()>();
+        let (checkpoint_cancel_tx, checkpoint_cancel_rx) = tokio::sync::oneshot::channel::<()>();
         
         if let CheckpointFrequency::TimeInterval(interval) = &self.config.checkpoint_frequency {
             let interval = *interval;
@@ -473,7 +570,7 @@ impl AutonomousOrchestrator {
                         tokio::select! {
                             _ = interval_timer.tick() => {
                                 // Create checkpoint
-                                if let Ok(mut mgr) = manager_clone.lock() {
+                                if let Ok(mgr) = manager_clone.lock() {
                                     let description = format!(
                                         "Time-based checkpoint for workflow: {}",
                                         workflow_id_clone
@@ -787,7 +884,7 @@ impl AutonomousOrchestrator {
 
             // Execute recovery
             let strategy = RecoveryStrategy::RestoreCheckpoint {
-                checkpoint_id: checkpoint.id.clone(),
+                checkpoint_id: checkpoint.id,
             };
 
             recovery_manager.execute_recovery(strategy, &recovery_context).map_err(|e| {
@@ -811,8 +908,8 @@ impl AutonomousOrchestrator {
     async fn attempt_reassignment(
         &self,
         workflow: &crate::models::Workflow,
-        reassignment: &AgentReassignment,
-        db: Arc<std::sync::Mutex<crate::storage::Database>>,
+        _reassignment: &AgentReassignment,
+        _db: Arc<std::sync::Mutex<crate::storage::Database>>,
     ) -> Result<ExecutionContext> {
         
         use tracing::{info, warn};

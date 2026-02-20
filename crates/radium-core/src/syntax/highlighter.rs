@@ -7,7 +7,6 @@ use crate::syntax::languages::LanguageRegistry;
 use crate::syntax::theme_adapter::ThemeAdapter;
 use syntect::easy::HighlightLines;
 use syntect::highlighting::{Style, Theme, ThemeSet};
-use syntect::parsing::SyntaxSet;
 use syntect::util::LinesWithEndings;
 
 /// A styled span of text with color information.

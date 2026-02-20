@@ -4,9 +4,8 @@
 //! stored in the cost_events table.
 
 use crate::monitoring::{MonitoringService, Result as MonitoringResult};
-use chrono::{Datelike, DateTime, Utc};
+use chrono::{Datelike, Utc};
 use rusqlite::params;
-use std::collections::HashMap;
 
 /// Represents a single cost event from the database.
 #[derive(Debug, Clone)]
@@ -47,7 +46,7 @@ impl DateRange {
     /// Creates a date range for the last N days.
     pub fn last_days(days: u32) -> Self {
         let end = Utc::now().timestamp();
-        let start = end - (days as i64 * 86400);
+        let start = end - (i64::from(days) * 86400);
         Self { start, end }
     }
 
@@ -58,9 +57,7 @@ impl DateRange {
         let start = now
             .date_naive()
             .with_day(1)
-            .and_then(|d| d.and_hms_opt(0, 0, 0))
-            .map(|dt| dt.and_utc().timestamp())
-            .unwrap_or_else(|| Utc::now().timestamp() - 2592000); // Fallback to 30 days ago
+            .and_then(|d| d.and_hms_opt(0, 0, 0)).map_or_else(|| Utc::now().timestamp() - 2592000, |dt| dt.and_utc().timestamp()); // Fallback to 30 days ago
         let end = Utc::now().timestamp();
         Self { start, end }
     }
@@ -464,7 +461,7 @@ mod tests {
         let telemetry = TelemetryRecord::new("agent-1".to_string())
             .with_tokens(1000, 500)
             .with_model("gpt-4".to_string(), "openai".to_string());
-        monitoring.record_telemetry(&telemetry).await.unwrap();
+        monitoring.record_telemetry_sync(&telemetry).unwrap();
 
         // Query cost events
         let now = Utc::now().timestamp();
@@ -495,8 +492,8 @@ mod tests {
         let telemetry2 = TelemetryRecord::new("agent-2".to_string())
             .with_tokens(2000, 1000)
             .with_model("gpt-4".to_string(), "openai".to_string());
-        monitoring.record_telemetry(&telemetry1).await.unwrap();
-        monitoring.record_telemetry(&telemetry2).await.unwrap();
+        monitoring.record_telemetry_sync(&telemetry1).unwrap();
+        monitoring.record_telemetry_sync(&telemetry2).unwrap();
 
         let now = Utc::now().timestamp();
         let range = DateRange::new(now - 86400, now + 86400);
@@ -527,8 +524,8 @@ mod tests {
         let telemetry2 = TelemetryRecord::new("agent-2".to_string())
             .with_tokens(2000, 1000)
             .with_model("gpt-4".to_string(), "openai".to_string());
-        monitoring.record_telemetry(&telemetry1).await.unwrap();
-        monitoring.record_telemetry(&telemetry2).await.unwrap();
+        monitoring.record_telemetry_sync(&telemetry1).unwrap();
+        monitoring.record_telemetry_sync(&telemetry2).unwrap();
 
         let now = Utc::now().timestamp();
         let range = DateRange::new(now - 86400, now + 86400);

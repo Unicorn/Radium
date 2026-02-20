@@ -107,7 +107,7 @@ async fn list_commands(namespace_filter: Option<String>, verbose: bool) -> anyho
 
         commands.push(CommandInfo {
             name: name.clone(),
-            namespace: cmd.namespace.clone(),
+            namespace: cmd.namespace.clone().unwrap_or_else(|| "-".to_string()),
             source: source.to_string(),
             description: cmd.description.clone(),
         });
@@ -135,17 +135,11 @@ struct CommandInfo {
     #[tabled(rename = "Name")]
     name: String,
     #[tabled(rename = "Namespace")]
-    #[tabled(display_with = "display_option")]
-    namespace: Option<String>,
+    namespace: String,
     #[tabled(rename = "Source")]
     source: String,
     #[tabled(rename = "Description")]
     description: String,
-}
-
-/// Helper to display Option<String> in table.
-fn display_option(opt: &Option<String>) -> String {
-    opt.as_deref().unwrap_or("-").to_string()
 }
 
 /// Display commands in a table format.
@@ -160,8 +154,8 @@ fn display_commands_table(commands: &[CommandInfo]) {
 fn display_commands_detailed(commands: &[CommandInfo]) {
     for cmd in commands {
         println!("{}", format!("{}", cmd.name).bold().cyan());
-        if let Some(ns) = &cmd.namespace {
-            println!("  Namespace: {}", ns.dimmed());
+        if cmd.namespace != "-" {
+            println!("  Namespace: {}", cmd.namespace.dimmed());
         }
         println!("  Source: {}", cmd.source.dimmed());
         if !cmd.description.is_empty() {

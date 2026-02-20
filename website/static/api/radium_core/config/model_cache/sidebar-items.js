@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["CacheConfigError"],"fn":["default_config_path","load_cache_config"]};

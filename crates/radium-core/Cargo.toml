@@ -16,10 +16,10 @@ docker-sandbox = []
 podman-sandbox = []
 seatbelt-sandbox = []
 orchestrator-integration = []
-workflow = ["radium-orchestrator", "orchestrator-integration"]
+workflow = ["radium-orchestrator", "orchestrator-integration", "mcp-progress"]
 monitoring = []
 mcp-progress = ["indicatif"]
-server = []
+server = ["radium-orchestrator", "orchestrator-integration"]
 http = []
 syntax = []  # Syntax highlighting support
 tui-theme = ["syntax", "ratatui"]  # TUI-specific theme loading with ratatui
@@ -78,14 +78,14 @@ flate2 = "1.0"
 tar = "0.4"
 
 # HTTP client for MCP transports
-reqwest = { version = "0.12", features = ["json", "stream", "blocking", "multipart"] }
+reqwest = { workspace = true, features = ["json", "stream", "blocking", "multipart"] }
 
 # HTTP utilities for proxy server
 http-body-util = "0.1"
 hyper-util = { version = "0.1", features = ["full"] }
 
 # Progress indicators (optional, for CLI usage)
-indicatif = { version = "0.17", optional = true }
+indicatif = { version = "0.18", optional = true }
 
 # URL encoding
 urlencoding = "2.1"
@@ -99,6 +99,9 @@ rand = "0.8"
 
 # Hashing for API key IDs
 sha2 = "0.10"
+
+# Security: Force minimum ring version to fix RUSTSEC-2025-0009
+ring = { workspace = true }
 
 # Cryptographic operations for secret management
 aes-gcm = "0.10"
@@ -117,25 +120,34 @@ notify = "6.1"
 
 # Directory walking
 walkdir = "2.4"
+ignore = "0.4"
+grep-searcher = "0.1"
+grep-matcher = "0.1"
+grep-regex = "0.1"
+tree-sitter = "0.26"
+tree-sitter-rust = "0.24"
+tree-sitter-typescript = "0.23"
 
 # Clipboard operations (cross-platform)
 arboard = "3.3"
 
 # Syntax highlighting
 syntect = "5.3"
-ratatui = { version = "0.29", optional = true }
+ratatui = { version = "0.30", optional = true }
 
 # Internal crates
 radium-abstraction.workspace = true
 radium-models.workspace = true
+radium-training.workspace = true
 radium-orchestrator = { workspace = true, optional = true }
+md5 = "0.8.0"
 
 [build-dependencies]
 tonic-build.workspace = true
 
 [dev-dependencies]
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { workspace = true, features = ["json"] }
 base64 = "0.22"
 assert_cmd.workspace = true
 predicates.workspace = true

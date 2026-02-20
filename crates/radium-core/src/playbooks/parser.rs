@@ -1,7 +1,7 @@
 //! Parser for playbook YAML frontmatter and markdown content.
 
 use crate::playbooks::error::{PlaybookError, Result};
-use crate::playbooks::types::{Playbook, PlaybookPriority};
+use crate::playbooks::types::Playbook;
 use serde_yaml;
 
 /// Parser for playbook files with YAML frontmatter.
@@ -58,7 +58,7 @@ impl PlaybookParser {
             source: e,
         })?;
 
-        let mut playbook = Self::parse(&content)?;
+        let playbook = Self::parse(&content)?;
         // Note: We don't store the path in Playbook, but we could add it if needed
         Ok(playbook)
     }

@@ -21,32 +21,32 @@ fn test_source_registry_uri_routing() {
 
     // Test routing for file:// URIs
     let file_reader = registry.get_reader("file:///path/to/file.txt");
-    assert!(file_reader.is_ok());
+    assert!(file_reader.is_some());
     assert_eq!(file_reader.unwrap().scheme(), "file");
 
     // Test routing for http:// URIs
     let http_reader = registry.get_reader("http://example.com/test.txt");
-    assert!(http_reader.is_ok());
+    assert!(http_reader.is_some());
     assert_eq!(http_reader.unwrap().scheme(), "http");
 
     // Test routing for https:// URIs
     let https_reader = registry.get_reader("https://example.com/test.txt");
-    assert!(https_reader.is_ok());
+    assert!(https_reader.is_some());
     assert_eq!(https_reader.unwrap().scheme(), "http"); // HttpReader handles both
 
     // Test routing for jira:// URIs
     let jira_reader = registry.get_reader("jira://PROJ-123");
-    assert!(jira_reader.is_ok());
+    assert!(jira_reader.is_some());
     assert_eq!(jira_reader.unwrap().scheme(), "jira");
 
     // Test routing for braingrid:// URIs
     let braingrid_reader = registry.get_reader("braingrid://REQ-123");
-    assert!(braingrid_reader.is_ok());
+    assert!(braingrid_reader.is_some());
     assert_eq!(braingrid_reader.unwrap().scheme(), "braingrid");
 
     // Test unsupported scheme
     let invalid_reader = registry.get_reader("invalid://test");
-    assert!(invalid_reader.is_err());
+    assert!(invalid_reader.is_none());
 }
 
 #[tokio::test]
@@ -170,12 +170,12 @@ fn test_source_registry_priority() {
 
     // HTTP should still route to HTTP reader even if file reader is registered first
     let http_reader = registry.get_reader("http://example.com/test");
-    assert!(http_reader.is_ok());
+    assert!(http_reader.is_some());
     assert_eq!(http_reader.unwrap().scheme(), "http");
 
     // File should route to file reader
     let file_reader = registry.get_reader("file:///tmp/test.txt");
-    assert!(file_reader.is_ok());
+    assert!(file_reader.is_some());
     assert_eq!(file_reader.unwrap().scheme(), "file");
 }
 

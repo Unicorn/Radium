@@ -1,0 +1,18 @@
+[agent]
+id = "mixed-agent"
+name = "Mixed Agent"
+description = "Example agent with local primary and cloud fallback"
+prompt_path = "prompts/agents/examples/mixed-agent.md"
+engine = "universal"
+model = "llama3.2"
+reasoning_effort = "medium"
+
+[agent.persona.models]
+primary = "llama3.2"           # Local Ollama (fast, free)
+fallback = "gemini-2.0-flash-exp"  # Cloud Gemini (reliable)
+premium = "gpt-4o"             # Cloud OpenAI (best quality)
+
+[agent.persona.performance]
+profile = "balanced"
+estimated_tokens = 3000
+

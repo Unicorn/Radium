@@ -4,8 +4,8 @@
 //! enabling security monitoring and compliance.
 
 use std::fs::{File, OpenOptions};
-use std::io::{BufRead, BufReader, BufWriter, Write};
-use std::path::{Path, PathBuf};
+use std::io::{BufRead, BufReader, Write};
+use std::path::PathBuf;
 
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -51,6 +51,12 @@ pub struct AuditEntry {
     /// Session ID (optional).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
+    /// User ID for authentication auditing (optional).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_id: Option<String>,
+    /// Policy decision for tool execution auditing (optional).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_decision: Option<String>,
     /// Agent ID for privacy auditing (optional).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent_id: Option<String>,
@@ -70,6 +76,7 @@ pub struct AuditEntry {
 
 /// Filter for querying audit log entries.
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct AuditFilter {
     /// Filter by operation type (if Some).
     pub operation: Option<AuditOperation>,
@@ -81,16 +88,6 @@ pub struct AuditFilter {
     pub end_time: Option<chrono::DateTime<Utc>>,
 }
 
-impl Default for AuditFilter {
-    fn default() -> Self {
-        Self {
-            operation: None,
-            secret_name: None,
-            start_time: None,
-            end_time: None,
-        }
-    }
-}
 
 /// Audit logger for recording secret operations.
 pub struct AuditLogger {
@@ -163,8 +160,10 @@ impl AuditLogger {
             operation,
             secret_name: secret_name.to_string(),
             success,
-            error_message: error_message.map(|s| s.to_string()),
+            error_message: error_message.map(std::string::ToString::to_string),
             session_id: None, // Could be added later if session tracking is needed
+            user_id: None,
+            policy_decision: None,
             agent_id: None,
             pattern_type: None,
             redaction_count: None,

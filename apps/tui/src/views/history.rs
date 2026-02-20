@@ -66,7 +66,7 @@ pub fn render_history(
 
     // History list
     if entries.is_empty() {
-        let empty = Paragraph::new("No execution history available")
+        let empty = Paragraph::new("No execution history available.\n\nExecute workflows or chat with agents to see history here.")
             .style(Style::default().fg(theme.text_muted))
             .alignment(Alignment::Center)
             .block(

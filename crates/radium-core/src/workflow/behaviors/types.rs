@@ -1,6 +1,5 @@
 //! Core types for workflow behaviors.
 
-use crate::monitoring::telemetry::TelemetryTracking;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
@@ -252,7 +251,7 @@ impl BehaviorFileWatcher {
         use notify::{Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
         use std::sync::mpsc;
 
-        let file_path = self.file_path.clone();
+        let _file_path = self.file_path.clone();
         let behavior_state = Arc::clone(&self.behavior_state);
 
         // Create channel for file events
@@ -299,12 +298,13 @@ impl BehaviorFileWatcher {
         // Spawn task to forward file system events to tokio
         let watcher_tx = tx_watch.clone();
         tokio::spawn(async move {
-            while let Ok(()) = rx.recv() {
+            while rx.recv() == Ok(()) {
                 let _ = watcher_tx.send(());
             }
         });
 
         let task_handle = tokio::spawn(async move {
+            #[allow(unused_assignments)]
             let mut last_event = None::<tokio::time::Instant>;
 
             loop {
@@ -439,9 +439,9 @@ pub async fn record_behavior_metrics(
         
         let record = TelemetryRecord::new(agent_id)
             .with_behavior_metrics(behavior_type, invocation_count, duration_ms, outcome);
-        
+
         if let Ok(service) = monitoring.lock() {
-            let _ = service.record_telemetry(&record).await;
+            let _ = service.record_telemetry_sync(&record);
         }
     }
 }

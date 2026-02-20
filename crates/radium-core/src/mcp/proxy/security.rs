@@ -75,7 +75,7 @@ impl RateLimiter {
     /// Create a new rate limiter.
     fn new(rate_per_minute: u32) -> Self {
         let buckets = Arc::new(Mutex::new(HashMap::new()));
-        let rate_per_minute_f64 = rate_per_minute as f64;
+        let rate_per_minute_f64 = f64::from(rate_per_minute);
 
         // Spawn cleanup task to remove old buckets every 5 minutes
         let cleanup_buckets = Arc::clone(&buckets);
@@ -170,9 +170,7 @@ impl DefaultSecurityLayer {
             let regex = Regex::new(pattern_str).map_err(|e| {
                 McpError::config(
                     format!("Invalid redaction pattern '{}': {}", pattern_str, e),
-                    format!(
-                        "Fix the redaction pattern. It should be a valid regex. Example:\n  redact_patterns = [\"api[_-]?key\", \"password\", \"token\"]"
-                    ),
+                    "Fix the redaction pattern. It should be a valid regex. Example:\n  redact_patterns = [\"api[_-]?key\", \"password\", \"token\"]".to_string(),
                 )
             })?;
             redaction_patterns.push(regex);
@@ -287,6 +285,7 @@ impl SecurityLayerTrait for DefaultSecurityLayer {
 mod tests {
     use super::*;
     use crate::mcp::proxy::types::SecurityConfig;
+    use serde_json::json;
 
     fn create_test_config() -> SecurityConfig {
         SecurityConfig {

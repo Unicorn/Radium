@@ -1,3 +1,5 @@
+#![cfg(feature = "workflow")]
+
 //! End-to-end tests for extension system workflows.
 //!
 //! Tests complete user workflows from installation to usage to uninstallation.

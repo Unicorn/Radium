@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ApprovalMode","PolicyAction","PolicyError","PolicyPriority"],"fn":["format_preview","generate_preview"],"mod":["alerts","analytics","conflict_resolution","constitution","network_interceptor","reload","suggestions","templates"],"struct":["DryRunPreview","PolicyDecision","PolicyEngine","PolicyRule"],"type":["PolicyResult"]};

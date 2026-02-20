@@ -251,8 +251,8 @@ impl MetacognitiveService {
 
         // Create messages for chat completion
         let messages = vec![
-            ChatMessage { role: "system".to_string(), content: system_prompt },
-            ChatMessage { role: "user".to_string(), content: context_section },
+            ChatMessage { role: "system".to_string(), content: system_prompt.into() },
+            ChatMessage { role: "user".to_string(), content: context_section.into() },
         ];
 
         // Call model with lower temperature for more focused feedback
@@ -260,7 +260,14 @@ impl MetacognitiveService {
             temperature: Some(0.2),
             top_p: Some(0.9),
             max_tokens: Some(1024),
+            top_k: None,
+            frequency_penalty: None,
+            presence_penalty: None,
+            response_format: None,
             stop_sequences: None,
+            enable_grounding: None,
+            grounding_threshold: None,
+            reasoning_effort: None,
         };
 
         let response = self

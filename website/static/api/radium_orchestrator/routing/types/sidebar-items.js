@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["RoutingError","RoutingStrategy","RoutingTier","TaskType"],"struct":["ComplexityScore","ComplexityWeights","FailureRecord","FallbackChain","ModelMetadata"]};

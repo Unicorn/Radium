@@ -17,12 +17,27 @@ fn create_test_agent(temp_dir: &TempDir, agent_id: &str, name: &str) {
     let agents_dir = temp_dir.path().join("agents");
     fs::create_dir_all(&agents_dir).unwrap();
 
-    // Create prompt file
-    let prompts_dir = temp_dir.path().join("prompts");
-    fs::create_dir_all(&prompts_dir).unwrap();
+    // Create prompt file (write in both workspace root and alongside the agent config):
+    // - Some code paths resolve prompt_path relative to workspace root
+    // - Validation also checks relative to config dir and current working directory
+    let prompt_contents = format!(
+        "# {}\n\nYou are a test agent.\n\n## User Input\n\n{{user_input}}\n\n## Context Files\n\n{{context_files}}",
+        name
+    );
+
+    let prompts_dir_workspace = temp_dir.path().join("prompts");
+    fs::create_dir_all(&prompts_dir_workspace).unwrap();
     fs::write(
-        prompts_dir.join(format!("{}.md", agent_id)),
-        format!("# {}\n\nYou are a test agent.\n\n## User Input\n\n{{user_input}}\n\n## Context Files\n\n{{context_files}}", name),
+        prompts_dir_workspace.join(format!("{}.md", agent_id)),
+        &prompt_contents,
+    )
+    .unwrap();
+
+    let prompts_dir_agent = agents_dir.join("prompts");
+    fs::create_dir_all(&prompts_dir_agent).unwrap();
+    fs::write(
+        prompts_dir_agent.join(format!("{}.md", agent_id)),
+        &prompt_contents,
     )
     .unwrap();
 
@@ -32,7 +47,7 @@ id = "{}"
 name = "{}"
 description = "A test agent for integration testing"
 prompt_path = "prompts/{}.md"
-engine = "mock"
+engine = "gemini"
 model = "test-model"
 reasoning_effort = "medium"
 category = "test"
@@ -86,6 +101,9 @@ fn test_step_command_with_hierarchical_context() {
 
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
     cmd.current_dir(&subdir)
+        .env("HOME", temp_dir.path())
+        .arg("-w")
+        .arg(temp_dir.path())
         .arg("step")
         .arg("test-agent")
         .arg("test prompt")
@@ -137,6 +155,9 @@ fn test_run_command_with_dir_flag() {
 
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
     cmd.current_dir(temp_dir.path())
+        .env("HOME", temp_dir.path())
+        .arg("-w")
+        .arg(temp_dir.path())
         .arg("run")
         .arg("--dir")
         .arg("subdir")

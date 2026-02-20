@@ -1,3 +1,5 @@
+#![cfg(feature = "server")]
+
 //! Integration tests for Agent CRUD operations.
 
 mod common;

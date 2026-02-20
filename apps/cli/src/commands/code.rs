@@ -5,13 +5,15 @@
 
 use anyhow::{Context, Result};
 use colored::Colorize;
-use comfy_table::{Cell, Table};
+use comfy_table::{Cell, Color as ComfyColor, Table};
 use radium_core::{
     code_blocks::{BlockSelector, CodeBlockStore},
     Workspace,
 };
+
+use crate::colors::RadiumBrandColors;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Code block command subcommands.
 #[derive(Debug, clap::Subcommand)]
@@ -77,7 +79,7 @@ pub async fn execute(cmd: CodeCommand) -> Result<()> {
 }
 
 /// List all code blocks for a session.
-async fn list_blocks(workspace_root: &PathBuf, session_id: Option<String>) -> Result<()> {
+async fn list_blocks(workspace_root: &Path, session_id: Option<String>) -> Result<()> {
     println!("{}", "rad code list".bold().cyan());
     println!();
 
@@ -100,6 +102,10 @@ async fn list_blocks(workspace_root: &PathBuf, session_id: Option<String>) -> Re
     let mut table = Table::new();
     table.set_header(vec!["Index", "Language", "Preview"]);
 
+    // Use Radium brand colors
+    let primary_rgb = RadiumBrandColors::PRIMARY_RGB;
+    let warning_rgb = RadiumBrandColors::WARNING_RGB;
+
     for block in &blocks {
         let preview = preview_content(&block.content, 3);
         let lang = block
@@ -109,8 +115,18 @@ async fn list_blocks(workspace_root: &PathBuf, session_id: Option<String>) -> Re
             .to_string();
 
         table.add_row(vec![
-            Cell::new(block.index.to_string()).fg(comfy_table::Color::Cyan),
-            Cell::new(lang).fg(comfy_table::Color::Yellow),
+            Cell::new(block.index.to_string())
+                .fg(ComfyColor::Rgb {
+                    r: primary_rgb.0,
+                    g: primary_rgb.1,
+                    b: primary_rgb.2,
+                }),
+            Cell::new(lang)
+                .fg(ComfyColor::Rgb {
+                    r: warning_rgb.0,
+                    g: warning_rgb.1,
+                    b: warning_rgb.2,
+                }),
             Cell::new(preview),
         ]);
     }
@@ -124,7 +140,7 @@ async fn list_blocks(workspace_root: &PathBuf, session_id: Option<String>) -> Re
 
 /// Copy code blocks to clipboard.
 async fn copy_blocks(
-    workspace_root: &PathBuf,
+    workspace_root: &Path,
     indexes: &str,
     session_id: Option<String>,
 ) -> Result<()> {
@@ -167,7 +183,7 @@ async fn copy_blocks(
 
 /// Save a code block to a file.
 async fn save_block(
-    workspace_root: &PathBuf,
+    workspace_root: &Path,
     index: usize,
     file: &PathBuf,
     session_id: Option<String>,
@@ -189,7 +205,7 @@ async fn save_block(
 
     fs::write(file, &block.content)?;
 
-    println!("  {} Saved block {} to {}", "✓".green(), index, file.display().cyan());
+    println!("  {} Saved block {} to {}", "✓".green(), index, file.display().to_string().cyan());
     println!();
 
     Ok(())
@@ -197,7 +213,7 @@ async fn save_block(
 
 /// Append a code block to a file.
 async fn append_block(
-    workspace_root: &PathBuf,
+    workspace_root: &Path,
     index: usize,
     file: &PathBuf,
     session_id: Option<String>,
@@ -237,7 +253,7 @@ async fn append_block(
         .open(file)?;
     file_handle.write_all(content.as_bytes())?;
 
-    println!("  {} Appended block {} to {}", "✓".green(), index, file.display().cyan());
+    println!("  {} Appended block {} to {}", "✓".green(), index, file.display().to_string().cyan());
     println!();
 
     Ok(())
@@ -296,7 +312,7 @@ fn parse_selection(selection: &str) -> Result<BlockSelector> {
 }
 
 /// Find the most recent session by checking modification times.
-fn find_last_session(workspace_root: &PathBuf) -> Option<String> {
+fn find_last_session(workspace_root: &Path) -> Option<String> {
     let code_blocks_dir = workspace_root
         .join(".radium")
         .join("_internals")

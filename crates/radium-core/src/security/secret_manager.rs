@@ -132,16 +132,26 @@ impl SecretManager {
     pub fn new(vault_path: PathBuf, master_password: &str) -> SecurityResult<Self> {
         Self::validate_password(master_password)?;
 
-        let encryption_key = Self::derive_key(master_password, None)?;
+        let existed = vault_path.exists();
+        let vault = Self::load_vault(&vault_path)?;
+        let salt = base64::engine::general_purpose::STANDARD
+            .decode(&vault.salt)
+            .map_err(|e| SecurityError::VaultCorruption(format!("Invalid salt: {}", e)))?;
+        let encryption_key = Self::derive_key(master_password, Some(&salt))?;
 
         let manager = Self {
-            vault_path: vault_path.clone(),
+            vault_path,
             encryption_key,
             audit_logger: None,
         };
 
         // Ensure vault directory exists with proper permissions
         manager.ensure_vault_dir()?;
+
+        // Persist the initial vault (salt + version) so `from_existing` can derive the same key.
+        if !existed {
+            manager.save_vault(&vault)?;
+        }
 
         Ok(manager)
     }
@@ -200,7 +210,7 @@ impl SecretManager {
         }
 
         // Check for basic complexity (at least one letter and one number or special char)
-        let has_letter = password.chars().any(|c| c.is_alphabetic());
+        let has_letter = password.chars().any(char::is_alphabetic);
         let has_number_or_special = password.chars().any(|c| c.is_numeric() || "!@#$%^&*".contains(c));
 
         if !has_letter || !has_number_or_special {
@@ -235,7 +245,7 @@ impl SecretManager {
         let mut key_bytes = [0u8; 32];
         pbkdf2_hmac::<Sha256>(password.as_bytes(), &salt_bytes, PBKDF2_ITERATIONS, &mut key_bytes);
 
-        let key = Key::<Aes256Gcm>::from_slice(&key_bytes).clone();
+        let key = *Key::<Aes256Gcm>::from_slice(&key_bytes);
 
         // Zeroize the key bytes
         key_bytes.zeroize();
@@ -378,8 +388,7 @@ impl SecretManager {
         let version = vault
             .secrets
             .get(name)
-            .map(|e| e.version + 1)
-            .unwrap_or(1);
+            .map_or(1, |e| e.version + 1);
 
         let now = Utc::now().to_rfc3339();
 
@@ -507,7 +516,7 @@ impl SecretManager {
         // Log rotation operation (store_secret already logs Store, but we want Rotate)
         if let Some(ref logger) = self.audit_logger {
             match &result {
-                Ok(_) => {
+                Ok(()) => {
                     let _ = logger.log_operation(AuditOperation::Rotate, name, true, None);
                 }
                 Err(e) => {
@@ -554,7 +563,7 @@ impl SecretManager {
         // Log operation
         if let Some(ref logger) = self.audit_logger {
             match &result {
-                Ok(_) => {
+                Ok(()) => {
                     let _ = logger.log_operation(AuditOperation::Remove, name, true, None);
                 }
                 Err(e) => {

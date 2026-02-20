@@ -6,6 +6,8 @@ use colored::Colorize;
 use radium_core::checkpoint::CheckpointManager;
 use radium_core::workspace::Workspace;
 
+use crate::colors::RadiumBrandColors;
+
 /// Checkpoint subcommands
 #[derive(Subcommand, Debug)]
 pub enum CheckpointCommand {
@@ -82,7 +84,7 @@ pub async fn execute(cmd: CheckpointCommand) -> Result<()> {
             show_command(&checkpoint_manager, &checkpoint_id).await
         }
         CheckpointCommand::Policy { show, age_days, max_size_gb, min_keep } => {
-            policy_command(&checkpoint_manager, show, age_days, max_size_gb, min_keep).await
+            policy_command(show, age_days, max_size_gb, min_keep).await
         }
     }
 }
@@ -202,7 +204,6 @@ fn format_number(n: u64) -> String {
         count += 1;
     }
     result.chars().rev().collect()
-    Ok(())
 }
 
 async fn restore_command(
@@ -309,6 +310,7 @@ async fn diff_command(
     from_id: &str,
     to_id: &str,
 ) -> Result<()> {
+    let colors = RadiumBrandColors::new();
     println!("Diff between checkpoints:");
     println!("  From: {}", from_id);
     println!("  To:   {}", to_id);
@@ -321,34 +323,34 @@ async fn diff_command(
     // Display statistics
     println!("Statistics:");
     println!("  Files changed: {}", diff.files_changed());
-    println!("  Files added:    {}", diff.added.len().to_string().green());
-    println!("  Files modified: {}", diff.modified.len().to_string().yellow());
-    println!("  Files deleted:  {}", diff.deleted.len().to_string().red());
-    println!("  Insertions:     {}", diff.insertions.to_string().green());
-    println!("  Deletions:      {}", diff.deletions.to_string().red());
+    println!("  Files added:    {}", diff.added.len().to_string().color(colors.success()));
+    println!("  Files modified: {}", diff.modified.len().to_string().color(colors.warning()));
+    println!("  Files deleted:  {}", diff.deleted.len().to_string().color(colors.error()));
+    println!("  Insertions:     {}", diff.insertions.to_string().color(colors.success()));
+    println!("  Deletions:      {}", diff.deletions.to_string().color(colors.error()));
     println!();
 
     // Display file changes
     if !diff.added.is_empty() {
-        println!("{}", "Added files:".green().bold());
+        println!("{}", "Added files:".color(colors.success()).bold());
         for file in &diff.added {
-            println!("  + {}", file.green());
+            println!("  + {}", file.color(colors.success()));
         }
         println!();
     }
 
     if !diff.modified.is_empty() {
-        println!("{}", "Modified files:".yellow().bold());
+        println!("{}", "Modified files:".color(colors.warning()).bold());
         for file in &diff.modified {
-            println!("  ~ {}", file.yellow());
+            println!("  ~ {}", file.color(colors.warning()));
         }
         println!();
     }
 
     if !diff.deleted.is_empty() {
-        println!("{}", "Deleted files:".red().bold());
+        println!("{}", "Deleted files:".color(colors.error()).bold());
         for file in &diff.deleted {
-            println!("  - {}", file.red());
+            println!("  - {}", file.color(colors.error()));
         }
         println!();
     }
@@ -392,42 +394,107 @@ async fn show_command(
         ))?;
 
     // Display statistics
+    let colors = RadiumBrandColors::new();
     println!("Statistics:");
     println!("  Files changed: {}", diff.files_changed());
-    println!("  Files added:    {}", diff.added.len().to_string().green());
-    println!("  Files modified: {}", diff.modified.len().to_string().yellow());
-    println!("  Files deleted:  {}", diff.deleted.len().to_string().red());
-    println!("  Insertions:     {}", diff.insertions.to_string().green());
-    println!("  Deletions:      {}", diff.deletions.to_string().red());
+    println!("  Files added:    {}", diff.added.len().to_string().color(colors.success()));
+    println!("  Files modified: {}", diff.modified.len().to_string().color(colors.warning()));
+    println!("  Files deleted:  {}", diff.deleted.len().to_string().color(colors.error()));
+    println!("  Insertions:     {}", diff.insertions.to_string().color(colors.success()));
+    println!("  Deletions:      {}", diff.deletions.to_string().color(colors.error()));
     println!();
 
     // Display file changes
     if !diff.added.is_empty() {
-        println!("{}", "Added files:".green().bold());
+        println!("{}", "Added files:".color(colors.success()).bold());
         for file in &diff.added {
-            println!("  + {}", file.green());
+            println!("  + {}", file.color(colors.success()));
         }
         println!();
     }
 
     if !diff.modified.is_empty() {
-        println!("{}", "Modified files:".yellow().bold());
+        println!("{}", "Modified files:".color(colors.warning()).bold());
         for file in &diff.modified {
-            println!("  ~ {}", file.yellow());
+            println!("  ~ {}", file.color(colors.warning()));
         }
         println!();
     }
 
     if !diff.deleted.is_empty() {
-        println!("{}", "Deleted files:".red().bold());
+        println!("{}", "Deleted files:".color(colors.error()).bold());
         for file in &diff.deleted {
-            println!("  - {}", file.red());
+            println!("  - {}", file.color(colors.error()));
         }
         println!();
     }
 
     if diff.files_changed() == 0 {
         println!("No changes from previous checkpoint.");
+    }
+
+    Ok(())
+}
+
+async fn policy_command(
+    show: bool,
+    age_days: Option<u32>,
+    max_size_gb: Option<f64>,
+    min_keep: Option<usize>,
+) -> Result<()> {
+    use radium_core::config::Config;
+
+    // Load current configuration
+    let mut config = Config::load().context("Failed to load configuration")?;
+
+    // Check if we're only showing the policy
+    let is_show_only = show || (age_days.is_none() && max_size_gb.is_none() && min_keep.is_none());
+
+    if is_show_only {
+        // Display current policy
+        println!("Current Checkpoint Policy");
+        println!("{}", "=".repeat(40));
+        println!("Age-based cleanup: {} days", config.checkpoint.retention_days);
+        println!("Maximum checkpoints: {}", config.checkpoint.max_checkpoints);
+        println!("Maximum size: {} GB", config.checkpoint.max_size_gb);
+        println!("Auto-create: {}", if config.checkpoint.auto_create { "enabled" } else { "disabled" });
+        println!();
+        println!("Note: Policy is loaded from configuration file or defaults.");
+        println!("Use --age-days, --max-size-gb, or --min-keep to update values.");
+        return Ok(());
+    }
+
+    // Update policy values
+    let mut updated = false;
+
+    if let Some(days) = age_days {
+        config.checkpoint.retention_days = days;
+        println!("✓ Updated age-based cleanup to {} days", days);
+        updated = true;
+    }
+
+    if let Some(size) = max_size_gb {
+        config.checkpoint.max_size_gb = size as u64;
+        println!("✓ Updated maximum size to {} GB", size);
+        updated = true;
+    }
+
+    if let Some(keep) = min_keep {
+        config.checkpoint.max_checkpoints = keep;
+        println!("✓ Updated maximum checkpoints to {}", keep);
+        updated = true;
+    }
+
+    if updated {
+        println!();
+        println!("Policy values updated in memory.");
+        println!("Note: To persist these changes, update your radium.toml configuration file:");
+        println!();
+        println!("[checkpoint]");
+        println!("retention_days = {}", config.checkpoint.retention_days);
+        println!("max_checkpoints = {}", config.checkpoint.max_checkpoints);
+        println!("max_size_gb = {}", config.checkpoint.max_size_gb);
+        println!("auto_create = {}", config.checkpoint.auto_create);
     }
 
     Ok(())

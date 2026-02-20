@@ -8,10 +8,12 @@
 
 #[cfg(feature = "monitoring")]
 pub mod analytics_repository;
+pub mod batch_repository;
 pub mod database;
 pub mod error;
 pub mod repositories;
 
+pub use batch_repository::{BatchRepository, SqliteBatchRepository};
 pub use database::Database;
 pub use error::StorageError;
 pub use repositories::{

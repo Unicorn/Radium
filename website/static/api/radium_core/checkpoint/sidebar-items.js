@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["CheckpointError"],"struct":["Checkpoint","CheckpointDiff","CheckpointManager","CheckpointPolicy"],"type":["Result"]};

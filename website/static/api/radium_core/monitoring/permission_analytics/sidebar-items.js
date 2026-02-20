@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["AnomalyCategory","AnomalySeverity","PermissionOutcome"],"struct":["AgentUsageStats","Anomaly","PermissionAnalytics","PermissionEvent","RuleEffectivenessStats","TimeSeriesPoint","ToolUsageStats"]};

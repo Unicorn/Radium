@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ErrorHookType"],"struct":["ErrorHookAdapter","ErrorHookContext"],"trait":["ErrorHook"]};

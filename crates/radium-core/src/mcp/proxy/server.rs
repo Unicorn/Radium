@@ -8,10 +8,7 @@ use crate::mcp::proxy::types::{
     ProxyConfig, SecurityLayer as SecurityLayerTrait,
     ToolCatalog as ToolCatalogTrait, ToolRouter as ToolRouterTrait,
 };
-use crate::mcp::proxy::{
-    DefaultSecurityLayer, DefaultToolCatalog, DefaultToolRouter, UpstreamPool,
-};
-use crate::mcp::{McpError, McpToolResult, Result};
+use crate::mcp::{McpError, Result};
 use http_body_util::{BodyExt, Full};
 use hyper::body::Bytes;
 use hyper::server::conn::http1;
@@ -19,7 +16,6 @@ use hyper::service::service_fn;
 use hyper::{Method, Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
 use serde_json::{json, Value};
-use std::collections::HashMap;
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -205,7 +201,7 @@ impl ProxyServer {
 
         // Read request body
         let body = req.into_body();
-        let bytes = body.collect().await.map(|b| b.to_bytes()).unwrap_or_default();
+        let bytes = body.collect().await.map(http_body_util::Collected::to_bytes).unwrap_or_default();
         
         // Parse JSON-RPC request
         let request: JsonRpcRequest = match serde_json::from_slice(&bytes) {
@@ -321,7 +317,7 @@ impl ProxyServer {
 
                 // Check security
                 match security.check_request(tool_name, arguments, agent_id).await {
-                    Ok(_) => {}
+                    Ok(()) => {}
                     Err(e) => {
                         return JsonRpcResponse {
                             jsonrpc: "2.0".to_string(),
@@ -373,16 +369,77 @@ impl ProxyServer {
                 }
             }
             "prompts/list" => {
-                // TODO: Implement prompts aggregation (similar to tools/list)
-                Ok(Some(json!({"prompts": []})))
+                let prompts = catalog.get_all_prompts().await;
+                let prompts_json: Vec<Value> = prompts
+                    .iter()
+                    .map(|prompt| {
+                        let mut prompt_json = json!({
+                            "name": prompt.name,
+                        });
+
+                        if let Some(ref description) = prompt.description {
+                            prompt_json["description"] = json!(description);
+                        }
+
+                        if let Some(ref arguments) = prompt.arguments {
+                            prompt_json["arguments"] = json!(arguments);
+                        }
+
+                        prompt_json
+                    })
+                    .collect();
+                Ok(Some(json!({"prompts": prompts_json})))
             }
             "prompts/get" => {
-                // TODO: Implement prompt retrieval
-                Err(JsonRpcError {
-                    code: -32601,
-                    message: "Method not implemented".to_string(),
-                    data: None,
-                })
+                let params = request.params.as_ref().and_then(|p| p.as_object());
+                let prompt_name = match params
+                    .and_then(|p| p.get("name"))
+                    .and_then(|n| n.as_str())
+                {
+                    Some(name) => name,
+                    None => {
+                        return JsonRpcResponse {
+                            jsonrpc: "2.0".to_string(),
+                            result: None,
+                            error: Some(JsonRpcError {
+                                code: -32602,
+                                message: "Missing 'name' parameter in prompts/get".to_string(),
+                                data: Some(json!({
+                                    "hint": "The prompts/get request must include a 'name' parameter specifying the prompt to retrieve."
+                                })),
+                            }),
+                            id: request_id,
+                        };
+                    }
+                };
+
+                match catalog.get_prompt(prompt_name).await {
+                    Some(prompt) => {
+                        let mut prompt_json = json!({
+                            "name": prompt.name,
+                        });
+
+                        if let Some(ref description) = prompt.description {
+                            prompt_json["description"] = json!(description);
+                        }
+
+                        if let Some(ref arguments) = prompt.arguments {
+                            prompt_json["arguments"] = json!(arguments);
+                        }
+
+                        Ok(Some(prompt_json))
+                    }
+                    None => {
+                        Err(JsonRpcError {
+                            code: -32602,
+                            message: format!("Prompt not found: {}", prompt_name),
+                            data: Some(json!({
+                                "prompt_name": prompt_name,
+                                "hint": "The requested prompt does not exist in the catalog."
+                            })),
+                        })
+                    }
+                }
             }
             _ => {
                 Err(JsonRpcError {
@@ -444,6 +501,8 @@ impl ProxyServer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mcp::proxy::{ConflictStrategy, ProxyTransport, SecurityConfig, UpstreamPool, DefaultToolRouter, DefaultToolCatalog, DefaultSecurityLayer};
+    use std::collections::HashMap;
 
     #[tokio::test]
     async fn test_proxy_server_creation() {
@@ -454,6 +513,7 @@ mod tests {
             max_connections: 100,
             security: SecurityConfig::default(),
             upstreams: vec![],
+            conflict_strategy: ConflictStrategy::AutoPrefix,
         };
 
         let pool = Arc::new(UpstreamPool::new());

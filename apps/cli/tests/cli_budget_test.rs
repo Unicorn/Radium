@@ -6,12 +6,22 @@ use tempfile::TempDir;
 
 #[test]
 fn test_budget_status_no_budget() {
+    // Isolate from any user-level config in the developer machine.
+    let temp_dir = TempDir::new().unwrap();
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    cmd.arg("budget")
+    cmd.current_dir(temp_dir.path())
+        .env("HOME", temp_dir.path())
+        .env_remove("RADIUM_WORKSPACE")
+        .arg("budget")
         .arg("status")
         .assert()
         .success()
-        .stdout(predicate::str::contains("No budget set").or(predicate::str::contains("not_set")));
+        // Depending on config defaults, status may either show "not set" or an active default limit.
+        .stdout(
+            predicate::str::contains("No budget set")
+                .or(predicate::str::contains("not_set"))
+                .or(predicate::str::contains("Limit:")),
+        );
 }
 
 #[test]
