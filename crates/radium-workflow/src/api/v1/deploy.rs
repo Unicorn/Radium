@@ -328,7 +328,11 @@ pub async fn deploy_workflow(
 
     let _updated: Vec<serde_json::Value> = state
         .supabase
-        .update("workflows", &[("id", &format!("eq.{id}"))], &update_body)
+        .update(
+            "workflows",
+            &[("id", &format!("eq.{id}")), ("created_by", &user_filter)],
+            &update_body,
+        )
         .await
         .map_err(DeployError::from_supabase)?;
 
