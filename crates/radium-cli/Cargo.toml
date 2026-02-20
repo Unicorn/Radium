@@ -1,0 +1,29 @@
+[package]
+name = "radium-workflow-cli"
+version.workspace = true
+edition = "2021"
+authors.workspace = true
+description = "CLI client for Radium Workflow API"
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "radium-workflow"
+path = "src/main.rs"
+
+[dependencies]
+clap = { workspace = true }
+reqwest = { version = "0.12", features = ["json"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = "0.9"
+tokio = { workspace = true }
+toml = { workspace = true }
+thiserror = { workspace = true }
+dirs = "5"
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true
