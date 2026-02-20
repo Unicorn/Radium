@@ -1,0 +1,91 @@
+/**
+ * Agent Component
+ *
+ * Represents an AI agent activity in the workflow.
+ * Agents are special activities that invoke AI models for decision-making or generation.
+ *
+ * Configuration and behavior is identical to Activity component.
+ * The distinction is semantic - agents represent AI-powered activities.
+ *
+ * Configuration options:
+ * - componentName: Name of the agent function
+ * - timeout: Start-to-close timeout
+ * - retryPolicy: Same retry options as activities
+ */
+
+// Example 1: Simple Agent Call
+// When: Agent node with componentName = 'classifyDocument'
+// Generated output:
+`
+  // classifyDocument
+  const result_classify_document = await classifyDocument(input);
+`
+
+// Example 2: Agent with Timeout and Retry
+// When: Agent with timeout = '2m', retryPolicy = { strategy: 'fail-after-x', maxAttempts: 2 }
+// Generated output:
+`
+  // summarizeContent
+  const result_summarize_content = await summarizeContent(input, {
+    startToCloseTimeout: '2m',
+    retry: {
+      maximumAttempts: 2,
+      initialInterval: '1s',
+    },
+  });
+`
+
+/**
+ * TypeScript Compilation Patterns:
+ *
+ * 1. Generated code is identical to activity nodes
+ * 2. Agent activities typically:
+ *    - Have longer timeouts (AI inference can be slow)
+ *    - Use lower retry counts (AI calls can be expensive)
+ *    - Handle non-deterministic outputs
+ * 3. The activity implementation connects to AI services
+ *
+ * Typical Agent Activities:
+ * - Document classification
+ * - Content summarization
+ * - Entity extraction
+ * - Decision making
+ * - Text generation
+ * - Code analysis
+ *
+ * Implementation Note:
+ * The actual AI service calls happen in the activity implementation,
+ * not in the generated workflow code. The workflow just orchestrates
+ * when and how the agent is called.
+ */
+
+// Full workflow with agent:
+const exampleWorkflowWithAgent = `
+import { proxyActivities, startChild, executeChild, sleep, condition } from '@temporalio/workflow';
+import type * as activities from './activities';
+
+export async function DocumentProcessingWorkflow(input: Record<string, unknown> | undefined): Promise<unknown> {
+
+  // Start
+  // Workflow started
+
+  // Extract Text
+  const result_extract_text = await extractText(input);
+
+  // Classify Document (AI Agent)
+  const result_classify_document = await classifyDocument(result_extract_text, {
+    startToCloseTimeout: '2m',
+    retry: {
+      maximumAttempts: 2,
+      initialInterval: '5s',
+    },
+  });
+
+  // Route Based on Classification
+  const result_route = result_classify_document.category;
+    // If invoice
+    const result_process_invoice = await processInvoice(result_classify_document);
+    // If contract
+    const result_process_contract = await processContract(result_classify_document);
+}
+`;

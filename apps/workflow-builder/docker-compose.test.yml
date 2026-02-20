@@ -1,0 +1,220 @@
+# Radium Workflow Builder - Test Infrastructure
+# Ephemeral environment for E2E tests with Kong API Gateway
+# Uses standard PostgreSQL + GoTrue for auth + PostgREST for REST API
+
+services:
+  # Standard PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: radium-test-db
+    healthcheck:
+      test: pg_isready -U postgres -h localhost
+      interval: 2s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    ports:
+      - "54332:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    volumes:
+      - ./supabase/volumes/db/init:/docker-entrypoint-initdb.d:Z
+    tmpfs:
+      - /var/lib/postgresql/data
+
+  # Kong API Gateway - database mode for full E2E testing with dynamic routes
+  kong-migrations:
+    image: kong:3.8
+    container_name: radium-test-kong-migrations
+    depends_on:
+      db:
+        condition: service_healthy
+    command: kong migrations bootstrap
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: db
+      KONG_PG_PORT: 5432
+      KONG_PG_DATABASE: kong
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong
+    restart: on-failure
+
+  # Kong bootstrap - imports declarative config into database
+  kong-bootstrap:
+    image: kong:3.8
+    container_name: radium-test-kong-bootstrap
+    depends_on:
+      kong-migrations:
+        condition: service_completed_successfully
+    command: kong config db_import /var/lib/kong/kong.yml
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: db
+      KONG_PG_PORT: 5432
+      KONG_PG_DATABASE: kong
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong
+    volumes:
+      - ./supabase/volumes/api/kong.yml:/var/lib/kong/kong.yml:ro
+    restart: on-failure
+
+  kong:
+    image: kong:3.8
+    container_name: radium-test-kong
+    depends_on:
+      kong-bootstrap:
+        condition: service_completed_successfully
+      auth:
+        condition: service_healthy
+      rest:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    ports:
+      - "54331:8000"  # Main API port - this is the Supabase URL
+      - "54336:8001"  # Admin API (read-write in database mode)
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: db
+      KONG_PG_PORT: 5432
+      KONG_PG_DATABASE: kong
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong
+      KONG_DNS_ORDER: LAST,A,CNAME
+      KONG_PLUGINS: bundled
+      KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
+      KONG_NGINX_PROXY_PROXY_BUFFERS: 64 160k
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001
+      KONG_PROXY_LISTEN: 0.0.0.0:8000
+
+  # GoTrue Auth Service
+  auth:
+    image: supabase/gotrue:v2.143.0
+    container_name: radium-test-auth
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9999/health"]
+      timeout: 5s
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: http://localhost:54331
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://postgres:postgres@db:5432/postgres?sslmode=disable&search_path=auth
+      GOTRUE_SITE_URL: http://localhost:3010
+      GOTRUE_URI_ALLOW_LIST: "*"
+      GOTRUE_DISABLE_SIGNUP: "false"
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters-long
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED: "false"
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+      GOTRUE_SMTP_ADMIN_EMAIL: admin@example.com
+      GOTRUE_SMTP_HOST: inbucket
+      GOTRUE_SMTP_PORT: 2500
+      GOTRUE_SMTP_SENDER_NAME: Radium Test
+
+  # PostgREST - REST API for PostgreSQL (no healthcheck - minimal container)
+  rest:
+    image: postgrest/postgrest:v12.0.1
+    container_name: radium-test-rest
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    environment:
+      PGRST_DB_URI: postgres://postgres:postgres@db:5432/postgres
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters-long
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+      PGRST_APP_SETTINGS_JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters-long
+      PGRST_APP_SETTINGS_JWT_EXP: 3600
+
+  # Inbucket - for email testing
+  inbucket:
+    image: inbucket/inbucket:3.0.3
+    container_name: radium-test-inbucket
+    restart: unless-stopped
+    ports:
+      - "54334:9000"  # Web UI
+      - "54335:2500"  # SMTP
+
+  # Temporal Server - for workflow execution testing
+  temporal:
+    image: temporalio/auto-setup:latest
+    container_name: radium-test-temporal
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "temporal operator cluster health --address $(hostname -i):7233 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 60s
+    restart: unless-stopped
+    ports:
+      - "7233:7233"   # gRPC frontend
+      - "7234:7234"   # gRPC matching
+      - "7235:7235"   # gRPC history
+      - "7239:7239"   # Web UI
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PWD=postgres
+      - POSTGRES_SEEDS=db
+
+  # Temporal Admin Tools (for test setup/teardown) - optional, doesn't block startup
+  temporal-admin-tools:
+    image: temporalio/admin-tools:latest
+    container_name: radium-test-temporal-admin
+    depends_on:
+      temporal:
+        condition: service_started
+    environment:
+      - TEMPORAL_CLI_ADDRESS=temporal:7233
+    stdin_open: true
+    tty: true
+    profiles:
+      - tools
+
+  # Radium Rust Workflow Compiler - for compiler E2E tests
+  rust-compiler:
+    build:
+      context: ../..
+      dockerfile: crates/radium-workflow/Dockerfile
+    container_name: radium-test-rust-compiler
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    ports:
+      - "3020:3000"  # Expose on 3020 to match test config
+    environment:
+      - RUST_LOG=info
+      - PORT=3000
+    profiles:
+      - rust-compiler
+
+networks:
+  default:
+    name: radium-test-network

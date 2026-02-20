@@ -1,0 +1,193 @@
+component:
+  name: database_query
+  category: activities
+  version: 1.0.0
+  description: Database query component for Supabase integration
+  temporalType: activity
+migration:
+  migratedBy: radium-workflow-compiler
+  migrationDate: 2025-12-15T18:49:41.000334Z
+  durationHours: 3.0
+  difficulty: medium
+  breakingChanges: false
+  filesCreated:
+  - src/schema/components/database_query.rs
+  filesModified:
+  - src/schema/components/mod.rs
+discovery:
+  originalTypescriptFile: ''
+  linesOfCode: 0
+  existingTests: []
+  usageLocations: []
+  dependencies: []
+schemaDecisions:
+- field: query_operation
+  decision: Enum covering Select, Insert, Update, Upsert, Delete, RPC
+  rationale: Complete CRUD + RPC support
+  alternativesConsidered: []
+- field: result_format
+  decision: Enum for rows, single, count, csv
+  rationale: Flexible output format options
+  alternativesConsidered: []
+- field: where_operator
+  decision: Comprehensive operator enum for filtering
+  rationale: Supports complex query conditions
+  alternativesConsidered: []
+inputSchema:
+  rustStruct: DatabaseQueryInput
+  typescriptInterface: DatabaseQueryInput
+  fields:
+  - name: table
+    rustType: String
+    typescriptType: string
+    required: true
+    description: ''
+  - name: operation
+    rustType: QueryOperation
+    typescriptType: QueryOperation
+    required: false
+    default: Select
+    description: ''
+  - name: select
+    rustType: Vec<String>
+    typescriptType: string[]
+    required: false
+    default: '[''*'']'
+    description: ''
+  - name: where_conditions
+    rustType: Vec<WhereCondition>
+    typescriptType: WhereCondition[]
+    required: false
+    default: '[]'
+    description: ''
+  - name: data
+    rustType: Option<Value>
+    typescriptType: unknown?
+    required: false
+    description: ''
+  - name: order_by
+    rustType: Vec<OrderByClause>
+    typescriptType: OrderByClause[]
+    required: false
+    description: ''
+  - name: limit
+    rustType: Option<usize>
+    typescriptType: number?
+    required: false
+    description: ''
+  - name: offset
+    rustType: Option<usize>
+    typescriptType: number?
+    required: false
+    description: ''
+  - name: result_format
+    rustType: ResultFormat
+    typescriptType: ResultFormat
+    required: false
+    default: Rows
+    description: ''
+  - name: connection
+    rustType: Option<ConnectionConfig>
+    typescriptType: ConnectionConfig?
+    required: false
+    description: ''
+  validation: []
+outputSchema:
+  rustStruct: DatabaseQueryOutput
+  typescriptInterface: DatabaseQueryOutput
+  fields:
+  - name: success
+    rustType: bool
+    typescriptType: boolean
+    required: true
+    description: ''
+  - name: data
+    rustType: Option<Value>
+    typescriptType: unknown?
+    required: false
+    description: ''
+  - name: count
+    rustType: Option<usize>
+    typescriptType: number?
+    required: false
+    description: ''
+  - name: affected_rows
+    rustType: usize
+    typescriptType: number
+    required: true
+    description: ''
+  - name: error
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: ''
+  - name: duration_ms
+    rustType: u64
+    typescriptType: number
+    required: true
+    description: ''
+  validation: []
+validationRules: []
+connections:
+  allowedSources: []
+  allowedTargets: []
+  connectionValidation: ''
+rustSchema:
+  filePath: src/schema/components/database_query.rs
+  structs:
+  - DatabaseQueryInput
+  - DatabaseQueryOutput
+  - ConnectionConfig
+  - WhereCondition
+  - OrderByClause
+  enums:
+  - QueryOperation
+  - ResultFormat
+  - WhereOperator
+  derives:
+  - Debug
+  - Clone
+  - Serialize
+  - Deserialize
+  - Validate
+  validationImplementation: Validator crate with table name length check
+typescriptTemplate:
+  templatePath: ''
+  generatedCodeExample: ''
+  keyPatterns: []
+testCases:
+- name: test_select_query
+  category: unit
+  input: DatabaseQueryInput::select("users", ["id", "name"])
+  expectedOutput: Valid SELECT query
+  passed: true
+- name: test_insert_query
+  category: unit
+  input: DatabaseQueryInput::insert("users", data)
+  expectedOutput: Valid INSERT query
+  passed: true
+- name: test_where_condition
+  category: unit
+  input: DatabaseQueryInput::select("users").where_eq("status", "active")
+  expectedOutput: Valid query with WHERE
+  passed: true
+lessonsLearned:
+  whatWorkedWell:
+  - Query builder pattern
+  - Type-safe WHERE conditions
+  challenges:
+  - challenge: Complex WHERE operator set
+    solution: Created comprehensive WhereOperator enum
+    timeSpent: 1 hour
+  recommendations:
+  - Use query builder pattern for complex inputs
+relatedComponents:
+- component: activity
+  relationship: Base activity type
+futureImprovements:
+- improvement: Add transaction support
+  priority: High
+  effort: High
+- improvement: Add prepared statement caching
+  priority: Medium
+  effort: Medium

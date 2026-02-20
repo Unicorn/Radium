@@ -1,0 +1,171 @@
+component:
+  name: child_workflow
+  category: advanced
+  version: 1.0.0
+  description: Child workflow invocation component
+  temporalType: child_workflow
+migration:
+  migratedBy: radium-workflow-compiler
+  migrationDate: 2025-12-15T18:49:41.000344Z
+  durationHours: 2.0
+  difficulty: high
+  breakingChanges: false
+  filesCreated:
+  - src/schema/components/child_workflow.rs
+  filesModified:
+  - src/schema/components/mod.rs
+discovery:
+  originalTypescriptFile: ''
+  linesOfCode: 0
+  existingTests: []
+  usageLocations: []
+  dependencies: []
+schemaDecisions:
+- field: parent_close_policy
+  decision: Enum with Terminate, Abandon, RequestCancel
+  rationale: Maps directly to Temporal policies
+  alternativesConsidered: []
+- field: workflow_status
+  decision: Enum covering all Temporal workflow states
+  rationale: Complete status representation
+  alternativesConsidered: []
+- field: await_result
+  decision: Boolean flag for fire-and-forget vs sync
+  rationale: Simple control over execution mode
+  alternativesConsidered: []
+inputSchema:
+  rustStruct: ChildWorkflowInput
+  typescriptInterface: ChildWorkflowInput
+  fields:
+  - name: workflow_name
+    rustType: String
+    typescriptType: string
+    required: true
+    description: ''
+  - name: workflow_id
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: ''
+  - name: task_queue
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: ''
+  - name: input
+    rustType: HashMap<String, Value>
+    typescriptType: Record<string, unknown>
+    required: false
+    default: '{}'
+    description: ''
+  - name: parent_close_policy
+    rustType: ParentClosePolicy
+    typescriptType: ParentClosePolicy
+    required: false
+    default: terminate
+    description: ''
+  - name: execution_timeout_ms
+    rustType: Option<u64>
+    typescriptType: number?
+    required: false
+    description: ''
+  - name: run_timeout_ms
+    rustType: Option<u64>
+    typescriptType: number?
+    required: false
+    description: ''
+  - name: await_result
+    rustType: bool
+    typescriptType: boolean
+    required: false
+    default: 'true'
+    description: ''
+  - name: retry
+    rustType: RetryConfig
+    typescriptType: RetryConfig
+    required: false
+    description: ''
+  validation: []
+outputSchema:
+  rustStruct: ChildWorkflowOutput
+  typescriptInterface: ChildWorkflowOutput
+  fields:
+  - name: workflow_id
+    rustType: String
+    typescriptType: string
+    required: true
+    description: ''
+  - name: run_id
+    rustType: String
+    typescriptType: string
+    required: true
+    description: ''
+  - name: result
+    rustType: Option<Value>
+    typescriptType: unknown?
+    required: false
+    description: ''
+  - name: status
+    rustType: WorkflowStatus
+    typescriptType: WorkflowStatus
+    required: true
+    description: ''
+  - name: error
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: ''
+  - name: duration_ms
+    rustType: u64
+    typescriptType: number
+    required: true
+    description: ''
+  validation: []
+validationRules: []
+connections:
+  allowedSources: []
+  allowedTargets: []
+  connectionValidation: ''
+rustSchema:
+  filePath: src/schema/components/child_workflow.rs
+  structs:
+  - ChildWorkflowInput
+  - ChildWorkflowOutput
+  enums:
+  - ParentClosePolicy
+  - WorkflowStatus
+  derives:
+  - Debug
+  - Clone
+  - Serialize
+  - Deserialize
+  - Validate
+  validationImplementation: Validator with workflow_name length check
+typescriptTemplate:
+  templatePath: ''
+  generatedCodeExample: ''
+  keyPatterns: []
+testCases:
+- name: test_child_workflow
+  category: unit
+  input: ChildWorkflowInput::new("processOrder")
+  expectedOutput: Valid child workflow
+  passed: true
+- name: test_fire_and_forget
+  category: unit
+  input: ChildWorkflowInput::new("bg").fire_and_forget()
+  expectedOutput: await_result = false
+  passed: true
+lessonsLearned:
+  whatWorkedWell:
+  - Direct mapping to Temporal APIs
+  - Reuses RetryConfig from activity
+  challenges: []
+  recommendations:
+  - Align with Temporal SDK patterns
+relatedComponents:
+- component: activity
+  relationship: Shares retry config
+- component: signal
+  relationship: Can signal child workflows
+futureImprovements: []

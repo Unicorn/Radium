@@ -1,0 +1,266 @@
+# =============================================================================
+# COMPONENT MIGRATION RECORD: Start (Trigger) Component
+# =============================================================================
+# The Start component is the entry point of every workflow. It receives the
+# workflow input from the caller and initializes the workflow execution context.
+
+component:
+  name: "start-trigger"
+  type: "trigger"
+  category: "core-flow"
+  complexity: "low"
+
+migration:
+  date: "2025-12-11"
+  migrated_by: "human+agent"
+  duration_hours: 2
+
+# -----------------------------------------------------------------------------
+# 1. DISCOVERY PHASE
+# -----------------------------------------------------------------------------
+discovery:
+  original_typescript_location: "src/lib/compiler/patterns/trigger.ts"
+  original_lines_of_code: 50
+
+  dependencies:
+    - "@temporalio/workflow"
+
+  purpose: |
+    The Start (Trigger) component serves as the entry point for every workflow.
+    It receives input from the workflow caller (Temporal client) and initializes
+    the workflow execution context. It records the workflow start timestamp for
+    auditing and duration calculations.
+
+  usage_patterns:
+    - pattern: "workflow entry"
+      description: "Every workflow begins with a Start node that receives external input"
+      frequency: "always"
+
+    - pattern: "timestamp recording"
+      description: "Captures startedAt timestamp for workflow duration tracking"
+      frequency: "always"
+
+  known_issues:
+    - issue: "Input type was 'any' in original TypeScript"
+      severity: "medium"
+      resolution: "Use Record<string, unknown> for type safety in generated code"
+
+# -----------------------------------------------------------------------------
+# 2. SCHEMA DESIGN DECISIONS
+# -----------------------------------------------------------------------------
+schema_decisions:
+  - decision: "Start component has empty input struct"
+    reasoning: |
+      The Start component itself receives no configuration - the actual workflow
+      input comes from the Temporal caller. Having an empty struct makes this
+      explicit and prevents confusion about where input comes from.
+    alternatives_considered:
+      - option: "Include workflow input schema in StartInput"
+        rejected_because: "Workflow input varies per workflow and is handled at workflow level"
+      - option: "No input struct at all"
+        rejected_because: "Need consistent pattern with other components for validation"
+
+  - decision: "Output contains startedAt as DateTime<Utc>"
+    reasoning: |
+      UTC timestamps ensure consistency across distributed systems. DateTime<Utc>
+      from chrono crate provides proper serialization to ISO 8601 format which
+      matches TypeScript Date serialization.
+    alternatives_considered:
+      - option: "Use Unix timestamp (i64)"
+        rejected_because: "Less readable, requires conversion in TypeScript"
+      - option: "Use String timestamp"
+        rejected_because: "Loses type safety, need to parse in TypeScript"
+
+# -----------------------------------------------------------------------------
+# 3. INPUT SPECIFICATION
+# -----------------------------------------------------------------------------
+input_schema:
+  # Start component has no input fields - workflow input comes from caller
+  _note:
+    type: "comment"
+    description: "Start component has empty input - workflow input is handled separately"
+
+# -----------------------------------------------------------------------------
+# 4. OUTPUT SPECIFICATION
+# -----------------------------------------------------------------------------
+output_schema:
+  startedAt:
+    type: "datetime"
+    description: "Timestamp when the workflow started executing"
+    guaranteed: true
+
+# -----------------------------------------------------------------------------
+# 5. VALIDATION RULES
+# -----------------------------------------------------------------------------
+validation_rules:
+  - rule: "Workflow must have exactly one Start node"
+    error_code: "MISSING_START"
+    error_message: "Workflow must have exactly one trigger node"
+    severity: "error"
+    applies_when: "always"
+
+  - rule: "Start node cannot have incoming edges"
+    error_code: "INVALID_START_EDGE"
+    error_message: "Start node cannot have incoming connections"
+    severity: "error"
+    applies_when: "always"
+
+# -----------------------------------------------------------------------------
+# 6. CONNECTION COMPATIBILITY
+# -----------------------------------------------------------------------------
+connections:
+  accepts_from:
+    - component_type: "none"
+      output_field: "n/a"
+      maps_to_input: "n/a"
+      transformation: "none"
+
+  outputs_to:
+    - component_type: "any"
+      output_field: "startedAt"
+      compatible_with_input: "*"
+
+# -----------------------------------------------------------------------------
+# 7. RUST SCHEMA
+# -----------------------------------------------------------------------------
+rust_schema: |
+  use chrono::{DateTime, Utc};
+  use serde::{Deserialize, Serialize};
+
+  /// Start component input - workflow entry point
+  /// Takes no input as it's the workflow trigger.
+  #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+  #[serde(rename_all = "camelCase")]
+  pub struct StartInput {
+      // Empty - start receives input from workflow caller
+  }
+
+  /// Start component output
+  /// Contains metadata about when the workflow started.
+  #[derive(Debug, Clone, Serialize, Deserialize)]
+  #[serde(rename_all = "camelCase")]
+  pub struct StartOutput {
+      /// When the workflow started
+      pub started_at: DateTime<Utc>,
+  }
+
+  impl StartOutput {
+      /// Create a new StartOutput with the current timestamp
+      pub fn now() -> Self {
+          StartOutput {
+              started_at: Utc::now(),
+          }
+      }
+  }
+
+# -----------------------------------------------------------------------------
+# 8. TYPESCRIPT TEMPLATE
+# -----------------------------------------------------------------------------
+typescript_template: |
+  // Type definitions for workflow
+  interface StartOutput {
+    startedAt: Date;
+  }
+
+  // In workflow body (generated for Trigger node):
+  const startOutput: StartOutput = { startedAt: new Date() };
+
+# -----------------------------------------------------------------------------
+# 9. TEST CASES
+# -----------------------------------------------------------------------------
+test_cases:
+  # Happy path tests
+  - name: "creates valid start output"
+    type: "happy_path"
+    description: "Verifies StartOutput can be created with current timestamp"
+    input: {}
+    expected_output:
+      startedAt: "<current timestamp>"
+
+  - name: "serializes to camelCase JSON"
+    type: "happy_path"
+    description: "Verifies JSON output uses camelCase for startedAt"
+    input: {}
+    expected_output_contains: '"startedAt"'
+
+  - name: "timestamp is UTC"
+    type: "happy_path"
+    description: "Verifies timestamp is in UTC timezone"
+    input: {}
+    expected_output_contains: "Z"
+
+  # Error cases
+  - name: "workflow without start node fails"
+    type: "error_case"
+    description: "Compilation fails if no trigger node exists"
+    workflow_nodes: []
+    expected_error:
+      code: "MISSING_START"
+      message: "Workflow must have exactly one trigger node"
+
+  - name: "multiple start nodes fails"
+    type: "error_case"
+    description: "Compilation fails if multiple trigger nodes exist"
+    workflow_nodes:
+      - { type: "Trigger" }
+      - { type: "Trigger" }
+    expected_error:
+      code: "MULTIPLE_STARTS"
+      message: "Workflow cannot have multiple trigger nodes"
+
+  # Edge cases
+  - name: "start with immediate end"
+    type: "edge_case"
+    description: "Workflow with just Start -> End nodes should compile"
+    workflow_nodes:
+      - { id: "start", type: "Trigger" }
+      - { id: "end", type: "End" }
+    expected: "valid workflow compiles successfully"
+
+# -----------------------------------------------------------------------------
+# 10. LESSONS LEARNED
+# -----------------------------------------------------------------------------
+lessons_learned:
+  - category: "schema"
+    lesson: |
+      Empty input structs are valid and useful for components that receive
+      their actual input through the workflow context rather than through
+      direct configuration. Document this explicitly to avoid confusion.
+    applies_to:
+      - "trigger components"
+      - "workflow entry points"
+
+  - category: "codegen"
+    lesson: |
+      Trigger nodes should generate initialization code at the start of the
+      workflow function, before any activity calls. This establishes the
+      workflow context (startedAt timestamp) for use by other components.
+    applies_to:
+      - "trigger components"
+      - "workflow generation"
+
+# -----------------------------------------------------------------------------
+# 11. RELATED COMPONENTS
+# -----------------------------------------------------------------------------
+related_components:
+  - name: "stop-end"
+    relationship: "often_used_with"
+    notes: "Every workflow needs both Start and Stop nodes"
+
+  - name: "kong-logging"
+    relationship: "often_used_with"
+    notes: "Common pattern to log workflow start with Kong logging"
+
+# -----------------------------------------------------------------------------
+# 12. FUTURE IMPROVEMENTS
+# -----------------------------------------------------------------------------
+future_improvements:
+  - improvement: "Support typed workflow input schema"
+    priority: "medium"
+    effort: "medium"
+    blocked_by: "Need schema-first workflow definition format"
+
+  - improvement: "Add workflow metadata (caller info, retry count)"
+    priority: "low"
+    effort: "low"
+    blocked_by: "nothing"

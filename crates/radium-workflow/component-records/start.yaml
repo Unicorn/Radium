@@ -1,0 +1,128 @@
+component:
+  name: start
+  category: control-flow
+  version: 1.0.0
+  description: Workflow start node that marks the entry point
+  temporalType: workflow
+migration:
+  migratedBy: radium-workflow-compiler
+  migrationDate: 2025-12-15T18:49:41.000289Z
+  durationHours: 0.5
+  difficulty: low
+  breakingChanges: false
+  filesCreated:
+  - src/schema/components/start.rs
+  filesModified:
+  - src/schema/components/mod.rs
+discovery:
+  originalTypescriptFile: apps/workflow-builder/src/components/nodes/StartNode.tsx
+  linesOfCode: 50
+  existingTests: []
+  usageLocations:
+  - WorkflowCanvas
+  dependencies: []
+schemaDecisions:
+- field: input_schema
+  decision: Minimal StartInput with optional label
+  rationale: Start node primarily serves as visual entry point
+  alternativesConsidered: []
+- field: output_schema
+  decision: StartOutput with workflow_id, run_id, started_at
+  rationale: Provides workflow context for downstream nodes
+  alternativesConsidered: []
+- field: initial_variables
+  decision: HashMap<String, Value> for passing initial state
+  rationale: Allows workflows to receive typed initial data
+  alternativesConsidered: []
+inputSchema:
+  rustStruct: StartInput
+  typescriptInterface: StartInput
+  fields:
+  - name: label
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: Optional display label
+  - name: initial_variables
+    rustType: HashMap<String, Value>
+    typescriptType: Record<string, unknown>
+    required: false
+    default: '{}'
+    description: Initial workflow variables
+  validation: []
+outputSchema:
+  rustStruct: StartOutput
+  typescriptInterface: StartOutput
+  fields:
+  - name: workflow_id
+    rustType: String
+    typescriptType: string
+    required: true
+    description: ''
+  - name: run_id
+    rustType: String
+    typescriptType: string
+    required: true
+    description: ''
+  - name: started_at
+    rustType: DateTime<Utc>
+    typescriptType: Date
+    required: true
+    description: ''
+  validation: []
+validationRules: []
+connections:
+  allowedSources:
+  - trigger
+  allowedTargets:
+  - '*'
+  connectionValidation: Start node can connect to any node type
+rustSchema:
+  filePath: src/schema/components/start.rs
+  structs:
+  - StartInput
+  - StartOutput
+  enums: []
+  derives:
+  - Debug
+  - Clone
+  - Serialize
+  - Deserialize
+  validationImplementation: None - minimal validation
+typescriptTemplate:
+  templatePath: templates/start.ts.hbs
+  generatedCodeExample: |-
+    export interface StartInput {
+      label?: string;
+      initialVariables?: Record<string, unknown>;
+    }
+  keyPatterns:
+  - Simple interface generation
+testCases:
+- name: test_default_start
+  category: unit
+  input: StartInput::default()
+  expectedOutput: Empty input valid
+  passed: true
+- name: test_with_label
+  category: unit
+  input: StartInput::new().with_label("Main Entry")
+  expectedOutput: Label set correctly
+  passed: true
+- name: test_serialization
+  category: integration
+  input: StartInput with label
+  expectedOutput: Valid JSON
+  passed: true
+lessonsLearned:
+  whatWorkedWell:
+  - Minimal schema keeps component simple
+  challenges: []
+  recommendations:
+  - Keep simple components simple
+relatedComponents:
+- component: trigger
+  relationship: Trigger precedes start
+- component: stop
+  relationship: Complementary end node
+futureImprovements: []

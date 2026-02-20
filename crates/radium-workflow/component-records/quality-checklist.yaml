@@ -1,0 +1,61 @@
+# Component Migration Record Quality Checklist
+# All migration records must pass this checklist before Phase 6 is complete
+
+requiredSections:
+  - component
+  - migration
+  - discovery
+  - schemaDecisions
+  - inputSchema
+  - outputSchema
+  - validationRules
+  - connections
+  - rustSchema
+  - typescriptTemplate
+  - testCases
+  - lessonsLearned
+  - relatedComponents
+  - futureImprovements
+
+qualityCriteria:
+  schemaDecisions:
+    minDecisions: 3
+    requiresRationale: true
+    requiresAlternatives: true
+
+  testCases:
+    minUnitTests: 3
+    minIntegrationTests: 2
+    minCompilationTests: 1
+    minBehaviorTests: 1
+
+  lessonsLearned:
+    minChallenges: 1
+    minRecommendations: 1
+
+  validationRules:
+    requiresRationale: true
+
+# Component categories
+categories:
+  controlFlow:
+    - trigger
+    - start
+    - stop
+    - conditional
+    - loop
+
+  activities:
+    - activity
+    - log
+    - httpRequest
+    - databaseQuery
+
+  agents:
+    - agent
+
+  advanced:
+    - childWorkflow
+    - signal
+    - timer
+    - parallel

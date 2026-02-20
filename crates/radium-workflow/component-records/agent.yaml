@@ -1,0 +1,198 @@
+component:
+  name: agent
+  category: agents
+  version: 1.0.0
+  description: AI agent component for LLM invocation
+  temporalType: activity
+migration:
+  migratedBy: radium-workflow-compiler
+  migrationDate: 2025-12-15T18:49:41.000339Z
+  durationHours: 4.0
+  difficulty: high
+  breakingChanges: false
+  filesCreated:
+  - src/schema/components/agent.rs
+  filesModified:
+  - src/schema/components/mod.rs
+discovery:
+  originalTypescriptFile: ''
+  linesOfCode: 0
+  existingTests: []
+  usageLocations: []
+  dependencies: []
+schemaDecisions:
+- field: ai_provider
+  decision: Enum supporting Anthropic, OpenAI, Google, Azure, Bedrock, Custom
+  rationale: Comprehensive provider support
+  alternativesConsidered: []
+- field: model_config
+  decision: Provider-specific model configuration
+  rationale: Type-safe model settings per provider
+  alternativesConsidered: []
+- field: tool_calling
+  decision: Tool struct with name, description, input_schema
+  rationale: Supports function calling patterns
+  alternativesConsidered: []
+inputSchema:
+  rustStruct: AgentInput
+  typescriptInterface: AgentInput
+  fields:
+  - name: provider
+    rustType: AIProvider
+    typescriptType: AIProvider
+    required: true
+    description: ''
+  - name: model_config
+    rustType: ModelConfig
+    typescriptType: ModelConfig
+    required: true
+    description: ''
+  - name: system_prompt
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: ''
+  - name: messages
+    rustType: Vec<Message>
+    typescriptType: Message[]
+    required: true
+    description: ''
+  - name: tools
+    rustType: Vec<Tool>
+    typescriptType: Tool[]
+    required: false
+    default: '[]'
+    description: ''
+  - name: stream
+    rustType: bool
+    typescriptType: boolean
+    required: false
+    default: 'false'
+    description: ''
+  - name: timeout_ms
+    rustType: u64
+    typescriptType: number
+    required: false
+    default: '120000'
+    description: ''
+  - name: output_variable
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: ''
+  validation: []
+outputSchema:
+  rustStruct: AgentOutput
+  typescriptInterface: AgentOutput
+  fields:
+  - name: response
+    rustType: String
+    typescriptType: string
+    required: true
+    description: ''
+  - name: model
+    rustType: String
+    typescriptType: string
+    required: true
+    description: ''
+  - name: provider
+    rustType: String
+    typescriptType: string
+    required: true
+    description: ''
+  - name: usage
+    rustType: TokenUsage
+    typescriptType: TokenUsage
+    required: true
+    description: ''
+  - name: tool_calls
+    rustType: Vec<ToolCall>
+    typescriptType: ToolCall[]
+    required: true
+    description: ''
+  - name: finish_reason
+    rustType: FinishReason
+    typescriptType: FinishReason
+    required: true
+    description: ''
+  - name: duration_ms
+    rustType: u64
+    typescriptType: number
+    required: true
+    description: ''
+  validation: []
+validationRules:
+- rule: messages_required
+  implementation: Validator length(min = 1)
+  errorMessage: At least one message required
+  rationale: Agent needs conversation context
+connections:
+  allowedSources: []
+  allowedTargets: []
+  connectionValidation: ''
+rustSchema:
+  filePath: src/schema/components/agent.rs
+  structs:
+  - AgentInput
+  - AgentOutput
+  - Message
+  - Tool
+  - ToolCall
+  - TokenUsage
+  enums:
+  - AIProvider
+  - AnthropicModel
+  - ModelConfig
+  - MessageRole
+  - FinishReason
+  derives:
+  - Debug
+  - Clone
+  - Serialize
+  - Deserialize
+  - Validate
+  validationImplementation: Validator with messages length check
+typescriptTemplate:
+  templatePath: ''
+  generatedCodeExample: ''
+  keyPatterns: []
+testCases:
+- name: test_anthropic_agent
+  category: unit
+  input: AgentInput::anthropic(Claude35Sonnet, messages)
+  expectedOutput: Valid Anthropic agent
+  passed: true
+- name: test_with_tools
+  category: unit
+  input: AgentInput::anthropic(...).with_tools(tools)
+  expectedOutput: Agent with tool calling
+  passed: true
+- name: test_token_usage
+  category: unit
+  input: 'TokenUsage { input: 100, output: 50, total: 150 }'
+  expectedOutput: Valid token usage
+  passed: true
+lessonsLearned:
+  whatWorkedWell:
+  - Provider abstraction works well
+  - Tool calling schema is flexible
+  challenges:
+  - challenge: Model config per provider
+    solution: Used untagged enum for ModelConfig
+    timeSpent: 2 hours
+  recommendations:
+  - Abstract provider differences
+  - Use builder pattern for complex inputs
+relatedComponents:
+- component: activity
+  relationship: Base activity type
+futureImprovements:
+- improvement: Add streaming support
+  priority: High
+  effort: High
+- improvement: Add response caching
+  priority: Medium
+  effort: Medium
+- improvement: Add cost estimation
+  priority: Low
+  effort: Low

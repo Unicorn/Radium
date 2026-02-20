@@ -1,0 +1,152 @@
+component:
+  name: activity
+  category: activities
+  version: 1.0.0
+  description: Generic activity invocation component
+  temporalType: activity
+migration:
+  migratedBy: radium-workflow-compiler
+  migrationDate: 2025-12-15T18:49:41.000324Z
+  durationHours: 2.0
+  difficulty: medium
+  breakingChanges: false
+  filesCreated:
+  - src/schema/components/activity.rs
+  filesModified:
+  - src/schema/components/mod.rs
+discovery:
+  originalTypescriptFile: ''
+  linesOfCode: 0
+  existingTests: []
+  usageLocations: []
+  dependencies: []
+schemaDecisions:
+- field: retry_policy
+  decision: Enum with NoRetry, Linear, Exponential, Custom variants
+  rationale: Maps to Temporal retry policies
+  alternativesConsidered: []
+- field: retry_config
+  decision: Comprehensive config with backoff settings
+  rationale: Full control over retry behavior
+  alternativesConsidered: []
+- field: timeout_config
+  decision: Separate struct for Temporal timeout types
+  rationale: Clear separation of timeout concerns
+  alternativesConsidered: []
+inputSchema:
+  rustStruct: ActivityInput
+  typescriptInterface: ActivityInput
+  fields:
+  - name: activity_name
+    rustType: String
+    typescriptType: string
+    required: true
+    description: ''
+  - name: task_queue
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: ''
+  - name: params
+    rustType: HashMap<String, Value>
+    typescriptType: Record<string, unknown>
+    required: false
+    default: '{}'
+    description: ''
+  - name: retry
+    rustType: RetryConfig
+    typescriptType: RetryConfig
+    required: false
+    description: ''
+  - name: timeouts
+    rustType: TimeoutConfig
+    typescriptType: TimeoutConfig
+    required: false
+    description: ''
+  - name: await_result
+    rustType: bool
+    typescriptType: boolean
+    required: false
+    default: 'true'
+    description: ''
+  validation: []
+outputSchema:
+  rustStruct: ActivityOutput
+  typescriptInterface: ActivityOutput
+  fields:
+  - name: success
+    rustType: bool
+    typescriptType: boolean
+    required: true
+    description: ''
+  - name: result
+    rustType: Option<Value>
+    typescriptType: unknown?
+    required: false
+    description: ''
+  - name: error
+    rustType: Option<ActivityError>
+    typescriptType: ActivityError?
+    required: false
+    description: ''
+  - name: duration_ms
+    rustType: u64
+    typescriptType: number
+    required: true
+    description: ''
+  - name: attempts
+    rustType: u32
+    typescriptType: number
+    required: true
+    description: ''
+  validation: []
+validationRules: []
+connections:
+  allowedSources: []
+  allowedTargets: []
+  connectionValidation: ''
+rustSchema:
+  filePath: src/schema/components/activity.rs
+  structs:
+  - ActivityInput
+  - ActivityOutput
+  - ActivityError
+  - RetryConfig
+  - TimeoutConfig
+  enums:
+  - RetryPolicy
+  derives:
+  - Debug
+  - Clone
+  - Serialize
+  - Deserialize
+  - Validate
+  validationImplementation: Validator crate
+typescriptTemplate:
+  templatePath: ''
+  generatedCodeExample: ''
+  keyPatterns: []
+testCases:
+- name: test_activity_input
+  category: unit
+  input: ActivityInput::new("myActivity")
+  expectedOutput: Valid activity input
+  passed: true
+- name: test_retry_config
+  category: unit
+  input: RetryConfig with exponential backoff
+  expectedOutput: Valid retry configuration
+  passed: true
+lessonsLearned:
+  whatWorkedWell:
+  - Reusable RetryConfig and TimeoutConfig
+  - Matches Temporal SDK patterns
+  challenges: []
+  recommendations:
+  - Align with Temporal SDK types
+relatedComponents:
+- component: child_workflow
+  relationship: Uses same retry config
+- component: http_request
+  relationship: Specialized activity
+futureImprovements: []

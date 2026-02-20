@@ -1,0 +1,295 @@
+# =============================================================================
+# COMPONENT MIGRATION RECORD TEMPLATE
+# =============================================================================
+# This template captures the complete decision-making process for migrating
+# a component to the Rust compiler. It serves as training data for the
+# Phase 8 Component Builder Agent.
+#
+# Instructions:
+# 1. Copy this file and rename to {component-name}.yaml
+# 2. Fill in ALL sections - every section is required
+# 3. Be detailed in reasoning - the "why" is as important as the "what"
+# 4. Include at least 1 rejected alternative per major decision
+# 5. Write at least 3 happy path, 2 error, 1 edge case tests
+# 6. Document at least 2 lessons learned
+# =============================================================================
+
+component:
+  name: "{component-name}"                    # e.g., "kong-logging"
+  type: "{type}"                              # activity|trigger|end|conditional|loop|signal|...
+  category: "{category}"                      # core-flow|control-flow|state|integration|kong|advanced
+  complexity: "{complexity}"                  # low|medium|high
+
+migration:
+  date: "YYYY-MM-DD"
+  migrated_by: "{who}"                        # human|agent|human+agent
+  duration_hours: 0                           # Actual time spent
+
+# -----------------------------------------------------------------------------
+# 1. DISCOVERY PHASE
+# -----------------------------------------------------------------------------
+# Document what was learned about the existing component before migration
+discovery:
+  original_typescript_location: "src/lib/compiler/patterns/{file}.ts"
+  original_lines_of_code: 0
+
+  dependencies:
+    - "{dependency 1}"                        # e.g., "@temporalio/workflow"
+    - "{dependency 2}"
+
+  purpose: |
+    {Detailed description of what this component does and why it exists.
+    Be specific about the problem it solves and when users would use it.}
+
+  usage_patterns:
+    - pattern: "{pattern name}"               # e.g., "API logging"
+      description: "{how it's typically used}"
+      frequency: "{frequency}"                # common|occasional|rare
+
+    - pattern: "{another pattern}"
+      description: "{description}"
+      frequency: "{frequency}"
+
+  known_issues:
+    - issue: "{description of issue}"
+      severity: "{severity}"                  # low|medium|high
+      resolution: "{how we'll handle it in the migration}"
+
+# -----------------------------------------------------------------------------
+# 2. SCHEMA DESIGN DECISIONS
+# -----------------------------------------------------------------------------
+# Document WHY each schema decision was made - this is critical training data
+schema_decisions:
+  - decision: "{what was decided}"
+    reasoning: |
+      {Detailed explanation of why this decision was made.
+      Include context, constraints, and trade-offs considered.}
+    alternatives_considered:
+      - option: "{alternative 1}"
+        rejected_because: "{specific reason for rejection}"
+      - option: "{alternative 2}"
+        rejected_because: "{specific reason for rejection}"
+
+  - decision: "{another decision}"
+    reasoning: |
+      {Explanation}
+    alternatives_considered:
+      - option: "{alternative}"
+        rejected_because: "{reason}"
+
+# -----------------------------------------------------------------------------
+# 3. INPUT SPECIFICATION
+# -----------------------------------------------------------------------------
+# Complete input schema with types, validation, and documentation
+input_schema:
+  "{field_name}":
+    type: "{type}"                            # string|number|boolean|enum|object|array
+    required: true                            # true|false
+    default: null                             # Default value if optional
+    description: "{what this field is for}"
+    validation:
+      - rule: "{validation rule}"             # e.g., "non-empty", "max length 1000"
+        error_message: "{user-friendly error message}"
+
+    # For enum types, include values:
+    # values: ["value1", "value2", "value3"]
+
+    # For object types, include nested properties:
+    # properties:
+    #   nested_field:
+    #     type: string
+    #     required: true
+    #     description: "..."
+
+  # Add more fields as needed...
+
+# -----------------------------------------------------------------------------
+# 4. OUTPUT SPECIFICATION
+# -----------------------------------------------------------------------------
+# Complete output schema
+output_schema:
+  "{field_name}":
+    type: "{type}"
+    description: "{what this output represents}"
+    guaranteed: true                          # Is this always present in output?
+
+  # Add more fields as needed...
+
+# -----------------------------------------------------------------------------
+# 5. VALIDATION RULES
+# -----------------------------------------------------------------------------
+# All validation rules that apply to this component
+validation_rules:
+  - rule: "{rule description}"
+    error_code: "{ERROR_CODE}"                # e.g., "EMPTY_MESSAGE"
+    error_message: "{user-friendly message}"
+    severity: "error"                         # error|warning
+    applies_when: "always"                    # "always" or specific condition
+
+  # Add more rules as needed...
+
+# -----------------------------------------------------------------------------
+# 6. CONNECTION COMPATIBILITY
+# -----------------------------------------------------------------------------
+# What can connect to/from this component
+connections:
+  accepts_from:
+    - component_type: "{type or 'any'}"
+      output_field: "{field name or '*'}"
+      maps_to_input: "{input field name}"
+      transformation: "none"                  # none|{description of transformation}
+
+  outputs_to:
+    - component_type: "{type or 'any'}"
+      output_field: "{field name}"
+      compatible_with_input: "{target input field or '*'}"
+
+# -----------------------------------------------------------------------------
+# 7. RUST SCHEMA
+# -----------------------------------------------------------------------------
+# Complete Rust struct definitions
+rust_schema: |
+  use serde::{Deserialize, Serialize};
+  use validator::Validate;
+
+  /// {Component name} Input
+  /// {Brief description}
+  #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+  pub struct {ComponentName}Input {
+      /// {Field description}
+      #[validate(length(min = 1, message = "Field cannot be empty"))]
+      pub field_name: String,
+
+      // Add more fields...
+  }
+
+  /// {Component name} Output
+  #[derive(Debug, Clone, Serialize, Deserialize)]
+  pub struct {ComponentName}Output {
+      pub field_name: String,
+
+      // Add more fields...
+  }
+
+# -----------------------------------------------------------------------------
+# 8. TYPESCRIPT TEMPLATE
+# -----------------------------------------------------------------------------
+# TypeScript code that will be generated for this component
+typescript_template: |
+  /**
+   * {Component name} Activity
+   * {Description}
+   *
+   * @param input - {Input description}
+   * @returns {Output description}
+   */
+  export async function {functionName}(
+    input: {InputType}
+  ): Promise<{OutputType}> {
+    // Validate input
+    if (!input.fieldName) {
+      throw new Error('Field cannot be empty');
+    }
+
+    // Implementation
+    // ...
+
+    return {
+      fieldName: result,
+    };
+  }
+
+# -----------------------------------------------------------------------------
+# 9. TEST CASES
+# -----------------------------------------------------------------------------
+# Comprehensive test cases - minimum 3 happy path, 2 error, 1 edge case
+test_cases:
+  # Happy path tests (minimum 3)
+  - name: "{descriptive test name}"
+    type: "happy_path"
+    description: "{what this test verifies}"
+    input:
+      fieldName: "valid value"
+    expected_output:
+      fieldName: "expected result"
+
+  - name: "{another happy path test}"
+    type: "happy_path"
+    description: "{description}"
+    input:
+      fieldName: "another valid value"
+    expected_output:
+      fieldName: "expected result"
+
+  - name: "{third happy path test}"
+    type: "happy_path"
+    description: "{description}"
+    input:
+      fieldName: "yet another valid value"
+    expected_output:
+      fieldName: "expected result"
+
+  # Error cases (minimum 2)
+  - name: "{error case test name}"
+    type: "error_case"
+    description: "{what error condition this tests}"
+    input:
+      fieldName: ""                           # Invalid input
+    expected_error:
+      code: "EMPTY_FIELD"
+      message: "Field cannot be empty"
+
+  - name: "{another error case}"
+    type: "error_case"
+    description: "{description}"
+    input:
+      fieldName: null
+    expected_error:
+      code: "MISSING_FIELD"
+      message: "Field is required"
+
+  # Edge cases (minimum 1)
+  - name: "{edge case test name}"
+    type: "edge_case"
+    description: "{why this edge case matters}"
+    input:
+      fieldName: "{boundary value or unusual input}"
+    expected_output:
+      fieldName: "{expected result for edge case}"
+
+# -----------------------------------------------------------------------------
+# 10. LESSONS LEARNED
+# -----------------------------------------------------------------------------
+# Insights gained during migration (minimum 2)
+lessons_learned:
+  - category: "{category}"                    # schema|validation|codegen|testing|integration
+    lesson: |
+      {What was learned that would help with future components.
+      Be specific and actionable.}
+    applies_to:
+      - "{component types this applies to}"   # e.g., "all activity components"
+
+  - category: "{another category}"
+    lesson: |
+      {Another lesson learned}
+    applies_to:
+      - "{applicable component types}"
+
+# -----------------------------------------------------------------------------
+# 11. RELATED COMPONENTS
+# -----------------------------------------------------------------------------
+# Components that are similar or commonly used together
+related_components:
+  - name: "{component name}"
+    relationship: "{relationship}"            # similar_to|depends_on|often_used_with|alternative_to
+    notes: "{why this relationship matters for understanding this component}"
+
+# -----------------------------------------------------------------------------
+# 12. FUTURE IMPROVEMENTS
+# -----------------------------------------------------------------------------
+# Potential enhancements identified during migration
+future_improvements:
+  - improvement: "{what could be better}"
+    priority: "{priority}"                    # low|medium|high
+    effort: "{effort}"                        # low|medium|high
+    blocked_by: "nothing"                     # nothing|{blocker description}

@@ -1,0 +1,327 @@
+# =============================================================================
+# COMPONENT MIGRATION RECORD: Stop (End) Component
+# =============================================================================
+# The Stop component is the exit point of every workflow. It receives the final
+# result and terminates the workflow execution.
+
+component:
+  name: "stop-end"
+  type: "end"
+  category: "core-flow"
+  complexity: "low"
+
+migration:
+  date: "2025-12-11"
+  migrated_by: "human+agent"
+  duration_hours: 2
+
+# -----------------------------------------------------------------------------
+# 1. DISCOVERY PHASE
+# -----------------------------------------------------------------------------
+discovery:
+  original_typescript_location: "src/lib/compiler/patterns/end.ts"
+  original_lines_of_code: 40
+
+  dependencies:
+    - "@temporalio/workflow"
+
+  purpose: |
+    The Stop (End) component serves as the exit point for every workflow.
+    It receives the final result from the workflow execution and terminates
+    the workflow, recording completion metadata including timestamp and
+    success status.
+
+  usage_patterns:
+    - pattern: "workflow termination"
+      description: "Every workflow ends with a Stop node that returns the final result"
+      frequency: "always"
+
+    - pattern: "result aggregation"
+      description: "Collects workflow result, start time, completion time into unified output"
+      frequency: "always"
+
+  known_issues:
+    - issue: "Result type was 'any' in original TypeScript"
+      severity: "medium"
+      resolution: "Use generic type parameter with serde_json::Value default"
+
+# -----------------------------------------------------------------------------
+# 2. SCHEMA DESIGN DECISIONS
+# -----------------------------------------------------------------------------
+schema_decisions:
+  - decision: "Use generic type T for result field with serde_json::Value default"
+    reasoning: |
+      Workflows can return any type of result. Using a generic type parameter
+      allows strongly-typed workflows while defaulting to flexible JSON Value
+      for untyped scenarios. This provides maximum flexibility while maintaining
+      type safety where possible.
+    alternatives_considered:
+      - option: "Fixed result type (e.g., String)"
+        rejected_because: "Too restrictive - workflows need to return various types"
+      - option: "Always use serde_json::Value"
+        rejected_because: "Loses type safety for typed workflows"
+
+  - decision: "Include both completedAt timestamp and success boolean"
+    reasoning: |
+      completedAt provides precise timing for workflow duration calculation.
+      success boolean enables quick determination of workflow outcome without
+      parsing the result. Together they provide complete completion metadata.
+    alternatives_considered:
+      - option: "Only completedAt, derive success from result"
+        rejected_because: "Harder to determine success from arbitrary result types"
+      - option: "Include error message field"
+        rejected_because: "Errors should throw, not return via Stop - cleaner separation"
+
+# -----------------------------------------------------------------------------
+# 3. INPUT SPECIFICATION
+# -----------------------------------------------------------------------------
+input_schema:
+  result:
+    type: "generic<T>"
+    required: true
+    default: null
+    description: "The final result to return from the workflow"
+    validation:
+      - rule: "Must be serializable to JSON"
+        error_message: "Workflow result must be JSON serializable"
+
+# -----------------------------------------------------------------------------
+# 4. OUTPUT SPECIFICATION
+# -----------------------------------------------------------------------------
+output_schema:
+  completedAt:
+    type: "datetime"
+    description: "Timestamp when the workflow completed"
+    guaranteed: true
+
+  success:
+    type: "boolean"
+    description: "Whether the workflow completed successfully"
+    guaranteed: true
+
+# -----------------------------------------------------------------------------
+# 5. VALIDATION RULES
+# -----------------------------------------------------------------------------
+validation_rules:
+  - rule: "Workflow must have at least one End node"
+    error_code: "MISSING_END"
+    error_message: "Workflow must have at least one end node"
+    severity: "error"
+    applies_when: "always"
+
+  - rule: "End node cannot have outgoing edges"
+    error_code: "INVALID_END_EDGE"
+    error_message: "End node cannot have outgoing connections"
+    severity: "error"
+    applies_when: "always"
+
+  - rule: "End node must be reachable from Start"
+    error_code: "UNREACHABLE_END"
+    error_message: "End node must be reachable from the workflow start"
+    severity: "error"
+    applies_when: "always"
+
+# -----------------------------------------------------------------------------
+# 6. CONNECTION COMPATIBILITY
+# -----------------------------------------------------------------------------
+connections:
+  accepts_from:
+    - component_type: "any"
+      output_field: "*"
+      maps_to_input: "result"
+      transformation: "passes through"
+
+  outputs_to:
+    - component_type: "none"
+      output_field: "n/a"
+      compatible_with_input: "n/a"
+
+# -----------------------------------------------------------------------------
+# 7. RUST SCHEMA
+# -----------------------------------------------------------------------------
+rust_schema: |
+  use chrono::{DateTime, Utc};
+  use serde::{Deserialize, Serialize};
+
+  /// Stop component input - receives final workflow result
+  /// Generic over the result type T, defaults to serde_json::Value
+  #[derive(Debug, Clone, Serialize, Deserialize)]
+  #[serde(rename_all = "camelCase")]
+  pub struct StopInput<T = serde_json::Value> {
+      /// The result to return from the workflow
+      pub result: T,
+  }
+
+  impl Default for StopInput<serde_json::Value> {
+      fn default() -> Self {
+          StopInput {
+              result: serde_json::Value::Null,
+          }
+      }
+  }
+
+  /// Stop component output - workflow completion metadata
+  #[derive(Debug, Clone, Serialize, Deserialize)]
+  #[serde(rename_all = "camelCase")]
+  pub struct StopOutput {
+      /// When the workflow completed
+      pub completed_at: DateTime<Utc>,
+
+      /// Whether the workflow completed successfully
+      pub success: bool,
+  }
+
+  impl StopOutput {
+      /// Create a successful completion output
+      pub fn success() -> Self {
+          StopOutput {
+              completed_at: Utc::now(),
+              success: true,
+          }
+      }
+
+      /// Create a failed completion output
+      pub fn failure() -> Self {
+          StopOutput {
+              completed_at: Utc::now(),
+              success: false,
+          }
+      }
+  }
+
+# -----------------------------------------------------------------------------
+# 8. TYPESCRIPT TEMPLATE
+# -----------------------------------------------------------------------------
+typescript_template: |
+  // Type definitions for workflow
+  interface StopOutput {
+    completedAt: Date;
+    success: boolean;
+  }
+
+  interface WorkflowResult {
+    startedAt: Date;
+    completedAt: Date;
+    success: boolean;
+    result: unknown;
+  }
+
+  // In workflow body (generated for End node):
+  const stopOutput: StopOutput = { completedAt: new Date(), success: true };
+  result = {
+    startedAt: startOutput.startedAt,
+    completedAt: stopOutput.completedAt,
+    success: stopOutput.success,
+    result: input,
+  };
+
+# -----------------------------------------------------------------------------
+# 9. TEST CASES
+# -----------------------------------------------------------------------------
+test_cases:
+  # Happy path tests
+  - name: "creates successful stop output"
+    type: "happy_path"
+    description: "Verifies StopOutput can be created for successful completion"
+    input: { result: { data: "test" } }
+    expected_output:
+      completedAt: "<current timestamp>"
+      success: true
+
+  - name: "creates failed stop output"
+    type: "happy_path"
+    description: "Verifies StopOutput can be created for failed completion"
+    input: { result: null }
+    expected_output:
+      completedAt: "<current timestamp>"
+      success: false
+
+  - name: "serializes to camelCase JSON"
+    type: "happy_path"
+    description: "Verifies JSON output uses camelCase for completedAt"
+    input: { result: "test" }
+    expected_output_contains: '"completedAt"'
+
+  # Error cases
+  - name: "workflow without end node fails"
+    type: "error_case"
+    description: "Compilation fails if no end node exists"
+    workflow_nodes:
+      - { type: "Trigger" }
+    expected_error:
+      code: "MISSING_END"
+      message: "Workflow must have at least one end node"
+
+  - name: "end node with outgoing edge fails"
+    type: "error_case"
+    description: "Compilation fails if end node has outgoing connections"
+    workflow_nodes:
+      - { id: "start", type: "Trigger" }
+      - { id: "end", type: "End" }
+      - { id: "activity", type: "Activity" }
+    workflow_edges:
+      - { source: "end", target: "activity" }
+    expected_error:
+      code: "INVALID_END_EDGE"
+      message: "End node cannot have outgoing connections"
+
+  # Edge cases
+  - name: "multiple end nodes"
+    type: "edge_case"
+    description: "Workflow with multiple end nodes (conditional paths) should compile"
+    workflow_nodes:
+      - { id: "start", type: "Trigger" }
+      - { id: "condition", type: "Conditional" }
+      - { id: "end1", type: "End" }
+      - { id: "end2", type: "End" }
+    expected: "valid workflow with conditional end paths compiles"
+
+# -----------------------------------------------------------------------------
+# 10. LESSONS LEARNED
+# -----------------------------------------------------------------------------
+lessons_learned:
+  - category: "schema"
+    lesson: |
+      Generic types with sensible defaults (like serde_json::Value) provide
+      flexibility for untyped scenarios while preserving strong typing for
+      workflows with known result types. Always provide a Default impl for
+      the untyped case.
+    applies_to:
+      - "end components"
+      - "result handling"
+
+  - category: "codegen"
+    lesson: |
+      End nodes should generate code that aggregates workflow metadata
+      (startedAt from trigger, completedAt at end) into a unified result.
+      This provides consistent workflow output structure regardless of
+      the specific result type.
+    applies_to:
+      - "end components"
+      - "workflow result structure"
+
+# -----------------------------------------------------------------------------
+# 11. RELATED COMPONENTS
+# -----------------------------------------------------------------------------
+related_components:
+  - name: "start-trigger"
+    relationship: "often_used_with"
+    notes: "Every workflow needs both Start and Stop nodes - Stop uses startedAt from Start"
+
+  - name: "conditional"
+    relationship: "often_used_with"
+    notes: "Conditionals can route to different End nodes for different outcomes"
+
+# -----------------------------------------------------------------------------
+# 12. FUTURE IMPROVEMENTS
+# -----------------------------------------------------------------------------
+future_improvements:
+  - improvement: "Support workflow-level error handling at End"
+    priority: "medium"
+    effort: "medium"
+    blocked_by: "Need error handling design for workflows"
+
+  - improvement: "Add workflow duration calculation helper"
+    priority: "low"
+    effort: "low"
+    blocked_by: "nothing"

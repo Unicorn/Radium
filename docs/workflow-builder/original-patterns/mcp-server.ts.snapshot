@@ -1,0 +1,62 @@
+/**
+ * MCP Server Component
+ *
+ * Configures a Model Context Protocol (MCP) server endpoint.
+ * Enables AI assistants to interact with workflows through standardized protocols.
+ *
+ * Configuration options:
+ * - serverName: Name of the MCP server
+ * - version: Server version (default: '1.0.0')
+ * - endpointPath: URL path for the MCP endpoint (default: '/mcp')
+ * - resources: Array of resources exposed by the server
+ * - tools: Array of tools (functions) available to AI assistants
+ *
+ * Note: This component generates configuration metadata.
+ * The actual MCP server is set up during deployment.
+ */
+
+// Example 1: Basic MCP Server
+// When: MCP server with default configuration
+// Generated output:
+`
+  // MCP Server
+  // MCP Server: MCP Server
+  // Server Name: mcp-server
+  // Version: 1.0.0
+  // Endpoint Path: /mcp
+  // Resources: 0, Tools: 0
+  // MCP endpoint will be available at: /mcp
+  // MCP server handler will be generated during deployment
+  const result_mcp_server = { type: 'mcp-server', serverName: 'mcp-server', version: '1.0.0', resources: 0, tools: 0 };
+`
+
+// Example 2: MCP Server with Resources and Tools
+// When: resources = [{name: 'workflow-status'}], tools = [{name: 'execute-workflow'}, {name: 'list-executions'}]
+// Generated output:
+`
+  // Workflow MCP
+  // MCP Server: Workflow MCP
+  // Server Name: workflow-assistant
+  // Version: 2.0.0
+  // Endpoint Path: /api/mcp
+  // Resources: 1, Tools: 2
+  // MCP endpoint will be available at: /api/mcp
+  // MCP server handler will be generated during deployment
+  const result_workflow_mcp = { type: 'mcp-server', serverName: 'workflow-assistant', version: '2.0.0', resources: 1, tools: 2 };
+`
+
+/**
+ * TypeScript Compilation Patterns:
+ *
+ * 1. Generates configuration object with server details
+ * 2. Counts resources and tools for documentation
+ * 3. Actual MCP protocol handling is generated during deployment
+ * 4. Resources provide read access to workflow data
+ * 5. Tools enable AI assistants to trigger actions
+ *
+ * MCP Integration:
+ * - Resources: Expose workflow status, execution history, metrics
+ * - Tools: Start workflows, send signals, query state
+ * - Protocol: Follows MCP specification for AI assistant integration
+ * - Security: Respects project-level access controls
+ */

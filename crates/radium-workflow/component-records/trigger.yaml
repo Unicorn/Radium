@@ -1,0 +1,221 @@
+component:
+  name: trigger
+  category: control-flow
+  version: 1.0.0
+  description: Workflow trigger component that initiates workflow execution
+  temporalType: workflow
+migration:
+  migratedBy: radium-workflow-compiler
+  migrationDate: 2025-12-15T18:49:41.000258Z
+  durationHours: 2.0
+  difficulty: low
+  breakingChanges: false
+  filesCreated:
+  - src/schema/components/trigger.rs
+  filesModified:
+  - src/schema/components/mod.rs
+discovery:
+  originalTypescriptFile: apps/workflow-builder/src/components/nodes/TriggerNode.tsx
+  linesOfCode: 150
+  existingTests:
+  - TriggerNode.test.tsx
+  usageLocations:
+  - WorkflowCanvas
+  - WorkflowEngine
+  dependencies:
+  - name: '@temporalio/workflow'
+    dependencyType: npm
+  - name: zod
+    dependencyType: npm
+    version: ^3.22
+schemaDecisions:
+- field: trigger_type
+  decision: Use TriggerType enum with Manual, Schedule, Webhook, Event, Signal variants
+  rationale: Provides exhaustive matching and clear documentation of supported trigger types
+  alternativesConsidered:
+  - approach: String union type
+    pros:
+    - Simpler serialization
+    cons:
+    - Runtime validation required
+    whyRejected: Less type-safe, no exhaustive matching in Rust
+- field: schedule_config
+  decision: Optional nested struct with cron, interval_seconds, timezone
+  rationale: Separates concerns and allows type-safe schedule configuration
+  alternativesConsidered: []
+- field: webhook_config
+  decision: Optional nested struct with path, methods, authentication
+  rationale: Encapsulates webhook-specific configuration cleanly
+  alternativesConsidered: []
+- field: payload
+  decision: Use serde_json::Value for flexible payload types
+  rationale: Workflows can accept any JSON payload structure
+  alternativesConsidered: []
+inputSchema:
+  rustStruct: TriggerInput
+  typescriptInterface: TriggerInput
+  fields:
+  - name: trigger_type
+    rustType: TriggerType
+    typescriptType: TriggerType
+    required: false
+    default: Manual
+    description: Type of trigger
+  - name: schedule
+    rustType: Option<ScheduleConfig>
+    typescriptType: ScheduleConfig?
+    required: false
+    description: Schedule configuration for scheduled triggers
+  - name: webhook
+    rustType: Option<WebhookConfig>
+    typescriptType: WebhookConfig?
+    required: false
+    description: Webhook configuration for webhook triggers
+  - name: event_type
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: Event type for event-driven triggers
+  - name: signal_name
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: Signal name for signal triggers
+  - name: payload
+    rustType: serde_json::Value
+    typescriptType: unknown
+    required: false
+    default: '{}'
+    description: Payload passed to workflow
+  validation:
+  - Schedule trigger requires schedule configuration
+  - Webhook trigger requires webhook configuration
+  - Event trigger requires event_type
+  - Signal trigger requires signal_name
+outputSchema:
+  rustStruct: TriggerOutput
+  typescriptInterface: TriggerOutput
+  fields:
+  - name: triggered
+    rustType: bool
+    typescriptType: boolean
+    required: true
+    description: Whether the trigger fired
+  - name: trigger_id
+    rustType: String
+    typescriptType: string
+    required: true
+    description: Unique trigger identifier
+  - name: triggered_at
+    rustType: DateTime<Utc>
+    typescriptType: Date
+    required: true
+    description: Timestamp when triggered
+  - name: payload
+    rustType: serde_json::Value
+    typescriptType: unknown
+    required: true
+    description: The trigger payload
+  validation: []
+validationRules:
+- rule: trigger_type_config_match
+  implementation: validate_config() method
+  errorMessage: Schedule trigger requires schedule configuration
+  rationale: Ensures configuration is provided for the selected trigger type
+- rule: cron_expression
+  implementation: cron::Schedule::from_str
+  errorMessage: Invalid cron expression
+  rationale: Validates cron expressions at compile time
+connections:
+  allowedSources: []
+  allowedTargets:
+  - activity
+  - conditional
+  - agent
+  connectionValidation: Trigger must be first node in workflow
+rustSchema:
+  filePath: src/schema/components/trigger.rs
+  structs:
+  - TriggerInput
+  - TriggerOutput
+  - ScheduleConfig
+  - WebhookConfig
+  enums:
+  - TriggerType
+  derives:
+  - Debug
+  - Clone
+  - Serialize
+  - Deserialize
+  - Validate
+  validationImplementation: Custom validate_config() method with Result<(), Vec<String>>
+typescriptTemplate:
+  templatePath: templates/trigger.ts.hbs
+  generatedCodeExample: |-
+    export interface TriggerInput {
+      triggerType?: TriggerType;
+      schedule?: ScheduleConfig;
+      webhook?: WebhookConfig;
+      eventType?: string;
+      signalName?: string;
+      payload?: unknown;
+    }
+  keyPatterns:
+  - Enum generation with camelCase values
+  - Optional fields with ? modifier
+  - Nested interface generation
+testCases:
+- name: test_manual_trigger
+  category: unit
+  input: TriggerInput::default()
+  expectedOutput: trigger_type == TriggerType::Manual
+  passed: true
+- name: test_schedule_trigger
+  category: unit
+  input: TriggerInput::schedule("0 * * * *")
+  expectedOutput: Valid schedule trigger
+  passed: true
+- name: test_webhook_trigger
+  category: unit
+  input: TriggerInput::webhook("/api/trigger")
+  expectedOutput: Valid webhook trigger
+  passed: true
+- name: test_validation_schedule_without_config
+  category: unit
+  input: 'TriggerInput { trigger_type: Schedule, schedule: None }'
+  expectedOutput: Err(['Schedule trigger requires schedule configuration'])
+  passed: true
+- name: test_serialization
+  category: integration
+  input: TriggerInput with all fields
+  expectedOutput: Valid JSON with camelCase keys
+  passed: true
+- name: test_typescript_compilation
+  category: compilation
+  input: Generated TypeScript
+  expectedOutput: tsc --strict passes
+  passed: true
+lessonsLearned:
+  whatWorkedWell:
+  - Enum-based trigger types provide clear documentation
+  - Optional nested configs keep input clean
+  - Builder pattern makes construction ergonomic
+  challenges:
+  - challenge: Cron expression validation
+    solution: Added custom validate_config method instead of validator crate
+    timeSpent: 30 minutes
+  recommendations:
+  - Use enums for fixed sets of options
+  - Keep validation messages user-friendly
+relatedComponents:
+- component: start
+  relationship: Often follows trigger
+- component: signal
+  relationship: Signal trigger uses signal component
+futureImprovements:
+- improvement: Add support for composite triggers (AND/OR)
+  priority: Medium
+  effort: Medium
+- improvement: Add trigger rate limiting configuration
+  priority: Low
+  effort: Low

@@ -1,0 +1,158 @@
+component:
+  name: signal
+  category: advanced
+  version: 1.0.0
+  description: Temporal signal component for workflow communication
+  temporalType: signal
+migration:
+  migratedBy: radium-workflow-compiler
+  migrationDate: 2025-12-15T18:49:41.000347Z
+  durationHours: 1.5
+  difficulty: medium
+  breakingChanges: false
+  filesCreated:
+  - src/schema/components/signal.rs
+  filesModified:
+  - src/schema/components/mod.rs
+discovery:
+  originalTypescriptFile: ''
+  linesOfCode: 0
+  existingTests: []
+  usageLocations: []
+  dependencies: []
+schemaDecisions:
+- field: signal_direction
+  decision: Enum with Send and Receive variants
+  rationale: Clear distinction between sending and receiving
+  alternativesConsidered: []
+- field: timeout
+  decision: Zero means wait forever for receive
+  rationale: Matches Temporal signal semantics
+  alternativesConsidered: []
+inputSchema:
+  rustStruct: SignalInput
+  typescriptInterface: SignalInput
+  fields:
+  - name: signal_name
+    rustType: String
+    typescriptType: string
+    required: true
+    description: ''
+  - name: direction
+    rustType: SignalDirection
+    typescriptType: SignalDirection
+    required: false
+    default: receive
+    description: ''
+  - name: target_workflow_id
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: ''
+  - name: target_run_id
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: ''
+  - name: payload
+    rustType: Option<Value>
+    typescriptType: unknown?
+    required: false
+    description: ''
+  - name: timeout_ms
+    rustType: u64
+    typescriptType: number
+    required: false
+    default: '0'
+    description: ''
+  - name: output_variable
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: ''
+  validation: []
+outputSchema:
+  rustStruct: SignalOutput
+  typescriptInterface: SignalOutput
+  fields:
+  - name: signal_name
+    rustType: String
+    typescriptType: string
+    required: true
+    description: ''
+  - name: sent
+    rustType: bool
+    typescriptType: boolean
+    required: true
+    description: ''
+  - name: received
+    rustType: bool
+    typescriptType: boolean
+    required: true
+    description: ''
+  - name: payload
+    rustType: Option<Value>
+    typescriptType: unknown?
+    required: false
+    description: ''
+  - name: sender_workflow_id
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: ''
+  - name: timed_out
+    rustType: bool
+    typescriptType: boolean
+    required: true
+    description: ''
+  validation: []
+validationRules:
+- rule: send_requires_target
+  implementation: validate_config()
+  errorMessage: Send signal requires target_workflow_id
+  rationale: Must know where to send signal
+connections:
+  allowedSources: []
+  allowedTargets: []
+  connectionValidation: ''
+rustSchema:
+  filePath: src/schema/components/signal.rs
+  structs:
+  - SignalInput
+  - SignalOutput
+  enums:
+  - SignalDirection
+  derives:
+  - Debug
+  - Clone
+  - Serialize
+  - Deserialize
+  - Validate
+  validationImplementation: Custom validate_config() method
+typescriptTemplate:
+  templatePath: ''
+  generatedCodeExample: ''
+  keyPatterns: []
+testCases:
+- name: test_receive_signal
+  category: unit
+  input: SignalInput::receive("approval")
+  expectedOutput: Valid receive signal
+  passed: true
+- name: test_send_signal
+  category: unit
+  input: SignalInput::send("notify", "wf-123")
+  expectedOutput: Valid send signal
+  passed: true
+lessonsLearned:
+  whatWorkedWell:
+  - Simple direction-based API
+  challenges: []
+  recommendations:
+  - Use direction enum for bidirectional operations
+relatedComponents:
+- component: child_workflow
+  relationship: Can signal child workflows
+- component: trigger
+  relationship: Signal trigger type
+futureImprovements: []

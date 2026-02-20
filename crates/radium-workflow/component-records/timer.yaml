@@ -1,0 +1,147 @@
+component:
+  name: timer
+  category: advanced
+  version: 1.0.0
+  description: Timer component for workflow delays
+  temporalType: timer
+migration:
+  migratedBy: radium-workflow-compiler
+  migrationDate: 2025-12-15T18:49:41.000384Z
+  durationHours: 1.0
+  difficulty: low
+  breakingChanges: false
+  filesCreated:
+  - src/schema/components/timer.rs
+  filesModified:
+  - src/schema/components/mod.rs
+discovery:
+  originalTypescriptFile: ''
+  linesOfCode: 0
+  existingTests: []
+  usageLocations: []
+  dependencies: []
+schemaDecisions:
+- field: timer_type
+  decision: Enum with Duration and UntilTime variants
+  rationale: Covers relative and absolute timing
+  alternativesConsidered: []
+- field: duration_unit
+  decision: Enum for time unit conversion
+  rationale: User-friendly duration specification
+  alternativesConsidered: []
+inputSchema:
+  rustStruct: TimerInput
+  typescriptInterface: TimerInput
+  fields:
+  - name: timer_type
+    rustType: TimerType
+    typescriptType: TimerType
+    required: false
+    default: duration
+    description: ''
+  - name: duration
+    rustType: Option<u64>
+    typescriptType: number?
+    required: false
+    description: ''
+  - name: unit
+    rustType: DurationUnit
+    typescriptType: DurationUnit
+    required: false
+    default: minutes
+    description: ''
+  - name: until_time
+    rustType: Option<DateTime<Utc>>
+    typescriptType: Date?
+    required: false
+    description: ''
+  - name: duration_variable
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: ''
+  - name: description
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: ''
+  validation: []
+outputSchema:
+  rustStruct: TimerOutput
+  typescriptInterface: TimerOutput
+  fields:
+  - name: completed
+    rustType: bool
+    typescriptType: boolean
+    required: true
+    description: ''
+  - name: started_at
+    rustType: DateTime<Utc>
+    typescriptType: Date
+    required: true
+    description: ''
+  - name: ended_at
+    rustType: DateTime<Utc>
+    typescriptType: Date
+    required: true
+    description: ''
+  - name: duration_ms
+    rustType: u64
+    typescriptType: number
+    required: true
+    description: ''
+  - name: cancelled
+    rustType: bool
+    typescriptType: boolean
+    required: true
+    description: ''
+  validation: []
+validationRules: []
+connections:
+  allowedSources: []
+  allowedTargets: []
+  connectionValidation: ''
+rustSchema:
+  filePath: src/schema/components/timer.rs
+  structs:
+  - TimerInput
+  - TimerOutput
+  enums:
+  - TimerType
+  - DurationUnit
+  derives:
+  - Debug
+  - Clone
+  - Serialize
+  - Deserialize
+  - Validate
+  validationImplementation: Custom validate_config() method
+typescriptTemplate:
+  templatePath: ''
+  generatedCodeExample: ''
+  keyPatterns: []
+testCases:
+- name: test_seconds_timer
+  category: unit
+  input: TimerInput::seconds(30)
+  expectedOutput: 30000 ms timer
+  passed: true
+- name: test_minutes_timer
+  category: unit
+  input: TimerInput::minutes(5)
+  expectedOutput: 300000 ms timer
+  passed: true
+- name: test_until_time
+  category: unit
+  input: TimerInput::until(future_time)
+  expectedOutput: Valid until timer
+  passed: true
+lessonsLearned:
+  whatWorkedWell:
+  - Duration unit conversion is intuitive
+  - Factory methods for common cases
+  challenges: []
+  recommendations:
+  - Provide convenience methods for common durations
+relatedComponents: []
+futureImprovements: []

@@ -1,0 +1,196 @@
+component:
+  name: loop
+  category: control-flow
+  version: 1.0.0
+  description: Iteration component supporting multiple loop types
+  temporalType: workflow
+migration:
+  migratedBy: radium-workflow-compiler
+  migrationDate: 2025-12-15T18:49:41.000301Z
+  durationHours: 2.5
+  difficulty: medium
+  breakingChanges: false
+  filesCreated:
+  - src/schema/components/loop_component.rs
+  filesModified:
+  - src/schema/components/mod.rs
+discovery:
+  originalTypescriptFile: ''
+  linesOfCode: 0
+  existingTests: []
+  usageLocations: []
+  dependencies: []
+schemaDecisions:
+- field: loop_type
+  decision: Enum with ForEach, While, DoWhile, Count, Batch variants
+  rationale: Covers all common iteration patterns
+  alternativesConsidered: []
+- field: batch_config
+  decision: Separate struct for batch-specific configuration
+  rationale: Keeps batch configuration organized
+  alternativesConsidered: []
+- field: continue_as_new_threshold
+  decision: Configurable threshold for Temporal continue-as-new
+  rationale: Prevents workflow history from growing too large
+  alternativesConsidered: []
+inputSchema:
+  rustStruct: LoopInput
+  typescriptInterface: LoopInput
+  fields:
+  - name: loop_type
+    rustType: LoopType
+    typescriptType: LoopType
+    required: true
+    description: ''
+  - name: items
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: Variable reference for ForEach/Batch
+  - name: condition
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: Expression for While/DoWhile
+  - name: count
+    rustType: Option<u64>
+    typescriptType: number?
+    required: false
+    description: Iteration count for Count loops
+  - name: item_variable
+    rustType: String
+    typescriptType: string
+    required: false
+    default: item
+    description: ''
+  - name: index_variable
+    rustType: String
+    typescriptType: string
+    required: false
+    default: index
+    description: ''
+  - name: batch_config
+    rustType: Option<BatchConfig>
+    typescriptType: BatchConfig?
+    required: false
+    description: ''
+  - name: max_iterations
+    rustType: u64
+    typescriptType: number
+    required: false
+    default: '10000'
+    description: ''
+  - name: continue_as_new_threshold
+    rustType: u64
+    typescriptType: number
+    required: false
+    default: '1000'
+    description: ''
+  validation: []
+outputSchema:
+  rustStruct: LoopOutput
+  typescriptInterface: LoopOutput
+  fields:
+  - name: completed
+    rustType: bool
+    typescriptType: boolean
+    required: true
+    description: ''
+  - name: iterations_completed
+    rustType: u64
+    typescriptType: number
+    required: true
+    description: ''
+  - name: total_items
+    rustType: Option<u64>
+    typescriptType: number?
+    required: false
+    description: ''
+  - name: results
+    rustType: Vec<Value>
+    typescriptType: unknown[]
+    required: true
+    description: ''
+  - name: continued_as_new
+    rustType: bool
+    typescriptType: boolean
+    required: true
+    description: ''
+  validation: []
+validationRules:
+- rule: foreach_requires_items
+  implementation: validate_config()
+  errorMessage: ForEach/Batch loop requires items array reference
+  rationale: ForEach loops need data to iterate
+- rule: while_requires_condition
+  implementation: validate_config()
+  errorMessage: While/DoWhile loop requires condition expression
+  rationale: Condition-based loops need a condition
+- rule: count_requires_count
+  implementation: validate_config()
+  errorMessage: Count loop requires count value
+  rationale: Count loops need a number of iterations
+connections:
+  allowedSources: []
+  allowedTargets: []
+  connectionValidation: ''
+rustSchema:
+  filePath: src/schema/components/loop_component.rs
+  structs:
+  - LoopInput
+  - LoopOutput
+  - BatchConfig
+  enums:
+  - LoopType
+  derives:
+  - Debug
+  - Clone
+  - Serialize
+  - Deserialize
+  - Validate
+  validationImplementation: Custom validate_config() method
+typescriptTemplate:
+  templatePath: ''
+  generatedCodeExample: ''
+  keyPatterns: []
+testCases:
+- name: test_foreach_loop
+  category: unit
+  input: LoopInput::for_each("items")
+  expectedOutput: Valid ForEach loop
+  passed: true
+- name: test_count_loop
+  category: unit
+  input: LoopInput::count(10)
+  expectedOutput: Valid Count loop with 10 iterations
+  passed: true
+- name: test_batch_loop
+  category: unit
+  input: LoopInput::batch("items", 100)
+  expectedOutput: Valid Batch loop
+  passed: true
+- name: test_validation_foreach_no_items
+  category: unit
+  input: 'LoopInput { loop_type: ForEach, items: None }'
+  expectedOutput: Err(['ForEach/Batch loop requires items'])
+  passed: true
+lessonsLearned:
+  whatWorkedWell:
+  - Single LoopType enum simplifies API
+  - continue_as_new_threshold prevents Temporal issues
+  challenges:
+  - challenge: Naming conflict with Rust 'loop' keyword
+    solution: Named module loop_component.rs
+    timeSpent: 5 minutes
+  recommendations:
+  - Consider Temporal history limits in design
+  - Provide sensible defaults for limits
+relatedComponents:
+- component: conditional
+  relationship: Uses similar expression evaluation
+- component: parallel
+  relationship: Alternative concurrency pattern
+futureImprovements:
+- improvement: Add break/continue signals
+  priority: Medium
+  effort: Medium

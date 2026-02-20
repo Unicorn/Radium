@@ -1,0 +1,88 @@
+/**
+ * Condition Component
+ *
+ * Conditions enable branching logic in workflows based on expressions.
+ * They evaluate a JavaScript expression and route to 'true' or 'false' branches.
+ *
+ * Configuration options:
+ * - expression: JavaScript expression that evaluates to boolean
+ * - label: Human-readable description
+ *
+ * Graph behavior:
+ * - Has two outgoing handles: 'true' and 'false'
+ * - Routes to different nodes based on expression result
+ */
+
+// Example 1: Simple Boolean Check
+// When: Condition with expression: "result.isValid === true"
+// Generated output:
+`
+  // Check Validity
+  const result_check_validity = result.isValid === true;
+    // True branch
+    // ... nodes connected to 'true' handle
+    // False branch
+    // ... nodes connected to 'false' handle
+`
+
+// Example 2: Numeric Comparison
+// When: Condition with expression: "result.amount > 100"
+// Generated output:
+`
+  // Check Amount Threshold
+  const result_check_amount = result.amount > 100;
+    // True branch
+    const result_process_large_order = await processLargeOrder(result_check_amount);
+    // False branch
+    const result_process_small_order = await processSmallOrder(result_check_amount);
+`
+
+// Example 3: Complex Expression
+// When: Condition with expression: "result.status === 'approved' && result.amount <= budget"
+// Generated output:
+`
+  // Approval Check
+  const result_approval_check = result.status === 'approved' && result.amount <= budget;
+`
+
+/**
+ * TypeScript Compilation Patterns:
+ *
+ * 1. The condition expression is evaluated and stored in a result variable
+ * 2. True/false branches are visited separately during graph traversal
+ * 3. Nodes connected to 'true' sourceHandle are compiled first
+ * 4. Nodes connected to 'false' sourceHandle are compiled second
+ * 5. Each branch can have multiple sequential nodes
+ *
+ * Important: The current implementation generates comments for branches
+ * but doesn't wrap them in if/else. The expression result is stored
+ * and subsequent code would use it for routing.
+ *
+ * Future Enhancement: Generate proper if/else blocks:
+ * if (result_condition) {
+ *   // true branch
+ * } else {
+ *   // false branch
+ * }
+ */
+
+// Full workflow with condition:
+const exampleWorkflowWithCondition = `
+export async function OrderProcessingWorkflow(input: Record<string, unknown> | undefined): Promise<unknown> {
+
+  // Start
+  // Workflow started
+
+  // Validate Order
+  const result_validate_order = await validateOrder(input);
+
+  // Is Valid?
+  const result_is_valid = result_validate_order.isValid === true;
+    // True branch
+    // Process Order
+    const result_process_order = await processOrder(result_is_valid);
+    // False branch
+    // Reject Order
+    const result_reject_order = await rejectOrder(result_is_valid);
+}
+`;

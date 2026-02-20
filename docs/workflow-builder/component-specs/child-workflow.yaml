@@ -1,0 +1,109 @@
+name: child-workflow
+category: workflow
+description: Invokes another workflow as a child of the current workflow
+
+inputs:
+  - name: workflowType
+    type: string
+    required: true
+    description: Name of the child workflow to invoke (without 'Workflow' suffix)
+
+  - name: executionType
+    type: enum
+    required: false
+    values: [startChild, executeChild]
+    default: startChild
+    description: |
+      startChild: Fire-and-forget, returns handle immediately
+      executeChild: Wait for completion, returns result
+
+  - name: taskQueue
+    type: string
+    required: false
+    description: Task queue for the child workflow (defaults to parent's queue)
+
+  - name: inputMapping
+    type: object
+    required: false
+    description: How to construct child workflow input from parent context
+
+outputs:
+  - name: handle
+    type: ChildWorkflowHandle
+    condition: "executionType = 'startChild'"
+    description: Handle to the started child workflow
+
+  - name: result
+    type: unknown
+    condition: "executionType = 'executeChild'"
+    description: Return value from completed child workflow
+
+behaviors:
+  - name: start_child_success
+    condition: "executionType = 'startChild' and child starts successfully"
+    output: "ChildWorkflowHandle returned, parent continues immediately"
+
+  - name: execute_child_success
+    condition: "executionType = 'executeChild' and child completes successfully"
+    output: "Child workflow result returned to parent"
+
+  - name: execute_child_failure
+    condition: "Child workflow fails"
+    output: "Error propagated to parent workflow"
+
+  - name: start_failure
+    condition: "Child workflow fails to start"
+    output: "Error propagated to parent workflow"
+
+temporal_mapping:
+  type: child_workflow
+  imports:
+    - "startChild from '@temporalio/workflow'"
+    - "executeChild from '@temporalio/workflow'"
+    - "uuid4 from '@temporalio/workflow'"
+
+  config:
+    workflowId: "Generated using nodeId + uuid4()"
+    taskQueue: "Optional, inherited from parent if not specified"
+    args: "Array containing the input"
+
+code_generation:
+  startChild_pattern: |
+    const result_{nodeId} = await startChild({workflowType}Workflow, {
+      workflowId: '{nodeId}-' + uuid4(),
+      args: [{input}],
+    });
+
+  executeChild_pattern: |
+    const result_{nodeId} = await executeChild({workflowType}Workflow, {
+      workflowId: '{nodeId}-' + uuid4(),
+      args: [{input}],
+    });
+
+  with_taskQueue_pattern: |
+    const result_{nodeId} = await executeChild({workflowType}Workflow, {
+      taskQueue: '{taskQueue}',
+      workflowId: '{nodeId}-' + uuid4(),
+      args: [{input}],
+    });
+
+example_usage: |
+  // Fire-and-forget child workflow
+  const result_notify = await startChild(SendNotificationWorkflow, {
+    workflowId: 'notify-' + uuid4(),
+    args: [{ userId: input.userId, message: 'Order confirmed' }],
+  });
+
+  // Wait for child workflow result
+  const result_payment = await executeChild(ProcessPaymentWorkflow, {
+    taskQueue: 'payments',
+    workflowId: 'payment-' + uuid4(),
+    args: [{ orderId: result_order.id, amount: result_order.total }],
+  });
+
+notes:
+  - Child workflows have independent retry policies
+  - Parent can cancel child workflows via the handle
+  - Child workflow failures can be handled in parent
+  - Use executeChild when you need the result
+  - Use startChild for parallel/background work

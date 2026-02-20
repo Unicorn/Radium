@@ -1,0 +1,77 @@
+/**
+ * Kong CORS Component
+ *
+ * Configures Cross-Origin Resource Sharing (CORS) for API endpoints via Kong.
+ * Enables web applications from different origins to access the API.
+ *
+ * Configuration options:
+ * - allowedOrigins: Array of allowed origin domains (default: ['*'])
+ * - allowedMethods: Array of allowed HTTP methods (default: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'])
+ * - allowCredentials: Whether to allow credentials (cookies, auth headers)
+ * - maxAge: How long the preflight response can be cached (seconds)
+ *
+ * Note: This component generates configuration metadata, not executable workflow code.
+ * The actual CORS plugin is configured on Kong routes during deployment.
+ */
+
+// Example 1: Default CORS (Allow All)
+// When: Kong CORS node with default configuration
+// Generated output:
+`
+  // Kong CORS
+  // Kong CORS Configuration: Kong CORS
+  // Allowed Origins: *
+  // Allowed Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS
+  // Allow Credentials: false
+  // Max Age: 3600 seconds
+  // CORS plugin will be configured on Kong routes during deployment
+  const result_kong_cors = { type: 'kong-cors-config', origins: ['*'] };
+`
+
+// Example 2: Restricted Origins
+// When: allowedOrigins = ['https://app.example.com', 'https://admin.example.com']
+// Generated output:
+`
+  // API CORS
+  // Kong CORS Configuration: API CORS
+  // Allowed Origins: https://app.example.com, https://admin.example.com
+  // Allowed Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS
+  // Allow Credentials: true
+  // Max Age: 86400 seconds
+  // CORS plugin will be configured on Kong routes during deployment
+  const result_api_cors = { type: 'kong-cors-config', origins: ['https://app.example.com', 'https://admin.example.com'] };
+`
+
+// Example 3: Limited Methods
+// When: allowedMethods = ['GET', 'POST']
+// Generated output:
+`
+  // Read-Write CORS
+  // Kong CORS Configuration: Read-Write CORS
+  // Allowed Origins: *
+  // Allowed Methods: GET, POST
+  // Allow Credentials: false
+  // Max Age: 3600 seconds
+  // CORS plugin will be configured on Kong routes during deployment
+  const result_rw_cors = { type: 'kong-cors-config', origins: ['*'] };
+`
+
+/**
+ * TypeScript Compilation Patterns:
+ *
+ * 1. Origins can be single value or array, normalized to array
+ * 2. Methods can be single value or array, normalized to array
+ * 3. Default maxAge is 3600 seconds (1 hour)
+ * 4. allowCredentials defaults to false for security
+ *
+ * Security Considerations:
+ * - Avoid using ['*'] with allowCredentials: true
+ * - List specific origins in production environments
+ * - Consider separate CORS configs for different API sections
+ *
+ * Deployment Integration:
+ * - Creates Kong CORS plugins on routes
+ * - Sets Access-Control-Allow-Origin headers
+ * - Handles preflight OPTIONS requests
+ * - Configures credential and method restrictions
+ */

@@ -70,6 +70,9 @@ lefthook-local.yml
 logs/
 *.log
 
+# Internal plans (not for public repo)
+plans/
+
 # Environment Variables
 .env
 .env.*

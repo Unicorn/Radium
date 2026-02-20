@@ -1,0 +1,56 @@
+/**
+ * GraphQL Gateway Component
+ *
+ * Configures a GraphQL endpoint that exposes workflows and activities.
+ * Provides a unified API for querying and mutating workflow data.
+ *
+ * Configuration options:
+ * - endpointPath: URL path for the GraphQL endpoint (default: '/graphql')
+ * - queries: Array of query definitions
+ * - mutations: Array of mutation definitions
+ *
+ * Note: This component generates configuration metadata.
+ * The actual GraphQL server is set up during deployment.
+ */
+
+// Example 1: Basic GraphQL Gateway
+// When: GraphQL gateway with default path
+// Generated output:
+`
+  // GraphQL Gateway
+  // GraphQL Gateway: GraphQL Gateway
+  // Endpoint Path: /graphql
+  // Queries: 0, Mutations: 0
+  // GraphQL endpoint will be available at: /graphql
+  // GraphQL handler will be generated during deployment
+  const result_graphql_gateway = { type: 'graphql-gateway', endpoint: '/graphql', queries: 0, mutations: 0 };
+`
+
+// Example 2: GraphQL with Queries and Mutations
+// When: queries = [{name: 'getUser'}, {name: 'listOrders'}], mutations = [{name: 'createOrder'}]
+// Generated output:
+`
+  // API Gateway
+  // GraphQL Gateway: API Gateway
+  // Endpoint Path: /api/graphql
+  // Queries: 2, Mutations: 1
+  // GraphQL endpoint will be available at: /api/graphql
+  // GraphQL handler will be generated during deployment
+  const result_api_gateway = { type: 'graphql-gateway', endpoint: '/api/graphql', queries: 2, mutations: 1 };
+`
+
+/**
+ * TypeScript Compilation Patterns:
+ *
+ * 1. Generates configuration object with endpoint details
+ * 2. Counts queries and mutations for documentation
+ * 3. Actual GraphQL schema is generated during deployment
+ * 4. Queries map to workflow queries or read-only activities
+ * 5. Mutations map to workflow signals or write activities
+ *
+ * Deployment Integration:
+ * - Generates GraphQL schema from query/mutation definitions
+ * - Creates resolvers that invoke Temporal workflows/activities
+ * - Sets up Kong route for the GraphQL endpoint
+ * - Optionally enables GraphQL Playground in development
+ */
