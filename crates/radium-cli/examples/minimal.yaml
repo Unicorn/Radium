@@ -1,0 +1,23 @@
+name: Minimal Workflow
+description: Simplest possible workflow
+
+components:
+  - id: start
+    type: trigger
+    config:
+      trigger_type: manual
+
+  - id: greet
+    type: activity
+    config:
+      name: sayHello
+      timeout: 10s
+
+  - id: done
+    type: stop
+
+connections:
+  - from: start
+    to: greet
+  - from: greet
+    to: done

@@ -1,0 +1,63 @@
+name: Data Pipeline
+description: Fetches data, processes it conditionally, and logs results
+
+components:
+  - id: start
+    type: trigger
+    config:
+      trigger_type: schedule
+      schedule: "0 */6 * * *"
+
+  - id: fetch_data
+    type: http_request
+    config:
+      name: fetchData
+      url: "https://api.example.com/data"
+      method: GET
+      headers:
+        Accept: application/json
+
+  - id: has_data
+    type: conditional
+    config:
+      expression: "result.count > 0"
+
+  - id: transform
+    type: activity
+    config:
+      name: transformData
+      timeout: 60s
+
+  - id: log_empty
+    type: log
+    config:
+      name: logEmpty
+      level: info
+      message: "No data to process"
+
+  - id: save_results
+    type: activity
+    config:
+      name: saveResults
+      timeout: 30s
+
+  - id: done
+    type: stop
+
+connections:
+  - from: start
+    to: fetch_data
+  - from: fetch_data
+    to: has_data
+  - from: has_data
+    to: transform
+    label: "true"
+  - from: has_data
+    to: log_empty
+    label: "false"
+  - from: transform
+    to: save_results
+  - from: save_results
+    to: done
+  - from: log_empty
+    to: done

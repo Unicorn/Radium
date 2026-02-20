@@ -1,0 +1,71 @@
+name: Order Processing
+description: Validates and fulfills incoming orders
+
+components:
+  - id: start
+    type: trigger
+    config:
+      trigger_type: webhook
+
+  - id: validate_order
+    type: activity
+    config:
+      name: validateOrder
+      timeout: 30s
+      retry:
+        max_attempts: 3
+        backoff: exponential
+
+  - id: check_inventory
+    type: http_request
+    config:
+      name: checkInventory
+      url: "https://inventory.api/check"
+      method: POST
+      headers:
+        Content-Type: application/json
+
+  - id: is_in_stock
+    type: conditional
+    config:
+      expression: "result.available == true"
+
+  - id: fulfill
+    type: activity
+    config:
+      name: fulfillOrder
+
+  - id: notify_out_of_stock
+    type: activity
+    config:
+      name: notifyOutOfStock
+
+  - id: done
+    type: stop
+
+connections:
+  - from: start
+    to: validate_order
+  - from: validate_order
+    to: check_inventory
+  - from: check_inventory
+    to: is_in_stock
+  - from: is_in_stock
+    to: fulfill
+    label: "true"
+  - from: is_in_stock
+    to: notify_out_of_stock
+    label: "false"
+  - from: fulfill
+    to: done
+  - from: notify_out_of_stock
+    to: done
+
+variables:
+  - name: orderId
+    type: string
+  - name: customerEmail
+    type: string
+
+settings:
+  timeout: 5m
