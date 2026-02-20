@@ -904,6 +904,7 @@ async fn execute_agent(
         model_type,
         model_id,
         criteria: None, // Optional criteria field
+        session_id: None, // Optional session ID for event streaming
     });
     
     let response = client

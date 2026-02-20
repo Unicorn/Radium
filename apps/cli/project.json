@@ -1,8 +1,8 @@
 {
-  "name": "radium-client",
+  "name": "radium-cli",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "projectType": "application",
-  "sourceRoot": "apps/radium-client/src",
+  "sourceRoot": "apps/cli/src",
   "targets": {
     "build": {
       "cache": true,
@@ -11,7 +11,7 @@
         "{options.target-dir}"
       ],
       "options": {
-        "target-dir": "dist/target/radium-client"
+        "target-dir": "dist/target/radium-cli"
       },
       "configurations": {
         "production": {
@@ -26,7 +26,7 @@
         "{options.target-dir}"
       ],
       "options": {
-        "target-dir": "dist/target/radium-client"
+        "target-dir": "dist/target/radium-cli"
       },
       "configurations": {
         "production": {
@@ -41,7 +41,7 @@
         "{options.target-dir}"
       ],
       "options": {
-        "target-dir": "dist/target/radium-client"
+        "target-dir": "dist/target/radium-cli"
       }
     },
     "run": {
@@ -50,7 +50,7 @@
         "{options.target-dir}"
       ],
       "options": {
-        "target-dir": "dist/target/radium-client"
+        "target-dir": "dist/target/radium-cli"
       },
       "configurations": {
         "production": {
