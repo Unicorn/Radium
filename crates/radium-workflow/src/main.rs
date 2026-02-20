@@ -3,6 +3,7 @@
 //! Provides REST API endpoints for workflow compilation and validation.
 
 use std::net::SocketAddr;
+use std::sync::Arc;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod api;
@@ -12,6 +13,9 @@ mod supabase;
 mod validation;
 mod verification;
 mod yaml_format;
+
+use api::state::AppState;
+use supabase::{SupabaseClient, SupabaseConfig};
 
 #[tokio::main]
 async fn main() {
@@ -24,8 +28,29 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
+    // Attempt to build Supabase configuration from environment variables.
+    // If the vars are missing the core endpoints (/compile, /validate, /health)
+    // will still work -- only the /v1 routes are disabled.
+    let app_state = match SupabaseConfig::from_env() {
+        Ok(config) => {
+            tracing::info!("Supabase configuration loaded -- v1 API routes enabled");
+            let client = SupabaseClient::new(config);
+            Some(AppState {
+                supabase: Arc::new(client),
+            })
+        }
+        Err(e) => {
+            tracing::warn!(
+                "Supabase configuration not available ({e}). \
+                 The /v1 API routes will NOT be mounted. \
+                 Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to enable them."
+            );
+            None
+        }
+    };
+
     // Build the router
-    let app = api::router();
+    let app = api::router(app_state);
 
     // Get port from environment or default to 3020
     let port: u16 = std::env::var("PORT")
