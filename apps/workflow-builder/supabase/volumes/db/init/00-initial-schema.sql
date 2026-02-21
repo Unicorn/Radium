@@ -809,11 +809,13 @@ CREATE TABLE IF NOT EXISTS public.service_interface_endpoints (
 -- Grant permissions for service interface tables
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.service_interfaces TO authenticated;
 GRANT ALL ON public.service_interfaces TO service_role;
-GRANT SELECT ON public.service_interfaces TO anon;
+-- NOTE: anon grants for service_interfaces and public_interfaces removed.
+-- These tables have RLS policies (03-rls-policies.sql) that scope access
+-- to the owning user. service_interface_endpoints remains readable by anon
+-- as it contains public API documentation.
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.public_interfaces TO authenticated;
 GRANT ALL ON public.public_interfaces TO service_role;
-GRANT SELECT ON public.public_interfaces TO anon;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.service_interface_endpoints TO authenticated;
 GRANT ALL ON public.service_interface_endpoints TO service_role;
@@ -838,7 +840,13 @@ CREATE INDEX IF NOT EXISTS idx_agent_prompts_created_by ON public.agent_prompts(
 -- =============================================================================
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
-GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;
+-- Anon can read lookup/reference tables only.
+-- User-owned data (workflows, projects, connectors, etc.) requires authentication.
+GRANT SELECT ON public.user_roles TO anon;
+GRANT SELECT ON public.workflow_statuses TO anon;
+GRANT SELECT ON public.component_types TO anon;
+GRANT SELECT ON public.component_visibility TO anon;
+GRANT SELECT ON public.activity_categories TO anon;
 
 -- =============================================================================
 -- SEED DATA: Default Lookup Values
