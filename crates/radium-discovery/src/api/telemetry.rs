@@ -14,11 +14,9 @@ use crate::state::AppState;
 /// A usage event to record
 #[derive(Debug, Deserialize)]
 pub struct TelemetryEvent {
-    #[allow(dead_code)] // Captured for audit logging in future telemetry pipeline (Task 9)
     pub event: String,
     pub user_id: String,
     #[serde(default)]
-    #[allow(dead_code)] // Captured for co-usage tracking in future telemetry pipeline (Task 9)
     pub component_ids: Vec<String>,
 }
 
@@ -103,6 +101,13 @@ pub async fn record_telemetry(
         .await
         .map_err(|e| TelemetryError::internal(e.to_string()))?;
 
+    // Record co-usage edges when multiple components are deployed together
+    if event.event == "deploy" && !event.component_ids.is_empty() {
+        if let Err(e) = crate::graph::client::record_co_usage(&state.graph, &event.component_ids).await {
+            tracing::warn!("Failed to record co-usage: {e}");
+        }
+    }
+
     Ok(Json(TelemetryResponse { recorded: true }))
 }
 
@@ -125,6 +130,14 @@ mod tests {
             r#"{"event": "deploy", "user_id": "user-1", "component_ids": ["comp-1", "comp-2"]}"#;
         let event: TelemetryEvent = serde_json::from_str(json).unwrap();
         assert_eq!(event.component_ids.len(), 2);
+    }
+
+    #[test]
+    fn test_telemetry_event_deploy_with_components() {
+        let json = r#"{"event": "deploy", "user_id": "user-1", "component_ids": ["comp-1", "comp-2", "comp-3"]}"#;
+        let event: TelemetryEvent = serde_json::from_str(json).unwrap();
+        assert_eq!(event.event, "deploy");
+        assert_eq!(event.component_ids.len(), 3);
     }
 
     #[test]

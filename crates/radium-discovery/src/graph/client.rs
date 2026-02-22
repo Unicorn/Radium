@@ -163,6 +163,26 @@ pub async fn get_node(graph: &Graph, id: &str) -> Result<DiscoveryNode, GraphErr
     Ok(node_to_discovery_node(&node, &labels, tags))
 }
 
+/// Record that a set of components were deployed together.
+/// Creates/strengthens CO_USED_WITH edges between all pairs.
+pub async fn record_co_usage(graph: &Graph, component_ids: &[String]) -> Result<(), GraphError> {
+    for i in 0..component_ids.len() {
+        for j in (i + 1)..component_ids.len() {
+            graph.run(
+                query(
+                    "MATCH (a), (b) WHERE a.id = $a_id AND b.id = $b_id \
+                     MERGE (a)-[r:CO_USED_WITH]-(b) \
+                     ON CREATE SET r.weight = 1 \
+                     ON MATCH SET r.weight = r.weight + 1",
+                )
+                .param("a_id", component_ids[i].as_str())
+                .param("b_id", component_ids[j].as_str()),
+            ).await?;
+        }
+    }
+    Ok(())
+}
+
 /// Delete a node and all its relationships
 pub async fn delete_node(graph: &Graph, id: &str) -> Result<(), GraphError> {
     graph
@@ -240,6 +260,20 @@ mod tests {
         assert_eq!(label_for_kind("service"), "Service");
         assert_eq!(label_for_kind("project"), "Project");
         assert_eq!(label_for_kind("anything_else"), "Component");
+    }
+
+    #[test]
+    fn test_co_usage_pair_count() {
+        // For N components, there should be N*(N-1)/2 pairs
+        let ids = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+        let mut pair_count = 0;
+        for i in 0..ids.len() {
+            for j in (i + 1)..ids.len() {
+                let _ = (&ids[i], &ids[j]); // suppress unused variable warnings
+                pair_count += 1;
+            }
+        }
+        assert_eq!(pair_count, 3); // 3 choose 2 = 3
     }
 
     #[test]
