@@ -8,6 +8,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod api;
 mod codegen;
+mod discovery;
 mod schema;
 mod security;
 mod supabase;
@@ -37,11 +38,18 @@ async fn main() {
         Ok(config) => {
             tracing::info!("Supabase configuration loaded -- v1 API routes enabled");
             let client = SupabaseClient::new(config);
+
+            let discovery = discovery::client::DiscoveryClient::from_env().map(Arc::new);
+            if discovery.is_some() {
+                tracing::info!("Discovery service integration enabled");
+            }
+
             Some(AppState {
                 supabase: Arc::new(client),
                 rate_limiter: Arc::new(SlidingWindowLimiter::new(
                     RateLimitConfig::for_api(),
                 )),
+                discovery,
             })
         }
         Err(e) => {

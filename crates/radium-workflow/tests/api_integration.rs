@@ -101,6 +101,7 @@ fn build_app_state() -> AppState {
         rate_limiter: Arc::new(radium_workflow::security::SlidingWindowLimiter::new(
             radium_workflow::security::RateLimitConfig::unlimited(),
         )),
+        discovery: None,
     }
 }
 

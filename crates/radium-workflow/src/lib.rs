@@ -10,6 +10,7 @@
 
 pub mod api;
 pub mod codegen;
+pub mod discovery;
 pub mod errors;
 pub mod expressions;
 pub mod migration;

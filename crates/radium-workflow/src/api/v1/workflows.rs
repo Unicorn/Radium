@@ -359,6 +359,8 @@ pub async fn create_workflow(
         WorkflowError::internal(format!("Failed to serialize workflow definition: {e}"))
     })?;
 
+    let user_id_for_discovery = user.user_id.clone();
+
     let row = InsertWorkflowRow {
         name: yaml_workflow.name.clone(),
         display_name: yaml_workflow.name.clone(),
@@ -375,6 +377,23 @@ pub async fn create_workflow(
         .insert("workflows", &row)
         .await
         .map_err(WorkflowError::from_supabase)?;
+
+    // Fire-and-forget: index in discovery service
+    if let Some(ref discovery) = state.discovery {
+        let index_req = serde_json::json!({
+            "id": created.id,
+            "kind": "service",
+            "name": created.name,
+            "description": created.description.as_deref().unwrap_or(""),
+            "category": "workflow",
+            "visibility": "private",
+            "owner_id": user_id_for_discovery,
+            "tags": [],
+            "definition": created.definition,
+        });
+        let discovery = discovery.clone();
+        tokio::spawn(async move { discovery.index(&index_req).await });
+    }
 
     Ok((StatusCode::CREATED, Json(created)))
 }
@@ -467,6 +486,7 @@ pub async fn update_workflow(
         version: "1.0.0".to_string(),
     };
 
+    let user_id_for_discovery = user.user_id.clone();
     let user_filter = format!("eq.{}", user.user_id);
     let updated: Vec<WorkflowResponse> = state
         .supabase
@@ -481,6 +501,23 @@ pub async fn update_workflow(
     let workflow = updated.into_iter().next().ok_or_else(|| {
         WorkflowError::not_found(format!("Workflow '{id}' not found"))
     })?;
+
+    // Fire-and-forget: re-index in discovery service
+    if let Some(ref discovery) = state.discovery {
+        let index_req = serde_json::json!({
+            "id": workflow.id,
+            "kind": "service",
+            "name": workflow.name,
+            "description": workflow.description.as_deref().unwrap_or(""),
+            "category": "workflow",
+            "visibility": "private",
+            "owner_id": user_id_for_discovery,
+            "tags": [],
+            "definition": workflow.definition,
+        });
+        let discovery = discovery.clone();
+        tokio::spawn(async move { discovery.index(&index_req).await });
+    }
 
     Ok(Json(workflow))
 }

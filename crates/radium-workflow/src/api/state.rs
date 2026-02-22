@@ -5,6 +5,7 @@
 
 use std::sync::Arc;
 
+use crate::discovery::client::DiscoveryClient;
 use crate::security::SlidingWindowLimiter;
 use crate::supabase::SupabaseClient;
 
@@ -15,6 +16,8 @@ pub struct AppState {
     pub supabase: Arc<SupabaseClient>,
     /// Per-client rate limiter for API requests.
     pub rate_limiter: Arc<SlidingWindowLimiter>,
+    /// Optional discovery service client for indexing and telemetry.
+    pub discovery: Option<Arc<DiscoveryClient>>,
 }
 
 impl std::fmt::Debug for AppState {
@@ -22,6 +25,7 @@ impl std::fmt::Debug for AppState {
         f.debug_struct("AppState")
             .field("supabase", &self.supabase)
             .field("rate_limiter", &"SlidingWindowLimiter { .. }")
+            .field("discovery", &self.discovery)
             .finish()
     }
 }

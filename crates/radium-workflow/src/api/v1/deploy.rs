@@ -336,6 +336,18 @@ pub async fn deploy_workflow(
         .await
         .map_err(DeployError::from_supabase)?;
 
+    // Fire-and-forget: record deploy telemetry in discovery service
+    if let Some(ref discovery) = state.discovery {
+        let discovery = discovery.clone();
+        let workflow_id = id.clone();
+        let deploy_user_id = user.user_id.clone();
+        tokio::spawn(async move {
+            discovery
+                .telemetry(&workflow_id, "deploy", &deploy_user_id, &[])
+                .await;
+        });
+    }
+
     Ok((
         StatusCode::OK,
         Json(DeployResponse {
