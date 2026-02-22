@@ -298,7 +298,7 @@ describe('RLS Policy Validation', () => {
 
       expect(error).toBeNull();
       expect(data).toHaveLength(1);
-      expect(data![0].id).toBe(WORKFLOW_A_ID);
+      expect(data![0]!.id).toBe(WORKFLOW_A_ID);
     });
 
     it('User A can update their own workflow', async () => {
@@ -585,7 +585,7 @@ describe('RLS Policy Validation', () => {
 
       expect(error).toBeNull();
       expect(data).toHaveLength(1);
-      expect(data![0].email).toBe('rls-user-a@test.local');
+      expect(data![0]!.email).toBe('rls-user-a@test.local');
     });
 
     it('User A cannot see User B profile', async () => {
@@ -646,7 +646,7 @@ describe('RLS Policy Validation', () => {
 
       expect(error).toBeNull();
       expect(data).toHaveLength(1);
-      expect(data![0].id).toBe(NODE_A_ID);
+      expect(data![0]!.id).toBe(NODE_A_ID);
     });
 
     it('User A cannot see nodes in User B workflow', async () => {
