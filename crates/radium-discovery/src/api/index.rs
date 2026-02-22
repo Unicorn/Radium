@@ -104,6 +104,19 @@ pub async fn create_index(
 
     graph::client::upsert_node(&state.graph, &req, embedding).await?;
 
+    // Run relationship inference (non-blocking for the response)
+    if let Err(e) = crate::inference::infer_relationships(
+        &state.graph,
+        &req.id,
+        &req.kind,
+        req.definition.as_ref(),
+        req.input_schema.as_ref(),
+    )
+    .await
+    {
+        tracing::warn!("Relationship inference failed: {e}");
+    }
+
     let node = graph::client::get_node(&state.graph, &req.id).await?;
 
     Ok((StatusCode::CREATED, Json(node)))
@@ -129,6 +142,19 @@ pub async fn update_index(
     };
 
     graph::client::upsert_node(&state.graph, &req, embedding).await?;
+
+    // Run relationship inference (non-blocking for the response)
+    if let Err(e) = crate::inference::infer_relationships(
+        &state.graph,
+        &req.id,
+        &req.kind,
+        req.definition.as_ref(),
+        req.input_schema.as_ref(),
+    )
+    .await
+    {
+        tracing::warn!("Relationship inference failed: {e}");
+    }
 
     let node = graph::client::get_node(&state.graph, &req.id).await?;
 

@@ -1,13 +1,7 @@
 use std::net::SocketAddr;
 
-mod api;
-mod config;
-mod embeddings;
-mod graph;
-mod state;
-
-use config::DiscoveryConfig;
-use state::AppState;
+use radium_discovery::config::DiscoveryConfig;
+use radium_discovery::state::AppState;
 
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -30,16 +24,16 @@ async fn main() {
         .await
         .expect("Failed to connect to Neo4j");
 
-    let embedding_provider = embeddings::create_provider()
+    let embedding_provider = radium_discovery::embeddings::create_provider()
         .expect("No embedding provider configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY.");
 
     tracing::info!("Using embedding provider: {}", embedding_provider.provider_name());
 
-    graph::schema::initialize(&graph)
+    radium_discovery::graph::schema::initialize(&graph)
         .await
         .expect("Failed to initialize Neo4j schema");
 
-    graph::schema::initialize_vector_indexes(&graph, embedding_provider.dimension())
+    radium_discovery::graph::schema::initialize_vector_indexes(&graph, embedding_provider.dimension())
         .await
         .expect("Failed to initialize vector indexes");
 
@@ -48,7 +42,7 @@ async fn main() {
         embeddings: std::sync::Arc::from(embedding_provider),
     };
 
-    let app = api::router(state);
+    let app = radium_discovery::api::router(state);
     let addr = SocketAddr::from(([0, 0, 0, 0], config.port));
 
     tracing::info!("Discovery service listening on {addr}");

@@ -368,6 +368,118 @@ impl Clone for ScoredNode {
     }
 }
 
+/// Find items related to the given item by relationship type.
+///
+/// Traverses the graph up to `depth` hops from the source node,
+/// following the specified relationship types, and returns matching nodes.
+pub async fn find_related(
+    graph: &Graph,
+    id: &str,
+    relationship: Option<&str>,
+    depth: i64,
+    limit: i64,
+) -> Result<Vec<ScoredNode>, GraphError> {
+    // Build relationship pattern based on filter
+    let rel_pattern = match relationship {
+        Some("uses") => "[:USES]",
+        Some("depends_on") => "[:DEPENDS_ON]",
+        Some("similar_schema") => "[:SIMILAR_SCHEMA]",
+        Some("co_used_with") => "[:CO_USED_WITH]",
+        _ => "[:USES|DEPENDS_ON|SIMILAR_SCHEMA|CO_USED_WITH]",
+    };
+
+    let cypher = format!(
+        "MATCH (n {{id: $id}})-{rel_pattern}*1..{depth}-(related) \
+         WHERE related.id <> $id AND (related:Component OR related:Service OR related:Project) \
+         OPTIONAL MATCH (related)-[:TAGGED]->(t:Tag) \
+         RETURN DISTINCT related, labels(related) AS labels, collect(DISTINCT t.name) AS tags \
+         LIMIT $limit"
+    );
+
+    let mut result = graph
+        .execute(query(&cypher).param("id", id).param("limit", limit))
+        .await?;
+
+    let mut nodes = Vec::new();
+    while let Ok(Some(row)) = result.next().await {
+        let node: Node = row
+            .get("related")
+            .map_err(|e| GraphError::Deserialization(e.to_string()))?;
+        let labels: Vec<String> = row
+            .get("labels")
+            .map_err(|e| GraphError::Deserialization(e.to_string()))?;
+        let tags: Vec<String> = row
+            .get("tags")
+            .map_err(|e| GraphError::Deserialization(e.to_string()))?;
+        let discovery_node = node_to_discovery_node(&node, &labels, tags);
+        nodes.push(ScoredNode {
+            node: discovery_node,
+            relevance_score: 1.0, // Graph traversal doesn't produce a score
+        });
+    }
+
+    Ok(nodes)
+}
+
+/// Get the full dependency tree (recursive).
+///
+/// Follows outgoing `USES` and `DEPENDS_ON` relationships from the source
+/// node to find all transitive dependencies.
+pub async fn find_dependencies(graph: &Graph, id: &str) -> Result<Vec<DiscoveryNode>, GraphError> {
+    let cypher = "MATCH (n {id: $id})-[:USES|DEPENDS_ON*]->(dep) \
+                  WHERE dep:Component OR dep:Service OR dep:Project \
+                  OPTIONAL MATCH (dep)-[:TAGGED]->(t:Tag) \
+                  RETURN DISTINCT dep, labels(dep) AS labels, collect(DISTINCT t.name) AS tags";
+
+    let mut result = graph.execute(query(cypher).param("id", id)).await?;
+
+    let mut nodes = Vec::new();
+    while let Ok(Some(row)) = result.next().await {
+        let node: Node = row
+            .get("dep")
+            .map_err(|e| GraphError::Deserialization(e.to_string()))?;
+        let labels: Vec<String> = row
+            .get("labels")
+            .map_err(|e| GraphError::Deserialization(e.to_string()))?;
+        let tags: Vec<String> = row
+            .get("tags")
+            .map_err(|e| GraphError::Deserialization(e.to_string()))?;
+        nodes.push(node_to_discovery_node(&node, &labels, tags));
+    }
+
+    Ok(nodes)
+}
+
+/// Get all items that depend on this one (reverse lookup).
+///
+/// Follows incoming `USES` and `DEPENDS_ON` relationships to find all
+/// items that transitively depend on the specified node.
+pub async fn find_dependents(graph: &Graph, id: &str) -> Result<Vec<DiscoveryNode>, GraphError> {
+    let cypher = "MATCH (dependent)-[:USES|DEPENDS_ON*]->(n {id: $id}) \
+                  WHERE dependent:Component OR dependent:Service OR dependent:Project \
+                  OPTIONAL MATCH (dependent)-[:TAGGED]->(t:Tag) \
+                  RETURN DISTINCT dependent, labels(dependent) AS labels, \
+                  collect(DISTINCT t.name) AS tags";
+
+    let mut result = graph.execute(query(cypher).param("id", id)).await?;
+
+    let mut nodes = Vec::new();
+    while let Ok(Some(row)) = result.next().await {
+        let node: Node = row
+            .get("dependent")
+            .map_err(|e| GraphError::Deserialization(e.to_string()))?;
+        let labels: Vec<String> = row
+            .get("labels")
+            .map_err(|e| GraphError::Deserialization(e.to_string()))?;
+        let tags: Vec<String> = row
+            .get("tags")
+            .map_err(|e| GraphError::Deserialization(e.to_string()))?;
+        nodes.push(node_to_discovery_node(&node, &labels, tags));
+    }
+
+    Ok(nodes)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
