@@ -3,6 +3,7 @@ use std::net::SocketAddr;
 mod api;
 mod config;
 mod embeddings;
+mod graph;
 mod state;
 
 use config::DiscoveryConfig;
@@ -33,6 +34,14 @@ async fn main() {
         .expect("No embedding provider configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY.");
 
     tracing::info!("Using embedding provider: {}", embedding_provider.provider_name());
+
+    graph::schema::initialize(&graph)
+        .await
+        .expect("Failed to initialize Neo4j schema");
+
+    graph::schema::initialize_vector_indexes(&graph, embedding_provider.dimension())
+        .await
+        .expect("Failed to initialize vector indexes");
 
     let state = AppState {
         graph,
