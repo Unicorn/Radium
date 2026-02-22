@@ -7,6 +7,10 @@ license.workspace = true
 repository.workspace = true
 description = "Radium Discovery Service — component, service, and project search"
 
+[lib]
+name = "radium_discovery"
+path = "src/lib.rs"
+
 [[bin]]
 name = "radium-discovery"
 path = "src/main.rs"
