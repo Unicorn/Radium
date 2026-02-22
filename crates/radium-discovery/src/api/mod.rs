@@ -1,6 +1,7 @@
 //! Discovery service API router
 
 mod index;
+mod search;
 mod telemetry;
 
 use axum::{
@@ -45,6 +46,7 @@ pub fn router(state: AppState) -> Router {
             "/v1/discover/index/{id}/telemetry",
             post(telemetry::record_telemetry),
         )
+        .route("/v1/discover/search", post(search::search))
         .with_state(state)
         .layer(cors)
         .layer(TimeoutLayer::new(Duration::from_secs(30)))

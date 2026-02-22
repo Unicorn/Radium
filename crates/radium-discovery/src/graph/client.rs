@@ -172,7 +172,7 @@ pub async fn delete_node(graph: &Graph, id: &str) -> Result<(), GraphError> {
 }
 
 /// Map a label string to the kind field
-fn kind_from_labels(labels: &[String]) -> String {
+pub(crate) fn kind_from_labels(labels: &[String]) -> String {
     if labels.contains(&"Component".to_string()) {
         "component".to_string()
     } else if labels.contains(&"Service".to_string()) {
@@ -197,7 +197,7 @@ fn label_for_kind(kind: &str) -> &str {
 }
 
 /// Convert a Neo4j Node to a `DiscoveryNode`
-fn node_to_discovery_node(node: &Node, labels: &[String], tags: Vec<String>) -> DiscoveryNode {
+pub(crate) fn node_to_discovery_node(node: &Node, labels: &[String], tags: Vec<String>) -> DiscoveryNode {
     let get_str = |key: &str| -> String { node.get::<String>(key).unwrap_or_default() };
     let get_opt_str =
         |key: &str| -> Option<String> { node.get::<String>(key).ok().filter(|s| !s.is_empty()) };

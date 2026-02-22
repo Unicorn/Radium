@@ -2,6 +2,7 @@
 
 pub mod client;
 pub mod error;
+pub mod queries;
 pub mod schema;
 
 #[allow(unused_imports)] // DiscoveryNode re-exported for search endpoint (Task 6)
