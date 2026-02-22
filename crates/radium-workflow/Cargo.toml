@@ -24,7 +24,7 @@ serde_json = { workspace = true }
 serde_yaml = "0.9"
 
 # Validation
-validator = { version = "0.18", features = ["derive"] }
+validator = { version = "0.20", features = ["derive"] }
 
 # Templating
 handlebars = "5"
