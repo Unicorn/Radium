@@ -394,3 +394,68 @@ fn delete_missing_id_fails() {
         .failure()
         .stderr(predicate::str::contains("<ID>").or(predicate::str::contains("required")));
 }
+
+// ---------------------------------------------------------------------------
+// Discover commands
+// ---------------------------------------------------------------------------
+
+#[test]
+fn discover_help() {
+    cli()
+        .args(["discover", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Search and explore"));
+}
+
+#[test]
+fn discover_search_help() {
+    cli()
+        .args(["discover", "search", "--help"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn discover_search_without_config_fails_gracefully() {
+    let dir = TempDir::new().unwrap();
+    cli()
+        .env("HOME", dir.path())
+        .args(["discover", "search", "email"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("error"));
+}
+
+#[test]
+fn discover_related_without_config_fails_gracefully() {
+    let dir = TempDir::new().unwrap();
+    cli()
+        .env("HOME", dir.path())
+        .args(["discover", "related", "comp-123"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("error"));
+}
+
+#[test]
+fn discover_compare_without_config_fails_gracefully() {
+    let dir = TempDir::new().unwrap();
+    cli()
+        .env("HOME", dir.path())
+        .args(["discover", "compare", "comp-1,comp-2"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("error"));
+}
+
+#[test]
+fn discover_deps_without_config_fails_gracefully() {
+    let dir = TempDir::new().unwrap();
+    cli()
+        .env("HOME", dir.path())
+        .args(["discover", "deps", "service-123"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("error"));
+}

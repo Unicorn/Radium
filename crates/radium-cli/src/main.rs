@@ -5,6 +5,7 @@ mod output;
 
 use clap::{Parser, Subcommand};
 use commands::components::ComponentAction;
+use commands::discover::DiscoverAction;
 
 #[derive(Parser)]
 #[command(name = "radium-workflow", about = "Radium Workflow CLI", version)]
@@ -32,6 +33,11 @@ enum Commands {
     Components {
         #[command(subcommand)]
         action: Option<ComponentAction>,
+    },
+    /// Search and explore the component marketplace
+    Discover {
+        #[command(subcommand)]
+        action: DiscoverAction,
     },
     /// Create a workflow from a file
     Create {
@@ -88,6 +94,7 @@ async fn main() {
         Commands::Components { action } => {
             commands::components::run(&cli.profile, action.as_ref()).await
         }
+        Commands::Discover { action } => commands::discover::run(&cli.profile, action).await,
         Commands::Create { file } => commands::workflows::create(&cli.profile, file).await,
         Commands::Validate { file } => commands::workflows::validate(&cli.profile, file).await,
         Commands::List => commands::workflows::list(&cli.profile).await,
@@ -184,5 +191,62 @@ mod tests {
     fn test_no_subcommand_fails() {
         let result = Cli::try_parse_from(["radium-workflow"]);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_discover_search() {
+        let cli =
+            Cli::try_parse_from(["radium-workflow", "discover", "search", "email sender"])
+                .unwrap();
+        assert!(matches!(cli.command, Commands::Discover { .. }));
+    }
+
+    #[test]
+    fn test_parse_discover_search_with_filters() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "discover",
+            "search",
+            "--type",
+            "component,service",
+            "--category",
+            "communication",
+            "email",
+        ])
+        .unwrap();
+        assert!(matches!(cli.command, Commands::Discover { .. }));
+    }
+
+    #[test]
+    fn test_parse_discover_related() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "discover",
+            "related",
+            "comp-123",
+            "--relationship",
+            "uses",
+        ])
+        .unwrap();
+        assert!(matches!(cli.command, Commands::Discover { .. }));
+    }
+
+    #[test]
+    fn test_parse_discover_compare() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "discover",
+            "compare",
+            "comp-1,comp-2,comp-3",
+        ])
+        .unwrap();
+        assert!(matches!(cli.command, Commands::Discover { .. }));
+    }
+
+    #[test]
+    fn test_parse_discover_deps() {
+        let cli =
+            Cli::try_parse_from(["radium-workflow", "discover", "deps", "service-123"]).unwrap();
+        assert!(matches!(cli.command, Commands::Discover { .. }));
     }
 }
