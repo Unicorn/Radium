@@ -176,6 +176,28 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_undeploy_command() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "undeploy",
+            "550e8400-e29b-41d4-a716-446655440000",
+        ])
+        .unwrap();
+        assert!(matches!(cli.command, Commands::Undeploy { .. }));
+    }
+
+    #[test]
+    fn test_parse_status_command() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "status",
+            "550e8400-e29b-41d4-a716-446655440000",
+        ])
+        .unwrap();
+        assert!(matches!(cli.command, Commands::Status { .. }));
+    }
+
+    #[test]
     fn test_parse_with_profile() {
         let cli = Cli::try_parse_from([
             "radium-workflow",

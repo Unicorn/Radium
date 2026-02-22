@@ -605,6 +605,71 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
+    // from_supabase error mapping tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_deploy_error_from_supabase_not_found() {
+        let err = DeployError::from_supabase(SupabaseError::NotFound {
+            resource: "workflows".to_string(),
+            key: "id".to_string(),
+            value: "abc-123".to_string(),
+        });
+        assert_eq!(err.status, StatusCode::NOT_FOUND);
+        assert_eq!(err.code, "NOT_FOUND");
+    }
+
+    #[test]
+    fn test_deploy_error_from_supabase_api_error_404() {
+        let err = DeployError::from_supabase(SupabaseError::ApiError {
+            status: 404,
+            message: "Not found".to_string(),
+        });
+        assert_eq!(err.status, StatusCode::NOT_FOUND);
+        assert_eq!(err.code, "NOT_FOUND");
+    }
+
+    #[test]
+    fn test_deploy_error_from_supabase_api_error_500() {
+        let err = DeployError::from_supabase(SupabaseError::ApiError {
+            status: 500,
+            message: "Internal server error".to_string(),
+        });
+        assert_eq!(err.status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(err.code, "INTERNAL_ERROR");
+    }
+
+    #[test]
+    fn test_deploy_error_from_supabase_config_error() {
+        let err = DeployError::from_supabase(SupabaseError::ConfigError(
+            "Missing URL".to_string(),
+        ));
+        assert_eq!(err.status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(err.code, "INTERNAL_ERROR");
+    }
+
+    #[test]
+    fn test_deploy_error_from_supabase_deserialization_error() {
+        let err = DeployError::from_supabase(SupabaseError::DeserializationError(
+            "Invalid JSON".to_string(),
+        ));
+        assert_eq!(err.status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(err.code, "INTERNAL_ERROR");
+    }
+
+    #[test]
+    fn test_deploy_error_rate_limited() {
+        let err = DeployError {
+            status: StatusCode::TOO_MANY_REQUESTS,
+            code: "RATE_LIMITED".to_string(),
+            message: "Rate limit exceeded. Try again in 60 seconds.".to_string(),
+            details: vec![],
+        };
+        assert_eq!(err.status, StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(err.code, "RATE_LIMITED");
+    }
+
+    // -----------------------------------------------------------------------
     // Auth extraction (require_auth is now async + validates against Supabase,
     // so token-presence tests are covered by auth::extract_bearer_token tests
     // in auth.rs. The integration path is tested via ignored Supabase tests.)
@@ -631,21 +696,9 @@ mod tests {
     // Integration tests (need Supabase)
     // -----------------------------------------------------------------------
 
-    #[tokio::test]
-    #[ignore = "Requires running Supabase instance"]
-    async fn test_deploy_workflow_integration() {
-        // Would deploy a real workflow through Supabase.
-    }
-
-    #[tokio::test]
-    #[ignore = "Requires running Supabase instance"]
-    async fn test_undeploy_workflow_integration() {
-        // Would undeploy a real workflow through Supabase.
-    }
-
-    #[tokio::test]
-    #[ignore = "Requires running Supabase instance"]
-    async fn test_workflow_status_integration() {
-        // Would check status of a real workflow through Supabase.
-    }
+    // Integration tests for deploy/undeploy/status live in
+    // `crates/radium-workflow/tests/api_integration.rs` which spins up a real
+    // Axum server and exercises the full request path including Supabase.
+    // See: test_deploy_valid_workflow, test_undeploy_deployed_workflow,
+    // test_workflow_status_draft, etc.
 }

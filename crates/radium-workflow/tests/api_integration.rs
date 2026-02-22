@@ -516,3 +516,356 @@ async fn test_full_crud_lifecycle() {
         "Workflow should be gone after deletion"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Deploy / Undeploy / Status Tests
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+#[ignore = "Requires running Supabase instance (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)"]
+async fn test_deploy_valid_workflow() {
+    let base_url = start_test_server().await;
+    let client = http_client();
+
+    let id = create_workflow(&base_url, &client).await;
+
+    let resp = client
+        .post(format!("{base_url}/v1/workflows/{id}/deploy"))
+        .send()
+        .await
+        .expect("POST /v1/workflows/:id/deploy request failed");
+
+    assert_eq!(
+        resp.status().as_u16(),
+        200,
+        "Expected 200 OK for deploy, got {}",
+        resp.status()
+    );
+
+    let body: Value = resp.json().await.unwrap();
+    assert_eq!(
+        body["status"].as_str().unwrap(),
+        "deployed",
+        "Deploy response should have status 'deployed'"
+    );
+    assert!(
+        body["compiled_at"].is_string() && !body["compiled_at"].as_str().unwrap().is_empty(),
+        "Deploy response should have a non-empty compiled_at"
+    );
+
+    // Cleanup.
+    cleanup_workflow(&base_url, &client, &id).await;
+}
+
+#[tokio::test]
+#[ignore = "Requires running Supabase instance (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)"]
+async fn test_deploy_nonexistent_workflow() {
+    let base_url = start_test_server().await;
+    let client = http_client();
+
+    let fake_id = "00000000-0000-0000-0000-000000000000";
+    let resp = client
+        .post(format!("{base_url}/v1/workflows/{fake_id}/deploy"))
+        .send()
+        .await
+        .expect("POST /v1/workflows/:id/deploy request failed");
+
+    assert_eq!(
+        resp.status().as_u16(),
+        404,
+        "Expected 404 for deploying non-existent workflow, got {}",
+        resp.status()
+    );
+
+    let body: Value = resp.json().await.unwrap();
+    assert_eq!(
+        body["error"]["code"], "NOT_FOUND",
+        "Error code should be NOT_FOUND"
+    );
+}
+
+#[tokio::test]
+#[ignore = "Requires running Supabase instance (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)"]
+async fn test_deploy_without_auth() {
+    let base_url = start_test_server().await;
+
+    // Use a client with NO Authorization header.
+    let client = reqwest::Client::new();
+
+    let fake_id = "00000000-0000-0000-0000-000000000000";
+    let resp = client
+        .post(format!("{base_url}/v1/workflows/{fake_id}/deploy"))
+        .send()
+        .await
+        .expect("POST /v1/workflows/:id/deploy request failed");
+
+    assert_eq!(
+        resp.status().as_u16(),
+        401,
+        "Expected 401 Unauthorized without Bearer token, got {}",
+        resp.status()
+    );
+}
+
+#[tokio::test]
+#[ignore = "Requires running Supabase instance (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)"]
+async fn test_undeploy_deployed_workflow() {
+    let base_url = start_test_server().await;
+    let client = http_client();
+
+    let id = create_workflow(&base_url, &client).await;
+
+    // Deploy first.
+    let deploy_resp = client
+        .post(format!("{base_url}/v1/workflows/{id}/deploy"))
+        .send()
+        .await
+        .expect("POST /v1/workflows/:id/deploy request failed");
+    assert_eq!(deploy_resp.status().as_u16(), 200);
+
+    // Undeploy.
+    let resp = client
+        .post(format!("{base_url}/v1/workflows/{id}/undeploy"))
+        .send()
+        .await
+        .expect("POST /v1/workflows/:id/undeploy request failed");
+
+    assert_eq!(
+        resp.status().as_u16(),
+        200,
+        "Expected 200 OK for undeploy, got {}",
+        resp.status()
+    );
+
+    let body: Value = resp.json().await.unwrap();
+    assert_eq!(
+        body["status"].as_str().unwrap(),
+        "draft",
+        "Undeploy response should have status 'draft'"
+    );
+
+    // Cleanup.
+    cleanup_workflow(&base_url, &client, &id).await;
+}
+
+#[tokio::test]
+#[ignore = "Requires running Supabase instance (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)"]
+async fn test_undeploy_nonexistent() {
+    let base_url = start_test_server().await;
+    let client = http_client();
+
+    let fake_id = "00000000-0000-0000-0000-000000000000";
+    let resp = client
+        .post(format!("{base_url}/v1/workflows/{fake_id}/undeploy"))
+        .send()
+        .await
+        .expect("POST /v1/workflows/:id/undeploy request failed");
+
+    assert_eq!(
+        resp.status().as_u16(),
+        404,
+        "Expected 404 for undeploying non-existent workflow, got {}",
+        resp.status()
+    );
+}
+
+#[tokio::test]
+#[ignore = "Requires running Supabase instance (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)"]
+async fn test_workflow_status_draft() {
+    let base_url = start_test_server().await;
+    let client = http_client();
+
+    let id = create_workflow(&base_url, &client).await;
+
+    let resp = client
+        .get(format!("{base_url}/v1/workflows/{id}/status"))
+        .send()
+        .await
+        .expect("GET /v1/workflows/:id/status request failed");
+
+    assert_eq!(resp.status().as_u16(), 200);
+
+    let body: Value = resp.json().await.unwrap();
+    assert_eq!(
+        body["deployment_status"].as_str().unwrap(),
+        "draft",
+        "New workflow should have deployment_status 'draft'"
+    );
+    assert!(
+        body["last_deployed_at"].is_null(),
+        "New workflow should have null last_deployed_at"
+    );
+
+    // Cleanup.
+    cleanup_workflow(&base_url, &client, &id).await;
+}
+
+#[tokio::test]
+#[ignore = "Requires running Supabase instance (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)"]
+async fn test_workflow_status_deployed() {
+    let base_url = start_test_server().await;
+    let client = http_client();
+
+    let id = create_workflow(&base_url, &client).await;
+
+    // Deploy the workflow.
+    let deploy_resp = client
+        .post(format!("{base_url}/v1/workflows/{id}/deploy"))
+        .send()
+        .await
+        .expect("POST /v1/workflows/:id/deploy request failed");
+    assert_eq!(deploy_resp.status().as_u16(), 200);
+
+    // Check status.
+    let resp = client
+        .get(format!("{base_url}/v1/workflows/{id}/status"))
+        .send()
+        .await
+        .expect("GET /v1/workflows/:id/status request failed");
+
+    assert_eq!(resp.status().as_u16(), 200);
+
+    let body: Value = resp.json().await.unwrap();
+    assert_eq!(
+        body["deployment_status"].as_str().unwrap(),
+        "deployed",
+        "Deployed workflow should have deployment_status 'deployed'"
+    );
+    assert!(
+        body["last_deployed_at"].is_string(),
+        "Deployed workflow should have a non-null last_deployed_at"
+    );
+
+    // Cleanup.
+    cleanup_workflow(&base_url, &client, &id).await;
+}
+
+#[tokio::test]
+#[ignore = "Requires running Supabase instance (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)"]
+async fn test_workflow_status_after_undeploy() {
+    let base_url = start_test_server().await;
+    let client = http_client();
+
+    let id = create_workflow(&base_url, &client).await;
+
+    // Deploy.
+    let deploy_resp = client
+        .post(format!("{base_url}/v1/workflows/{id}/deploy"))
+        .send()
+        .await
+        .expect("POST /v1/workflows/:id/deploy request failed");
+    assert_eq!(deploy_resp.status().as_u16(), 200);
+
+    // Undeploy.
+    let undeploy_resp = client
+        .post(format!("{base_url}/v1/workflows/{id}/undeploy"))
+        .send()
+        .await
+        .expect("POST /v1/workflows/:id/undeploy request failed");
+    assert_eq!(undeploy_resp.status().as_u16(), 200);
+
+    // Check status.
+    let resp = client
+        .get(format!("{base_url}/v1/workflows/{id}/status"))
+        .send()
+        .await
+        .expect("GET /v1/workflows/:id/status request failed");
+
+    assert_eq!(resp.status().as_u16(), 200);
+
+    let body: Value = resp.json().await.unwrap();
+    assert_eq!(
+        body["deployment_status"].as_str().unwrap(),
+        "compiled",
+        "Undeployed workflow should have deployment_status 'compiled' (compiled code still exists)"
+    );
+
+    // Cleanup.
+    cleanup_workflow(&base_url, &client, &id).await;
+}
+
+#[tokio::test]
+#[ignore = "Requires running Supabase instance (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)"]
+async fn test_deploy_lifecycle_status_transitions() {
+    let base_url = start_test_server().await;
+    let client = http_client();
+
+    // 1. Create workflow.
+    let id = create_workflow(&base_url, &client).await;
+
+    // 2. Deploy.
+    let deploy_resp = client
+        .post(format!("{base_url}/v1/workflows/{id}/deploy"))
+        .send()
+        .await
+        .expect("POST /v1/workflows/:id/deploy request failed");
+    assert_eq!(deploy_resp.status().as_u16(), 200);
+
+    // 3. Verify status is "deployed".
+    let status_resp = client
+        .get(format!("{base_url}/v1/workflows/{id}/status"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(status_resp.status().as_u16(), 200);
+    let status_body: Value = status_resp.json().await.unwrap();
+    assert_eq!(
+        status_body["deployment_status"].as_str().unwrap(),
+        "deployed",
+        "After deploy, status should be 'deployed'"
+    );
+
+    // 4. Undeploy.
+    let undeploy_resp = client
+        .post(format!("{base_url}/v1/workflows/{id}/undeploy"))
+        .send()
+        .await
+        .expect("POST /v1/workflows/:id/undeploy request failed");
+    assert_eq!(undeploy_resp.status().as_u16(), 200);
+
+    // 5. Verify status is "compiled".
+    let status_resp2 = client
+        .get(format!("{base_url}/v1/workflows/{id}/status"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(status_resp2.status().as_u16(), 200);
+    let status_body2: Value = status_resp2.json().await.unwrap();
+    assert_eq!(
+        status_body2["deployment_status"].as_str().unwrap(),
+        "compiled",
+        "After undeploy, status should be 'compiled'"
+    );
+
+    // 6. Cleanup.
+    cleanup_workflow(&base_url, &client, &id).await;
+}
+
+#[tokio::test]
+#[ignore = "Requires running Supabase instance (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)"]
+async fn test_deploy_without_auth_returns_json_error() {
+    let base_url = start_test_server().await;
+
+    // Use a client with NO Authorization header.
+    let client = reqwest::Client::new();
+
+    let fake_id = "00000000-0000-0000-0000-000000000000";
+    let resp = client
+        .post(format!("{base_url}/v1/workflows/{fake_id}/deploy"))
+        .send()
+        .await
+        .expect("POST /v1/workflows/:id/deploy request failed");
+
+    assert_eq!(
+        resp.status().as_u16(),
+        401,
+        "Expected 401 Unauthorized without Bearer token, got {}",
+        resp.status()
+    );
+
+    let body: Value = resp.json().await.unwrap();
+    assert_eq!(
+        body["error"]["code"], "UNAUTHORIZED",
+        "Error body should contain error.code set to UNAUTHORIZED"
+    );
+}

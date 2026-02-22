@@ -221,6 +221,30 @@ fn deploy_without_config_fails_gracefully() {
         .stderr(predicate::str::contains("error"));
 }
 
+#[test]
+fn undeploy_without_config_fails_gracefully() {
+    let dir = TempDir::new().unwrap();
+
+    cli()
+        .env("HOME", dir.path())
+        .args(["undeploy", "550e8400-e29b-41d4-a716-446655440000"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("error"));
+}
+
+#[test]
+fn status_without_config_fails_gracefully() {
+    let dir = TempDir::new().unwrap();
+
+    cli()
+        .env("HOME", dir.path())
+        .args(["status", "550e8400-e29b-41d4-a716-446655440000"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("error"));
+}
+
 // ---------------------------------------------------------------------------
 // Error output format — stderr should be JSON
 // ---------------------------------------------------------------------------
@@ -390,6 +414,33 @@ fn show_missing_id_fails() {
 fn delete_missing_id_fails() {
     cli()
         .args(["delete"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("<ID>").or(predicate::str::contains("required")));
+}
+
+#[test]
+fn deploy_missing_id_fails() {
+    cli()
+        .args(["deploy"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("<ID>").or(predicate::str::contains("required")));
+}
+
+#[test]
+fn undeploy_missing_id_fails() {
+    cli()
+        .args(["undeploy"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("<ID>").or(predicate::str::contains("required")));
+}
+
+#[test]
+fn status_missing_id_fails() {
+    cli()
+        .args(["status"])
         .assert()
         .failure()
         .stderr(predicate::str::contains("<ID>").or(predicate::str::contains("required")));
