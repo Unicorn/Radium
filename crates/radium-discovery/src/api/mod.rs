@@ -1,6 +1,8 @@
 //! Discovery service API router
 
+mod compare;
 mod index;
+mod related;
 mod search;
 mod telemetry;
 
@@ -46,7 +48,20 @@ pub fn router(state: AppState) -> Router {
             "/v1/discover/index/{id}/telemetry",
             post(telemetry::record_telemetry),
         )
+        .route("/v1/discover/compare", get(compare::compare))
         .route("/v1/discover/search", post(search::search))
+        .route(
+            "/v1/discover/{id}/related",
+            get(related::get_related),
+        )
+        .route(
+            "/v1/discover/{id}/dependencies",
+            get(related::get_dependencies),
+        )
+        .route(
+            "/v1/discover/{id}/dependents",
+            get(related::get_dependents),
+        )
         .with_state(state)
         .layer(cors)
         .layer(TimeoutLayer::new(Duration::from_secs(30)))
