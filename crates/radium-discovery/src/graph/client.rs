@@ -7,7 +7,6 @@ use super::error::GraphError;
 
 /// Represents any discoverable item in the graph
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[allow(dead_code)] // Fields read via deserialization and used in downstream tasks (Tasks 5-8)
 pub struct DiscoveryNode {
     pub id: String,
     pub kind: String,
@@ -28,7 +27,6 @@ pub struct DiscoveryNode {
 
 /// Input for creating/updating a node in the graph
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[allow(dead_code)] // Fields read via deserialization and used in downstream tasks (Tasks 5-8)
 pub struct IndexRequest {
     pub id: String,
     pub kind: String,
@@ -47,7 +45,6 @@ pub struct IndexRequest {
 }
 
 /// Create or update a node in the graph
-#[allow(dead_code)] // Called by API endpoints implemented in Tasks 5-8
 pub async fn upsert_node(
     graph: &Graph,
     req: &IndexRequest,
@@ -141,7 +138,6 @@ pub async fn upsert_node(
 }
 
 /// Get a node by ID, searching across all label types
-#[allow(dead_code)] // Called by API endpoints implemented in Tasks 5-8
 pub async fn get_node(graph: &Graph, id: &str) -> Result<DiscoveryNode, GraphError> {
     let cypher = "MATCH (n) WHERE n.id = $id AND (n:Component OR n:Service OR n:Project) \
                   OPTIONAL MATCH (n)-[:TAGGED]->(t:Tag) \
@@ -168,7 +164,6 @@ pub async fn get_node(graph: &Graph, id: &str) -> Result<DiscoveryNode, GraphErr
 }
 
 /// Delete a node and all its relationships
-#[allow(dead_code)] // Called by API endpoints implemented in Tasks 5-8
 pub async fn delete_node(graph: &Graph, id: &str) -> Result<(), GraphError> {
     graph
         .run(query("MATCH (n) WHERE n.id = $id DETACH DELETE n").param("id", id))

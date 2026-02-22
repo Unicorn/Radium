@@ -1,13 +1,19 @@
 //! Discovery service API router
 
-use axum::{routing::get, Json, Router};
+mod index;
+mod telemetry;
+
+use axum::{
+    routing::{get, post, put},
+    Json, Router,
+};
 use serde::Serialize;
+use std::time::Duration;
 use tower_http::{
     cors::{Any, CorsLayer},
     timeout::TimeoutLayer,
     trace::TraceLayer,
 };
-use std::time::Duration;
 
 use crate::state::AppState;
 
@@ -30,6 +36,15 @@ pub fn router(state: AppState) -> Router {
 
     Router::new()
         .route("/health", get(health))
+        .route("/v1/discover/index", post(index::create_index))
+        .route(
+            "/v1/discover/index/{id}",
+            put(index::update_index).delete(index::delete_index),
+        )
+        .route(
+            "/v1/discover/index/{id}/telemetry",
+            post(telemetry::record_telemetry),
+        )
         .with_state(state)
         .layer(cors)
         .layer(TimeoutLayer::new(Duration::from_secs(30)))

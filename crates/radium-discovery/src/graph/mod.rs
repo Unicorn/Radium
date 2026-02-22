@@ -4,7 +4,7 @@ pub mod client;
 pub mod error;
 pub mod schema;
 
-#[allow(unused_imports)] // Re-exports used by downstream tasks (Tasks 5-8)
-pub use client::{DiscoveryNode, IndexRequest};
-#[allow(unused_imports)] // Re-export used by downstream tasks (Tasks 5-8)
+#[allow(unused_imports)] // DiscoveryNode re-exported for search endpoint (Task 6)
+pub use client::DiscoveryNode;
+pub use client::IndexRequest;
 pub use error::GraphError;
