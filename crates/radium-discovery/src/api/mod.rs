@@ -25,6 +25,7 @@ pub fn router(state: AppState) -> Router {
             axum::http::header::CONTENT_TYPE,
             axum::http::header::ACCEPT,
         ])
+        // TODO: Restrict CORS origins for production deployment
         .allow_origin(Any);
 
     Router::new()

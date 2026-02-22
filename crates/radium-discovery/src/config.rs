@@ -17,6 +17,7 @@ pub struct DiscoveryConfig {
 }
 
 impl DiscoveryConfig {
+    #[allow(clippy::disallowed_methods)] // Config loading requires direct env var access
     pub fn from_env() -> Result<Self, ConfigError> {
         let neo4j_uri = std::env::var("NEO4J_URI")
             .map_err(|_| ConfigError::MissingEnvVar("NEO4J_URI".into()))?;
@@ -39,10 +40,13 @@ impl DiscoveryConfig {
 }
 
 #[cfg(test)]
+#[allow(clippy::disallowed_methods)] // Tests need to manipulate env vars directly
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
+    #[serial]
     fn test_config_missing_neo4j_uri() {
         std::env::remove_var("NEO4J_URI");
         std::env::remove_var("NEO4J_USER");
@@ -53,6 +57,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_default_port() {
         std::env::remove_var("PORT");
         std::env::set_var("NEO4J_URI", "bolt://localhost:7687");

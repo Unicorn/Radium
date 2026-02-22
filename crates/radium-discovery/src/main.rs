@@ -43,6 +43,6 @@ async fn main() {
     let addr = SocketAddr::from(([0, 0, 0, 0], config.port));
 
     tracing::info!("Discovery service listening on {addr}");
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(addr).await.expect("Failed to bind TCP listener");
+    axum::serve(listener, app).await.expect("Server exited with error");
 }
