@@ -23,6 +23,8 @@ thiserror = { workspace = true }
 dirs = "5"
 
 [dev-dependencies]
+assert_cmd = { workspace = true }
+predicates = { workspace = true }
 tempfile = "3"
 
 [lints]
