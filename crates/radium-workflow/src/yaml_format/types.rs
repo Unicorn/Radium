@@ -43,7 +43,8 @@ pub struct YamlComponent {
 pub enum YamlComponentType {
     Trigger,
     Stop,
-    Activity,
+    #[serde(alias = "activity")]
+    Action,
     HttpRequest,
     DatabaseQuery,
     Agent,
@@ -129,7 +130,7 @@ components:
       url: "https://api.example.com/data"
       method: GET
   - id: process
-    type: activity
+    type: action
     config:
       name: processData
       timeout: "30s"
@@ -184,7 +185,7 @@ settings:
         let cases = vec![
             ("trigger", YamlComponentType::Trigger),
             ("stop", YamlComponentType::Stop),
-            ("activity", YamlComponentType::Activity),
+            ("action", YamlComponentType::Action),
             ("http_request", YamlComponentType::HttpRequest),
             ("database_query", YamlComponentType::DatabaseQuery),
             ("agent", YamlComponentType::Agent),
@@ -202,5 +203,16 @@ settings:
             let parsed: YamlComponentType = serde_yaml::from_str(&yaml).unwrap();
             assert_eq!(parsed, expected, "Failed to parse component type: {}", yaml_str);
         }
+    }
+
+    #[test]
+    fn test_activity_alias_deserializes_to_action() {
+        // "activity" is the deprecated name; it must still deserialize to Action
+        let parsed: YamlComponentType = serde_yaml::from_str("\"activity\"").unwrap();
+        assert_eq!(parsed, YamlComponentType::Action);
+
+        // "action" is the canonical new name
+        let parsed: YamlComponentType = serde_yaml::from_str("\"action\"").unwrap();
+        assert_eq!(parsed, YamlComponentType::Action);
     }
 }

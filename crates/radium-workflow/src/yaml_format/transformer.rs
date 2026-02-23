@@ -116,7 +116,7 @@ fn map_component_type(ct: &YamlComponentType) -> NodeType {
     match ct {
         YamlComponentType::Trigger => NodeType::Trigger,
         YamlComponentType::Stop => NodeType::End,
-        YamlComponentType::Activity => NodeType::Activity,
+        YamlComponentType::Action => NodeType::Activity,
         YamlComponentType::HttpRequest => NodeType::Activity,
         YamlComponentType::DatabaseQuery => NodeType::Activity,
         YamlComponentType::Agent => NodeType::Agent,
@@ -272,7 +272,7 @@ components:
       method: GET
       timeout: "10s"
   - id: process
-    type: activity
+    type: action
     config:
       name: processData
       description: Process the fetched data
@@ -351,7 +351,7 @@ components:
   - id: start
     type: trigger
   - id: my_activity
-    type: activity
+    type: action
     config:
       name: doSomething
       extra_field: value

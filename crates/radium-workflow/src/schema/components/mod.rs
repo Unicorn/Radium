@@ -8,6 +8,7 @@
 //! - Behaviors: Shared retry, rate limit, circuit breaker, idempotency, output envelope
 
 pub mod behaviors;
+mod action;
 mod activity;
 mod agent;
 mod child_workflow;
@@ -23,7 +24,7 @@ mod stop;
 mod timer;
 mod trigger;
 
-pub use activity::{
+pub use action::{
     ActivityError, ActivityInput, ActivityOutput, RetryConfig, RetryPolicy, TimeoutConfig,
 };
 pub use agent::{
