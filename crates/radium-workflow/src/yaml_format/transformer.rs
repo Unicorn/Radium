@@ -143,6 +143,11 @@ fn map_component_type(ct: &YamlComponentType) -> NodeType {
         YamlComponentType::ObjectStorage => NodeType::Activity,
         YamlComponentType::FileRead => NodeType::Activity,
         YamlComponentType::EncodeDecode => NodeType::Activity,
+        YamlComponentType::OauthToken => NodeType::Activity,
+        YamlComponentType::JwtCreate => NodeType::Activity,
+        YamlComponentType::GrpcCall => NodeType::Activity,
+        YamlComponentType::Websocket => NodeType::Activity,
+        YamlComponentType::EventEmit => NodeType::Activity,
     }
 }
 

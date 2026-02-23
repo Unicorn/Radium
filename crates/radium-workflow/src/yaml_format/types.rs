@@ -73,6 +73,11 @@ pub enum YamlComponentType {
     ObjectStorage,
     FileRead,
     EncodeDecode,
+    OauthToken,
+    JwtCreate,
+    GrpcCall,
+    Websocket,
+    EventEmit,
 }
 
 /// A connection between two components.
@@ -230,6 +235,11 @@ settings:
             ("object_storage", YamlComponentType::ObjectStorage),
             ("file_read", YamlComponentType::FileRead),
             ("encode_decode", YamlComponentType::EncodeDecode),
+            ("oauth_token", YamlComponentType::OauthToken),
+            ("jwt_create", YamlComponentType::JwtCreate),
+            ("grpc_call", YamlComponentType::GrpcCall),
+            ("websocket", YamlComponentType::Websocket),
+            ("event_emit", YamlComponentType::EventEmit),
         ];
 
         for (yaml_str, expected) in cases {
