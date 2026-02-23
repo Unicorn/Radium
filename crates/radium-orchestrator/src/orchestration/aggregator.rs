@@ -256,11 +256,15 @@ impl Aggregator {
 
     /// Normalize content for grouping (detect similar findings)
     fn normalize_for_grouping(content: &str) -> String {
-        // Remove common words and normalize
+        // Remove common words and normalize; split on whitespace AND punctuation
+        // so that e.g. "async/await" and "async await" are treated as equivalent.
         content
             .to_lowercase()
-            .split_whitespace()
+            .split(|c: char| c.is_whitespace() || c == '/' || c == '-' || c == '_')
             .filter(|w| {
+                if w.is_empty() {
+                    return false;
+                }
                 // Filter out common stop words
                 !matches!(*w, "the" | "a" | "an" | "and" | "or" | "but" | "in" | "on" | "at" | "to" | "for" | "of" | "with")
             })

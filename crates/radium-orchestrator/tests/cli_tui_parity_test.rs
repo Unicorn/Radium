@@ -332,11 +332,19 @@ async fn test_conversation_flow_parity() {
     let cli_result1 = engine_cli.execute(input1, &mut cli_context).await.unwrap();
     let tui_result1 = engine_tui.execute(input1, &mut tui_context).await.unwrap();
     
-    // Both should request project_scan
+    // Both should have completed successfully
     assert_eq!(cli_result1.finish_reason, FinishReason::Stop);
     assert_eq!(tui_result1.finish_reason, FinishReason::Stop);
-    assert!(cli_result1.has_tool_calls());
-    assert!(tui_result1.has_tool_calls());
+    // The engine loops until no more tool calls, so the final result has no tool calls.
+    // Verify that tools were actually invoked during execution via the provider's tracking.
+    assert!(
+        provider_cli.get_tool_calls().contains(&"project_scan".to_string()),
+        "CLI should have executed project_scan during the first turn"
+    );
+    assert!(
+        provider_tui.get_tool_calls().contains(&"project_scan".to_string()),
+        "TUI should have executed project_scan during the first turn"
+    );
     
     // Continue conversation
     let input2 = "Now edit test_file.rs";

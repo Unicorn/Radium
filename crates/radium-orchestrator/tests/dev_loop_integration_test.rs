@@ -70,7 +70,8 @@ async fn setup_test_git_repo(temp_dir: &TempDir) -> Result<(), Box<dyn std::erro
         .output()
         .await?;
 
-    // Create a source file
+    // Create a source file (ensure src/ directory exists first)
+    fs::create_dir_all(repo_path.join("src")).await?;
     fs::write(
         repo_path.join("src/main.rs"),
         "fn main() {\n    println!(\"Hello, world!\");\n}\n",
