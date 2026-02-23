@@ -201,7 +201,7 @@ impl TypeRegistry {
             .types
             .keys()
             .find(|k| **k == canonical)
-            .map(|k| k.as_str())
+            .map(String::as_str)
     }
 
     /// Return `true` if `child` is a subtype of `parent` by walking the `base`
