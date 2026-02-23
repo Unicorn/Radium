@@ -135,7 +135,11 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
 
     // Show conversation history if resuming
     if resume {
-        print_history(&history, &session_id)?;
+        print_history(
+            persistent_session.as_ref().map(|s| s.messages.as_slice()),
+            &history,
+            &session_id,
+        )?;
     }
 
     // Main chat loop
@@ -202,7 +206,11 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
                 continue;
             }
             "/history" => {
-                print_history(&history, &session_id)?;
+                print_history(
+                    persistent_session.as_ref().map(|s| s.messages.as_slice()),
+                    &history,
+                    &session_id,
+                )?;
                 continue;
             }
             "/clear" => {
@@ -430,24 +438,24 @@ fn print_banner(
     println!("{}", "╚═══════════════════════════════════════════╝".cyan().bold());
     println!();
 
-    println!("{} {}", "Agent:  ".yellow().bold(), agent_id);
-    println!("{} {}", "Session:".yellow().bold(), session_id);
+    println!("  {} {}", "Agent:  ".yellow().bold(), agent_id);
+    println!("  {} {}", "Session:".yellow().bold(), session_id);
 
     if resume {
-        println!("{} {}", "Mode:   ".yellow().bold(), "Resuming previous conversation");
+        println!("  {} {}", "Mode:   ".yellow().bold(), "Resuming previous conversation");
     }
 
     println!();
     let mcp_count = slash_registry.get_all_commands().len();
     if mcp_count > 0 {
         println!(
-            "{} {} {}",
+            "  {} {} {}",
             "Commands:".green().bold(),
             "/help /history /clear /save /quit",
-            format!("({} MCP commands available)", mcp_count).cyan()
+            format!("(+{} MCP)", mcp_count).cyan().dimmed()
         );
     } else {
-        println!("{} {}", "Commands:".green().bold(), "/help /history /clear /save /quit");
+        println!("  {} {}", "Commands:".green().bold(), "/help /history /clear /save /quit");
     }
     println!();
 
@@ -480,10 +488,60 @@ fn display_session_summary(report: &SessionReport, block_count: usize) {
     println!();
 }
 
-/// Print conversation history
-fn print_history(history: &HistoryManager, session_id: &str) -> Result<()> {
-    let interactions = history.get_interactions(Some(session_id));
+/// Print conversation history.
+///
+/// Prefers showing full message pairs from `session_messages` (SessionStorage) when available;
+/// falls back to HistoryManager interactions otherwise.
+fn print_history(
+    session_messages: Option<&[SessionMessage]>,
+    history: &HistoryManager,
+    session_id: &str,
+) -> Result<()> {
+    // Prefer rich SessionStorage messages (full user + assistant content)
+    if let Some(msgs) = session_messages {
+        if !msgs.is_empty() {
+            println!();
+            println!("{}", "═══ Conversation History ═══".cyan().bold());
+            println!();
 
+            let mut turn = 0;
+            let mut i = 0;
+            while i < msgs.len() {
+                let msg = &msgs[i];
+                if msg.role == "user" {
+                    turn += 1;
+                    let ts = msg.timestamp.format("%H:%M:%S");
+                    println!(
+                        "  {} {} {}",
+                        format!("[{}]", turn).blue().bold(),
+                        "You:".green().bold(),
+                        msg.content
+                    );
+
+                    // Show the paired assistant response if present
+                    if i + 1 < msgs.len() && msgs[i + 1].role == "assistant" {
+                        let preview = if msgs[i + 1].content.len() > 120 {
+                            format!("{}…", &msgs[i + 1].content[..120])
+                        } else {
+                            msgs[i + 1].content.clone()
+                        };
+                        println!("       {} {}", "Agent:".yellow().bold(), preview);
+                        i += 2;
+                    } else {
+                        i += 1;
+                    }
+                    println!("       {}", ts.to_string().dimmed());
+                    println!();
+                } else {
+                    i += 1;
+                }
+            }
+            return Ok(());
+        }
+    }
+
+    // Fallback: HistoryManager (user prompts only, no assistant content)
+    let interactions = history.get_interactions(Some(session_id));
     if interactions.is_empty() {
         println!("\n{}", "No conversation history yet.".yellow());
         return Ok(());
@@ -494,17 +552,16 @@ fn print_history(history: &HistoryManager, session_id: &str) -> Result<()> {
     println!();
 
     for (i, interaction) in interactions.iter().enumerate() {
+        let ts = interaction.timestamp.format("%H:%M:%S");
         println!(
-            "{} {} {}",
+            "  {} {} {}",
             format!("[{}]", i + 1).blue().bold(),
             "You:".green().bold(),
             interaction.goal
         );
-
-        let timestamp = interaction.timestamp.format("%H:%M:%S");
-        println!("    ({})", timestamp.to_string().white());
+        println!("       {}", ts.to_string().dimmed());
+        println!();
     }
-    println!();
 
     Ok(())
 }
@@ -818,16 +875,37 @@ fn format_session_history(messages: &[SessionMessage]) -> String {
     out
 }
 
+/// Format a UTC timestamp as a human-readable relative time (e.g. "2h ago", "3d ago").
+fn format_relative_time(dt: chrono::DateTime<Utc>) -> String {
+    let secs = Utc::now().signed_duration_since(dt).num_seconds();
+    if secs < 60 {
+        "just now".to_string()
+    } else if secs < 3600 {
+        format!("{}m ago", secs / 60)
+    } else if secs < 86400 {
+        format!("{}h ago", secs / 3600)
+    } else {
+        format!("{}d ago", secs / 86400)
+    }
+}
+
 /// List available chat sessions
 pub async fn list_sessions() -> Result<()> {
     let workspace =
         Workspace::discover().context("Failed to load workspace. Run 'rad init' first.")?;
 
-    let history_dir = workspace.root().join(".radium/_internals/history");
-    let history_file = history_dir.join("history.json");
+    let chat_session_storage = ChatSessionStorage::new(workspace.root())
+        .context("Failed to initialize session storage")?;
 
-    if !history_file.exists() {
+    let ids = chat_session_storage.list_session_ids()?;
+
+    if ids.is_empty() {
         println!("No chat sessions found.");
+        println!(
+            "\n  {} Start a session with: {}",
+            "Tip:".yellow().bold(),
+            "rad chat <agent-id>".cyan()
+        );
         return Ok(());
     }
 
@@ -842,40 +920,38 @@ pub async fn list_sessions() -> Result<()> {
     println!("{}", "╚═══════════════════════════════════════════╝".cyan().bold());
     println!();
 
-    // Read history file to get all sessions
-    let content = std::fs::read_to_string(&history_file)?;
-    let sessions: serde_json::Value = serde_json::from_str(&content)?;
+    // Sort sessions by last_active descending (most recent first)
+    let mut sessions: Vec<_> = ids
+        .iter()
+        .filter_map(|id| {
+            chat_session_storage.load_session(id).ok().map(|s| (id.clone(), s))
+        })
+        .collect();
+    sessions.sort_by(|(_, a), (_, b)| b.last_active.cmp(&a.last_active));
 
-    if let Some(sessions_obj) = sessions.as_object() {
-        if sessions_obj.is_empty() {
-            println!("No chat sessions found.");
-            return Ok(());
-        }
+    for (id, session) in &sessions {
+        let msg_count = session.messages.iter().filter(|m| m.role == "user").count();
+        let agent = session.agent_id.as_deref().unwrap_or("unknown");
+        let age = format_relative_time(session.last_active);
 
-        for (session_id, interactions) in sessions_obj {
-            if let Some(arr) = interactions.as_array() {
-                println!(
-                    "  {} {} {}",
-                    "•".green().bold(),
-                    session_id.white().bold(),
-                    format!("({} messages)", arr.len()).yellow()
-                );
-
-                if let Some(last) = arr.last() {
-                    if let Some(timestamp) = last.get("timestamp") {
-                        if let Some(ts_str) = timestamp.as_str() {
-                            println!("    Last: {}", ts_str);
-                        }
-                    }
-                }
-            }
-        }
+        println!(
+            "  {} {}  {}  {}",
+            "•".green().bold(),
+            id.white().bold(),
+            format!("agent:{}", agent).cyan(),
+            age.dimmed()
+        );
+        println!(
+            "      {}",
+            format!("{} turn{}", msg_count, if msg_count == 1 { "" } else { "s" }).yellow()
+        );
+        println!();
     }
 
-    println!();
     println!(
-        "{} Resume a session with: rad chat <agent-id> --session <name> --resume",
-        "Tip:".yellow().bold()
+        "  {} Resume a session: {}",
+        "Tip:".yellow().bold(),
+        "rad chat <agent-id> --session <name> --resume".cyan()
     );
     println!();
 
