@@ -135,13 +135,15 @@ async fn test_timeout_handling() {
     // Fast tool should succeed
     assert!(results[0].is_ok());
     
-    // Slow tool should timeout
-    assert!(results[1].is_err());
-    let error_msg = format!("{}", results[1].as_ref().unwrap_err());
+    // Slow tool should timeout. With the default ReturnToModel error handling strategy,
+    // the timeout error is wrapped into Ok(ToolResult { is_error: true, output: "Error: ..." }).
+    assert!(results[1].is_ok());
+    let timed_out = results[1].as_ref().unwrap();
+    assert!(timed_out.is_error, "Slow tool should have timed out");
     assert!(
-        error_msg.contains("timeout") || error_msg.contains("timed out"),
-        "Expected timeout error, got: {}",
-        error_msg
+        timed_out.output.contains("timeout") || timed_out.output.contains("timed out"),
+        "Expected timeout error message, got: {}",
+        timed_out.output
     );
 }
 
@@ -222,8 +224,11 @@ async fn test_partial_failure_handling() {
     assert!(results[0].is_ok());
     assert_eq!(results[0].as_ref().unwrap().output, "completed");
 
-    // Second tool should fail
-    assert!(results[1].is_err());
+    // Second tool should return an error result. With the default ReturnToModel
+    // error handling strategy, the error is wrapped in Ok(ToolResult { is_error: true })
+    // so other tools continue executing. (FailFast would produce Err.)
+    assert!(results[1].is_ok());
+    assert!(results[1].as_ref().unwrap().is_error, "Failing tool should produce an error ToolResult");
 
     // Third tool should succeed (partial failure doesn't stop other tools)
     assert!(results[2].is_ok());
