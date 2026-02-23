@@ -37,9 +37,12 @@ fn test_budget_set() {
 
 #[test]
 fn test_budget_status_after_set() {
+    let temp_dir = TempDir::new().unwrap();
     // First set a budget
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    cmd.arg("budget")
+    cmd.env("HOME", temp_dir.path())
+        .env_remove("RADIUM_WORKSPACE")
+        .arg("budget")
         .arg("set")
         .arg("200.00")
         .assert()
@@ -47,7 +50,9 @@ fn test_budget_status_after_set() {
 
     // Then check status
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    cmd.arg("budget")
+    cmd.env("HOME", temp_dir.path())
+        .env_remove("RADIUM_WORKSPACE")
+        .arg("budget")
         .arg("status")
         .assert()
         .success();
@@ -55,9 +60,12 @@ fn test_budget_status_after_set() {
 
 #[test]
 fn test_budget_status_json() {
+    let temp_dir = TempDir::new().unwrap();
     // Set a budget first
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    cmd.arg("budget")
+    cmd.env("HOME", temp_dir.path())
+        .env_remove("RADIUM_WORKSPACE")
+        .arg("budget")
         .arg("set")
         .arg("150.00")
         .assert()
@@ -66,6 +74,8 @@ fn test_budget_status_json() {
     // Check status with JSON
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
     let assert = cmd
+        .env("HOME", temp_dir.path())
+        .env_remove("RADIUM_WORKSPACE")
         .arg("budget")
         .arg("status")
         .arg("--json")
@@ -83,9 +93,12 @@ fn test_budget_status_json() {
 
 #[test]
 fn test_budget_reset() {
+    let temp_dir = TempDir::new().unwrap();
     // First set a budget
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    cmd.arg("budget")
+    cmd.env("HOME", temp_dir.path())
+        .env_remove("RADIUM_WORKSPACE")
+        .arg("budget")
         .arg("set")
         .arg("300.00")
         .assert()
@@ -93,7 +106,9 @@ fn test_budget_reset() {
 
     // Then reset it
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    cmd.arg("budget")
+    cmd.env("HOME", temp_dir.path())
+        .env_remove("RADIUM_WORKSPACE")
+        .arg("budget")
         .arg("reset")
         .assert()
         .success();
@@ -121,9 +136,12 @@ fn test_budget_set_multiple_times() {
 
 #[test]
 fn test_budget_status_json_structure() {
+    let temp_dir = TempDir::new().unwrap();
     // Set a budget
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
-    cmd.arg("budget")
+    cmd.env("HOME", temp_dir.path())
+        .env_remove("RADIUM_WORKSPACE")
+        .arg("budget")
         .arg("set")
         .arg("500.00")
         .assert()
@@ -132,6 +150,8 @@ fn test_budget_status_json_structure() {
     // Get JSON status
     let mut cmd = Command::cargo_bin("radium-cli").unwrap();
     let assert = cmd
+        .env("HOME", temp_dir.path())
+        .env_remove("RADIUM_WORKSPACE")
         .arg("budget")
         .arg("status")
         .arg("--json")
