@@ -201,6 +201,58 @@ fn test_status_json_has_auth_field() {
 }
 
 #[test]
+fn test_status_shows_real_provider_names() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    let assert = cmd.current_dir(temp_dir.path()).arg("status").assert().success();
+
+    let output = assert.get_output();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let lower = stdout.to_lowercase();
+
+    assert!(
+        lower.contains("gemini") || lower.contains("openai") || lower.contains("claude"),
+        "status should show at least one real provider name, got: {stdout}"
+    );
+}
+
+#[test]
+fn test_status_json_models_is_array_with_credential_status() {
+    let temp_dir = TempDir::new().unwrap();
+    init_workspace(&temp_dir);
+
+    let mut cmd = Command::cargo_bin("radium-cli").unwrap();
+    let assert = cmd.current_dir(temp_dir.path()).arg("status").arg("--json").assert().success();
+
+    let output = assert.get_output();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).expect("should be valid JSON");
+
+    // models must be an array
+    assert!(json["models"].is_array(), "models should be an array");
+
+    // authentication must be an object with provider keys
+    let auth = &json["authentication"];
+    assert!(auth.is_object(), "authentication should be an object");
+    let auth_obj = auth.as_object().unwrap();
+    // At least one provider key present
+    assert!(
+        auth_obj.contains_key("gemini") || auth_obj.contains_key("openai") || auth_obj.contains_key("claude"),
+        "authentication should contain at least one provider key"
+    );
+    // Each value is "configured" or "not_configured"
+    for (_, v) in auth_obj {
+        let s = v.as_str().unwrap_or("");
+        assert!(
+            s == "configured" || s == "not_configured",
+            "authentication value should be 'configured' or 'not_configured', got: {s}"
+        );
+    }
+}
+
+#[test]
 fn test_status_with_agents_present() {
     let temp_dir = TempDir::new().unwrap();
     init_workspace(&temp_dir);

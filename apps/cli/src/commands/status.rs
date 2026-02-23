@@ -1,10 +1,37 @@
 //! Status command implementation.
 
+use anyhow::Context;
 use colored::Colorize;
+use radium_core::auth::{CredentialStore, ProviderType};
+use radium_core::engines::{CredentialStatus, EngineRegistry};
+use radium_core::engines::providers::{BurnEngine, ClaudeEngine, GeminiEngine, MockEngine, OpenAIEngine};
 use radium_core::{AgentDiscovery, Workspace};
 use serde_json::json;
+use std::sync::Arc;
 
 use crate::colors::RadiumBrandColors;
+
+/// Initialize engine registry with all available engines.
+fn init_registry() -> EngineRegistry {
+    let config_path = Workspace::discover()
+        .ok()
+        .map(|w| w.radium_dir().join("config.toml"));
+
+    let registry = if let Some(ref path) = config_path {
+        EngineRegistry::with_config_path(path)
+    } else {
+        EngineRegistry::new()
+    };
+
+    let _ = registry.register(Arc::new(MockEngine::new()));
+    let _ = registry.register(Arc::new(ClaudeEngine::new()));
+    let _ = registry.register(Arc::new(OpenAIEngine::new()));
+    let _ = registry.register(Arc::new(GeminiEngine::new()));
+    let _ = registry.register(Arc::new(BurnEngine::new()));
+    let _ = registry.load_config();
+
+    registry
+}
 
 /// Execute the status command.
 ///
@@ -79,20 +106,62 @@ async fn execute_human() -> anyhow::Result<()> {
     }
     println!();
 
-    // Models (stub for now)
+    // Models (live from registry)
     println!("{}", "Models:".bold());
-    println!("  {}", "Available:".dimmed());
-    println!("    • Gemini: gemini-2.0-flash-exp");
-    println!("    • OpenAI: gpt-4, gpt-3.5-turbo");
+    let registry = init_registry();
+    match registry.list_available().await {
+        Ok(engines) if !engines.is_empty() => {
+            for info in &engines {
+                let status_icon = match info.credential_status {
+                    CredentialStatus::Available => "✓".color(colors.success()),
+                    CredentialStatus::Missing | CredentialStatus::Invalid => "✗".color(colors.error()),
+                    CredentialStatus::Unknown => "?".color(colors.warning()),
+                };
+                println!(
+                    "  {} {} ({}) [{}]",
+                    status_icon,
+                    info.name,
+                    info.provider.dimmed(),
+                    info.id.dimmed()
+                );
+            }
+        }
+        Ok(_) => {
+            println!("  {}", "No models configured.".color(colors.warning()));
+            println!("  {}", "Edit .radium/config.toml to configure models.".dimmed());
+        }
+        Err(e) => {
+            println!("  {}", format!("Failed to list models: {}", e).color(colors.error()));
+        }
+    }
     println!();
 
-    // Authentication (stub for now)
+    // Authentication (live from credential store)
     println!("{}", "Authentication:".bold());
-    println!("  {}", "Status:".dimmed());
-    println!("    • Gemini: {}", "Not configured".color(colors.warning()));
-    println!("    • OpenAI: {}", "Not configured".color(colors.warning()));
-    println!();
-    println!("  Use {} to configure authentication", "rad auth login".color(colors.primary()));
+    match CredentialStore::new().context("Failed to initialize credential store") {
+        Ok(store) => {
+            for provider in ProviderType::all() {
+                if store.is_configured(provider) {
+                    println!(
+                        "  • {}: {}",
+                        provider.as_str(),
+                        "✓ Configured".color(colors.success())
+                    );
+                } else {
+                    let env_var = provider.env_var_names().into_iter().next().unwrap_or("(unknown)");
+                    println!(
+                        "  • {}: {} (set {})",
+                        provider.as_str(),
+                        "Not configured".color(colors.warning()),
+                        env_var.dimmed()
+                    );
+                }
+            }
+        }
+        Err(e) => {
+            println!("  {}", format!("Failed to load credentials: {}", e).color(colors.error()));
+        }
+    }
 
     Ok(())
 }
@@ -126,18 +195,43 @@ async fn execute_json() -> anyhow::Result<()> {
         status["agents"] = json!(by_category);
     }
 
-    // Models
-    status["models"] = json!([
-        { "provider": "gemini", "model": "gemini-2.0-flash-exp" },
-        { "provider": "openai", "model": "gpt-4" },
-        { "provider": "openai", "model": "gpt-3.5-turbo" }
-    ]);
+    // Models (live from registry)
+    let registry = init_registry();
+    let engine_list = match registry.list_available().await {
+        Ok(engines) => engines
+            .iter()
+            .map(|info| {
+                json!({
+                    "id": info.id,
+                    "name": info.name,
+                    "provider": info.provider,
+                    "is_default": info.is_default,
+                    "credential_status": match info.credential_status {
+                        CredentialStatus::Available => "available",
+                        CredentialStatus::Missing => "missing",
+                        CredentialStatus::Invalid => "invalid",
+                        CredentialStatus::Unknown => "unknown",
+                    },
+                })
+            })
+            .collect::<Vec<_>>(),
+        Err(_) => vec![],
+    };
+    status["models"] = json!(engine_list);
 
-    // Authentication (stub)
-    status["authentication"] = json!({
-        "gemini": "not_configured",
-        "openai": "not_configured"
-    });
+    // Authentication (live from credential store)
+    let mut auth = serde_json::Map::new();
+    if let Ok(store) = CredentialStore::new() {
+        for provider in ProviderType::all() {
+            let value = if store.is_configured(provider) {
+                "configured"
+            } else {
+                "not_configured"
+            };
+            auth.insert(provider.as_str().to_string(), json!(value));
+        }
+    }
+    status["authentication"] = json!(auth);
 
     println!("{}", serde_json::to_string_pretty(&status)?);
 
