@@ -53,7 +53,8 @@ pub enum YamlComponentType {
     Parallel,
     Signal,
     Timer,
-    ChildWorkflow,
+    #[serde(alias = "child_workflow")]
+    ChildService,
     Log,
 }
 
@@ -194,7 +195,7 @@ settings:
             ("parallel", YamlComponentType::Parallel),
             ("signal", YamlComponentType::Signal),
             ("timer", YamlComponentType::Timer),
-            ("child_workflow", YamlComponentType::ChildWorkflow),
+            ("child_service", YamlComponentType::ChildService),
             ("log", YamlComponentType::Log),
         ];
 
@@ -214,5 +215,16 @@ settings:
         // "action" is the canonical new name
         let parsed: YamlComponentType = serde_yaml::from_str("\"action\"").unwrap();
         assert_eq!(parsed, YamlComponentType::Action);
+    }
+
+    #[test]
+    fn test_child_workflow_alias_deserializes_to_child_service() {
+        // "child_workflow" is the deprecated name; it must still deserialize to ChildService
+        let parsed: YamlComponentType = serde_yaml::from_str("\"child_workflow\"").unwrap();
+        assert_eq!(parsed, YamlComponentType::ChildService);
+
+        // "child_service" is the canonical new name
+        let parsed: YamlComponentType = serde_yaml::from_str("\"child_service\"").unwrap();
+        assert_eq!(parsed, YamlComponentType::ChildService);
     }
 }

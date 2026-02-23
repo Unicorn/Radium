@@ -125,7 +125,7 @@ fn map_component_type(ct: &YamlComponentType) -> NodeType {
         YamlComponentType::Parallel => NodeType::Activity,
         YamlComponentType::Signal => NodeType::Signal,
         YamlComponentType::Timer => NodeType::Activity,
-        YamlComponentType::ChildWorkflow => NodeType::ChildWorkflow,
+        YamlComponentType::ChildService => NodeType::ChildWorkflow,
         YamlComponentType::Log => NodeType::Activity,
     }
 }

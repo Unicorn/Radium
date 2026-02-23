@@ -11,6 +11,7 @@ pub mod behaviors;
 mod action;
 mod activity;
 mod agent;
+mod child_service;
 mod child_workflow;
 mod conditional;
 mod database_query;
@@ -31,7 +32,7 @@ pub use agent::{
     AgentInput, AgentOutput, AIProvider, AnthropicModel, FinishReason, Message, MessageRole,
     ModelConfig, TokenUsage, Tool, ToolCall,
 };
-pub use child_workflow::{
+pub use child_service::{
     ChildWorkflowInput, ChildWorkflowOutput, ParentClosePolicy, WorkflowStatus,
 };
 pub use conditional::{
