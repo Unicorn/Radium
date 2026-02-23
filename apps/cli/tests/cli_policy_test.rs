@@ -126,6 +126,7 @@ fn test_policy_check() {
         .arg("policy")
         .arg("check")
         .arg("test-tool")
+        .arg("--")
         .arg("arg1")
         .arg("arg2")
         .assert()

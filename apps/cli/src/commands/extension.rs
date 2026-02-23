@@ -411,13 +411,19 @@ async fn search_extensions(
     }
 
     // Search marketplace
+    // MarketplaceClient uses reqwest::blocking which creates an internal Tokio
+    // runtime; it must run in a blocking thread to avoid a "cannot drop a runtime
+    // in an async context" panic.
     if !local_only {
-        let mut marketplace_client = MarketplaceClient::new().unwrap_or_else(|_| {
-            // If marketplace client fails to initialize, continue without it
-            MarketplaceClient::with_url("http://localhost:8080".to_string()).unwrap()
-        });
-        
-        if let Ok(matches) = marketplace_client.search_extensions(query) {
+        let query_owned = query.to_string();
+        if let Ok(matches) = tokio::task::spawn_blocking(move || {
+            let mut client = MarketplaceClient::new().unwrap_or_else(|_| {
+                MarketplaceClient::with_url("http://localhost:8080".to_string()).unwrap()
+            });
+            client.search_extensions(&query_owned).unwrap_or_default()
+        })
+        .await
+        {
             marketplace_matches = matches;
         }
     }

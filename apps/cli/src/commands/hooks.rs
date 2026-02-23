@@ -239,6 +239,7 @@ pub async fn execute_hooks_command(command: HooksCommand) -> anyhow::Result<()> 
 
             if !found {
                 eprintln!("Hook '{}' not found.", name);
+                std::process::exit(1);
             }
         }
 

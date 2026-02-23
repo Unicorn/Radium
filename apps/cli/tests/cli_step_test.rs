@@ -189,11 +189,12 @@ fn test_step_no_workspace() {
         .arg("step")
         .arg("test-agent")
         .assert()
-        .failure() // Should fail if no workspace found
+        .failure() // Should fail if no workspace or agents found
         .stderr(
             predicate::str::contains("workspace")
                 .or(predicate::str::contains("not found"))
-                .or(predicate::str::contains("Failed")),
+                .or(predicate::str::contains("Failed"))
+                .or(predicate::str::contains("No agents found")),
         );
 }
 

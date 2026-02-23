@@ -197,7 +197,7 @@ fn test_status_json_has_auth_field() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
 
-    assert!(json.get("auth").is_some(), "JSON should have auth field");
+    assert!(json.get("authentication").is_some(), "JSON should have authentication field");
 }
 
 #[test]

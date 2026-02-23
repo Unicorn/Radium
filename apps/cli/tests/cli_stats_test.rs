@@ -202,7 +202,7 @@ async fn test_stats_model_no_session() {
         .arg("model")
         .assert()
         .success()
-        .stdout(predicate::str::contains("Coming soon"));
+        .stdout(predicate::str::contains("Aggregated Model Usage"));
 }
 
 #[tokio::test]
@@ -353,17 +353,21 @@ async fn test_stats_export_all() {
     cmd.current_dir(&path)
         .arg("stats")
         .arg("export")
+        .arg("--format")
+        .arg("json")
         .arg("--output")
         .arg(&output_path)
         .assert()
         .success()
         .stdout(predicate::str::contains("Exported"));
-    
+
     // Verify file was created
     assert!(output_file.exists());
     let content = std::fs::read_to_string(&output_file).unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
-    assert!(parsed.is_array());
+    // JsonExporter wraps records in {"metadata": {...}, "records": [...]}
+    assert!(parsed.is_object());
+    assert!(parsed.get("records").is_some());
 }
 
 #[tokio::test]

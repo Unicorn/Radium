@@ -5,7 +5,7 @@ use super::types::{PolicyError, PolicyResult};
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::sync::{mpsc, RwLock};
 use tracing::{error, info};
 
 /// Policy reloader that watches for file changes and hot-reloads rules.
@@ -28,50 +28,28 @@ impl PolicyReloader {
     ///
     /// # Returns
     /// A new `PolicyReloader` that watches the file for changes.
+    ///
+    /// # Panics
+    /// Must be called from within a Tokio runtime context.
     pub fn new(
         policy_file: impl AsRef<Path>,
         engine: Arc<RwLock<PolicyEngine>>,
     ) -> PolicyResult<Self> {
         let policy_file = policy_file.as_ref().to_path_buf();
 
-        // Create file watcher
-        let mut watcher = notify::recommended_watcher(Self::create_event_handler(Arc::clone(&engine), policy_file.clone()))
-            .map_err(|e| PolicyError::InvalidConfig(format!("Failed to create file watcher: {}", e)))?;
+        // Create a channel so the notify OS thread can safely signal reload events
+        // without calling tokio::spawn (which would panic on a non-Tokio thread).
+        let (tx, mut rx) = mpsc::channel::<()>(10);
 
-        // Watch the policy file
-        watcher.watch(&policy_file, RecursiveMode::NonRecursive)
-            .map_err(|e| PolicyError::InvalidConfig(format!("Failed to watch policy file: {}", e)))?;
-
-        info!(policy_file = %policy_file.display(), "Started watching policy file for changes");
-
-        Ok(Self {
-            policy_file,
-            engine,
-            watcher,
-        })
-    }
-
-    /// Creates an event handler for file system events.
-    fn create_event_handler(
-        engine: Arc<RwLock<PolicyEngine>>,
-        policy_file: PathBuf,
-    ) -> impl Fn(Result<Event, notify::Error>) + Send + Sync + 'static {
-        move |result: Result<Event, notify::Error>| {
-            match result {
+        let policy_file_for_watcher = policy_file.clone();
+        let mut watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
+            match res {
                 Ok(event) => {
-                    // Only process write/modify events for the policy file
                     if matches!(event.kind, EventKind::Modify(_) | EventKind::Create(_)) {
                         for path in &event.paths {
-                            if path == &policy_file {
-                                // Spawn async task to reload
-                                let engine_clone = Arc::clone(&engine);
-                                let file_clone = policy_file.clone();
-                                tokio::spawn(async move {
-                                    if let Err(e) = Self::reload_policy(&engine_clone, &file_clone).await {
-                                        let error_msg = format!("Failed to reload policy file: {}", e);
-                                        tracing::error!("{}", error_msg);
-                                    }
-                                });
+                            if path == &policy_file_for_watcher {
+                                // blocking_send is safe to call from any thread
+                                let _ = tx.blocking_send(());
                                 break;
                             }
                         }
@@ -81,7 +59,32 @@ impl PolicyReloader {
                     error!(error = %e, "File watcher error");
                 }
             }
-        }
+        })
+        .map_err(|e| PolicyError::InvalidConfig(format!("Failed to create file watcher: {}", e)))?;
+
+        // Watch the policy file
+        watcher.watch(&policy_file, RecursiveMode::NonRecursive)
+            .map_err(|e| PolicyError::InvalidConfig(format!("Failed to watch policy file: {}", e)))?;
+
+        info!(policy_file = %policy_file.display(), "Started watching policy file for changes");
+
+        // Spawn a Tokio task (from within this Tokio context) to process reload signals.
+        // When the watcher drops, tx drops, closing the channel and ending this task.
+        let engine_for_task = Arc::clone(&engine);
+        let policy_file_for_task = policy_file.clone();
+        tokio::spawn(async move {
+            while rx.recv().await.is_some() {
+                if let Err(e) = Self::reload_policy(&engine_for_task, &policy_file_for_task).await {
+                    error!(error = %e, "Failed to reload policy on file change");
+                }
+            }
+        });
+
+        Ok(Self {
+            policy_file,
+            engine,
+            watcher,
+        })
     }
 
     /// Reloads policy rules from the file.

@@ -625,8 +625,12 @@ async fn main() -> anyhow::Result<()> {
         _ => Level::INFO,
     };
 
-    let subscriber =
-        FmtSubscriber::builder().with_max_level(level).without_time().with_target(false).finish();
+    let subscriber = FmtSubscriber::builder()
+        .with_max_level(level)
+        .without_time()
+        .with_target(false)
+        .with_writer(std::io::stderr)
+        .finish();
     tracing::subscriber::set_global_default(subscriber)?;
 
     // Load configuration

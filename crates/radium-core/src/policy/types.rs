@@ -13,6 +13,7 @@ pub enum PolicyAction {
     /// Deny the tool execution.
     Deny,
     /// Ask the user for approval before executing.
+    #[serde(alias = "ask_user")]
     AskUser,
     /// Show a preview of what would be executed without actually running.
     #[serde(rename = "dry_run_first")]

@@ -340,16 +340,19 @@ impl EngineRegistry {
         // Verify engine exists
         self.get(id)?;
 
-        let mut default = self
-            .default_engine
-            .write()
-            .map_err(|e| EngineError::RegistryError(format!("Lock poisoned: {}", e)))?;
+        // Update the in-memory default, then drop the write guard before calling
+        // save_config(), which re-acquires a read lock on the same RwLock.
+        {
+            let mut default = self
+                .default_engine
+                .write()
+                .map_err(|e| EngineError::RegistryError(format!("Lock poisoned: {}", e)))?;
+            *default = Some(id.to_string());
+        } // write guard dropped here
 
-        *default = Some(id.to_string());
-        
-        // Persist to config file
+        // Persist to config file (acquires a read lock on default_engine)
         self.save_config()?;
-        
+
         Ok(())
     }
 

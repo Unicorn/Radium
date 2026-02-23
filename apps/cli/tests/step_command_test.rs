@@ -17,6 +17,15 @@ fn create_test_agent_config(temp_dir: &TempDir, agent_id: &str) -> PathBuf {
     let agents_dir = temp_dir.path().join("agents").join("test");
     fs::create_dir_all(&agents_dir).unwrap();
 
+    // Create prompt file relative to config dir (required by AgentConfigFile::load validation)
+    let prompts_dir = agents_dir.join("prompts");
+    fs::create_dir_all(&prompts_dir).unwrap();
+    fs::write(
+        prompts_dir.join("test-agent.md"),
+        "# Test Agent\n\nYou are a test agent.\n\n{{user_input}}\n",
+    )
+    .unwrap();
+
     let config_path = agents_dir.join(format!("{}.toml", agent_id));
     let config_content = format!(
         r#"[agent]
@@ -193,6 +202,11 @@ fn test_agent_config_with_all_fields() {
     let temp_dir = TempDir::new().unwrap();
     let agents_dir = temp_dir.path().join("agents").join("test");
     fs::create_dir_all(&agents_dir).unwrap();
+
+    // Create prompt file relative to config dir (required by AgentConfigFile::load validation)
+    let prompts_dir = agents_dir.join("prompts");
+    fs::create_dir_all(&prompts_dir).unwrap();
+    fs::write(prompts_dir.join("full-agent.md"), "# Full Agent\n\n{{user_input}}\n").unwrap();
 
     let config_path = agents_dir.join("full-config.toml");
     let config_content = r#"[agent]

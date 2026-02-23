@@ -10,8 +10,6 @@
 //! - Sandboxed execution for safe command execution
 
 use super::error::{CommandError, Result};
-#[cfg(feature = "orchestrator-integration")]
-use crate::hooks::integration::OrchestratorHooks;
 use crate::hooks::registry::HookRegistry;
 use crate::sandbox::Sandbox;
 use serde::{Deserialize, Serialize};
@@ -99,7 +97,6 @@ impl CustomCommand {
     ///
     /// # Errors
     /// Returns error if execution fails or hooks deny execution
-    #[allow(unused_variables, unused_mut)] // variables used only inside #[cfg(feature = "orchestrator-integration")] blocks
     pub async fn execute_with_hooks_and_sandbox(
         &self,
         args: &[String],
@@ -107,6 +104,9 @@ impl CustomCommand {
         hook_registry: Option<Arc<HookRegistry>>,
         sandbox: Option<&mut Box<dyn Sandbox>>,
     ) -> Result<String> {
+        use crate::hooks::registry::HookType;
+        use crate::hooks::tool::{ToolHookContext, ToolHookType};
+
         // Prepare tool name and arguments for hooks
         let tool_name = self.name.clone();
         let tool_args_json = json!({
@@ -117,20 +117,20 @@ impl CustomCommand {
 
         // Execute tool selection hooks
         if let Some(registry) = &hook_registry {
-            #[cfg(feature = "orchestrator-integration")]
-            let hooks = OrchestratorHooks::new(Arc::clone(registry));
-            #[cfg(feature = "orchestrator-integration")]
-            match hooks.tool_selection(&tool_name, &tool_args_json).await {
-                Ok(approved) => {
-                    if !approved {
-                        return Err(CommandError::ToolDenied(format!(
-                            "Tool execution denied by hook for command: {}",
-                            tool_name
-                        )));
+            let context = ToolHookContext::selection(tool_name.clone(), tool_args_json.clone());
+            let hook_context = context.to_hook_context(ToolHookType::Selection);
+            match registry.execute_hooks(HookType::ToolSelection, &hook_context).await {
+                Ok(results) => {
+                    for result in results {
+                        if !result.should_continue {
+                            return Err(CommandError::ToolDenied(format!(
+                                "Tool execution denied by hook for command: {}",
+                                tool_name
+                            )));
+                        }
                     }
                 }
                 Err(e) => {
-                    // Log hook error but continue execution
                     tracing::warn!(
                         command = %tool_name,
                         error = %e,
@@ -143,21 +143,19 @@ impl CustomCommand {
         // Execute before tool hooks
         let mut effective_args = tool_args_json.clone();
         if let Some(registry) = &hook_registry {
-            #[cfg(feature = "orchestrator-integration")]
-            let hooks = OrchestratorHooks::new(Arc::clone(registry));
-            #[cfg(feature = "orchestrator-integration")]
-            match hooks.before_tool_execution(&tool_name, &effective_args).await {
-                Ok(modified_args) => {
-                    effective_args = modified_args;
-                    // Extract args from modified arguments if present
-                    if let Some(_new_args_array) = effective_args.get("args").and_then(|v| v.as_array()) {
-                        // Update args if hook modified them
-                        // Note: We can't easily modify the args slice, so we'll use the original args
-                        // but hooks can modify the tool_args_json which affects the template rendering
+            let context = ToolHookContext::before(tool_name.clone(), effective_args.clone());
+            let hook_context = context.to_hook_context(ToolHookType::Before);
+            match registry.execute_hooks(HookType::BeforeTool, &hook_context).await {
+                Ok(results) => {
+                    for result in results {
+                        if let Some(data) = result.modified_data {
+                            if let Some(args_val) = data.get("modified_arguments") {
+                                effective_args = args_val.clone();
+                            }
+                        }
                     }
                 }
                 Err(e) => {
-                    // Log hook error but continue execution
                     tracing::warn!(
                         command = %tool_name,
                         error = %e,
@@ -182,19 +180,23 @@ impl CustomCommand {
         // Execute after tool hooks
         let mut effective_result = result_json.clone();
         if let Some(registry) = &hook_registry {
-            #[cfg(feature = "orchestrator-integration")]
-            let hooks = OrchestratorHooks::new(Arc::clone(registry));
-            #[cfg(feature = "orchestrator-integration")]
-            match hooks.after_tool_execution(&tool_name, &effective_args, &effective_result).await {
-                Ok(modified_result) => {
-                    effective_result = modified_result;
-                    // Extract output from modified result if present
+            let context =
+                ToolHookContext::after(tool_name.clone(), effective_args.clone(), effective_result.clone());
+            let hook_context = context.to_hook_context(ToolHookType::After);
+            match registry.execute_hooks(HookType::AfterTool, &hook_context).await {
+                Ok(results) => {
+                    for result in results {
+                        if let Some(data) = result.modified_data {
+                            if let Some(res) = data.get("modified_result") {
+                                effective_result = res.clone();
+                            }
+                        }
+                    }
                     if let Some(new_output) = effective_result.get("output").and_then(|v| v.as_str()) {
                         rendered = new_output.to_string();
                     }
                 }
                 Err(e) => {
-                    // Log hook error but continue
                     tracing::warn!(
                         command = %tool_name,
                         error = %e,

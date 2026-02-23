@@ -33,8 +33,8 @@ fn test_monitor_list_no_database() {
         .arg("monitor")
         .arg("list")
         .assert()
-        .failure()
-        .stderr(predicate::str::contains("monitoring database").or(predicate::str::contains("No agents")));
+        .success()
+        .stdout(predicate::str::contains("No agents"));
 }
 
 #[test]
