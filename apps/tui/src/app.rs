@@ -477,6 +477,9 @@ impl App {
             app.onboarding_view = Some(crate::views::OnboardingView::new());
         }
 
+        // Propagate workspace root into prompt_data so SessionList can load workspace sessions
+        app.prompt_data.workspace_root = workspace_status_clone.as_ref().and_then(|ws| ws.root.clone());
+
         // Check for resumable executions on startup
         let workspace_root = workspace_status_clone.as_ref().and_then(|ws| ws.root.clone());
         if let Some(root) = workspace_root.clone() {
@@ -5009,6 +5012,12 @@ impl App {
             }
             OrchestrationEvent::RecommendationAdded { description, .. } => {
                 self.orchestrator_panel.append_log(format!("[recommendation] {}", description));
+            }
+            OrchestrationEvent::RecommendationsExecutionRequested { .. } => {
+                self.orchestrator_panel
+                    .append_log("[recommendation] execution requested".to_string());
+                self.prompt_data.active_thinking =
+                    Some("⚙ Executing recommendations...".to_string());
             }
             _ => {}
         }

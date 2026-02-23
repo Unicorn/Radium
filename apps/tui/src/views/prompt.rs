@@ -57,6 +57,8 @@ pub struct PromptData {
     pub chat_scroll_offset: usize,
     /// Active thinking content from streaming (for display in chat)
     pub active_thinking: Option<String>,
+    /// Workspace root path, set from App::workspace_status after construction
+    pub workspace_root: Option<std::path::PathBuf>,
 }
 
 impl PromptData {
@@ -90,6 +92,7 @@ impl PromptData {
             chat_history_focused: false, // Prompt editor focused by default
             chat_scroll_offset: usize::MAX, // Start at bottom of conversation (auto-scroll)
             active_thinking: None,
+            workspace_root: None,
         }
     }
 
@@ -413,7 +416,7 @@ pub fn render_prompt(frame: &mut Frame, area: Rect, data: &PromptData, model_fil
         }
         DisplayContext::SessionList => {
             // Load and render sessions
-            let workspace_root = None; // TODO: Get from app state
+            let workspace_root = data.workspace_root.clone();
             if let Ok(session_manager) = crate::session_manager::SessionManager::new(workspace_root)
             {
                 if let Ok(sessions_by_date) = session_manager.load_sessions() {
