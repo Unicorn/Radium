@@ -1,0 +1,283 @@
+version: "1.0.0"
+
+types:
+  # ============================================================================
+  # BASE TYPES (Layer 0) - Fundamental data types
+  # ============================================================================
+
+  string:
+    layer: base
+    description: "A sequence of Unicode characters"
+    schema_org: "Schema.org/Text"
+
+  integer:
+    layer: base
+    description: "A whole number without fractional component"
+    schema_org: "Schema.org/Integer"
+
+  float:
+    layer: base
+    description: "A double-precision floating-point number (IEEE 754)"
+    schema_org: "Schema.org/Float"
+
+  number:
+    layer: base
+    description: "Alias for float; a numeric value with optional fractional component"
+    alias_of: "float"
+
+  boolean:
+    layer: base
+    description: "A true or false value"
+    schema_org: "Schema.org/Boolean"
+
+  array:
+    layer: base
+    description: "An ordered collection of elements of type T"
+    schema_org: "Schema.org/ItemList"
+    generic_param: "T"
+
+  map:
+    layer: base
+    description: "A collection of key-value pairs with keys of type K and values of type V"
+    generic_params: ["K", "V"]
+
+  object:
+    layer: base
+    description: "A structured record with named fields of heterogeneous types"
+    schema_org: "Schema.org/StructuredValue"
+
+  any:
+    layer: base
+    description: "A value of any type; opt-out of type checking"
+
+  "null":
+    layer: base
+    description: "The absence of a value"
+
+  # ============================================================================
+  # FORMAT TYPES (Layer 1) - Constrained formats of base types
+  # ============================================================================
+
+  "string:email":
+    layer: format
+    description: "An RFC 5322 email address"
+    base: "string"
+    validation: "RFC 5322"
+    pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+    schema_org: "Schema.org/email"
+
+  "string:uri":
+    layer: format
+    description: "An RFC 3986 Uniform Resource Identifier"
+    base: "string"
+    validation: "RFC 3986"
+    pattern: "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]+$"
+    schema_org: "Schema.org/URL"
+
+  "string:url":
+    layer: format
+    description: "Alias for string:uri; a web URL"
+    alias_of: "string:uri"
+
+  "string:uuid":
+    layer: format
+    description: "An RFC 4122 Universally Unique Identifier"
+    base: "string"
+    validation: "RFC 4122"
+    pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+
+  "string:date-time":
+    layer: format
+    description: "An RFC 3339 / ISO 8601 date-time string"
+    base: "string"
+    validation: "RFC 3339"
+    pattern: "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
+    schema_org: "Schema.org/DateTime"
+
+  "string:date":
+    layer: format
+    description: "An ISO 8601 date string (YYYY-MM-DD)"
+    base: "string"
+    validation: "ISO 8601"
+    pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+    schema_org: "Schema.org/Date"
+
+  "string:time":
+    layer: format
+    description: "An ISO 8601 time string (HH:MM:SS)"
+    base: "string"
+    validation: "ISO 8601"
+    pattern: "^\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})?$"
+    schema_org: "Schema.org/Time"
+
+  "string:ipv4":
+    layer: format
+    description: "An IPv4 address in dotted-decimal notation"
+    base: "string"
+    validation: "RFC 791"
+    pattern: "^((25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(25[0-5]|2[0-4]\\d|[01]?\\d\\d?)$"
+
+  "string:ipv6":
+    layer: format
+    description: "An IPv6 address"
+    base: "string"
+    validation: "RFC 4291"
+
+  "string:hostname":
+    layer: format
+    description: "A DNS hostname"
+    base: "string"
+    validation: "RFC 1123"
+    pattern: "^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\\.)*[a-zA-Z]{2,}$"
+
+  "string:regex":
+    layer: format
+    description: "A regular expression pattern"
+    base: "string"
+
+  "string:password":
+    layer: format
+    description: "A sensitive string that should be masked in UI and logs"
+    base: "string"
+
+  "string:byte":
+    layer: format
+    description: "Base64-encoded binary data (RFC 4648)"
+    base: "string"
+    validation: "RFC 4648"
+    pattern: "^[A-Za-z0-9+/]*={0,2}$"
+
+  "integer:int32":
+    layer: format
+    description: "A 32-bit signed integer (-2,147,483,648 to 2,147,483,647)"
+    base: "integer"
+
+  "integer:int64":
+    layer: format
+    description: "A 64-bit signed integer"
+    base: "integer"
+
+  "number:float":
+    layer: format
+    description: "A single-precision 32-bit IEEE 754 floating-point number"
+    base: "float"
+
+  "number:double":
+    layer: format
+    description: "A double-precision 64-bit IEEE 754 floating-point number"
+    base: "float"
+
+  # ============================================================================
+  # SEMANTIC TYPES (Layer 2) - Domain-meaningful types
+  # ============================================================================
+
+  currency:
+    layer: semantic
+    description: "An ISO 4217 three-letter currency code (e.g., USD, EUR, GBP)"
+    base: "string"
+    validation: "ISO 4217"
+    pattern: "^[A-Z]{3}$"
+    schema_org: "Schema.org/priceCurrency"
+
+  money:
+    layer: semantic
+    description: "A monetary value with amount and currency"
+    base: "object"
+    schema_org: "Schema.org/MonetaryAmount"
+    schema_org_mapping:
+      amount: "Schema.org/MonetaryAmount/value"
+      currency: "Schema.org/MonetaryAmount/currency"
+    structure:
+      amount: "float"
+      currency: "currency"
+
+  country:
+    layer: semantic
+    description: "An ISO 3166-1 alpha-2 country code (e.g., US, GB, DE)"
+    base: "string"
+    validation: "ISO 3166"
+    pattern: "^[A-Z]{2}$"
+    schema_org: "Schema.org/Country"
+
+  language:
+    layer: semantic
+    description: "An ISO 639-1 two-letter language code (e.g., en, fr, de)"
+    base: "string"
+    validation: "ISO 639-1"
+    pattern: "^[a-z]{2}$"
+    schema_org: "Schema.org/Language"
+
+  phone:
+    layer: semantic
+    description: "An E.164 international phone number (e.g., +14155552671)"
+    base: "string"
+    validation: "E.164"
+    pattern: "^\\+[1-9]\\d{1,14}$"
+    schema_org: "Schema.org/telephone"
+
+  timezone:
+    layer: semantic
+    description: "An IANA time zone identifier (e.g., America/New_York, UTC)"
+    base: "string"
+    validation: "IANA Time Zone Database"
+    pattern: "^[A-Za-z_]+(/[A-Za-z_]+)*$"
+
+  locale:
+    layer: semantic
+    description: "A CLDR / BCP 47 locale identifier (e.g., en-US, fr-FR)"
+    base: "string"
+    validation: "BCP 47"
+    pattern: "^[a-z]{2}(-[A-Z]{2})?$"
+
+  content_type:
+    layer: semantic
+    description: "An IANA media type (e.g., application/json, text/html)"
+    base: "string"
+    validation: "IANA Media Types"
+    pattern: "^[a-zA-Z0-9][a-zA-Z0-9!#$&.+-^_]*\\/[a-zA-Z0-9][a-zA-Z0-9!#$&.+-^_]*$"
+
+  "color:hex":
+    layer: semantic
+    description: "A hexadecimal color code (e.g., #FF5733, #fff)"
+    base: "string"
+    pattern: "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+
+  "geo:coordinates":
+    layer: semantic
+    description: "A geographic coordinate pair (latitude and longitude in decimal degrees)"
+    base: "object"
+    schema_org: "Schema.org/GeoCoordinates"
+    schema_org_mapping:
+      latitude: "Schema.org/GeoCoordinates/latitude"
+      longitude: "Schema.org/GeoCoordinates/longitude"
+    structure:
+      latitude: "float"
+      longitude: "float"
+
+  duration:
+    layer: semantic
+    description: "An ISO 8601 duration (e.g., PT1H30M, P1DT12H)"
+    base: "string"
+    validation: "ISO 8601"
+    pattern: "^P(?:\\d+Y)?(?:\\d+M)?(?:\\d+W)?(?:\\d+D)?(?:T(?:\\d+H)?(?:\\d+M)?(?:\\d+S)?)?$"
+    schema_org: "Schema.org/Duration"
+
+  cron:
+    layer: semantic
+    description: "A cron schedule expression (e.g., 0 9 * * MON-FRI)"
+    base: "string"
+    validation: "POSIX cron"
+    pattern: "^(\\S+\\s+){4}\\S+$"
+
+  semver:
+    layer: semantic
+    description: "A semantic version string (e.g., 1.2.3, 0.1.0-alpha.1)"
+    base: "string"
+    validation: "SemVer 2.0.0"
+    pattern: "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(-[a-zA-Z0-9]+(\\.[a-zA-Z0-9]+)*)?(\\+[a-zA-Z0-9]+(\\.[a-zA-Z0-9]+)*)?$"
+
+  secret_ref:
+    layer: semantic
+    description: "A reference to a secret stored in a secure vault (e.g., vault://secrets/api-key)"
+    base: "string"
+    pattern: "^(vault|env|ssm|secret)://[a-zA-Z0-9/_.-]+$"
