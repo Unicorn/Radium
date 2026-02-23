@@ -1,7 +1,7 @@
 //! Privacy command implementation.
 
 use colored::Colorize;
-use radium_core::security::PatternLibrary;
+use radium_core::security::{Pattern, PatternLibrary};
 use radium_core::workspace::Workspace;
 use std::fs;
 use std::io::{self, Read};
@@ -44,12 +44,36 @@ async fn check_file(file_path: &PathBuf) -> anyhow::Result<()> {
     let content = fs::read_to_string(file_path)
         .map_err(|e| anyhow::anyhow!("Failed to read file {}: {}", file_path.display(), e))?;
 
-    // Load config from workspace to get custom patterns
-    let _workspace = Workspace::discover().ok();
-    let pattern_library = PatternLibrary::default();
-
-    // TODO: Load custom patterns from config if workspace found
-    // For now, just use default patterns
+    // Load default patterns, then merge any custom patterns from workspace config
+    let mut pattern_library = PatternLibrary::default();
+    if let Some(workspace) = Workspace::discover().ok() {
+        let config_path = workspace.radium_dir().join("config.toml");
+        if config_path.exists() {
+            if let Ok(content) = fs::read_to_string(&config_path) {
+                if let Ok(config) = toml::from_str::<toml::Value>(&content) {
+                    if let Some(patterns) = config
+                        .get("privacy")
+                        .and_then(|p| p.get("custom_patterns"))
+                        .and_then(|v| v.as_array())
+                    {
+                        for entry in patterns {
+                            let name = entry.get("name").and_then(|v| v.as_str());
+                            let regex_str = entry.get("regex").and_then(|v| v.as_str());
+                            if let (Some(name), Some(regex_str)) = (name, regex_str) {
+                                match regex::Regex::new(regex_str) {
+                                    Ok(re) => pattern_library.add_pattern(Pattern::new(name, re)),
+                                    Err(e) => eprintln!(
+                                        "  {} Skipping invalid custom pattern '{}': {}",
+                                        "!".yellow(), name, e
+                                    ),
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     // Check for sensitive data
     let matches = pattern_library.find_matches(&content);

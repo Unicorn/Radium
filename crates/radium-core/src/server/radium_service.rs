@@ -103,6 +103,8 @@ pub struct RadiumService {
     braingrid_client: Arc<BraingridClient>,
     /// Session manager for daemon-backed sessions.
     session_manager: Arc<crate::session::SessionManager>,
+    /// Pending approval waiters: request_id → oneshot sender of approval result.
+    pending_approvals: Arc<tokio::sync::Mutex<std::collections::HashMap<String, tokio::sync::oneshot::Sender<bool>>>>,
     /// Event bridge for routing orchestration events to session streams (workflow feature only).
     #[cfg(feature = "workflow")]
     event_bridge: Arc<EventBridge>,
@@ -248,12 +250,24 @@ impl RadiumService {
             progress_tracker,
             braingrid_client,
             session_manager,
+            pending_approvals: Arc::new(tokio::sync::Mutex::new(std::collections::HashMap::new())),
             #[cfg(feature = "workflow")]
             event_bridge,
             #[cfg(feature = "workflow")]
             orchestration_service,
             budget_manager,
         }
+    }
+
+    /// Register a waiter for an approval response, keyed by request_id.
+    ///
+    /// Tool execution code calls this before sending an `ApprovalRequestEvent` to the client.
+    /// The returned receiver unblocks when the client sends back an `ApprovalResponseEvent`
+    /// with the matching `request_id`.
+    pub async fn wait_for_approval(&self, request_id: String) -> tokio::sync::oneshot::Receiver<bool> {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        self.pending_approvals.lock().await.insert(request_id, tx);
+        rx
     }
 
     /// Gets a reference to the message bus.
@@ -2407,18 +2421,41 @@ impl Radium for RadiumService {
 
         // Spawn task to handle client messages (approval responses, etc.)
         let session_manager_clone = Arc::clone(&self.session_manager);
+        let pending_approvals = Arc::clone(&self.pending_approvals);
         tokio::spawn(async move {
             while let Some(event_result) = client_stream.next().await {
                 match event_result {
                     Ok(event) => {
                         // Handle client events (e.g., ApprovalResponseEvent)
                         if let Some(crate::proto::session_event::Event::ApprovalResponse(approval_response)) = event.event {
-                            // TODO: Unblock waiting tool execution
                             info!(
                                 session_id = %approval_response.session_id,
                                 approved = approval_response.approved,
                                 "Received approval response"
                             );
+
+                            // Unblock any tool execution waiting for this approval
+                            if let Some(request_id) = &approval_response.request_id {
+                                let mut waiters = pending_approvals.lock().await;
+                                if let Some(tx) = waiters.remove(request_id) {
+                                    let _ = tx.send(approval_response.approved);
+                                    debug!(request_id = %request_id, "Unblocked waiting tool execution");
+                                }
+                            }
+
+                            // Persist the approval decision in the session
+                            let approval = crate::session::state::Approval {
+                                id: approval_response.request_id.clone().unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
+                                tool_name: String::new(), // populated by the request side
+                                arguments_json: String::new(),
+                                policy_rule: String::new(),
+                                approved: approval_response.approved,
+                                reason: approval_response.reason.clone(),
+                                timestamp: chrono::Utc::now(),
+                            };
+                            let _ = session_manager_clone
+                                .append_approval(&approval_response.session_id, approval)
+                                .await;
                         }
                     }
                     Err(e) => {

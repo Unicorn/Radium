@@ -60,10 +60,17 @@ impl DaemonClient {
     pub async fn connect(&mut self, max_retries: Option<usize>) -> Result<RadiumClient<Channel>> {
         let max_retries = max_retries.unwrap_or(3);
 
-        // Check if we have a cached client
-        if let Some(ref client) = self.client {
-            // TODO: Add health check to verify connection is still alive
-            return Ok(client.clone());
+        // Check if we have a cached client, verify it is still alive
+        if let Some(ref mut client) = self.client {
+            match client.ping(radium_core::proto::PingRequest {
+                message: "health_check".to_string(),
+            }).await {
+                Ok(_) => return Ok(client.clone()),
+                Err(e) => {
+                    debug!("Cached connection failed health check ({}), reconnecting...", e);
+                    self.client = None;
+                }
+            }
         }
 
         // Create new connection with retry logic

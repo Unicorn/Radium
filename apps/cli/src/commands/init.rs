@@ -36,13 +36,24 @@ pub async fn execute(
     } else {
         // Interactive mode
 
-        // Detect VCS
-
-        let is_git_repo = current_dir.join(".git").exists();
-
-        let _is_git_root = is_git_repo; // Simplified check - assumes .git is in current dir
-
-        // TODO: Deeper git check could check parent dirs, but for now we check CWD.
+        // Detect VCS — walk up from current dir to find a .git directory
+        let (is_git_repo, is_git_root) = {
+            let mut dir = current_dir.as_path();
+            let mut found_root = None;
+            loop {
+                if dir.join(".git").exists() {
+                    found_root = Some(dir.to_path_buf());
+                    break;
+                }
+                match dir.parent() {
+                    Some(parent) => dir = parent,
+                    None => break,
+                }
+            }
+            let is_repo = found_root.is_some();
+            let at_root = found_root.as_deref() == Some(current_dir.as_path());
+            (is_repo, at_root)
+        };
 
         // If we are inside a git repo but not at root, we might want to warn.
 
@@ -53,7 +64,14 @@ pub async fn execute(
         let _default_path = ".radium";
 
         if is_git_repo {
-            println!("{} Git repository detected.", "•".color(colors.primary()));
+            if is_git_root {
+                println!("{} Git repository detected.", "•".color(colors.primary()));
+            } else {
+                println!(
+                    "{} Inside a Git repository (not at root). Consider initializing at the repo root.",
+                    "•".color(colors.warning())
+                );
+            }
         }
 
         // We interpret the "path" as where the WORKSPACE ROOT is.

@@ -15,7 +15,7 @@ use radium_core::{
         StatePersistence,
     },
     storage::Database,
-    Workspace,
+    AgentDiscovery, Workspace,
 };
 use radium_orchestrator::{AgentExecutor, AgentRegistry, Orchestrator};
 use std::sync::Arc;
@@ -214,11 +214,20 @@ async fn execute(
     println!("  {} Orchestrator initialized", "✓".color(colors.success()));
     println!();
 
-    // Initialize agent registry
+    // Initialize agent registry and populate it from workspace agent configs
     println!("{}", "Loading agent registry...".dimmed());
     let agent_registry = Arc::new(AgentRegistry::new());
-    // TODO: Load agents from workspace
-    println!("  {} Agent registry loaded", "✓".color(colors.success()));
+    let discovery = AgentDiscovery::new();
+    if let Ok(agent_configs) = discovery.discover_all() {
+        for (_, config) in agent_configs {
+            let agent = Arc::new(radium_orchestrator::SimpleAgent::new(
+                config.id.clone(),
+                config.description.clone(),
+            ));
+            agent_registry.register_agent(agent).await;
+        }
+    }
+    println!("  {} Agent registry loaded ({} agents)", "✓".color(colors.success()), agent_registry.count().await);
     println!();
 
     // Initialize model
