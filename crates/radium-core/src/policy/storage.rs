@@ -107,7 +107,7 @@ impl PolicyAnalyticsStorage {
         let conn = self.conn.lock().unwrap();
         conn.execute(
             r"
-            INSERT INTO policy_events 
+            INSERT INTO policy_events
             (timestamp, tool_name, arguments, action, matched_rule, reason, user)
             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
             ",
@@ -122,17 +122,16 @@ impl PolicyAnalyticsStorage {
             ],
         )?;
 
-        // Update rule metrics
+        // Update rule metrics using the already-held lock guard
         if let Some(ref rule_name) = event.matched_rule {
-            self.update_rule_metrics(rule_name, &event.action)?;
+            Self::update_rule_metrics_with_conn(&conn, rule_name, &event.action)?;
         }
 
         Ok(())
     }
 
-    /// Updates rule metrics for a given rule.
-    fn update_rule_metrics(&self, rule_name: &str, action: &str) -> SqliteResult<()> {
-        let conn = self.conn.lock().unwrap();
+    /// Updates rule metrics using an already-locked connection (avoids double-locking deadlock).
+    fn update_rule_metrics_with_conn(conn: &Connection, rule_name: &str, action: &str) -> SqliteResult<()> {
         let timestamp = chrono::Utc::now().timestamp();
 
         // Try to update existing metrics
