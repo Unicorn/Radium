@@ -22,6 +22,7 @@ pub mod security;
 pub mod supabase;
 pub mod validation;
 pub mod verification;
+pub mod versioning;
 pub mod yaml_format;
 
 pub use errors::{ErrorCategory, ErrorCode, ErrorLocation, ErrorSeverity, WorkflowError, WorkflowErrors};
