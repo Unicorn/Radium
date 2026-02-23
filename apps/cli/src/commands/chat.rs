@@ -957,3 +957,87 @@ pub async fn list_sessions() -> Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{Duration, Utc};
+    use radium_core::session::state::Message as SessionMessage;
+
+    // ── format_session_history ──────────────────────────────────────────────
+
+    #[test]
+    fn test_format_session_history_empty() {
+        assert_eq!(format_session_history(&[]), "");
+    }
+
+    #[test]
+    fn test_format_session_history_single_user_message() {
+        let msgs = vec![SessionMessage {
+            id: "1".to_string(),
+            role: "user".to_string(),
+            content: "hello".to_string(),
+            timestamp: Utc::now(),
+        }];
+        let result = format_session_history(&msgs);
+        assert!(result.starts_with("Conversation History:\n"));
+        assert!(result.contains("user: hello"));
+    }
+
+    #[test]
+    fn test_format_session_history_user_and_assistant() {
+        let msgs = vec![
+            SessionMessage {
+                id: "1".to_string(),
+                role: "user".to_string(),
+                content: "hi".to_string(),
+                timestamp: Utc::now(),
+            },
+            SessionMessage {
+                id: "2".to_string(),
+                role: "assistant".to_string(),
+                content: "hello there".to_string(),
+                timestamp: Utc::now(),
+            },
+        ];
+        let result = format_session_history(&msgs);
+        assert!(result.contains("user: hi\n"));
+        assert!(result.contains("assistant: hello there\n"));
+    }
+
+    // ── format_relative_time ───────────────────────────────────────────────
+
+    #[test]
+    fn test_format_relative_time_just_now() {
+        let dt = Utc::now() - Duration::seconds(30);
+        assert_eq!(format_relative_time(dt), "just now");
+    }
+
+    #[test]
+    fn test_format_relative_time_minutes() {
+        let dt = Utc::now() - Duration::seconds(90);
+        assert_eq!(format_relative_time(dt), "1m ago");
+
+        let dt2 = Utc::now() - Duration::minutes(45);
+        assert_eq!(format_relative_time(dt2), "45m ago");
+    }
+
+    #[test]
+    fn test_format_relative_time_hours() {
+        let dt = Utc::now() - Duration::hours(2);
+        assert_eq!(format_relative_time(dt), "2h ago");
+    }
+
+    #[test]
+    fn test_format_relative_time_days() {
+        let dt = Utc::now() - Duration::days(3);
+        assert_eq!(format_relative_time(dt), "3d ago");
+    }
+
+    #[test]
+    fn test_format_relative_time_boundary_one_hour() {
+        // exactly 60 minutes = should be "1h ago"
+        let dt = Utc::now() - Duration::seconds(3600);
+        assert_eq!(format_relative_time(dt), "1h ago");
+    }
+}
