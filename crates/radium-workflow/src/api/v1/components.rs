@@ -1,4 +1,4 @@
-//! Component type registry.
+//! Component type registry and custom component CRUD.
 //!
 //! Exposes the 37 built-in workflow component types so that agents and the UI
 //! can discover what is available without hard-coding knowledge of the schema.
@@ -6,13 +6,50 @@
 //! Three legacy aliases (activity, child_workflow, signal) are also included
 //! with `deprecated: true` so existing callers continue to resolve them while
 //! being guided toward their canonical replacements.
+//!
+//! Additionally provides authenticated endpoints for creating, listing, and
+//! deleting user-defined custom component types stored in Supabase.
 
 use axum::{
-    extract::Path,
-    http::StatusCode,
+    extract::{Path, State},
+    http::{HeaderMap, StatusCode},
+    response::{IntoResponse, Response},
     Json,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+
+use crate::api::auth::{self, AuthenticatedUser};
+use crate::api::state::AppState;
+use crate::supabase::SupabaseError;
+use crate::versioning::SemVer;
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/// The 11 valid component categories.
+const VALID_CATEGORIES: &[&str] = &[
+    "control_flow",
+    "activities",
+    "agent",
+    "orchestration",
+    "execution",
+    "data",
+    "security",
+    "storage",
+    "networking",
+    "messaging",
+    "flow_control",
+];
+
+/// The 4 valid behavior tiers.
+const VALID_BEHAVIOR_TIERS: &[&str] = &["pure", "stateful", "io", "n/a"];
+
+/// Default component_type_id for custom components.
+const DEFAULT_COMPONENT_TYPE_ID: &str = "00000000-0000-0000-0000-000000000001";
+
+/// Default visibility_id for custom components.
+const DEFAULT_VISIBILITY_ID: &str = "00000000-0000-0000-0000-000000000001";
 
 // ---------------------------------------------------------------------------
 // Response types
@@ -42,6 +79,201 @@ pub struct ComponentType {
     pub deprecated: bool,
     /// For deprecated aliases, the preferred canonical component name.
     pub canonical_name: Option<String>,
+}
+
+// ---------------------------------------------------------------------------
+// Request / response types for custom component CRUD
+// ---------------------------------------------------------------------------
+
+/// A config field in the create request body.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ConfigFieldInput {
+    pub name: String,
+    pub field_type: String,
+    pub required: bool,
+    pub description: String,
+}
+
+/// Request body for `POST /v1/components`.
+#[derive(Debug, Deserialize)]
+pub struct CreateComponentRequest {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub category: String,
+    pub version: String,
+    pub behavior_tier: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_schema: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_schema: Option<serde_json::Value>,
+    #[serde(default)]
+    pub config_fields: Vec<ConfigFieldInput>,
+}
+
+/// Row inserted into the Supabase `components` table.
+#[derive(Debug, Serialize)]
+struct InsertComponentRow {
+    name: String,
+    display_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    description: Option<String>,
+    component_type_id: String,
+    version: String,
+    created_by: String,
+    visibility_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    input_schema: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    output_schema: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    config_schema: Option<serde_json::Value>,
+}
+
+/// Response from Supabase after inserting or reading a custom component.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CustomComponentResponse {
+    pub id: String,
+    pub name: String,
+    pub display_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub component_type_id: String,
+    pub version: String,
+    pub created_by: String,
+    pub visibility_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_schema: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_schema: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub config_schema: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_active: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deprecated: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
+}
+
+/// List response envelope for custom components.
+#[derive(Debug, Serialize)]
+pub struct CustomComponentListResponse {
+    pub components: Vec<CustomComponentResponse>,
+    pub total: usize,
+}
+
+// ---------------------------------------------------------------------------
+// Error type (same pattern as workflows.rs)
+// ---------------------------------------------------------------------------
+
+/// Structured error envelope matching the spec:
+/// `{ "error": { "code": "...", "message": "...", "details": [...] } }`
+#[derive(Debug, Serialize)]
+struct ErrorBody {
+    code: String,
+    message: String,
+    details: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct ErrorEnvelope {
+    error: ErrorBody,
+}
+
+/// Handler-level error that converts into a JSON response automatically.
+#[derive(Debug)]
+pub struct ComponentError {
+    status: StatusCode,
+    code: String,
+    message: String,
+    details: Vec<String>,
+}
+
+impl ComponentError {
+    fn unauthorized() -> Self {
+        Self {
+            status: StatusCode::UNAUTHORIZED,
+            code: "UNAUTHORIZED".to_string(),
+            message: "Authorization header with Bearer token is required".to_string(),
+            details: vec![],
+        }
+    }
+
+    fn bad_request(message: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::BAD_REQUEST,
+            code: "BAD_REQUEST".to_string(),
+            message: message.into(),
+            details: vec![],
+        }
+    }
+
+    fn not_found(message: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::NOT_FOUND,
+            code: "NOT_FOUND".to_string(),
+            message: message.into(),
+            details: vec![],
+        }
+    }
+
+    fn validation_failed(message: impl Into<String>, details: Vec<String>) -> Self {
+        Self {
+            status: StatusCode::UNPROCESSABLE_ENTITY,
+            code: "VALIDATION_FAILED".to_string(),
+            message: message.into(),
+            details,
+        }
+    }
+
+    fn conflict(message: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::CONFLICT,
+            code: "CONFLICT".to_string(),
+            message: message.into(),
+            details: vec![],
+        }
+    }
+
+    fn internal(message: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            code: "INTERNAL_ERROR".to_string(),
+            message: message.into(),
+            details: vec![],
+        }
+    }
+
+    fn from_supabase(err: &SupabaseError) -> Self {
+        match err {
+            SupabaseError::NotFound { .. } => Self::not_found(err.to_string()),
+            SupabaseError::ApiError { status, .. } if *status == 404 => {
+                Self::not_found(err.to_string())
+            }
+            _ => {
+                tracing::error!("Supabase error: {err}");
+                Self::internal("Database operation failed")
+            }
+        }
+    }
+}
+
+impl IntoResponse for ComponentError {
+    fn into_response(self) -> Response {
+        let envelope = ErrorEnvelope {
+            error: ErrorBody {
+                code: self.code,
+                message: self.message,
+                details: self.details,
+            },
+        };
+        (self.status, Json(envelope)).into_response()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -97,6 +329,111 @@ fn deprecated_alias(
         deprecated: true,
         canonical_name: Some(canonical.to_string()),
     }
+}
+
+/// Validate the Bearer token against the Supabase `api_keys` table and check
+/// the per-user rate limit.
+///
+/// Returns the authenticated user on success, or a `ComponentError` when the
+/// token is missing, invalid, expired, revoked, or rate-limited.
+async fn require_auth(
+    headers: &HeaderMap,
+    state: &AppState,
+) -> Result<AuthenticatedUser, ComponentError> {
+    let mut request = axum::http::Request::builder()
+        .uri("http://localhost/")
+        .body(())
+        .unwrap();
+    *request.headers_mut() = headers.clone();
+    let (parts, ()) = request.into_parts();
+
+    let token =
+        auth::extract_bearer_token(&parts).ok_or_else(ComponentError::unauthorized)?;
+
+    let user = auth::validate_api_key(
+        state.supabase.http_client(),
+        state.supabase.url(),
+        state.supabase.service_role_key(),
+        &token,
+    )
+    .await
+    .map_err(|_| ComponentError::unauthorized())?;
+
+    // Check rate limit (keyed by user_id).
+    let result = state.rate_limiter.check(&user.user_id);
+    if !result.allowed {
+        return Err(ComponentError {
+            status: StatusCode::TOO_MANY_REQUESTS,
+            code: "RATE_LIMITED".to_string(),
+            message: format!(
+                "Rate limit exceeded. Try again in {} seconds.",
+                result.reset_in_seconds()
+            ),
+            details: vec![],
+        });
+    }
+
+    Ok(user)
+}
+
+/// Return the set of all built-in component names (canonical + deprecated aliases).
+fn builtin_component_names() -> Vec<String> {
+    all_components().into_iter().map(|c| c.name).collect()
+}
+
+/// Validate a `CreateComponentRequest` and return a list of validation errors.
+/// Returns an empty vec if the request is valid.
+pub fn validate_create_request(req: &CreateComponentRequest) -> Vec<String> {
+    let mut errors = Vec::new();
+
+    // name: required, non-empty
+    if req.name.is_empty() {
+        errors.push("'name' is required and must be non-empty".to_string());
+    } else {
+        // name: lowercase alphanumeric + underscores only
+        let valid_name = req
+            .name
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
+        if !valid_name {
+            errors.push(format!(
+                "'name' must contain only lowercase alphanumeric characters and underscores, got: '{}'",
+                req.name
+            ));
+        }
+
+        // name: must not conflict with built-in names
+        let builtins = builtin_component_names();
+        if builtins.iter().any(|b| b == &req.name) {
+            errors.push(format!(
+                "'name' conflicts with built-in component '{}'. Choose a different name.",
+                req.name
+            ));
+        }
+    }
+
+    // category: must be one of the 11 valid categories
+    if !VALID_CATEGORIES.contains(&req.category.as_str()) {
+        errors.push(format!(
+            "'category' must be one of {:?}, got: '{}'",
+            VALID_CATEGORIES, req.category
+        ));
+    }
+
+    // behavior_tier: must be one of the 4 valid tiers
+    if !VALID_BEHAVIOR_TIERS.contains(&req.behavior_tier.as_str()) {
+        errors.push(format!(
+            "'behavior_tier' must be one of {:?}, got: '{}'",
+            VALID_BEHAVIOR_TIERS, req.behavior_tier
+        ));
+    }
+
+    // version: must be valid semver
+    if let Err(e) = SemVer::parse(&req.version) {
+        errors.push(format!("'version' is not valid semver: {e}"));
+    }
+
+    errors
 }
 
 // ---------------------------------------------------------------------------
@@ -569,12 +906,37 @@ fn all_components() -> Vec<ComponentType> {
 // Handlers
 // ---------------------------------------------------------------------------
 
-/// `GET /v1/components` -- list all available component types.
+/// `GET /v1/components` -- list all available built-in component types.
 pub async fn list_components() -> Json<Vec<ComponentType>> {
     Json(all_components())
 }
 
-/// `GET /v1/components/:component_type` -- get a single component type by name.
+/// `GET /v1/components/custom` -- list user's custom components from Supabase.
+pub async fn list_custom_components(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<CustomComponentListResponse>, ComponentError> {
+    let user = require_auth(&headers, &state).await?;
+
+    let user_filter = format!("eq.{}", user.user_id);
+    let components: Vec<CustomComponentResponse> = state
+        .supabase
+        .select(
+            "components",
+            &[
+                ("created_by", &user_filter),
+                ("is_active", "eq.true"),
+                ("order", "created_at.desc"),
+            ],
+        )
+        .await
+        .map_err(|e| ComponentError::from_supabase(&e))?;
+
+    let total = components.len();
+    Ok(Json(CustomComponentListResponse { components, total }))
+}
+
+/// `GET /v1/components/:component_type` -- get a single built-in component type by name.
 pub async fn get_component(
     Path(component_type): Path<String>,
 ) -> Result<Json<ComponentType>, StatusCode> {
@@ -583,6 +945,112 @@ pub async fn get_component(
         .find(|c| c.name == component_type)
         .map(Json)
         .ok_or(StatusCode::NOT_FOUND)
+}
+
+/// `POST /v1/components` -- create a custom component type in Supabase.
+pub async fn create_component(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<CreateComponentRequest>,
+) -> Result<impl IntoResponse, ComponentError> {
+    let user = require_auth(&headers, &state).await?;
+
+    // Validate the request.
+    let validation_errors = validate_create_request(&req);
+    if !validation_errors.is_empty() {
+        return Err(ComponentError::validation_failed(
+            "Component validation failed",
+            validation_errors,
+        ));
+    }
+
+    // Serialize config_fields to JSONB for the config_schema column.
+    let config_schema = if req.config_fields.is_empty() {
+        None
+    } else {
+        Some(serde_json::to_value(&req.config_fields).map_err(|e| {
+            ComponentError::internal(format!("Failed to serialize config_fields: {e}"))
+        })?)
+    };
+
+    let display_name = req
+        .display_name
+        .unwrap_or_else(|| req.name.clone());
+
+    let row = InsertComponentRow {
+        name: req.name,
+        display_name,
+        description: req.description,
+        component_type_id: DEFAULT_COMPONENT_TYPE_ID.to_string(),
+        version: req.version,
+        created_by: user.user_id,
+        visibility_id: DEFAULT_VISIBILITY_ID.to_string(),
+        input_schema: req.input_schema,
+        output_schema: req.output_schema,
+        config_schema,
+    };
+
+    let created: CustomComponentResponse = state
+        .supabase
+        .insert("components", &row)
+        .await
+        .map_err(|e| {
+            // Check for unique constraint violations (duplicate name).
+            if let SupabaseError::ApiError { status, ref message } = e {
+                if status == 409 || message.contains("duplicate") || message.contains("unique") {
+                    return ComponentError::conflict(format!(
+                        "A component with name '{}' already exists",
+                        row.name
+                    ));
+                }
+            }
+            ComponentError::from_supabase(&e)
+        })?;
+
+    Ok((StatusCode::CREATED, Json(created)))
+}
+
+/// `DELETE /v1/components/custom/:name` -- delete a user's custom component.
+pub async fn delete_custom_component(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(name): Path<String>,
+) -> Result<StatusCode, ComponentError> {
+    let user = require_auth(&headers, &state).await?;
+
+    // First, verify the component exists and belongs to the user.
+    let user_filter = format!("eq.{}", user.user_id);
+    let name_filter = format!("eq.{name}");
+    let existing: Vec<CustomComponentResponse> = state
+        .supabase
+        .select(
+            "components",
+            &[
+                ("name", &name_filter),
+                ("created_by", &user_filter),
+                ("select", "id,name,display_name,component_type_id,version,created_by,visibility_id"),
+            ],
+        )
+        .await
+        .map_err(|e| ComponentError::from_supabase(&e))?;
+
+    if existing.is_empty() {
+        return Err(ComponentError::not_found(format!(
+            "Custom component '{name}' not found"
+        )));
+    }
+
+    // Delete the component.
+    state
+        .supabase
+        .delete(
+            "components",
+            &[("name", &name_filter), ("created_by", &user_filter)],
+        )
+        .await
+        .map_err(|e| ComponentError::from_supabase(&e))?;
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 // ---------------------------------------------------------------------------
@@ -596,6 +1064,10 @@ mod tests {
     /// 37 canonical components + 3 deprecated aliases = 40 total.
     const EXPECTED_TOTAL: usize = 40;
     const EXPECTED_CANONICAL: usize = 37;
+
+    // -----------------------------------------------------------------------
+    // Built-in registry tests (unchanged)
+    // -----------------------------------------------------------------------
 
     #[tokio::test]
     async fn test_list_components_returns_all_types() {
@@ -724,11 +1196,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_all_components_have_valid_behavior_tier() {
-        let valid_tiers = ["pure", "stateful", "io", "n/a"];
         let Json(components) = list_components().await;
         for component in &components {
             assert!(
-                valid_tiers.contains(&component.behavior_tier.as_str()),
+                VALID_BEHAVIOR_TIERS.contains(&component.behavior_tier.as_str()),
                 "Component '{}' has unexpected behavior_tier '{}'",
                 component.name,
                 component.behavior_tier,
@@ -794,23 +1265,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_component_categories_are_valid() {
-        let valid_categories = [
-            "control_flow",
-            "activities",
-            "agent",
-            "orchestration",
-            "execution",
-            "data",
-            "security",
-            "storage",
-            "networking",
-            "messaging",
-            "flow_control",
-        ];
         let Json(components) = list_components().await;
         for component in &components {
             assert!(
-                valid_categories.contains(&component.category.as_str()),
+                VALID_CATEGORIES.contains(&component.category.as_str()),
                 "Component '{}' has unexpected category '{}'",
                 component.name,
                 component.category,
@@ -829,5 +1287,502 @@ mod tests {
                 component.name
             );
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // CreateComponentRequest validation tests
+    // -----------------------------------------------------------------------
+
+    /// Helper to build a valid CreateComponentRequest for tests.
+    fn valid_request() -> CreateComponentRequest {
+        CreateComponentRequest {
+            name: "my_custom_step".to_string(),
+            display_name: Some("My Custom Step".to_string()),
+            description: Some("Does something custom".to_string()),
+            category: "activities".to_string(),
+            version: "1.0.0".to_string(),
+            behavior_tier: "io".to_string(),
+            input_schema: None,
+            output_schema: None,
+            config_fields: vec![ConfigFieldInput {
+                name: "url".to_string(),
+                field_type: "string".to_string(),
+                required: true,
+                description: "Target URL".to_string(),
+            }],
+        }
+    }
+
+    #[test]
+    fn test_validate_valid_request() {
+        let req = valid_request();
+        let errors = validate_create_request(&req);
+        assert!(
+            errors.is_empty(),
+            "Expected no validation errors, got: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn test_validate_empty_name() {
+        let mut req = valid_request();
+        req.name = "".to_string();
+        let errors = validate_create_request(&req);
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("non-empty"));
+    }
+
+    #[test]
+    fn test_validate_name_with_uppercase() {
+        let mut req = valid_request();
+        req.name = "MyStep".to_string();
+        let errors = validate_create_request(&req);
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("lowercase"));
+    }
+
+    #[test]
+    fn test_validate_name_with_hyphens() {
+        let mut req = valid_request();
+        req.name = "my-step".to_string();
+        let errors = validate_create_request(&req);
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("lowercase alphanumeric"));
+    }
+
+    #[test]
+    fn test_validate_name_with_spaces() {
+        let mut req = valid_request();
+        req.name = "my step".to_string();
+        let errors = validate_create_request(&req);
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("lowercase alphanumeric"));
+    }
+
+    #[test]
+    fn test_validate_name_with_underscores_ok() {
+        let mut req = valid_request();
+        req.name = "my_custom_step_v2".to_string();
+        let errors = validate_create_request(&req);
+        assert!(errors.is_empty(), "Underscores should be allowed: {errors:?}");
+    }
+
+    #[test]
+    fn test_validate_name_with_digits_ok() {
+        let mut req = valid_request();
+        req.name = "step123".to_string();
+        let errors = validate_create_request(&req);
+        assert!(errors.is_empty(), "Digits should be allowed: {errors:?}");
+    }
+
+    #[test]
+    fn test_validate_name_conflicts_with_builtin_canonical() {
+        let mut req = valid_request();
+        req.name = "trigger".to_string();
+        let errors = validate_create_request(&req);
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("conflicts with built-in"));
+    }
+
+    #[test]
+    fn test_validate_name_conflicts_with_builtin_action() {
+        let mut req = valid_request();
+        req.name = "action".to_string();
+        let errors = validate_create_request(&req);
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("conflicts with built-in"));
+    }
+
+    #[test]
+    fn test_validate_name_conflicts_with_deprecated_alias() {
+        let mut req = valid_request();
+        req.name = "activity".to_string();
+        let errors = validate_create_request(&req);
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("conflicts with built-in"));
+    }
+
+    #[test]
+    fn test_validate_name_conflicts_with_child_workflow_alias() {
+        let mut req = valid_request();
+        req.name = "child_workflow".to_string();
+        let errors = validate_create_request(&req);
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("conflicts with built-in"));
+    }
+
+    #[test]
+    fn test_validate_name_conflicts_with_signal_alias() {
+        let mut req = valid_request();
+        req.name = "signal".to_string();
+        let errors = validate_create_request(&req);
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("conflicts with built-in"));
+    }
+
+    #[test]
+    fn test_validate_all_37_canonical_names_conflict() {
+        let builtins = builtin_component_names();
+        let canonical_count = all_components()
+            .iter()
+            .filter(|c| !c.deprecated)
+            .count();
+        assert_eq!(canonical_count, 37);
+
+        for name in &builtins {
+            let mut req = valid_request();
+            req.name = name.clone();
+            let errors = validate_create_request(&req);
+            assert!(
+                errors.iter().any(|e| e.contains("conflicts with built-in")),
+                "Built-in name '{}' should be rejected",
+                name
+            );
+        }
+    }
+
+    #[test]
+    fn test_validate_invalid_category() {
+        let mut req = valid_request();
+        req.category = "invalid_category".to_string();
+        let errors = validate_create_request(&req);
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("category"));
+    }
+
+    #[test]
+    fn test_validate_all_valid_categories_accepted() {
+        for &cat in VALID_CATEGORIES {
+            let mut req = valid_request();
+            req.category = cat.to_string();
+            let errors = validate_create_request(&req);
+            assert!(
+                errors.is_empty(),
+                "Category '{}' should be valid, got: {:?}",
+                cat,
+                errors
+            );
+        }
+    }
+
+    #[test]
+    fn test_validate_invalid_behavior_tier() {
+        let mut req = valid_request();
+        req.behavior_tier = "unknown".to_string();
+        let errors = validate_create_request(&req);
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("behavior_tier"));
+    }
+
+    #[test]
+    fn test_validate_all_valid_behavior_tiers_accepted() {
+        for &tier in VALID_BEHAVIOR_TIERS {
+            let mut req = valid_request();
+            req.behavior_tier = tier.to_string();
+            let errors = validate_create_request(&req);
+            assert!(
+                errors.is_empty(),
+                "Behavior tier '{}' should be valid, got: {:?}",
+                tier,
+                errors
+            );
+        }
+    }
+
+    #[test]
+    fn test_validate_invalid_semver() {
+        let mut req = valid_request();
+        req.version = "not.a.version".to_string();
+        let errors = validate_create_request(&req);
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("semver"));
+    }
+
+    #[test]
+    fn test_validate_invalid_semver_too_few_parts() {
+        let mut req = valid_request();
+        req.version = "1.0".to_string();
+        let errors = validate_create_request(&req);
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("semver"));
+    }
+
+    #[test]
+    fn test_validate_empty_version() {
+        let mut req = valid_request();
+        req.version = "".to_string();
+        let errors = validate_create_request(&req);
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("semver"));
+    }
+
+    #[test]
+    fn test_validate_valid_semver_prerelease() {
+        let mut req = valid_request();
+        req.version = "1.0.0-beta.1".to_string();
+        let errors = validate_create_request(&req);
+        assert!(errors.is_empty(), "Pre-release semver should be valid: {errors:?}");
+    }
+
+    #[test]
+    fn test_validate_multiple_errors() {
+        let req = CreateComponentRequest {
+            name: "".to_string(),
+            display_name: None,
+            description: None,
+            category: "bad".to_string(),
+            version: "nope".to_string(),
+            behavior_tier: "wrong".to_string(),
+            input_schema: None,
+            output_schema: None,
+            config_fields: vec![],
+        };
+        let errors = validate_create_request(&req);
+        // Should have errors for: name (empty), category, behavior_tier, version
+        assert_eq!(
+            errors.len(),
+            4,
+            "Expected 4 validation errors, got {}: {:?}",
+            errors.len(),
+            errors
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // Error response formatting
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_error_envelope_serialization() {
+        let envelope = ErrorEnvelope {
+            error: ErrorBody {
+                code: "VALIDATION_FAILED".to_string(),
+                message: "Something went wrong".to_string(),
+                details: vec!["detail 1".to_string()],
+            },
+        };
+
+        let json = serde_json::to_value(&envelope).unwrap();
+        assert_eq!(json["error"]["code"], "VALIDATION_FAILED");
+        assert_eq!(json["error"]["message"], "Something went wrong");
+        assert_eq!(json["error"]["details"][0], "detail 1");
+    }
+
+    #[test]
+    fn test_component_error_unauthorized() {
+        let err = ComponentError::unauthorized();
+        assert_eq!(err.status, StatusCode::UNAUTHORIZED);
+        assert_eq!(err.code, "UNAUTHORIZED");
+    }
+
+    #[test]
+    fn test_component_error_bad_request() {
+        let err = ComponentError::bad_request("invalid input");
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert_eq!(err.code, "BAD_REQUEST");
+        assert_eq!(err.message, "invalid input");
+    }
+
+    #[test]
+    fn test_component_error_not_found() {
+        let err = ComponentError::not_found("Component 'abc' not found");
+        assert_eq!(err.status, StatusCode::NOT_FOUND);
+        assert_eq!(err.code, "NOT_FOUND");
+    }
+
+    #[test]
+    fn test_component_error_validation_failed() {
+        let err = ComponentError::validation_failed(
+            "Validation failed",
+            vec!["error 1".to_string(), "error 2".to_string()],
+        );
+        assert_eq!(err.status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(err.code, "VALIDATION_FAILED");
+        assert_eq!(err.details.len(), 2);
+    }
+
+    #[test]
+    fn test_component_error_conflict() {
+        let err = ComponentError::conflict("Name already exists");
+        assert_eq!(err.status, StatusCode::CONFLICT);
+        assert_eq!(err.code, "CONFLICT");
+    }
+
+    #[test]
+    fn test_component_error_internal() {
+        let err = ComponentError::internal("Something broke");
+        assert_eq!(err.status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(err.code, "INTERNAL_ERROR");
+    }
+
+    // -----------------------------------------------------------------------
+    // Request deserialization
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_create_request_deserialization() {
+        let json = r#"{
+            "name": "my_custom_step",
+            "display_name": "My Custom Step",
+            "description": "Does something custom",
+            "category": "activities",
+            "version": "1.0.0",
+            "behavior_tier": "io",
+            "input_schema": { "type": "object" },
+            "output_schema": { "type": "object" },
+            "config_fields": [
+                { "name": "url", "field_type": "string", "required": true, "description": "Target URL" }
+            ]
+        }"#;
+
+        let req: CreateComponentRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(req.name, "my_custom_step");
+        assert_eq!(req.display_name, Some("My Custom Step".to_string()));
+        assert_eq!(req.description, Some("Does something custom".to_string()));
+        assert_eq!(req.category, "activities");
+        assert_eq!(req.version, "1.0.0");
+        assert_eq!(req.behavior_tier, "io");
+        assert!(req.input_schema.is_some());
+        assert!(req.output_schema.is_some());
+        assert_eq!(req.config_fields.len(), 1);
+        assert_eq!(req.config_fields[0].name, "url");
+    }
+
+    #[test]
+    fn test_create_request_minimal_deserialization() {
+        let json = r#"{
+            "name": "minimal_step",
+            "category": "data",
+            "version": "1.0.0",
+            "behavior_tier": "pure"
+        }"#;
+
+        let req: CreateComponentRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(req.name, "minimal_step");
+        assert!(req.display_name.is_none());
+        assert!(req.description.is_none());
+        assert!(req.input_schema.is_none());
+        assert!(req.output_schema.is_none());
+        assert!(req.config_fields.is_empty());
+    }
+
+    // -----------------------------------------------------------------------
+    // Response serialization
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_custom_component_response_serialization() {
+        let resp = CustomComponentResponse {
+            id: "some-uuid".to_string(),
+            name: "my_step".to_string(),
+            display_name: "My Step".to_string(),
+            description: Some("A step".to_string()),
+            component_type_id: DEFAULT_COMPONENT_TYPE_ID.to_string(),
+            version: "1.0.0".to_string(),
+            created_by: "user-uuid".to_string(),
+            visibility_id: DEFAULT_VISIBILITY_ID.to_string(),
+            input_schema: None,
+            output_schema: None,
+            config_schema: None,
+            is_active: Some(true),
+            deprecated: Some(false),
+            created_at: Some("2026-01-01T00:00:00Z".to_string()),
+            updated_at: Some("2026-01-01T00:00:00Z".to_string()),
+        };
+
+        let json = serde_json::to_value(&resp).unwrap();
+        assert_eq!(json["id"], "some-uuid");
+        assert_eq!(json["name"], "my_step");
+        assert_eq!(json["display_name"], "My Step");
+        assert_eq!(json["description"], "A step");
+        // Optional None fields should be omitted
+        assert!(json.get("input_schema").is_none());
+        assert!(json.get("output_schema").is_none());
+        assert!(json.get("config_schema").is_none());
+    }
+
+    #[test]
+    fn test_custom_component_list_response_serialization() {
+        let resp = CustomComponentListResponse {
+            components: vec![],
+            total: 0,
+        };
+        let json = serde_json::to_value(&resp).unwrap();
+        assert_eq!(json["total"], 0);
+        assert!(json["components"].as_array().unwrap().is_empty());
+    }
+
+    // -----------------------------------------------------------------------
+    // Built-in name registry completeness
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_builtin_names_includes_all_40() {
+        let names = builtin_component_names();
+        assert_eq!(
+            names.len(),
+            EXPECTED_TOTAL,
+            "builtin_component_names should return {EXPECTED_TOTAL} names, got {}",
+            names.len()
+        );
+    }
+
+    #[test]
+    fn test_builtin_names_includes_deprecated_aliases() {
+        let names = builtin_component_names();
+        assert!(names.contains(&"activity".to_string()));
+        assert!(names.contains(&"child_workflow".to_string()));
+        assert!(names.contains(&"signal".to_string()));
+    }
+
+    // -----------------------------------------------------------------------
+    // Config field serialization
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_config_field_input_serializes_to_json() {
+        let fields = vec![
+            ConfigFieldInput {
+                name: "url".to_string(),
+                field_type: "string".to_string(),
+                required: true,
+                description: "Target URL".to_string(),
+            },
+            ConfigFieldInput {
+                name: "timeout".to_string(),
+                field_type: "integer".to_string(),
+                required: false,
+                description: "Timeout in seconds".to_string(),
+            },
+        ];
+        let json = serde_json::to_value(&fields).unwrap();
+        assert!(json.is_array());
+        assert_eq!(json.as_array().unwrap().len(), 2);
+        assert_eq!(json[0]["name"], "url");
+        assert_eq!(json[0]["required"], true);
+        assert_eq!(json[1]["name"], "timeout");
+        assert_eq!(json[1]["required"], false);
+    }
+
+    // -----------------------------------------------------------------------
+    // Integration tests that need Supabase (marked #[ignore])
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    #[ignore = "Requires running Supabase instance"]
+    async fn test_create_component_integration() {
+        // This test would POST a custom component to a real Supabase instance.
+    }
+
+    #[tokio::test]
+    #[ignore = "Requires running Supabase instance"]
+    async fn test_list_custom_components_integration() {
+        // This test would list custom components from a real Supabase instance.
+    }
+
+    #[tokio::test]
+    #[ignore = "Requires running Supabase instance"]
+    async fn test_delete_custom_component_integration() {
+        // This test would delete a custom component from a real Supabase instance.
     }
 }

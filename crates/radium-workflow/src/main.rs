@@ -14,6 +14,7 @@ mod security;
 mod supabase;
 mod validation;
 mod verification;
+mod versioning;
 mod yaml_format;
 
 use api::state::AppState;
