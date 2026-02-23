@@ -2,305 +2,140 @@
 
 ## Overview
 
-This catalog documents all 14 workflow components migrated to Rust schemas in Phase 6. Each component has:
-- Rust schema with full type safety
+This catalog documents all 37 workflow components in the Radium schema system. Each component has:
+- Rust schema with full type safety and validation
+- Shared behavior system (retry, rate limiting, circuit breaker, idempotency)
+- 3-tier behavior classification (Pure, Stateful, I/O)
 - TypeScript code generation support
-- Comprehensive validation
 - Migration record in YAML format
 
 ## Component Categories
 
-### Control Flow Components
+### Control Flow Components (5)
 
-| Component | File | Purpose | Temporal Type |
-|-----------|------|---------|---------------|
-| **trigger** | `trigger.rs` | Workflow entry point | Workflow start |
-| **start** | `start.rs` | Explicit workflow start marker | Workflow node |
-| **stop** | `stop.rs` | Workflow termination | Workflow end |
-| **conditional** | `conditional.rs` | Branching logic (if/else) | Workflow logic |
-| **loop** | `loop_component.rs` | Iteration (forEach, while, batch) | Workflow logic |
+| Component | File | Purpose | Temporal Type | Behavior Tier |
+|-----------|------|---------|---------------|---------------|
+| **trigger** | `trigger.rs` | Workflow entry point | Workflow start | N/A |
+| **start** | `start.rs` | Explicit workflow start marker | Workflow node | N/A |
+| **stop** | `stop.rs` | Workflow termination | Workflow end | N/A |
+| **conditional** | `conditional.rs` | Branching logic (if/else) | Workflow logic | N/A |
+| **loop** | `loop_component.rs` | Iteration (forEach, while, batch) | Workflow logic | N/A |
 
-### Activity Components
+### Core Activity Components (4)
 
-| Component | File | Purpose | Temporal Type |
-|-----------|------|---------|---------------|
-| **activity** | `activity.rs` | Generic activity invocation | Activity |
-| **log** | `log.rs` | Logging with Kong integration | Activity |
-| **http_request** | `http_request.rs` | External HTTP API calls | Activity |
-| **database_query** | `database_query.rs` | Supabase/PostgreSQL queries | Activity |
+| Component | File | Purpose | Temporal Type | Behavior Tier |
+|-----------|------|---------|---------------|---------------|
+| **action** | `action.rs` | Generic activity invocation | Activity | I/O |
+| **log** | `log.rs` | Logging with Kong integration | Activity | Pure |
+| **http_request** | `http_request.rs` | External HTTP API calls | Activity | I/O |
+| **database_query** | `database_query.rs` | Supabase/PostgreSQL queries | Activity | I/O |
 
-### Agent Components
+### Agent Components (1)
 
-| Component | File | Purpose | Temporal Type |
-|-----------|------|---------|---------------|
-| **agent** | `agent.rs` | LLM/AI model invocation | Activity |
+| Component | File | Purpose | Temporal Type | Behavior Tier |
+|-----------|------|---------|---------------|---------------|
+| **agent** | `agent.rs` | LLM/AI model invocation | Activity | I/O |
 
-### Advanced Components
+### Advanced Components (4)
 
-| Component | File | Purpose | Temporal Type |
-|-----------|------|---------|---------------|
-| **child_workflow** | `child_workflow.rs` | Nested workflow execution | Child Workflow |
-| **signal** | `signal.rs` | Inter-workflow communication | Signal |
-| **timer** | `timer.rs` | Temporal delays | Timer |
-| **parallel** | `parallel.rs` | Concurrent branch execution | Workflow logic |
+| Component | File | Purpose | Temporal Type | Behavior Tier |
+|-----------|------|---------|---------------|---------------|
+| **child_service** | `child_service.rs` | Nested workflow execution | Child Workflow | I/O |
+| **message** | `message.rs` | Inter-workflow communication | Signal | I/O |
+| **timer** | `timer.rs` | Temporal delays | Timer | Stateful |
+| **parallel** | `parallel.rs` | Concurrent branch execution | Workflow logic | N/A |
 
----
+### Execution Components (3)
 
-## Component Details
+| Component | File | Purpose | Temporal Type | Behavior Tier |
+|-----------|------|---------|---------------|---------------|
+| **shell_execute** | `shell_execute.rs` | Shell command execution | Activity | I/O |
+| **npm_function** | `npm_function.rs` | NPM package function calls | Activity | I/O |
+| **code_execute** | `code_execute.rs` | Sandboxed code execution | Activity | Stateful |
 
-### 1. Trigger Component
+### Data Components (3)
 
-**Purpose**: Entry point for workflow execution
+| Component | File | Purpose | Temporal Type | Behavior Tier |
+|-----------|------|---------|---------------|---------------|
+| **data_transform** | `data_transform.rs` | Expression-based data transformation | Activity | Pure |
+| **schema_validate** | `schema_validate.rs` | JSON Schema validation | Activity | Pure |
+| **encode_decode** | `encode_decode.rs` | Format conversion (base64, URL, hex, JSON, CSV) | Activity | Pure |
 
-**Input Schema**: `TriggerInput`
-- `trigger_type`: Manual, Schedule, Webhook, Event, Signal
-- `schedule_config`: Cron expression or interval
-- `webhook_config`: Path, methods, authentication
-- `payload`: Initial workflow data
+### Security Components (3)
 
-**Output Schema**: `TriggerOutput`
-- `triggered`: boolean
-- `trigger_id`: string
-- `triggered_at`: DateTime
-- `payload`: JSON value
+| Component | File | Purpose | Temporal Type | Behavior Tier |
+|-----------|------|---------|---------------|---------------|
+| **secret_read** | `secret_read.rs` | Secure secret retrieval | Activity | I/O |
+| **oauth_token** | `oauth_token.rs` | OAuth2 token acquisition | Activity | I/O |
+| **jwt_create** | `jwt_create.rs` | JWT creation and signing | Activity | Pure |
 
-**TypeScript Generation**:
-```typescript
-// Trigger types serialize to lowercase
-type TriggerType = 'manual' | 'schedule' | 'webhook' | 'event' | 'signal';
-```
+### Storage Components (3)
 
----
+| Component | File | Purpose | Temporal Type | Behavior Tier |
+|-----------|------|---------|---------------|---------------|
+| **cache** | `cache_component.rs` | Cache get/set/delete | Activity | I/O |
+| **file_write** | `file_write.rs` | File writing | Activity | I/O |
+| **file_read** | `file_read.rs` | File reading | Activity | I/O |
+| **object_storage** | `object_storage.rs` | S3/R2/GCS object storage | Activity | I/O |
 
-### 2. Conditional Component
+### Network Components (4)
 
-**Purpose**: Branching logic with complex condition support
+| Component | File | Purpose | Temporal Type | Behavior Tier |
+|-----------|------|---------|---------------|---------------|
+| **graphql_request** | `graphql_request.rs` | GraphQL queries/mutations | Activity | I/O |
+| **grpc_call** | `grpc_call.rs` | Unary gRPC calls | Activity | I/O |
+| **websocket** | `websocket.rs` | WebSocket send/receive | Activity | I/O |
+| **smtp_send** | `smtp_send.rs` | SMTP email sending | Activity | I/O |
 
-**Input Schema**: `ConditionalInput`
-- `condition`: Single condition or compound (AND/OR)
-- `true_label`: Label for true branch
-- `false_label`: Label for false branch
+### Messaging Components (4)
 
-**Condition Operators**:
-- Comparison: `===`, `!==`, `>`, `<`, `>=`, `<=`
-- String: `.includes()`, `.startsWith()`, `.endsWith()`
-- Null checks: `=== null`, `!== null`
-- Empty checks: for arrays and strings
+| Component | File | Purpose | Temporal Type | Behavior Tier |
+|-----------|------|---------|---------------|---------------|
+| **webhook_send** | `webhook_send.rs` | HTTP webhook callbacks with HMAC signing | Activity | I/O |
+| **queue_publish** | `queue_publish.rs` | Message queue publishing | Activity | I/O |
+| **queue_consume** | `queue_consume.rs` | Message queue consumption | Activity | I/O |
+| **event_emit** | `event_emit.rs` | Event bus emission | Activity | I/O |
 
-**TypeScript Generation**:
-```typescript
-// Condition generates valid TypeScript expression
-state.variables.status === 'active' && state.variables.count > 0
-```
+### Flow Control Components (3)
 
----
+| Component | File | Purpose | Temporal Type | Behavior Tier |
+|-----------|------|---------|---------------|---------------|
+| **delay** | `delay.rs` | Workflow pause/sleep (Temporal timer) | Activity | Stateful |
+| **batch** | `batch.rs` | Batch processing with concurrency | Activity | I/O |
 
-### 3. Loop Component
+### Shared Behaviors
 
-**Purpose**: Iteration with multiple loop types
-
-**Loop Types**:
-- `ForEach`: Iterate over array
-- `While`: Condition-based loop
-- `DoWhile`: Execute at least once
-- `Count`: Fixed number of iterations
-- `Batch`: Process in batches with parallelism
-
-**Safety Features**:
-- `max_iterations`: Prevents infinite loops (default: 10,000)
-- `continue_as_new_threshold`: Temporal continue-as-new support (default: 1,000)
+| Module | File | Purpose |
+|--------|------|---------|
+| **behaviors** | `behaviors.rs` | Retry, rate limiting, circuit breaker, idempotency, observability, payload limits |
 
 ---
 
-### 4. Activity Component
+## Behavior Tiers
 
-**Purpose**: Generic Temporal activity invocation
+### Pure (no I/O, no side effects)
+- `data_transform`, `schema_validate`, `encode_decode`, `jwt_create`, `log`
+- No retry, rate limiting, or circuit breaker needed
 
-**Input Schema**: `ActivityInput`
-- `activity_name`: Activity identifier
-- `task_queue`: Optional task queue override
-- `params`: Input parameters
-- `retry`: Retry configuration
-- `timeouts`: Start-to-close, schedule-to-start, heartbeat
+### Stateful (timeout only)
+- `code_execute`, `timer`, `delay`
+- Has timeout but no external I/O requiring retry
 
-**Retry Configuration**:
-- `max_attempts`: Default 3
-- `initial_interval_ms`: Default 1000
-- `max_interval_ms`: Default 60000
-- `backoff_coefficient`: Default 2.0
+### I/O (full behaviors)
+- All network, storage, messaging, and execution components
+- Full retry, rate limiting, circuit breaker, idempotency, and observability
 
 ---
 
-### 5. HTTP Request Component
+## Backward Compatibility
 
-**Purpose**: External API integration
+Three components were renamed with backward-compatible aliases:
 
-**HTTP Methods**: GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS
-
-**Authentication Types**:
-- None
-- Basic (username/password)
-- Bearer token
-- API key (header-based)
-- OAuth2
-
-**Input Schema**: `HttpRequestInput`
-- `url`: Target URL (validated)
-- `method`: HTTP method
-- `headers`: Request headers
-- `query_params`: URL query parameters
-- `body`: Request body (JSON, form, text)
-- `auth`: Authentication config
-- `timeout_ms`: Request timeout
-
----
-
-### 6. Database Query Component
-
-**Purpose**: Supabase/PostgreSQL database operations
-
-**Operations**:
-- `Select`: Read data
-- `Insert`: Create records
-- `Update`: Modify records
-- `Delete`: Remove records
-- `Raw`: Raw SQL (use with caution)
-- `Function`: Stored procedure calls
-
-**Query Builder Methods**:
-```rust
-DatabaseQueryInput::select("users")
-    .columns(vec!["id", "name"])
-    .where_eq("status", json!("active"))
-    .order_by("created_at", false)
-    .limit(10)
-```
-
----
-
-### 7. Agent Component
-
-**Purpose**: LLM/AI model invocation
-
-**Supported Providers**:
-- Anthropic (Claude models)
-- OpenAI (GPT models)
-- Google (Gemini)
-- Azure OpenAI
-- AWS Bedrock
-- Custom endpoints
-
-**Features**:
-- Tool/function calling
-- Streaming support
-- Token usage tracking
-- Multiple message roles (system, user, assistant)
-
----
-
-### 8. Child Workflow Component
-
-**Purpose**: Nested workflow execution
-
-**Input Schema**: `ChildWorkflowInput`
-- `workflow_name`: Child workflow identifier
-- `workflow_id`: Optional custom ID
-- `input`: Parameters to pass
-- `parent_close_policy`: Terminate, Abandon, RequestCancel
-- `await_result`: Sync or fire-and-forget
-
----
-
-### 9. Signal Component
-
-**Purpose**: Inter-workflow communication
-
-**Directions**:
-- `Send`: Send signal to another workflow
-- `Receive`: Wait for incoming signal
-
-**Input Schema**: `SignalInput`
-- `signal_name`: Signal identifier
-- `direction`: Send or Receive
-- `target_workflow_id`: For send operations
-- `payload`: Signal data
-- `timeout_ms`: Receive timeout
-
----
-
-### 10. Timer Component
-
-**Purpose**: Workflow delays and scheduled waits
-
-**Timer Types**:
-- `Duration`: Wait for specified time
-- `UntilTime`: Wait until specific timestamp
-
-**Duration Units**:
-- Seconds
-- Minutes
-- Hours
-- Days
-
----
-
-### 11. Parallel Component
-
-**Purpose**: Concurrent branch execution
-
-**Join Strategies**:
-- `All`: Wait for all branches
-- `Any`: Wait for first completion
-- `AllSettled`: Wait for all, don't fail on errors
-- `Race`: Return first result, cancel others
-
-**Input Schema**: `ParallelInput`
-- `branches`: List of branch definitions
-- `join_strategy`: How to combine results
-- `max_concurrent`: Limit concurrent branches
-- `cancel_on_error`: Cancel remaining on failure
-
----
-
-## File Structure
-
-```
-crates/radium-workflow/
-├── src/schema/components/
-│   ├── mod.rs              # Module exports
-│   ├── trigger.rs          # Trigger component
-│   ├── start.rs            # Start component
-│   ├── stop.rs             # Stop component
-│   ├── conditional.rs      # Conditional component
-│   ├── loop_component.rs   # Loop component
-│   ├── activity.rs         # Activity component
-│   ├── log.rs              # Log component
-│   ├── http_request.rs     # HTTP request component
-│   ├── database_query.rs   # Database query component
-│   ├── agent.rs            # Agent component
-│   ├── child_workflow.rs   # Child workflow component
-│   ├── signal.rs           # Signal component
-│   ├── timer.rs            # Timer component
-│   └── parallel.rs         # Parallel component
-├── component-records/
-│   ├── trigger.yaml
-│   ├── start.yaml
-│   ├── stop.yaml
-│   ├── conditional.yaml
-│   ├── loop.yaml
-│   ├── activity.yaml
-│   ├── log.yaml
-│   ├── http_request.yaml
-│   ├── database_query.yaml
-│   ├── agent.yaml
-│   ├── child_workflow.yaml
-│   ├── signal.yaml
-│   ├── timer.yaml
-│   └── parallel.yaml
-└── tests/
-    ├── component_verification.rs
-    └── typescript_verification.rs
-```
+| Old Name | New Name | Alias Support |
+|----------|----------|---------------|
+| `activity` | `action` | `#[serde(alias = "activity")]` |
+| `child_workflow` | `child_service` | `#[serde(alias = "child_workflow")]` |
+| `signal` | `message` | `#[serde(alias = "signal")]` |
 
 ---
 
@@ -315,25 +150,56 @@ All components follow these serialization rules:
 
 ---
 
-## TypeScript Compatibility
+## File Structure
 
-All components generate TypeScript-compatible output:
-
-1. **No `any` Types**: Uses `unknown` for flexibility
-2. **Strict Null Checks**: All optional fields properly typed
-3. **Temporal SDK Compatible**: Imports and types align with @temporalio/workflow
-4. **camelCase Properties**: Matches JavaScript conventions
-
----
-
-## Test Coverage
-
-| Test File | Tests | Coverage |
-|-----------|-------|----------|
-| `lib.rs` | 344 | Unit tests for all components |
-| `component_verification.rs` | 85 | Comprehensive component tests |
-| `typescript_verification.rs` | 21 | TypeScript generation tests |
-| `generate_migration_records.rs` | 2 | Migration record validation |
-| `integration_tests.rs` | 31 | Cross-component integration |
-
-**Total**: 746+ tests
+```
+crates/radium-workflow/
+├── src/schema/components/
+│   ├── mod.rs              # Module exports
+│   ├── behaviors.rs        # Shared behavior system
+│   ├── trigger.rs          # Control flow
+│   ├── start.rs
+│   ├── stop.rs
+│   ├── conditional.rs
+│   ├── loop_component.rs
+│   ├── action.rs           # Core activities (renamed from activity)
+│   ├── activity.rs         # Legacy re-export
+│   ├── log.rs
+│   ├── http_request.rs
+│   ├── database_query.rs
+│   ├── agent.rs            # AI/LLM
+│   ├── child_service.rs    # Advanced (renamed from child_workflow)
+│   ├── child_workflow.rs   # Legacy re-export
+│   ├── message.rs          # Advanced (renamed from signal)
+│   ├── signal.rs           # Legacy re-export
+│   ├── timer.rs
+│   ├── parallel.rs
+│   ├── shell_execute.rs    # Execution
+│   ├── npm_function.rs
+│   ├── code_execute.rs
+│   ├── data_transform.rs   # Data
+│   ├── schema_validate.rs
+│   ├── encode_decode.rs
+│   ├── secret_read.rs      # Security
+│   ├── oauth_token.rs
+│   ├── jwt_create.rs
+│   ├── cache_component.rs  # Storage
+│   ├── file_write.rs
+│   ├── file_read.rs
+│   ├── object_storage.rs
+│   ├── graphql_request.rs  # Network
+│   ├── grpc_call.rs
+│   ├── websocket.rs
+│   ├── smtp_send.rs
+│   ├── webhook_send.rs     # Messaging
+│   ├── queue_publish.rs
+│   ├── queue_consume.rs
+│   ├── event_emit.rs
+│   ├── delay.rs            # Flow control
+│   └── batch.rs
+├── component-records/
+│   └── *.yaml              # 37+ YAML records
+└── tests/
+    ├── component_verification.rs
+    └── typescript_verification.rs
+```
