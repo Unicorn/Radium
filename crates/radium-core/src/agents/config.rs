@@ -2136,7 +2136,7 @@ cost_tier = "invalid"
 
     #[test]
     fn test_to_safety_settings_with_default() {
-        use radium_models::{SafetyCategory, SafetyThreshold};
+        use radium_models::SafetyCategory;
 
         // Test default threshold applies to all categories
         let config = GeminiSafetyConfigToml {
@@ -2167,7 +2167,7 @@ cost_tier = "invalid"
 
     #[test]
     fn test_to_safety_settings_partial() {
-        use radium_models::{SafetyCategory, SafetyThreshold};
+        use radium_models::SafetyCategory;
 
         // Test partial configuration with default fallback
         let config = GeminiSafetyConfigToml {
@@ -2218,7 +2218,7 @@ cost_tier = "invalid"
 
     #[test]
     fn test_to_safety_settings_all_categories() {
-        use radium_models::{SafetyCategory, SafetyThreshold};
+        use radium_models::SafetyCategory;
 
         // Test all categories explicitly configured
         let config = GeminiSafetyConfigToml {
@@ -2257,7 +2257,7 @@ cost_tier = "invalid"
 
     #[test]
     fn test_to_safety_settings_selective() {
-        use radium_models::{SafetyCategory, SafetyThreshold};
+        use radium_models::SafetyCategory;
 
         // Test selective configuration (some categories, no default)
         let config = GeminiSafetyConfigToml {

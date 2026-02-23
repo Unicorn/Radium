@@ -99,6 +99,7 @@ impl CustomCommand {
     ///
     /// # Errors
     /// Returns error if execution fails or hooks deny execution
+    #[allow(unused_variables, unused_mut)] // variables used only inside #[cfg(feature = "orchestrator-integration")] blocks
     pub async fn execute_with_hooks_and_sandbox(
         &self,
         args: &[String],

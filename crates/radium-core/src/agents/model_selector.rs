@@ -490,30 +490,26 @@ mod tests {
 
     #[test]
     fn test_default_model_selector_new() {
-        let selector = DefaultModelSelector::new();
+        let _selector = DefaultModelSelector::new();
         // Just verify it doesn't panic
-        assert!(true);
     }
 
     #[test]
     fn test_default_model_selector_default() {
-        let selector = DefaultModelSelector::default();
+        let _selector = DefaultModelSelector::default();
         // Just verify it doesn't panic
-        assert!(true);
     }
 
     #[test]
     fn test_fallback_chain_selector_new() {
-        let selector = FallbackChainSelector::new();
+        let _selector = FallbackChainSelector::new();
         // Just verify it doesn't panic
-        assert!(true);
     }
 
     #[test]
     fn test_fallback_chain_selector_default() {
-        let selector = FallbackChainSelector::default();
+        let _selector = FallbackChainSelector::default();
         // Just verify it doesn't panic
-        assert!(true);
     }
 }
 

@@ -436,8 +436,7 @@ impl<'a> CostAnalytics<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::monitoring::{AgentRecord, AgentStatus, MonitoringService, TelemetryRecord};
-    use std::path::PathBuf;
+    use crate::monitoring::{AgentRecord, MonitoringService, TelemetryRecord};
     use tempfile::TempDir;
 
     async fn setup_test_service() -> (MonitoringService, TempDir) {

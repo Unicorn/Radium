@@ -368,9 +368,8 @@ impl<'a> CostQueryService<'a> {
 mod tests {
     use super::*;
     use crate::analytics::export::ExportFormat;
-    use crate::monitoring::{AgentRecord, AgentStatus, TelemetryRecord, TelemetryTracking};
+    use crate::monitoring::{AgentRecord, TelemetryRecord};
     use chrono::Utc;
-    use std::path::PathBuf;
     use tempfile::TempDir;
 
     async fn setup_test_service() -> (MonitoringService, TempDir) {

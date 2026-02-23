@@ -207,7 +207,7 @@ mod tests {
         let collector = create_test_collector(true);
         let tracker = collector.record_start("test-agent", None).unwrap();
         // Manually disable tracker
-        let mut disabled_tracker = ExecutionTracker {
+        let disabled_tracker = ExecutionTracker {
             agent_id: tracker.agent_id,
             category: tracker.category,
             start_time: tracker.start_time,

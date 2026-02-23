@@ -89,6 +89,7 @@ impl McpIntegration {
         let mut clients = self.clients.lock().await;
         let mut tool_registries = self.tool_registries.lock().await;
 
+        #[allow(unused_variables)] // used only inside #[cfg(feature = "mcp-progress")]
         let total_servers = all_servers.len();
         
         #[cfg(feature = "mcp-progress")]

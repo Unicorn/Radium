@@ -281,7 +281,7 @@ mod tests {
         let library = PatternLibrary::default();
         let filter = PrivacyFilter::new(RedactionStyle::Full, library);
         let text = "Contact user@example.com at 192.168.1.100";
-        let (redacted, stats) = filter.redact(text).unwrap();
+        let (_redacted, stats) = filter.redact(text).unwrap();
         assert_eq!(stats.count, 2); // Email and IP
         assert!(stats.patterns.contains_key("email"));
         assert!(stats.patterns.contains_key("ipv4"));

@@ -121,7 +121,7 @@ mod tests {
 
     #[test]
     fn test_playbook_validation_invalid_uri() {
-        let mut playbook = Playbook::new(
+        let playbook = Playbook::new(
             "http://invalid",
             "Test",
             "Content",

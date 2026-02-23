@@ -826,7 +826,7 @@ reason = "Terraform apply requires dry-run preview"
 
     #[tokio::test]
     async fn test_policy_engine_with_alert_manager() {
-        use crate::policy::alerts::{AlertConfig, AlertManager, WebhookConfig};
+        use crate::policy::alerts::{AlertConfig, AlertManager};
         
         let alert_config = AlertConfig {
             enabled: false, // Disable for testing

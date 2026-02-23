@@ -194,7 +194,7 @@ pub struct SourceValidationResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::context::sources::{LocalFileReader, SourceRegistry};
+    use crate::context::sources::SourceRegistry;
 
     #[tokio::test]
     async fn test_validate_sources_empty_list() {

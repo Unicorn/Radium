@@ -180,7 +180,6 @@ impl Default for ExtensionPublisher {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
 
     #[test]
     fn test_publisher_creation() {

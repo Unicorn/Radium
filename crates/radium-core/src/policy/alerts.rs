@@ -265,7 +265,6 @@ impl AlertManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::policy::types::PolicyAction;
 
     #[test]
     fn test_rate_limiter_consumes_tokens() {

@@ -344,11 +344,13 @@ mod tests {
             self
         }
 
+        #[allow(dead_code)]
         fn with_fail_send(mut self) -> Self {
             self.should_fail_send = true;
             self
         }
 
+        #[allow(dead_code)]
         fn with_fail_receive(mut self) -> Self {
             self.should_fail_receive = true;
             self

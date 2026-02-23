@@ -545,6 +545,7 @@ impl MonitoringService {
     ///
     /// # Errors
     /// Returns error if update fails
+    #[allow(unused_variables)] // end_time used only inside #[cfg(feature = "orchestrator-integration")]
     pub async fn complete_agent_with_hooks(&self, agent_id: &str, exit_code: i32) -> Result<()> {
         // Get agent record for telemetry
         let _agent_record = self.get_agent(agent_id).ok();
@@ -619,6 +620,7 @@ impl MonitoringService {
     ///
     /// # Errors
     /// Returns error if update fails
+    #[allow(unused_variables)] // end_time used only inside #[cfg(feature = "orchestrator-integration")]
     pub async fn fail_agent_with_hooks(&self, agent_id: &str, error_message: &str) -> Result<()> {
         let end_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
 

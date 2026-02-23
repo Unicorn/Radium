@@ -273,7 +273,7 @@ p = "plan"
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("config.toml");
 
-        let mut config = CliConfig {
+        let config = CliConfig {
             engine: Some("claude".to_string()),
             model: Some("claude-3-opus".to_string()),
             ..Default::default()

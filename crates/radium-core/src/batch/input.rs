@@ -134,7 +134,6 @@ fn parse_json_array(content: &str) -> Result<Vec<BatchInput>, BatchError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
     use tempfile::NamedTempFile;
 
     #[test]

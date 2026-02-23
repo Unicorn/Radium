@@ -147,7 +147,7 @@ crate::mcp::proxy::types::ConnectionState::Unhealthy) => {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mcp::proxy::types::{ConnectionState, UpstreamConfig};
+    use crate::mcp::proxy::types::UpstreamConfig;
     use crate::mcp::{McpServerConfig, TransportType};
 
     fn create_test_config(name: &str) -> UpstreamConfig {

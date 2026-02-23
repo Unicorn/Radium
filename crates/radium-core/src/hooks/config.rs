@@ -184,7 +184,7 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let config_file = temp.path().join("hooks.toml");
         
-        let mut config = HookConfig {
+        let config = HookConfig {
             hooks: vec![HookDefinition {
                 name: "test-hook".to_string(),
                 hook_type: "before_model".to_string(),
@@ -195,7 +195,7 @@ mod tests {
             }],
             enable_profiling: false,
         };
-        
+
         let result = config.save(&config_file);
         assert!(result.is_ok());
         assert!(config_file.exists());

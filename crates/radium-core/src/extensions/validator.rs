@@ -249,7 +249,6 @@ mod tests {
     use super::*;
     use crate::extensions::manifest::ExtensionComponents;
     use std::collections::HashMap;
-    use tempfile::TempDir;
 
     fn create_test_manifest(name: &str) -> ExtensionManifest {
         ExtensionManifest {

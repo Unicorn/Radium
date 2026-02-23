@@ -251,7 +251,7 @@ mod tests {
 
     #[test]
     fn test_inject_single_secret() {
-        let (injector, temp_dir) = create_test_injector();
+        let (_injector, temp_dir) = create_test_injector();
         let mut manager = SecretManager::new(
             temp_dir.path().join("secrets.vault"),
             "TestPassword123!",
@@ -270,7 +270,7 @@ mod tests {
 
     #[test]
     fn test_inject_environment_variables() {
-        let (injector, temp_dir) = create_test_injector();
+        let (_injector, temp_dir) = create_test_injector();
         let mut manager = SecretManager::new(
             temp_dir.path().join("secrets.vault"),
             "TestPassword123!",
