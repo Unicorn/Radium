@@ -78,6 +78,8 @@ pub enum YamlComponentType {
     GrpcCall,
     Websocket,
     EventEmit,
+    Delay,
+    Batch,
 }
 
 /// A connection between two components.
@@ -240,6 +242,8 @@ settings:
             ("grpc_call", YamlComponentType::GrpcCall),
             ("websocket", YamlComponentType::Websocket),
             ("event_emit", YamlComponentType::EventEmit),
+            ("delay", YamlComponentType::Delay),
+            ("batch", YamlComponentType::Batch),
         ];
 
         for (yaml_str, expected) in cases {

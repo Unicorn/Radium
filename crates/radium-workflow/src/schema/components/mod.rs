@@ -10,6 +10,8 @@
 pub mod behaviors;
 mod action;
 mod activity;
+mod batch;
+mod delay;
 mod agent;
 mod cache_component;
 mod child_service;
@@ -50,6 +52,7 @@ mod trigger;
 pub use action::{
     ActivityError, ActivityInput, ActivityOutput, RetryConfig, RetryPolicy, TimeoutConfig,
 };
+pub use batch::{BatchFailStrategy, BatchInput, BatchItemResult, BatchOutput};
 pub use cache_component::{CacheAction, CacheInput, CacheOutput};
 pub use agent::{
     AgentInput, AgentOutput, AIProvider, AnthropicModel, FinishReason, Message, MessageRole,
@@ -101,6 +104,7 @@ pub use webhook_send::{SigningAlgorithm, WebhookMethod, WebhookSendInput, Webhoo
 pub use websocket::{WebSocketAction, WebSocketInput, WebSocketMessageType, WebSocketOutput};
 pub use start::{StartInput, StartOutput};
 pub use stop::{StopInput, StopOutput};
+pub use delay::{delay_default_behaviors, DelayInput, DelayOutput, DelayUnit};
 pub use timer::{DurationUnit, TimerInput, TimerOutput, TimerType};
 pub use trigger::{ScheduleConfig, TriggerInput, TriggerOutput, TriggerType, WebhookConfig};
 

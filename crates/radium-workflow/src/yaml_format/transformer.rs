@@ -148,6 +148,8 @@ fn map_component_type(ct: &YamlComponentType) -> NodeType {
         YamlComponentType::GrpcCall => NodeType::Activity,
         YamlComponentType::Websocket => NodeType::Activity,
         YamlComponentType::EventEmit => NodeType::Activity,
+        YamlComponentType::Delay => NodeType::Activity,
+        YamlComponentType::Batch => NodeType::Activity,
     }
 }
 
