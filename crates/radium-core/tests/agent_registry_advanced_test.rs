@@ -28,6 +28,7 @@ fn create_test_agent(id: &str, name: &str, category: Option<&str>, engine: Optio
         routing: None,
         safety_behavior: None,
         code_execution_enabled: None,
+        tags: Vec::new(),
     };
     agent
 }

@@ -196,10 +196,12 @@ mod tests {
             category: None,
             file_path: None,
             capabilities: AgentCapabilities::default(),
-            code_execution_enabled: None,            persona_config: None,
+            code_execution_enabled: None,
+            persona_config: None,
             sandbox: None,
             routing: None,
             safety_behavior: None,
+            tags: Vec::new(),
         }
     }
 

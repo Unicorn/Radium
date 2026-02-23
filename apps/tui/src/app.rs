@@ -480,6 +480,13 @@ impl App {
         // Propagate workspace root into prompt_data so SessionList can load workspace sessions
         app.prompt_data.workspace_root = workspace_status_clone.as_ref().and_then(|ws| ws.root.clone());
 
+        // Load persisted command allowlist from disk
+        if let Some(root) = app.prompt_data.workspace_root.as_deref() {
+            if let Ok(saved) = crate::command_safety::CommandSafety::load_allowlist(root) {
+                app.command_allowlist = saved;
+            }
+        }
+
         // Check for resumable executions on startup
         let workspace_root = workspace_status_clone.as_ref().and_then(|ws| ws.root.clone());
         if let Some(root) = workspace_root.clone() {
@@ -919,10 +926,15 @@ impl App {
                         use crate::components::ConfirmationOutcome;
                         let outcome = confirmation.selected_outcome();
 
-                        // If "Always Allow" was selected, add to allowlist
+                        // If "Always Allow" was selected, add to allowlist and persist
                         if matches!(outcome, ConfirmationOutcome::ApprovedAlways) {
                             self.command_allowlist.insert(confirmation.analysis.root_command.clone());
-                            // TODO: Save allowlist to disk (Phase 7)
+                            if let Some(root) = self.prompt_data.workspace_root.as_deref() {
+                                let _ = crate::command_safety::CommandSafety::save_allowlist(
+                                    &self.command_allowlist,
+                                    root,
+                                );
+                            }
                         }
 
                         // Send response back to executor

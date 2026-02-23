@@ -523,11 +523,9 @@ impl AgentRegistry {
         }
     }
 
-    /// Extracts tags from an agent (placeholder - tags not yet in AgentConfig).
-    /// This is a placeholder for future tag support.
-    fn extract_tags(_agent: &AgentConfig) -> Vec<String> {
-        // TODO: Extract tags from agent metadata when tags are added to AgentConfig
-        Vec::new()
+    /// Extracts tags from an agent config.
+    fn extract_tags(agent: &AgentConfig) -> Vec<String> {
+        agent.tags.clone()
     }
 
     /// Sorts agents by the specified order.
@@ -628,6 +626,7 @@ mod tests {
             routing: None,
             safety_behavior: None,
             code_execution_enabled: None,
+            tags: Vec::new(),
         }
     }
 

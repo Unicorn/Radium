@@ -946,6 +946,12 @@ pub struct AgentConfig {
     /// Configuration precedence: Agent config > Model config > Provider default
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub code_execution_enabled: Option<bool>,
+
+    /// Tags for agent categorisation, filtering, and search (optional).
+    ///
+    /// Example TOML: `tags = ["code", "review", "rust"]`
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
 }
 
 impl AgentConfig {
@@ -971,6 +977,7 @@ impl AgentConfig {
             routing: None,
             safety_behavior: None,
             code_execution_enabled: None,
+            tags: Vec::new(),
         }
     }
 
@@ -1634,7 +1641,7 @@ trigger_agent_id = "helper-agent"
                 mirror_path: None,
                 engine: None,
                 model: None,
-            
+
                 reasoning_effort: None,
                 loop_behavior: None,
                 trigger_behavior: None,
@@ -1645,6 +1652,7 @@ trigger_agent_id = "helper-agent"
                 persona_config: None,
                 routing: None,
                 code_execution_enabled: None,
+                tags: Vec::new(),
             }
             .with_file_path(config_dir.join("empty-id.toml")),
             persona: None,
@@ -1663,7 +1671,7 @@ trigger_agent_id = "helper-agent"
                 mirror_path: None,
                 engine: None,
                 model: None,
-            
+
                 reasoning_effort: None,
                 loop_behavior: None,
                 trigger_behavior: None,
@@ -1675,6 +1683,7 @@ trigger_agent_id = "helper-agent"
                 routing: None,
                 safety_behavior: None,
                 code_execution_enabled: None,
+                tags: Vec::new(),
             }
             .with_file_path(config_dir.join("empty-name.toml")),
             persona: None,
@@ -1693,7 +1702,7 @@ trigger_agent_id = "helper-agent"
                 mirror_path: None,
                 engine: None,
                 model: None,
-            
+
                 reasoning_effort: None,
                 loop_behavior: None,
                 trigger_behavior: None,
@@ -1705,6 +1714,7 @@ trigger_agent_id = "helper-agent"
                 routing: None,
                 safety_behavior: None,
                 code_execution_enabled: None,
+                tags: Vec::new(),
             }
             .with_file_path(config_dir.join("empty-prompt.toml")),
             persona: None,
