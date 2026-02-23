@@ -65,6 +65,14 @@ pub enum YamlComponentType {
     SecretRead,
     Cache,
     FileWrite,
+    GraphqlRequest,
+    SmtpSend,
+    WebhookSend,
+    QueuePublish,
+    QueueConsume,
+    ObjectStorage,
+    FileRead,
+    EncodeDecode,
 }
 
 /// A connection between two components.
@@ -214,6 +222,14 @@ settings:
             ("secret_read", YamlComponentType::SecretRead),
             ("cache", YamlComponentType::Cache),
             ("file_write", YamlComponentType::FileWrite),
+            ("graphql_request", YamlComponentType::GraphqlRequest),
+            ("smtp_send", YamlComponentType::SmtpSend),
+            ("webhook_send", YamlComponentType::WebhookSend),
+            ("queue_publish", YamlComponentType::QueuePublish),
+            ("queue_consume", YamlComponentType::QueueConsume),
+            ("object_storage", YamlComponentType::ObjectStorage),
+            ("file_read", YamlComponentType::FileRead),
+            ("encode_decode", YamlComponentType::EncodeDecode),
         ];
 
         for (yaml_str, expected) in cases {

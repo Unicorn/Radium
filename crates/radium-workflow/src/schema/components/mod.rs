@@ -16,19 +16,27 @@ mod child_service;
 mod child_workflow;
 mod code_execute;
 mod data_transform;
+mod encode_decode;
 mod conditional;
+mod file_read;
 mod file_write;
 mod database_query;
+mod graphql_request;
 mod http_request;
 mod log;
 mod loop_component;
 mod message;
 mod parallel;
 mod npm_function;
+mod object_storage;
 mod schema_validate;
+mod queue_consume;
+mod queue_publish;
 mod secret_read;
 mod shell_execute;
 mod signal;
+mod smtp_send;
+mod webhook_send;
 mod start;
 mod stop;
 mod timer;
@@ -49,7 +57,11 @@ pub use conditional::{
     ComparisonOperator, Condition, ConditionGroup, ConditionalInput, ConditionalOutput,
     LogicalOperator,
 };
+pub use file_read::{FileReadInput, FileReadOutput};
 pub use file_write::{FileWriteInput, FileWriteMode, FileWriteOutput};
+pub use graphql_request::{
+    GraphQlError, GraphQlErrorLocation, GraphQlRequestInput, GraphQlRequestOutput,
+};
 pub use database_query::{
     ConnectionConfig, DatabaseQueryInput, DatabaseQueryOutput, OrderByClause, QueryOperation,
     ResultFormat, WhereCondition, WhereOperator,
@@ -62,11 +74,21 @@ pub use loop_component::{BatchConfig, LoopInput, LoopOutput, LoopType};
 pub use parallel::{Branch, BranchResult, JoinStrategy, ParallelInput, ParallelOutput};
 pub use code_execute::{CodeExecuteInput, CodeExecuteOutput, CodeLanguage};
 pub use data_transform::{DataTransformInput, DataTransformOutput, ExpressionLanguage};
+pub use encode_decode::{
+    EncodeDecodeAction, EncodeDecodeFormat, EncodeDecodeInput, EncodeDecodeOutput, FormatOptions,
+};
 pub use message::{SignalDirection, SignalInput, SignalOutput};
 pub use npm_function::{NpmFunctionInput, NpmFunctionOutput};
+pub use object_storage::{
+    ObjectInfo, ObjectStorageInput, ObjectStorageOutput, StorageAction, StorageProvider,
+};
 pub use schema_validate::{SchemaValidateInput, SchemaValidateOutput, SchemaValidationError};
+pub use queue_consume::{QueueConsumeInput, QueueConsumeOutput, QueueMessage};
+pub use queue_publish::{QueueProvider, QueuePublishInput, QueuePublishOutput};
 pub use secret_read::{SecretReadInput, SecretReadOutput};
 pub use shell_execute::{CaptureMode, ShellExecuteInput, ShellExecuteOutput};
+pub use smtp_send::{EmailAttachment, EmailContentType, SmtpSendInput, SmtpSendOutput};
+pub use webhook_send::{SigningAlgorithm, WebhookMethod, WebhookSendInput, WebhookSendOutput};
 pub use start::{StartInput, StartOutput};
 pub use stop::{StopInput, StopOutput};
 pub use timer::{DurationUnit, TimerInput, TimerOutput, TimerType};

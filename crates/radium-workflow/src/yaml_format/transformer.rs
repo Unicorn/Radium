@@ -135,6 +135,14 @@ fn map_component_type(ct: &YamlComponentType) -> NodeType {
         YamlComponentType::SecretRead => NodeType::Activity,
         YamlComponentType::Cache => NodeType::Activity,
         YamlComponentType::FileWrite => NodeType::Activity,
+        YamlComponentType::GraphqlRequest => NodeType::Activity,
+        YamlComponentType::SmtpSend => NodeType::Activity,
+        YamlComponentType::WebhookSend => NodeType::Activity,
+        YamlComponentType::QueuePublish => NodeType::Activity,
+        YamlComponentType::QueueConsume => NodeType::Activity,
+        YamlComponentType::ObjectStorage => NodeType::Activity,
+        YamlComponentType::FileRead => NodeType::Activity,
+        YamlComponentType::EncodeDecode => NodeType::Activity,
     }
 }
 
