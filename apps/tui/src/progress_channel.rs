@@ -56,6 +56,8 @@ pub struct RoutingDecisionInfo {
     pub confidence: f32,
     /// Whether execution succeeded.
     pub execution_success: bool,
+    /// Alternative agents considered, with their confidence scores.
+    pub alternatives: Vec<(String, f32)>,
 }
 
 /// Progress messages sent from async tasks to the TUI.

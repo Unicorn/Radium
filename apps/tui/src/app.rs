@@ -835,13 +835,14 @@ impl App {
         routing_method: String,
         confidence: f32,
         execution_success: bool,
+        alternatives: Vec<(String, f32)>,
     ) {
         let decision = crate::views::RoutingDecision {
             task_description,
             selected_agent,
             routing_method,
             confidence,
-            alternatives: vec![], // TODO: Add alternatives from routing context
+            alternatives,
             execution_success,
         };
 

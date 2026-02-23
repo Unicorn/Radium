@@ -414,6 +414,7 @@ async fn main() -> Result<()> {
                                 decision.routing_method.clone(),
                                 decision.confidence,
                                 decision.execution_success,
+                                decision.alternatives.clone(),
                             );
                         }
                         radium_tui::progress_channel::ProgressMessage::RequirementComplete { requirement_id, result } => {

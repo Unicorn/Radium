@@ -290,6 +290,24 @@ impl FeedbackView {
                 ]),
             ];
 
+            // Append alternatives section if any exist
+            let mut info_text = info_text;
+            if !decision.alternatives.is_empty() {
+                info_text.push(Line::from(""));
+                info_text.push(Line::from(Span::styled(
+                    "Alternatives considered:",
+                    Style::default().add_modifier(Modifier::BOLD),
+                )));
+                for (agent, score) in &decision.alternatives {
+                    info_text.push(Line::from(vec![
+                        Span::raw("  • "),
+                        Span::styled(agent.as_str(), Style::default().fg(Color::Yellow)),
+                        Span::raw(format!(" ({:.0}%)", score * 100.0)),
+                    ]));
+                }
+            }
+            let info_text = info_text;
+
             let info = Paragraph::new(info_text)
                 .block(Block::default().borders(Borders::ALL).title("Decision Details"))
                 .wrap(Wrap { trim: true });
