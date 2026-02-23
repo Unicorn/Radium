@@ -11,6 +11,7 @@ pub mod behaviors;
 mod action;
 mod activity;
 mod agent;
+mod cache_component;
 mod child_service;
 mod child_workflow;
 mod code_execute;
@@ -35,6 +36,7 @@ mod trigger;
 pub use action::{
     ActivityError, ActivityInput, ActivityOutput, RetryConfig, RetryPolicy, TimeoutConfig,
 };
+pub use cache_component::{CacheAction, CacheInput, CacheOutput};
 pub use agent::{
     AgentInput, AgentOutput, AIProvider, AnthropicModel, FinishReason, Message, MessageRole,
     ModelConfig, TokenUsage, Tool, ToolCall,

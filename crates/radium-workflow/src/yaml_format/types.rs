@@ -63,6 +63,7 @@ pub enum YamlComponentType {
     DataTransform,
     SchemaValidate,
     SecretRead,
+    Cache,
 }
 
 /// A connection between two components.
@@ -210,6 +211,7 @@ settings:
             ("data_transform", YamlComponentType::DataTransform),
             ("schema_validate", YamlComponentType::SchemaValidate),
             ("secret_read", YamlComponentType::SecretRead),
+            ("cache", YamlComponentType::Cache),
         ];
 
         for (yaml_str, expected) in cases {
