@@ -61,6 +61,7 @@ pub enum YamlComponentType {
     NpmFunction,
     CodeExecute,
     DataTransform,
+    SchemaValidate,
 }
 
 /// A connection between two components.
@@ -206,6 +207,7 @@ settings:
             ("npm_function", YamlComponentType::NpmFunction),
             ("code_execute", YamlComponentType::CodeExecute),
             ("data_transform", YamlComponentType::DataTransform),
+            ("schema_validate", YamlComponentType::SchemaValidate),
         ];
 
         for (yaml_str, expected) in cases {

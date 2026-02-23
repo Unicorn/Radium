@@ -131,6 +131,7 @@ fn map_component_type(ct: &YamlComponentType) -> NodeType {
         YamlComponentType::NpmFunction => NodeType::Activity,
         YamlComponentType::CodeExecute => NodeType::Activity,
         YamlComponentType::DataTransform => NodeType::Activity,
+        YamlComponentType::SchemaValidate => NodeType::Activity,
     }
 }
 
