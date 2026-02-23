@@ -389,13 +389,18 @@ mod tests {
         rating: FeedbackRating,
     ) -> RoutingFeedbackRecord {
         RoutingFeedbackRecord {
-            timestamp: SystemTime::now(),
+            timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
             task_description: "Test task".to_string(),
             selected_agent: agent.to_string(),
             confidence,
+            routing_method: "keyword".to_string(),
             user_feedback: rating,
             execution_success: success,
             retry_count: 0,
+            comment: None,
         }
     }
 

@@ -335,7 +335,7 @@ async fn test_concurrent_execution_result_ordering() {
     let tools: Vec<Tool> = (0..5)
         .map(|i| {
             // Reverse delay order: tool 0 takes longest, tool 4 takes shortest
-            let delay_ms = (5 - i) * 20;
+            let delay_ms = ((5 - i) * 20) as u64;
             Tool::new(
                 &format!("tool_{}", i),
                 &format!("tool_{}", i),

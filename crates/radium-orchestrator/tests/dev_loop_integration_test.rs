@@ -4,8 +4,9 @@
 //! work correctly together in typical development workflows.
 
 use radium_orchestrator::orchestration::{
+    file_tools,
     git_extended_tools,
-    terminal_tool::{self, WorkspaceRootProvider},
+    terminal_tool,
     tool::{Tool, ToolArguments},
 };
 use std::path::PathBuf;
@@ -19,7 +20,13 @@ struct TestWorkspaceRoot {
     root: PathBuf,
 }
 
-impl WorkspaceRootProvider for TestWorkspaceRoot {
+impl file_tools::WorkspaceRootProvider for TestWorkspaceRoot {
+    fn workspace_root(&self) -> Option<PathBuf> {
+        Some(self.root.clone())
+    }
+}
+
+impl terminal_tool::WorkspaceRootProvider for TestWorkspaceRoot {
     fn workspace_root(&self) -> Option<PathBuf> {
         Some(self.root.clone())
     }
@@ -99,7 +106,7 @@ async fn test_git_status_in_clean_repo() {
     let temp_dir = TempDir::new().unwrap();
     setup_test_git_repo(&temp_dir).await.unwrap();
 
-    let workspace_root = Arc::new(TestWorkspaceRoot {
+    let workspace_root: Arc<dyn file_tools::WorkspaceRootProvider> = Arc::new(TestWorkspaceRoot {
         root: temp_dir.path().to_path_buf(),
     });
 
@@ -124,7 +131,7 @@ async fn test_git_status_detailed_format() {
     let temp_dir = TempDir::new().unwrap();
     setup_test_git_repo(&temp_dir).await.unwrap();
 
-    let workspace_root = Arc::new(TestWorkspaceRoot {
+    let workspace_root: Arc<dyn file_tools::WorkspaceRootProvider> = Arc::new(TestWorkspaceRoot {
         root: temp_dir.path().to_path_buf(),
     });
 
@@ -144,7 +151,7 @@ async fn test_git_status_not_a_repo() {
     let temp_dir = TempDir::new().unwrap();
     // Don't initialize git
 
-    let workspace_root = Arc::new(TestWorkspaceRoot {
+    let workspace_root: Arc<dyn file_tools::WorkspaceRootProvider> = Arc::new(TestWorkspaceRoot {
         root: temp_dir.path().to_path_buf(),
     });
 
@@ -165,7 +172,7 @@ async fn test_git_diff_working_directory() {
     let temp_dir = TempDir::new().unwrap();
     setup_test_git_repo(&temp_dir).await.unwrap();
 
-    let workspace_root = Arc::new(TestWorkspaceRoot {
+    let workspace_root: Arc<dyn file_tools::WorkspaceRootProvider> = Arc::new(TestWorkspaceRoot {
         root: temp_dir.path().to_path_buf(),
     });
 
@@ -187,7 +194,7 @@ async fn test_git_diff_specific_file() {
     let temp_dir = TempDir::new().unwrap();
     setup_test_git_repo(&temp_dir).await.unwrap();
 
-    let workspace_root = Arc::new(TestWorkspaceRoot {
+    let workspace_root: Arc<dyn file_tools::WorkspaceRootProvider> = Arc::new(TestWorkspaceRoot {
         root: temp_dir.path().to_path_buf(),
     });
 
@@ -205,7 +212,7 @@ async fn test_git_log_default() {
     let temp_dir = TempDir::new().unwrap();
     setup_test_git_repo(&temp_dir).await.unwrap();
 
-    let workspace_root = Arc::new(TestWorkspaceRoot {
+    let workspace_root: Arc<dyn file_tools::WorkspaceRootProvider> = Arc::new(TestWorkspaceRoot {
         root: temp_dir.path().to_path_buf(),
     });
 
@@ -227,7 +234,7 @@ async fn test_git_log_with_limit() {
     let temp_dir = TempDir::new().unwrap();
     setup_test_git_repo(&temp_dir).await.unwrap();
 
-    let workspace_root = Arc::new(TestWorkspaceRoot {
+    let workspace_root: Arc<dyn file_tools::WorkspaceRootProvider> = Arc::new(TestWorkspaceRoot {
         root: temp_dir.path().to_path_buf(),
     });
 
@@ -243,9 +250,10 @@ async fn test_git_log_with_limit() {
 #[tokio::test]
 async fn test_terminal_cmd_basic_execution() {
     let temp_dir = TempDir::new().unwrap();
-    let workspace_root = Arc::new(TestWorkspaceRoot {
-        root: temp_dir.path().to_path_buf(),
-    });
+    let workspace_root: Arc<dyn terminal_tool::WorkspaceRootProvider> =
+        Arc::new(TestWorkspaceRoot {
+            root: temp_dir.path().to_path_buf(),
+        });
 
     let tool = terminal_tool::create_terminal_command_tool(workspace_root, None, Some(30));
     let args = ToolArguments::new(serde_json::json!({
@@ -264,9 +272,10 @@ async fn test_terminal_cmd_with_working_dir() {
     let temp_dir = TempDir::new().unwrap();
     fs::create_dir_all(temp_dir.path().join("subdir")).await.unwrap();
 
-    let workspace_root = Arc::new(TestWorkspaceRoot {
-        root: temp_dir.path().to_path_buf(),
-    });
+    let workspace_root: Arc<dyn terminal_tool::WorkspaceRootProvider> =
+        Arc::new(TestWorkspaceRoot {
+            root: temp_dir.path().to_path_buf(),
+        });
 
     let tool = terminal_tool::create_terminal_command_tool(workspace_root, None, Some(30));
     let args = ToolArguments::new(serde_json::json!({
@@ -287,9 +296,10 @@ async fn test_terminal_cmd_with_working_dir() {
 #[tokio::test]
 async fn test_terminal_cmd_with_env_vars() {
     let temp_dir = TempDir::new().unwrap();
-    let workspace_root = Arc::new(TestWorkspaceRoot {
-        root: temp_dir.path().to_path_buf(),
-    });
+    let workspace_root: Arc<dyn terminal_tool::WorkspaceRootProvider> =
+        Arc::new(TestWorkspaceRoot {
+            root: temp_dir.path().to_path_buf(),
+        });
 
     let tool = terminal_tool::create_terminal_command_tool(workspace_root, None, Some(30));
     let args = ToolArguments::new(serde_json::json!({
@@ -312,9 +322,10 @@ async fn test_terminal_cmd_with_env_vars() {
 #[tokio::test]
 async fn test_terminal_cmd_timeout() {
     let temp_dir = TempDir::new().unwrap();
-    let workspace_root = Arc::new(TestWorkspaceRoot {
-        root: temp_dir.path().to_path_buf(),
-    });
+    let workspace_root: Arc<dyn terminal_tool::WorkspaceRootProvider> =
+        Arc::new(TestWorkspaceRoot {
+            root: temp_dir.path().to_path_buf(),
+        });
 
     let tool = terminal_tool::create_terminal_command_tool(workspace_root, None, Some(30));
     let args = ToolArguments::new(serde_json::json!({
@@ -334,9 +345,10 @@ async fn test_terminal_cmd_timeout() {
 #[tokio::test]
 async fn test_terminal_cmd_error_handling() {
     let temp_dir = TempDir::new().unwrap();
-    let workspace_root = Arc::new(TestWorkspaceRoot {
-        root: temp_dir.path().to_path_buf(),
-    });
+    let workspace_root: Arc<dyn terminal_tool::WorkspaceRootProvider> =
+        Arc::new(TestWorkspaceRoot {
+            root: temp_dir.path().to_path_buf(),
+        });
 
     let tool = terminal_tool::create_terminal_command_tool(workspace_root, None, Some(30));
     let args = ToolArguments::new(serde_json::json!({
@@ -370,18 +382,20 @@ version = "0.1.0"
     .await
     .unwrap();
 
-    let workspace_root = Arc::new(TestWorkspaceRoot {
-        root: temp_dir.path().to_path_buf(),
-    });
+    let root_path = temp_dir.path().to_path_buf();
 
     // 1. Check git status
-    let status_tool = git_extended_tools::create_git_status_tool(Arc::clone(&workspace_root));
+    let git_root: Arc<dyn file_tools::WorkspaceRootProvider> =
+        Arc::new(TestWorkspaceRoot { root: root_path.clone() });
+    let status_tool = git_extended_tools::create_git_status_tool(Arc::clone(&git_root));
     let status_args = ToolArguments::new(serde_json::json!({}));
     let status_result = status_tool.execute(&status_args).await.unwrap();
     assert!(status_result.success);
 
     // 2. Run a build-like command (just echo for test)
-    let cmd_tool = terminal_tool::create_terminal_command_tool(Arc::clone(&workspace_root), None, Some(30));
+    let term_root: Arc<dyn terminal_tool::WorkspaceRootProvider> =
+        Arc::new(TestWorkspaceRoot { root: root_path.clone() });
+    let cmd_tool = terminal_tool::create_terminal_command_tool(term_root, None, Some(30));
     let cmd_args = ToolArguments::new(serde_json::json!({
         "command": "echo 'Building...'"
     }));
@@ -389,7 +403,7 @@ version = "0.1.0"
     assert!(cmd_result.success);
 
     // 3. Check git diff
-    let diff_tool = git_extended_tools::create_git_diff_tool(workspace_root);
+    let diff_tool = git_extended_tools::create_git_diff_tool(git_root);
     let diff_args = ToolArguments::new(serde_json::json!({}));
     let diff_result = diff_tool.execute(&diff_args).await.unwrap();
     assert!(diff_result.success);
@@ -401,7 +415,7 @@ async fn test_dev_loop_git_workflow() {
     let temp_dir = TempDir::new().unwrap();
     setup_test_git_repo(&temp_dir).await.unwrap();
 
-    let workspace_root = Arc::new(TestWorkspaceRoot {
+    let workspace_root: Arc<dyn file_tools::WorkspaceRootProvider> = Arc::new(TestWorkspaceRoot {
         root: temp_dir.path().to_path_buf(),
     });
 
@@ -431,9 +445,10 @@ async fn test_dev_loop_git_workflow() {
 async fn test_terminal_cmd_with_shell_and_env() {
     // Test combined features: shell execution with environment variables
     let temp_dir = TempDir::new().unwrap();
-    let workspace_root = Arc::new(TestWorkspaceRoot {
-        root: temp_dir.path().to_path_buf(),
-    });
+    let workspace_root: Arc<dyn terminal_tool::WorkspaceRootProvider> =
+        Arc::new(TestWorkspaceRoot {
+            root: temp_dir.path().to_path_buf(),
+        });
 
     let tool = terminal_tool::create_terminal_command_tool(workspace_root, None, Some(30));
     let args = ToolArguments::new(serde_json::json!({
@@ -456,7 +471,7 @@ async fn test_git_status_hide_untracked() {
     let temp_dir = TempDir::new().unwrap();
     setup_test_git_repo(&temp_dir).await.unwrap();
 
-    let workspace_root = Arc::new(TestWorkspaceRoot {
+    let workspace_root: Arc<dyn file_tools::WorkspaceRootProvider> = Arc::new(TestWorkspaceRoot {
         root: temp_dir.path().to_path_buf(),
     });
 
@@ -483,7 +498,7 @@ async fn test_git_diff_staged_only() {
         .await
         .unwrap();
 
-    let workspace_root = Arc::new(TestWorkspaceRoot {
+    let workspace_root: Arc<dyn file_tools::WorkspaceRootProvider> = Arc::new(TestWorkspaceRoot {
         root: temp_dir.path().to_path_buf(),
     });
 
@@ -501,7 +516,7 @@ async fn test_git_log_file_filter() {
     let temp_dir = TempDir::new().unwrap();
     setup_test_git_repo(&temp_dir).await.unwrap();
 
-    let workspace_root = Arc::new(TestWorkspaceRoot {
+    let workspace_root: Arc<dyn file_tools::WorkspaceRootProvider> = Arc::new(TestWorkspaceRoot {
         root: temp_dir.path().to_path_buf(),
     });
 

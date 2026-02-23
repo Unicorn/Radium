@@ -496,6 +496,7 @@ async fn test_sandbox_config_with_all_options() {
 async fn test_sandbox_manager_lifecycle() {
     use radium_core::sandbox::AgentSandboxManager;
     use radium_core::sandbox::{SandboxConfig, SandboxType};
+    use radium_orchestrator::SandboxManager;
 
     let manager = AgentSandboxManager::new();
 
@@ -516,6 +517,7 @@ async fn test_sandbox_manager_lifecycle() {
 async fn test_sandbox_manager_handles_unavailable_sandbox() {
     use radium_core::sandbox::AgentSandboxManager;
     use radium_core::sandbox::{SandboxConfig, SandboxType};
+    use radium_orchestrator::SandboxManager;
 
     let manager = AgentSandboxManager::new();
 
@@ -541,6 +543,7 @@ async fn test_sandbox_manager_handles_unavailable_sandbox() {
 async fn test_sandbox_manager_cleanup_on_error() {
     use radium_core::sandbox::AgentSandboxManager;
     use radium_core::sandbox::SandboxConfig;
+    use radium_orchestrator::SandboxManager;
 
     let manager = AgentSandboxManager::new();
 

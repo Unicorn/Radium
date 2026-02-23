@@ -378,7 +378,9 @@ impl AgentSelector {
 mod tests {
     use super::*;
     use crate::context::braingrid_client::TaskStatus;
-    use radium_orchestrator::{Agent, AgentInfo, SkillRoutingResult};
+    use radium_orchestrator::{Agent, AgentContext, AgentOutput};
+    use radium_orchestrator::routing::SkillRoutingResult;
+    use radium_abstraction::ModelError;
     use std::sync::Arc;
     use async_trait::async_trait;
 
@@ -405,43 +407,27 @@ mod tests {
 
     #[async_trait]
     impl Agent for MockAgent {
-        fn info(&self) -> AgentInfo {
-            AgentInfo {
-                id: self.id.clone(),
-                name: format!("Mock {}", self.id),
-                description: "Mock agent for testing".to_string(),
-                capabilities: vec![],
-            }
+        fn id(&self) -> &str {
+            &self.id
+        }
+
+        fn description(&self) -> &str {
+            "Mock agent for testing"
         }
 
         async fn execute(
             &self,
-            _context: radium_orchestrator::OrchestrationContext,
-        ) -> Result<radium_orchestrator::AgentResult, radium_orchestrator::AgentError> {
-            Ok(radium_orchestrator::AgentResult {
-                success: true,
-                output: "Mock execution".to_string(),
-                metadata: std::collections::HashMap::new(),
-            })
+            _input: &str,
+            _context: AgentContext<'_>,
+        ) -> std::result::Result<AgentOutput, ModelError> {
+            Ok(AgentOutput::Text("Mock execution".to_string()))
         }
     }
 
-    struct MockAgentRegistry {
-        agents: Vec<AgentInfo>,
-    }
+    struct MockAgentRegistry;
 
     impl MockAgentRegistry {
         fn new(agent_ids: Vec<&str>) -> Arc<AgentRegistry> {
-            let agents: Vec<AgentInfo> = agent_ids
-                .iter()
-                .map(|id| AgentInfo {
-                    id: id.to_string(),
-                    name: format!("Mock {}", id),
-                    description: "Mock agent".to_string(),
-                    capabilities: vec![],
-                })
-                .collect();
-
             let registry = AgentRegistry::new();
             for agent_id in agent_ids {
                 let agent = MockAgent {
@@ -449,7 +435,7 @@ mod tests {
                 };
                 tokio::task::block_in_place(|| {
                     tokio::runtime::Handle::current().block_on(async {
-                        registry.register(Arc::new(agent)).await;
+                        registry.register_agent(Arc::new(agent)).await;
                     })
                 });
             }
@@ -486,7 +472,7 @@ mod tests {
         let result = selector.select_agent(&task).await;
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "code-agent");
+        assert_eq!(result.unwrap().agent_id, "code-agent");
     }
 
     #[tokio::test]
@@ -501,7 +487,7 @@ mod tests {
 
         // Should fall back to keyword matching and select review-agent
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "review-agent");
+        assert_eq!(result.unwrap().agent_id, "review-agent");
     }
 
     #[tokio::test]

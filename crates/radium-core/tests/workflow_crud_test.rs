@@ -1,4 +1,4 @@
-#![cfg(feature = "workflow")]
+#![cfg(all(feature = "workflow", feature = "server"))]
 
 //! Integration tests for Workflow CRUD operations.
 

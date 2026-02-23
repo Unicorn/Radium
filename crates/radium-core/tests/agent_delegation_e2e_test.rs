@@ -6,9 +6,10 @@
 //! spawns specialized subagents via trigger behavior, with proper permission
 //! enforcement at each level.
 
-use radium_core::agents::config::{AgentConfig, TriggerBehaviorConfig};
+use radium_core::agents::config::AgentConfig;
+use radium_core::agents::config::AgentTriggerBehavior;
 use radium_core::workflow::behaviors::trigger::{
-    TriggerDecision, TriggerEvaluationContext, TriggerEvaluator,
+    TriggerBehaviorConfig, TriggerEvaluationContext, TriggerEvaluator,
 };
 use radium_core::workflow::behaviors::types::{BehaviorAction, BehaviorActionType};
 use std::path::PathBuf;
@@ -25,9 +26,14 @@ fn create_executor_agent_config() -> AgentConfig {
         model: None,
         reasoning_effort: None,
         mirror_path: None,
-        trigger_behavior: Some(TriggerBehaviorConfig {
+        trigger_behavior: Some(AgentTriggerBehavior {
             trigger_agent_id: Some("error-handler".to_string()),
         }),
+        loop_behavior: None,
+        category: None,
+        routing: None,
+        safety_behavior: None,
+        code_execution_enabled: None,
         file_path: None,
         capabilities: Default::default(),
         sandbox: None,
@@ -47,6 +53,11 @@ fn create_error_handler_agent_config() -> AgentConfig {
         reasoning_effort: None,
         mirror_path: None,
         trigger_behavior: None,
+        loop_behavior: None,
+        category: None,
+        routing: None,
+        safety_behavior: None,
+        code_execution_enabled: None,
         file_path: None,
         capabilities: Default::default(),
         sandbox: None,
@@ -351,7 +362,10 @@ async fn test_complete_delegation_workflow() {
 
     // Evaluate trigger with executor's config
     let evaluator = TriggerEvaluator::new();
-    let trigger_config = executor_config.trigger_behavior.unwrap();
+    let trigger_behavior = executor_config.trigger_behavior.unwrap();
+    let trigger_config = TriggerBehaviorConfig {
+        trigger_agent_id: trigger_behavior.trigger_agent_id,
+    };
     let context = TriggerEvaluationContext::new(Some(trigger_config));
 
     let result = evaluator.evaluate_trigger(&behavior_file, "", &context).unwrap();

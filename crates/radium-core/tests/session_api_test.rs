@@ -1,3 +1,4 @@
+#![cfg(feature = "server")]
 //! Tests for session management gRPC API.
 
 use radium_core::session::SessionManager;

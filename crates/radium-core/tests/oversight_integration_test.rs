@@ -33,6 +33,8 @@ impl Model for MockOversightModel {
             content: "Mock text response".to_string(),
             model_id: Some("mock".to_string()),
             usage: None,
+            metadata: None,
+            tool_calls: None,
         })
     }
 
@@ -46,6 +48,8 @@ impl Model for MockOversightModel {
             content: "This approach looks good overall, but consider simplifying the implementation. The solution may be over-engineered for the current requirements.".to_string(),
             model_id: Some("mock".to_string()),
             usage: None,
+            metadata: None,
+            tool_calls: None,
         })
     }
 

@@ -31,7 +31,7 @@ fn test_agent_failure_classification() {
     let failure_type = classifier.classify_from_string("Agent not found: code-agent");
 
     match failure_type {
-        FailureType::AgentFailure { agent_id, .. } => {
+        FailureType::AgentFailure { ref agent_id, .. } => {
             assert_eq!(agent_id, "code-agent");
         }
         _ => panic!("Expected AgentFailure"),
