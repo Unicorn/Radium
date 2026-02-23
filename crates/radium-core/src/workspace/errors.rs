@@ -137,7 +137,6 @@ impl FileOperationError {
         matches!(
             self,
             FileOperationError::PathNotFound { .. }
-                | FileOperationError::PermissionDenied { .. }
                 | FileOperationError::PatchConflict { .. }
                 | FileOperationError::InvalidInput { .. }
         )

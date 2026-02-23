@@ -55,9 +55,10 @@ impl FileOperations {
         path: impl AsRef<Path>,
         content: &str,
     ) -> FileOperationResult<PathBuf> {
+        let allow_absolute = path.as_ref().is_absolute();
         let validated_path = self
             .boundary_validator
-            .validate_path(path, false)
+            .validate_path(path, allow_absolute)
             .map_err(FileOperationError::from)?;
 
         // Check if file already exists
@@ -98,9 +99,10 @@ impl FileOperations {
     /// # Errors
     /// Returns error if path is outside workspace, file doesn't exist, or deletion fails.
     pub fn delete_file(&self, path: impl AsRef<Path>) -> FileOperationResult<PathBuf> {
+        let allow_absolute = path.as_ref().is_absolute();
         let validated_path = self
             .boundary_validator
-            .validate_path(path, false)
+            .validate_path(path, allow_absolute)
             .map_err(FileOperationError::from)?;
 
         // Check if file exists
@@ -148,12 +150,12 @@ impl FileOperations {
     ) -> FileOperationResult<(PathBuf, PathBuf)> {
         let validated_from = self
             .boundary_validator
-            .validate_path(from, false)
+            .validate_path(&from, from.as_ref().is_absolute())
             .map_err(FileOperationError::from)?;
 
         let validated_to = self
             .boundary_validator
-            .validate_path(to, false)
+            .validate_path(&to, to.as_ref().is_absolute())
             .map_err(FileOperationError::from)?;
 
         // Check if source exists
@@ -202,9 +204,10 @@ impl FileOperations {
     /// # Errors
     /// Returns error if path is outside workspace, directory already exists, or creation fails.
     pub fn create_dir(&self, path: impl AsRef<Path>) -> FileOperationResult<PathBuf> {
+        let allow_absolute = path.as_ref().is_absolute();
         let validated_path = self
             .boundary_validator
-            .validate_path(path, false)
+            .validate_path(path, allow_absolute)
             .map_err(FileOperationError::from)?;
 
         // Check if directory already exists

@@ -62,27 +62,9 @@ impl FileTransaction {
 
     /// Add a create file operation to the transaction.
     pub fn create_file(&mut self, path: impl AsRef<Path>, content: &str) -> FileOperationResult<()> {
-        // Validate path by attempting to get workspace root (indirect validation)
-        let workspace_root = self.file_ops.workspace_root();
-        let full_path = if path.as_ref().is_absolute() {
-            path.as_ref().to_path_buf()
-        } else {
-            workspace_root.join(path.as_ref())
-        };
-
-        // Validate using boundary validator directly
-        use crate::workspace::boundary::BoundaryValidator;
-        let validator = BoundaryValidator::new(workspace_root)
-            .map_err(|e| FileOperationError::IoError {
-                path: workspace_root.display().to_string(),
-                operation: "validate_path".to_string(),
-                source: std::io::Error::new(
-                    std::io::ErrorKind::InvalidInput,
-                    format!("Failed to create validator: {}", e),
-                ),
-            })?;
-
-        let validated_path = validator.validate_path(&full_path, false)
+        let allow_absolute = path.as_ref().is_absolute();
+        let validated_path = self.file_ops.boundary_validator()
+            .validate_path(path.as_ref(), allow_absolute)
             .map_err(FileOperationError::from)?;
 
         self.operations.push(FileOperation::CreateFile {
@@ -95,25 +77,9 @@ impl FileTransaction {
 
     /// Add a delete file operation to the transaction.
     pub fn delete_file(&mut self, path: impl AsRef<Path>) -> FileOperationResult<()> {
-        let workspace_root = self.file_ops.workspace_root();
-        let full_path = if path.as_ref().is_absolute() {
-            path.as_ref().to_path_buf()
-        } else {
-            workspace_root.join(path.as_ref())
-        };
-
-        use crate::workspace::boundary::BoundaryValidator;
-        let validator = BoundaryValidator::new(workspace_root)
-            .map_err(|e| FileOperationError::IoError {
-                path: workspace_root.display().to_string(),
-                operation: "validate_path".to_string(),
-                source: std::io::Error::new(
-                    std::io::ErrorKind::InvalidInput,
-                    format!("Failed to create validator: {}", e),
-                ),
-            })?;
-
-        let validated_path = validator.validate_path(&full_path, false)
+        let allow_absolute = path.as_ref().is_absolute();
+        let validated_path = self.file_ops.boundary_validator()
+            .validate_path(path.as_ref(), allow_absolute)
             .map_err(FileOperationError::from)?;
 
         // Backup file content if it exists
@@ -141,34 +107,12 @@ impl FileTransaction {
         from: impl AsRef<Path>,
         to: impl AsRef<Path>,
     ) -> FileOperationResult<()> {
-        let workspace_root = self.file_ops.workspace_root();
-        
-        use crate::workspace::boundary::BoundaryValidator;
-        let validator = BoundaryValidator::new(workspace_root)
-            .map_err(|e| FileOperationError::IoError {
-                path: workspace_root.display().to_string(),
-                operation: "validate_path".to_string(),
-                source: std::io::Error::new(
-                    std::io::ErrorKind::InvalidInput,
-                    format!("Failed to create validator: {}", e),
-                ),
-            })?;
-
-        let full_from = if from.as_ref().is_absolute() {
-            from.as_ref().to_path_buf()
-        } else {
-            workspace_root.join(from.as_ref())
-        };
-
-        let full_to = if to.as_ref().is_absolute() {
-            to.as_ref().to_path_buf()
-        } else {
-            workspace_root.join(to.as_ref())
-        };
-
-        let validated_from = validator.validate_path(&full_from, false)
+        let validator = self.file_ops.boundary_validator();
+        let validated_from = validator
+            .validate_path(from.as_ref(), from.as_ref().is_absolute())
             .map_err(FileOperationError::from)?;
-        let validated_to = validator.validate_path(&full_to, false)
+        let validated_to = validator
+            .validate_path(to.as_ref(), to.as_ref().is_absolute())
             .map_err(FileOperationError::from)?;
 
         self.operations.push(FileOperation::RenameFile {
@@ -181,25 +125,9 @@ impl FileTransaction {
 
     /// Add a write file operation to the transaction.
     pub fn write_file(&mut self, path: impl AsRef<Path>, content: &str) -> FileOperationResult<()> {
-        let workspace_root = self.file_ops.workspace_root();
-        let full_path = if path.as_ref().is_absolute() {
-            path.as_ref().to_path_buf()
-        } else {
-            workspace_root.join(path.as_ref())
-        };
-
-        use crate::workspace::boundary::BoundaryValidator;
-        let validator = BoundaryValidator::new(workspace_root)
-            .map_err(|e| FileOperationError::IoError {
-                path: workspace_root.display().to_string(),
-                operation: "validate_path".to_string(),
-                source: std::io::Error::new(
-                    std::io::ErrorKind::InvalidInput,
-                    format!("Failed to create validator: {}", e),
-                ),
-            })?;
-
-        let validated_path = validator.validate_path(&full_path, false)
+        let allow_absolute = path.as_ref().is_absolute();
+        let validated_path = self.file_ops.boundary_validator()
+            .validate_path(path.as_ref(), allow_absolute)
             .map_err(FileOperationError::from)?;
 
         // Backup existing content if file exists

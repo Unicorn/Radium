@@ -116,14 +116,24 @@ impl BoundaryValidator {
             self.workspace_root.join(path)
         };
 
-        // Canonicalize the resolved path
-        let canonical_path = resolved_path
-            .canonicalize()
-            .map_err(|e| BoundaryError::CanonicalizationFailed(format!(
-                "Failed to canonicalize path {}: {}",
-                resolved_path.display(),
-                e
-            )))?;
+        // Canonicalize the resolved path if it exists; otherwise use lexical
+        // normalization. Canonicalization requires the path to exist on disk,
+        // which is wrong for "create new file" operations where the target
+        // path doesn't yet exist.
+        let canonical_path = if resolved_path.exists() {
+            resolved_path
+                .canonicalize()
+                .map_err(|e| BoundaryError::CanonicalizationFailed(format!(
+                    "Failed to canonicalize path {}: {}",
+                    resolved_path.display(),
+                    e
+                )))?
+        } else {
+            // Lexical normalization: collapse `.` and resolve `..` without I/O.
+            // The `..` traversal check above already rejected explicit `..` in
+            // the input path, so this is purely for cleanliness.
+            Self::normalize_lexical(&resolved_path)
+        };
 
         // Verify the canonicalized path is within workspace root
         if !canonical_path.starts_with(&self.workspace_root) {
@@ -133,8 +143,10 @@ impl BoundaryValidator {
             });
         }
 
-        // Check for symlink escapes by comparing resolved path components
-        self.check_symlink_escape(&canonical_path)?;
+        // Check for symlink escapes only when the path exists on disk
+        if resolved_path.exists() {
+            self.check_symlink_escape(&canonical_path)?;
+        }
 
         Ok(canonical_path)
     }
@@ -157,6 +169,23 @@ impl BoundaryValidator {
             validated.push(self.validate_path(path, allow_absolute)?);
         }
         Ok(validated)
+    }
+
+    /// Normalize a path lexically (without touching the filesystem).
+    ///
+    /// Collapses `.` components and resolves `..` components by popping the
+    /// previous component. This is safe to use for paths that don't yet exist.
+    fn normalize_lexical(path: &Path) -> PathBuf {
+        use std::path::Component;
+        let mut normalized = PathBuf::new();
+        for component in path.components() {
+            match component {
+                Component::CurDir => {}
+                Component::ParentDir => { normalized.pop(); }
+                other => { normalized.push(other); }
+            }
+        }
+        normalized
     }
 
     /// Check if a path would escape via symlinks.
@@ -330,9 +359,9 @@ mod tests {
         let inside_dir = temp.path().join("inside");
         std::fs::create_dir(&inside_dir).unwrap();
 
-        // Create a directory outside workspace
-        let outside_dir = temp.path().parent().unwrap().join("outside");
-        std::fs::create_dir(&outside_dir).unwrap();
+        // Create a directory outside workspace (use its own TempDir for uniqueness/cleanup)
+        let outside_temp = TempDir::new().unwrap();
+        let outside_dir = outside_temp.path().to_path_buf();
 
         // Create a symlink inside workspace pointing outside
         let symlink_path = inside_dir.join("escape");
@@ -340,10 +369,19 @@ mod tests {
         {
             std::os::unix::fs::symlink(&outside_dir, &symlink_path).unwrap();
             
-            // Validation should detect the symlink escape
+            // Validation should detect the symlink escape.
+            // canonicalize() follows the symlink and resolves to the outside dir, so the
+            // boundary check fires as OutsideBoundary. Both errors correctly indicate an
+            // unsafe path.
             let result = validator.validate_path("inside/escape", false);
             assert!(result.is_err());
-            assert!(matches!(result.unwrap_err(), BoundaryError::SymlinkEscape { .. }));
+            let err = result.unwrap_err();
+            assert!(
+                matches!(err, BoundaryError::OutsideBoundary { .. })
+                    || matches!(err, BoundaryError::SymlinkEscape { .. }),
+                "Expected OutsideBoundary or SymlinkEscape, got: {:?}",
+                err
+            );
         }
 
         #[cfg(windows)]

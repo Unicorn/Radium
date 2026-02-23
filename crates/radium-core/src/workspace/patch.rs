@@ -90,7 +90,7 @@ pub struct Hunk {
 }
 
 /// Options for patch application.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PatchOptions {
     /// Number of context lines to require for matching (default: 3).
     #[serde(default = "default_context_lines")]
@@ -107,6 +107,17 @@ pub struct PatchOptions {
     /// Maximum fuzz factor (number of lines to search for context match).
     #[serde(default = "default_fuzz")]
     pub max_fuzz: usize,
+}
+
+impl Default for PatchOptions {
+    fn default() -> Self {
+        Self {
+            context_lines: default_context_lines(),
+            ignore_whitespace: false,
+            allow_fuzz: false,
+            max_fuzz: default_fuzz(),
+        }
+    }
 }
 
 fn default_context_lines() -> usize {
@@ -343,6 +354,12 @@ impl PatchApplicator {
         for line in diff.lines() {
             // File header: --- a/path or +++ b/path
             if line.starts_with("--- ") {
+                // Save current hunk to current file before switching files
+                if let Some(hunk) = current_hunk.take() {
+                    if let Some(ref mut file) = current_file {
+                        file.hunks.push(hunk);
+                    }
+                }
                 // Save previous file if exists
                 if let Some(file) = current_file.take() {
                     file_patches.push(file);
@@ -358,13 +375,23 @@ impl PatchApplicator {
                         reason: format!("Invalid file header: {}", line),
                     })?;
 
+                in_hunk = false;
                 current_file = Some(FilePatch {
                     path,
                     hunks: Vec::new(),
                 });
             } else if line.starts_with("+++ ") {
-                // File path in +++ line (already handled in ---)
-                continue;
+                // Use the +++ path as the canonical destination path.
+                // This handles new-file patches where --- is /dev/null.
+                let dest_path = line
+                    .strip_prefix("+++ ")
+                    .and_then(|s| s.split_whitespace().next())
+                    .map(|s| s.strip_prefix("b/").unwrap_or(s).to_string());
+                if let Some(new_path) = dest_path {
+                    if let Some(ref mut file) = current_file {
+                        file.path = new_path;
+                    }
+                }
             }
             // Hunk header: @@ -old_start,old_count +new_start,new_count @@
             else if line.starts_with("@@ ") {
@@ -593,6 +620,24 @@ impl PatchApplicator {
                 expected: format!("{:?}", hunk.context_before),
                 actual: format!("{:?}", lines.get(start_idx..start_idx + hunk.context_before.len())),
             });
+        }
+
+        // Verify the lines to be removed actually match the file at that position
+        for (i, expected_line) in hunk.removed_lines.iter().enumerate() {
+            let actual_line = lines.get(start_idx + i).map(String::as_str).unwrap_or("");
+            let matches = if options.ignore_whitespace {
+                actual_line.trim() == expected_line.trim()
+            } else {
+                actual_line == expected_line.as_str()
+            };
+            if !matches {
+                return Err(FileOperationError::PatchConflict {
+                    file: "unknown".to_string(),
+                    line_number: hunk.old_start + i,
+                    expected: expected_line.clone(),
+                    actual: actual_line.to_string(),
+                });
+            }
         }
 
         // Remove old lines
