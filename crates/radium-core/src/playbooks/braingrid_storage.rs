@@ -10,6 +10,7 @@ use std::collections::HashMap;
 /// Note: This is a placeholder implementation. Braingrid may not have native
 /// playbook support yet. This structure can be extended when Braingrid adds
 /// playbook resource types or custom resource support.
+#[allow(dead_code)]
 pub struct BraingridPlaybookStorage {
     /// Braingrid client for API operations.
     client: BraingridClient,

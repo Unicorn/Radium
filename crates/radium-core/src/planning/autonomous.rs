@@ -455,6 +455,7 @@ impl Default for WorkflowGenerator {
 /// # Ok(())
 /// # }
 /// ```
+#[allow(dead_code)]
 pub struct AutonomousPlanner {
     /// Plan generator for LLM-based decomposition.
     plan_generator: PlanGenerator,

@@ -227,6 +227,7 @@ impl PatchResult {
 }
 
 /// Patch applicator for applying patches to files.
+#[allow(dead_code)]
 pub struct PatchApplicator {
     /// Workspace root for boundary validation.
     workspace_root: PathBuf,

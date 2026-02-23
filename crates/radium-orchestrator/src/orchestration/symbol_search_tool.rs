@@ -15,6 +15,7 @@ use crate::error::OrchestrationError;
 
 /// Symbol kind
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(dead_code)]
 enum SymbolKind {
     Function,
     Struct,
@@ -38,12 +39,14 @@ struct Symbol {
 }
 
 /// TypeScript analyzer for symbol extraction
+#[allow(dead_code)]
 struct TypeScriptAnalyzer {
     parser: Parser,
     ts_language: Language,
     tsx_language: Language,
 }
 
+#[allow(dead_code)]
 impl TypeScriptAnalyzer {
     fn new() -> Self {
         let mut parser = Parser::new();

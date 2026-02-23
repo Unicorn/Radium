@@ -9,6 +9,7 @@ use crate::workflow::parallel_executor::ExecutionReport;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 
 /// Progress reporter for terminal display.
+#[allow(dead_code)]
 pub struct ProgressReporter {
     /// Requirement being executed.
     requirement: BraingridRequirement,

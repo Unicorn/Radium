@@ -12,6 +12,7 @@ use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 
 /// Default implementation of tool routing with load balancing.
+#[allow(dead_code)]
 pub struct DefaultToolRouter {
     /// Pool of upstream connections.
     pool: Arc<UpstreamPool>,
@@ -105,6 +106,7 @@ impl DefaultToolRouter {
     /// # Returns
     ///
     /// Selected upstream name, or None if no healthy candidates
+    #[allow(dead_code)]
     async fn select_upstream(&self, tool_name: &str, candidates: &[String]) -> Option<String> {
         if candidates.is_empty() {
             return None;

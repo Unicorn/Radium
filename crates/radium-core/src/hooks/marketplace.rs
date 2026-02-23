@@ -60,6 +60,7 @@ pub struct HookVersion {
 }
 
 /// Marketplace client for discovering and fetching hooks.
+#[allow(dead_code)]
 pub struct MarketplaceClient {
     /// Base URL for the marketplace API.
     base_url: String,

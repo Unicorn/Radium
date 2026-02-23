@@ -89,6 +89,7 @@ impl ProcessHandle {
 }
 
 /// Internal process state with the child handle.
+#[allow(dead_code)]
 struct ProcessState {
     handle: ProcessHandle,
     child: Option<Child>,

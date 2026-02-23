@@ -33,6 +33,7 @@ pub trait SandboxManager: Send + Sync {
 }
 
 /// Terminal command tool handler
+#[allow(dead_code)]
 struct TerminalCommandHandler {
     /// Workspace root provider
     workspace_root: Arc<dyn WorkspaceRootProvider>,

@@ -11,6 +11,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 /// User feedback rating for routing decisions (Phase 2 - REQ-246).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum FeedbackRating {
     /// Positive feedback (thumbs up / correct routing).
     Positive,
@@ -22,6 +23,7 @@ pub enum FeedbackRating {
 
 /// User feedback for a routing decision (Phase 2 - REQ-246).
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct UserFeedback {
     /// User's rating of the routing decision.
     pub rating: FeedbackRating,

@@ -15,7 +15,7 @@ const CREDENTIALS_VERSION: &str = "1.0";
 
 /// Credentials file structure.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct CredentialsFile {
+pub(crate) struct CredentialsFile {
     /// Version of the credentials file format.
     version: String,
     /// Map of provider name to provider credentials.
@@ -101,6 +101,7 @@ impl CredentialStore {
     /// Loads credentials from the file.
     ///
     /// If the file doesn't exist, returns an empty credentials structure.
+    #[allow(private_interfaces)]
     pub fn load(&self) -> AuthResult<CredentialsFile> {
         if !self.file_path.exists() {
             return Ok(CredentialsFile {

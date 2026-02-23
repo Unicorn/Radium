@@ -174,6 +174,7 @@ impl ExecutionMonitor {
 }
 
 /// Autonomous orchestrator coordinating all components.
+#[allow(dead_code)]
 pub struct AutonomousOrchestrator {
     /// Autonomous planner for goal decomposition.
     planner: AutonomousPlanner,

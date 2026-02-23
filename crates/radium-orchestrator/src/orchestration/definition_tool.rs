@@ -16,6 +16,7 @@ use crate::error::{OrchestrationError, Result};
 
 /// Symbol definition
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct Definition {
     name: String,
     file_path: PathBuf,

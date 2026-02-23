@@ -18,6 +18,7 @@ pub enum BlockSelector {
 }
 
 /// Storage for code blocks organized by session.
+#[allow(dead_code)]
 pub struct CodeBlockStore {
     /// Workspace root directory.
     workspace_root: PathBuf,

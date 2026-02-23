@@ -64,6 +64,7 @@ pub enum RecoveryError {
 pub type Result<T> = std::result::Result<T, RecoveryError>;
 
 /// Manager for coordinating recovery operations.
+#[allow(dead_code)]
 pub struct RecoveryManager {
     /// Checkpoint manager for restore operations.
     checkpoint_manager: Arc<std::sync::Mutex<CheckpointManager>>,

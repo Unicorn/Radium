@@ -9,6 +9,7 @@ use tokio::sync::RwLock;
 use tracing::{error, info};
 
 /// Policy reloader that watches for file changes and hot-reloads rules.
+#[allow(dead_code)]
 pub struct PolicyReloader {
     /// Path to the policy file being watched.
     policy_file: PathBuf,

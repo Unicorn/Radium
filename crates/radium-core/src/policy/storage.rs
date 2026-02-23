@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 
 /// Policy event record stored in the database.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct PolicyEvent {
     /// Event ID (auto-increment).
     pub id: Option<i64>,

@@ -27,6 +27,7 @@ pub trait ContextFileLoaderTrait: Send + Sync {
 ///
 /// This is a wrapper that can be created from a workspace root.
 /// The actual implementation should be provided by the application layer (TUI/CLI).
+#[allow(dead_code)]
 pub struct ContextFileLoaderAdapter {
     /// Workspace root path
     workspace_root: PathBuf,

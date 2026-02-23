@@ -235,6 +235,7 @@ impl FileOperations {
     }
 
     /// Get the boundary validator (for use by transactions).
+    #[allow(dead_code)]
     pub(crate) fn boundary_validator(&self) -> &BoundaryValidator {
         &self.boundary_validator
     }

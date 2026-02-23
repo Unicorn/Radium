@@ -29,6 +29,7 @@ use std::collections::HashMap;
 ///
 /// Executes workflow steps in order, waiting for each step to complete
 /// before proceeding to the next.
+#[allow(dead_code)]
 pub struct WorkflowExecutor {
     /// Core workflow engine.
     engine: WorkflowEngine,
