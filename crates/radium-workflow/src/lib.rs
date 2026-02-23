@@ -9,6 +9,7 @@
 //! - Component migration framework
 
 pub mod api;
+pub mod change_detection;
 pub mod codegen;
 pub mod types;
 pub mod discovery;
