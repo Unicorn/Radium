@@ -58,6 +58,7 @@ pub enum YamlComponentType {
     ChildService,
     Log,
     ShellExecute,
+    NpmFunction,
 }
 
 /// A connection between two components.
@@ -200,6 +201,7 @@ settings:
             ("child_service", YamlComponentType::ChildService),
             ("log", YamlComponentType::Log),
             ("shell_execute", YamlComponentType::ShellExecute),
+            ("npm_function", YamlComponentType::NpmFunction),
         ];
 
         for (yaml_str, expected) in cases {

@@ -128,6 +128,7 @@ fn map_component_type(ct: &YamlComponentType) -> NodeType {
         YamlComponentType::ChildService => NodeType::ChildWorkflow,
         YamlComponentType::Log => NodeType::Activity,
         YamlComponentType::ShellExecute => NodeType::Activity,
+        YamlComponentType::NpmFunction => NodeType::Activity,
     }
 }
 
