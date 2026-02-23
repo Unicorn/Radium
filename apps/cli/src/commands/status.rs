@@ -237,3 +237,41 @@ async fn execute_json() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// init_registry() should register all 5 known providers and return a non-empty registry.
+    #[tokio::test]
+    async fn test_init_registry_registers_all_engines() {
+        let registry = init_registry();
+        let engines = registry.list_available().await.expect("list_available failed");
+        // Must contain at least: mock, claude, openai, gemini, burn
+        assert!(
+            engines.len() >= 5,
+            "expected at least 5 engines, got {}: {:?}",
+            engines.len(),
+            engines.iter().map(|e| &e.id).collect::<Vec<_>>()
+        );
+        let ids: Vec<&str> = engines.iter().map(|e| e.id.as_str()).collect();
+        assert!(ids.contains(&"mock"),   "mock engine missing");
+        assert!(ids.contains(&"claude"), "claude engine missing");
+        assert!(ids.contains(&"openai"), "openai engine missing");
+        assert!(ids.contains(&"gemini"), "gemini engine missing");
+        assert!(ids.contains(&"burn"),   "burn engine missing");
+    }
+
+    /// The mock engine should always report credentials as available.
+    #[tokio::test]
+    async fn test_init_registry_mock_engine_available() {
+        let registry = init_registry();
+        let engines = registry.list_available().await.expect("list_available failed");
+        let mock = engines.iter().find(|e| e.id == "mock").expect("mock engine not found");
+        assert_eq!(
+            mock.credential_status,
+            CredentialStatus::Available,
+            "mock engine should always be available"
+        );
+    }
+}
