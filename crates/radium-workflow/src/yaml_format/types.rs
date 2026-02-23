@@ -57,6 +57,7 @@ pub enum YamlComponentType {
     #[serde(alias = "child_workflow")]
     ChildService,
     Log,
+    ShellExecute,
 }
 
 /// A connection between two components.
@@ -198,6 +199,7 @@ settings:
             ("timer", YamlComponentType::Timer),
             ("child_service", YamlComponentType::ChildService),
             ("log", YamlComponentType::Log),
+            ("shell_execute", YamlComponentType::ShellExecute),
         ];
 
         for (yaml_str, expected) in cases {
