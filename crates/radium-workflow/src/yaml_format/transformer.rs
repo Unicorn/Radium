@@ -123,7 +123,7 @@ fn map_component_type(ct: &YamlComponentType) -> NodeType {
         YamlComponentType::Conditional => NodeType::Conditional,
         YamlComponentType::Loop => NodeType::Loop,
         YamlComponentType::Parallel => NodeType::Activity,
-        YamlComponentType::Signal => NodeType::Signal,
+        YamlComponentType::Message => NodeType::Signal,
         YamlComponentType::Timer => NodeType::Activity,
         YamlComponentType::ChildService => NodeType::ChildWorkflow,
         YamlComponentType::Log => NodeType::Activity,
@@ -281,7 +281,7 @@ components:
     config:
       name: checkResult
   - id: notify
-    type: signal
+    type: message
     config:
       signal_name: data_ready
       name: notifyReady

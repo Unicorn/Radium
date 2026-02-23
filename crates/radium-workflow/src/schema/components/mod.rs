@@ -18,6 +18,7 @@ mod database_query;
 mod http_request;
 mod log;
 mod loop_component;
+mod message;
 mod parallel;
 mod signal;
 mod start;
@@ -49,7 +50,7 @@ pub use http_request::{
 pub use log::{LogInput, LogLevel, LogOutput};
 pub use loop_component::{BatchConfig, LoopInput, LoopOutput, LoopType};
 pub use parallel::{Branch, BranchResult, JoinStrategy, ParallelInput, ParallelOutput};
-pub use signal::{SignalDirection, SignalInput, SignalOutput};
+pub use message::{SignalDirection, SignalInput, SignalOutput};
 pub use start::{StartInput, StartOutput};
 pub use stop::{StopInput, StopOutput};
 pub use timer::{DurationUnit, TimerInput, TimerOutput, TimerType};

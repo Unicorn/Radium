@@ -51,7 +51,8 @@ pub enum YamlComponentType {
     Conditional,
     Loop,
     Parallel,
-    Signal,
+    #[serde(alias = "signal")]
+    Message,
     Timer,
     #[serde(alias = "child_workflow")]
     ChildService,
@@ -193,7 +194,7 @@ settings:
             ("conditional", YamlComponentType::Conditional),
             ("loop", YamlComponentType::Loop),
             ("parallel", YamlComponentType::Parallel),
-            ("signal", YamlComponentType::Signal),
+            ("message", YamlComponentType::Message),
             ("timer", YamlComponentType::Timer),
             ("child_service", YamlComponentType::ChildService),
             ("log", YamlComponentType::Log),
@@ -226,5 +227,16 @@ settings:
         // "child_service" is the canonical new name
         let parsed: YamlComponentType = serde_yaml::from_str("\"child_service\"").unwrap();
         assert_eq!(parsed, YamlComponentType::ChildService);
+    }
+
+    #[test]
+    fn test_signal_alias_deserializes_to_message() {
+        // "signal" is the deprecated name; it must still deserialize to Message
+        let parsed: YamlComponentType = serde_yaml::from_str("\"signal\"").unwrap();
+        assert_eq!(parsed, YamlComponentType::Message);
+
+        // "message" is the canonical new name
+        let parsed: YamlComponentType = serde_yaml::from_str("\"message\"").unwrap();
+        assert_eq!(parsed, YamlComponentType::Message);
     }
 }
