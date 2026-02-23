@@ -134,6 +134,7 @@ fn map_component_type(ct: &YamlComponentType) -> NodeType {
         YamlComponentType::SchemaValidate => NodeType::Activity,
         YamlComponentType::SecretRead => NodeType::Activity,
         YamlComponentType::Cache => NodeType::Activity,
+        YamlComponentType::FileWrite => NodeType::Activity,
     }
 }
 

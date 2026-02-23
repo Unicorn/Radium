@@ -64,6 +64,7 @@ pub enum YamlComponentType {
     SchemaValidate,
     SecretRead,
     Cache,
+    FileWrite,
 }
 
 /// A connection between two components.
@@ -212,6 +213,7 @@ settings:
             ("schema_validate", YamlComponentType::SchemaValidate),
             ("secret_read", YamlComponentType::SecretRead),
             ("cache", YamlComponentType::Cache),
+            ("file_write", YamlComponentType::FileWrite),
         ];
 
         for (yaml_str, expected) in cases {

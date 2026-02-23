@@ -17,6 +17,7 @@ mod child_workflow;
 mod code_execute;
 mod data_transform;
 mod conditional;
+mod file_write;
 mod database_query;
 mod http_request;
 mod log;
@@ -48,6 +49,7 @@ pub use conditional::{
     ComparisonOperator, Condition, ConditionGroup, ConditionalInput, ConditionalOutput,
     LogicalOperator,
 };
+pub use file_write::{FileWriteInput, FileWriteMode, FileWriteOutput};
 pub use database_query::{
     ConnectionConfig, DatabaseQueryInput, DatabaseQueryOutput, OrderByClause, QueryOperation,
     ResultFormat, WhereCondition, WhereOperator,
