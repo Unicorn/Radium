@@ -67,6 +67,7 @@ lefthook-local.yml
 # Radium
 .radium/
 .pids/
+.worktrees/
 logs/
 *.log
 
