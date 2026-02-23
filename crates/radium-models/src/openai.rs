@@ -791,6 +791,7 @@ struct OpenAIStreamingRequest {
 
 // Streaming response structure for OpenAI SSE
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct OpenAIStreamingResponse {
     choices: Vec<OpenAIStreamingChoice>,
     #[serde(skip_serializing_if = "Option::is_none")]

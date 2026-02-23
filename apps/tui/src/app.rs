@@ -4183,7 +4183,7 @@ impl App {
         // Initialize agent executor
         let executor = Arc::new(AgentExecutor::new(
             ModelType::Gemini,
-            "gemini-2.0-flash-exp".to_string(),
+            "gemini-1.5-flash".to_string(),
         ));
         self.prompt_data.add_output("   ✓ Orchestrator initialized".to_string());
 

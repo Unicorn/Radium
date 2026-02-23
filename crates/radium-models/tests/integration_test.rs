@@ -298,7 +298,7 @@ async fn test_openai_base64_not_supported() {
 #[tokio::test]
 async fn test_gemini_url_not_supported() {
     // Test that Gemini rejects URL images with helpful error
-    let model = GeminiModel::with_api_key("gemini-pro".to_string(), "test-key".to_string());
+    let _model = GeminiModel::with_api_key("gemini-pro".to_string(), "test-key".to_string());
     
     let messages = [ChatMessage {
         role: "user".to_string(),
@@ -321,7 +321,7 @@ async fn test_gemini_url_not_supported() {
 #[tokio::test]
 async fn test_claude_multimodal_text_and_image() {
     // Test Claude with multimodal content (text + image)
-    let model = ClaudeModel::with_api_key("claude-sonnet-4-5-20250929".to_string(), "test-key".to_string());
+    let _model = ClaudeModel::with_api_key("claude-sonnet-4-5-20250929".to_string(), "test-key".to_string());
     
     let messages = [ChatMessage {
         role: "user".to_string(),
@@ -725,7 +725,7 @@ fn test_grounding_disabled_by_default() {
     assert_eq!(params.grounding_threshold, None);
     
     // Serialized params should not include grounding fields when None
-    let json = serde_json::to_string(&params).unwrap();
+    let _json = serde_json::to_string(&params).unwrap();
     // Note: serde_json with skip_serializing_if should omit None fields
     // This test verifies the default state
 }

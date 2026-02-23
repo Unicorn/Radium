@@ -1029,6 +1029,7 @@ struct ClaudeResponse {
 
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
+#[allow(dead_code)]
 enum ClaudeContent {
     Text {
         #[serde(rename = "type")]
@@ -1064,6 +1065,7 @@ struct ClaudeTool {
 
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[allow(dead_code)]
 enum ClaudeToolChoice {
     Auto,
     Any,
@@ -1074,6 +1076,7 @@ enum ClaudeToolChoice {
 
 // Streaming response structures
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct ClaudeStreamingEvent {
     #[serde(rename = "type")]
     event_type: String,
@@ -1083,6 +1086,7 @@ struct ClaudeStreamingEvent {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct ClaudeStreamingDelta {
     #[serde(rename = "type")]
     event_type: String,
@@ -1090,6 +1094,7 @@ struct ClaudeStreamingDelta {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct ClaudeStreamingContentBlock {
     #[serde(rename = "type")]
     block_type: String,

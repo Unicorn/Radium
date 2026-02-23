@@ -6,7 +6,7 @@ use std::time::Instant;
 use radium_abstraction::{Model, ModelParameters};
 use radium_models::MockModel;
 use tonic::{Request, Response, Status};
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use radium_orchestrator::{
@@ -335,10 +335,10 @@ impl RadiumService {
 
         // Add routing decision if available
         if let Some(ref routing) = exec_result.routing_decision {
-            metadata_map.insert("selected_model".to_string(), serde_json::json!(routing.selected_model));
-            metadata_map.insert("reason".to_string(), serde_json::json!(routing.reason));
-            if let Some(estimated_cost) = routing.estimated_cost {
-                metadata_map.insert("estimated_cost".to_string(), serde_json::json!(estimated_cost));
+            metadata_map.insert("routing_tier".to_string(), serde_json::json!(format!("{:?}", routing.tier)));
+            metadata_map.insert("routing_decision_type".to_string(), serde_json::json!(format!("{:?}", routing.decision_type)));
+            if let Some(complexity_score) = routing.complexity_score {
+                metadata_map.insert("complexity_score".to_string(), serde_json::json!(complexity_score));
             }
         }
 
@@ -989,13 +989,10 @@ impl Radium for RadiumService {
 
         info!(correlation_id = %correlation_id, "Using correlation_id for event tracking");
 
-        // Emit start event (workflow feature only)
+        // Log start of execution (workflow feature only)
         #[cfg(feature = "workflow")]
         {
-            let _ = self.event_tx.send(OrchestrationEvent::AssistantMessage {
-                correlation_id: correlation_id.clone(),
-                content: format!("Starting execution for agent: {}", agent_id),
-            });
+            debug!(correlation_id = %correlation_id, agent_id = %agent_id, "Starting agent execution");
         }
 
         // Execute with the selected/provided agent
@@ -1050,42 +1047,33 @@ impl Radium for RadiumService {
                     radium_orchestrator::AgentOutput::Terminate => "Terminated".to_string(),
                 };
 
-                // Emit completion event (workflow feature only)
+                // Log completion (workflow feature only)
                 #[cfg(feature = "workflow")]
                 {
                     if exec_result.success {
-                        let _ = self.event_tx.send(OrchestrationEvent::AssistantMessage {
-                            correlation_id: correlation_id.clone(),
-                            content: format!("Execution completed: {}", output_str),
-                        });
-                        let _ = self.event_tx.send(OrchestrationEvent::Done {
-                            correlation_id: correlation_id.clone(),
-                            finish_reason: "stop".to_string(),
-                        });
+                        debug!(correlation_id = %correlation_id, "Agent execution completed successfully");
                     } else {
-                        let _ = self.event_tx.send(OrchestrationEvent::Error {
-                            correlation_id: correlation_id.clone(),
-                            message: exec_result.error.clone().unwrap_or_else(|| "Execution failed".to_string()),
-                        });
+                        debug!(
+                            correlation_id = %correlation_id,
+                            error = ?exec_result.error,
+                            "Agent execution failed"
+                        );
                     }
                 }
 
+                let metadata = Self::execution_result_to_metadata(&exec_result);
                 Ok(Response::new(ExecuteAgentResponse {
                     success: exec_result.success,
                     output: output_str,
                     error: exec_result.error,
-                    // Extract metadata from ExecutionResult telemetry and routing
-                    metadata: Self::execution_result_to_metadata(&exec_result),
+                    metadata,
                 }))
             }
             Err(e) => {
-                // Emit error event (workflow feature only)
+                // Log error (workflow feature only)
                 #[cfg(feature = "workflow")]
                 {
-                    let _ = self.event_tx.send(OrchestrationEvent::Error {
-                        correlation_id: correlation_id.clone(),
-                        message: e.to_string(),
-                    });
+                    debug!(correlation_id = %correlation_id, error = %e, "Agent execution error");
                 }
 
                 Ok(Response::new(ExecuteAgentResponse {
@@ -2383,7 +2371,7 @@ impl Radium for RadiumService {
 
             // Spawn async task to process the message and emit events
             tokio::spawn(async move {
-                match orch_service.process_request(&session_id, &user_message).await {
+                match orch_service.handle_input(&session_id, &user_message, None).await {
                     Ok(_) => {
                         info!(session_id = %session_id, "Orchestration request completed successfully");
                     }

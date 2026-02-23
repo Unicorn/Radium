@@ -1677,6 +1677,7 @@ enum GeminiTool {
 
 /// Gemini tools wrapper (kept for backward compatibility during migration)
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 struct GeminiTools {
     #[serde(rename = "functionDeclarations")]
     function_declarations: Vec<GeminiFunctionDeclaration>,
@@ -1961,6 +1962,7 @@ impl From<&GeminiCitation> for Citation {
 }
 
 /// Provider capability detection for multimodal content support.
+#[allow(dead_code)]
 mod provider_capabilities {
     use radium_abstraction::ModelError;
 
@@ -2139,6 +2141,7 @@ mod encoding_utils {
 
 /// Content validation and size checking utilities for multimodal content.
 mod validation_utils {
+    #![allow(dead_code)]
     use radium_abstraction::ModelError;
 
     /// Maximum size for inline data transmission (20MB in bytes).
@@ -2222,6 +2225,7 @@ mod validation_utils {
 
 /// MIME type detection and validation utilities for multimodal content.
 mod mime_utils {
+    #![allow(dead_code)]
     use radium_abstraction::ModelError;
 
     /// Supported image MIME types.
@@ -2499,7 +2503,7 @@ mod tests {
         use mockito::Server;
 
         let mut server = Server::new_async().await;
-        let mock_url = server.url();
+        let _mock_url = server.url();
 
         // Mock SSE response with Gemini format
         let mock_response = b"data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Hello\"}]}}]}\n\ndata: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\" world\"}]}}]}\n\ndata: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"!\"}]}}]}\n\ndata: [DONE]\n\n";

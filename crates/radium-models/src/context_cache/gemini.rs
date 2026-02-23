@@ -65,6 +65,7 @@ struct CreateCachedContentRequest {
 
 /// Response from cachedContent API.
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct CachedContentResponse {
     /// Cache name (e.g., "cachedContents/abc123").
     name: String,

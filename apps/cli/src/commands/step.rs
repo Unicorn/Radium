@@ -107,7 +107,7 @@ pub async fn execute_daemon(
     _reasoning: Option<String>,
 ) -> anyhow::Result<()> {
     use crate::client::daemon_client::DaemonClient;
-    use radium_core::proto::{ExecuteAgentRequest, SelectionCriteria};
+    use radium_core::proto::ExecuteAgentRequest;
 
     println!("{}", "rad step (daemon mode)".bold().cyan());
     println!("Connecting to daemon at: {}", daemon_url.dimmed());

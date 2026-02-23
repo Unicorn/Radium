@@ -91,7 +91,8 @@ impl MarketplaceClient {
     ///
     /// Note: This is a placeholder implementation. When the marketplace backend
     /// is available, this will make HTTP requests to the API.
-    pub async fn search_hooks(&self, _query: &str) -> HookResult<Vec<MarketplaceHook>> {
+    #[cfg_attr(not(feature = "http"), allow(unused_variables))]
+    pub async fn search_hooks(&self, query: &str) -> HookResult<Vec<MarketplaceHook>> {
         // Placeholder: Return empty results for now
         // TODO: Implement actual HTTP client when marketplace backend is available
         #[cfg(feature = "http")]
@@ -102,12 +103,12 @@ impl MarketplaceClient {
                     .get(&url)
                     .send()
                     .await
-                    .map_err(|e| HookError::other(format!("Marketplace request failed: {}", e)))?;
+                    .map_err(|e| HookError::ExecutionFailed(format!("Marketplace request failed: {}", e)))?;
 
                 let search_response: SearchResponse = response
                     .json()
                     .await
-                    .map_err(|e| HookError::other(format!("Failed to parse response: {}", e)))?;
+                    .map_err(|e| HookError::ExecutionFailed(format!("Failed to parse response: {}", e)))?;
 
                 return Ok(search_response.hooks);
             }
@@ -128,12 +129,12 @@ impl MarketplaceClient {
                     .get(&url)
                     .send()
                     .await
-                    .map_err(|e| HookError::other(format!("Marketplace request failed: {}", e)))?;
+                    .map_err(|e| HookError::ExecutionFailed(format!("Marketplace request failed: {}", e)))?;
 
                 let hook: MarketplaceHook = response
                     .json()
                     .await
-                    .map_err(|e| HookError::other(format!("Failed to parse response: {}", e)))?;
+                    .map_err(|e| HookError::ExecutionFailed(format!("Failed to parse response: {}", e)))?;
 
                 return Ok(hook);
             }
@@ -143,7 +144,8 @@ impl MarketplaceClient {
     }
 
     /// Get available versions for a hook.
-    pub async fn get_hook_versions(&self, _name: &str) -> HookResult<Vec<HookVersion>> {
+    #[cfg_attr(not(feature = "http"), allow(unused_variables))]
+    pub async fn get_hook_versions(&self, name: &str) -> HookResult<Vec<HookVersion>> {
         // Placeholder implementation
         #[cfg(feature = "http")]
         {
@@ -153,12 +155,12 @@ impl MarketplaceClient {
                     .get(&url)
                     .send()
                     .await
-                    .map_err(|e| HookError::other(format!("Marketplace request failed: {}", e)))?;
+                    .map_err(|e| HookError::ExecutionFailed(format!("Marketplace request failed: {}", e)))?;
 
                 let versions: Vec<HookVersion> = response
                     .json()
                     .await
-                    .map_err(|e| HookError::other(format!("Failed to parse response: {}", e)))?;
+                    .map_err(|e| HookError::ExecutionFailed(format!("Failed to parse response: {}", e)))?;
 
                 return Ok(versions);
             }
@@ -168,7 +170,8 @@ impl MarketplaceClient {
     }
 
     /// Download a hook package.
-    pub async fn download_hook(&self, _hook: &MarketplaceHook) -> HookResult<Vec<u8>> {
+    #[cfg_attr(not(feature = "http"), allow(unused_variables))]
+    pub async fn download_hook(&self, hook: &MarketplaceHook) -> HookResult<Vec<u8>> {
         // Placeholder implementation
         #[cfg(feature = "http")]
         {
@@ -177,12 +180,12 @@ impl MarketplaceClient {
                     .get(&hook.download_url)
                     .send()
                     .await
-                    .map_err(|e| HookError::other(format!("Download failed: {}", e)))?;
+                    .map_err(|e| HookError::ExecutionFailed(format!("Download failed: {}", e)))?;
 
                 let bytes = response
                     .bytes()
                     .await
-                    .map_err(|e| HookError::other(format!("Failed to read response: {}", e)))?;
+                    .map_err(|e| HookError::ExecutionFailed(format!("Failed to read response: {}", e)))?;
 
                 // Verify checksum
                 let mut hasher = sha2::Sha256::new();
@@ -191,7 +194,7 @@ impl MarketplaceClient {
                 let computed_checksum = format!("{:x}", hasher.finalize());
 
                 if computed_checksum != hook.checksum {
-                    return Err(HookError::other(format!(
+                    return Err(HookError::ExecutionFailed(format!(
                         "Checksum mismatch: expected {}, got {}",
                         hook.checksum, computed_checksum
                     )));
