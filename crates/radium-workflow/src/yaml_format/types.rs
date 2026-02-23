@@ -59,6 +59,7 @@ pub enum YamlComponentType {
     Log,
     ShellExecute,
     NpmFunction,
+    CodeExecute,
 }
 
 /// A connection between two components.
@@ -202,6 +203,7 @@ settings:
             ("log", YamlComponentType::Log),
             ("shell_execute", YamlComponentType::ShellExecute),
             ("npm_function", YamlComponentType::NpmFunction),
+            ("code_execute", YamlComponentType::CodeExecute),
         ];
 
         for (yaml_str, expected) in cases {

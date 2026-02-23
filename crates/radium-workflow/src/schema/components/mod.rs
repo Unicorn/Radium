@@ -13,6 +13,7 @@ mod activity;
 mod agent;
 mod child_service;
 mod child_workflow;
+mod code_execute;
 mod conditional;
 mod database_query;
 mod http_request;
@@ -52,6 +53,7 @@ pub use http_request::{
 pub use log::{LogInput, LogLevel, LogOutput};
 pub use loop_component::{BatchConfig, LoopInput, LoopOutput, LoopType};
 pub use parallel::{Branch, BranchResult, JoinStrategy, ParallelInput, ParallelOutput};
+pub use code_execute::{CodeExecuteInput, CodeExecuteOutput, CodeLanguage};
 pub use message::{SignalDirection, SignalInput, SignalOutput};
 pub use npm_function::{NpmFunctionInput, NpmFunctionOutput};
 pub use shell_execute::{CaptureMode, ShellExecuteInput, ShellExecuteOutput};

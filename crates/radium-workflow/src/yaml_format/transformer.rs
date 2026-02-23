@@ -129,6 +129,7 @@ fn map_component_type(ct: &YamlComponentType) -> NodeType {
         YamlComponentType::Log => NodeType::Activity,
         YamlComponentType::ShellExecute => NodeType::Activity,
         YamlComponentType::NpmFunction => NodeType::Activity,
+        YamlComponentType::CodeExecute => NodeType::Activity,
     }
 }
 
