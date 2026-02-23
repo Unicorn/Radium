@@ -24,6 +24,7 @@ mod message;
 mod parallel;
 mod npm_function;
 mod schema_validate;
+mod secret_read;
 mod shell_execute;
 mod signal;
 mod start;
@@ -60,6 +61,7 @@ pub use data_transform::{DataTransformInput, DataTransformOutput, ExpressionLang
 pub use message::{SignalDirection, SignalInput, SignalOutput};
 pub use npm_function::{NpmFunctionInput, NpmFunctionOutput};
 pub use schema_validate::{SchemaValidateInput, SchemaValidateOutput, SchemaValidationError};
+pub use secret_read::{SecretReadInput, SecretReadOutput};
 pub use shell_execute::{CaptureMode, ShellExecuteInput, ShellExecuteOutput};
 pub use start::{StartInput, StartOutput};
 pub use stop::{StopInput, StopOutput};

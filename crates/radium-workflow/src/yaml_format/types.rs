@@ -62,6 +62,7 @@ pub enum YamlComponentType {
     CodeExecute,
     DataTransform,
     SchemaValidate,
+    SecretRead,
 }
 
 /// A connection between two components.
@@ -208,6 +209,7 @@ settings:
             ("code_execute", YamlComponentType::CodeExecute),
             ("data_transform", YamlComponentType::DataTransform),
             ("schema_validate", YamlComponentType::SchemaValidate),
+            ("secret_read", YamlComponentType::SecretRead),
         ];
 
         for (yaml_str, expected) in cases {
