@@ -328,8 +328,39 @@ impl<'a> CodeGenerator<'a> {
                 let var_name = &node.data.label;
                 format!("let {} = undefined;", var_name)
             },
-            NodeType::Conditional | NodeType::Condition => "// TODO: Conditional logic".to_string(),
-            NodeType::Loop => "// TODO: Loop logic".to_string(),
+            NodeType::Conditional | NodeType::Condition => {
+                // Read the condition expression from the node config, falling back to a
+                // descriptive placeholder derived from the node label.
+                let condition = node.data.config.as_ref()
+                    .and_then(|c| c.get("condition"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("/* condition */");
+                let label = node.data.label.replace([' ', '-'], "_").to_lowercase();
+                format!(
+                    "// Conditional: {label}\nif ({condition}) {{\n  // true branch\n}} else {{\n  // false branch\n}}",
+                    label = label,
+                    condition = condition,
+                )
+            },
+            NodeType::Loop => {
+                // Read loop parameters from node config.
+                let condition = node.data.config.as_ref()
+                    .and_then(|c| c.get("condition"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("/* loop condition */");
+                let max_iter = node.data.config.as_ref()
+                    .and_then(|c| c.get("max_iterations"))
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(100);
+                let counter = format!("loopCount_{}", node.id.replace('-', "_"));
+                format!(
+                    "// Loop: {label}\nlet {counter} = 0;\nwhile (({condition}) && {counter} < {max_iter}) {{\n  {counter}++;\n  // loop body\n}}",
+                    label = node.data.label,
+                    counter = counter,
+                    condition = condition,
+                    max_iter = max_iter,
+                )
+            },
             _ => String::new(),
         }
     }

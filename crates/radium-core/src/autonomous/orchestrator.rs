@@ -687,20 +687,9 @@ impl AutonomousOrchestrator {
         let _ = checkpoint_cancel_tx.send(());
 
         // Step 6: Record learning data if enabled
-        if let Some(ref learning) = self.learning {
-            if let Ok(mut learning_guard) = learning.lock() {
-                for (_step_id, result) in &context.step_results {
-                    if !result.success {
-                        let strategy = if recoveries_performed > 0 {
-                            "recovery_attempted"
-                        } else {
-                            "no_recovery"
-                        };
-                        learning_guard.record_failure(strategy);
-                    }
-                }
-            }
-        }
+        // TODO: Call learning.record_recovery_attempt() per-step with proper RecoveryContext
+        // and RecoveryStrategy objects once step-level recovery context is preserved.
+        let _ = &self.learning;
 
         // Update final monitor status
         {
