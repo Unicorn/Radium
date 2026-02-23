@@ -110,6 +110,9 @@ impl DefaultToolCatalog {
                     }
                 }
 
+                // Update tool name to reflect the registered (possibly prefixed) name
+                let mut tool = tool;
+                tool.name = registered_name.clone();
                 tools_map.insert(registered_name.clone(), tool);
                 sources_map.insert(registered_name.clone(), upstream_name.clone());
                 original_map.insert(registered_name.clone(), original_name);

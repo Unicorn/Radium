@@ -58,6 +58,29 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
             behavior_invocation_count INTEGER,
             behavior_duration_ms INTEGER,
             behavior_outcome TEXT,
+            api_key_id TEXT,
+            team_name TEXT,
+            project_name TEXT,
+            cost_center TEXT,
+            model_tier TEXT,
+            routing_decision TEXT,
+            complexity_score REAL,
+            ab_test_group TEXT,
+            finish_reason TEXT,
+            safety_blocked BOOLEAN DEFAULT 0,
+            citation_count INTEGER,
+            code_executions INTEGER NOT NULL DEFAULT 0,
+            routing_method TEXT,
+            routing_confidence REAL,
+            routing_latency_ns INTEGER,
+            selected_skill TEXT,
+            routing_alternatives TEXT,
+            user_feedback TEXT,
+            retry_count INTEGER NOT NULL DEFAULT 0,
+            escalated BOOLEAN NOT NULL DEFAULT 0,
+            execution_success BOOLEAN NOT NULL DEFAULT 0,
+            execution_duration_ms INTEGER NOT NULL DEFAULT 0,
+            error_type TEXT,
             FOREIGN KEY (agent_id) REFERENCES agents(id)
         )",
         [],
@@ -130,6 +153,56 @@ pub fn initialize_schema(conn: &Connection) -> Result<()> {
     );
     let _ = conn.execute(
         "ALTER TABLE telemetry ADD COLUMN citation_count INTEGER",
+        [],
+    );
+
+    // Migrate existing tables to add skill-routing and outcome columns if they don't exist
+    let _ = conn.execute(
+        "ALTER TABLE telemetry ADD COLUMN code_executions INTEGER NOT NULL DEFAULT 0",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE telemetry ADD COLUMN routing_method TEXT",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE telemetry ADD COLUMN routing_confidence REAL",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE telemetry ADD COLUMN routing_latency_ns INTEGER",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE telemetry ADD COLUMN selected_skill TEXT",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE telemetry ADD COLUMN routing_alternatives TEXT",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE telemetry ADD COLUMN user_feedback TEXT",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE telemetry ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE telemetry ADD COLUMN escalated BOOLEAN NOT NULL DEFAULT 0",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE telemetry ADD COLUMN execution_success BOOLEAN NOT NULL DEFAULT 0",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE telemetry ADD COLUMN execution_duration_ms INTEGER NOT NULL DEFAULT 0",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE telemetry ADD COLUMN error_type TEXT",
         [],
     );
 

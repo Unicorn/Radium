@@ -39,22 +39,7 @@ impl QuestionType {
     pub fn detect(input: &str) -> Self {
         let lower = input.to_lowercase();
 
-        // Project overview patterns
-        if Self::matches_patterns(
-            &lower,
-            &[
-                "tell me about",
-                "what is this",
-                "describe this project",
-                "overview",
-                "what does this",
-                "explain this project",
-            ],
-        ) {
-            return QuestionType::ProjectOverview;
-        }
-
-        // Technology stack patterns
+        // Technology stack patterns (checked before overview to avoid "what is this" ambiguity)
         if Self::matches_patterns(
             &lower,
             &[
@@ -69,6 +54,21 @@ impl QuestionType {
             ],
         ) {
             return QuestionType::TechnologyStack;
+        }
+
+        // Project overview patterns (after TechnologyStack to handle "what is this" specificity)
+        if Self::matches_patterns(
+            &lower,
+            &[
+                "tell me about",
+                "what is this",
+                "describe this project",
+                "overview",
+                "what does this",
+                "explain this project",
+            ],
+        ) {
+            return QuestionType::ProjectOverview;
         }
 
         // Architecture patterns

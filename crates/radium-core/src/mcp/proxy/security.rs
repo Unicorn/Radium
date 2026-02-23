@@ -291,7 +291,11 @@ mod tests {
         SecurityConfig {
             log_requests: true,
             log_responses: true,
-            redact_patterns: vec!["api[_-]?key".to_string(), "password".to_string()],
+            // Patterns match full JSON key-value pairs to redact both key and value
+            redact_patterns: vec![
+                r#""api[_-]?key"\s*:\s*"[^"]*""#.to_string(),
+                r#""password"\s*:\s*"[^"]*""#.to_string(),
+            ],
             rate_limit_per_minute: 60,
         }
     }

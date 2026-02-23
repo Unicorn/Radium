@@ -279,7 +279,9 @@ mod tests {
     fn test_detect_unregistered_credential() {
         let (filter, _temp_dir) = create_test_filter();
 
-        let content = "API key: sk-test123456789012345678901234567890123456";
+        // OpenAI key pattern requires exactly 48 alphanumeric chars after "sk-"
+        // abcdefghijklmnopqrstuvwxyz (26) + ABCDEFGHIJKLMNOPQRSTUV (22) = 48 chars
+        let content = "API key: sk-abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUV";
         let matches = filter.detect_credentials(content);
 
         assert!(!matches.is_empty());

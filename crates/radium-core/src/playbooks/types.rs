@@ -7,6 +7,7 @@ use std::fmt;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Playbook {
     /// Unique URI identifier for this playbook (e.g., `radium://my-org/code-review-standards.md`).
+    #[serde(default)]
     pub uri: String,
     /// Human-readable description of what this playbook covers.
     pub description: String,
@@ -14,11 +15,13 @@ pub struct Playbook {
     #[serde(default)]
     pub tags: Vec<String>,
     /// Priority level determining when this playbook is included.
+    #[serde(default)]
     pub priority: PlaybookPriority,
     /// Scopes where this playbook applies (e.g., `["requirement", "task", "pr-review"]`).
     #[serde(default)]
     pub applies_to: Vec<String>,
-    /// Markdown content of the playbook.
+    /// Markdown content of the playbook (set from the markdown body, not YAML frontmatter).
+    #[serde(default)]
     pub content: String,
 }
 

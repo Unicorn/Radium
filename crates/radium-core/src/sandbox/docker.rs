@@ -173,6 +173,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Docker daemon with alpine:latest image available"]
     async fn test_docker_sandbox_execute() {
         let config =
             SandboxConfig::new(SandboxType::Docker).with_image("alpine:latest".to_string());

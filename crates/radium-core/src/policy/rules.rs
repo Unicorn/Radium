@@ -765,7 +765,7 @@ reason = "Shell commands disabled for security"
         let mut engine = PolicyEngine::new(ApprovalMode::Ask).unwrap();
         engine.add_rule(
             PolicyRule::new("terraform-dry-run", "run_terminal_cmd", PolicyAction::DryRunFirst)
-                .with_arg_pattern("terraform apply *")
+                .with_arg_pattern("terraform apply*")
                 .with_reason("Terraform operations require dry-run preview"),
         );
 
