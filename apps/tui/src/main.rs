@@ -330,17 +330,23 @@ async fn main() -> Result<()> {
                             app.toast_manager.info(format!("{} {}", status_symbol, task_title));
 
                             // Create or update execution record
-                            let engine = "unknown".to_string(); // TODO: Get from app state/config
-                            let model = "unknown".to_string(); // TODO: Get from app state/config
-                            
+                            let engine = app.current_agent
+                                .as_deref()
+                                .unwrap_or("radium")
+                                .to_string();
+                            let model = app.current_model_id
+                                .as_deref()
+                                .unwrap_or("unknown")
+                                .to_string();
+
                             let record = app.execution_history.get_or_create_active_record(
                                 task_id.clone(),
                                 task_title.clone(),
                                 req_id.clone(),
                                 engine,
                                 model,
-                                0, // retry_attempt - TODO: Track this
-                                1, // cycle_number - TODO: Track this
+                                0, // retry_attempt
+                                1, // cycle_number
                             );
 
                             match status {
@@ -663,7 +669,7 @@ async fn main() -> Result<()> {
 
             // Render title bar (always visible)
             let version = env!("CARGO_PKG_VERSION");
-            let model_info = None; // TODO: Get from app state
+            let model_info = app.current_model_id.as_deref();
             let orchestration_status = if app.orchestration_enabled {
                 Some("enabled")
             } else {
@@ -756,8 +762,15 @@ async fn main() -> Result<()> {
                 );
             } else if app.orchestration_running {
                 // Orchestrator running: show split view with chat log, task list, and orchestrator thinking
-                // Get active agents from orchestration service (simplified for now)
-                let active_agents: Vec<(String, String, String)> = vec![]; // TODO: Get from orchestration service
+                // Show the currently active agent if any
+                let active_agents: Vec<(String, String, String)> = app
+                    .current_agent
+                    .iter()
+                    .map(|agent_id| {
+                        let model = app.current_model_id.as_deref().unwrap_or("unknown");
+                        (agent_id.clone(), "running".to_string(), model.to_string())
+                    })
+                    .collect();
                 render_orchestrator_view(
                     frame,
                     content_area,
