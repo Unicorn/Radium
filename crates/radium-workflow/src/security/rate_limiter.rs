@@ -2,6 +2,7 @@
 //!
 //! Provides rate limiting infrastructure for API protection
 //! using token bucket and sliding window algorithms.
+#![allow(dead_code)]
 
 use std::collections::HashMap;
 use std::sync::RwLock;

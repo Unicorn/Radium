@@ -30,7 +30,9 @@
 pub mod transformer;
 pub mod types;
 
+#[allow(unused_imports)]
 pub use transformer::{transform, TransformError};
+#[allow(unused_imports)]
 pub use types::{
     YamlComponent, YamlComponentType, YamlConnection, YamlSettings, YamlVariable, YamlWorkflow,
 };

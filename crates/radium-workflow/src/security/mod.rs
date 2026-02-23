@@ -9,6 +9,8 @@ mod audit;
 mod rate_limiter;
 mod sanitization;
 
+#[allow(unused_imports)]
 pub use audit::*;
 pub use rate_limiter::*;
+#[allow(unused_imports)]
 pub use sanitization::*;

@@ -2,6 +2,7 @@
 //!
 //! Provides input validation and sanitization for workflow definitions
 //! to prevent injection attacks and ensure data integrity.
+#![allow(dead_code)]
 
 use std::collections::HashSet;
 

@@ -58,6 +58,7 @@ impl Config {
     }
 
     /// Load config from a specific path (useful for testing).
+    #[allow(dead_code)]
     pub fn load_from(path: &PathBuf) -> Result<Self, ConfigError> {
         if !path.exists() {
             return Err(ConfigError::NotFound(path.clone()));
@@ -84,6 +85,7 @@ impl Config {
     }
 
     /// Save config to a specific path (useful for testing).
+    #[allow(dead_code)]
     pub fn save_to(&self, path: &PathBuf) -> Result<(), ConfigError> {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
