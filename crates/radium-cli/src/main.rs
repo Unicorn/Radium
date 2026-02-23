@@ -83,6 +83,18 @@ enum Commands {
         /// Workflow ID
         id: String,
     },
+    /// Migrate workflow files to use canonical component names
+    Migrate {
+        /// Workflow YAML files to migrate
+        #[arg(required = true)]
+        files: Vec<String>,
+        /// Preview changes without modifying files
+        #[arg(long)]
+        dry_run: bool,
+        /// Write migrated files to this directory instead of in-place
+        #[arg(long, value_name = "DIR")]
+        output_dir: Option<String>,
+    },
 }
 
 #[tokio::main]
@@ -106,6 +118,11 @@ async fn main() {
         Commands::Deploy { id } => commands::workflows::deploy(&cli.profile, id).await,
         Commands::Undeploy { id } => commands::workflows::undeploy(&cli.profile, id).await,
         Commands::Status { id } => commands::workflows::status(&cli.profile, id).await,
+        Commands::Migrate {
+            files,
+            dry_run,
+            output_dir,
+        } => commands::migrate::run(files, *dry_run, output_dir.as_deref()),
     };
 
     match result {
@@ -270,5 +287,57 @@ mod tests {
         let cli =
             Cli::try_parse_from(["radium-workflow", "discover", "deps", "service-123"]).unwrap();
         assert!(matches!(cli.command, Commands::Discover { .. }));
+    }
+
+    #[test]
+    fn test_parse_migrate_command() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "migrate",
+            "workflow.yaml",
+        ])
+        .unwrap();
+        assert!(matches!(cli.command, Commands::Migrate { .. }));
+    }
+
+    #[test]
+    fn test_parse_migrate_with_dry_run() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "migrate",
+            "--dry-run",
+            "a.yaml",
+            "b.yaml",
+        ])
+        .unwrap();
+        if let Commands::Migrate { files, dry_run, .. } = &cli.command {
+            assert!(dry_run);
+            assert_eq!(files.len(), 2);
+        } else {
+            panic!("Expected Migrate command");
+        }
+    }
+
+    #[test]
+    fn test_parse_migrate_with_output_dir() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "migrate",
+            "--output-dir",
+            "/tmp/migrated",
+            "workflow.yaml",
+        ])
+        .unwrap();
+        if let Commands::Migrate { output_dir, .. } = &cli.command {
+            assert_eq!(output_dir.as_deref(), Some("/tmp/migrated"));
+        } else {
+            panic!("Expected Migrate command");
+        }
+    }
+
+    #[test]
+    fn test_migrate_requires_files() {
+        let result = Cli::try_parse_from(["radium-workflow", "migrate"]);
+        assert!(result.is_err());
     }
 }
