@@ -96,7 +96,7 @@ impl CheckpointInterruptModal {
         let context_text = vec![
             format!("Agent: {}", agent_id),
             format!("Workflow: {}", state.workflow_id),
-            format!("Step: {}/{}", state.step_number, state.step_number + 10), // TODO: Get total steps
+            format!("Step: {}", state.step_number),
             format!("Time: {}", timestamp),
         ];
         let context = Paragraph::new(context_text.join("\n"))

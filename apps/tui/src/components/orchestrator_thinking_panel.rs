@@ -126,25 +126,21 @@ impl OrchestratorThinkingPanel {
             .map(|line| Self::apply_syntax_highlighting(line, &theme))
             .collect();
 
-        // Create title with scroll position indicator
+        // Create title — when content is present, show a scroll position hint
         let title = if total_lines > 0 {
-            format!(
-                " Orchestrator Thinking (line {}/{} - {:.0}%) ",
-                scroll_position + 1,
-                total_lines,
-                if total_lines > 0 {
-                    (scroll_position as f64 / total_lines.saturating_sub(1).max(1) as f64) * 100.0
-                } else {
-                    0.0
-                }
-            )
+            let pct = (scroll_position as f64 / total_lines.saturating_sub(1).max(1) as f64) * 100.0;
+            if pct >= 99.0 {
+                " Orchestrator Thinking ↑ scroll for history ".to_string()
+            } else {
+                format!(" Orchestrator Thinking  ↓ {:.0}% ", pct)
+            }
         } else {
             " Orchestrator Thinking ".to_string()
         };
 
         // Render empty state or content
         if styled_lines.is_empty() {
-            let empty_text = "Waiting for orchestrator...";
+            let empty_text = "No activity yet — logs will appear here during execution";
             let empty_widget = Paragraph::new(empty_text)
                 .style(Style::default().fg(theme.text_muted))
                 .alignment(Alignment::Center)
@@ -177,36 +173,32 @@ impl OrchestratorThinkingPanel {
         }
     }
 
-    /// Applies syntax highlighting to a log line.
-    ///
-    /// # Arguments
-    /// * `line` - Line to highlight
-    /// * `theme` - Theme for colors
-    ///
-    /// # Returns
-    /// Styled line with syntax highlighting
+    /// Applies syntax highlighting to a log line based on its prefix tag.
     fn apply_syntax_highlighting<'a>(line: &'a str, theme: &'a crate::theme::RadiumTheme) -> Line<'a> {
-        // Check for orchestrator prefix
-        if line.starts_with("[Orchestrator]") {
-            let prefix_end = "[Orchestrator]".len();
-            let prefix = &line[..prefix_end];
-            let rest = &line[prefix_end..];
+        // Structured prefix tags emitted by handle_thinking_event / tool execution
+        for (prefix, prefix_color, rest_color) in [
+            ("[Orchestrator]", theme.primary, theme.text),
+            ("[thinking]",     theme.info,    theme.text),
+            ("[recommendation]", theme.warning, theme.text),
+            ("[tool]",         theme.primary, theme.text),
+        ] {
+            if line.starts_with(prefix) {
+                let rest = &line[prefix.len()..];
+                return Line::from(vec![
+                    Span::styled(prefix, Style::default().fg(prefix_color).add_modifier(Modifier::BOLD)),
+                    Span::styled(rest, Style::default().fg(rest_color)),
+                ]);
+            }
+        }
 
-            Line::from(vec![
-                Span::styled(prefix, Style::default().fg(theme.primary)),
-                Span::styled(rest, Style::default().fg(theme.text)),
-            ])
-        } else if line.contains("Analyzing") || line.contains("Selected") || line.contains("Executing") {
-            // Keywords in info color
-            Line::from(Span::styled(line, Style::default().fg(theme.info)))
-        } else if line.contains("Error") || line.contains("Failed") || line.contains("error") || line.contains("failed") {
-            // Errors in error color
+        // Fallback: keyword-based coloring
+        if line.contains("error") || line.contains("Error") || line.contains("failed") || line.contains("Failed") {
             Line::from(Span::styled(line, Style::default().fg(theme.error)))
-        } else if line.contains("Completed") || line.contains("Success") || line.contains("completed") || line.contains("success") {
-            // Success in success color
+        } else if line.contains("✓") || line.contains("completed") || line.contains("Completed") || line.contains("success") || line.contains("Success") {
             Line::from(Span::styled(line, Style::default().fg(theme.success)))
+        } else if line.contains("Analyzing") || line.contains("Selected") || line.contains("Executing") {
+            Line::from(Span::styled(line, Style::default().fg(theme.info)))
         } else {
-            // Default text color
             Line::from(Span::styled(line, Style::default().fg(theme.text_muted)))
         }
     }

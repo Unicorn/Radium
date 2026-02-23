@@ -83,7 +83,7 @@ pub fn render_workflow(
         &workflow_state.telemetry,
         Some(&runtime),
         Some(workflow_state.status),
-        None, // TODO: Add loop iteration when available
+        workflow_state.loop_iteration,
     );
 
     // Status footer

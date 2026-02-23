@@ -72,6 +72,8 @@ pub struct WorkflowUIState {
     pub checkpoint: CheckpointState,
     /// Error message if failed
     pub error_message: Option<String>,
+    /// Current loop iteration (Some(n) when a loop is active, None otherwise)
+    pub loop_iteration: Option<usize>,
 }
 
 impl WorkflowUIState {
@@ -90,6 +92,7 @@ impl WorkflowUIState {
             telemetry: TelemetryState::new(),
             checkpoint: CheckpointState::new(),
             error_message: None,
+            loop_iteration: None,
         }
     }
 
