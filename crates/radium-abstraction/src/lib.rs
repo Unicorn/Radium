@@ -1042,14 +1042,16 @@ pub trait Model: Send + Sync {
 /// during generation (e.g., network interruptions, API errors).
 ///
 /// ```rust,no_run
-/// use radium_abstraction::StreamingModel;
+/// use radium_abstraction::{StreamingModel, StreamItem};
 /// use futures::StreamExt;
 ///
 /// # async fn example(model: impl StreamingModel) -> Result<(), Box<dyn std::error::Error>> {
 /// let mut stream = model.generate_stream("Hello", None).await?;
 /// while let Some(token_result) = stream.next().await {
 ///     match token_result {
-///         Ok(token) => print!("{}", token),
+///         Ok(StreamItem::AnswerToken(t)) => print!("{}", t),
+///         Ok(StreamItem::ThinkingToken(t)) => eprint!("[thinking] {}", t),
+///         Ok(StreamItem::Metadata(_)) => {}
 ///         Err(e) => eprintln!("Error: {}", e),
 ///     }
 /// }
