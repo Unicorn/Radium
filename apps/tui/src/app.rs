@@ -2680,7 +2680,9 @@ impl App {
                         // Skip to avoid duplication
                     }
                 }
-                _ => {}
+                event => {
+                    self.handle_thinking_event(event);
+                }
             }
         }
 
@@ -4964,6 +4966,52 @@ impl App {
     /// Clear dirty flags after rendering
     pub fn clear_dirty(&mut self) {
         self.dirty_flags.clear();
+    }
+
+    /// Handle a thinking/recommendation orchestration event, updating the thinking panel
+    /// and `active_thinking` display.
+    ///
+    /// This method is extracted for unit testability — the event loop calls it via the
+    /// catch-all arm so thinking events receive live feedback during execution.
+    pub fn handle_thinking_event(
+        &mut self,
+        event: radium_orchestrator::orchestration::events::OrchestrationEvent,
+    ) {
+        use radium_orchestrator::orchestration::events::{OrchestrationEvent, ThinkingStatus};
+        match event {
+            OrchestrationEvent::ThinkingSessionStarted { .. } => {
+                // The "🤔 Thinking..." placeholder is already shown above the event loop
+            }
+            OrchestrationEvent::ThinkingStepAdded { description, .. } => {
+                self.prompt_data.active_thinking = Some(format!("⚙ {}", description));
+                self.orchestrator_panel.append_log(format!("[thinking] {}", description));
+            }
+            OrchestrationEvent::ThinkingStepUpdated { status, details, .. } => {
+                let s = match status {
+                    ThinkingStatus::InProgress => "...",
+                    ThinkingStatus::Completed => "✓",
+                    ThinkingStatus::CompletedWithFindings => "✓ findings",
+                    ThinkingStatus::Failed => "✗",
+                };
+                let line = match &details {
+                    Some(d) => format!("[thinking] {} {}", s, d),
+                    None => format!("[thinking] {}", s),
+                };
+                self.prompt_data.active_thinking = Some(line.clone());
+                self.orchestrator_panel.append_log(line);
+            }
+            OrchestrationEvent::ThinkingSessionEnded { .. } => {
+                self.prompt_data.active_thinking = None;
+                self.orchestrator_panel.append_log("[thinking] done".to_string());
+            }
+            OrchestrationEvent::RecommendationsSessionStarted { .. } => {
+                // No display action needed on session start
+            }
+            OrchestrationEvent::RecommendationAdded { description, .. } => {
+                self.orchestrator_panel.append_log(format!("[recommendation] {}", description));
+            }
+            _ => {}
+        }
     }
 
     /// Check if animations are active and mark effects dirty

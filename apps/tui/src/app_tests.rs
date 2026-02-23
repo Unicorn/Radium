@@ -137,6 +137,63 @@ mod error_recovery_tests {
 }
 
 #[cfg(test)]
+mod thinking_event_tests {
+    use super::*;
+    use radium_orchestrator::orchestration::events::{OrchestrationEvent, ThinkingStatus};
+
+    fn make_correlation_id() -> radium_orchestrator::orchestration::events::CorrelationId {
+        "test-session".to_string()
+    }
+
+    #[test]
+    fn test_thinking_step_added_sets_active_thinking() {
+        let mut app = App::new();
+        assert!(app.prompt_data.active_thinking.is_none());
+
+        app.handle_thinking_event(OrchestrationEvent::ThinkingStepAdded {
+            correlation_id: make_correlation_id(),
+            description: "Analyzing workspace".to_string(),
+        });
+
+        assert!(app.prompt_data.active_thinking.is_some());
+        let thinking = app.prompt_data.active_thinking.as_ref().unwrap();
+        assert!(thinking.contains("Analyzing workspace"), "got: {thinking}");
+    }
+
+    #[test]
+    fn test_thinking_session_ended_clears_active_thinking() {
+        let mut app = App::new();
+        app.prompt_data.active_thinking = Some("⚙ some step".to_string());
+
+        app.handle_thinking_event(OrchestrationEvent::ThinkingSessionEnded {
+            correlation_id: make_correlation_id(),
+        });
+
+        assert!(app.prompt_data.active_thinking.is_none());
+    }
+
+    #[test]
+    fn test_thinking_step_updated_completed_logs_to_panel() {
+        let mut app = App::new();
+        let initial_len = app.orchestrator_panel.len();
+
+        app.handle_thinking_event(OrchestrationEvent::ThinkingStepUpdated {
+            correlation_id: make_correlation_id(),
+            status: ThinkingStatus::Completed,
+            details: Some("found 3 files".to_string()),
+        });
+
+        assert!(
+            app.orchestrator_panel.len() > initial_len,
+            "orchestrator panel should have a new entry after ThinkingStepUpdated"
+        );
+        assert!(app.prompt_data.active_thinking.is_some());
+        let thinking = app.prompt_data.active_thinking.as_ref().unwrap();
+        assert!(thinking.contains("✓"), "completed status should show ✓, got: {thinking}");
+    }
+}
+
+#[cfg(test)]
 mod autocomplete_tests {
     use super::*;
     use crate::state::{CommandSuggestion, SuggestionSource};
