@@ -194,6 +194,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires network access to external URLs"]
     async fn test_verify_valid_url() {
         // This test requires network access, so we'll skip it in CI
         // In a real scenario, you'd use a mock HTTP server

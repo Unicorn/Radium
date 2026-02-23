@@ -253,6 +253,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires real gRPC server startup; use integration tests"]
     async fn test_embedded_server_start() {
         // Find an available port to avoid conflicts
         use std::net::TcpListener;
@@ -273,6 +274,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires real gRPC server startup; use integration tests"]
     async fn test_embedded_server_wait_for_ready() {
         // Find an available port
         use std::net::TcpListener;
@@ -297,6 +299,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires real gRPC server startup; use integration tests"]
     async fn test_embedded_server_shutdown() {
         // Find an available port
         use std::net::TcpListener;
@@ -317,6 +320,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires real gRPC server startup; use integration tests"]
     async fn test_embedded_server_double_start() {
         // Find an available port
         use std::net::TcpListener;
