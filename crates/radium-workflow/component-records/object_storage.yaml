@@ -1,0 +1,108 @@
+component:
+  name: object_storage
+  category: storage
+  version: 1.0.0
+  description: Read, write, copy, list, and delete objects in cloud object storage
+  temporalType: activity
+  behaviorTier: io
+migration:
+  migratedBy: core-components-wave2
+  migrationDate: 2026-02-23T00:00:00Z
+  filesCreated:
+  - src/schema/components/object_storage.rs
+  filesModified:
+  - src/schema/components/mod.rs
+  - src/yaml_format/types.rs
+  - src/yaml_format/transformer.rs
+inputSchema:
+  rustStruct: ObjectStorageInput
+  fields:
+  - name: provider
+    rustType: StorageProvider
+    required: false
+    description: Cloud storage provider (e.g. S3, GCS, Azure Blob)
+  - name: bucket
+    rustType: String
+    required: true
+    description: Bucket or container name
+  - name: key
+    rustType: String
+    required: true
+    description: Object key (path) within the bucket
+  - name: action
+    rustType: StorageAction
+    required: false
+    description: Storage operation to perform (get, put, delete, copy, list)
+  - name: body
+    rustType: Option<Vec<u8>>
+    required: false
+    description: Object body for put operations
+  - name: content_type
+    rustType: Option<String>
+    required: false
+    description: MIME type for the object being stored
+  - name: metadata
+    rustType: Option<HashMap<String, String>>
+    required: false
+    description: User-defined metadata key-value pairs
+  - name: copy_source
+    rustType: Option<String>
+    required: false
+    description: Source key for copy operations
+  - name: prefix
+    rustType: Option<String>
+    required: false
+    description: Key prefix filter for list operations
+  - name: max_keys
+    rustType: Option<u32>
+    required: false
+    description: Maximum number of keys to return for list operations
+  - name: region
+    rustType: Option<String>
+    required: false
+    description: Provider region override
+  - name: endpoint_url
+    rustType: Option<String>
+    required: false
+    description: Custom endpoint URL for S3-compatible providers
+  - name: behaviors
+    rustType: BehaviorConfig
+    required: false
+    description: Runtime behavior overrides (timeout, retry, etc.)
+outputSchema:
+  rustStruct: ObjectStorageOutput
+  fields:
+  - name: body
+    rustType: Option<Vec<u8>>
+    required: false
+    description: Object body returned by get operations
+  - name: content_type
+    rustType: Option<String>
+    required: false
+    description: MIME type of the retrieved object
+  - name: content_length
+    rustType: Option<u64>
+    required: false
+    description: Size in bytes of the retrieved object
+  - name: etag
+    rustType: Option<String>
+    required: false
+    description: ETag of the object
+  - name: last_modified
+    rustType: Option<String>
+    required: false
+    description: Last-modified timestamp of the object
+  - name: objects
+    rustType: Option<Vec<ObjectInfo>>
+    required: false
+    description: Object listing returned by list operations
+  - name: deleted
+    rustType: bool
+    required: true
+    description: Whether a delete operation succeeded
+defaultBehaviors:
+  timeout_ms: 120000
+  rate_limit_rps: 20
+  rate_limit_burst: 40
+  heartbeat_ms: 10000
+relatedComponents: []

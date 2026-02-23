@@ -1,0 +1,76 @@
+component:
+  name: webhook_send
+  category: networking
+  version: 1.0.0
+  description: Deliver a signed or unsigned HTTP webhook payload to a remote URL
+  temporalType: activity
+  behaviorTier: io
+migration:
+  migratedBy: core-components-wave2
+  migrationDate: 2026-02-23T00:00:00Z
+  filesCreated:
+  - src/schema/components/webhook_send.rs
+  filesModified:
+  - src/schema/components/mod.rs
+  - src/yaml_format/types.rs
+  - src/yaml_format/transformer.rs
+inputSchema:
+  rustStruct: WebhookSendInput
+  fields:
+  - name: url
+    rustType: String
+    required: true
+    description: Destination URL for the webhook delivery
+  - name: method
+    rustType: WebhookMethod
+    required: false
+    description: HTTP method to use for the webhook (default POST)
+  - name: headers
+    rustType: HashMap<String, String>
+    required: false
+    description: Additional HTTP headers to include in the request
+  - name: body
+    rustType: Option<Value>
+    required: false
+    description: Request body payload to send
+  - name: signing_secret_ref
+    rustType: Option<String>
+    required: false
+    description: Secret reference used to sign the payload
+  - name: signing_algorithm
+    rustType: SigningAlgorithm
+    required: false
+    description: Algorithm used to compute the payload signature
+  - name: signature_header
+    rustType: String
+    required: false
+    description: HTTP header name where the signature is placed
+  - name: retry_on_failure
+    rustType: bool
+    required: false
+    description: Whether to retry the delivery on non-2xx responses
+  - name: behaviors
+    rustType: BehaviorConfig
+    required: false
+    description: Runtime behavior overrides (timeout, retry, etc.)
+outputSchema:
+  rustStruct: WebhookSendOutput
+  fields:
+  - name: status_code
+    rustType: u16
+    required: true
+    description: HTTP status code returned by the destination
+  - name: response_body
+    rustType: Option<String>
+    required: false
+    description: Raw response body from the destination
+  - name: delivered
+    rustType: bool
+    required: true
+    description: Whether the webhook was accepted (2xx status)
+defaultBehaviors:
+  timeout_ms: 15000
+  rate_limit_rps: 10
+  rate_limit_burst: 20
+  heartbeat_ms: null
+relatedComponents: []

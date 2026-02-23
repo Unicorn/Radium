@@ -1,0 +1,68 @@
+component:
+  name: queue_publish
+  category: messaging
+  version: 1.0.0
+  description: Publish a message to a cloud queue (SQS, Google Pub/Sub, etc.)
+  temporalType: activity
+  behaviorTier: io
+migration:
+  migratedBy: core-components-wave2
+  migrationDate: 2026-02-23T00:00:00Z
+  filesCreated:
+  - src/schema/components/queue_publish.rs
+  filesModified:
+  - src/schema/components/mod.rs
+  - src/yaml_format/types.rs
+  - src/yaml_format/transformer.rs
+inputSchema:
+  rustStruct: QueuePublishInput
+  fields:
+  - name: queue_url
+    rustType: String
+    required: true
+    description: URL or resource name of the target queue
+  - name: provider
+    rustType: QueueProvider
+    required: false
+    description: Cloud queue provider (e.g. SQS, PubSub)
+  - name: message
+    rustType: Value
+    required: true
+    description: Message payload to publish
+  - name: message_group_id
+    rustType: Option<String>
+    required: false
+    description: Message group ID for FIFO queues
+  - name: deduplication_id
+    rustType: Option<String>
+    required: false
+    description: Deduplication ID for exactly-once delivery
+  - name: delay_seconds
+    rustType: Option<u32>
+    required: false
+    description: Number of seconds to delay message delivery
+  - name: attributes
+    rustType: HashMap<String, String>
+    required: false
+    description: Provider-specific message attributes
+  - name: behaviors
+    rustType: BehaviorConfig
+    required: false
+    description: Runtime behavior overrides (timeout, retry, etc.)
+outputSchema:
+  rustStruct: QueuePublishOutput
+  fields:
+  - name: message_id
+    rustType: String
+    required: true
+    description: Provider-assigned ID of the published message
+  - name: sequence_number
+    rustType: Option<String>
+    required: false
+    description: Sequence number assigned by FIFO queues
+defaultBehaviors:
+  timeout_ms: 10000
+  rate_limit_rps: 50
+  rate_limit_burst: 100
+  heartbeat_ms: null
+relatedComponents: []

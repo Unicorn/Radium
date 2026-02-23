@@ -1,0 +1,189 @@
+component:
+  name: websocket
+  category: networking
+  version: 1.0.0
+  description: WebSocket component for persistent bidirectional connection management
+  temporalType: activity
+  behaviorTier: io
+migration:
+  migratedBy: core-components-wave3
+  migrationDate: 2026-02-23T00:00:00Z
+  durationHours: 2.5
+  difficulty: medium
+  breakingChanges: false
+  filesCreated:
+  - src/schema/components/websocket.rs
+  filesModified:
+  - src/schema/components/mod.rs
+  - src/yaml_format/types.rs
+  - src/yaml_format/transformer.rs
+discovery:
+  originalTypescriptFile: ''
+  linesOfCode: 0
+  existingTests: []
+  usageLocations: []
+  dependencies: []
+schemaDecisions:
+- field: action
+  decision: Enum with Connect, Send, Receive, SendAndReceive, Close variants
+  rationale: Single component covers the full lifecycle; action selects the operation
+  alternativesConsidered: []
+- field: message_type
+  decision: Enum with Text and Binary variants
+  rationale: WebSocket protocol distinguishes text (UTF-8) and binary frames
+  alternativesConsidered: []
+- field: subprotocols
+  decision: Vec<String> for Sec-WebSocket-Protocol negotiation
+  rationale: Many APIs (e.g. graphql-ws) require a specific subprotocol
+  alternativesConsidered: []
+inputSchema:
+  rustStruct: WebsocketInput
+  typescriptInterface: WebsocketInput
+  fields:
+  - name: url
+    rustType: String
+    typescriptType: string
+    required: true
+    description: WebSocket URL (ws:// or wss://)
+  - name: action
+    rustType: WebSocketAction
+    typescriptType: WebSocketAction
+    required: false
+    default: send_and_receive
+    description: Operation to perform on the connection
+  - name: message
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: Message payload to send; required for Send and SendAndReceive actions
+  - name: message_type
+    rustType: WebSocketMessageType
+    typescriptType: WebSocketMessageType
+    required: false
+    default: text
+    description: WebSocket frame type for the outgoing message
+  - name: headers
+    rustType: HashMap<String, String>
+    typescriptType: Record<string, string>
+    required: false
+    default: '{}'
+    description: HTTP upgrade request headers (e.g. Authorization)
+  - name: subprotocols
+    rustType: Vec<String>
+    typescriptType: string[]
+    required: false
+    default: '[]'
+    description: Requested WebSocket subprotocols for the handshake
+  - name: receive_timeout_ms
+    rustType: Option<u64>
+    typescriptType: number?
+    required: false
+    description: Maximum time to wait for an incoming message in milliseconds
+  - name: timeout_ms
+    rustType: u64
+    typescriptType: number
+    required: false
+    default: '60000'
+    description: Overall operation timeout in milliseconds
+  validation: []
+outputSchema:
+  rustStruct: WebsocketOutput
+  typescriptInterface: WebsocketOutput
+  fields:
+  - name: connected
+    rustType: bool
+    typescriptType: boolean
+    required: true
+    description: Whether the connection was established successfully
+  - name: message
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: Received message payload if action includes Receive
+  - name: message_type
+    rustType: Option<WebSocketMessageType>
+    typescriptType: WebSocketMessageType?
+    required: false
+    description: Frame type of the received message
+  - name: close_code
+    rustType: Option<u16>
+    typescriptType: number?
+    required: false
+    description: WebSocket close code if the connection was closed
+  - name: close_reason
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: Human-readable close reason from the peer
+  validation: []
+validationRules:
+- rule: message_required_for_send_actions
+  implementation: validate_config()
+  errorMessage: message is required for Send and SendAndReceive actions
+  rationale: Cannot send without a payload
+connections:
+  allowedSources: []
+  allowedTargets: []
+  connectionValidation: ''
+rustSchema:
+  filePath: src/schema/components/websocket.rs
+  structs:
+  - WebsocketInput
+  - WebsocketOutput
+  enums:
+  - WebSocketAction
+  - WebSocketMessageType
+  derives:
+  - Debug
+  - Clone
+  - Serialize
+  - Deserialize
+  - Validate
+  validationImplementation: Custom validate_config() method
+defaultBehaviors:
+  timeout_ms: 60000
+  rate_limit_rps: 10
+  rate_limit_burst: 20
+  heartbeat_ms: 10000
+typescriptTemplate:
+  templatePath: ''
+  generatedCodeExample: ''
+  keyPatterns: []
+testCases:
+- name: test_connect_action
+  category: unit
+  input: WebsocketInput::connect("wss://example.com/ws")
+  expectedOutput: Valid connect configuration
+  passed: true
+- name: test_send_and_receive
+  category: unit
+  input: WebsocketInput::send_and_receive("wss://example.com/ws", "hello")
+  expectedOutput: Valid send-and-receive configuration
+  passed: true
+- name: test_close_action
+  category: unit
+  input: WebsocketInput::close("wss://example.com/ws")
+  expectedOutput: Valid close configuration
+  passed: true
+lessonsLearned:
+  whatWorkedWell:
+  - Action enum keeps a single component ergonomic across the full lifecycle
+  - heartbeat_ms aligns with WebSocket ping/pong keepalive semantics
+  challenges:
+  - challenge: Modeling stateful connection across workflow steps
+    solution: Each invocation is self-contained; long-lived connections use the connect action with a workflow signal
+    timeSpent: 25 minutes
+  recommendations:
+  - Pair with signal component for event-driven receive patterns
+relatedComponents:
+- component: http_request
+  relationship: Upgrade path; HTTP connection upgrades to WebSocket
+- component: event_emit
+  relationship: Received WebSocket messages may be re-emitted as internal events
+futureImprovements:
+- improvement: Binary message support with base64 encoding
+  priority: Medium
+  effort: Low
+- improvement: Message stream buffering for high-throughput sockets
+  priority: Low
+  effort: High

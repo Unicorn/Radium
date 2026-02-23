@@ -1,0 +1,68 @@
+component:
+  name: graphql_request
+  category: networking
+  version: 1.0.0
+  description: Execute GraphQL queries and mutations against a remote endpoint
+  temporalType: activity
+  behaviorTier: io
+migration:
+  migratedBy: core-components-wave2
+  migrationDate: 2026-02-23T00:00:00Z
+  filesCreated:
+  - src/schema/components/graphql_request.rs
+  filesModified:
+  - src/schema/components/mod.rs
+  - src/yaml_format/types.rs
+  - src/yaml_format/transformer.rs
+inputSchema:
+  rustStruct: GraphqlRequestInput
+  fields:
+  - name: endpoint
+    rustType: String
+    required: true
+    description: GraphQL endpoint URL
+  - name: query
+    rustType: String
+    required: true
+    description: GraphQL query or mutation string
+  - name: variables
+    rustType: Option<Value>
+    required: false
+    description: Variables to pass with the query
+  - name: operation_name
+    rustType: Option<String>
+    required: false
+    description: Optional operation name for multi-operation documents
+  - name: headers
+    rustType: HashMap<String, String>
+    required: false
+    description: Additional HTTP headers to include in the request
+  - name: auth_token
+    rustType: Option<String>
+    required: false
+    description: Bearer token for Authorization header
+  - name: behaviors
+    rustType: BehaviorConfig
+    required: false
+    description: Runtime behavior overrides (timeout, retry, etc.)
+outputSchema:
+  rustStruct: GraphqlRequestOutput
+  fields:
+  - name: data
+    rustType: Option<Value>
+    required: false
+    description: GraphQL response data payload
+  - name: errors
+    rustType: Option<Vec<GraphQlError>>
+    required: false
+    description: GraphQL errors returned by the server
+  - name: status_code
+    rustType: u16
+    required: true
+    description: HTTP status code of the response
+defaultBehaviors:
+  timeout_ms: 30000
+  rate_limit_rps: 10
+  rate_limit_burst: 20
+  heartbeat_ms: null
+relatedComponents: []

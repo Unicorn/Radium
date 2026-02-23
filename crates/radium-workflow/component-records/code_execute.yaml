@@ -1,0 +1,52 @@
+component:
+  name: code_execute
+  category: execution
+  version: 1.0.0
+  description: Execute inline code in a sandboxed runtime for a supported language
+  temporalType: activity
+  behaviorTier: io
+migration:
+  migratedBy: core-components-wave1
+  migrationDate: 2026-02-23T00:00:00Z
+  filesCreated:
+  - src/schema/components/code_execute.rs
+  filesModified:
+  - src/schema/components/mod.rs
+  - src/yaml_format/types.rs
+  - src/yaml_format/transformer.rs
+inputSchema:
+  rustStruct: CodeExecuteInput
+  fields:
+  - name: language
+    rustType: CodeLanguage
+    required: true
+    description: The programming language of the code to execute
+  - name: code
+    rustType: String
+    required: true
+    description: Source code to execute
+  - name: input_bindings
+    rustType: HashMap<String, Value>
+    required: false
+    description: Named values injected into the execution context as variables
+  - name: behaviors
+    rustType: BehaviorConfig
+    required: false
+    description: Runtime behavior overrides (timeout, retry, etc.)
+outputSchema:
+  rustStruct: CodeExecuteOutput
+  fields:
+  - name: result
+    rustType: Value
+    required: true
+    description: The value returned or produced by the code
+  - name: console_output
+    rustType: Vec<String>
+    required: true
+    description: Lines written to stdout/console during execution
+defaultBehaviors:
+  timeout_ms: 60000
+  rate_limit_rps: 5
+  rate_limit_burst: 10
+  heartbeat_ms: 10000
+relatedComponents: []

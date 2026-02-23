@@ -1,17 +1,19 @@
 component:
-  name: signal
+  name: message
   category: advanced
   version: 1.0.0
-  description: Temporal signal component for workflow communication
+  description: Inter-service communication component (renamed from signal)
   temporalType: signal
+  aliases:
+  - signal
 migration:
   migratedBy: radium-workflow-compiler
-  migrationDate: 2026-02-23T20:00:04.617695Z
-  durationHours: 1.5
-  difficulty: medium
+  migrationDate: 2026-02-23T00:00:00.000000Z
+  durationHours: 1.0
+  difficulty: low
   breakingChanges: false
   filesCreated:
-  - src/schema/components/signal.rs
+  - src/schema/components/message.rs
   filesModified:
   - src/schema/components/mod.rs
 discovery:
@@ -25,9 +27,13 @@ schemaDecisions:
   decision: Enum with Send and Receive variants
   rationale: Clear distinction between sending and receiving
   alternativesConsidered: []
-- field: timeout
+- field: timeout_ms
   decision: Zero means wait forever for receive
   rationale: Matches Temporal signal semantics
+  alternativesConsidered: []
+- field: inputSchema rustStruct
+  decision: Keep SignalInput name for backward compatibility
+  rationale: Preserves wire compatibility with existing serialized workflows
   alternativesConsidered: []
 inputSchema:
   rustStruct: SignalInput
@@ -49,25 +55,14 @@ inputSchema:
     typescriptType: string?
     required: false
     description: ''
-  - name: target_run_id
-    rustType: Option<String>
-    typescriptType: string?
-    required: false
-    description: ''
   - name: payload
     rustType: Option<Value>
     typescriptType: unknown?
     required: false
     description: ''
   - name: timeout_ms
-    rustType: u64
-    typescriptType: number
-    required: false
-    default: '0'
-    description: ''
-  - name: output_variable
-    rustType: Option<String>
-    typescriptType: string?
+    rustType: Option<u64>
+    typescriptType: number?
     required: false
     description: ''
   validation: []
@@ -75,48 +70,28 @@ outputSchema:
   rustStruct: SignalOutput
   typescriptInterface: SignalOutput
   fields:
-  - name: signal_name
-    rustType: String
-    typescriptType: string
-    required: true
-    description: ''
-  - name: sent
+  - name: delivered
     rustType: bool
     typescriptType: boolean
     required: true
     description: ''
-  - name: received
-    rustType: bool
-    typescriptType: boolean
-    required: true
-    description: ''
-  - name: payload
+  - name: received_payload
     rustType: Option<Value>
     typescriptType: unknown?
     required: false
-    description: ''
-  - name: sender_workflow_id
-    rustType: Option<String>
-    typescriptType: string?
-    required: false
-    description: ''
-  - name: timed_out
-    rustType: bool
-    typescriptType: boolean
-    required: true
     description: ''
   validation: []
 validationRules:
 - rule: send_requires_target
   implementation: validate_config()
-  errorMessage: Send signal requires target_workflow_id
-  rationale: Must know where to send signal
+  errorMessage: Send message requires target_workflow_id
+  rationale: Must know where to send the message
 connections:
   allowedSources: []
   allowedTargets: []
   connectionValidation: ''
 rustSchema:
-  filePath: src/schema/components/signal.rs
+  filePath: src/schema/components/message.rs
   structs:
   - SignalInput
   - SignalOutput
@@ -134,25 +109,27 @@ typescriptTemplate:
   generatedCodeExample: ''
   keyPatterns: []
 testCases:
-- name: test_receive_signal
+- name: test_receive_message
   category: unit
   input: SignalInput::receive("approval")
-  expectedOutput: Valid receive signal
+  expectedOutput: Valid receive message
   passed: true
-- name: test_send_signal
+- name: test_send_message
   category: unit
   input: SignalInput::send("notify", "wf-123")
-  expectedOutput: Valid send signal
+  expectedOutput: Valid send message
   passed: true
 lessonsLearned:
   whatWorkedWell:
-  - Simple direction-based API
+  - Simple direction-based API translates cleanly to message semantics
+  - Backward-compatible struct naming strategy
   challenges: []
   recommendations:
-  - Use direction enum for bidirectional operations
+  - Keep SignalInput/SignalOutput names on Rust structs for wire compatibility
+  - Expose as "message" in all user-facing surfaces
 relatedComponents:
-- component: child_workflow
-  relationship: Can signal child workflows
+- component: child_service
+  relationship: Can send messages to child services
 - component: trigger
-  relationship: Signal trigger type
+  relationship: Message trigger type
 futureImprovements: []

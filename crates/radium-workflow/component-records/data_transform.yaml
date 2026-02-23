@@ -1,0 +1,44 @@
+component:
+  name: data_transform
+  category: data
+  version: 1.0.0
+  description: Evaluate a transformation expression against an input value and return the result
+  temporalType: activity
+  behaviorTier: pure
+migration:
+  migratedBy: core-components-wave1
+  migrationDate: 2026-02-23T00:00:00Z
+  filesCreated:
+  - src/schema/components/data_transform.rs
+  filesModified:
+  - src/schema/components/mod.rs
+  - src/yaml_format/types.rs
+  - src/yaml_format/transformer.rs
+inputSchema:
+  rustStruct: DataTransformInput
+  fields:
+  - name: expression
+    rustType: String
+    required: true
+    description: The transformation expression to evaluate
+  - name: expression_language
+    rustType: ExpressionLanguage
+    required: false
+    description: Language/dialect used to write the expression (e.g. JMESPath, JSONata)
+  - name: input
+    rustType: Value
+    required: false
+    description: The data value passed into the expression as the root context
+outputSchema:
+  rustStruct: DataTransformOutput
+  fields:
+  - name: result
+    rustType: Value
+    required: true
+    description: The value produced by evaluating the expression against the input
+defaultBehaviors:
+  timeout_ms: null
+  rate_limit_rps: null
+  rate_limit_burst: null
+  heartbeat_ms: null
+relatedComponents: []

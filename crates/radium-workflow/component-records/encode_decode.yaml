@@ -1,0 +1,48 @@
+component:
+  name: encode_decode
+  category: data
+  version: 1.0.0
+  description: Encode or decode data between formats such as Base64, URL, and JSON
+  temporalType: activity
+  behaviorTier: pure
+migration:
+  migratedBy: core-components-wave2
+  migrationDate: 2026-02-23T00:00:00Z
+  filesCreated:
+  - src/schema/components/encode_decode.rs
+  filesModified:
+  - src/schema/components/mod.rs
+  - src/yaml_format/types.rs
+  - src/yaml_format/transformer.rs
+inputSchema:
+  rustStruct: EncodeDecodeInput
+  fields:
+  - name: action
+    rustType: EncodeDecodeAction
+    required: false
+    description: Whether to encode or decode the input
+  - name: format
+    rustType: EncodeDecodeFormat
+    required: false
+    description: Format to encode to or decode from (e.g. Base64, URL, JSON)
+  - name: input
+    rustType: String
+    required: true
+    description: Input string to encode or decode
+  - name: options
+    rustType: Option<FormatOptions>
+    required: false
+    description: Format-specific options (e.g. URL-safe Base64, pretty-print JSON)
+outputSchema:
+  rustStruct: EncodeDecodeOutput
+  fields:
+  - name: result
+    rustType: String
+    required: true
+    description: Encoded or decoded output string
+defaultBehaviors:
+  timeout_ms: null
+  rate_limit_rps: null
+  rate_limit_burst: null
+  heartbeat_ms: null
+relatedComponents: []

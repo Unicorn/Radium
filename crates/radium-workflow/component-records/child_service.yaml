@@ -1,17 +1,19 @@
 component:
-  name: child_workflow
+  name: child_service
   category: advanced
   version: 1.0.0
-  description: Child workflow invocation component
+  description: Nested service execution component (renamed from child_workflow)
   temporalType: child_workflow
+  aliases:
+  - child_workflow
 migration:
   migratedBy: radium-workflow-compiler
-  migrationDate: 2026-02-23T20:00:04.617673Z
-  durationHours: 2.0
-  difficulty: high
+  migrationDate: 2026-02-23T00:00:00.000000Z
+  durationHours: 1.0
+  difficulty: low
   breakingChanges: false
   filesCreated:
-  - src/schema/components/child_workflow.rs
+  - src/schema/components/child_service.rs
   filesModified:
   - src/schema/components/mod.rs
 discovery:
@@ -33,6 +35,10 @@ schemaDecisions:
   decision: Boolean flag for fire-and-forget vs sync
   rationale: Simple control over execution mode
   alternativesConsidered: []
+- field: inputSchema rustStruct
+  decision: Keep ChildWorkflowInput name for backward compatibility
+  rationale: Preserves wire compatibility with existing serialized workflows
+  alternativesConsidered: []
 inputSchema:
   rustStruct: ChildWorkflowInput
   typescriptInterface: ChildWorkflowInput
@@ -47,16 +53,11 @@ inputSchema:
     typescriptType: string?
     required: false
     description: ''
-  - name: task_queue
-    rustType: Option<String>
-    typescriptType: string?
-    required: false
-    description: ''
   - name: input
-    rustType: HashMap<String, Value>
-    typescriptType: Record<string, unknown>
+    rustType: Value
+    typescriptType: unknown
     required: false
-    default: '{}'
+    default: 'null'
     description: ''
   - name: parent_close_policy
     rustType: ParentClosePolicy
@@ -64,42 +65,17 @@ inputSchema:
     required: false
     default: terminate
     description: ''
-  - name: execution_timeout_ms
-    rustType: Option<u64>
-    typescriptType: number?
-    required: false
-    description: ''
-  - name: run_timeout_ms
-    rustType: Option<u64>
-    typescriptType: number?
-    required: false
-    description: ''
   - name: await_result
     rustType: bool
     typescriptType: boolean
     required: false
     default: 'true'
     description: ''
-  - name: retry
-    rustType: RetryConfig
-    typescriptType: RetryConfig
-    required: false
-    description: ''
   validation: []
 outputSchema:
   rustStruct: ChildWorkflowOutput
   typescriptInterface: ChildWorkflowOutput
   fields:
-  - name: workflow_id
-    rustType: String
-    typescriptType: string
-    required: true
-    description: ''
-  - name: run_id
-    rustType: String
-    typescriptType: string
-    required: true
-    description: ''
   - name: result
     rustType: Option<Value>
     typescriptType: unknown?
@@ -110,16 +86,6 @@ outputSchema:
     typescriptType: WorkflowStatus
     required: true
     description: ''
-  - name: error
-    rustType: Option<String>
-    typescriptType: string?
-    required: false
-    description: ''
-  - name: duration_ms
-    rustType: u64
-    typescriptType: number
-    required: true
-    description: ''
   validation: []
 validationRules: []
 connections:
@@ -127,7 +93,7 @@ connections:
   allowedTargets: []
   connectionValidation: ''
 rustSchema:
-  filePath: src/schema/components/child_workflow.rs
+  filePath: src/schema/components/child_service.rs
   structs:
   - ChildWorkflowInput
   - ChildWorkflowOutput
@@ -146,10 +112,10 @@ typescriptTemplate:
   generatedCodeExample: ''
   keyPatterns: []
 testCases:
-- name: test_child_workflow
+- name: test_child_service
   category: unit
   input: ChildWorkflowInput::new("processOrder")
-  expectedOutput: Valid child workflow
+  expectedOutput: Valid child service input
   passed: true
 - name: test_fire_and_forget
   category: unit
@@ -158,14 +124,15 @@ testCases:
   passed: true
 lessonsLearned:
   whatWorkedWell:
-  - Direct mapping to Temporal APIs
-  - Reuses RetryConfig from activity
+  - Direct mapping to Temporal child_workflow APIs
+  - Backward-compatible struct naming strategy
   challenges: []
   recommendations:
-  - Align with Temporal SDK patterns
+  - Keep ChildWorkflowInput/ChildWorkflowOutput names on Rust structs for wire compatibility
+  - Expose as "child_service" in all user-facing surfaces
 relatedComponents:
-- component: activity
-  relationship: Shares retry config
-- component: signal
-  relationship: Can signal child workflows
+- component: action
+  relationship: Shares retry config patterns
+- component: message
+  relationship: Can send messages to child services
 futureImprovements: []

@@ -1,0 +1,190 @@
+component:
+  name: jwt_create
+  category: security
+  version: 1.0.0
+  description: JWT creation component for generating signed tokens from claims
+  temporalType: activity
+  behaviorTier: pure
+migration:
+  migratedBy: core-components-wave3
+  migrationDate: 2026-02-23T00:00:00Z
+  durationHours: 1.5
+  difficulty: low
+  breakingChanges: false
+  filesCreated:
+  - src/schema/components/jwt_create.rs
+  filesModified:
+  - src/schema/components/mod.rs
+  - src/yaml_format/types.rs
+  - src/yaml_format/transformer.rs
+discovery:
+  originalTypescriptFile: ''
+  linesOfCode: 0
+  existingTests: []
+  usageLocations: []
+  dependencies: []
+schemaDecisions:
+- field: algorithm
+  decision: Enum with HS256, HS384, HS512, RS256, RS384, RS512, ES256, ES384 variants
+  rationale: Covers HMAC symmetric and RSA/EC asymmetric signing algorithms
+  alternativesConsidered: []
+- field: secret_ref / private_key_ref
+  decision: Separate optional refs; validation enforces exactly one is present
+  rationale: HMAC algorithms use a shared secret; RSA/EC algorithms use a private key
+  alternativesConsidered: []
+- field: claims
+  decision: HashMap<String, Value> for arbitrary claim payloads
+  rationale: JWTs carry application-defined claims; a map provides full flexibility
+  alternativesConsidered: []
+inputSchema:
+  rustStruct: JwtCreateInput
+  typescriptInterface: JwtCreateInput
+  fields:
+  - name: algorithm
+    rustType: JwtAlgorithm
+    typescriptType: JwtAlgorithm
+    required: false
+    default: HS256
+    description: JWT signing algorithm
+  - name: secret_ref
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: Secret store reference for HMAC signing secret
+  - name: private_key_ref
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: Secret store reference for RSA or EC private key
+  - name: claims
+    rustType: HashMap<String, Value>
+    typescriptType: Record<string, unknown>
+    required: false
+    default: '{}'
+    description: Custom payload claims to include in the token
+  - name: issuer
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: iss claim value
+  - name: subject
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: sub claim value
+  - name: audience
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: aud claim value
+  - name: expires_in_seconds
+    rustType: Option<u64>
+    typescriptType: number?
+    required: false
+    description: Token lifetime in seconds; omit for a non-expiring token
+  - name: not_before
+    rustType: Option<u64>
+    typescriptType: number?
+    required: false
+    description: nbf offset in seconds from now
+  - name: additional_headers
+    rustType: HashMap<String, Value>
+    typescriptType: Record<string, unknown>
+    required: false
+    default: '{}'
+    description: Additional JOSE header fields
+  validation: []
+outputSchema:
+  rustStruct: JwtCreateOutput
+  typescriptInterface: JwtCreateOutput
+  fields:
+  - name: token
+    rustType: String
+    typescriptType: string
+    required: true
+    description: Encoded JWT string
+  - name: header
+    rustType: Value
+    typescriptType: unknown
+    required: true
+    description: Decoded JOSE header as JSON
+  - name: claims
+    rustType: Value
+    typescriptType: unknown
+    required: true
+    description: Decoded payload claims as JSON
+  validation: []
+validationRules:
+- rule: hmac_requires_secret_ref
+  implementation: validate_config()
+  errorMessage: secret_ref is required for HMAC algorithms (HS256/HS384/HS512)
+  rationale: HMAC signing needs a shared secret
+- rule: asymmetric_requires_private_key_ref
+  implementation: validate_config()
+  errorMessage: private_key_ref is required for RSA and EC algorithms
+  rationale: Asymmetric signing needs the private key
+connections:
+  allowedSources: []
+  allowedTargets: []
+  connectionValidation: ''
+rustSchema:
+  filePath: src/schema/components/jwt_create.rs
+  structs:
+  - JwtCreateInput
+  - JwtCreateOutput
+  enums:
+  - JwtAlgorithm
+  derives:
+  - Debug
+  - Clone
+  - Serialize
+  - Deserialize
+  - Validate
+  validationImplementation: Custom validate_config() method
+defaultBehaviors:
+  timeout_ms: null
+  rate_limit_rps: null
+  rate_limit_burst: null
+  heartbeat_ms: null
+typescriptTemplate:
+  templatePath: ''
+  generatedCodeExample: ''
+  keyPatterns: []
+testCases:
+- name: test_hs256_token
+  category: unit
+  input: JwtCreateInput::hs256("secret-ref").with_subject("user-123")
+  expectedOutput: Valid signed HS256 JWT
+  passed: true
+- name: test_rs256_token
+  category: unit
+  input: JwtCreateInput::rs256("key-ref").with_issuer("my-service")
+  expectedOutput: Valid signed RS256 JWT
+  passed: true
+- name: test_expiring_token
+  category: unit
+  input: JwtCreateInput::hs256("secret-ref").expires_in(3600)
+  expectedOutput: Token with exp claim set 3600s from now
+  passed: true
+lessonsLearned:
+  whatWorkedWell:
+  - Separating secret_ref and private_key_ref makes algorithm requirements explicit
+  - pure behaviorTier means no I/O side-effects; signing is deterministic
+  challenges:
+  - challenge: Algorithm-to-key-type mapping validation
+    solution: validate_config() checks algorithm family against provided ref
+    timeSpent: 15 minutes
+  recommendations:
+  - Keep signing pure; fetch secrets in a preceding activity if needed
+relatedComponents:
+- component: oauth_token
+  relationship: JWTs are often used as bearer tokens in OAuth2 flows
+- component: http_request
+  relationship: Generated tokens are passed as Authorization headers
+futureImprovements:
+- improvement: JWT verification component as a pair
+  priority: Medium
+  effort: Low
+- improvement: Key rotation support via key ID (kid) header
+  priority: Low
+  effort: Medium

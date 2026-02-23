@@ -1,0 +1,150 @@
+component:
+  name: behaviors
+  category: shared
+  version: 1.0.0
+  description: Shared production-grade behavior types for all I/O components
+  temporalType: n/a
+migration:
+  migratedBy: radium-workflow-compiler
+  migrationDate: 2026-02-23T00:00:00.000000Z
+  durationHours: 2.0
+  difficulty: medium
+  breakingChanges: false
+  filesCreated:
+  - src/schema/components/behaviors.rs
+  filesModified:
+  - src/schema/components/mod.rs
+discovery:
+  originalTypescriptFile: ''
+  linesOfCode: 0
+  existingTests: []
+  usageLocations: []
+  dependencies: []
+schemaDecisions:
+- field: behavior_tiers
+  decision: Three tiers — Pure, Stateful, I/O
+  rationale: Not all components need all behaviors; tiering avoids unnecessary overhead
+  alternativesConsidered:
+  - Single flat behaviors struct on every component (too heavy for pure/stateful)
+- field: ComponentBehaviors
+  decision: Aggregates all optional behavior configs into one embeddable struct
+  rationale: Single field on I/O components keeps schema clean
+  alternativesConsidered: []
+- field: IdempotencyConfig
+  decision: Explicit idempotency key and dedup window
+  rationale: Required for safe retry and at-least-once delivery guarantees
+  alternativesConsidered: []
+- field: CircuitBreakerConfig
+  decision: Threshold + window + half-open probe controls
+  rationale: Prevents cascading failures on downstream I/O
+  alternativesConsidered: []
+inputSchema:
+  rustStruct: N/A
+  typescriptInterface: N/A
+  fields: []
+  note: behaviors.rs contains embedded types only — not a standalone component. These
+    structs are composed into I/O component input/output schemas.
+  validation: []
+outputSchema:
+  rustStruct: N/A
+  typescriptInterface: N/A
+  fields: []
+  validation: []
+validationRules: []
+connections:
+  allowedSources: []
+  allowedTargets: []
+  connectionValidation: ''
+rustSchema:
+  filePath: src/schema/components/behaviors.rs
+  structs:
+  - ComponentBehaviors
+  - RetryPolicy
+  - RateLimitConfig
+  - CircuitBreakerConfig
+  - IdempotencyConfig
+  - ObservabilityConfig
+  - PayloadLimits
+  - ComponentOutput
+  - ComponentError
+  - OutputMetadata
+  - ErrorCatalogEntry
+  enums: []
+  derives:
+  - Debug
+  - Clone
+  - Serialize
+  - Deserialize
+  - Validate
+  validationImplementation: Validator crate
+behaviorTiers:
+- tier: Pure
+  description: No behaviors attached
+  examples:
+  - conditional
+  - loop
+  - start
+  - stop
+  behaviors: []
+- tier: Stateful
+  description: Timeout only — no external I/O
+  examples:
+  - timer
+  - child_service
+  behaviors:
+  - timeout
+- tier: I/O
+  description: Full behavior suite for components that call external systems
+  examples:
+  - action
+  - http_request
+  - database_query
+  - message
+  behaviors:
+  - retry
+  - rate_limit
+  - circuit_breaker
+  - idempotency
+  - observability
+  - payload_limits
+typescriptTemplate:
+  templatePath: ''
+  generatedCodeExample: ''
+  keyPatterns: []
+testCases:
+- name: test_retry_policy_defaults
+  category: unit
+  input: RetryPolicy::default()
+  expectedOutput: Exponential backoff with sensible defaults
+  passed: true
+- name: test_circuit_breaker_threshold
+  category: unit
+  input: CircuitBreakerConfig with threshold 5, window 60s
+  expectedOutput: Valid circuit breaker configuration
+  passed: true
+- name: test_component_output_error
+  category: unit
+  input: ComponentOutput::error(ErrorCatalogEntry::timeout())
+  expectedOutput: ComponentOutput with is_success=false and error populated
+  passed: true
+lessonsLearned:
+  whatWorkedWell:
+  - Tiered approach keeps lightweight components free of behavior overhead
+  - Single ComponentBehaviors struct is easy to embed and evolve
+  challenges: []
+  recommendations:
+  - All new I/O components must embed ComponentBehaviors
+  - Stateful components may embed timeout only
+  - Pure components must not embed behaviors
+relatedComponents:
+- component: action
+  relationship: Consumes RetryPolicy, TimeoutConfig from behaviors
+- component: http_request
+  relationship: Consumes full I/O behavior tier
+- component: database_query
+  relationship: Consumes full I/O behavior tier
+- component: message
+  relationship: Consumes timeout from stateful tier
+futureImprovements:
+- Add tracing/span propagation to ObservabilityConfig
+- Add adaptive rate limiting based on downstream latency

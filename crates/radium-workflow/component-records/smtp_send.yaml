@@ -1,0 +1,96 @@
+component:
+  name: smtp_send
+  category: messaging
+  version: 1.0.0
+  description: Send email messages via SMTP with support for attachments and TLS
+  temporalType: activity
+  behaviorTier: io
+migration:
+  migratedBy: core-components-wave2
+  migrationDate: 2026-02-23T00:00:00Z
+  filesCreated:
+  - src/schema/components/smtp_send.rs
+  filesModified:
+  - src/schema/components/mod.rs
+  - src/yaml_format/types.rs
+  - src/yaml_format/transformer.rs
+inputSchema:
+  rustStruct: SmtpSendInput
+  fields:
+  - name: host
+    rustType: String
+    required: true
+    description: SMTP server hostname
+  - name: port
+    rustType: u16
+    required: false
+    description: SMTP server port (default 587)
+  - name: username
+    rustType: Option<String>
+    required: false
+    description: SMTP authentication username
+  - name: password_ref
+    rustType: Option<String>
+    required: false
+    description: Secret reference for SMTP authentication password
+  - name: from
+    rustType: String
+    required: true
+    description: Sender email address
+  - name: to
+    rustType: Vec<String>
+    required: true
+    description: List of recipient email addresses
+  - name: cc
+    rustType: Vec<String>
+    required: false
+    description: List of CC recipient email addresses
+  - name: bcc
+    rustType: Vec<String>
+    required: false
+    description: List of BCC recipient email addresses
+  - name: subject
+    rustType: String
+    required: true
+    description: Email subject line
+  - name: body
+    rustType: String
+    required: true
+    description: Email body content
+  - name: content_type
+    rustType: EmailContentType
+    required: false
+    description: Content type of the email body (text or HTML)
+  - name: attachments
+    rustType: Vec<EmailAttachment>
+    required: false
+    description: File attachments to include in the email
+  - name: use_tls
+    rustType: bool
+    required: false
+    description: Enable TLS for the SMTP connection (default true)
+  - name: behaviors
+    rustType: BehaviorConfig
+    required: false
+    description: Runtime behavior overrides (timeout, retry, etc.)
+outputSchema:
+  rustStruct: SmtpSendOutput
+  fields:
+  - name: message_id
+    rustType: String
+    required: true
+    description: Message ID assigned by the SMTP server
+  - name: accepted
+    rustType: Vec<String>
+    required: true
+    description: List of recipient addresses accepted for delivery
+  - name: rejected
+    rustType: Vec<String>
+    required: true
+    description: List of recipient addresses rejected by the server
+defaultBehaviors:
+  timeout_ms: 60000
+  rate_limit_rps: 5
+  rate_limit_burst: 10
+  heartbeat_ms: null
+relatedComponents: []

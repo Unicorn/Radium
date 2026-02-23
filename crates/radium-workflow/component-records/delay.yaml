@@ -1,0 +1,148 @@
+component:
+  name: delay
+  category: control-flow
+  version: 1.0.0
+  description: Delay component for introducing controlled pauses in workflow execution
+  temporalType: activity
+  behaviorTier: stateful
+migration:
+  migratedBy: core-components-wave4
+  migrationDate: 2026-02-23T00:00:00Z
+  durationHours: 1.0
+  difficulty: low
+  breakingChanges: false
+  filesCreated:
+  - src/schema/components/delay.rs
+  filesModified:
+  - src/schema/components/mod.rs
+  - src/yaml_format/types.rs
+  - src/yaml_format/transformer.rs
+discovery:
+  originalTypescriptFile: ''
+  linesOfCode: 0
+  existingTests: []
+  usageLocations: []
+  dependencies: []
+schemaDecisions:
+- field: unit
+  decision: Enum with Milliseconds, Seconds, Minutes, Hours variants
+  rationale: Human-readable unit keeps workflow definitions self-documenting
+  alternativesConsidered: []
+- field: duration_ms / value
+  decision: Both provided; duration_ms is the canonical resolved value for the runtime
+  rationale: value + unit is the authoring form; duration_ms is the execution form
+  alternativesConsidered: []
+- field: jitter_ms
+  decision: Optional random jitter added to the delay
+  rationale: Jitter prevents thundering herd in parallel workflow branches
+  alternativesConsidered: []
+inputSchema:
+  rustStruct: DelayInput
+  typescriptInterface: DelayInput
+  fields:
+  - name: duration_ms
+    rustType: u64
+    typescriptType: number
+    required: false
+    default: '1000'
+    description: Delay duration in milliseconds (canonical execution value)
+  - name: unit
+    rustType: DelayUnit
+    typescriptType: DelayUnit
+    required: false
+    default: milliseconds
+    description: Human-readable time unit for authoring
+  - name: value
+    rustType: f64
+    typescriptType: number
+    required: false
+    default: '1.0'
+    description: Numeric value combined with unit for authoring convenience
+  - name: jitter_ms
+    rustType: Option<u64>
+    typescriptType: number?
+    required: false
+    description: Maximum random jitter in milliseconds added to the delay
+  validation: []
+outputSchema:
+  rustStruct: DelayOutput
+  typescriptInterface: DelayOutput
+  fields:
+  - name: delayed_ms
+    rustType: u64
+    typescriptType: number
+    required: true
+    description: Actual elapsed time in milliseconds including any jitter
+  - name: requested_ms
+    rustType: u64
+    typescriptType: number
+    required: true
+    description: Originally requested delay in milliseconds before jitter
+  validation: []
+validationRules:
+- rule: duration_ms_positive
+  implementation: validate_config()
+  errorMessage: duration_ms must be greater than zero
+  rationale: A zero-length delay is a no-op and almost certainly a misconfiguration
+connections:
+  allowedSources: []
+  allowedTargets: []
+  connectionValidation: ''
+rustSchema:
+  filePath: src/schema/components/delay.rs
+  structs:
+  - DelayInput
+  - DelayOutput
+  enums:
+  - DelayUnit
+  derives:
+  - Debug
+  - Clone
+  - Serialize
+  - Deserialize
+  - Validate
+  validationImplementation: Custom validate_config() method
+defaultBehaviors:
+  timeout_ms: 3600000
+  rate_limit_rps: null
+  rate_limit_burst: null
+  heartbeat_ms: null
+typescriptTemplate:
+  templatePath: ''
+  generatedCodeExample: ''
+  keyPatterns: []
+testCases:
+- name: test_milliseconds_delay
+  category: unit
+  input: DelayInput::milliseconds(500)
+  expectedOutput: 500ms delay configuration
+  passed: true
+- name: test_seconds_delay
+  category: unit
+  input: DelayInput::seconds(5.0)
+  expectedOutput: 5000ms delay configuration
+  passed: true
+- name: test_delay_with_jitter
+  category: unit
+  input: DelayInput::seconds(1.0).with_jitter_ms(200)
+  expectedOutput: 1000ms delay with up to 200ms jitter
+  passed: true
+lessonsLearned:
+  whatWorkedWell:
+  - Dual representation (value+unit for humans, duration_ms for runtime) keeps both sides clean
+  - stateful behaviorTier reflects that Temporal timers survive worker restarts
+  challenges:
+  - challenge: Mapping f64 value with unit to u64 milliseconds without precision loss
+    solution: Round to nearest millisecond in the transformer
+    timeSpent: 10 minutes
+  recommendations:
+  - Use jitter_ms on any delay inside parallel branches to spread load
+relatedComponents:
+- component: timer
+  relationship: Timer is the Temporal-native delay primitive; delay wraps it with ergonomic authoring
+- component: loop
+  relationship: Delays are commonly placed inside loops for polling patterns
+futureImprovements:
+- improvement: Cron-expression based delay (delay until next occurrence)
+  priority: Low
+  effort: Medium

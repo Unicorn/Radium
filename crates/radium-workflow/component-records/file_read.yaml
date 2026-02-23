@@ -1,0 +1,68 @@
+component:
+  name: file_read
+  category: io
+  version: 1.0.0
+  description: Read file contents from the local filesystem with encoding support
+  temporalType: activity
+  behaviorTier: io
+migration:
+  migratedBy: core-components-wave2
+  migrationDate: 2026-02-23T00:00:00Z
+  filesCreated:
+  - src/schema/components/file_read.rs
+  filesModified:
+  - src/schema/components/mod.rs
+  - src/yaml_format/types.rs
+  - src/yaml_format/transformer.rs
+inputSchema:
+  rustStruct: FileReadInput
+  fields:
+  - name: path
+    rustType: String
+    required: true
+    description: Absolute or relative path to the file to read
+  - name: encoding
+    rustType: String
+    required: false
+    description: Character encoding to use when reading the file (default utf-8)
+  - name: max_size_bytes
+    rustType: Option<u64>
+    required: false
+    description: Maximum file size to read; fails if exceeded
+  - name: offset
+    rustType: Option<u64>
+    required: false
+    description: Byte offset to start reading from
+  - name: length
+    rustType: Option<u64>
+    required: false
+    description: Number of bytes to read from the offset
+  - name: behaviors
+    rustType: BehaviorConfig
+    required: false
+    description: Runtime behavior overrides (timeout, retry, etc.)
+outputSchema:
+  rustStruct: FileReadOutput
+  fields:
+  - name: content
+    rustType: String
+    required: true
+    description: File contents decoded using the specified encoding
+  - name: size_bytes
+    rustType: u64
+    required: true
+    description: Total size of the file in bytes
+  - name: path
+    rustType: String
+    required: true
+    description: Resolved absolute path of the file that was read
+  - name: encoding
+    rustType: String
+    required: true
+    description: Encoding that was used to decode the file contents
+defaultBehaviors:
+  timeout_ms: 60000
+  rate_limit_rps: 20
+  rate_limit_burst: 40
+  heartbeat_ms: 10000
+relatedComponents: []

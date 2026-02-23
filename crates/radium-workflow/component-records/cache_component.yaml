@@ -1,0 +1,60 @@
+component:
+  name: cache_component
+  category: data
+  version: 1.0.0
+  description: Get, set, or delete entries in the distributed workflow cache
+  temporalType: activity
+  behaviorTier: io
+migration:
+  migratedBy: core-components-wave1
+  migrationDate: 2026-02-23T00:00:00Z
+  filesCreated:
+  - src/schema/components/cache_component.rs
+  filesModified:
+  - src/schema/components/mod.rs
+  - src/yaml_format/types.rs
+  - src/yaml_format/transformer.rs
+inputSchema:
+  rustStruct: CacheComponentInput
+  fields:
+  - name: action
+    rustType: CacheAction
+    required: true
+    description: The cache operation to perform (Get, Set, Delete, Exists)
+  - name: key
+    rustType: String
+    required: true
+    description: The cache key to operate on
+  - name: value
+    rustType: Option<Value>
+    required: false
+    description: The value to store (required for Set action)
+  - name: ttl_ms
+    rustType: Option<u64>
+    required: false
+    description: Time-to-live in milliseconds for the cached entry (Set action only)
+  - name: behaviors
+    rustType: BehaviorConfig
+    required: false
+    description: Runtime behavior overrides (timeout, retry, etc.)
+outputSchema:
+  rustStruct: CacheComponentOutput
+  fields:
+  - name: value
+    rustType: Option<Value>
+    required: false
+    description: The retrieved value (populated on Get when the key exists)
+  - name: exists
+    rustType: Option<bool>
+    required: false
+    description: Whether the key exists in the cache (populated on Exists action)
+  - name: deleted
+    rustType: Option<bool>
+    required: false
+    description: Whether the key was successfully deleted (populated on Delete action)
+defaultBehaviors:
+  timeout_ms: 5000
+  rate_limit_rps: 100
+  rate_limit_burst: 200
+  heartbeat_ms: null
+relatedComponents: []

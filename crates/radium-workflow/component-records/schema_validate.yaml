@@ -1,0 +1,49 @@
+component:
+  name: schema_validate
+  category: data
+  version: 1.0.0
+  description: Validate a data value against a JSON Schema and return validation errors
+  temporalType: activity
+  behaviorTier: pure
+migration:
+  migratedBy: core-components-wave1
+  migrationDate: 2026-02-23T00:00:00Z
+  filesCreated:
+  - src/schema/components/schema_validate.rs
+  filesModified:
+  - src/schema/components/mod.rs
+  - src/yaml_format/types.rs
+  - src/yaml_format/transformer.rs
+inputSchema:
+  rustStruct: SchemaValidateInput
+  fields:
+  - name: schema
+    rustType: Value
+    required: true
+    description: The JSON Schema definition to validate against
+  - name: data
+    rustType: Value
+    required: true
+    description: The data value to validate
+  - name: strict
+    rustType: bool
+    required: false
+    default: 'false'
+    description: When true, additional properties not in the schema cause validation failure
+outputSchema:
+  rustStruct: SchemaValidateOutput
+  fields:
+  - name: valid
+    rustType: bool
+    required: true
+    description: True if the data conforms to the schema
+  - name: errors
+    rustType: Vec<SchemaValidationError>
+    required: true
+    description: List of validation errors; empty when valid is true
+defaultBehaviors:
+  timeout_ms: null
+  rate_limit_rps: null
+  rate_limit_burst: null
+  heartbeat_ms: null
+relatedComponents: []

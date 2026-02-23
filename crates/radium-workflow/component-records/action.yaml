@@ -1,17 +1,19 @@
 component:
-  name: activity
+  name: action
   category: activities
   version: 1.0.0
-  description: Generic activity invocation component
+  description: Generic action invocation component (renamed from activity to hide Temporal terminology)
   temporalType: activity
+  aliases:
+  - activity
 migration:
   migratedBy: radium-workflow-compiler
-  migrationDate: 2026-02-23T20:00:04.617625Z
-  durationHours: 2.0
-  difficulty: medium
+  migrationDate: 2026-02-23T00:00:00.000000Z
+  durationHours: 1.0
+  difficulty: low
   breakingChanges: false
   filesCreated:
-  - src/schema/components/activity.rs
+  - src/schema/components/action.rs
   filesModified:
   - src/schema/components/mod.rs
 discovery:
@@ -106,7 +108,7 @@ connections:
   allowedTargets: []
   connectionValidation: ''
 rustSchema:
-  filePath: src/schema/components/activity.rs
+  filePath: src/schema/components/action.rs
   structs:
   - ActivityInput
   - ActivityOutput
@@ -127,10 +129,10 @@ typescriptTemplate:
   generatedCodeExample: ''
   keyPatterns: []
 testCases:
-- name: test_activity_input
+- name: test_action_input
   category: unit
-  input: ActivityInput::new("myActivity")
-  expectedOutput: Valid activity input
+  input: ActivityInput::new("myAction")
+  expectedOutput: Valid action input
   passed: true
 - name: test_retry_config
   category: unit
@@ -141,12 +143,14 @@ lessonsLearned:
   whatWorkedWell:
   - Reusable RetryConfig and TimeoutConfig
   - Matches Temporal SDK patterns
+  - User-facing name hides Temporal implementation details
   challenges: []
   recommendations:
   - Align with Temporal SDK types
+  - Expose as "action" in all user-facing surfaces; use activity alias for internal compatibility
 relatedComponents:
-- component: child_workflow
+- component: child_service
   relationship: Uses same retry config
 - component: http_request
-  relationship: Specialized activity
+  relationship: Specialized action
 futureImprovements: []

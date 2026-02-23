@@ -1,0 +1,64 @@
+component:
+  name: shell_execute
+  category: execution
+  version: 1.0.0
+  description: Execute shell commands and capture stdout, stderr, and exit code
+  temporalType: activity
+  behaviorTier: io
+migration:
+  migratedBy: core-components-wave1
+  migrationDate: 2026-02-23T00:00:00Z
+  filesCreated:
+  - src/schema/components/shell_execute.rs
+  filesModified:
+  - src/schema/components/mod.rs
+  - src/yaml_format/types.rs
+  - src/yaml_format/transformer.rs
+inputSchema:
+  rustStruct: ShellExecuteInput
+  fields:
+  - name: command
+    rustType: String
+    required: true
+    description: The shell command to execute
+  - name: args
+    rustType: Vec<String>
+    required: false
+    description: Arguments to pass to the command
+  - name: working_dir
+    rustType: Option<String>
+    required: false
+    description: Working directory for command execution
+  - name: env
+    rustType: HashMap<String, String>
+    required: false
+    description: Environment variables to set for the process
+  - name: capture
+    rustType: CaptureMode
+    required: false
+    description: Controls what output streams are captured
+  - name: behaviors
+    rustType: BehaviorConfig
+    required: false
+    description: Runtime behavior overrides (timeout, retry, etc.)
+outputSchema:
+  rustStruct: ShellExecuteOutput
+  fields:
+  - name: stdout
+    rustType: String
+    required: true
+    description: Standard output captured from the command
+  - name: stderr
+    rustType: String
+    required: true
+    description: Standard error captured from the command
+  - name: exit_code
+    rustType: i32
+    required: true
+    description: Exit code returned by the process
+defaultBehaviors:
+  timeout_ms: 120000
+  rate_limit_rps: 1
+  rate_limit_burst: 3
+  heartbeat_ms: 10000
+relatedComponents: []

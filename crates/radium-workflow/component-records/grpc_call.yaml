@@ -1,0 +1,184 @@
+component:
+  name: grpc_call
+  category: networking
+  version: 1.0.0
+  description: gRPC unary call component for invoking remote procedure endpoints
+  temporalType: activity
+  behaviorTier: io
+migration:
+  migratedBy: core-components-wave3
+  migrationDate: 2026-02-23T00:00:00Z
+  durationHours: 2.5
+  difficulty: medium
+  breakingChanges: false
+  filesCreated:
+  - src/schema/components/grpc_call.rs
+  filesModified:
+  - src/schema/components/mod.rs
+  - src/yaml_format/types.rs
+  - src/yaml_format/transformer.rs
+discovery:
+  originalTypescriptFile: ''
+  linesOfCode: 0
+  existingTests: []
+  usageLocations: []
+  dependencies: []
+schemaDecisions:
+- field: endpoint
+  decision: String in host:port format
+  rationale: Matches standard gRPC addressing; TLS is opt-in via use_tls
+  alternativesConsidered: []
+- field: message
+  decision: Value (JSON) for the request message
+  rationale: Protobuf messages are JSON-serializable; avoids proto codegen dependency
+  alternativesConsimented: []
+- field: metadata
+  decision: HashMap<String, String> for gRPC metadata headers
+  rationale: gRPC metadata is key-value pairs, identical in structure to HTTP headers
+  alternativesConsidered: []
+inputSchema:
+  rustStruct: GrpcCallInput
+  typescriptInterface: GrpcCallInput
+  fields:
+  - name: endpoint
+    rustType: String
+    typescriptType: string
+    required: true
+    description: gRPC server endpoint in host:port format
+  - name: service
+    rustType: String
+    typescriptType: string
+    required: true
+    description: Fully-qualified gRPC service name (e.g. package.ServiceName)
+  - name: method
+    rustType: String
+    typescriptType: string
+    required: true
+    description: RPC method name to invoke
+  - name: message
+    rustType: Value
+    typescriptType: unknown
+    required: false
+    default: '{}'
+    description: Request message as a JSON-serializable object
+  - name: metadata
+    rustType: HashMap<String, String>
+    typescriptType: Record<string, string>
+    required: false
+    default: '{}'
+    description: gRPC metadata key-value pairs sent with the request
+  - name: use_tls
+    rustType: bool
+    typescriptType: boolean
+    required: false
+    default: 'false'
+    description: Whether to use TLS for the connection
+  - name: tls_cert_ref
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: Secret store reference for a custom TLS certificate
+  - name: deadline_ms
+    rustType: Option<u64>
+    typescriptType: number?
+    required: false
+    description: Per-call deadline in milliseconds; overrides component timeout
+  - name: timeout_ms
+    rustType: u64
+    typescriptType: number
+    required: false
+    default: '30000'
+    description: Component-level timeout in milliseconds
+  validation: []
+outputSchema:
+  rustStruct: GrpcCallOutput
+  typescriptInterface: GrpcCallOutput
+  fields:
+  - name: response
+    rustType: Value
+    typescriptType: unknown
+    required: true
+    description: Response message deserialized as JSON
+  - name: status_code
+    rustType: u32
+    typescriptType: number
+    required: true
+    description: gRPC status code (0 = OK)
+  - name: status_message
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: Human-readable status message from the server
+  - name: metadata
+    rustType: HashMap<String, String>
+    typescriptType: Record<string, string>
+    required: true
+    description: Trailing metadata returned by the server
+  validation: []
+validationRules:
+- rule: tls_cert_ref_requires_use_tls
+  implementation: validate_config()
+  errorMessage: tls_cert_ref has no effect when use_tls is false
+  rationale: Prevents silent misconfiguration
+connections:
+  allowedSources: []
+  allowedTargets: []
+  connectionValidation: ''
+rustSchema:
+  filePath: src/schema/components/grpc_call.rs
+  structs:
+  - GrpcCallInput
+  - GrpcCallOutput
+  enums: []
+  derives:
+  - Debug
+  - Clone
+  - Serialize
+  - Deserialize
+  - Validate
+  validationImplementation: Custom validate_config() method
+defaultBehaviors:
+  timeout_ms: 30000
+  rate_limit_rps: 20
+  rate_limit_burst: 40
+  heartbeat_ms: null
+typescriptTemplate:
+  templatePath: ''
+  generatedCodeExample: ''
+  keyPatterns: []
+testCases:
+- name: test_basic_grpc_call
+  category: unit
+  input: GrpcCallInput::new("localhost:50051", "example.Greeter", "SayHello")
+  expectedOutput: Valid gRPC call configuration
+  passed: true
+- name: test_grpc_call_with_tls
+  category: unit
+  input: GrpcCallInput::new("grpc.example.com:443", "svc.Api", "GetUser").with_tls()
+  expectedOutput: Valid TLS-enabled gRPC call
+  passed: true
+- name: test_grpc_call_with_metadata
+  category: unit
+  input: GrpcCallInput::new("localhost:50051", "svc.Api", "GetUser").with_metadata(headers)
+  expectedOutput: Valid gRPC call with metadata
+  passed: true
+lessonsLearned:
+  whatWorkedWell:
+  - JSON Value for messages avoids proto codegen complexity
+  - deadline_ms separate from timeout_ms mirrors gRPC's own deadline concept
+  challenges:
+  - challenge: Distinguishing gRPC status codes from HTTP status codes
+    solution: Named field status_code with inline documentation
+    timeSpent: 10 minutes
+  recommendations:
+  - Use deadline_ms for per-call control; timeout_ms acts as a ceiling
+relatedComponents:
+- component: http_request
+  relationship: Parallel networking primitive for HTTP-based APIs
+futureImprovements:
+- improvement: Server-streaming and client-streaming variants
+  priority: Medium
+  effort: High
+- improvement: Protobuf schema registration for message validation
+  priority: Low
+  effort: High

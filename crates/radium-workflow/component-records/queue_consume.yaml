@@ -1,0 +1,64 @@
+component:
+  name: queue_consume
+  category: messaging
+  version: 1.0.0
+  description: Consume one or more messages from a cloud queue
+  temporalType: activity
+  behaviorTier: io
+migration:
+  migratedBy: core-components-wave2
+  migrationDate: 2026-02-23T00:00:00Z
+  filesCreated:
+  - src/schema/components/queue_consume.rs
+  filesModified:
+  - src/schema/components/mod.rs
+  - src/yaml_format/types.rs
+  - src/yaml_format/transformer.rs
+inputSchema:
+  rustStruct: QueueConsumeInput
+  fields:
+  - name: queue_url
+    rustType: String
+    required: true
+    description: URL or resource name of the source queue
+  - name: provider
+    rustType: QueueProvider
+    required: false
+    description: Cloud queue provider (e.g. SQS, PubSub)
+  - name: max_messages
+    rustType: u32
+    required: false
+    description: Maximum number of messages to retrieve (default 1)
+  - name: wait_time_seconds
+    rustType: Option<u32>
+    required: false
+    description: Long-poll wait duration in seconds
+  - name: visibility_timeout
+    rustType: Option<u32>
+    required: false
+    description: Seconds a received message is hidden from other consumers
+  - name: auto_acknowledge
+    rustType: bool
+    required: false
+    description: Automatically delete messages after successful receipt (default true)
+  - name: behaviors
+    rustType: BehaviorConfig
+    required: false
+    description: Runtime behavior overrides (timeout, retry, etc.)
+outputSchema:
+  rustStruct: QueueConsumeOutput
+  fields:
+  - name: messages
+    rustType: Vec<QueueMessage>
+    required: true
+    description: Messages retrieved from the queue
+  - name: count
+    rustType: u32
+    required: true
+    description: Number of messages returned
+defaultBehaviors:
+  timeout_ms: 10000
+  rate_limit_rps: 50
+  rate_limit_burst: 100
+  heartbeat_ms: null
+relatedComponents: []

@@ -1,0 +1,56 @@
+component:
+  name: file_write
+  category: io
+  version: 1.0.0
+  description: Write string content to a file at the specified path with configurable write mode
+  temporalType: activity
+  behaviorTier: io
+migration:
+  migratedBy: core-components-wave1
+  migrationDate: 2026-02-23T00:00:00Z
+  filesCreated:
+  - src/schema/components/file_write.rs
+  filesModified:
+  - src/schema/components/mod.rs
+  - src/yaml_format/types.rs
+  - src/yaml_format/transformer.rs
+inputSchema:
+  rustStruct: FileWriteInput
+  fields:
+  - name: path
+    rustType: String
+    required: true
+    description: Absolute or relative file path to write to
+  - name: content
+    rustType: String
+    required: true
+    description: The string content to write to the file
+  - name: encoding
+    rustType: Option<String>
+    required: false
+    description: Character encoding to use when writing (defaults to UTF-8)
+  - name: mode
+    rustType: FileWriteMode
+    required: false
+    description: Write mode — create/overwrite, append, or create-only
+  - name: behaviors
+    rustType: BehaviorConfig
+    required: false
+    description: Runtime behavior overrides (timeout, retry, etc.)
+outputSchema:
+  rustStruct: FileWriteOutput
+  fields:
+  - name: path
+    rustType: String
+    required: true
+    description: Resolved absolute path of the file that was written
+  - name: bytes_written
+    rustType: u64
+    required: true
+    description: Number of bytes written to the file
+defaultBehaviors:
+  timeout_ms: 60000
+  rate_limit_rps: 10
+  rate_limit_burst: 20
+  heartbeat_ms: 10000
+relatedComponents: []

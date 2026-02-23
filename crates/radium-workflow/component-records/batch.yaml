@@ -1,0 +1,199 @@
+component:
+  name: batch
+  category: execution
+  version: 1.0.0
+  description: Batch processing component for executing an activity across a collection of items
+  temporalType: activity
+  behaviorTier: io
+migration:
+  migratedBy: core-components-wave4
+  migrationDate: 2026-02-23T00:00:00Z
+  durationHours: 2.5
+  difficulty: medium
+  breakingChanges: false
+  filesCreated:
+  - src/schema/components/batch.rs
+  filesModified:
+  - src/schema/components/mod.rs
+  - src/yaml_format/types.rs
+  - src/yaml_format/transformer.rs
+discovery:
+  originalTypescriptFile: ''
+  linesOfCode: 0
+  existingTests: []
+  usageLocations: []
+  dependencies: []
+schemaDecisions:
+- field: fail_strategy
+  decision: Enum with FailFast, ContinueOnError, SkipOnError variants
+  rationale: Different use cases require different error tolerance; FailFast is safe default
+  alternativesConsidered: []
+- field: batch_size
+  decision: u32 controlling how many items are dispatched per chunk
+  rationale: Chunks allow progress checkpointing and memory control for large collections
+  alternativesConsidered: []
+- field: concurrency
+  decision: u32 limiting simultaneous in-flight activity executions
+  rationale: Protects downstream systems from being overwhelmed
+  alternativesConsidered: []
+- field: results
+  decision: Vec<BatchItemResult> with per-item status and output
+  rationale: Callers need to inspect individual outcomes; aggregates alone are insufficient
+  alternativesConsidered: []
+inputSchema:
+  rustStruct: BatchInput
+  typescriptInterface: BatchInput
+  fields:
+  - name: items
+    rustType: Vec<Value>
+    typescriptType: unknown[]
+    required: true
+    description: Collection of items to process; each is passed as input to the activity
+  - name: batch_size
+    rustType: u32
+    typescriptType: number
+    required: false
+    default: '10'
+    description: Number of items dispatched per processing chunk
+  - name: concurrency
+    rustType: u32
+    typescriptType: number
+    required: false
+    default: '1'
+    description: Maximum number of simultaneously executing activity instances
+  - name: fail_strategy
+    rustType: BatchFailStrategy
+    typescriptType: BatchFailStrategy
+    required: false
+    default: fail_fast
+    description: How to handle individual item failures
+  - name: activity_name
+    rustType: String
+    typescriptType: string
+    required: true
+    description: Name of the registered Temporal activity to invoke per item
+  - name: task_queue
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: Temporal task queue override for the child activities
+  - name: timeout_ms
+    rustType: u64
+    typescriptType: number
+    required: false
+    default: '300000'
+    description: Total batch timeout in milliseconds
+  validation: []
+outputSchema:
+  rustStruct: BatchOutput
+  typescriptInterface: BatchOutput
+  fields:
+  - name: results
+    rustType: Vec<BatchItemResult>
+    typescriptType: BatchItemResult[]
+    required: true
+    description: Per-item execution result including status, output, and error
+  - name: total_items
+    rustType: u32
+    typescriptType: number
+    required: true
+    description: Total number of items submitted for processing
+  - name: successful
+    rustType: u32
+    typescriptType: number
+    required: true
+    description: Number of items that completed successfully
+  - name: failed
+    rustType: u32
+    typescriptType: number
+    required: true
+    description: Number of items that encountered an error
+  - name: skipped
+    rustType: u32
+    typescriptType: number
+    required: true
+    description: Number of items skipped due to SkipOnError strategy
+  validation: []
+validationRules:
+- rule: concurrency_positive
+  implementation: validate_config()
+  errorMessage: concurrency must be at least 1
+  rationale: Zero concurrency would deadlock the batch
+- rule: batch_size_positive
+  implementation: validate_config()
+  errorMessage: batch_size must be at least 1
+  rationale: Zero batch size is not meaningful
+connections:
+  allowedSources: []
+  allowedTargets: []
+  connectionValidation: ''
+rustSchema:
+  filePath: src/schema/components/batch.rs
+  structs:
+  - BatchInput
+  - BatchOutput
+  - BatchItemResult
+  enums:
+  - BatchFailStrategy
+  derives:
+  - Debug
+  - Clone
+  - Serialize
+  - Deserialize
+  - Validate
+  validationImplementation: Custom validate_config() method
+defaultBehaviors:
+  timeout_ms: 300000
+  rate_limit_rps: 10
+  rate_limit_burst: 20
+  heartbeat_ms: 10000
+typescriptTemplate:
+  templatePath: ''
+  generatedCodeExample: ''
+  keyPatterns: []
+testCases:
+- name: test_basic_batch
+  category: unit
+  input: BatchInput::new(items, "process_item")
+  expectedOutput: Valid batch configuration with default batch_size 10
+  passed: true
+- name: test_batch_fail_fast
+  category: unit
+  input: BatchInput::new(items, "process_item").with_fail_strategy(BatchFailStrategy::FailFast)
+  expectedOutput: Batch halts on first item failure
+  passed: true
+- name: test_batch_continue_on_error
+  category: unit
+  input: BatchInput::new(items, "process_item").with_fail_strategy(BatchFailStrategy::ContinueOnError)
+  expectedOutput: Batch processes all items regardless of individual failures
+  passed: true
+- name: test_concurrent_batch
+  category: unit
+  input: BatchInput::new(items, "process_item").with_concurrency(5)
+  expectedOutput: Valid batch with concurrency 5
+  passed: true
+lessonsLearned:
+  whatWorkedWell:
+  - BatchItemResult struct makes per-item introspection straightforward
+  - heartbeat_ms is critical for long-running batches to avoid Temporal activity timeouts
+  challenges:
+  - challenge: Aggregating partial results when FailFast terminates early
+    solution: results Vec is populated up to the point of failure; remaining items are absent
+    timeSpent: 20 minutes
+  recommendations:
+  - Set heartbeat_ms to less than the Temporal activity heartbeat timeout
+  - Use ContinueOnError with post-batch result inspection for resilient pipelines
+relatedComponents:
+- component: parallel
+  relationship: Parallel component fans out known sub-workflows; batch fans out over a dynamic item collection
+- component: loop
+  relationship: Loop iterates sequentially; batch iterates with configurable concurrency
+- component: activity
+  relationship: Each batch item invokes an activity by name
+futureImprovements:
+- improvement: Dynamic concurrency adjustment based on downstream rate limits
+  priority: Medium
+  effort: High
+- improvement: Progress reporting via workflow signals
+  priority: Medium
+  effort: Medium

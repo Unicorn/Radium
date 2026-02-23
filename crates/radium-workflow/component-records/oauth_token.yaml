@@ -1,0 +1,198 @@
+component:
+  name: oauth_token
+  category: security
+  version: 1.0.0
+  description: OAuth2 token acquisition component for secure credential exchange
+  temporalType: activity
+  behaviorTier: io
+migration:
+  migratedBy: core-components-wave3
+  migrationDate: 2026-02-23T00:00:00Z
+  durationHours: 2.0
+  difficulty: medium
+  breakingChanges: false
+  filesCreated:
+  - src/schema/components/oauth_token.rs
+  filesModified:
+  - src/schema/components/mod.rs
+  - src/yaml_format/types.rs
+  - src/yaml_format/transformer.rs
+discovery:
+  originalTypescriptFile: ''
+  linesOfCode: 0
+  existingTests: []
+  usageLocations: []
+  dependencies: []
+schemaDecisions:
+- field: grant_type
+  decision: Enum with ClientCredentials, AuthorizationCode, RefreshToken variants
+  rationale: Covers the primary OAuth2 grant flows
+  alternativesConsidered: []
+- field: client_secret_ref
+  decision: Option<String> referencing a secret store key
+  rationale: Secrets must never be stored inline; ref pattern matches existing conventions
+  alternativesConsidered: []
+- field: additional_params
+  decision: HashMap<String, String> for extensibility
+  rationale: Different providers require non-standard parameters
+  alternativesConsidered: []
+inputSchema:
+  rustStruct: OauthTokenInput
+  typescriptInterface: OauthTokenInput
+  fields:
+  - name: token_url
+    rustType: String
+    typescriptType: string
+    required: true
+    description: OAuth2 token endpoint URL
+  - name: grant_type
+    rustType: OAuthGrantType
+    typescriptType: OAuthGrantType
+    required: false
+    default: client_credentials
+    description: OAuth2 grant type
+  - name: client_id
+    rustType: String
+    typescriptType: string
+    required: true
+    description: OAuth2 client identifier
+  - name: client_secret_ref
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: Secret store reference for the client secret
+  - name: scope
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: Space-delimited list of requested scopes
+  - name: redirect_uri
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: Redirect URI for authorization code flows
+  - name: code
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: Authorization code for the authorization_code grant
+  - name: refresh_token_ref
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: Secret store reference for a refresh token
+  - name: additional_params
+    rustType: HashMap<String, String>
+    typescriptType: Record<string, string>
+    required: false
+    default: '{}'
+    description: Additional form parameters to include in the token request
+  - name: timeout_ms
+    rustType: u64
+    typescriptType: number
+    required: false
+    default: '30000'
+    description: Request timeout in milliseconds
+  validation: []
+outputSchema:
+  rustStruct: OauthTokenOutput
+  typescriptInterface: OauthTokenOutput
+  fields:
+  - name: access_token
+    rustType: String
+    typescriptType: string
+    required: true
+    description: Issued access token
+  - name: token_type
+    rustType: String
+    typescriptType: string
+    required: true
+    description: Token type, typically Bearer
+  - name: expires_in
+    rustType: Option<u64>
+    typescriptType: number?
+    required: false
+    description: Token lifetime in seconds
+  - name: refresh_token
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: Refresh token if issued by the provider
+  - name: scope
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: Granted scopes as returned by the provider
+  validation: []
+validationRules:
+- rule: code_required_for_authorization_code_grant
+  implementation: validate_config()
+  errorMessage: code is required when grant_type is authorization_code
+  rationale: Authorization code grant requires the authorization code
+- rule: refresh_token_required_for_refresh_grant
+  implementation: validate_config()
+  errorMessage: refresh_token_ref is required when grant_type is refresh_token
+  rationale: Refresh token grant requires an existing refresh token
+connections:
+  allowedSources: []
+  allowedTargets: []
+  connectionValidation: ''
+rustSchema:
+  filePath: src/schema/components/oauth_token.rs
+  structs:
+  - OauthTokenInput
+  - OauthTokenOutput
+  enums:
+  - OAuthGrantType
+  derives:
+  - Debug
+  - Clone
+  - Serialize
+  - Deserialize
+  - Validate
+  validationImplementation: Custom validate_config() method
+defaultBehaviors:
+  timeout_ms: 30000
+  rate_limit_rps: 5
+  rate_limit_burst: 10
+  heartbeat_ms: null
+typescriptTemplate:
+  templatePath: ''
+  generatedCodeExample: ''
+  keyPatterns: []
+testCases:
+- name: test_client_credentials_flow
+  category: unit
+  input: OauthTokenInput::client_credentials("https://auth.example.com/token", "client-id")
+  expectedOutput: Valid token request for client_credentials grant
+  passed: true
+- name: test_authorization_code_flow
+  category: unit
+  input: OauthTokenInput::authorization_code("https://auth.example.com/token", "client-id", "auth-code")
+  expectedOutput: Valid token request for authorization_code grant
+  passed: true
+- name: test_refresh_token_flow
+  category: unit
+  input: OauthTokenInput::refresh("https://auth.example.com/token", "client-id", "refresh-ref")
+  expectedOutput: Valid token request for refresh_token grant
+  passed: true
+lessonsLearned:
+  whatWorkedWell:
+  - Secret reference pattern prevents inline credential storage
+  - Grant type enum drives validation logic cleanly
+  challenges:
+  - challenge: Provider-specific parameter variations
+    solution: additional_params HashMap absorbs non-standard fields
+    timeSpent: 20 minutes
+  recommendations:
+  - Always use secret store references; never accept raw secret values
+relatedComponents:
+- component: http_request
+  relationship: OAuth token is typically used to authorize subsequent HTTP requests
+futureImprovements:
+- improvement: Automatic token refresh and caching
+  priority: Medium
+  effort: Medium
+- improvement: PKCE support for public clients
+  priority: Low
+  effort: Low

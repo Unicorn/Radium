@@ -1,0 +1,166 @@
+component:
+  name: event_emit
+  category: messaging
+  version: 1.0.0
+  description: Event emission component for publishing typed events to the event bus
+  temporalType: activity
+  behaviorTier: io
+migration:
+  migratedBy: core-components-wave3
+  migrationDate: 2026-02-23T00:00:00Z
+  durationHours: 1.5
+  difficulty: low
+  breakingChanges: false
+  filesCreated:
+  - src/schema/components/event_emit.rs
+  filesModified:
+  - src/schema/components/mod.rs
+  - src/yaml_format/types.rs
+  - src/yaml_format/transformer.rs
+discovery:
+  originalTypescriptFile: ''
+  linesOfCode: 0
+  existingTests: []
+  usageLocations: []
+  dependencies: []
+schemaDecisions:
+- field: event_type
+  decision: String with dot-notation convention (e.g. order.created)
+  rationale: Flexible naming allows hierarchical routing without a fixed registry
+  alternativesConsidered: []
+- field: idempotency_key
+  decision: Option<String> for at-least-once deduplication
+  rationale: Event buses may deliver duplicates; an idempotency key enables dedup at the consumer
+  alternativesConsidered: []
+- field: correlation_id
+  decision: Option<String> for distributed tracing
+  rationale: Links emitted events to originating workflow runs for observability
+  alternativesConsidered: []
+inputSchema:
+  rustStruct: EventEmitInput
+  typescriptInterface: EventEmitInput
+  fields:
+  - name: event_type
+    rustType: String
+    typescriptType: string
+    required: true
+    description: Event type identifier using dot-notation (e.g. order.created)
+  - name: source
+    rustType: String
+    typescriptType: string
+    required: true
+    description: Originating service or workflow identifier
+  - name: data
+    rustType: Value
+    typescriptType: unknown
+    required: false
+    default: '{}'
+    description: Event payload as a JSON-serializable object
+  - name: metadata
+    rustType: HashMap<String, String>
+    typescriptType: Record<string, string>
+    required: false
+    default: '{}'
+    description: Additional routing or consumer metadata
+  - name: correlation_id
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: Tracing correlation ID to propagate across services
+  - name: idempotency_key
+    rustType: Option<String>
+    typescriptType: string?
+    required: false
+    description: Unique key for at-least-once deduplication
+  - name: timeout_ms
+    rustType: u64
+    typescriptType: number
+    required: false
+    default: '5000'
+    description: Publish acknowledgement timeout in milliseconds
+  validation: []
+outputSchema:
+  rustStruct: EventEmitOutput
+  typescriptInterface: EventEmitOutput
+  fields:
+  - name: event_id
+    rustType: String
+    typescriptType: string
+    required: true
+    description: Server-assigned unique event identifier
+  - name: timestamp
+    rustType: String
+    typescriptType: string
+    required: true
+    description: ISO 8601 timestamp of when the event was accepted
+  - name: accepted
+    rustType: bool
+    typescriptType: boolean
+    required: true
+    description: Whether the event bus acknowledged receipt of the event
+  validation: []
+validationRules: []
+connections:
+  allowedSources: []
+  allowedTargets: []
+  connectionValidation: ''
+rustSchema:
+  filePath: src/schema/components/event_emit.rs
+  structs:
+  - EventEmitInput
+  - EventEmitOutput
+  enums: []
+  derives:
+  - Debug
+  - Clone
+  - Serialize
+  - Deserialize
+  - Validate
+  validationImplementation: Validator crate attribute-based
+defaultBehaviors:
+  timeout_ms: 5000
+  rate_limit_rps: 100
+  rate_limit_burst: 200
+  heartbeat_ms: null
+typescriptTemplate:
+  templatePath: ''
+  generatedCodeExample: ''
+  keyPatterns: []
+testCases:
+- name: test_basic_event_emit
+  category: unit
+  input: EventEmitInput::new("order.created", "order-service")
+  expectedOutput: Valid event emit configuration
+  passed: true
+- name: test_event_with_correlation
+  category: unit
+  input: EventEmitInput::new("payment.processed", "payment-service").with_correlation_id("trace-abc")
+  expectedOutput: Valid event with correlation ID
+  passed: true
+- name: test_idempotent_event
+  category: unit
+  input: EventEmitInput::new("user.registered", "auth-service").with_idempotency_key("user-123-reg")
+  expectedOutput: Valid idempotent event
+  passed: true
+lessonsLearned:
+  whatWorkedWell:
+  - High rate limit (100 rps) suits fire-and-forget event patterns
+  - idempotency_key decouples retry safety from workflow logic
+  challenges:
+  - challenge: Defining accepted vs delivered semantics
+    solution: accepted field reflects bus acknowledgement; delivery is the bus's responsibility
+    timeSpent: 10 minutes
+  recommendations:
+  - Use idempotency_key on any event emitted inside a retryable activity
+relatedComponents:
+- component: trigger
+  relationship: Events emitted here may trigger other workflows via event triggers
+- component: websocket
+  relationship: WebSocket messages may be forwarded as events
+futureImprovements:
+- improvement: Batch event emission for high-volume scenarios
+  priority: Medium
+  effort: Medium
+- improvement: Dead-letter queue configuration
+  priority: Low
+  effort: Medium
