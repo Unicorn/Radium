@@ -20,22 +20,56 @@ use tower_http::{
 
 use crate::state::AppState;
 
-pub fn router(state: AppState) -> Router {
-    let cors = CorsLayer::new()
-        .allow_methods([
-            axum::http::Method::GET,
-            axum::http::Method::POST,
-            axum::http::Method::PUT,
-            axum::http::Method::DELETE,
-            axum::http::Method::OPTIONS,
-        ])
-        .allow_headers([
-            axum::http::header::AUTHORIZATION,
-            axum::http::header::CONTENT_TYPE,
-            axum::http::header::ACCEPT,
-        ])
-        // TODO: Restrict CORS origins for production deployment
-        .allow_origin(Any);
+/// Build the router with the given allowed CORS origins.
+///
+/// Pass the `allowed_origins` from `DiscoveryConfig`. To allow any origin
+/// (development only), include `"*"` in the list.
+pub fn router(state: AppState, allowed_origins: &[String]) -> Router {
+    let cors = build_cors_layer(allowed_origins);
+    build_router(state, cors)
+}
+
+fn build_cors_layer(allowed_origins: &[String]) -> CorsLayer {
+    let methods = [
+        axum::http::Method::GET,
+        axum::http::Method::POST,
+        axum::http::Method::PUT,
+        axum::http::Method::DELETE,
+        axum::http::Method::OPTIONS,
+    ];
+    let headers = [
+        axum::http::header::AUTHORIZATION,
+        axum::http::header::CONTENT_TYPE,
+        axum::http::header::ACCEPT,
+    ];
+
+    // Allow any origin only when explicitly configured with "*"
+    if allowed_origins.iter().any(|o| o == "*") {
+        return CorsLayer::new()
+            .allow_methods(methods)
+            .allow_headers(headers)
+            .allow_origin(Any);
+    }
+
+    let parsed: Vec<axum::http::HeaderValue> = allowed_origins
+        .iter()
+        .filter_map(|o| o.parse().ok())
+        .collect();
+
+    if parsed.is_empty() {
+        // Fallback: allow nothing (restrictive default)
+        CorsLayer::new()
+            .allow_methods(methods)
+            .allow_headers(headers)
+    } else {
+        CorsLayer::new()
+            .allow_methods(methods)
+            .allow_headers(headers)
+            .allow_origin(parsed)
+    }
+}
+
+fn build_router(state: AppState, cors: CorsLayer) -> Router {
 
     Router::new()
         .route("/health", get(health))

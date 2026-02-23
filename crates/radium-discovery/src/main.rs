@@ -42,7 +42,8 @@ async fn main() {
         embeddings: std::sync::Arc::from(embedding_provider),
     };
 
-    let app = radium_discovery::api::router(state);
+    tracing::info!("CORS allowed origins: {:?}", config.allowed_origins);
+    let app = radium_discovery::api::router(state, &config.allowed_origins);
     let addr = SocketAddr::from(([0, 0, 0, 0], config.port));
 
     tracing::info!("Discovery service listening on {addr}");

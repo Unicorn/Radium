@@ -57,7 +57,8 @@ async fn start_test_server() -> (SocketAddr, tokio::task::JoinHandle<()>) {
         embeddings: Arc::from(embeddings),
     };
 
-    let app = radium_discovery::api::router(state);
+    // Allow any origin in integration tests for convenience
+    let app = radium_discovery::api::router(state, &["*".to_string()]);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
