@@ -9,8 +9,8 @@ use indicatif::{ProgressBar, ProgressStyle};
 
 use crate::colors::RadiumBrandColors;
 use radium_abstraction::{
-    ChatMessage, MessageContent, Model, ModelResponse, Tool as AbstractionTool, ToolCall,
-    ToolConfig,
+    ChatMessage, MessageContent, Model, ModelError, ModelResponse, Tool as AbstractionTool,
+    ToolCall, ToolConfig,
 };
 use radium_models::{ClaudeModel, GeminiModel, MockModel, OpenAIModel};
 use radium_orchestrator::orchestration::tool::{Tool as OrchestrationTool, ToolArguments};
@@ -138,13 +138,23 @@ pub async fn execute_with_tools_loop(
             println!("\n  {} Processing iteration {}/{}...", "→".dimmed(), iteration + 1, MAX_ITERATIONS);
         }
 
-        // Call model with tools
+        // Call model with tools, falling back to plain chat completion if tools unsupported
         let response = match model.generate_with_tools(
             &messages,
             tools,
             Some(tool_config),
         ).await {
             Ok(resp) => resp,
+            Err(ModelError::UnsupportedModelProvider(_)) => {
+                // Model doesn't support function calling — use plain chat completion
+                match model.generate_chat_completion(&messages, None).await {
+                    Ok(resp) => resp,
+                    Err(e) => {
+                        eprintln!("\n  {} Model execution failed: {}", "✗".red(), e);
+                        return Err(anyhow!("Model execution failed: {}", e));
+                    }
+                }
+            }
             Err(e) => {
                 eprintln!("\n  {} Model execution failed: {}", "✗".red(), e);
                 return Err(anyhow!("Model execution failed: {}", e));

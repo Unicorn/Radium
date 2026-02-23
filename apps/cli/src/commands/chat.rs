@@ -13,6 +13,8 @@ use radium_core::{
     context::{ContextFileLoader, HistoryManager},
     monitoring::MonitoringService,
     mcp::{McpIntegration, SlashCommandRegistry},
+    session::{Session, SessionStorage as ChatSessionStorage},
+    session::state::Message as SessionMessage,
     Workspace,
     code_blocks::CodeBlockStore,
 };
@@ -47,6 +49,10 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
         }
     }
 
+    // Initialize persistent session storage
+    let chat_session_storage = ChatSessionStorage::new(workspace.root())
+        .context("Failed to initialize session storage")?;
+
     // Initialize history manager
     let history_dir = workspace.root().join(".radium/_internals/history");
     std::fs::create_dir_all(&history_dir)?;
@@ -77,13 +83,34 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
     let monitoring_path = workspace.radium_dir().join("monitoring.db");
     let monitoring = MonitoringService::open(&monitoring_path).ok();
 
-    // Check if session exists when resuming
-    if resume {
-        let interactions = history.get_interactions(Some(&session_id));
-        if interactions.is_empty() {
-            return Err(anyhow!("Session '{}' not found", session_id));
+    // Load or create persistent session for cross-restart message persistence
+    let mut persistent_session: Option<Session> = if resume {
+        match chat_session_storage.load_session(&session_id) {
+            Ok(session) => {
+                let count = session.messages.len();
+                if count > 0 {
+                    println!("Loaded {} messages from previous session", count);
+                }
+                Some(session)
+            }
+            Err(_) => {
+                // Fall back to HistoryManager check for old-style sessions
+                let interactions = history.get_interactions(Some(&session_id));
+                if interactions.is_empty() {
+                    return Err(anyhow!("Session '{}' not found", session_id));
+                }
+                None
+            }
         }
-    }
+    } else {
+        let new_session = Session::new(
+            session_id.clone(),
+            Some(agent_id.clone()),
+            Some(workspace.root().to_string_lossy().to_string()),
+        );
+        let _ = chat_session_storage.save_session_metadata(&new_session);
+        Some(new_session)
+    };
 
     // Load context files once at session start
     let workspace_root = workspace.root().to_path_buf();
@@ -272,8 +299,16 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
             }
         }
 
-        // Get conversation context from history
-        let history_context = history.get_summary(Some(&session_id));
+        // Get conversation context — prefer full SessionStorage history over HistoryManager summary
+        let history_context = if let Some(ref session) = persistent_session {
+            if !session.messages.is_empty() {
+                format_session_history(&session.messages)
+            } else {
+                history.get_summary(Some(&session_id))
+            }
+        } else {
+            history.get_summary(Some(&session_id))
+        };
 
         // Build prompt with context files and history
         // History takes precedence (comes after context files)
@@ -332,6 +367,28 @@ pub async fn execute(agent_id: String, session_name: Option<String>, resume: boo
                 // Complete agent in monitoring
                 if let Some(monitoring) = monitoring.as_ref() {
                     let _ = monitoring.complete_agent(&tracked_agent_id, 0);
+                }
+
+                // Persist messages to SessionStorage
+                if let Some(ref mut session) = persistent_session {
+                    let user_msg = SessionMessage {
+                        id: Uuid::new_v4().to_string(),
+                        role: "user".to_string(),
+                        content: input.to_string(),
+                        timestamp: Utc::now(),
+                    };
+                    let assistant_msg = SessionMessage {
+                        id: Uuid::new_v4().to_string(),
+                        role: "assistant".to_string(),
+                        content: response.clone(),
+                        timestamp: Utc::now(),
+                    };
+                    let _ = chat_session_storage.append_message(&session_id, &user_msg);
+                    let _ = chat_session_storage.append_message(&session_id, &assistant_msg);
+                    session.messages.push(user_msg);
+                    session.messages.push(assistant_msg);
+                    session.touch();
+                    let _ = chat_session_storage.save_session_metadata(session);
                 }
 
                 // Record interaction in history
@@ -747,6 +804,18 @@ async fn execute_chat_turn_with_tools(
     ).await?;
 
     Ok(response.content)
+}
+
+/// Format loaded session messages into a history context string for the LLM.
+fn format_session_history(messages: &[SessionMessage]) -> String {
+    if messages.is_empty() {
+        return String::new();
+    }
+    let mut out = String::from("Conversation History:\n");
+    for msg in messages {
+        out.push_str(&format!("{}: {}\n", msg.role, msg.content));
+    }
+    out
 }
 
 /// List available chat sessions
