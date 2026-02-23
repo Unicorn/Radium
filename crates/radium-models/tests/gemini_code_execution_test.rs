@@ -140,14 +140,19 @@ async fn test_ac4_policy_enforcement() {
     // AC4: Given a policy rule denies the code_execution tool,
     // When a model attempts to use code execution,
     // Then the request is blocked according to the policy action (deny or ask_user).
-    
+
     // Note: Policy enforcement happens in executor layer, not model layer.
     // PolicyEngine recognizes "code_execution" as a tool name pattern.
     // This is tested in radium-core policy tests.
-    // Here we verify the integration point exists by testing configuration.
-    
+    // Here we verify the integration point exists by testing configuration
+    // (no network call needed, so no real API key required).
+
     // Test that code execution can be disabled via configuration
-    let model = create_test_model_without_code_execution();
+    let model = GeminiModel::with_api_key(
+        "gemini-2.0-flash-exp".to_string(),
+        "placeholder-key-for-config-test".to_string(),
+    )
+    .with_code_execution(false);
     // Model should be created successfully with code execution disabled
     assert_eq!(model.model_id(), "gemini-2.0-flash-exp");
 }
