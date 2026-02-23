@@ -148,3 +148,50 @@ services:
           policy: local
           limit_by: ip
           hide_client_headers: false
+
+  # Radium Workflow API
+  - name: radium-workflow
+    _comment: "Radium Workflow: /v1/workflows/* and /v1/components/* -> http://radium-workflow:3020/*"
+    url: http://radium-workflow:3020/
+    routes:
+      - name: radium-workflow-all
+        strip_path: false
+        paths:
+          - /v1/workflows
+          - /v1/components
+    plugins:
+      - name: cors
+      - name: correlation-id
+        config:
+          header_name: X-Request-ID
+          generator: uuid
+          echo_downstream: true
+      - name: rate-limiting
+        config:
+          minute: 120
+          policy: local
+          limit_by: ip
+          hide_client_headers: false
+
+  # Radium Discovery Service
+  - name: radium-discovery
+    _comment: "Radium Discovery: /v1/discover/* -> http://radium-discovery:3030/*"
+    url: http://radium-discovery:3030/
+    routes:
+      - name: radium-discovery-all
+        strip_path: false
+        paths:
+          - /v1/discover
+    plugins:
+      - name: cors
+      - name: correlation-id
+        config:
+          header_name: X-Request-ID
+          generator: uuid
+          echo_downstream: true
+      - name: rate-limiting
+        config:
+          minute: 120
+          policy: local
+          limit_by: ip
+          hide_client_headers: false

@@ -1,0 +1,234 @@
+# Radium - Unified Local Development Environment
+# Usage: docker compose up -d
+#
+# Services:
+#   - PostgreSQL (Supabase-compatible)
+#   - Kong API Gateway
+#   - GoTrue Auth
+#   - PostgREST
+#   - Neo4j (graph database for discovery)
+#   - Temporal (workflow execution)
+#   - Radium Workflow API (Rust, port 3020)
+#   - Radium Discovery API (Rust, port 3030)
+#
+# After starting, configure your CLI:
+#   radium-workflow login --url http://localhost:8000 --key <your-api-key>
+
+services:
+  # ---------- Database ----------
+  db:
+    image: postgres:15-alpine
+    container_name: radium-db
+    healthcheck:
+      test: pg_isready -U postgres -h localhost
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    ports:
+      - "54332:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./apps/workflow-builder/supabase/volumes/db/init:/docker-entrypoint-initdb.d:Z
+
+  # ---------- Neo4j (Discovery graph store) ----------
+  neo4j:
+    image: neo4j:5-community
+    container_name: radium-neo4j
+    healthcheck:
+      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "radium-dev", "RETURN 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      - NEO4J_AUTH=neo4j/radium-dev
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_server_memory_heap_initial__size=256m
+      - NEO4J_server_memory_heap_max__size=512m
+    volumes:
+      - neo4j-data:/data
+
+  # ---------- Auth (GoTrue) ----------
+  auth:
+    image: supabase/gotrue:v2.143.0
+    container_name: radium-auth
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9999/health"]
+      timeout: 5s
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: http://localhost:8000
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://postgres:postgres@db:5432/postgres?sslmode=disable&search_path=auth
+      GOTRUE_SITE_URL: http://localhost:3010
+      GOTRUE_URI_ALLOW_LIST: "*"
+      GOTRUE_DISABLE_SIGNUP: "false"
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters-long
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED: "false"
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+      GOTRUE_SMTP_ADMIN_EMAIL: admin@example.com
+      GOTRUE_SMTP_HOST: inbucket
+      GOTRUE_SMTP_PORT: 2500
+      GOTRUE_SMTP_SENDER_NAME: Radium
+
+  # ---------- REST API (PostgREST) ----------
+  rest:
+    image: postgrest/postgrest:v12.0.1
+    container_name: radium-rest
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    environment:
+      PGRST_DB_URI: postgres://postgres:postgres@db:5432/postgres
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters-long
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+      PGRST_APP_SETTINGS_JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters-long
+      PGRST_APP_SETTINGS_JWT_EXP: 3600
+
+  # ---------- Email (for local dev) ----------
+  inbucket:
+    image: inbucket/inbucket:3.0.3
+    container_name: radium-inbucket
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "2500:2500"
+
+  # ---------- Kong API Gateway ----------
+  kong:
+    image: kong:3.8
+    container_name: radium-kong
+    depends_on:
+      auth:
+        condition: service_healthy
+      rest:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /var/lib/kong/kong.yml
+      KONG_DNS_ORDER: LAST,A,CNAME
+      KONG_PLUGINS: bundled
+      KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
+      KONG_NGINX_PROXY_PROXY_BUFFERS: 64 160k
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001
+      KONG_PROXY_LISTEN: 0.0.0.0:8000
+    volumes:
+      - ./apps/workflow-builder/supabase/volumes/api/kong.yml:/var/lib/kong/kong.yml:ro
+
+  # ---------- Temporal (workflow execution) ----------
+  temporal:
+    image: temporalio/auto-setup:latest
+    container_name: radium-temporal
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "temporal operator cluster health --address $(hostname -i):7233 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 60s
+    restart: unless-stopped
+    ports:
+      - "7233:7233"
+      - "7239:7239"
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PWD=postgres
+      - POSTGRES_SEEDS=db
+
+  # ---------- Radium Workflow API ----------
+  radium-workflow:
+    build:
+      context: .
+      dockerfile: crates/radium-workflow/Dockerfile
+    container_name: radium-workflow
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    ports:
+      - "3020:3000"
+    environment:
+      - RUST_LOG=info
+      - PORT=3000
+      - SUPABASE_URL=http://rest:3000
+      - SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
+      - DISCOVERY_SERVICE_URL=http://radium-discovery:3030
+    profiles:
+      - rust
+
+  # ---------- Radium Discovery API ----------
+  radium-discovery:
+    build:
+      context: .
+      dockerfile: crates/radium-discovery/Dockerfile
+    container_name: radium-discovery
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3030/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    restart: unless-stopped
+    ports:
+      - "3030:3030"
+    environment:
+      - RUST_LOG=info
+      - PORT=3030
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=radium-dev
+    profiles:
+      - rust
+
+volumes:
+  db-data:
+  neo4j-data:
+
+networks:
+  default:
+    name: radium-network
