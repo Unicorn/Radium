@@ -1,6 +1,6 @@
 # Radium Roadmap
 
-**Updated:** 2026-02-23
+**Updated:** 2026-02-24
 **Focus:** CLI/API-first (Web UI on hold)
 
 ---
@@ -15,30 +15,12 @@
 - [x] Component Renames: activity→action, child_workflow→child_service, signal→message (backward-compatible)
 - [x] Migrate Command: `radium-workflow migrate` for updating old YAML files
 - [x] Deploy Endpoint Tests: 23 tests covering full deploy lifecycle
+- [x] P1: Infrastructure — Kong routes, CI/CD for discovery, unified Docker Compose
+- [x] P2: Component Lifecycle — versioning module (SemVer), change detection (schema diff), component creation API (POST /v1/components)
 
 ---
 
 ## Active Roadmap
-
-### P1: Infrastructure (unblocks cloud readiness)
-
-| ID | Task | Effort | Status | Plan File |
-|----|------|--------|--------|-----------|
-| P1.1 | Kong discovery routes (`/v1/discover/*` in kong.yml) | Small | Not Started | `cloud-deployment.md` |
-| P1.2 | CI/CD pipeline for radium-discovery | Small | Not Started | `cloud-deployment.md` |
-| P1.3 | Unified Docker Compose (all services) | Medium | Not Started | `cloud-deployment.md` |
-
-**Dependencies:** None — these are independent and can be parallelized.
-
-### P2: Component Lifecycle (extends core components)
-
-| ID | Task | Effort | Status | Plan File |
-|----|------|--------|--------|-----------|
-| P2.1 | Component versioning (history table, validation, CLI) | Medium | Partial | `workflow-builder/open-source/component-versioning-initialization.md` |
-| P2.2 | Change detection (schema diff, semver bump calc) | Medium | Not Started | `workflow-builder/open-source/version-bump-detection-ui.md` (core logic only) |
-| P2.3 | Component creation API (`POST /v1/components`) | Medium | Not Started | — |
-
-**Dependencies:** P2.2 depends on P2.1. P2.3 is independent.
 
 ### P3: Composition Layer (core product value)
 
@@ -73,15 +55,15 @@
 
 ```
 P1.1 Kong routes ──────┐
-P1.2 CI/CD discovery ──┼── Can run in parallel (all independent)
+P1.2 CI/CD discovery ──┼── ✅ DONE
 P1.3 Docker Compose ───┘
          │
          ▼
-P2.1 Component versioning ──► P2.2 Change detection
-P2.3 Component creation API (independent)
+P2.1 Component versioning ──► P2.2 Change detection ── ✅ DONE
+P2.3 Component creation API ──────────────────────────
          │
          ▼
-P3.1 Service composition ──► P3.2 Project management ──► P3.3 CLI commands
+P3.1 Service composition ──► P3.2 Project management ──► P3.3 CLI commands  ← NEXT
 ```
 
 ---
@@ -89,9 +71,9 @@ P3.1 Service composition ──► P3.2 Project management ──► P3.3 CLI co
 ## Cloud Deployment Checklist
 
 See `cloud-deployment.md` for the full infrastructure checklist. Key gaps:
-- [ ] Kong discovery routes (P1.1)
-- [ ] CI/CD for radium-discovery (P1.2)
-- [ ] Unified Docker Compose (P1.3)
+- [x] Kong discovery routes (P1.1)
+- [x] CI/CD for radium-discovery (P1.2)
+- [x] Unified Docker Compose (P1.3)
 - [ ] AuraDB provisioning (future, when going to hosted)
 - [ ] Reindex job for Neo4j recovery (future)
 - [ ] Rate limiting per environment (future)
