@@ -17,9 +17,23 @@ use super::state::AppState;
 /// Build the `/v1` sub-router. All routes in this router receive `AppState`.
 pub fn router() -> Router<AppState> {
     Router::new()
-        // Component registry
-        .route("/components", get(components::list_components))
-        .route("/components/{component_type}", get(components::get_component))
+        // Component registry (built-in + custom CRUD)
+        .route(
+            "/components",
+            get(components::list_components).post(components::create_component),
+        )
+        .route(
+            "/components/custom",
+            get(components::list_custom_components),
+        )
+        .route(
+            "/components/custom/{name}",
+            delete(components::delete_custom_component),
+        )
+        .route(
+            "/components/{component_type}",
+            get(components::get_component),
+        )
         // Workflow CRUD
         .route(
             "/workflows",

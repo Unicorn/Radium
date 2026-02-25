@@ -9,6 +9,7 @@
 //! - Component migration framework
 
 pub mod api;
+pub mod change_detection;
 pub mod codegen;
 pub mod types;
 pub mod discovery;
@@ -22,6 +23,7 @@ pub mod security;
 pub mod supabase;
 pub mod validation;
 pub mod verification;
+pub mod versioning;
 pub mod yaml_format;
 
 pub use errors::{ErrorCategory, ErrorCode, ErrorLocation, ErrorSeverity, WorkflowError, WorkflowErrors};

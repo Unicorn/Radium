@@ -340,4 +340,37 @@ mod tests {
         let result = Cli::try_parse_from(["radium-workflow", "migrate"]);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_parse_components_versions() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "components",
+            "versions",
+            "http_request",
+        ])
+        .unwrap();
+        if let Commands::Components { action: Some(ComponentAction::Versions { component_type }) } =
+            &cli.command
+        {
+            assert_eq!(component_type, "http_request");
+        } else {
+            panic!("Expected Components {{ action: Some(Versions {{ .. }}) }}");
+        }
+    }
+
+    #[test]
+    fn test_parse_components_show_still_works() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "components",
+            "show",
+            "activity",
+        ])
+        .unwrap();
+        assert!(matches!(
+            cli.command,
+            Commands::Components { action: Some(ComponentAction::Show { .. }) }
+        ));
+    }
 }
