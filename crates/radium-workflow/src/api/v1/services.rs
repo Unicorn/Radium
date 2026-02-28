@@ -336,7 +336,7 @@ fn convert_validation_error(error: &validation::ValidationError) -> CompilerErro
 // Handlers
 // ---------------------------------------------------------------------------
 
-/// `POST /v1/workflows` -- Create a workflow from YAML or JSON body.
+/// `POST /v1/services` -- Create a workflow from YAML or JSON body.
 pub async fn create_workflow(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -398,7 +398,7 @@ pub async fn create_workflow(
     Ok((StatusCode::CREATED, Json(created)))
 }
 
-/// `GET /v1/workflows` -- List all workflows.
+/// `GET /v1/services` -- List all workflows.
 pub async fn list_workflows(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -423,7 +423,7 @@ pub async fn list_workflows(
     Ok(Json(WorkflowListResponse { workflows, total }))
 }
 
-/// `GET /v1/workflows/:id` -- Get a single workflow by ID.
+/// `GET /v1/services/:id` -- Get a single workflow by ID.
 pub async fn get_workflow(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -456,7 +456,7 @@ pub async fn get_workflow(
     Ok(Json(workflow))
 }
 
-/// `PUT /v1/workflows/:id` -- Update a workflow definition.
+/// `PUT /v1/services/:id` -- Update a workflow definition.
 pub async fn update_workflow(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -522,7 +522,7 @@ pub async fn update_workflow(
     Ok(Json(workflow))
 }
 
-/// `DELETE /v1/workflows/:id` -- Delete a workflow.
+/// `DELETE /v1/services/:id` -- Delete a workflow.
 pub async fn delete_workflow(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -543,7 +543,7 @@ pub async fn delete_workflow(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// `POST /v1/workflows/:id/validate` -- Validate a stored workflow.
+/// `POST /v1/services/:id/validate` -- Validate a stored workflow.
 pub async fn validate_workflow(
     State(state): State<AppState>,
     headers: HeaderMap,

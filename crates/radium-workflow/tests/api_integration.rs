@@ -50,7 +50,7 @@ connections:
     to: done
 "#;
 
-/// Updated YAML used for the PUT /v1/workflows/:id test.
+/// Updated YAML used for the PUT /v1/services/:id test.
 const UPDATED_WORKFLOW_YAML: &str = r#"
 name: Updated Integration Workflow
 description: Updated description
@@ -142,12 +142,12 @@ fn http_client() -> reqwest::Client {
 /// Create a workflow via the API and return its `id`. Panics on failure.
 async fn create_workflow(base_url: &str, client: &reqwest::Client) -> String {
     let resp = client
-        .post(format!("{base_url}/v1/workflows"))
+        .post(format!("{base_url}/v1/services"))
         .header("content-type", "application/x-yaml")
         .body(TEST_WORKFLOW_YAML)
         .send()
         .await
-        .expect("POST /v1/workflows request failed");
+        .expect("POST /v1/services request failed");
 
     assert_eq!(
         resp.status().as_u16(),
@@ -166,7 +166,7 @@ async fn create_workflow(base_url: &str, client: &reqwest::Client) -> String {
 /// Delete a workflow, swallowing errors (best-effort cleanup).
 async fn cleanup_workflow(base_url: &str, client: &reqwest::Client, id: &str) {
     let _ = client
-        .delete(format!("{base_url}/v1/workflows/{id}"))
+        .delete(format!("{base_url}/v1/services/{id}"))
         .send()
         .await;
 }
@@ -185,7 +185,7 @@ async fn test_create_workflow() {
 
     // Verify response shape by re-fetching.
     let resp = client
-        .get(format!("{base_url}/v1/workflows/{id}"))
+        .get(format!("{base_url}/v1/services/{id}"))
         .send()
         .await
         .unwrap();
@@ -209,10 +209,10 @@ async fn test_list_workflows() {
     let id = create_workflow(&base_url, &client).await;
 
     let resp = client
-        .get(format!("{base_url}/v1/workflows"))
+        .get(format!("{base_url}/v1/services"))
         .send()
         .await
-        .expect("GET /v1/workflows request failed");
+        .expect("GET /v1/services request failed");
 
     assert_eq!(resp.status().as_u16(), 200);
 
@@ -241,10 +241,10 @@ async fn test_get_workflow() {
     let id = create_workflow(&base_url, &client).await;
 
     let resp = client
-        .get(format!("{base_url}/v1/workflows/{id}"))
+        .get(format!("{base_url}/v1/services/{id}"))
         .send()
         .await
-        .expect("GET /v1/workflows/:id request failed");
+        .expect("GET /v1/services/:id request failed");
 
     assert_eq!(resp.status().as_u16(), 200);
 
@@ -271,10 +271,10 @@ async fn test_get_workflow_not_found() {
 
     let fake_id = "00000000-0000-0000-0000-000000000000";
     let resp = client
-        .get(format!("{base_url}/v1/workflows/{fake_id}"))
+        .get(format!("{base_url}/v1/services/{fake_id}"))
         .send()
         .await
-        .expect("GET /v1/workflows/:id request failed");
+        .expect("GET /v1/services/:id request failed");
 
     // Should return 404 or 500 depending on Supabase response.
     assert!(
@@ -293,10 +293,10 @@ async fn test_validate_workflow() {
     let id = create_workflow(&base_url, &client).await;
 
     let resp = client
-        .post(format!("{base_url}/v1/workflows/{id}/validate"))
+        .post(format!("{base_url}/v1/services/{id}/validate"))
         .send()
         .await
-        .expect("POST /v1/workflows/:id/validate request failed");
+        .expect("POST /v1/services/:id/validate request failed");
 
     assert_eq!(resp.status().as_u16(), 200);
 
@@ -324,12 +324,12 @@ async fn test_update_workflow() {
     let id = create_workflow(&base_url, &client).await;
 
     let resp = client
-        .put(format!("{base_url}/v1/workflows/{id}"))
+        .put(format!("{base_url}/v1/services/{id}"))
         .header("content-type", "application/x-yaml")
         .body(UPDATED_WORKFLOW_YAML)
         .send()
         .await
-        .expect("PUT /v1/workflows/:id request failed");
+        .expect("PUT /v1/services/:id request failed");
 
     assert_eq!(
         resp.status().as_u16(),
@@ -345,7 +345,7 @@ async fn test_update_workflow() {
 
     // Verify the update persisted by re-fetching.
     let get_resp = client
-        .get(format!("{base_url}/v1/workflows/{id}"))
+        .get(format!("{base_url}/v1/services/{id}"))
         .send()
         .await
         .unwrap();
@@ -366,10 +366,10 @@ async fn test_delete_workflow() {
 
     // Delete the workflow.
     let resp = client
-        .delete(format!("{base_url}/v1/workflows/{id}"))
+        .delete(format!("{base_url}/v1/services/{id}"))
         .send()
         .await
-        .expect("DELETE /v1/workflows/:id request failed");
+        .expect("DELETE /v1/services/:id request failed");
 
     assert_eq!(
         resp.status().as_u16(),
@@ -380,7 +380,7 @@ async fn test_delete_workflow() {
 
     // Verify it is gone.
     let get_resp = client
-        .get(format!("{base_url}/v1/workflows/{id}"))
+        .get(format!("{base_url}/v1/services/{id}"))
         .send()
         .await
         .unwrap();
@@ -401,12 +401,12 @@ async fn test_create_workflow_unauthorized() {
     let client = reqwest::Client::new();
 
     let resp = client
-        .post(format!("{base_url}/v1/workflows"))
+        .post(format!("{base_url}/v1/services"))
         .header("content-type", "application/x-yaml")
         .body(TEST_WORKFLOW_YAML)
         .send()
         .await
-        .expect("POST /v1/workflows request failed");
+        .expect("POST /v1/services request failed");
 
     assert_eq!(
         resp.status().as_u16(),
@@ -426,12 +426,12 @@ async fn test_create_workflow_invalid_yaml() {
     let client = http_client();
 
     let resp = client
-        .post(format!("{base_url}/v1/workflows"))
+        .post(format!("{base_url}/v1/services"))
         .header("content-type", "application/x-yaml")
         .body("this is: [not valid: yaml: {{{}}")
         .send()
         .await
-        .expect("POST /v1/workflows request failed");
+        .expect("POST /v1/services request failed");
 
     assert_eq!(
         resp.status().as_u16(),
@@ -452,7 +452,7 @@ async fn test_full_crud_lifecycle() {
 
     // 2. READ (GET single)
     let get_resp = client
-        .get(format!("{base_url}/v1/workflows/{id}"))
+        .get(format!("{base_url}/v1/services/{id}"))
         .send()
         .await
         .unwrap();
@@ -462,7 +462,7 @@ async fn test_full_crud_lifecycle() {
 
     // 3. LIST (should contain the new workflow)
     let list_resp = client
-        .get(format!("{base_url}/v1/workflows"))
+        .get(format!("{base_url}/v1/services"))
         .send()
         .await
         .unwrap();
@@ -477,7 +477,7 @@ async fn test_full_crud_lifecycle() {
 
     // 4. VALIDATE
     let validate_resp = client
-        .post(format!("{base_url}/v1/workflows/{id}/validate"))
+        .post(format!("{base_url}/v1/services/{id}/validate"))
         .send()
         .await
         .unwrap();
@@ -487,7 +487,7 @@ async fn test_full_crud_lifecycle() {
 
     // 5. UPDATE
     let update_resp = client
-        .put(format!("{base_url}/v1/workflows/{id}"))
+        .put(format!("{base_url}/v1/services/{id}"))
         .header("content-type", "application/x-yaml")
         .body(UPDATED_WORKFLOW_YAML)
         .send()
@@ -499,7 +499,7 @@ async fn test_full_crud_lifecycle() {
 
     // 6. DELETE
     let delete_resp = client
-        .delete(format!("{base_url}/v1/workflows/{id}"))
+        .delete(format!("{base_url}/v1/services/{id}"))
         .send()
         .await
         .unwrap();
@@ -507,7 +507,7 @@ async fn test_full_crud_lifecycle() {
 
     // 7. Verify deletion
     let gone_resp = client
-        .get(format!("{base_url}/v1/workflows/{id}"))
+        .get(format!("{base_url}/v1/services/{id}"))
         .send()
         .await
         .unwrap();
@@ -530,10 +530,10 @@ async fn test_deploy_valid_workflow() {
     let id = create_workflow(&base_url, &client).await;
 
     let resp = client
-        .post(format!("{base_url}/v1/workflows/{id}/deploy"))
+        .post(format!("{base_url}/v1/services/{id}/deploy"))
         .send()
         .await
-        .expect("POST /v1/workflows/:id/deploy request failed");
+        .expect("POST /v1/services/:id/deploy request failed");
 
     assert_eq!(
         resp.status().as_u16(),
@@ -565,10 +565,10 @@ async fn test_deploy_nonexistent_workflow() {
 
     let fake_id = "00000000-0000-0000-0000-000000000000";
     let resp = client
-        .post(format!("{base_url}/v1/workflows/{fake_id}/deploy"))
+        .post(format!("{base_url}/v1/services/{fake_id}/deploy"))
         .send()
         .await
-        .expect("POST /v1/workflows/:id/deploy request failed");
+        .expect("POST /v1/services/:id/deploy request failed");
 
     assert_eq!(
         resp.status().as_u16(),
@@ -594,10 +594,10 @@ async fn test_deploy_without_auth() {
 
     let fake_id = "00000000-0000-0000-0000-000000000000";
     let resp = client
-        .post(format!("{base_url}/v1/workflows/{fake_id}/deploy"))
+        .post(format!("{base_url}/v1/services/{fake_id}/deploy"))
         .send()
         .await
-        .expect("POST /v1/workflows/:id/deploy request failed");
+        .expect("POST /v1/services/:id/deploy request failed");
 
     assert_eq!(
         resp.status().as_u16(),
@@ -617,18 +617,18 @@ async fn test_undeploy_deployed_workflow() {
 
     // Deploy first.
     let deploy_resp = client
-        .post(format!("{base_url}/v1/workflows/{id}/deploy"))
+        .post(format!("{base_url}/v1/services/{id}/deploy"))
         .send()
         .await
-        .expect("POST /v1/workflows/:id/deploy request failed");
+        .expect("POST /v1/services/:id/deploy request failed");
     assert_eq!(deploy_resp.status().as_u16(), 200);
 
     // Undeploy.
     let resp = client
-        .post(format!("{base_url}/v1/workflows/{id}/undeploy"))
+        .post(format!("{base_url}/v1/services/{id}/undeploy"))
         .send()
         .await
-        .expect("POST /v1/workflows/:id/undeploy request failed");
+        .expect("POST /v1/services/:id/undeploy request failed");
 
     assert_eq!(
         resp.status().as_u16(),
@@ -656,10 +656,10 @@ async fn test_undeploy_nonexistent() {
 
     let fake_id = "00000000-0000-0000-0000-000000000000";
     let resp = client
-        .post(format!("{base_url}/v1/workflows/{fake_id}/undeploy"))
+        .post(format!("{base_url}/v1/services/{fake_id}/undeploy"))
         .send()
         .await
-        .expect("POST /v1/workflows/:id/undeploy request failed");
+        .expect("POST /v1/services/:id/undeploy request failed");
 
     assert_eq!(
         resp.status().as_u16(),
@@ -678,10 +678,10 @@ async fn test_workflow_status_draft() {
     let id = create_workflow(&base_url, &client).await;
 
     let resp = client
-        .get(format!("{base_url}/v1/workflows/{id}/status"))
+        .get(format!("{base_url}/v1/services/{id}/status"))
         .send()
         .await
-        .expect("GET /v1/workflows/:id/status request failed");
+        .expect("GET /v1/services/:id/status request failed");
 
     assert_eq!(resp.status().as_u16(), 200);
 
@@ -710,18 +710,18 @@ async fn test_workflow_status_deployed() {
 
     // Deploy the workflow.
     let deploy_resp = client
-        .post(format!("{base_url}/v1/workflows/{id}/deploy"))
+        .post(format!("{base_url}/v1/services/{id}/deploy"))
         .send()
         .await
-        .expect("POST /v1/workflows/:id/deploy request failed");
+        .expect("POST /v1/services/:id/deploy request failed");
     assert_eq!(deploy_resp.status().as_u16(), 200);
 
     // Check status.
     let resp = client
-        .get(format!("{base_url}/v1/workflows/{id}/status"))
+        .get(format!("{base_url}/v1/services/{id}/status"))
         .send()
         .await
-        .expect("GET /v1/workflows/:id/status request failed");
+        .expect("GET /v1/services/:id/status request failed");
 
     assert_eq!(resp.status().as_u16(), 200);
 
@@ -750,26 +750,26 @@ async fn test_workflow_status_after_undeploy() {
 
     // Deploy.
     let deploy_resp = client
-        .post(format!("{base_url}/v1/workflows/{id}/deploy"))
+        .post(format!("{base_url}/v1/services/{id}/deploy"))
         .send()
         .await
-        .expect("POST /v1/workflows/:id/deploy request failed");
+        .expect("POST /v1/services/:id/deploy request failed");
     assert_eq!(deploy_resp.status().as_u16(), 200);
 
     // Undeploy.
     let undeploy_resp = client
-        .post(format!("{base_url}/v1/workflows/{id}/undeploy"))
+        .post(format!("{base_url}/v1/services/{id}/undeploy"))
         .send()
         .await
-        .expect("POST /v1/workflows/:id/undeploy request failed");
+        .expect("POST /v1/services/:id/undeploy request failed");
     assert_eq!(undeploy_resp.status().as_u16(), 200);
 
     // Check status.
     let resp = client
-        .get(format!("{base_url}/v1/workflows/{id}/status"))
+        .get(format!("{base_url}/v1/services/{id}/status"))
         .send()
         .await
-        .expect("GET /v1/workflows/:id/status request failed");
+        .expect("GET /v1/services/:id/status request failed");
 
     assert_eq!(resp.status().as_u16(), 200);
 
@@ -795,15 +795,15 @@ async fn test_deploy_lifecycle_status_transitions() {
 
     // 2. Deploy.
     let deploy_resp = client
-        .post(format!("{base_url}/v1/workflows/{id}/deploy"))
+        .post(format!("{base_url}/v1/services/{id}/deploy"))
         .send()
         .await
-        .expect("POST /v1/workflows/:id/deploy request failed");
+        .expect("POST /v1/services/:id/deploy request failed");
     assert_eq!(deploy_resp.status().as_u16(), 200);
 
     // 3. Verify status is "deployed".
     let status_resp = client
-        .get(format!("{base_url}/v1/workflows/{id}/status"))
+        .get(format!("{base_url}/v1/services/{id}/status"))
         .send()
         .await
         .unwrap();
@@ -817,15 +817,15 @@ async fn test_deploy_lifecycle_status_transitions() {
 
     // 4. Undeploy.
     let undeploy_resp = client
-        .post(format!("{base_url}/v1/workflows/{id}/undeploy"))
+        .post(format!("{base_url}/v1/services/{id}/undeploy"))
         .send()
         .await
-        .expect("POST /v1/workflows/:id/undeploy request failed");
+        .expect("POST /v1/services/:id/undeploy request failed");
     assert_eq!(undeploy_resp.status().as_u16(), 200);
 
     // 5. Verify status is "compiled".
     let status_resp2 = client
-        .get(format!("{base_url}/v1/workflows/{id}/status"))
+        .get(format!("{base_url}/v1/services/{id}/status"))
         .send()
         .await
         .unwrap();
@@ -851,10 +851,10 @@ async fn test_deploy_without_auth_returns_json_error() {
 
     let fake_id = "00000000-0000-0000-0000-000000000000";
     let resp = client
-        .post(format!("{base_url}/v1/workflows/{fake_id}/deploy"))
+        .post(format!("{base_url}/v1/services/{fake_id}/deploy"))
         .send()
         .await
-        .expect("POST /v1/workflows/:id/deploy request failed");
+        .expect("POST /v1/services/:id/deploy request failed");
 
     assert_eq!(
         resp.status().as_u16(),

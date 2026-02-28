@@ -49,7 +49,7 @@ pub async fn create(
     let client = load_client(profile)?;
     let body = read_workflow_file(file)?;
     let content_type = content_type_for_file(file);
-    let result: serde_json::Value = client.post("/v1/workflows", &body, content_type).await?;
+    let result: serde_json::Value = client.post("/v1/services", &body, content_type).await?;
     Ok(serde_json::to_string_pretty(&result)?)
 }
 
@@ -66,7 +66,7 @@ pub async fn validate(
     let content = fs::read_to_string(file)?;
     let content_type = content_type_for_file(file);
     let result: serde_json::Value = client
-        .post_raw("/v1/workflows/validate", content, content_type)
+        .post_raw("/v1/services/validate", content, content_type)
         .await?;
     Ok(serde_json::to_string_pretty(&result)?)
 }
@@ -78,7 +78,7 @@ pub async fn validate(
 /// Returns an error if the config cannot be loaded or the API call fails.
 pub async fn list(profile: &str) -> Result<String, Box<dyn std::error::Error>> {
     let client = load_client(profile)?;
-    let result: serde_json::Value = client.get("/v1/workflows").await?;
+    let result: serde_json::Value = client.get("/v1/services").await?;
     Ok(serde_json::to_string_pretty(&result)?)
 }
 
@@ -92,7 +92,7 @@ pub async fn show(
     id: &str,
 ) -> Result<String, Box<dyn std::error::Error>> {
     let client = load_client(profile)?;
-    let result: serde_json::Value = client.get(&format!("/v1/workflows/{id}")).await?;
+    let result: serde_json::Value = client.get(&format!("/v1/services/{id}")).await?;
     Ok(serde_json::to_string_pretty(&result)?)
 }
 
@@ -110,7 +110,7 @@ pub async fn update(
     let body = read_workflow_file(file)?;
     let content_type = content_type_for_file(file);
     let result: serde_json::Value = client
-        .put(&format!("/v1/workflows/{id}"), &body, content_type)
+        .put(&format!("/v1/services/{id}"), &body, content_type)
         .await?;
     Ok(serde_json::to_string_pretty(&result)?)
 }
@@ -125,7 +125,7 @@ pub async fn delete(
     id: &str,
 ) -> Result<String, Box<dyn std::error::Error>> {
     let client = load_client(profile)?;
-    client.delete_request(&format!("/v1/workflows/{id}")).await?;
+    client.delete_request(&format!("/v1/services/{id}")).await?;
     let result = serde_json::json!({
         "status": "ok",
         "message": format!("Workflow '{id}' deleted."),
@@ -145,7 +145,7 @@ pub async fn deploy(
     let client = load_client(profile)?;
     let result: serde_json::Value = client
         .post(
-            &format!("/v1/workflows/{id}/deploy"),
+            &format!("/v1/services/{id}/deploy"),
             &serde_json::json!({}),
             "application/json",
         )
@@ -165,7 +165,7 @@ pub async fn undeploy(
     let client = load_client(profile)?;
     let result: serde_json::Value = client
         .post(
-            &format!("/v1/workflows/{id}/undeploy"),
+            &format!("/v1/services/{id}/undeploy"),
             &serde_json::json!({}),
             "application/json",
         )
@@ -184,6 +184,6 @@ pub async fn status(
 ) -> Result<String, Box<dyn std::error::Error>> {
     let client = load_client(profile)?;
     let result: serde_json::Value =
-        client.get(&format!("/v1/workflows/{id}/status")).await?;
+        client.get(&format!("/v1/services/{id}/status")).await?;
     Ok(serde_json::to_string_pretty(&result)?)
 }

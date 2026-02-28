@@ -5,7 +5,7 @@
 
 pub mod components;
 pub mod deploy;
-pub mod workflows;
+pub mod services;
 
 use axum::{
     routing::{delete, get, post, put},
@@ -34,32 +34,32 @@ pub fn router() -> Router<AppState> {
             "/components/{component_type}",
             get(components::get_component),
         )
-        // Workflow CRUD
+        // Service CRUD
         .route(
-            "/workflows",
-            post(workflows::create_workflow).get(workflows::list_workflows),
+            "/services",
+            post(services::create_workflow).get(services::list_workflows),
         )
         .route(
-            "/workflows/{id}",
-            get(workflows::get_workflow)
-                .put(workflows::update_workflow)
-                .delete(workflows::delete_workflow),
+            "/services/{id}",
+            get(services::get_workflow)
+                .put(services::update_workflow)
+                .delete(services::delete_workflow),
         )
         .route(
-            "/workflows/{id}/validate",
-            post(workflows::validate_workflow),
+            "/services/{id}/validate",
+            post(services::validate_workflow),
         )
         // Deploy pipeline
         .route(
-            "/workflows/{id}/deploy",
+            "/services/{id}/deploy",
             post(deploy::deploy_workflow),
         )
         .route(
-            "/workflows/{id}/undeploy",
+            "/services/{id}/undeploy",
             post(deploy::undeploy_workflow),
         )
         .route(
-            "/workflows/{id}/status",
+            "/services/{id}/status",
             get(deploy::workflow_status),
         )
 }
