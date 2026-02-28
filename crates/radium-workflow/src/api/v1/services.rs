@@ -5,7 +5,7 @@
 //! formats for workflow definitions.
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     Json,
@@ -27,6 +27,16 @@ const DRAFT_STATUS_ID: &str = "00000000-0000-0000-0000-000000000001";
 
 /// Default visibility_id for newly created workflows.
 const DEFAULT_VISIBILITY_ID: &str = "00000000-0000-0000-0000-000000000001";
+
+// ---------------------------------------------------------------------------
+// Query parameters
+// ---------------------------------------------------------------------------
+
+/// Optional query parameters for service creation.
+#[derive(Debug, Deserialize)]
+pub struct CreateServiceQuery {
+    pub project_id: Option<String>,
+}
 
 // ---------------------------------------------------------------------------
 // Response types
@@ -200,6 +210,8 @@ struct InsertWorkflowRow {
     status_id: String,
     visibility_id: String,
     created_by: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    project_id: Option<String>,
 }
 
 /// Body sent to Supabase for updating a workflow.
@@ -340,6 +352,7 @@ fn convert_validation_error(error: &validation::ValidationError) -> CompilerErro
 pub async fn create_workflow(
     State(state): State<AppState>,
     headers: HeaderMap,
+    Query(query): Query<CreateServiceQuery>,
     body: axum::body::Bytes,
 ) -> Result<impl IntoResponse, WorkflowError> {
     let user = require_auth(&headers, &state).await?;
@@ -370,6 +383,7 @@ pub async fn create_workflow(
         status_id: DRAFT_STATUS_ID.to_string(),
         visibility_id: DEFAULT_VISIBILITY_ID.to_string(),
         created_by: user.user_id,
+        project_id: query.project_id,
     };
 
     let created: WorkflowResponse = state

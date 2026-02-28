@@ -5,6 +5,7 @@
 
 pub mod components;
 pub mod deploy;
+pub mod projects;
 pub mod services;
 
 use axum::{
@@ -33,6 +34,17 @@ pub fn router() -> Router<AppState> {
         .route(
             "/components/{component_type}",
             get(components::get_component),
+        )
+        // Project CRUD
+        .route(
+            "/projects",
+            post(projects::create_project).get(projects::list_projects),
+        )
+        .route(
+            "/projects/{id}",
+            get(projects::get_project)
+                .put(projects::update_project)
+                .delete(projects::delete_project),
         )
         // Service CRUD
         .route(
