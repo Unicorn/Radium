@@ -17,6 +17,16 @@ use crate::api::state::AppState;
 use crate::supabase::SupabaseError;
 
 // ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/// Status ID for a deployed workflow.
+const DEPLOYED_STATUS_ID: &str = "00000000-0000-0000-0000-000000000003";
+
+/// Status ID for a draft workflow.
+const DRAFT_STATUS_ID: &str = "00000000-0000-0000-0000-000000000001";
+
+// ---------------------------------------------------------------------------
 // Response types
 // ---------------------------------------------------------------------------
 
@@ -48,6 +58,51 @@ pub struct ProjectSummary {
 #[derive(Debug, Serialize)]
 pub struct ProjectListResponse {
     pub projects: Vec<ProjectSummary>,
+    pub total: usize,
+}
+
+/// Response returned after deploying all services in a project.
+#[derive(Debug, Serialize)]
+pub struct ProjectDeployResponse {
+    pub project_id: String,
+    pub services_deployed: usize,
+    pub services_failed: usize,
+    pub results: Vec<ServiceDeployResult>,
+}
+
+/// Result of deploying a single service within a project deploy operation.
+#[derive(Debug, Serialize)]
+pub struct ServiceDeployResult {
+    pub service_id: String,
+    pub service_name: String,
+    pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+/// Aggregated deployment status for a project.
+#[derive(Debug, Serialize)]
+pub struct ProjectStatusResponse {
+    pub project_id: String,
+    pub project_name: String,
+    pub total_services: usize,
+    pub deployed: usize,
+    pub draft: usize,
+    pub services: Vec<ServiceStatusSummary>,
+}
+
+/// Summary of a service's status within a project.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ServiceStatusSummary {
+    pub id: String,
+    pub name: String,
+    pub status_id: String,
+}
+
+/// Response envelope for listing services in a project.
+#[derive(Debug, Serialize)]
+pub struct ProjectServiceListResponse {
+    pub services: Vec<ServiceStatusSummary>,
     pub total: usize,
 }
 
@@ -192,6 +247,12 @@ struct UpdateProjectRow {
     name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
+}
+
+/// Body sent to Supabase to update a workflow's status_id.
+#[derive(Debug, Serialize)]
+struct UpdateStatusRow {
+    status_id: String,
 }
 
 /// Minimal response shape from task_queues insert (we only need to confirm it worked).
@@ -439,6 +500,223 @@ pub async fn delete_project(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// `POST /v1/projects/:id/deploy` -- Deploy all services in a project.
+///
+/// Updates the `status_id` of every workflow in the project to `DEPLOYED`.
+// TODO: invoke full deploy pipeline (validation + codegen) per service
+pub async fn deploy_project(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, ProjectError> {
+    let user = require_auth(&headers, &state).await?;
+
+    // Verify project ownership.
+    let user_filter = format!("eq.{}", user.user_id);
+    let _project: ProjectResponse = state
+        .supabase
+        .select_one(
+            "projects",
+            &[
+                ("id", &format!("eq.{id}")),
+                ("created_by", &user_filter),
+                (
+                    "select",
+                    "id,name,description,task_queue_name,is_active,created_at,updated_at",
+                ),
+            ],
+        )
+        .await
+        .map_err(|e| match &e {
+            SupabaseError::NotFound { .. } => {
+                ProjectError::not_found(format!("Project '{id}' not found"))
+            }
+            _ => ProjectError::from_supabase(&e),
+        })?;
+
+    // Fetch all services in the project belonging to this user.
+    let services: Vec<ServiceStatusSummary> = state
+        .supabase
+        .select(
+            "workflows",
+            &[
+                ("select", "id,name,status_id"),
+                ("project_id", &format!("eq.{id}")),
+                ("created_by", &user_filter),
+            ],
+        )
+        .await
+        .map_err(|e| ProjectError::from_supabase(&e))?;
+
+    let mut results = Vec::with_capacity(services.len());
+    let mut deployed_count: usize = 0;
+    let mut failed_count: usize = 0;
+
+    for svc in &services {
+        let update_body = UpdateStatusRow {
+            status_id: DEPLOYED_STATUS_ID.to_string(),
+        };
+
+        let update_result: Result<Vec<serde_json::Value>, _> = state
+            .supabase
+            .update(
+                "workflows",
+                &[
+                    ("id", &format!("eq.{}", svc.id)),
+                    ("created_by", &user_filter),
+                ],
+                &update_body,
+            )
+            .await;
+
+        match update_result {
+            Ok(_) => {
+                deployed_count += 1;
+                results.push(ServiceDeployResult {
+                    service_id: svc.id.clone(),
+                    service_name: svc.name.clone(),
+                    status: "deployed".to_string(),
+                    error: None,
+                });
+            }
+            Err(e) => {
+                tracing::error!("Failed to deploy service '{}': {e}", svc.id);
+                failed_count += 1;
+                results.push(ServiceDeployResult {
+                    service_id: svc.id.clone(),
+                    service_name: svc.name.clone(),
+                    status: "failed".to_string(),
+                    error: Some(format!("Failed to update status: {e}")),
+                });
+            }
+        }
+    }
+
+    Ok((
+        StatusCode::OK,
+        Json(ProjectDeployResponse {
+            project_id: id,
+            services_deployed: deployed_count,
+            services_failed: failed_count,
+            results,
+        }),
+    ))
+}
+
+/// `GET /v1/projects/:id/status` -- Aggregated deployment status for a project.
+pub async fn project_status(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Json<ProjectStatusResponse>, ProjectError> {
+    let user = require_auth(&headers, &state).await?;
+
+    // Verify project ownership and get project details.
+    let user_filter = format!("eq.{}", user.user_id);
+    let project: ProjectResponse = state
+        .supabase
+        .select_one(
+            "projects",
+            &[
+                ("id", &format!("eq.{id}")),
+                ("created_by", &user_filter),
+                (
+                    "select",
+                    "id,name,description,task_queue_name,is_active,created_at,updated_at",
+                ),
+            ],
+        )
+        .await
+        .map_err(|e| match &e {
+            SupabaseError::NotFound { .. } => {
+                ProjectError::not_found(format!("Project '{id}' not found"))
+            }
+            _ => ProjectError::from_supabase(&e),
+        })?;
+
+    // Fetch all services in the project.
+    let services: Vec<ServiceStatusSummary> = state
+        .supabase
+        .select(
+            "workflows",
+            &[
+                ("select", "id,name,status_id"),
+                ("project_id", &format!("eq.{id}")),
+                ("created_by", &user_filter),
+            ],
+        )
+        .await
+        .map_err(|e| ProjectError::from_supabase(&e))?;
+
+    let total_services = services.len();
+    let deployed = services
+        .iter()
+        .filter(|s| s.status_id == DEPLOYED_STATUS_ID)
+        .count();
+    let draft = services
+        .iter()
+        .filter(|s| s.status_id == DRAFT_STATUS_ID)
+        .count();
+
+    Ok(Json(ProjectStatusResponse {
+        project_id: id,
+        project_name: project.name,
+        total_services,
+        deployed,
+        draft,
+        services,
+    }))
+}
+
+/// `GET /v1/projects/:id/services` -- List all services in a project.
+pub async fn list_project_services(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Json<ProjectServiceListResponse>, ProjectError> {
+    let user = require_auth(&headers, &state).await?;
+
+    // Verify project ownership.
+    let user_filter = format!("eq.{}", user.user_id);
+    let _project: ProjectResponse = state
+        .supabase
+        .select_one(
+            "projects",
+            &[
+                ("id", &format!("eq.{id}")),
+                ("created_by", &user_filter),
+                (
+                    "select",
+                    "id,name,description,task_queue_name,is_active,created_at,updated_at",
+                ),
+            ],
+        )
+        .await
+        .map_err(|e| match &e {
+            SupabaseError::NotFound { .. } => {
+                ProjectError::not_found(format!("Project '{id}' not found"))
+            }
+            _ => ProjectError::from_supabase(&e),
+        })?;
+
+    // Fetch all services in the project belonging to this user.
+    let services: Vec<ServiceStatusSummary> = state
+        .supabase
+        .select(
+            "workflows",
+            &[
+                ("select", "id,name,status_id"),
+                ("project_id", &format!("eq.{id}")),
+                ("created_by", &user_filter),
+            ],
+        )
+        .await
+        .map_err(|e| ProjectError::from_supabase(&e))?;
+
+    let total = services.len();
+    Ok(Json(ProjectServiceListResponse { services, total }))
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -639,6 +917,148 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
+    // Deploy / status response serialization
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_project_deploy_response_serialization() {
+        let response = ProjectDeployResponse {
+            project_id: "proj-1".to_string(),
+            services_deployed: 2,
+            services_failed: 1,
+            results: vec![
+                ServiceDeployResult {
+                    service_id: "svc-1".to_string(),
+                    service_name: "Service One".to_string(),
+                    status: "deployed".to_string(),
+                    error: None,
+                },
+                ServiceDeployResult {
+                    service_id: "svc-2".to_string(),
+                    service_name: "Service Two".to_string(),
+                    status: "deployed".to_string(),
+                    error: None,
+                },
+                ServiceDeployResult {
+                    service_id: "svc-3".to_string(),
+                    service_name: "Service Three".to_string(),
+                    status: "failed".to_string(),
+                    error: Some("Database error".to_string()),
+                },
+            ],
+        };
+
+        let json = serde_json::to_value(&response).unwrap();
+        assert_eq!(json["project_id"], "proj-1");
+        assert_eq!(json["services_deployed"], 2);
+        assert_eq!(json["services_failed"], 1);
+        assert_eq!(json["results"].as_array().unwrap().len(), 3);
+        assert_eq!(json["results"][0]["status"], "deployed");
+        // Successful result should omit error field
+        assert!(json["results"][0].get("error").is_none());
+        // Failed result should include error
+        assert_eq!(json["results"][2]["status"], "failed");
+        assert_eq!(json["results"][2]["error"], "Database error");
+    }
+
+    #[test]
+    fn test_service_deploy_result_serialization() {
+        // Successful result omits error
+        let success = ServiceDeployResult {
+            service_id: "svc-ok".to_string(),
+            service_name: "Good Service".to_string(),
+            status: "deployed".to_string(),
+            error: None,
+        };
+        let json = serde_json::to_value(&success).unwrap();
+        assert_eq!(json["service_id"], "svc-ok");
+        assert_eq!(json["service_name"], "Good Service");
+        assert_eq!(json["status"], "deployed");
+        assert!(json.get("error").is_none(), "error should be omitted when None");
+
+        // Failed result includes error
+        let failure = ServiceDeployResult {
+            service_id: "svc-bad".to_string(),
+            service_name: "Bad Service".to_string(),
+            status: "failed".to_string(),
+            error: Some("update failed".to_string()),
+        };
+        let json = serde_json::to_value(&failure).unwrap();
+        assert_eq!(json["status"], "failed");
+        assert_eq!(json["error"], "update failed");
+    }
+
+    #[test]
+    fn test_project_status_response_serialization() {
+        let response = ProjectStatusResponse {
+            project_id: "proj-1".to_string(),
+            project_name: "My Project".to_string(),
+            total_services: 3,
+            deployed: 2,
+            draft: 1,
+            services: vec![
+                ServiceStatusSummary {
+                    id: "svc-1".to_string(),
+                    name: "Service One".to_string(),
+                    status_id: DEPLOYED_STATUS_ID.to_string(),
+                },
+                ServiceStatusSummary {
+                    id: "svc-2".to_string(),
+                    name: "Service Two".to_string(),
+                    status_id: DEPLOYED_STATUS_ID.to_string(),
+                },
+                ServiceStatusSummary {
+                    id: "svc-3".to_string(),
+                    name: "Service Three".to_string(),
+                    status_id: DRAFT_STATUS_ID.to_string(),
+                },
+            ],
+        };
+
+        let json = serde_json::to_value(&response).unwrap();
+        assert_eq!(json["project_id"], "proj-1");
+        assert_eq!(json["project_name"], "My Project");
+        assert_eq!(json["total_services"], 3);
+        assert_eq!(json["deployed"], 2);
+        assert_eq!(json["draft"], 1);
+        assert_eq!(json["services"].as_array().unwrap().len(), 3);
+        assert_eq!(json["services"][0]["name"], "Service One");
+        assert_eq!(json["services"][2]["status_id"], DRAFT_STATUS_ID);
+    }
+
+    #[test]
+    fn test_project_service_list_response_serialization() {
+        let response = ProjectServiceListResponse {
+            services: vec![
+                ServiceStatusSummary {
+                    id: "svc-a".to_string(),
+                    name: "Alpha".to_string(),
+                    status_id: DRAFT_STATUS_ID.to_string(),
+                },
+                ServiceStatusSummary {
+                    id: "svc-b".to_string(),
+                    name: "Beta".to_string(),
+                    status_id: DEPLOYED_STATUS_ID.to_string(),
+                },
+            ],
+            total: 2,
+        };
+
+        let json = serde_json::to_value(&response).unwrap();
+        assert_eq!(json["total"], 2);
+        assert_eq!(json["services"].as_array().unwrap().len(), 2);
+        assert_eq!(json["services"][0]["id"], "svc-a");
+        assert_eq!(json["services"][1]["name"], "Beta");
+    }
+
+    #[test]
+    fn test_deploy_status_constants() {
+        assert_eq!(DEPLOYED_STATUS_ID, "00000000-0000-0000-0000-000000000003");
+        assert_eq!(DRAFT_STATUS_ID, "00000000-0000-0000-0000-000000000001");
+        assert_ne!(DEPLOYED_STATUS_ID, DRAFT_STATUS_ID);
+    }
+
+    // -----------------------------------------------------------------------
     // Integration tests that need Supabase (marked #[ignore])
     // -----------------------------------------------------------------------
 
@@ -670,5 +1090,23 @@ mod tests {
     #[ignore = "Requires running Supabase instance"]
     async fn test_delete_project_integration() {
         // This test would delete a project from Supabase.
+    }
+
+    #[tokio::test]
+    #[ignore = "Requires running Supabase instance"]
+    async fn test_deploy_project_integration() {
+        // This test would deploy all services in a project via Supabase.
+    }
+
+    #[tokio::test]
+    #[ignore = "Requires running Supabase instance"]
+    async fn test_project_status_integration() {
+        // This test would check aggregated deployment status from Supabase.
+    }
+
+    #[tokio::test]
+    #[ignore = "Requires running Supabase instance"]
+    async fn test_list_project_services_integration() {
+        // This test would list all services in a project from Supabase.
     }
 }

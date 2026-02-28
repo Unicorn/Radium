@@ -47,6 +47,18 @@ pub fn router() -> Router<AppState> {
                 .put(projects::update_project)
                 .delete(projects::delete_project),
         )
+        .route(
+            "/projects/{id}/deploy",
+            post(projects::deploy_project),
+        )
+        .route(
+            "/projects/{id}/status",
+            get(projects::project_status),
+        )
+        .route(
+            "/projects/{id}/services",
+            get(projects::list_project_services),
+        )
         // Service CRUD
         .route(
             "/services",
