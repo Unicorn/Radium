@@ -52,6 +52,12 @@ pub fn router() -> Router<AppState> {
             "/services",
             post(services::create_workflow).get(services::list_workflows),
         )
+        // Service catalog (must be before /services/{id} to avoid capture)
+        .route("/services/catalog", get(services::list_catalog))
+        .route(
+            "/services/catalog/{source_id}/import",
+            post(services::import_service),
+        )
         .route(
             "/services/{id}",
             get(services::get_workflow)
@@ -61,6 +67,14 @@ pub fn router() -> Router<AppState> {
         .route(
             "/services/{id}/validate",
             post(services::validate_workflow),
+        )
+        .route(
+            "/services/{id}/publish",
+            post(services::publish_service),
+        )
+        .route(
+            "/services/{id}/unpublish",
+            post(services::unpublish_service),
         )
         // Service interfaces
         .route(
