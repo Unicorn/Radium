@@ -1,6 +1,6 @@
 # Radium Roadmap
 
-**Updated:** 2026-02-24
+**Updated:** 2026-02-28
 **Focus:** CLI/API-first (Web UI on hold)
 
 ---
@@ -17,20 +17,20 @@
 - [x] Deploy Endpoint Tests: 23 tests covering full deploy lifecycle
 - [x] P1: Infrastructure — Kong routes, CI/CD for discovery, unified Docker Compose
 - [x] P2: Component Lifecycle — versioning module (SemVer), change detection (schema diff), component creation API (POST /v1/components)
+- [x] P3: Composition Layer — services API (rename from workflows), project CRUD with task queues, service interfaces, service catalog, bundled project deploy, CLI restructure (`radium service` + `radium project`)
 
 ---
 
 ## Active Roadmap
 
-### P3: Composition Layer (core product value)
+### P4: Next Phase (to be planned)
 
-| ID | Task | Effort | Status | Plan File |
-|----|------|--------|--------|-----------|
-| P3.1 | Service composition API (compose components → services) | Large | Not Started | — |
-| P3.2 | Project management API (group services → projects) | Medium | Not Started | — |
-| P3.3 | CLI commands for services and projects | Medium | Not Started | — |
-
-**Dependencies:** P3.1 benefits from P2.3. P3.2 depends on P3.1. P3.3 depends on P3.1 + P3.2.
+Potential areas:
+- Full deploy pipeline integration for bundled project deploy (currently status-only)
+- Kong integration for published interfaces (currently DB-only stubs)
+- Temporal direct service-to-service interfaces
+- Service versioning and migration between queues
+- Web UI for service/project management
 
 ---
 
@@ -63,7 +63,10 @@ P2.1 Component versioning ──► P2.2 Change detection ── ✅ DONE
 P2.3 Component creation API ──────────────────────────
          │
          ▼
-P3.1 Service composition ──► P3.2 Project management ──► P3.3 CLI commands  ← NEXT
+P3.1 Service composition ──► P3.2 Project management ──► P3.3 CLI commands ── ✅ DONE
+         │
+         ▼
+P4: TBD  ← NEXT
 ```
 
 ---
