@@ -5,7 +5,9 @@
 
 pub mod components;
 pub mod deploy;
-pub mod workflows;
+pub mod interfaces;
+pub mod projects;
+pub mod services;
 
 use axum::{
     routing::{delete, get, post, put},
@@ -34,32 +36,88 @@ pub fn router() -> Router<AppState> {
             "/components/{component_type}",
             get(components::get_component),
         )
-        // Workflow CRUD
+        // Project CRUD
         .route(
-            "/workflows",
-            post(workflows::create_workflow).get(workflows::list_workflows),
+            "/projects",
+            post(projects::create_project).get(projects::list_projects),
         )
         .route(
-            "/workflows/{id}",
-            get(workflows::get_workflow)
-                .put(workflows::update_workflow)
-                .delete(workflows::delete_workflow),
+            "/projects/{id}",
+            get(projects::get_project)
+                .put(projects::update_project)
+                .delete(projects::delete_project),
         )
         .route(
-            "/workflows/{id}/validate",
-            post(workflows::validate_workflow),
+            "/projects/{id}/deploy",
+            post(projects::deploy_project),
+        )
+        .route(
+            "/projects/{id}/status",
+            get(projects::project_status),
+        )
+        .route(
+            "/projects/{id}/services",
+            get(projects::list_project_services),
+        )
+        // Service CRUD
+        .route(
+            "/services",
+            post(services::create_workflow).get(services::list_workflows),
+        )
+        // Service catalog (must be before /services/{id} to avoid capture)
+        .route("/services/catalog", get(services::list_catalog))
+        .route(
+            "/services/catalog/{source_id}/import",
+            post(services::import_service),
+        )
+        .route(
+            "/services/{id}",
+            get(services::get_workflow)
+                .put(services::update_workflow)
+                .delete(services::delete_workflow),
+        )
+        .route(
+            "/services/{id}/validate",
+            post(services::validate_workflow),
+        )
+        .route(
+            "/services/{id}/publish",
+            post(services::publish_service),
+        )
+        .route(
+            "/services/{id}/unpublish",
+            post(services::unpublish_service),
+        )
+        // Service interfaces
+        .route(
+            "/services/{id}/interfaces",
+            post(interfaces::create_interface).get(interfaces::list_interfaces),
+        )
+        .route(
+            "/services/{id}/interfaces/{iid}",
+            get(interfaces::get_interface)
+                .put(interfaces::update_interface)
+                .delete(interfaces::delete_interface),
+        )
+        .route(
+            "/services/{id}/interfaces/{iid}/publish",
+            post(interfaces::publish_interface),
+        )
+        .route(
+            "/services/{id}/interfaces/{iid}/unpublish",
+            post(interfaces::unpublish_interface),
         )
         // Deploy pipeline
         .route(
-            "/workflows/{id}/deploy",
+            "/services/{id}/deploy",
             post(deploy::deploy_workflow),
         )
         .route(
-            "/workflows/{id}/undeploy",
+            "/services/{id}/undeploy",
             post(deploy::undeploy_workflow),
         )
         .route(
-            "/workflows/{id}/status",
+            "/services/{id}/status",
             get(deploy::workflow_status),
         )
 }

@@ -71,8 +71,15 @@ lefthook-local.yml
 logs/
 *.log
 
-# Internal plans (not for public repo)
-plans/
+# SaaS/marketplace plans (private, not for public repo)
+# Anchored to root only — docs/plans/ is open source and tracked
+/plans/
+
+# Agent instruction files (private, not for public repo)
+AgentInfo.md
+AGENTS.md
+QWEN.md
+GEMINI.md
 
 # Environment Variables
 .env

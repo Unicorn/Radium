@@ -61,7 +61,7 @@ pub struct StatusResponse {
 }
 
 // ---------------------------------------------------------------------------
-// Error type (reuses same pattern as workflows.rs)
+// Error type (reuses same pattern as services.rs)
 // ---------------------------------------------------------------------------
 
 /// Structured error envelope.
@@ -246,7 +246,7 @@ async fn require_auth(
 // Handlers
 // ---------------------------------------------------------------------------
 
-/// `POST /v1/workflows/:id/deploy` -- Validate, compile, and deploy a workflow.
+/// `POST /v1/services/:id/deploy` -- Validate, compile, and deploy a workflow.
 pub async fn deploy_workflow(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -359,7 +359,7 @@ pub async fn deploy_workflow(
     ))
 }
 
-/// `POST /v1/workflows/:id/undeploy` -- Revert a workflow to draft status.
+/// `POST /v1/services/:id/undeploy` -- Revert a workflow to draft status.
 pub async fn undeploy_workflow(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -409,7 +409,7 @@ pub async fn undeploy_workflow(
     }))
 }
 
-/// `GET /v1/workflows/:id/status` -- Check deployment status of a workflow.
+/// `GET /v1/services/:id/status` -- Check deployment status of a workflow.
 pub async fn workflow_status(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -687,9 +687,9 @@ mod tests {
         // This test verifies that the routes can be constructed without panicking.
         // It does not make HTTP requests (that requires a running Supabase).
         let _router: Router<AppState> = Router::new()
-            .route("/workflows/{id}/deploy", post(deploy_workflow))
-            .route("/workflows/{id}/undeploy", post(undeploy_workflow))
-            .route("/workflows/{id}/status", get(workflow_status));
+            .route("/services/{id}/deploy", post(deploy_workflow))
+            .route("/services/{id}/undeploy", post(undeploy_workflow))
+            .route("/services/{id}/status", get(workflow_status));
     }
 
     // -----------------------------------------------------------------------

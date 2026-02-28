@@ -234,7 +234,5 @@ Old top-level commands (`create`, `list`, `show`, `deploy`, etc.) are removed.
 
 - Kong API integration (publish/unpublish are DB-only stubs)
 - Worker management (start/stop/health)
-- Cross-project connectors (`project_connectors` API)
 - Temporal direct interfaces (service-to-service code-level calls)
 - Project state variables API
-- Service marketplace (ratings, reviews, usage stats)

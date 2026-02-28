@@ -5,7 +5,7 @@
 //! formats for workflow definitions.
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     Json,
@@ -27,6 +27,25 @@ const DRAFT_STATUS_ID: &str = "00000000-0000-0000-0000-000000000001";
 
 /// Default visibility_id for newly created workflows.
 const DEFAULT_VISIBILITY_ID: &str = "00000000-0000-0000-0000-000000000001";
+
+/// Public visibility_id (component_visibility seed: 'public').
+const PUBLIC_VISIBILITY_ID: &str = "00000000-0000-0000-0000-000000000003";
+
+/// Private visibility_id (component_visibility seed: 'private').
+const PRIVATE_VISIBILITY_ID: &str = "00000000-0000-0000-0000-000000000001";
+
+/// Team visibility_id (component_visibility seed: 'team').
+const TEAM_VISIBILITY_ID: &str = "00000000-0000-0000-0000-000000000002";
+
+// ---------------------------------------------------------------------------
+// Query parameters
+// ---------------------------------------------------------------------------
+
+/// Optional query parameters for service creation.
+#[derive(Debug, Deserialize)]
+pub struct CreateServiceQuery {
+    pub project_id: Option<String>,
+}
 
 // ---------------------------------------------------------------------------
 // Response types
@@ -82,6 +101,51 @@ pub struct CompilerErrorResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub node_id: Option<String>,
     pub severity: String,
+}
+
+// ---------------------------------------------------------------------------
+// Catalog request/response types
+// ---------------------------------------------------------------------------
+
+/// Request body for importing a service from the catalog.
+#[derive(Debug, Deserialize)]
+pub struct ImportServiceRequest {
+    pub project_id: String,
+}
+
+/// Response envelope for catalog listing.
+#[derive(Debug, Serialize)]
+pub struct CatalogListResponse {
+    pub services: Vec<WorkflowSummary>,
+    pub total: usize,
+}
+
+/// Response for publish/unpublish operations.
+#[derive(Debug, Serialize)]
+pub struct PublishResponse {
+    pub status: String,
+    pub message: String,
+}
+
+/// Body sent to Supabase to update only the visibility_id column.
+#[derive(Debug, Serialize)]
+struct UpdateVisibilityRow {
+    visibility_id: String,
+}
+
+/// Extended workflow row returned when fetching a source service for import.
+/// Includes fields not present in `WorkflowResponse` (e.g. `display_name`,
+/// `visibility_id`, `project_id`).
+#[derive(Debug, Deserialize)]
+struct SourceWorkflowRow {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub display_name: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
+    pub definition: serde_json::Value,
+    pub visibility_id: String,
 }
 
 // ---------------------------------------------------------------------------
@@ -157,8 +221,8 @@ impl WorkflowError {
         }
     }
 
-    fn from_supabase(err: SupabaseError) -> Self {
-        match &err {
+    fn from_supabase(err: &SupabaseError) -> Self {
+        match err {
             SupabaseError::NotFound { .. } => Self::not_found(err.to_string()),
             SupabaseError::ApiError { status, .. } if *status == 404 => {
                 Self::not_found(err.to_string())
@@ -200,6 +264,10 @@ struct InsertWorkflowRow {
     status_id: String,
     visibility_id: String,
     created_by: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    project_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    parent_workflow_id: Option<String>,
 }
 
 /// Body sent to Supabase for updating a workflow.
@@ -232,7 +300,7 @@ async fn require_auth(
         .body(())
         .unwrap();
     *request.headers_mut() = headers.clone();
-    let (parts, _) = request.into_parts();
+    let (parts, ()) = request.into_parts();
 
     let token =
         auth::extract_bearer_token(&parts).ok_or_else(WorkflowError::unauthorized)?;
@@ -336,10 +404,11 @@ fn convert_validation_error(error: &validation::ValidationError) -> CompilerErro
 // Handlers
 // ---------------------------------------------------------------------------
 
-/// `POST /v1/workflows` -- Create a workflow from YAML or JSON body.
+/// `POST /v1/services` -- Create a workflow from YAML or JSON body.
 pub async fn create_workflow(
     State(state): State<AppState>,
     headers: HeaderMap,
+    Query(query): Query<CreateServiceQuery>,
     body: axum::body::Bytes,
 ) -> Result<impl IntoResponse, WorkflowError> {
     let user = require_auth(&headers, &state).await?;
@@ -370,13 +439,15 @@ pub async fn create_workflow(
         status_id: DRAFT_STATUS_ID.to_string(),
         visibility_id: DEFAULT_VISIBILITY_ID.to_string(),
         created_by: user.user_id,
+        project_id: query.project_id,
+        parent_workflow_id: None,
     };
 
     let created: WorkflowResponse = state
         .supabase
         .insert("workflows", &row)
         .await
-        .map_err(WorkflowError::from_supabase)?;
+        .map_err(|e| WorkflowError::from_supabase(&e))?;
 
     // Fire-and-forget: index in discovery service
     if let Some(ref discovery) = state.discovery {
@@ -398,7 +469,7 @@ pub async fn create_workflow(
     Ok((StatusCode::CREATED, Json(created)))
 }
 
-/// `GET /v1/workflows` -- List all workflows.
+/// `GET /v1/services` -- List all workflows.
 pub async fn list_workflows(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -417,13 +488,13 @@ pub async fn list_workflows(
             ],
         )
         .await
-        .map_err(WorkflowError::from_supabase)?;
+        .map_err(|e| WorkflowError::from_supabase(&e))?;
 
     let total = workflows.len();
     Ok(Json(WorkflowListResponse { workflows, total }))
 }
 
-/// `GET /v1/workflows/:id` -- Get a single workflow by ID.
+/// `GET /v1/services/:id` -- Get a single workflow by ID.
 pub async fn get_workflow(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -450,13 +521,13 @@ pub async fn get_workflow(
             SupabaseError::NotFound { .. } => {
                 WorkflowError::not_found(format!("Workflow '{id}' not found"))
             }
-            _ => WorkflowError::from_supabase(e),
+            _ => WorkflowError::from_supabase(&e),
         })?;
 
     Ok(Json(workflow))
 }
 
-/// `PUT /v1/workflows/:id` -- Update a workflow definition.
+/// `PUT /v1/services/:id` -- Update a workflow definition.
 pub async fn update_workflow(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -496,7 +567,7 @@ pub async fn update_workflow(
             &update_body,
         )
         .await
-        .map_err(WorkflowError::from_supabase)?;
+        .map_err(|e| WorkflowError::from_supabase(&e))?;
 
     let workflow = updated.into_iter().next().ok_or_else(|| {
         WorkflowError::not_found(format!("Workflow '{id}' not found"))
@@ -522,7 +593,7 @@ pub async fn update_workflow(
     Ok(Json(workflow))
 }
 
-/// `DELETE /v1/workflows/:id` -- Delete a workflow.
+/// `DELETE /v1/services/:id` -- Delete a workflow.
 pub async fn delete_workflow(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -538,12 +609,12 @@ pub async fn delete_workflow(
             &[("id", &format!("eq.{id}")), ("created_by", &user_filter)],
         )
         .await
-        .map_err(WorkflowError::from_supabase)?;
+        .map_err(|e| WorkflowError::from_supabase(&e))?;
 
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// `POST /v1/workflows/:id/validate` -- Validate a stored workflow.
+/// `POST /v1/services/:id/validate` -- Validate a stored workflow.
 pub async fn validate_workflow(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -571,7 +642,7 @@ pub async fn validate_workflow(
             SupabaseError::NotFound { .. } => {
                 WorkflowError::not_found(format!("Workflow '{id}' not found"))
             }
-            _ => WorkflowError::from_supabase(e),
+            _ => WorkflowError::from_supabase(&e),
         })?;
 
     // Parse the stored definition JSONB back into a WorkflowDefinition.
@@ -591,7 +662,7 @@ pub async fn validate_workflow(
         .map(convert_validation_error)
         .collect();
 
-    let warnings: Vec<String> = result.warnings.iter().map(|w| w.to_string()).collect();
+    let warnings: Vec<String> = result.warnings.iter().map(ToString::to_string).collect();
 
     // Generate suggestions (same logic as the existing validate handler).
     let mut suggestions = Vec::new();
@@ -619,6 +690,203 @@ pub async fn validate_workflow(
         warnings,
         suggestions,
     }))
+}
+
+// ---------------------------------------------------------------------------
+// Catalog handlers
+// ---------------------------------------------------------------------------
+
+/// `GET /v1/services/catalog` -- Browse public services from other users.
+pub async fn list_catalog(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<CatalogListResponse>, WorkflowError> {
+    let user = require_auth(&headers, &state).await?;
+
+    let visibility_filter = format!("eq.{PUBLIC_VISIBILITY_ID}");
+    let exclude_self = format!("neq.{}", user.user_id);
+
+    let services: Vec<WorkflowSummary> = state
+        .supabase
+        .select(
+            "workflows",
+            &[
+                ("select", "id,name,description,status_id,version,created_at"),
+                ("visibility_id", &visibility_filter),
+                ("created_by", &exclude_self),
+                ("order", "created_at.desc"),
+            ],
+        )
+        .await
+        .map_err(|e| WorkflowError::from_supabase(&e))?;
+
+    let total = services.len();
+    Ok(Json(CatalogListResponse { services, total }))
+}
+
+/// `POST /v1/services/{id}/publish` -- Make a service visible in the catalog.
+pub async fn publish_service(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Json<PublishResponse>, WorkflowError> {
+    let user = require_auth(&headers, &state).await?;
+
+    // Ownership check: select the workflow scoped to the current user.
+    let user_filter = format!("eq.{}", user.user_id);
+    let _workflow: WorkflowResponse = state
+        .supabase
+        .select_one(
+            "workflows",
+            &[
+                ("id", &format!("eq.{id}")),
+                ("created_by", &user_filter),
+                (
+                    "select",
+                    "id,name,description,status_id,version,definition,created_at,updated_at",
+                ),
+            ],
+        )
+        .await
+        .map_err(|e| match &e {
+            SupabaseError::NotFound { .. } => {
+                WorkflowError::not_found(format!("Workflow '{id}' not found"))
+            }
+            _ => WorkflowError::from_supabase(&e),
+        })?;
+
+    // Update visibility to public.
+    let update_body = UpdateVisibilityRow {
+        visibility_id: PUBLIC_VISIBILITY_ID.to_string(),
+    };
+    let _updated: Vec<WorkflowResponse> = state
+        .supabase
+        .update(
+            "workflows",
+            &[("id", &format!("eq.{id}")), ("created_by", &user_filter)],
+            &update_body,
+        )
+        .await
+        .map_err(|e| WorkflowError::from_supabase(&e))?;
+
+    Ok(Json(PublishResponse {
+        status: "published".to_string(),
+        message: format!("Service '{id}' is now public in the catalog"),
+    }))
+}
+
+/// `POST /v1/services/{id}/unpublish` -- Remove a service from the catalog.
+pub async fn unpublish_service(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Json<PublishResponse>, WorkflowError> {
+    let user = require_auth(&headers, &state).await?;
+
+    // Ownership check.
+    let user_filter = format!("eq.{}", user.user_id);
+    let _workflow: WorkflowResponse = state
+        .supabase
+        .select_one(
+            "workflows",
+            &[
+                ("id", &format!("eq.{id}")),
+                ("created_by", &user_filter),
+                (
+                    "select",
+                    "id,name,description,status_id,version,definition,created_at,updated_at",
+                ),
+            ],
+        )
+        .await
+        .map_err(|e| match &e {
+            SupabaseError::NotFound { .. } => {
+                WorkflowError::not_found(format!("Workflow '{id}' not found"))
+            }
+            _ => WorkflowError::from_supabase(&e),
+        })?;
+
+    // Update visibility to private.
+    let update_body = UpdateVisibilityRow {
+        visibility_id: PRIVATE_VISIBILITY_ID.to_string(),
+    };
+    let _updated: Vec<WorkflowResponse> = state
+        .supabase
+        .update(
+            "workflows",
+            &[("id", &format!("eq.{id}")), ("created_by", &user_filter)],
+            &update_body,
+        )
+        .await
+        .map_err(|e| WorkflowError::from_supabase(&e))?;
+
+    Ok(Json(PublishResponse {
+        status: "unpublished".to_string(),
+        message: format!("Service '{id}' is now private"),
+    }))
+}
+
+/// `POST /v1/services/catalog/{source_id}/import` -- Import a public/team
+/// service into the caller's project, creating a private copy with lineage.
+pub async fn import_service(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(source_id): Path<String>,
+    Json(body): Json<ImportServiceRequest>,
+) -> Result<impl IntoResponse, WorkflowError> {
+    let user = require_auth(&headers, &state).await?;
+
+    // Fetch the source service (must exist and be public or team visibility).
+    let source: SourceWorkflowRow = state
+        .supabase
+        .select_one(
+            "workflows",
+            &[
+                ("id", &format!("eq.{source_id}")),
+                (
+                    "visibility_id",
+                    &format!("in.({PUBLIC_VISIBILITY_ID},{TEAM_VISIBILITY_ID})"),
+                ),
+                (
+                    "select",
+                    "id,name,display_name,description,definition,visibility_id",
+                ),
+            ],
+        )
+        .await
+        .map_err(|e| match &e {
+            SupabaseError::NotFound { .. } => WorkflowError::not_found(format!(
+                "Service '{source_id}' not found or is not available for import"
+            )),
+            _ => WorkflowError::from_supabase(&e),
+        })?;
+
+    // Build the imported copy.
+    let imported_name = format!("{} (imported)", source.name);
+    let imported_display_name = source
+        .display_name
+        .map_or_else(|| imported_name.clone(), |dn| format!("{dn} (imported)"));
+
+    let row = InsertWorkflowRow {
+        name: imported_name,
+        display_name: imported_display_name,
+        description: source.description,
+        definition: source.definition,
+        version: "1.0.0".to_string(),
+        status_id: DRAFT_STATUS_ID.to_string(),
+        visibility_id: PRIVATE_VISIBILITY_ID.to_string(),
+        created_by: user.user_id,
+        project_id: Some(body.project_id),
+        parent_workflow_id: Some(source.id),
+    };
+
+    let created: WorkflowResponse = state
+        .supabase
+        .insert("workflows", &row)
+        .await
+        .map_err(|e| WorkflowError::from_supabase(&e))?;
+
+    Ok((StatusCode::CREATED, Json(created)))
 }
 
 // ---------------------------------------------------------------------------
@@ -959,5 +1227,102 @@ connections:
     #[ignore = "Requires running Supabase instance"]
     async fn test_validate_workflow_integration() {
         // This test would validate a stored workflow from Supabase.
+    }
+
+    // -----------------------------------------------------------------------
+    // Catalog types serialization / deserialization
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_catalog_list_response_serialization() {
+        let response = CatalogListResponse {
+            services: vec![WorkflowSummary {
+                id: "svc-1".to_string(),
+                name: "Public Service".to_string(),
+                description: Some("A shared service".to_string()),
+                status_id: DRAFT_STATUS_ID.to_string(),
+                version: "1.0.0".to_string(),
+                created_at: "2025-01-01T00:00:00Z".to_string(),
+            }],
+            total: 1,
+        };
+
+        let json = serde_json::to_value(&response).unwrap();
+        assert_eq!(json["total"], 1);
+        assert_eq!(json["services"][0]["name"], "Public Service");
+        assert_eq!(json["services"][0]["description"], "A shared service");
+    }
+
+    #[test]
+    fn test_publish_response_serialization() {
+        let response = PublishResponse {
+            status: "published".to_string(),
+            message: "Service 'abc' is now public in the catalog".to_string(),
+        };
+
+        let json = serde_json::to_value(&response).unwrap();
+        assert_eq!(json["status"], "published");
+        assert!(json["message"].as_str().unwrap().contains("public"));
+    }
+
+    #[test]
+    fn test_import_request_deserialization() {
+        let json_str = r#"{"project_id": "proj-123"}"#;
+        let req: ImportServiceRequest = serde_json::from_str(json_str).unwrap();
+        assert_eq!(req.project_id, "proj-123");
+    }
+
+    #[test]
+    fn test_visibility_constants() {
+        // Verify the UUID format and distinct values.
+        assert_eq!(
+            PRIVATE_VISIBILITY_ID,
+            "00000000-0000-0000-0000-000000000001"
+        );
+        assert_eq!(
+            TEAM_VISIBILITY_ID,
+            "00000000-0000-0000-0000-000000000002"
+        );
+        assert_eq!(
+            PUBLIC_VISIBILITY_ID,
+            "00000000-0000-0000-0000-000000000003"
+        );
+
+        // Private and default should be the same.
+        assert_eq!(PRIVATE_VISIBILITY_ID, DEFAULT_VISIBILITY_ID);
+
+        // All three should be distinct.
+        assert_ne!(PRIVATE_VISIBILITY_ID, TEAM_VISIBILITY_ID);
+        assert_ne!(TEAM_VISIBILITY_ID, PUBLIC_VISIBILITY_ID);
+        assert_ne!(PRIVATE_VISIBILITY_ID, PUBLIC_VISIBILITY_ID);
+    }
+
+    // -----------------------------------------------------------------------
+    // Catalog integration tests (marked #[ignore])
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    #[ignore = "Requires running Supabase instance"]
+    async fn test_list_catalog_integration() {
+        // This test would browse the public catalog from Supabase.
+    }
+
+    #[tokio::test]
+    #[ignore = "Requires running Supabase instance"]
+    async fn test_publish_service_integration() {
+        // This test would publish a service and verify visibility change.
+    }
+
+    #[tokio::test]
+    #[ignore = "Requires running Supabase instance"]
+    async fn test_unpublish_service_integration() {
+        // This test would unpublish a service and verify it becomes private.
+    }
+
+    #[tokio::test]
+    #[ignore = "Requires running Supabase instance"]
+    async fn test_import_service_integration() {
+        // This test would import a public service into a project and verify
+        // lineage via parent_workflow_id.
     }
 }
