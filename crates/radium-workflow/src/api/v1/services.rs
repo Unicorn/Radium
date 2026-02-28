@@ -759,7 +759,6 @@ pub async fn publish_service(
     let update_body = UpdateVisibilityRow {
         visibility_id: PUBLIC_VISIBILITY_ID.to_string(),
     };
-    let user_filter = format!("eq.{}", user.user_id);
     let _updated: Vec<WorkflowResponse> = state
         .supabase
         .update(
@@ -811,7 +810,6 @@ pub async fn unpublish_service(
     let update_body = UpdateVisibilityRow {
         visibility_id: PRIVATE_VISIBILITY_ID.to_string(),
     };
-    let user_filter = format!("eq.{}", user.user_id);
     let _updated: Vec<WorkflowResponse> = state
         .supabase
         .update(
