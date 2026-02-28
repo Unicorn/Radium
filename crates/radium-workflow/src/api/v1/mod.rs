@@ -5,6 +5,7 @@
 
 pub mod components;
 pub mod deploy;
+pub mod interfaces;
 pub mod projects;
 pub mod services;
 
@@ -60,6 +61,25 @@ pub fn router() -> Router<AppState> {
         .route(
             "/services/{id}/validate",
             post(services::validate_workflow),
+        )
+        // Service interfaces
+        .route(
+            "/services/{id}/interfaces",
+            post(interfaces::create_interface).get(interfaces::list_interfaces),
+        )
+        .route(
+            "/services/{id}/interfaces/{iid}",
+            get(interfaces::get_interface)
+                .put(interfaces::update_interface)
+                .delete(interfaces::delete_interface),
+        )
+        .route(
+            "/services/{id}/interfaces/{iid}/publish",
+            post(interfaces::publish_interface),
+        )
+        .route(
+            "/services/{id}/interfaces/{iid}/unpublish",
+            post(interfaces::unpublish_interface),
         )
         // Deploy pipeline
         .route(
