@@ -73,6 +73,7 @@ logs/
 
 # Internal plans (not for public repo)
 plans/
+docs/plans/
 
 # Environment Variables
 .env
