@@ -39,49 +39,15 @@ enum Commands {
         #[command(subcommand)]
         action: DiscoverAction,
     },
-    /// Create a workflow from a file
-    Create {
-        /// Path to workflow definition file (YAML or JSON)
-        file: String,
+    /// Service management (create, deploy, interfaces, catalog)
+    Service {
+        #[command(subcommand)]
+        action: commands::services::ServiceAction,
     },
-    /// Validate a workflow file without creating it
-    Validate {
-        /// Path to workflow definition file (YAML or JSON)
-        file: String,
-    },
-    /// List all workflows
-    List,
-    /// Show a specific workflow
-    Show {
-        /// Workflow ID
-        id: String,
-    },
-    /// Update a workflow from a file
-    Update {
-        /// Workflow ID
-        id: String,
-        /// Path to workflow definition file (YAML or JSON)
-        file: String,
-    },
-    /// Delete a workflow
-    Delete {
-        /// Workflow ID
-        id: String,
-    },
-    /// Deploy a workflow
-    Deploy {
-        /// Workflow ID
-        id: String,
-    },
-    /// Undeploy a workflow
-    Undeploy {
-        /// Workflow ID
-        id: String,
-    },
-    /// Get workflow deployment status
-    Status {
-        /// Workflow ID
-        id: String,
+    /// Project management (create, deploy, status)
+    Project {
+        #[command(subcommand)]
+        action: commands::projects::ProjectAction,
     },
     /// Migrate workflow files to use canonical component names
     Migrate {
@@ -107,17 +73,8 @@ async fn main() {
             commands::components::run(&cli.profile, action.as_ref()).await
         }
         Commands::Discover { action } => commands::discover::run(&cli.profile, action).await,
-        Commands::Create { file } => commands::workflows::create(&cli.profile, file).await,
-        Commands::Validate { file } => commands::workflows::validate(&cli.profile, file).await,
-        Commands::List => commands::workflows::list(&cli.profile).await,
-        Commands::Show { id } => commands::workflows::show(&cli.profile, id).await,
-        Commands::Update { id, file } => {
-            commands::workflows::update(&cli.profile, id, file).await
-        }
-        Commands::Delete { id } => commands::workflows::delete(&cli.profile, id).await,
-        Commands::Deploy { id } => commands::workflows::deploy(&cli.profile, id).await,
-        Commands::Undeploy { id } => commands::workflows::undeploy(&cli.profile, id).await,
-        Commands::Status { id } => commands::workflows::status(&cli.profile, id).await,
+        Commands::Service { action } => commands::services::run(&cli.profile, action).await,
+        Commands::Project { action } => commands::projects::run(&cli.profile, action).await,
         Commands::Migrate {
             files,
             dry_run,
@@ -145,6 +102,12 @@ async fn main() {
 mod tests {
     use super::*;
     use clap::Parser;
+    use commands::projects::ProjectAction;
+    use commands::services::{InterfaceAction, ServiceAction};
+
+    // -----------------------------------------------------------------------
+    // Existing command tests (Login, Components, Discover, Migrate)
+    // -----------------------------------------------------------------------
 
     #[test]
     fn test_parse_login_command() {
@@ -162,64 +125,12 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_create_command() {
-        let cli =
-            Cli::try_parse_from(["radium-workflow", "create", "my-workflow.yaml"]).unwrap();
-        assert!(matches!(cli.command, Commands::Create { .. }));
-    }
-
-    #[test]
-    fn test_parse_validate_command() {
-        let cli =
-            Cli::try_parse_from(["radium-workflow", "validate", "my-workflow.yaml"]).unwrap();
-        assert!(matches!(cli.command, Commands::Validate { .. }));
-    }
-
-    #[test]
-    fn test_parse_list_command() {
-        let cli = Cli::try_parse_from(["radium-workflow", "list"]).unwrap();
-        assert!(matches!(cli.command, Commands::List));
-    }
-
-    #[test]
-    fn test_parse_deploy_command() {
-        let cli = Cli::try_parse_from([
-            "radium-workflow",
-            "deploy",
-            "550e8400-e29b-41d4-a716-446655440000",
-        ])
-        .unwrap();
-        assert!(matches!(cli.command, Commands::Deploy { .. }));
-    }
-
-    #[test]
-    fn test_parse_undeploy_command() {
-        let cli = Cli::try_parse_from([
-            "radium-workflow",
-            "undeploy",
-            "550e8400-e29b-41d4-a716-446655440000",
-        ])
-        .unwrap();
-        assert!(matches!(cli.command, Commands::Undeploy { .. }));
-    }
-
-    #[test]
-    fn test_parse_status_command() {
-        let cli = Cli::try_parse_from([
-            "radium-workflow",
-            "status",
-            "550e8400-e29b-41d4-a716-446655440000",
-        ])
-        .unwrap();
-        assert!(matches!(cli.command, Commands::Status { .. }));
-    }
-
-    #[test]
     fn test_parse_with_profile() {
         let cli = Cli::try_parse_from([
             "radium-workflow",
             "--profile",
             "staging",
+            "service",
             "list",
         ])
         .unwrap();
@@ -372,5 +283,448 @@ mod tests {
             cli.command,
             Commands::Components { action: Some(ComponentAction::Show { .. }) }
         ));
+    }
+
+    // -----------------------------------------------------------------------
+    // Service command tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_parse_service_list() {
+        let cli = Cli::try_parse_from(["radium-workflow", "service", "list"]).unwrap();
+        if let Commands::Service { action } = &cli.command {
+            assert!(matches!(action, ServiceAction::List { project: None }));
+        } else {
+            panic!("Expected Service command");
+        }
+    }
+
+    #[test]
+    fn test_parse_service_list_with_project() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "service",
+            "list",
+            "--project",
+            "proj-123",
+        ])
+        .unwrap();
+        if let Commands::Service {
+            action: ServiceAction::List { project },
+        } = &cli.command
+        {
+            assert_eq!(project.as_deref(), Some("proj-123"));
+        } else {
+            panic!("Expected Service List with project");
+        }
+    }
+
+    #[test]
+    fn test_parse_service_create_with_project() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "service",
+            "create",
+            "my-service.yaml",
+            "--project",
+            "proj-123",
+        ])
+        .unwrap();
+        if let Commands::Service {
+            action: ServiceAction::Create { file, project },
+        } = &cli.command
+        {
+            assert_eq!(file, "my-service.yaml");
+            assert_eq!(project, "proj-123");
+        } else {
+            panic!("Expected Service Create");
+        }
+    }
+
+    #[test]
+    fn test_parse_service_create_requires_project() {
+        let result = Cli::try_parse_from([
+            "radium-workflow",
+            "service",
+            "create",
+            "my-service.yaml",
+        ]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_service_deploy() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "service",
+            "deploy",
+            "550e8400-e29b-41d4-a716-446655440000",
+        ])
+        .unwrap();
+        if let Commands::Service {
+            action: ServiceAction::Deploy { id },
+        } = &cli.command
+        {
+            assert_eq!(id, "550e8400-e29b-41d4-a716-446655440000");
+        } else {
+            panic!("Expected Service Deploy");
+        }
+    }
+
+    #[test]
+    fn test_parse_service_interface_list() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "service",
+            "interface",
+            "list",
+            "svc-123",
+        ])
+        .unwrap();
+        if let Commands::Service {
+            action: ServiceAction::Interface { action },
+        } = &cli.command
+        {
+            assert!(matches!(action, InterfaceAction::List { .. }));
+        } else {
+            panic!("Expected Service Interface List");
+        }
+    }
+
+    #[test]
+    fn test_parse_service_interface_publish() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "service",
+            "interface",
+            "publish",
+            "svc-123",
+            "iface-456",
+        ])
+        .unwrap();
+        if let Commands::Service {
+            action:
+                ServiceAction::Interface {
+                    action: InterfaceAction::Publish {
+                        service_id,
+                        interface_id,
+                    },
+                },
+        } = &cli.command
+        {
+            assert_eq!(service_id, "svc-123");
+            assert_eq!(interface_id, "iface-456");
+        } else {
+            panic!("Expected Service Interface Publish");
+        }
+    }
+
+    #[test]
+    fn test_parse_service_catalog() {
+        let cli =
+            Cli::try_parse_from(["radium-workflow", "service", "catalog"]).unwrap();
+        if let Commands::Service {
+            action: ServiceAction::Catalog { search },
+        } = &cli.command
+        {
+            assert!(search.is_none());
+        } else {
+            panic!("Expected Service Catalog");
+        }
+    }
+
+    #[test]
+    fn test_parse_service_catalog_with_search() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "service",
+            "catalog",
+            "--search",
+            "email",
+        ])
+        .unwrap();
+        if let Commands::Service {
+            action: ServiceAction::Catalog { search },
+        } = &cli.command
+        {
+            assert_eq!(search.as_deref(), Some("email"));
+        } else {
+            panic!("Expected Service Catalog with search");
+        }
+    }
+
+    #[test]
+    fn test_parse_service_import() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "service",
+            "import",
+            "cat-789",
+            "--project",
+            "proj-123",
+        ])
+        .unwrap();
+        if let Commands::Service {
+            action: ServiceAction::Import { catalog_id, project },
+        } = &cli.command
+        {
+            assert_eq!(catalog_id, "cat-789");
+            assert_eq!(project, "proj-123");
+        } else {
+            panic!("Expected Service Import");
+        }
+    }
+
+    #[test]
+    fn test_parse_service_import_requires_project() {
+        let result = Cli::try_parse_from([
+            "radium-workflow",
+            "service",
+            "import",
+            "cat-789",
+        ]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_service_validate() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "service",
+            "validate",
+            "my-service.yaml",
+        ])
+        .unwrap();
+        if let Commands::Service {
+            action: ServiceAction::Validate { file },
+        } = &cli.command
+        {
+            assert_eq!(file, "my-service.yaml");
+        } else {
+            panic!("Expected Service Validate");
+        }
+    }
+
+    #[test]
+    fn test_parse_service_publish() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "service",
+            "publish",
+            "svc-123",
+        ])
+        .unwrap();
+        assert!(matches!(
+            cli.command,
+            Commands::Service {
+                action: ServiceAction::Publish { .. }
+            }
+        ));
+    }
+
+    #[test]
+    fn test_parse_service_unpublish() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "service",
+            "unpublish",
+            "svc-123",
+        ])
+        .unwrap();
+        assert!(matches!(
+            cli.command,
+            Commands::Service {
+                action: ServiceAction::Unpublish { .. }
+            }
+        ));
+    }
+
+    // -----------------------------------------------------------------------
+    // Project command tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_parse_project_list() {
+        let cli = Cli::try_parse_from(["radium-workflow", "project", "list"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Commands::Project {
+                action: ProjectAction::List
+            }
+        ));
+    }
+
+    #[test]
+    fn test_parse_project_create() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "project",
+            "create",
+            "--name",
+            "My Project",
+        ])
+        .unwrap();
+        if let Commands::Project {
+            action: ProjectAction::Create { name, description },
+        } = &cli.command
+        {
+            assert_eq!(name, "My Project");
+            assert!(description.is_none());
+        } else {
+            panic!("Expected Project Create");
+        }
+    }
+
+    #[test]
+    fn test_parse_project_create_with_description() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "project",
+            "create",
+            "--name",
+            "My Project",
+            "--description",
+            "A test project",
+        ])
+        .unwrap();
+        if let Commands::Project {
+            action: ProjectAction::Create { name, description },
+        } = &cli.command
+        {
+            assert_eq!(name, "My Project");
+            assert_eq!(description.as_deref(), Some("A test project"));
+        } else {
+            panic!("Expected Project Create with description");
+        }
+    }
+
+    #[test]
+    fn test_parse_project_create_requires_name() {
+        let result = Cli::try_parse_from(["radium-workflow", "project", "create"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_project_deploy() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "project",
+            "deploy",
+            "proj-123",
+        ])
+        .unwrap();
+        if let Commands::Project {
+            action: ProjectAction::Deploy { id },
+        } = &cli.command
+        {
+            assert_eq!(id, "proj-123");
+        } else {
+            panic!("Expected Project Deploy");
+        }
+    }
+
+    #[test]
+    fn test_parse_project_services() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "project",
+            "services",
+            "proj-123",
+        ])
+        .unwrap();
+        if let Commands::Project {
+            action: ProjectAction::Services { id },
+        } = &cli.command
+        {
+            assert_eq!(id, "proj-123");
+        } else {
+            panic!("Expected Project Services");
+        }
+    }
+
+    #[test]
+    fn test_parse_project_status() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "project",
+            "status",
+            "proj-123",
+        ])
+        .unwrap();
+        if let Commands::Project {
+            action: ProjectAction::Status { id },
+        } = &cli.command
+        {
+            assert_eq!(id, "proj-123");
+        } else {
+            panic!("Expected Project Status");
+        }
+    }
+
+    #[test]
+    fn test_parse_project_show() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "project",
+            "show",
+            "proj-123",
+        ])
+        .unwrap();
+        if let Commands::Project {
+            action: ProjectAction::Show { id },
+        } = &cli.command
+        {
+            assert_eq!(id, "proj-123");
+        } else {
+            panic!("Expected Project Show");
+        }
+    }
+
+    #[test]
+    fn test_parse_project_delete() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "project",
+            "delete",
+            "proj-123",
+        ])
+        .unwrap();
+        if let Commands::Project {
+            action: ProjectAction::Delete { id },
+        } = &cli.command
+        {
+            assert_eq!(id, "proj-123");
+        } else {
+            panic!("Expected Project Delete");
+        }
+    }
+
+    #[test]
+    fn test_parse_project_update() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "project",
+            "update",
+            "proj-123",
+            "--name",
+            "New Name",
+            "--description",
+            "New desc",
+        ])
+        .unwrap();
+        if let Commands::Project {
+            action: ProjectAction::Update {
+                id,
+                name,
+                description,
+            },
+        } = &cli.command
+        {
+            assert_eq!(id, "proj-123");
+            assert_eq!(name.as_deref(), Some("New Name"));
+            assert_eq!(description.as_deref(), Some("New desc"));
+        } else {
+            panic!("Expected Project Update");
+        }
     }
 }

@@ -2,7 +2,7 @@
 //!
 //! These tests exercise the compiled binary using `assert_cmd` to verify:
 //! - Help output and version flag work
-//! - Validate command accepts valid YAML and rejects invalid YAML
+//! - Service validate command accepts valid YAML and rejects invalid YAML
 //! - Error output is structured JSON on stderr
 //! - Config-dependent commands fail gracefully without a config file
 //!
@@ -57,21 +57,39 @@ fn no_subcommand_shows_help() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn validate_help() {
+fn service_validate_help() {
     cli()
-        .args(["validate", "--help"])
+        .args(["service", "validate", "--help"])
         .assert()
         .success()
         .stdout(predicate::str::contains("Validate"));
 }
 
 #[test]
-fn create_help() {
+fn service_create_help() {
     cli()
-        .args(["create", "--help"])
+        .args(["service", "create", "--help"])
         .assert()
         .success()
         .stdout(predicate::str::contains("Create"));
+}
+
+#[test]
+fn service_help() {
+    cli()
+        .args(["service", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Service management"));
+}
+
+#[test]
+fn project_help() {
+    cli()
+        .args(["project", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Project management"));
 }
 
 #[test]
@@ -93,13 +111,13 @@ fn components_help() {
 }
 
 // ---------------------------------------------------------------------------
-// Validate command — file handling
+// Service validate command — file handling
 // ---------------------------------------------------------------------------
 
 #[test]
 fn validate_missing_file_fails() {
     cli()
-        .args(["validate", "/tmp/nonexistent-file-abc123.yaml"])
+        .args(["service", "validate", "/tmp/nonexistent-file-abc123.yaml"])
         .assert()
         .failure()
         .stderr(predicate::str::contains("error"));
@@ -112,7 +130,7 @@ fn validate_empty_file_fails() {
     fs::write(&file, "").unwrap();
 
     cli()
-        .args(["validate", file.to_str().unwrap()])
+        .args(["service", "validate", file.to_str().unwrap()])
         .assert()
         .failure()
         .stderr(predicate::str::contains("error"));
@@ -135,7 +153,7 @@ components:
     .unwrap();
 
     cli()
-        .args(["validate", file.to_str().unwrap()])
+        .args(["service", "validate", file.to_str().unwrap()])
         .assert()
         .failure()
         .stderr(predicate::str::contains("error"));
@@ -149,20 +167,26 @@ fn validate_yaml_missing_required_fields_fails() {
     fs::write(&file, "description: just a description\n").unwrap();
 
     cli()
-        .args(["validate", file.to_str().unwrap()])
+        .args(["service", "validate", file.to_str().unwrap()])
         .assert()
         .failure()
         .stderr(predicate::str::contains("error"));
 }
 
 // ---------------------------------------------------------------------------
-// Create command — file handling
+// Service create command — file handling
 // ---------------------------------------------------------------------------
 
 #[test]
 fn create_missing_file_fails() {
     cli()
-        .args(["create", "/tmp/nonexistent-file-abc123.yaml"])
+        .args([
+            "service",
+            "create",
+            "/tmp/nonexistent-file-abc123.yaml",
+            "--project",
+            "proj-123",
+        ])
         .assert()
         .failure()
         .stderr(predicate::str::contains("error"));
@@ -173,25 +197,24 @@ fn create_missing_file_fails() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn list_without_config_fails_gracefully() {
-    // Use a HOME that has no .radium/config.toml so the config lookup fails
+fn service_list_without_config_fails_gracefully() {
     let dir = TempDir::new().unwrap();
 
     cli()
         .env("HOME", dir.path())
-        .args(["list"])
+        .args(["service", "list"])
         .assert()
         .failure()
         .stderr(predicate::str::contains("error"));
 }
 
 #[test]
-fn show_without_config_fails_gracefully() {
+fn service_show_without_config_fails_gracefully() {
     let dir = TempDir::new().unwrap();
 
     cli()
         .env("HOME", dir.path())
-        .args(["show", "550e8400-e29b-41d4-a716-446655440000"])
+        .args(["service", "show", "550e8400-e29b-41d4-a716-446655440000"])
         .assert()
         .failure()
         .stderr(predicate::str::contains("error"));
@@ -210,36 +233,72 @@ fn components_without_config_fails_gracefully() {
 }
 
 #[test]
-fn deploy_without_config_fails_gracefully() {
+fn service_deploy_without_config_fails_gracefully() {
     let dir = TempDir::new().unwrap();
 
     cli()
         .env("HOME", dir.path())
-        .args(["deploy", "550e8400-e29b-41d4-a716-446655440000"])
+        .args(["service", "deploy", "550e8400-e29b-41d4-a716-446655440000"])
         .assert()
         .failure()
         .stderr(predicate::str::contains("error"));
 }
 
 #[test]
-fn undeploy_without_config_fails_gracefully() {
+fn service_undeploy_without_config_fails_gracefully() {
     let dir = TempDir::new().unwrap();
 
     cli()
         .env("HOME", dir.path())
-        .args(["undeploy", "550e8400-e29b-41d4-a716-446655440000"])
+        .args(["service", "undeploy", "550e8400-e29b-41d4-a716-446655440000"])
         .assert()
         .failure()
         .stderr(predicate::str::contains("error"));
 }
 
 #[test]
-fn status_without_config_fails_gracefully() {
+fn service_status_without_config_fails_gracefully() {
     let dir = TempDir::new().unwrap();
 
     cli()
         .env("HOME", dir.path())
-        .args(["status", "550e8400-e29b-41d4-a716-446655440000"])
+        .args(["service", "status", "550e8400-e29b-41d4-a716-446655440000"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("error"));
+}
+
+#[test]
+fn project_list_without_config_fails_gracefully() {
+    let dir = TempDir::new().unwrap();
+
+    cli()
+        .env("HOME", dir.path())
+        .args(["project", "list"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("error"));
+}
+
+#[test]
+fn project_show_without_config_fails_gracefully() {
+    let dir = TempDir::new().unwrap();
+
+    cli()
+        .env("HOME", dir.path())
+        .args(["project", "show", "proj-123"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("error"));
+}
+
+#[test]
+fn project_deploy_without_config_fails_gracefully() {
+    let dir = TempDir::new().unwrap();
+
+    cli()
+        .env("HOME", dir.path())
+        .args(["project", "deploy", "proj-123"])
         .assert()
         .failure()
         .stderr(predicate::str::contains("error"));
@@ -255,7 +314,7 @@ fn error_output_is_json() {
 
     let output = cli()
         .env("HOME", dir.path())
-        .args(["list"])
+        .args(["service", "list"])
         .output()
         .expect("failed to execute process");
 
@@ -355,7 +414,7 @@ fn nonexistent_profile_fails() {
     // Then try to use a profile that doesn't exist
     cli()
         .env("HOME", dir.path())
-        .args(["--profile", "nonexistent", "list"])
+        .args(["--profile", "nonexistent", "service", "list"])
         .assert()
         .failure()
         .stderr(predicate::str::contains("error"));
@@ -384,63 +443,90 @@ fn login_missing_key_fails() {
 }
 
 #[test]
-fn validate_missing_file_arg_fails() {
+fn service_validate_missing_file_arg_fails() {
     cli()
-        .args(["validate"])
+        .args(["service", "validate"])
         .assert()
         .failure()
         .stderr(predicate::str::contains("<FILE>").or(predicate::str::contains("required")));
 }
 
 #[test]
-fn create_missing_file_arg_fails() {
+fn service_create_missing_file_arg_fails() {
     cli()
-        .args(["create"])
+        .args(["service", "create"])
         .assert()
         .failure()
         .stderr(predicate::str::contains("<FILE>").or(predicate::str::contains("required")));
 }
 
 #[test]
-fn show_missing_id_fails() {
+fn service_show_missing_id_fails() {
     cli()
-        .args(["show"])
+        .args(["service", "show"])
         .assert()
         .failure()
         .stderr(predicate::str::contains("<ID>").or(predicate::str::contains("required")));
 }
 
 #[test]
-fn delete_missing_id_fails() {
+fn service_delete_missing_id_fails() {
     cli()
-        .args(["delete"])
+        .args(["service", "delete"])
         .assert()
         .failure()
         .stderr(predicate::str::contains("<ID>").or(predicate::str::contains("required")));
 }
 
 #[test]
-fn deploy_missing_id_fails() {
+fn service_deploy_missing_id_fails() {
     cli()
-        .args(["deploy"])
+        .args(["service", "deploy"])
         .assert()
         .failure()
         .stderr(predicate::str::contains("<ID>").or(predicate::str::contains("required")));
 }
 
 #[test]
-fn undeploy_missing_id_fails() {
+fn service_undeploy_missing_id_fails() {
     cli()
-        .args(["undeploy"])
+        .args(["service", "undeploy"])
         .assert()
         .failure()
         .stderr(predicate::str::contains("<ID>").or(predicate::str::contains("required")));
 }
 
 #[test]
-fn status_missing_id_fails() {
+fn service_status_missing_id_fails() {
     cli()
-        .args(["status"])
+        .args(["service", "status"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("<ID>").or(predicate::str::contains("required")));
+}
+
+#[test]
+fn project_create_missing_name_fails() {
+    cli()
+        .args(["project", "create"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("--name").or(predicate::str::contains("required")));
+}
+
+#[test]
+fn project_show_missing_id_fails() {
+    cli()
+        .args(["project", "show"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("<ID>").or(predicate::str::contains("required")));
+}
+
+#[test]
+fn project_delete_missing_id_fails() {
+    cli()
+        .args(["project", "delete"])
         .assert()
         .failure()
         .stderr(predicate::str::contains("<ID>").or(predicate::str::contains("required")));
