@@ -133,8 +133,8 @@ impl ProjectError {
         }
     }
 
-    fn from_supabase(err: SupabaseError) -> Self {
-        match &err {
+    fn from_supabase(err: &SupabaseError) -> Self {
+        match err {
             SupabaseError::NotFound { .. } => Self::not_found(err.to_string()),
             SupabaseError::ApiError { status, .. } if *status == 404 => {
                 Self::not_found(err.to_string())
@@ -220,7 +220,7 @@ async fn require_auth(
         .body(())
         .unwrap();
     *request.headers_mut() = headers.clone();
-    let (parts, _) = request.into_parts();
+    let (parts, ()) = request.into_parts();
 
     let token =
         auth::extract_bearer_token(&parts).ok_or_else(ProjectError::unauthorized)?;
@@ -308,7 +308,7 @@ pub async fn create_project(
         .supabase
         .insert("task_queues", &queue_row)
         .await
-        .map_err(ProjectError::from_supabase)?;
+        .map_err(|e| ProjectError::from_supabase(&e))?;
 
     // Insert the project.
     let project_row = InsertProjectRow {
@@ -323,7 +323,7 @@ pub async fn create_project(
         .supabase
         .insert("projects", &project_row)
         .await
-        .map_err(ProjectError::from_supabase)?;
+        .map_err(|e| ProjectError::from_supabase(&e))?;
 
     Ok((StatusCode::CREATED, Json(created)))
 }
@@ -347,7 +347,7 @@ pub async fn list_projects(
             ],
         )
         .await
-        .map_err(ProjectError::from_supabase)?;
+        .map_err(|e| ProjectError::from_supabase(&e))?;
 
     let total = projects.len();
     Ok(Json(ProjectListResponse { projects, total }))
@@ -380,7 +380,7 @@ pub async fn get_project(
             SupabaseError::NotFound { .. } => {
                 ProjectError::not_found(format!("Project '{id}' not found"))
             }
-            _ => ProjectError::from_supabase(e),
+            _ => ProjectError::from_supabase(&e),
         })?;
 
     Ok(Json(project))
@@ -409,7 +409,7 @@ pub async fn update_project(
             &update_body,
         )
         .await
-        .map_err(ProjectError::from_supabase)?;
+        .map_err(|e| ProjectError::from_supabase(&e))?;
 
     let project = updated.into_iter().next().ok_or_else(|| {
         ProjectError::not_found(format!("Project '{id}' not found"))
@@ -434,7 +434,7 @@ pub async fn delete_project(
             &[("id", &format!("eq.{id}")), ("created_by", &user_filter)],
         )
         .await
-        .map_err(ProjectError::from_supabase)?;
+        .map_err(|e| ProjectError::from_supabase(&e))?;
 
     Ok(StatusCode::NO_CONTENT)
 }

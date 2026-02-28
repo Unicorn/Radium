@@ -167,8 +167,8 @@ impl WorkflowError {
         }
     }
 
-    fn from_supabase(err: SupabaseError) -> Self {
-        match &err {
+    fn from_supabase(err: &SupabaseError) -> Self {
+        match err {
             SupabaseError::NotFound { .. } => Self::not_found(err.to_string()),
             SupabaseError::ApiError { status, .. } if *status == 404 => {
                 Self::not_found(err.to_string())
@@ -244,7 +244,7 @@ async fn require_auth(
         .body(())
         .unwrap();
     *request.headers_mut() = headers.clone();
-    let (parts, _) = request.into_parts();
+    let (parts, ()) = request.into_parts();
 
     let token =
         auth::extract_bearer_token(&parts).ok_or_else(WorkflowError::unauthorized)?;
@@ -390,7 +390,7 @@ pub async fn create_workflow(
         .supabase
         .insert("workflows", &row)
         .await
-        .map_err(WorkflowError::from_supabase)?;
+        .map_err(|e| WorkflowError::from_supabase(&e))?;
 
     // Fire-and-forget: index in discovery service
     if let Some(ref discovery) = state.discovery {
@@ -431,7 +431,7 @@ pub async fn list_workflows(
             ],
         )
         .await
-        .map_err(WorkflowError::from_supabase)?;
+        .map_err(|e| WorkflowError::from_supabase(&e))?;
 
     let total = workflows.len();
     Ok(Json(WorkflowListResponse { workflows, total }))
@@ -464,7 +464,7 @@ pub async fn get_workflow(
             SupabaseError::NotFound { .. } => {
                 WorkflowError::not_found(format!("Workflow '{id}' not found"))
             }
-            _ => WorkflowError::from_supabase(e),
+            _ => WorkflowError::from_supabase(&e),
         })?;
 
     Ok(Json(workflow))
@@ -510,7 +510,7 @@ pub async fn update_workflow(
             &update_body,
         )
         .await
-        .map_err(WorkflowError::from_supabase)?;
+        .map_err(|e| WorkflowError::from_supabase(&e))?;
 
     let workflow = updated.into_iter().next().ok_or_else(|| {
         WorkflowError::not_found(format!("Workflow '{id}' not found"))
@@ -552,7 +552,7 @@ pub async fn delete_workflow(
             &[("id", &format!("eq.{id}")), ("created_by", &user_filter)],
         )
         .await
-        .map_err(WorkflowError::from_supabase)?;
+        .map_err(|e| WorkflowError::from_supabase(&e))?;
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -585,7 +585,7 @@ pub async fn validate_workflow(
             SupabaseError::NotFound { .. } => {
                 WorkflowError::not_found(format!("Workflow '{id}' not found"))
             }
-            _ => WorkflowError::from_supabase(e),
+            _ => WorkflowError::from_supabase(&e),
         })?;
 
     // Parse the stored definition JSONB back into a WorkflowDefinition.
@@ -605,7 +605,7 @@ pub async fn validate_workflow(
         .map(convert_validation_error)
         .collect();
 
-    let warnings: Vec<String> = result.warnings.iter().map(|w| w.to_string()).collect();
+    let warnings: Vec<String> = result.warnings.iter().map(ToString::to_string).collect();
 
     // Generate suggestions (same logic as the existing validate handler).
     let mut suggestions = Vec::new();
