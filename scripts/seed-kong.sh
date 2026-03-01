@@ -214,6 +214,11 @@ curl -s -X POST "$KONG_ADMIN/services/radium-workflow/plugins" \
   -d config.limit_by=ip \
   -d config.hide_client_headers=false | jq .
 
+# Add gateway route for radium-workflow (handles /v1/gateway/* paths)
+curl -s -X POST "$KONG_ADMIN/services/radium-workflow/routes" \
+  -d 'paths[]=/v1/gateway' \
+  -d strip_path=false | jq .
+
 # ---------- Radium Discovery Service ----------
 echo ""
 echo "=== Radium discovery service ==="
