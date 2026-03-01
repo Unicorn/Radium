@@ -102,6 +102,7 @@ fn build_app_state() -> AppState {
             radium_workflow::security::RateLimitConfig::unlimited(),
         )),
         discovery: None,
+        kong: None,
     }
 }
 

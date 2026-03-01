@@ -10,6 +10,7 @@ mod api;
 mod codegen;
 mod deploy_pipeline;
 mod discovery;
+mod kong_client;
 mod schema;
 mod security;
 mod supabase;
@@ -20,6 +21,7 @@ mod yaml_format;
 
 use api::state::AppState;
 use security::{RateLimitConfig, SlidingWindowLimiter};
+use kong_client::{KongClient, KongConfig};
 use supabase::{SupabaseClient, SupabaseConfig};
 
 #[tokio::main]
@@ -46,12 +48,16 @@ async fn main() {
                 tracing::info!("Discovery service integration enabled");
             }
 
+            let kong = Some(Arc::new(KongClient::new(&KongConfig::from_env())));
+            tracing::info!("Kong Admin API client initialized");
+
             Some(AppState {
                 supabase: Arc::new(client),
                 rate_limiter: Arc::new(SlidingWindowLimiter::new(
                     RateLimitConfig::for_api(),
                 )),
                 discovery,
+                kong,
             })
         }
         Err(e) => {

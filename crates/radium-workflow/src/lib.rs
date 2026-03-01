@@ -16,6 +16,7 @@ pub mod types;
 pub mod discovery;
 pub mod errors;
 pub mod expressions;
+pub mod kong_client;
 pub mod migration;
 pub mod monitoring;
 pub mod performance;
