@@ -99,6 +99,8 @@ pub struct PublishResponse {
     pub kong_route_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub kong_service_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gateway_workflow_id: Option<String>,
     pub is_active: bool,
     pub created_at: String,
     pub updated_at: String,
@@ -249,6 +251,8 @@ struct InsertPublicInterfaceRow {
     kong_route_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     kong_service_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    gateway_workflow_id: Option<String>,
     is_active: bool,
 }
 
@@ -631,12 +635,28 @@ pub async fn publish_interface(
         (None, None)
     };
 
+    // Start gateway workflow via Temporal (best-effort).
+    let gateway_workflow_id = if let Some(ref temporal) = state.temporal {
+        let task_queue = crate::temporal_client::gateway_task_queue(&iid);
+        let mut client = temporal.lock().await;
+        match client.start_gateway_workflow(&iid, &task_queue).await {
+            Ok(wf_id) => Some(wf_id),
+            Err(e) => {
+                tracing::warn!("Failed to start gateway workflow: {e}");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
     let row = InsertPublicInterfaceRow {
         service_interface_id: iid,
         route_path,
         http_method: "POST".to_string(),
         kong_route_id,
         kong_service_id,
+        gateway_workflow_id,
         is_active: true,
     };
 
@@ -668,11 +688,17 @@ pub async fn unpublish_interface(
             "public_interfaces",
             &[
                 ("service_interface_id", &format!("eq.{iid}")),
-                ("select", "id,service_interface_id,route_path,http_method,kong_route_id,kong_service_id,is_active,created_at,updated_at"),
+                ("select", "id,service_interface_id,route_path,http_method,kong_route_id,kong_service_id,gateway_workflow_id,is_active,created_at,updated_at"),
             ],
         )
         .await
         .map_err(|e| InterfaceError::from_supabase(&e))?;
+
+    // Terminate gateway workflows (best-effort).
+    if let Some(ref temporal) = state.temporal {
+        let mut client = temporal.lock().await;
+        let _ = client.terminate_gateway_workflow(&iid).await;
+    }
 
     // Delete Kong resources (best-effort -- don't fail unpublish if Kong is
     // unreachable; the DB record will still be removed).
@@ -1010,6 +1036,7 @@ mod tests {
             http_method: "POST".to_string(),
             kong_route_id: None,
             kong_service_id: None,
+            gateway_workflow_id: None,
             is_active: true,
             created_at: "2026-03-01T00:00:00Z".to_string(),
             updated_at: "2026-03-01T00:00:00Z".to_string(),
@@ -1017,6 +1044,7 @@ mod tests {
         let json = serde_json::to_value(&resp).unwrap();
         assert!(json.get("kong_route_id").is_none(), "kong_route_id should be omitted when None");
         assert!(json.get("kong_service_id").is_none(), "kong_service_id should be omitted when None");
+        assert!(json.get("gateway_workflow_id").is_none(), "gateway_workflow_id should be omitted when None");
         assert_eq!(json["is_active"], true);
     }
 
@@ -1028,6 +1056,7 @@ mod tests {
             http_method: "POST".to_string(),
             kong_route_id: Some("kr-1".to_string()),
             kong_service_id: Some("ks-1".to_string()),
+            gateway_workflow_id: Some("gateway-iface-1".to_string()),
             is_active: true,
         };
         let json = serde_json::to_value(&row).unwrap();
@@ -1044,12 +1073,35 @@ mod tests {
             http_method: "POST".to_string(),
             kong_route_id: None,
             kong_service_id: None,
+            gateway_workflow_id: None,
             is_active: true,
         };
         let json = serde_json::to_value(&row).unwrap();
         assert!(json.get("kong_route_id").is_none(), "kong_route_id should be omitted when None");
         assert!(json.get("kong_service_id").is_none(), "kong_service_id should be omitted when None");
         assert_eq!(json["is_active"], true);
+    }
+
+    // -----------------------------------------------------------------------
+    // PublishResponse with gateway_workflow_id
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_publish_response_gateway_workflow_id() {
+        let json = serde_json::json!({
+            "id": "pub-1",
+            "service_interface_id": "iface-1",
+            "route_path": "/api/my-service/my-signal",
+            "http_method": "POST",
+            "kong_route_id": "route-123",
+            "kong_service_id": "svc-456",
+            "gateway_workflow_id": "gateway-iface-1",
+            "is_active": true,
+            "created_at": "2026-03-01T00:00:00Z",
+            "updated_at": "2026-03-01T00:00:00Z"
+        });
+        let resp: PublishResponse = serde_json::from_value(json).unwrap();
+        assert_eq!(resp.gateway_workflow_id.unwrap(), "gateway-iface-1");
     }
 
     // -----------------------------------------------------------------------
