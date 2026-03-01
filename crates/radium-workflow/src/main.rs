@@ -14,6 +14,7 @@ mod kong_client;
 mod schema;
 mod security;
 mod supabase;
+mod temporal_client;
 mod validation;
 mod verification;
 mod versioning;
@@ -23,6 +24,7 @@ use api::state::AppState;
 use security::{RateLimitConfig, SlidingWindowLimiter};
 use kong_client::{KongClient, KongConfig};
 use supabase::{SupabaseClient, SupabaseConfig};
+use temporal_client::{TemporalClient, TemporalConfig};
 
 #[tokio::main]
 async fn main() {
@@ -51,6 +53,16 @@ async fn main() {
             let kong = Some(Arc::new(KongClient::new(&KongConfig::from_env())));
             tracing::info!("Kong Admin API client initialized");
 
+            let temporal_config = TemporalConfig::from_env();
+            let temporal = Some(Arc::new(tokio::sync::Mutex::new(
+                TemporalClient::new(&temporal_config),
+            )));
+            tracing::info!(
+                address = %temporal_config.address,
+                namespace = %temporal_config.namespace,
+                "Temporal gRPC client initialized (lazy connection)"
+            );
+
             Some(AppState {
                 supabase: Arc::new(client),
                 rate_limiter: Arc::new(SlidingWindowLimiter::new(
@@ -58,6 +70,7 @@ async fn main() {
                 )),
                 discovery,
                 kong,
+                temporal,
             })
         }
         Err(e) => {

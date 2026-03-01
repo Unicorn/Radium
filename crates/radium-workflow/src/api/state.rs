@@ -9,6 +9,7 @@ use crate::discovery::client::DiscoveryClient;
 use crate::kong_client::KongClient;
 use crate::security::SlidingWindowLimiter;
 use crate::supabase::SupabaseClient;
+use crate::temporal_client::TemporalClient;
 
 /// Application-wide shared state passed to Axum handlers via `State<AppState>`.
 #[derive(Clone)]
@@ -21,6 +22,11 @@ pub struct AppState {
     pub discovery: Option<Arc<DiscoveryClient>>,
     /// Optional Kong Admin API client for dynamic route management.
     pub kong: Option<Arc<KongClient>>,
+    /// Optional Temporal gRPC client for gateway workflow management.
+    ///
+    /// Wrapped in a `Mutex` because `TemporalClient` has mutable state
+    /// (the lazily-established gRPC channel).
+    pub temporal: Option<Arc<tokio::sync::Mutex<TemporalClient>>>,
 }
 
 impl std::fmt::Debug for AppState {
@@ -30,6 +36,7 @@ impl std::fmt::Debug for AppState {
             .field("rate_limiter", &"SlidingWindowLimiter { .. }")
             .field("discovery", &self.discovery)
             .field("kong", &self.kong)
+            .field("temporal", &self.temporal.as_ref().map(|_| "TemporalClient { .. }"))
             .finish()
     }
 }

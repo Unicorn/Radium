@@ -103,6 +103,7 @@ fn build_app_state() -> AppState {
         )),
         discovery: None,
         kong: None,
+        temporal: None,
     }
 }
 
