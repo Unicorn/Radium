@@ -3,7 +3,8 @@
 //! Provides REST API endpoints for creating, reading, updating, and deleting
 //! service interfaces (signal, query, update, mcp, graphql) stored in Supabase.
 //! Includes publish/unpublish endpoints that record public interface routes
-//! to the `public_interfaces` table (Kong integration is stubbed).
+//! to the `public_interfaces` table and create/delete corresponding Kong
+//! gateway services and routes when a `KongClient` is available.
 
 use axum::{
     extract::{Path, State},
@@ -94,6 +95,11 @@ pub struct PublishResponse {
     pub service_interface_id: String,
     pub route_path: String,
     pub http_method: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kong_route_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kong_service_id: Option<String>,
+    pub is_active: bool,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -239,6 +245,11 @@ struct InsertPublicInterfaceRow {
     service_interface_id: String,
     route_path: String,
     http_method: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    kong_route_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    kong_service_id: Option<String>,
+    is_active: bool,
 }
 
 /// Minimal response shape from workflows select (for ownership verification).
@@ -525,8 +536,9 @@ pub async fn delete_interface(
 
 /// `POST /v1/services/{id}/interfaces/{iid}/publish` -- Publish an interface.
 ///
-/// Generates a route path and records it in the `public_interfaces` table.
-/// Kong integration is stubbed -- this only writes the DB record.
+/// Generates a route path, creates a Kong gateway service and route (when
+/// available), and records the public interface in the `public_interfaces`
+/// table.
 pub async fn publish_interface(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -561,10 +573,71 @@ pub async fn publish_interface(
         kebab_case(&interface.name)
     );
 
+    // If Kong client is available, create service + route in the gateway.
+    let (kong_service_id, kong_route_id) = if let Some(ref kong) = state.kong {
+        use crate::kong_client::{CreatePluginRequest, CreateRouteRequest, CreateServiceRequest};
+
+        let gateway_url = format!("http://radium-workflow:3020/v1/gateway/{iid}");
+        let kong_service_name = format!(
+            "gw-{}-{}",
+            kebab_case(&service_name),
+            kebab_case(&interface.name)
+        );
+
+        let kong_svc = kong
+            .create_service(&CreateServiceRequest {
+                name: kong_service_name,
+                url: gateway_url,
+            })
+            .await
+            .map_err(|e| {
+                InterfaceError::internal(format!("Kong service creation failed: {e}"))
+            })?;
+
+        let kong_route = kong
+            .create_route(
+                &kong_svc.id,
+                &CreateRouteRequest {
+                    paths: vec![route_path.clone()],
+                    methods: vec!["POST".to_string()],
+                    strip_path: false,
+                },
+            )
+            .await
+            .map_err(|e| {
+                InterfaceError::internal(format!("Kong route creation failed: {e}"))
+            })?;
+
+        // Add plugins (best-effort, don't fail publish if plugins fail).
+        for plugin in [
+            CreatePluginRequest {
+                name: "cors".to_string(),
+                config: serde_json::json!({}),
+            },
+            CreatePluginRequest {
+                name: "correlation-id".to_string(),
+                config: serde_json::json!({"header_name": "X-Request-ID"}),
+            },
+            CreatePluginRequest {
+                name: "rate-limiting".to_string(),
+                config: serde_json::json!({"minute": 120, "policy": "local"}),
+            },
+        ] {
+            let _ = kong.add_plugin(&kong_svc.id, &plugin).await;
+        }
+
+        (Some(kong_svc.id), Some(kong_route.id))
+    } else {
+        (None, None)
+    };
+
     let row = InsertPublicInterfaceRow {
         service_interface_id: iid,
         route_path,
         http_method: "POST".to_string(),
+        kong_route_id,
+        kong_service_id,
+        is_active: true,
     };
 
     let created: PublishResponse = state
@@ -578,7 +651,8 @@ pub async fn publish_interface(
 
 /// `POST /v1/services/{id}/interfaces/{iid}/unpublish` -- Unpublish an interface.
 ///
-/// Removes the public interface record from the `public_interfaces` table.
+/// Removes Kong gateway resources (if present) and the public interface record
+/// from the `public_interfaces` table.
 pub async fn unpublish_interface(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -587,6 +661,33 @@ pub async fn unpublish_interface(
     let user = require_auth(&headers, &state).await?;
     verify_service_ownership(&state, &id, &user.user_id).await?;
 
+    // Fetch the public_interfaces record(s) to get Kong IDs before deletion.
+    let records: Vec<PublishResponse> = state
+        .supabase
+        .select(
+            "public_interfaces",
+            &[
+                ("service_interface_id", &format!("eq.{iid}")),
+                ("select", "id,service_interface_id,route_path,http_method,kong_route_id,kong_service_id,is_active,created_at,updated_at"),
+            ],
+        )
+        .await
+        .map_err(|e| InterfaceError::from_supabase(&e))?;
+
+    // Delete Kong resources (best-effort -- don't fail unpublish if Kong is
+    // unreachable; the DB record will still be removed).
+    if let Some(ref kong) = state.kong {
+        for record in &records {
+            if let Some(ref route_id) = record.kong_route_id {
+                let _ = kong.delete_route(route_id).await;
+            }
+            if let Some(ref service_id) = record.kong_service_id {
+                let _ = kong.delete_service(service_id).await;
+            }
+        }
+    }
+
+    // Delete from DB.
     state
         .supabase
         .delete(
@@ -858,6 +959,97 @@ mod tests {
     #[test]
     fn test_kebab_case_with_numbers() {
         assert_eq!(kebab_case("Service 42"), "service-42");
+    }
+
+    // -----------------------------------------------------------------------
+    // PublishResponse serialization (with Kong fields)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_publish_response_with_kong_fields() {
+        let json = serde_json::json!({
+            "id": "pub-1",
+            "service_interface_id": "iface-1",
+            "route_path": "/api/my-service/my-signal",
+            "http_method": "POST",
+            "kong_route_id": "kong-route-123",
+            "kong_service_id": "kong-svc-456",
+            "is_active": true,
+            "created_at": "2026-03-01T00:00:00Z",
+            "updated_at": "2026-03-01T00:00:00Z"
+        });
+        let resp: PublishResponse = serde_json::from_value(json).unwrap();
+        assert_eq!(resp.kong_route_id.unwrap(), "kong-route-123");
+        assert_eq!(resp.kong_service_id.unwrap(), "kong-svc-456");
+        assert!(resp.is_active);
+    }
+
+    #[test]
+    fn test_publish_response_without_kong_fields() {
+        let json = serde_json::json!({
+            "id": "pub-1",
+            "service_interface_id": "iface-1",
+            "route_path": "/api/my-service/my-signal",
+            "http_method": "POST",
+            "is_active": true,
+            "created_at": "2026-03-01T00:00:00Z",
+            "updated_at": "2026-03-01T00:00:00Z"
+        });
+        let resp: PublishResponse = serde_json::from_value(json).unwrap();
+        assert!(resp.kong_route_id.is_none());
+        assert!(resp.kong_service_id.is_none());
+        assert!(resp.is_active);
+    }
+
+    #[test]
+    fn test_publish_response_serialization_omits_none_kong_fields() {
+        let resp = PublishResponse {
+            id: "pub-1".to_string(),
+            service_interface_id: "iface-1".to_string(),
+            route_path: "/api/my-service/my-signal".to_string(),
+            http_method: "POST".to_string(),
+            kong_route_id: None,
+            kong_service_id: None,
+            is_active: true,
+            created_at: "2026-03-01T00:00:00Z".to_string(),
+            updated_at: "2026-03-01T00:00:00Z".to_string(),
+        };
+        let json = serde_json::to_value(&resp).unwrap();
+        assert!(json.get("kong_route_id").is_none(), "kong_route_id should be omitted when None");
+        assert!(json.get("kong_service_id").is_none(), "kong_service_id should be omitted when None");
+        assert_eq!(json["is_active"], true);
+    }
+
+    #[test]
+    fn test_insert_public_interface_row_with_kong_ids() {
+        let row = InsertPublicInterfaceRow {
+            service_interface_id: "iface-1".to_string(),
+            route_path: "/api/svc/sig".to_string(),
+            http_method: "POST".to_string(),
+            kong_route_id: Some("kr-1".to_string()),
+            kong_service_id: Some("ks-1".to_string()),
+            is_active: true,
+        };
+        let json = serde_json::to_value(&row).unwrap();
+        assert_eq!(json["kong_route_id"], "kr-1");
+        assert_eq!(json["kong_service_id"], "ks-1");
+        assert_eq!(json["is_active"], true);
+    }
+
+    #[test]
+    fn test_insert_public_interface_row_without_kong_ids() {
+        let row = InsertPublicInterfaceRow {
+            service_interface_id: "iface-1".to_string(),
+            route_path: "/api/svc/sig".to_string(),
+            http_method: "POST".to_string(),
+            kong_route_id: None,
+            kong_service_id: None,
+            is_active: true,
+        };
+        let json = serde_json::to_value(&row).unwrap();
+        assert!(json.get("kong_route_id").is_none(), "kong_route_id should be omitted when None");
+        assert!(json.get("kong_service_id").is_none(), "kong_service_id should be omitted when None");
+        assert_eq!(json["is_active"], true);
     }
 
     // -----------------------------------------------------------------------
