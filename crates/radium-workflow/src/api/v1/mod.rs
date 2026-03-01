@@ -8,6 +8,7 @@ pub mod deploy;
 pub mod interfaces;
 pub mod projects;
 pub mod services;
+pub mod state_variables;
 
 use axum::{
     routing::{delete, get, post, put},
@@ -59,6 +60,18 @@ pub fn router() -> Router<AppState> {
             "/projects/{id}/services",
             get(projects::list_project_services),
         )
+        // Project state variables
+        .route(
+            "/projects/{id}/variables",
+            post(state_variables::create_project_variable)
+                .get(state_variables::list_project_variables),
+        )
+        .route(
+            "/projects/{id}/variables/{var_id}",
+            get(state_variables::get_project_variable)
+                .put(state_variables::update_project_variable)
+                .delete(state_variables::delete_project_variable),
+        )
         // Service CRUD
         .route(
             "/services",
@@ -87,6 +100,18 @@ pub fn router() -> Router<AppState> {
         .route(
             "/services/{id}/unpublish",
             post(services::unpublish_service),
+        )
+        // Service state variables
+        .route(
+            "/services/{id}/variables",
+            post(state_variables::create_service_variable)
+                .get(state_variables::list_service_variables),
+        )
+        .route(
+            "/services/{id}/variables/{var_id}",
+            get(state_variables::get_service_variable)
+                .put(state_variables::update_service_variable)
+                .delete(state_variables::delete_service_variable),
         )
         // Service interfaces
         .route(
