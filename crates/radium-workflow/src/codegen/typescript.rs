@@ -26,6 +26,10 @@ pub struct GeneratedCode {
     pub worker: String,
     pub package_json: String,
     pub tsconfig: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gateway: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gateway_worker: Option<String>,
 }
 
 /// Code generator using Handlebars templates
@@ -130,6 +134,21 @@ struct PackageJsonData {
     version: String,
 }
 
+/// Template data for gateway workflow generation.
+/// Used by Task 11 (wire gateway into publish/unpublish lifecycle).
+#[derive(Debug, Serialize)]
+#[allow(dead_code)]
+struct GatewayTemplateData {
+    version: String,
+    generated_at: String,
+    interface_id: String,
+    interface_name: String,
+    interface_type: String,
+    service_id: String,
+    task_queue: String,
+    continue_as_new_threshold: u32,
+}
+
 impl<'a> CodeGenerator<'a> {
     /// Create a new code generator with embedded templates
     pub fn new() -> Result<Self, GenerationError> {
@@ -146,6 +165,12 @@ impl<'a> CodeGenerator<'a> {
             .register_template_string("package_json", include_str!("templates/package.json.hbs"))?;
         handlebars
             .register_template_string("tsconfig", include_str!("templates/tsconfig.json.hbs"))?;
+        handlebars
+            .register_template_string("gateway", include_str!("templates/gateway.ts.hbs"))?;
+        handlebars.register_template_string(
+            "gateway_worker",
+            include_str!("templates/gateway_worker.ts.hbs"),
+        )?;
 
         Ok(CodeGenerator { handlebars })
     }
@@ -167,6 +192,8 @@ impl<'a> CodeGenerator<'a> {
             worker: worker_code,
             package_json,
             tsconfig,
+            gateway: None,
+            gateway_worker: None,
         })
     }
 
@@ -722,6 +749,103 @@ mod tests {
         assert!(
             code.workflow.contains("Promise<WorkflowResult>"),
             "Workflow function should return Promise<WorkflowResult>"
+        );
+    }
+
+    #[test]
+    fn test_generated_code_has_gateway_fields() {
+        let code = GeneratedCode {
+            workflow: String::new(),
+            activities: String::new(),
+            worker: String::new(),
+            package_json: String::new(),
+            tsconfig: String::new(),
+            gateway: Some("gateway code".to_string()),
+            gateway_worker: Some("gateway worker code".to_string()),
+        };
+        assert!(code.gateway.is_some());
+        assert!(code.gateway_worker.is_some());
+    }
+
+    #[test]
+    fn test_generated_code_no_gateway_without_interfaces() {
+        let code = GeneratedCode {
+            workflow: String::new(),
+            activities: String::new(),
+            worker: String::new(),
+            package_json: String::new(),
+            tsconfig: String::new(),
+            gateway: None,
+            gateway_worker: None,
+        };
+        assert!(code.gateway.is_none());
+        assert!(code.gateway_worker.is_none());
+    }
+
+    #[test]
+    fn test_generate_sets_gateway_to_none() {
+        let workflow = create_simple_workflow();
+        let generator = CodeGenerator::new().unwrap();
+        let code = generator.generate(&workflow).unwrap();
+
+        // Without interfaces, gateway fields should be None
+        assert!(
+            code.gateway.is_none(),
+            "Gateway should be None without interfaces"
+        );
+        assert!(
+            code.gateway_worker.is_none(),
+            "Gateway worker should be None without interfaces"
+        );
+    }
+
+    #[test]
+    fn test_gateway_templates_registered() {
+        // Verify the code generator can be created with gateway templates
+        let generator = CodeGenerator::new();
+        assert!(
+            generator.is_ok(),
+            "CodeGenerator should initialize with gateway templates"
+        );
+    }
+
+    #[test]
+    fn test_generated_code_gateway_skipped_in_json_when_none() {
+        let code = GeneratedCode {
+            workflow: "wf".to_string(),
+            activities: "act".to_string(),
+            worker: "wrk".to_string(),
+            package_json: "{}".to_string(),
+            tsconfig: "{}".to_string(),
+            gateway: None,
+            gateway_worker: None,
+        };
+        let json = serde_json::to_string(&code).unwrap();
+        assert!(
+            !json.contains("gateway"),
+            "None gateway fields should be skipped in JSON serialization"
+        );
+    }
+
+    #[test]
+    fn test_generated_code_gateway_included_in_json_when_some() {
+        let code = GeneratedCode {
+            workflow: "wf".to_string(),
+            activities: "act".to_string(),
+            worker: "wrk".to_string(),
+            package_json: "{}".to_string(),
+            tsconfig: "{}".to_string(),
+            gateway: Some("gw code".to_string()),
+            gateway_worker: Some("gw worker code".to_string()),
+        };
+        let json = serde_json::to_string(&code).unwrap();
+        assert!(
+            json.contains("gateway"),
+            "Some gateway fields should be included in JSON serialization"
+        );
+        assert!(
+            json.contains("gateway_worker"),
+            "Some gateway_worker fields should be included in JSON serialization"
         );
     }
 }
