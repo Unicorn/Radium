@@ -5,6 +5,7 @@
 
 pub mod components;
 pub mod deploy;
+pub mod gateway;
 pub mod interfaces;
 pub mod projects;
 pub mod services;
@@ -131,6 +132,11 @@ pub fn router() -> Router<AppState> {
         .route(
             "/services/{id}/interfaces/{iid}/unpublish",
             post(interfaces::unpublish_interface),
+        )
+        // Gateway (public-facing, no auth -- Kong routes here)
+        .route(
+            "/gateway/{interface_id}",
+            post(gateway::handle_gateway_request),
         )
         // Deploy pipeline
         .route(
