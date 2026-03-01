@@ -11,22 +11,16 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 use crate::api::auth::{self, AuthenticatedUser};
 use crate::api::state::AppState;
-use crate::codegen;
+use crate::deploy_pipeline::{self, DeployFailureKind, SingleServiceResult, DEPLOYED_STATUS_ID};
 use crate::supabase::SupabaseError;
-use crate::validation;
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-
-/// Status ID for a deployed workflow.
-const DEPLOYED_STATUS_ID: &str = "00000000-0000-0000-0000-000000000003";
 
 /// Status ID for a draft workflow (used when undeploying).
 const DRAFT_STATUS_ID: &str = "00000000-0000-0000-0000-000000000001";
@@ -166,22 +160,6 @@ struct WorkflowRow {
     deployed_at: Option<String>,
 }
 
-/// Row to insert into `workflow_compiled_code`.
-#[derive(Debug, Serialize)]
-struct InsertCompiledCodeRow {
-    id: String,
-    workflow_id: String,
-    code: serde_json::Value,
-    compiled_at: String,
-}
-
-/// Row to update on the `workflows` table when deploying.
-#[derive(Debug, Serialize)]
-struct DeployUpdateRow {
-    status_id: String,
-    deployed_at: String,
-}
-
 /// Row to update on the `workflows` table when undeploying.
 #[derive(Debug, Serialize)]
 struct UndeployUpdateRow {
@@ -254,109 +232,32 @@ pub async fn deploy_workflow(
 ) -> Result<impl IntoResponse, DeployError> {
     let user = require_auth(&headers, &state).await?;
 
-    // 1. Load workflow from Supabase (scoped to user).
-    let user_filter = format!("eq.{}", user.user_id);
-    let workflow: WorkflowRow = state
-        .supabase
-        .select_one(
-            "workflows",
-            &[
-                ("id", &format!("eq.{id}")),
-                ("created_by", &user_filter),
-                ("select", "id,name,status_id,definition,deployed_at"),
-            ],
-        )
-        .await
-        .map_err(|e| match &e {
-            SupabaseError::NotFound { .. } => {
-                DeployError::not_found(format!("Workflow '{id}' not found"))
+    match deploy_pipeline::deploy_single_service(&state, &id, &user.user_id).await {
+        SingleServiceResult::Success {
+            service_id,
+            compiled_at,
+        } => Ok((
+            StatusCode::OK,
+            Json(DeployResponse {
+                workflow_id: service_id,
+                status: "deployed".to_string(),
+                compiled_at,
+                message: "Workflow compiled and deployed successfully".to_string(),
+            }),
+        )),
+        SingleServiceResult::Failure { kind, error, .. } => match kind {
+            DeployFailureKind::NotFound => {
+                Err(DeployError::not_found(format!("Workflow '{id}' not found")))
             }
-            _ => DeployError::from_supabase(e),
-        })?;
-
-    // 2. Parse the stored definition JSONB into a WorkflowDefinition.
-    let definition: crate::schema::WorkflowDefinition =
-        serde_json::from_value(workflow.definition).map_err(|e| {
-            DeployError::internal(format!("Failed to parse stored workflow definition: {e}"))
-        })?;
-
-    // 3. Validate.
-    let validation_result = validation::validate(&definition);
-    if !validation_result.is_valid() {
-        let details: Vec<String> = validation_result
-            .errors
-            .iter()
-            .map(|e| e.to_string())
-            .collect();
-        return Err(DeployError::validation_failed(
-            "Workflow validation failed",
-            details,
-        ));
+            DeployFailureKind::ValidationFailed(details) => {
+                Err(DeployError::validation_failed(
+                    "Workflow validation failed",
+                    details,
+                ))
+            }
+            _ => Err(DeployError::internal(error)),
+        },
     }
-
-    // 4. Compile via codegen.
-    let generated = codegen::generate(&definition).map_err(|e| {
-        DeployError::internal(format!("Code generation failed: {e}"))
-    })?;
-
-    // 5. Serialize the generated code as a JSON blob for storage.
-    let code_json = serde_json::to_value(&generated).map_err(|e| {
-        DeployError::internal(format!("Failed to serialize generated code: {e}"))
-    })?;
-
-    let now = Utc::now().to_rfc3339();
-
-    // 6. Insert compiled code into `workflow_compiled_code`.
-    let compiled_row = InsertCompiledCodeRow {
-        id: Uuid::new_v4().to_string(),
-        workflow_id: id.clone(),
-        code: code_json,
-        compiled_at: now.clone(),
-    };
-
-    let _inserted: serde_json::Value = state
-        .supabase
-        .insert("workflow_compiled_code", &compiled_row)
-        .await
-        .map_err(DeployError::from_supabase)?;
-
-    // 7. Update workflow status to deployed.
-    let update_body = DeployUpdateRow {
-        status_id: DEPLOYED_STATUS_ID.to_string(),
-        deployed_at: now.clone(),
-    };
-
-    let _updated: Vec<serde_json::Value> = state
-        .supabase
-        .update(
-            "workflows",
-            &[("id", &format!("eq.{id}")), ("created_by", &user_filter)],
-            &update_body,
-        )
-        .await
-        .map_err(DeployError::from_supabase)?;
-
-    // Fire-and-forget: record deploy telemetry in discovery service
-    if let Some(ref discovery) = state.discovery {
-        let discovery = discovery.clone();
-        let workflow_id = id.clone();
-        let deploy_user_id = user.user_id.clone();
-        tokio::spawn(async move {
-            discovery
-                .telemetry(&workflow_id, "deploy", &deploy_user_id, &[])
-                .await;
-        });
-    }
-
-    Ok((
-        StatusCode::OK,
-        Json(DeployResponse {
-            workflow_id: id,
-            status: "deployed".to_string(),
-            compiled_at: now,
-            message: "Workflow compiled and deployed successfully".to_string(),
-        }),
-    ))
 }
 
 /// `POST /v1/services/:id/undeploy` -- Revert a workflow to draft status.

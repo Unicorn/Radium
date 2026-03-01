@@ -11,6 +11,7 @@
 pub mod api;
 pub mod change_detection;
 pub mod codegen;
+pub mod deploy_pipeline;
 pub mod types;
 pub mod discovery;
 pub mod errors;

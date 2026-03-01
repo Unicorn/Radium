@@ -8,6 +8,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod api;
 mod codegen;
+mod deploy_pipeline;
 mod discovery;
 mod schema;
 mod security;
