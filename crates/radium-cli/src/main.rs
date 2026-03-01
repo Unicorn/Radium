@@ -102,8 +102,8 @@ async fn main() {
 mod tests {
     use super::*;
     use clap::Parser;
-    use commands::projects::ProjectAction;
-    use commands::services::{InterfaceAction, ServiceAction};
+    use commands::projects::{ProjectAction, ProjectVariableAction};
+    use commands::services::{InterfaceAction, ServiceAction, VariableAction};
 
     // -----------------------------------------------------------------------
     // Existing command tests (Login, Components, Discover, Migrate)
@@ -725,6 +725,287 @@ mod tests {
             assert_eq!(description.as_deref(), Some("New desc"));
         } else {
             panic!("Expected Project Update");
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Service variable command tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_parse_service_variable_list() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "service",
+            "variable",
+            "list",
+            "svc-1",
+        ])
+        .unwrap();
+        if let Commands::Service {
+            action: ServiceAction::Variable { action: VariableAction::List { service_id } },
+        } = &cli.command
+        {
+            assert_eq!(service_id, "svc-1");
+        } else {
+            panic!("Expected Service Variable List");
+        }
+    }
+
+    #[test]
+    fn test_parse_service_variable_create() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "service",
+            "variable",
+            "create",
+            "svc-1",
+            "vars.json",
+        ])
+        .unwrap();
+        if let Commands::Service {
+            action:
+                ServiceAction::Variable {
+                    action: VariableAction::Create { service_id, file },
+                },
+        } = &cli.command
+        {
+            assert_eq!(service_id, "svc-1");
+            assert_eq!(file, "vars.json");
+        } else {
+            panic!("Expected Service Variable Create");
+        }
+    }
+
+    #[test]
+    fn test_parse_service_variable_show() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "service",
+            "variable",
+            "show",
+            "svc-1",
+            "var-1",
+        ])
+        .unwrap();
+        if let Commands::Service {
+            action:
+                ServiceAction::Variable {
+                    action:
+                        VariableAction::Show {
+                            service_id,
+                            variable_id,
+                        },
+                },
+        } = &cli.command
+        {
+            assert_eq!(service_id, "svc-1");
+            assert_eq!(variable_id, "var-1");
+        } else {
+            panic!("Expected Service Variable Show");
+        }
+    }
+
+    #[test]
+    fn test_parse_service_variable_update() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "service",
+            "variable",
+            "update",
+            "svc-1",
+            "var-1",
+            "vars.json",
+        ])
+        .unwrap();
+        if let Commands::Service {
+            action:
+                ServiceAction::Variable {
+                    action:
+                        VariableAction::Update {
+                            service_id,
+                            variable_id,
+                            file,
+                        },
+                },
+        } = &cli.command
+        {
+            assert_eq!(service_id, "svc-1");
+            assert_eq!(variable_id, "var-1");
+            assert_eq!(file, "vars.json");
+        } else {
+            panic!("Expected Service Variable Update");
+        }
+    }
+
+    #[test]
+    fn test_parse_service_variable_delete() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "service",
+            "variable",
+            "delete",
+            "svc-1",
+            "var-1",
+        ])
+        .unwrap();
+        if let Commands::Service {
+            action:
+                ServiceAction::Variable {
+                    action:
+                        VariableAction::Delete {
+                            service_id,
+                            variable_id,
+                        },
+                },
+        } = &cli.command
+        {
+            assert_eq!(service_id, "svc-1");
+            assert_eq!(variable_id, "var-1");
+        } else {
+            panic!("Expected Service Variable Delete");
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Project variable command tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_parse_project_variable_list() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "project",
+            "variable",
+            "list",
+            "proj-1",
+        ])
+        .unwrap();
+        if let Commands::Project {
+            action:
+                ProjectAction::Variable {
+                    action: ProjectVariableAction::List { project_id },
+                },
+        } = &cli.command
+        {
+            assert_eq!(project_id, "proj-1");
+        } else {
+            panic!("Expected Project Variable List");
+        }
+    }
+
+    #[test]
+    fn test_parse_project_variable_create() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "project",
+            "variable",
+            "create",
+            "proj-1",
+            "vars.json",
+        ])
+        .unwrap();
+        if let Commands::Project {
+            action:
+                ProjectAction::Variable {
+                    action: ProjectVariableAction::Create { project_id, file },
+                },
+        } = &cli.command
+        {
+            assert_eq!(project_id, "proj-1");
+            assert_eq!(file, "vars.json");
+        } else {
+            panic!("Expected Project Variable Create");
+        }
+    }
+
+    #[test]
+    fn test_parse_project_variable_show() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "project",
+            "variable",
+            "show",
+            "proj-1",
+            "var-1",
+        ])
+        .unwrap();
+        if let Commands::Project {
+            action:
+                ProjectAction::Variable {
+                    action:
+                        ProjectVariableAction::Show {
+                            project_id,
+                            variable_id,
+                        },
+                },
+        } = &cli.command
+        {
+            assert_eq!(project_id, "proj-1");
+            assert_eq!(variable_id, "var-1");
+        } else {
+            panic!("Expected Project Variable Show");
+        }
+    }
+
+    #[test]
+    fn test_parse_project_variable_update() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "project",
+            "variable",
+            "update",
+            "proj-1",
+            "var-1",
+            "vars.json",
+        ])
+        .unwrap();
+        if let Commands::Project {
+            action:
+                ProjectAction::Variable {
+                    action:
+                        ProjectVariableAction::Update {
+                            project_id,
+                            variable_id,
+                            file,
+                        },
+                },
+        } = &cli.command
+        {
+            assert_eq!(project_id, "proj-1");
+            assert_eq!(variable_id, "var-1");
+            assert_eq!(file, "vars.json");
+        } else {
+            panic!("Expected Project Variable Update");
+        }
+    }
+
+    #[test]
+    fn test_parse_project_variable_delete() {
+        let cli = Cli::try_parse_from([
+            "radium-workflow",
+            "project",
+            "variable",
+            "delete",
+            "proj-1",
+            "var-1",
+        ])
+        .unwrap();
+        if let Commands::Project {
+            action:
+                ProjectAction::Variable {
+                    action:
+                        ProjectVariableAction::Delete {
+                            project_id,
+                            variable_id,
+                        },
+                },
+        } = &cli.command
+        {
+            assert_eq!(project_id, "proj-1");
+            assert_eq!(variable_id, "var-1");
+        } else {
+            panic!("Expected Project Variable Delete");
         }
     }
 }

@@ -86,6 +86,11 @@ pub enum ServiceAction {
         #[command(subcommand)]
         action: InterfaceAction,
     },
+    /// Manage service state variables
+    Variable {
+        #[command(subcommand)]
+        action: VariableAction,
+    },
 }
 
 #[derive(Subcommand, Clone)]
@@ -122,6 +127,45 @@ pub enum InterfaceAction {
         service_id: String,
         /// Interface ID
         interface_id: String,
+    },
+}
+
+#[derive(Subcommand, Clone)]
+pub enum VariableAction {
+    /// List state variables for a service
+    List {
+        /// Service ID
+        service_id: String,
+    },
+    /// Create a state variable from a JSON file
+    Create {
+        /// Service ID
+        service_id: String,
+        /// Path to variable definition file (JSON)
+        file: String,
+    },
+    /// Show a specific state variable
+    Show {
+        /// Service ID
+        service_id: String,
+        /// Variable ID
+        variable_id: String,
+    },
+    /// Update a state variable from a JSON file
+    Update {
+        /// Service ID
+        service_id: String,
+        /// Variable ID
+        variable_id: String,
+        /// Path to variable definition file (JSON)
+        file: String,
+    },
+    /// Delete a state variable
+    Delete {
+        /// Service ID
+        service_id: String,
+        /// Variable ID
+        variable_id: String,
     },
 }
 
@@ -186,6 +230,7 @@ pub async fn run(
             project,
         } => import(profile, catalog_id, project).await,
         ServiceAction::Interface { action } => run_interface(profile, action).await,
+        ServiceAction::Variable { action } => run_variable(profile, action).await,
     }
 }
 
@@ -451,6 +496,116 @@ async fn interface_delete(
     let result = serde_json::json!({
         "status": "ok",
         "message": format!("Interface '{interface_id}' deleted from service '{service_id}'."),
+    });
+    Ok(serde_json::to_string_pretty(&result)?)
+}
+
+// ---------------------------------------------------------------------------
+// Variable handlers
+// ---------------------------------------------------------------------------
+
+/// Dispatch a variable action to the appropriate handler.
+async fn run_variable(
+    profile: &str,
+    action: &VariableAction,
+) -> Result<String, Box<dyn std::error::Error>> {
+    match action {
+        VariableAction::List { service_id } => variable_list(profile, service_id).await,
+        VariableAction::Create { service_id, file } => {
+            variable_create(profile, service_id, file).await
+        }
+        VariableAction::Show {
+            service_id,
+            variable_id,
+        } => variable_show(profile, service_id, variable_id).await,
+        VariableAction::Update {
+            service_id,
+            variable_id,
+            file,
+        } => variable_update(profile, service_id, variable_id, file).await,
+        VariableAction::Delete {
+            service_id,
+            variable_id,
+        } => variable_delete(profile, service_id, variable_id).await,
+    }
+}
+
+async fn variable_list(
+    profile: &str,
+    service_id: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let client = load_client(profile)?;
+    let result: serde_json::Value = client
+        .get(&format!("/v1/services/{service_id}/variables"))
+        .await?;
+    Ok(serde_json::to_string_pretty(&result)?)
+}
+
+async fn variable_create(
+    profile: &str,
+    service_id: &str,
+    file: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let client = load_client(profile)?;
+    let content = fs::read_to_string(file)?;
+    let body: serde_json::Value = serde_json::from_str(&content)?;
+    let result: serde_json::Value = client
+        .post(
+            &format!("/v1/services/{service_id}/variables"),
+            &body,
+            "application/json",
+        )
+        .await?;
+    Ok(serde_json::to_string_pretty(&result)?)
+}
+
+async fn variable_show(
+    profile: &str,
+    service_id: &str,
+    variable_id: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let client = load_client(profile)?;
+    let result: serde_json::Value = client
+        .get(&format!(
+            "/v1/services/{service_id}/variables/{variable_id}"
+        ))
+        .await?;
+    Ok(serde_json::to_string_pretty(&result)?)
+}
+
+async fn variable_update(
+    profile: &str,
+    service_id: &str,
+    variable_id: &str,
+    file: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let client = load_client(profile)?;
+    let content = fs::read_to_string(file)?;
+    let body: serde_json::Value = serde_json::from_str(&content)?;
+    let result: serde_json::Value = client
+        .put(
+            &format!("/v1/services/{service_id}/variables/{variable_id}"),
+            &body,
+            "application/json",
+        )
+        .await?;
+    Ok(serde_json::to_string_pretty(&result)?)
+}
+
+async fn variable_delete(
+    profile: &str,
+    service_id: &str,
+    variable_id: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let client = load_client(profile)?;
+    client
+        .delete_request(&format!(
+            "/v1/services/{service_id}/variables/{variable_id}"
+        ))
+        .await?;
+    let result = serde_json::json!({
+        "status": "ok",
+        "message": format!("Variable '{variable_id}' deleted from service '{service_id}'."),
     });
     Ok(serde_json::to_string_pretty(&result)?)
 }
