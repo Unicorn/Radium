@@ -117,11 +117,47 @@ services:
       - "9000:9000"
       - "2500:2500"
 
+  # ---------- Kong Database ----------
+  kong-database:
+    image: postgres:15
+    container_name: radium-kong-database
+    environment:
+      POSTGRES_USER: kong
+      POSTGRES_PASSWORD: kong
+      POSTGRES_DB: kong
+    volumes:
+      - kong_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kong"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ---------- Kong Migration ----------
+  kong-migration:
+    image: kong:3.8
+    container_name: radium-kong-migration
+    depends_on:
+      kong-database:
+        condition: service_healthy
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: kong-database
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong
+    command: kong migrations bootstrap
+    restart: "no"
+
   # ---------- Kong API Gateway ----------
   kong:
     image: kong:3.8
     container_name: radium-kong
     depends_on:
+      kong-database:
+        condition: service_healthy
+      kong-migration:
+        condition: service_completed_successfully
       auth:
         condition: service_healthy
       rest:
@@ -136,16 +172,16 @@ services:
       - "8000:8000"
       - "8001:8001"
     environment:
-      KONG_DATABASE: "off"
-      KONG_DECLARATIVE_CONFIG: /var/lib/kong/kong.yml
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: kong-database
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong
       KONG_DNS_ORDER: LAST,A,CNAME
       KONG_PLUGINS: bundled
       KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
       KONG_NGINX_PROXY_PROXY_BUFFERS: 64 160k
       KONG_ADMIN_LISTEN: 0.0.0.0:8001
       KONG_PROXY_LISTEN: 0.0.0.0:8000
-    volumes:
-      - ./apps/workflow-builder/supabase/volumes/api/kong.yml:/var/lib/kong/kong.yml:ro
 
   # ---------- Temporal (workflow execution) ----------
   temporal:
@@ -228,6 +264,7 @@ services:
 volumes:
   db-data:
   neo4j-data:
+  kong_data:
 
 networks:
   default:
