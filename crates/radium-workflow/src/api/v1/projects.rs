@@ -14,6 +14,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::api::auth::{self, AuthenticatedUser};
 use crate::api::state::AppState;
+use crate::deploy_pipeline::{
+    deploy_single_service, DeployReport, DeployedService, FailedService, SingleServiceResult,
+    SkippedService,
+};
 use crate::supabase::SupabaseError;
 
 // ---------------------------------------------------------------------------
@@ -59,25 +63,6 @@ pub struct ProjectSummary {
 pub struct ProjectListResponse {
     pub projects: Vec<ProjectSummary>,
     pub total: usize,
-}
-
-/// Response returned after deploying all services in a project.
-#[derive(Debug, Serialize)]
-pub struct ProjectDeployResponse {
-    pub project_id: String,
-    pub services_deployed: usize,
-    pub services_failed: usize,
-    pub results: Vec<ServiceDeployResult>,
-}
-
-/// Result of deploying a single service within a project deploy operation.
-#[derive(Debug, Serialize)]
-pub struct ServiceDeployResult {
-    pub service_id: String,
-    pub service_name: String,
-    pub status: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<String>,
 }
 
 /// Aggregated deployment status for a project.
@@ -247,12 +232,6 @@ struct UpdateProjectRow {
     name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
-}
-
-/// Body sent to Supabase to update a workflow's status_id.
-#[derive(Debug, Serialize)]
-struct UpdateStatusRow {
-    status_id: String,
 }
 
 /// Minimal response shape from task_queues insert (we only need to confirm it worked).
@@ -502,8 +481,9 @@ pub async fn delete_project(
 
 /// `POST /v1/projects/:id/deploy` -- Deploy all services in a project.
 ///
-/// Updates the `status_id` of every workflow in the project to `DEPLOYED`.
-// TODO: invoke full deploy pipeline (validation + codegen) per service
+/// Runs the full deploy pipeline (validate -> codegen -> store -> update status)
+/// for each service in the project sequentially. Fail-fast: on first failure,
+/// remaining services are marked as skipped and a partial report is returned.
 pub async fn deploy_project(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -548,59 +528,60 @@ pub async fn deploy_project(
         .await
         .map_err(|e| ProjectError::from_supabase(&e))?;
 
-    let mut results = Vec::with_capacity(services.len());
-    let mut deployed_count: usize = 0;
-    let mut failed_count: usize = 0;
+    if services.is_empty() {
+        return Err(ProjectError::bad_request(
+            "Project has no services to deploy",
+        ));
+    }
 
-    for svc in &services {
-        let update_body = UpdateStatusRow {
-            status_id: DEPLOYED_STATUS_ID.to_string(),
-        };
+    let mut deployed: Vec<DeployedService> = Vec::new();
+    let mut failed: Option<FailedService> = None;
+    let mut skipped: Vec<SkippedService> = Vec::new();
 
-        let update_result: Result<Vec<serde_json::Value>, _> = state
-            .supabase
-            .update(
-                "workflows",
-                &[
-                    ("id", &format!("eq.{}", svc.id)),
-                    ("created_by", &user_filter),
-                ],
-                &update_body,
-            )
-            .await;
+    for (i, svc) in services.iter().enumerate() {
+        let result = deploy_single_service(&state, &svc.id, &user.user_id).await;
 
-        match update_result {
-            Ok(_) => {
-                deployed_count += 1;
-                results.push(ServiceDeployResult {
-                    service_id: svc.id.clone(),
-                    service_name: svc.name.clone(),
-                    status: "deployed".to_string(),
-                    error: None,
+        match result {
+            SingleServiceResult::Success {
+                service_id,
+                compiled_at,
+            } => {
+                deployed.push(DeployedService {
+                    service_id,
+                    compiled_at,
                 });
             }
-            Err(e) => {
-                tracing::error!("Failed to deploy service '{}': {e}", svc.id);
-                failed_count += 1;
-                results.push(ServiceDeployResult {
-                    service_id: svc.id.clone(),
-                    service_name: svc.name.clone(),
-                    status: "failed".to_string(),
-                    error: Some(format!("Failed to update status: {e}")),
+            SingleServiceResult::Failure {
+                service_id, error, ..
+            } => {
+                tracing::error!(
+                    "Project deploy failed at service '{}': {error}",
+                    svc.id
+                );
+                failed = Some(FailedService {
+                    service_id,
+                    error,
                 });
+                // Mark remaining services as skipped.
+                for remaining in &services[i + 1..] {
+                    skipped.push(SkippedService {
+                        service_id: remaining.id.clone(),
+                        reason: "Skipped due to earlier failure".to_string(),
+                    });
+                }
+                break;
             }
         }
     }
 
-    Ok((
-        StatusCode::OK,
-        Json(ProjectDeployResponse {
-            project_id: id,
-            services_deployed: deployed_count,
-            services_failed: failed_count,
-            results,
-        }),
-    ))
+    let report = DeployReport {
+        project_id: id,
+        deployed,
+        failed,
+        skipped,
+    };
+
+    Ok((StatusCode::OK, Json(report)))
 }
 
 /// `GET /v1/projects/:id/status` -- Aggregated deployment status for a project.
@@ -921,71 +902,64 @@ mod tests {
     // -----------------------------------------------------------------------
 
     #[test]
-    fn test_project_deploy_response_serialization() {
-        let response = ProjectDeployResponse {
+    fn test_project_deploy_report_serialization() {
+        use crate::deploy_pipeline::{DeployReport, DeployedService, FailedService, SkippedService};
+
+        let report = DeployReport {
             project_id: "proj-1".to_string(),
-            services_deployed: 2,
-            services_failed: 1,
-            results: vec![
-                ServiceDeployResult {
+            deployed: vec![
+                DeployedService {
                     service_id: "svc-1".to_string(),
-                    service_name: "Service One".to_string(),
-                    status: "deployed".to_string(),
-                    error: None,
+                    compiled_at: "2026-03-01T12:00:00Z".to_string(),
                 },
-                ServiceDeployResult {
+                DeployedService {
                     service_id: "svc-2".to_string(),
-                    service_name: "Service Two".to_string(),
-                    status: "deployed".to_string(),
-                    error: None,
-                },
-                ServiceDeployResult {
-                    service_id: "svc-3".to_string(),
-                    service_name: "Service Three".to_string(),
-                    status: "failed".to_string(),
-                    error: Some("Database error".to_string()),
+                    compiled_at: "2026-03-01T12:00:01Z".to_string(),
                 },
             ],
+            failed: Some(FailedService {
+                service_id: "svc-3".to_string(),
+                error: "Validation failed".to_string(),
+            }),
+            skipped: vec![SkippedService {
+                service_id: "svc-4".to_string(),
+                reason: "Skipped due to earlier failure".to_string(),
+            }],
         };
 
-        let json = serde_json::to_value(&response).unwrap();
+        let json = serde_json::to_value(&report).unwrap();
         assert_eq!(json["project_id"], "proj-1");
-        assert_eq!(json["services_deployed"], 2);
-        assert_eq!(json["services_failed"], 1);
-        assert_eq!(json["results"].as_array().unwrap().len(), 3);
-        assert_eq!(json["results"][0]["status"], "deployed");
-        // Successful result should omit error field
-        assert!(json["results"][0].get("error").is_none());
-        // Failed result should include error
-        assert_eq!(json["results"][2]["status"], "failed");
-        assert_eq!(json["results"][2]["error"], "Database error");
+        assert_eq!(json["deployed"].as_array().unwrap().len(), 2);
+        assert_eq!(json["deployed"][0]["service_id"], "svc-1");
+        assert_eq!(json["deployed"][0]["compiled_at"], "2026-03-01T12:00:00Z");
+        assert_eq!(json["deployed"][1]["service_id"], "svc-2");
+        assert_eq!(json["failed"]["service_id"], "svc-3");
+        assert_eq!(json["failed"]["error"], "Validation failed");
+        assert_eq!(json["skipped"].as_array().unwrap().len(), 1);
+        assert_eq!(json["skipped"][0]["service_id"], "svc-4");
+        assert_eq!(json["skipped"][0]["reason"], "Skipped due to earlier failure");
     }
 
     #[test]
-    fn test_service_deploy_result_serialization() {
-        // Successful result omits error
-        let success = ServiceDeployResult {
-            service_id: "svc-ok".to_string(),
-            service_name: "Good Service".to_string(),
-            status: "deployed".to_string(),
-            error: None,
-        };
-        let json = serde_json::to_value(&success).unwrap();
-        assert_eq!(json["service_id"], "svc-ok");
-        assert_eq!(json["service_name"], "Good Service");
-        assert_eq!(json["status"], "deployed");
-        assert!(json.get("error").is_none(), "error should be omitted when None");
+    fn test_project_deploy_report_all_success() {
+        use crate::deploy_pipeline::{DeployReport, DeployedService};
 
-        // Failed result includes error
-        let failure = ServiceDeployResult {
-            service_id: "svc-bad".to_string(),
-            service_name: "Bad Service".to_string(),
-            status: "failed".to_string(),
-            error: Some("update failed".to_string()),
+        let report = DeployReport {
+            project_id: "proj-2".to_string(),
+            deployed: vec![DeployedService {
+                service_id: "svc-a".to_string(),
+                compiled_at: "2026-03-01T12:00:00Z".to_string(),
+            }],
+            failed: None,
+            skipped: vec![],
         };
-        let json = serde_json::to_value(&failure).unwrap();
-        assert_eq!(json["status"], "failed");
-        assert_eq!(json["error"], "update failed");
+
+        let json = serde_json::to_value(&report).unwrap();
+        assert_eq!(json["project_id"], "proj-2");
+        assert_eq!(json["deployed"].as_array().unwrap().len(), 1);
+        // `failed` should be absent from JSON thanks to skip_serializing_if
+        assert!(json.get("failed").is_none());
+        assert_eq!(json["skipped"].as_array().unwrap().len(), 0);
     }
 
     #[test]
