@@ -11,6 +11,7 @@ mod codegen;
 mod deploy_pipeline;
 mod discovery;
 mod kong_client;
+mod monitoring;
 mod schema;
 mod security;
 mod supabase;
@@ -21,6 +22,7 @@ mod versioning;
 mod yaml_format;
 
 use api::state::AppState;
+use monitoring::MetricsRegistry;
 use security::{RateLimitConfig, SlidingWindowLimiter};
 use kong_client::{KongClient, KongConfig};
 use supabase::{SupabaseClient, SupabaseConfig};
@@ -28,14 +30,40 @@ use temporal_client::{TemporalClient, TemporalConfig};
 
 #[tokio::main]
 async fn main() {
-    // Initialize tracing
-    tracing_subscriber::registry()
+    // Initialize tracing — optionally add an OTLP exporter when
+    // OTEL_EXPORTER_OTLP_ENDPOINT is set (e.g. pointing at Jaeger).
+    let registry = tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| "workflow_compiler=debug,tower_http=debug".into()),
         )
-        .with(tracing_subscriber::fmt::layer())
-        .init();
+        .with(tracing_subscriber::fmt::layer());
+
+    if let Ok(otlp_endpoint) = std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT") {
+        use opentelemetry_otlp::WithExportConfig;
+
+        let otlp_exporter = opentelemetry_otlp::new_exporter()
+            .tonic()
+            .with_endpoint(&otlp_endpoint);
+
+        let tracer = opentelemetry_otlp::new_pipeline()
+            .tracing()
+            .with_exporter(otlp_exporter)
+            .with_trace_config(
+                opentelemetry_sdk::trace::config()
+                    .with_resource(opentelemetry_sdk::Resource::new(vec![
+                        opentelemetry::KeyValue::new("service.name", "radium-workflow"),
+                    ])),
+            )
+            .install_batch(opentelemetry_sdk::runtime::Tokio)
+            .expect("failed to install OTLP tracer");
+
+        let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
+        registry.with(otel_layer).init();
+        tracing::info!(endpoint = %otlp_endpoint, "OTLP tracing enabled");
+    } else {
+        registry.init();
+    }
 
     // Attempt to build Supabase configuration from environment variables.
     // If the vars are missing the core endpoints (/compile, /validate, /health)
@@ -83,8 +111,9 @@ async fn main() {
         }
     };
 
-    // Build the router
-    let app = api::router(app_state);
+    // Build the metrics registry and router
+    let metrics = Arc::new(MetricsRegistry::new());
+    let app = api::router(app_state, metrics);
 
     // Get port from environment or default to 3020
     let port: u16 = std::env::var("PORT")

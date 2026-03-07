@@ -13,7 +13,7 @@ path = "src/main.rs"
 
 [dependencies]
 # Web framework
-axum = "0.7"
+axum = { version = "0.7", features = ["matched-path"] }
 tokio = { workspace = true }
 tower = { workspace = true }
 tower-http = { version = "0.5", features = ["cors", "trace", "timeout", "request-id", "limit"] }
@@ -33,9 +33,13 @@ handlebars = "5"
 thiserror = { workspace = true }
 anyhow = { workspace = true }
 
-# Logging
+# Logging & Observability
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+opentelemetry = "0.22"
+opentelemetry_sdk = { version = "0.22", features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.15", features = ["tonic"] }
+tracing-opentelemetry = "0.23"
 
 # Async utilities
 futures = "0.3"

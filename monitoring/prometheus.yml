@@ -1,0 +1,12 @@
+# Prometheus scrape configuration for Radium local development.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "radium-workflow"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["radium-workflow:3000"]
+        labels:
+          service: radium-workflow
