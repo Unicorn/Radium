@@ -10,7 +10,7 @@
         "{options.target-dir}"
       ],
       "options": {
-        "target-dir": "dist/target/agent-orchestrator"
+        "target-dir": "dist/target"
       }
     },
     "test": {
@@ -20,7 +20,7 @@
         "{options.target-dir}"
       ],
       "options": {
-        "target-dir": "dist/target/agent-orchestrator"
+        "target-dir": "dist/target"
       },
       "configurations": {
         "production": {
@@ -35,7 +35,7 @@
         "{options.target-dir}"
       ],
       "options": {
-        "target-dir": "dist/target/agent-orchestrator"
+        "target-dir": "dist/target"
       }
     }
   },

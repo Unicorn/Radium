@@ -11,7 +11,7 @@
         "{options.target-dir}"
       ],
       "options": {
-        "target-dir": "dist/target/radium-cli"
+        "target-dir": "dist/target"
       },
       "configurations": {
         "production": {
@@ -26,7 +26,7 @@
         "{options.target-dir}"
       ],
       "options": {
-        "target-dir": "dist/target/radium-cli"
+        "target-dir": "dist/target"
       },
       "configurations": {
         "production": {
@@ -41,7 +41,7 @@
         "{options.target-dir}"
       ],
       "options": {
-        "target-dir": "dist/target/radium-cli"
+        "target-dir": "dist/target"
       }
     },
     "run": {
@@ -50,7 +50,7 @@
         "{options.target-dir}"
       ],
       "options": {
-        "target-dir": "dist/target/radium-cli"
+        "target-dir": "dist/target"
       },
       "configurations": {
         "production": {
