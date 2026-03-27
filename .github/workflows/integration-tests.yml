@@ -1,0 +1,100 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'crates/radium-workflow/**'
+      - '.github/workflows/integration-tests.yml'
+      - 'docker-compose.yml'
+      - 'docker-compose.ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'crates/radium-workflow/**'
+      - '.github/workflows/integration-tests.yml'
+      - 'docker-compose.yml'
+      - 'docker-compose.ci.yml'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-integration-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-integration-
+
+      - name: Start infrastructure services
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d db auth rest kong-database kong-migration kong temporal
+
+      - name: Wait for services to be healthy
+        run: |
+          echo "Waiting for services to become healthy..."
+          timeout=300
+          elapsed=0
+          interval=5
+
+          while [ $elapsed -lt $timeout ]; do
+            # Check each critical service
+            db_healthy=$(docker inspect --format='{{.State.Health.Status}}' radium-db 2>/dev/null || echo "missing")
+            auth_healthy=$(docker inspect --format='{{.State.Health.Status}}' radium-auth 2>/dev/null || echo "missing")
+            kong_healthy=$(docker inspect --format='{{.State.Health.Status}}' radium-kong 2>/dev/null || echo "missing")
+            temporal_healthy=$(docker inspect --format='{{.State.Health.Status}}' radium-temporal 2>/dev/null || echo "missing")
+
+            echo "  db=$db_healthy auth=$auth_healthy kong=$kong_healthy temporal=$temporal_healthy (${elapsed}s)"
+
+            if [ "$db_healthy" = "healthy" ] && \
+               [ "$auth_healthy" = "healthy" ] && \
+               [ "$kong_healthy" = "healthy" ] && \
+               [ "$temporal_healthy" = "healthy" ]; then
+              echo "All services healthy after ${elapsed}s"
+              break
+            fi
+
+            sleep $interval
+            elapsed=$((elapsed + interval))
+          done
+
+          if [ $elapsed -ge $timeout ]; then
+            echo "ERROR: Services did not become healthy within ${timeout}s"
+            docker compose -f docker-compose.yml -f docker-compose.ci.yml ps -a
+            docker compose -f docker-compose.yml -f docker-compose.ci.yml logs --tail=50
+            exit 1
+          fi
+
+      - name: Verify PostgREST is reachable
+        run: |
+          curl --retry 5 --retry-delay 3 --retry-connrefused -sf http://localhost:3000/ > /dev/null
+          echo "PostgREST is reachable on port 3000"
+
+      - name: Run integration tests
+        env:
+          SUPABASE_URL: http://localhost:3000
+          SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
+        run: cargo test --package radium-workflow -- --ignored
+
+      - name: Stop services
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml down -v

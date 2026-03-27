@@ -1,0 +1,20 @@
+# docker-compose.ci.yml — CI override for integration tests
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d
+#
+# Adds port mappings for services that the integration test runner
+# connects to from the host (the CI runner). Does NOT start the Rust
+# services — those are compiled and run directly on the runner.
+
+services:
+  # Expose PostgREST so the test runner can reach it as SUPABASE_URL
+  rest:
+    ports:
+      - "3000:3000"
+
+  # The auth service already exposes no host port in the base compose;
+  # map it so the test runner can reach GoTrue if needed.
+  auth:
+    ports:
+      - "9999:9999"
