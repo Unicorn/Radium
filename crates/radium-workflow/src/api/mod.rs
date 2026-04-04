@@ -10,22 +10,26 @@
 pub mod auth;
 mod errors;
 mod handlers;
+pub mod metrics_middleware;
 mod middleware;
 pub mod state;
 pub mod v1;
 
+use std::sync::Arc;
+use std::time::Duration;
+
 use axum::{
     extract::DefaultBodyLimit,
     routing::{get, post},
-    Router,
+    Extension, Router,
 };
-use std::time::Duration;
 use tower_http::{
     cors::CorsLayer,
     timeout::TimeoutLayer,
     trace::TraceLayer,
 };
 
+use crate::monitoring::MetricsRegistry;
 use state::AppState;
 
 pub use handlers::{CompileRequest, CompileResponse, ValidateResponse};
@@ -39,7 +43,10 @@ const MAX_BODY_SIZE: usize = 1_048_576;
 /// connection) are mounted under `/v1`. When it is `None` (e.g. because
 /// Supabase env vars are not configured), only the core compilation and
 /// health endpoints are available.
-pub fn router(app_state: Option<AppState>) -> Router {
+///
+/// The `metrics` parameter provides a shared metrics registry for the
+/// `/metrics` endpoint and the request metrics middleware.
+pub fn router(app_state: Option<AppState>, metrics: Arc<MetricsRegistry>) -> Router {
     // Restrict CORS to the methods and headers actually used by clients.
     let cors = CorsLayer::new()
         .allow_methods([
@@ -61,14 +68,17 @@ pub fn router(app_state: Option<AppState>) -> Router {
     let mut app = Router::new()
         .route("/compile", post(handlers::compile))
         .route("/validate", post(handlers::validate))
-        .route("/health", get(handlers::health));
+        .route("/health", get(handlers::health))
+        .route("/metrics", get(handlers::metrics));
 
     if let Some(state) = app_state {
         let v1 = v1::router().with_state(state);
         app = app.nest("/v1", v1);
     }
 
-    app.layer(DefaultBodyLimit::max(MAX_BODY_SIZE))
+    app.layer(axum::middleware::from_fn(metrics_middleware::track_requests))
+        .layer(Extension(metrics))
+        .layer(DefaultBodyLimit::max(MAX_BODY_SIZE))
         .layer(cors)
         .layer(timeout)
         .layer(TraceLayer::new_for_http())

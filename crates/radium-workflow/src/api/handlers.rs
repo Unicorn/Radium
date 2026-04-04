@@ -1,7 +1,12 @@
 //! API request handlers
 
-use axum::{http::StatusCode, Json};
+use std::sync::Arc;
+
+use axum::{http::StatusCode, Extension, Json};
+use axum::response::IntoResponse;
 use serde::{Deserialize, Serialize};
+
+use crate::monitoring::MetricsRegistry;
 
 use crate::codegen::{self, GeneratedCode};
 use crate::schema::WorkflowDefinition;
@@ -201,6 +206,21 @@ pub async fn health() -> Json<HealthResponse> {
     })
 }
 
+/// GET /metrics - Prometheus metrics endpoint
+pub async fn metrics(
+    Extension(registry): Extension<Arc<MetricsRegistry>>,
+) -> impl IntoResponse {
+    let body = registry.snapshot().to_prometheus();
+    (
+        StatusCode::OK,
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "text/plain; version=0.0.4; charset=utf-8",
+        )],
+        body,
+    )
+}
+
 /// Convert validation error to API error format
 fn convert_validation_error(error: &ValidationError) -> CompilerError {
     match error {
@@ -394,5 +414,39 @@ mod tests {
         let response = health().await;
         assert_eq!(response.status, "healthy");
         assert!(!response.version.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_metrics_endpoint_returns_prometheus_format() {
+        use axum::body::Body;
+        use axum::{routing::get, Extension, Router};
+        use crate::monitoring::MetricsRegistry;
+        use tower::ServiceExt;
+
+        let registry = Arc::new(MetricsRegistry::new());
+        // Seed a counter so we have something to verify
+        registry.counter("test_requests").inc();
+        registry.counter("test_requests").inc();
+
+        let app = Router::new()
+            .route("/metrics", get(metrics))
+            .layer(Extension(registry));
+
+        let req = axum::http::Request::builder()
+            .uri("/metrics")
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let content_type = resp.headers().get("content-type").unwrap().to_str().unwrap();
+        assert!(content_type.contains("text/plain"));
+        assert!(content_type.contains("version=0.0.4"));
+
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let text = std::str::from_utf8(&body).unwrap();
+        assert!(text.contains("# TYPE test_requests counter"));
+        assert!(text.contains("test_requests 2"));
     }
 }
